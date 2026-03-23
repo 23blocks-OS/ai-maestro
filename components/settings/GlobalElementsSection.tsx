@@ -33,11 +33,20 @@ interface ElementInfo {
   name: string
   sourcePlugin: string
   sourceMarketplace: string
+  description: string | null
+  type: string
+}
+
+interface FlatElement extends ElementInfo {
+  pluginEnabled: boolean
+  pluginVersion: string | null
+  pluginSourceUrl: string | null
 }
 
 interface PluginElements {
   pluginName: string
   marketplace: string
+  enabled: boolean
   version: string | null
   sourceUrl: string | null
   skills: ElementInfo[]
@@ -98,6 +107,11 @@ export default function GlobalElementsSection() {
   // Search states
   const [pluginSearch, setPluginSearch] = useState('')
   const [elementSearch, setElementSearch] = useState('')
+  const [elementTypeFilter, setElementTypeFilter] = useState<string>('all')
+  const [expandedElement, setExpandedElement] = useState<string | null>(null) // accordion for element cards
+
+  // Flat elements list from API
+  const [flatElements, setFlatElements] = useState<FlatElement[]>([])
 
   // Switch tab with scroll position save/restore
   const switchTab = useCallback((tab: 'plugins' | 'elements' | 'marketplaces') => {
@@ -175,6 +189,7 @@ export default function GlobalElementsSection() {
       if (!res.ok) return
       const data = await res.json()
       setPluginElements(data.plugins || [])
+      setFlatElements(data.elements || [])
       setElementTotals(data.totals || { skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcpServers: 0, lspServers: 0, outputStyles: 0 })
     } catch (err) { console.error('Error fetching elements:', err) }
     finally { setLoadingElements(false) }
@@ -285,6 +300,25 @@ export default function GlobalElementsSection() {
         return total > 0 || plugin.pluginName.toLowerCase().includes(q) || plugin.marketplace.toLowerCase().includes(q)
       })
   }, [pluginElements, elementSearch])
+
+  // Filtered flat elements for card view
+  const filteredFlatElements = useMemo(() => {
+    let items = flatElements
+    if (elementTypeFilter !== 'all') items = items.filter(e => e.type === elementTypeFilter)
+    if (elementSearch.trim()) {
+      const q = elementSearch.trim().toLowerCase()
+      items = items.filter(e =>
+        e.name.toLowerCase().includes(q) ||
+        (e.description || '').toLowerCase().includes(q) ||
+        e.sourcePlugin.toLowerCase().includes(q) ||
+        e.sourceMarketplace.toLowerCase().includes(q)
+      )
+    }
+    return items
+  }, [flatElements, elementTypeFilter, elementSearch])
+
+  // Type icon/color lookup
+  const typeInfo = (type: string) => ELEMENT_SECTIONS.find(s => s.key === type || s.key === type + 's' || s.key === type + 'Servers') || ELEMENT_SECTIONS[0]
 
   if (loading) {
     return (
@@ -515,30 +549,43 @@ export default function GlobalElementsSection() {
       </>)}
 
       {/* ================================================================= */}
-      {/* Elements tab */}
+      {/* Elements tab — flat alphabetical card list */}
       {/* ================================================================= */}
       {activeTab === 'elements' && (<>
 
       {/* Summary badges */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
+      <div className="flex flex-wrap gap-2 mb-3">
+        {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {
           const count = elementTotals[key] || 0
           if (count === 0) return null
           return (
-            <div key={key} className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-800/50 rounded-lg px-2.5 py-1.5">
-              <Icon className="w-3.5 h-3.5" />
+            <button
+              key={key}
+              onClick={() => setElementTypeFilter(elementTypeFilter === key ? 'all' : key)}
+              className={`flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 transition-all ${
+                elementTypeFilter === key
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                  : 'text-gray-400 bg-gray-800/50 hover:bg-gray-800/70 border border-transparent'
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 ${elementTypeFilter === key ? color : ''}`} />
               <span>{count} {label}</span>
-            </div>
+            </button>
           )
         })}
+        {elementTypeFilter !== 'all' && (
+          <button onClick={() => setElementTypeFilter('all')} className="text-[10px] text-gray-500 hover:text-gray-300 px-2 py-1">
+            Show all
+          </button>
+        )}
       </div>
 
-      {/* Search elements */}
+      {/* Search */}
       <div className="relative mb-4">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
         <input
           type="text"
-          placeholder="Filter elements by name, plugin, or marketplace..."
+          placeholder="Filter by name, description, plugin, or marketplace..."
           value={elementSearch}
           onChange={e => setElementSearch(e.target.value)}
           className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500"
@@ -550,68 +597,66 @@ export default function GlobalElementsSection() {
           <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
           <span className="text-sm text-gray-500">Loading elements...</span>
         </div>
-      ) : filteredElements.length === 0 ? (
+      ) : filteredFlatElements.length === 0 ? (
         <p className="text-sm text-gray-500 italic py-4 text-center">
-          {elementSearch ? 'No elements match your search' : 'No enabled plugins with elements found.'}
+          {elementSearch || elementTypeFilter !== 'all' ? 'No elements match your filter' : 'No installed plugins with elements found.'}
         </p>
       ) : (
-        <div className="space-y-2">
-          {filteredElements.map(plugin => {
-            const pluginKey = `${plugin.pluginName}@${plugin.marketplace}`
-            const isExpanded = expandedElementPlugins.has(pluginKey)
-            const elemCount = (plugin.skills?.length || 0) + (plugin.agents?.length || 0) + (plugin.commands?.length || 0) +
-              (plugin.hooks?.length || 0) + (plugin.rules?.length || 0) + (plugin.mcpServers?.length || 0) +
-              (plugin.lspServers?.length || 0) + (plugin.outputStyles?.length || 0)
+        <div className="space-y-1">
+          <p className="text-[10px] text-gray-600 mb-2">{filteredFlatElements.length} elements</p>
+          {filteredFlatElements.map((el, idx) => {
+            const elKey = `${el.type}:${el.name}@${el.sourcePlugin}`
+            const isExp = expandedElement === elKey
+            const ti = typeInfo(el.type)
+            const TypeIcon = ti.icon
 
             return (
-              <div key={pluginKey} className="rounded-lg border border-gray-800/60 overflow-hidden">
-                {/* Plugin header — name, version, marketplace, element count, source link */}
-                <div className="flex items-center gap-2.5 px-3 py-2 bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => toggleElementPlugin(pluginKey)}>
-                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
-                  <Puzzle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span className="text-xs font-medium text-gray-200 flex-1 truncate">{plugin.pluginName}</span>
-                  <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
-                  <Store className="w-3 h-3 text-amber-400/50 flex-shrink-0" />
+              <div key={`${elKey}-${idx}`} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
+                {/* Element card header */}
+                <div
+                  className={`flex items-center gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}
+                  onClick={() => setExpandedElement(isExp ? null : elKey)}
+                >
+                  <TypeIcon className={`w-3.5 h-3.5 flex-shrink-0 ${ti.color}`} />
+                  <span className="text-[11px] font-medium text-gray-200 truncate">{el.name}</span>
+                  <span className="text-[9px] text-gray-700">{ti.label.replace(/ Servers?$/, '').replace(/Output /, '')}</span>
+                  {!el.pluginEnabled && <span className="text-[8px] text-amber-500/80 bg-amber-500/10 px-1 rounded" title="Enable the plugin to activate this element">disabled</span>}
+                  <span className="flex-1" />
+                  {/* Plugin info */}
+                  <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
                   <span
-                    className="text-[10px] text-gray-600 truncate max-w-[100px] hover:text-amber-400 cursor-pointer transition-colors"
-                    onClick={(e) => { e.stopPropagation(); goToMarketplace(plugin.marketplace) }}
-                    title={`Go to ${plugin.marketplace} marketplace`}
-                  >{plugin.marketplace}</span>
-                  <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{elemCount}el</span>
-                  {plugin.sourceUrl && (
-                    <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={plugin.sourceUrl}>
-                      <ExternalLink className="w-3 h-3 text-gray-600 hover:text-gray-300" />
+                    className="text-[9px] text-gray-600 truncate max-w-[80px] hover:text-blue-400 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); goToPlugin(`${el.sourcePlugin}@${el.sourceMarketplace}`) }}
+                    title="View in Plugins tab"
+                  >{el.sourcePlugin}</span>
+                  <span className="text-[9px] text-gray-700">{el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
+                  <Store className="w-2.5 h-2.5 text-amber-400/40 flex-shrink-0" />
+                  <span
+                    className="text-[9px] text-gray-700 truncate max-w-[60px] hover:text-amber-400 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); goToMarketplace(el.sourceMarketplace) }}
+                    title={`Go to ${el.sourceMarketplace}`}
+                  >{el.sourceMarketplace}</span>
+                  {el.pluginSourceUrl && (
+                    <a href={el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
+                      <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
                     </a>
                   )}
                 </div>
-
-                {/* Element sections */}
-                {isExpanded && (
-                  <div className="px-3 py-2 space-y-2 bg-gray-900/20">
-                    {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
-                      const items = plugin[key]
-                      if (!items || items.length === 0) return null
-                      return (
-                        <div key={key}>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Icon className="w-3 h-3 text-gray-500" />
-                            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</span>
-                            <span className="text-[10px] text-gray-600">{items.length}</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {items.map((item, idx) => (
-                              <span
-                                key={`${plugin.pluginName}-${plugin.marketplace}-${key}-${item.name}-${idx}`}
-                                className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40"
-                                title={item.name}
-                              >
-                                {item.name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })}
+                {/* Expanded: description + metadata */}
+                {isExp && (
+                  <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1">
+                    <div className="text-[10px] text-gray-400">{el.description || '-'}</div>
+                    <div className="flex flex-wrap gap-x-3 text-[9px] text-gray-600">
+                      <span>Type: <span className={ti.color}>{ti.label}</span></span>
+                      <span>Plugin: <span
+                        className="text-gray-400 hover:text-blue-400 cursor-pointer"
+                        onClick={() => goToPlugin(`${el.sourcePlugin}@${el.sourceMarketplace}`)}
+                      >{el.sourcePlugin}</span> {el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
+                      <span>Marketplace: <span
+                        className="text-gray-400 hover:text-amber-400 cursor-pointer"
+                        onClick={() => goToMarketplace(el.sourceMarketplace)}
+                      >{el.sourceMarketplace}</span></span>
+                    </div>
                   </div>
                 )}
               </div>

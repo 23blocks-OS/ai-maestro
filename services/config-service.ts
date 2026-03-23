@@ -754,7 +754,7 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
  */
 export async function getConversationMessages(
   encodedFile: string,
-  agentId: string
+  agentId: string | undefined
 ): Promise<ServiceResult<ConversationMessages | { error: string; fallback_to_parse: boolean; conversation_file: string }>> {
   if (!agentId) {
     return {

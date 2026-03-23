@@ -416,7 +416,7 @@ const routes: Route[] = [
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
-    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
+    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || undefined)
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
@@ -470,7 +470,7 @@ const routes: Route[] = [
     sendServiceResult(res, await restoreSessions(body))
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+    sendServiceResult(res, deletePersistedSession(query.sessionId || undefined))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
@@ -493,7 +493,7 @@ const routes: Route[] = [
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: query.timeout ? (isNaN(parseInt(query.timeout)) ? undefined : parseInt(query.timeout)) : undefined,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -537,7 +537,15 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          sendJson(res, 400, { error: 'Invalid JSON for options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -611,7 +619,7 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: query.limit ? (isNaN(parseInt(query.limit)) ? undefined : parseInt(query.limit)) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -635,13 +643,13 @@ const routes: Route[] = [
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: query.limit ? (isNaN(parseInt(query.limit)) ? undefined : parseInt(query.limit)) : undefined,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: query.minConfidence ? (isNaN(parseFloat(query.minConfidence)) ? undefined : parseFloat(query.minConfidence)) : undefined,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: query.maxTokens ? (isNaN(parseInt(query.maxTokens)) ? undefined : parseInt(query.maxTokens)) : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -649,7 +657,7 @@ const routes: Route[] = [
     sendServiceResult(res, await updateLongTermMemory(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await deleteLongTermMemory(params.id, query.id || ''))
+    sendServiceResult(res, await deleteLongTermMemory(params.id, query.id || undefined))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getMemory(params.id))
@@ -664,15 +672,15 @@ const routes: Route[] = [
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: query.limit ? (isNaN(parseInt(query.limit)) ? undefined : parseInt(query.limit)) : undefined,
+      minScore: query.minScore ? (isNaN(parseFloat(query.minScore)) ? undefined : parseFloat(query.minScore)) : undefined,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: query.startTs ? (isNaN(parseInt(query.startTs)) ? undefined : parseInt(query.startTs)) : undefined,
+      endTs: query.endTs ? (isNaN(parseInt(query.endTs)) ? undefined : parseInt(query.endTs)) : undefined,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: query.bm25Weight ? (isNaN(parseFloat(query.bm25Weight)) ? undefined : parseFloat(query.bm25Weight)) : undefined,
+      semanticWeight: query.semanticWeight ? (isNaN(parseFloat(query.semanticWeight)) ? undefined : parseFloat(query.semanticWeight)) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -709,7 +717,7 @@ const routes: Route[] = [
     sendServiceResult(res, await indexCodeGraph(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await deleteCodeGraph(params.id, query.projectPath || ''))
+    sendServiceResult(res, await deleteCodeGraph(params.id, query.projectPath || undefined))
   }},
 
   // Graph - db
@@ -721,7 +729,7 @@ const routes: Route[] = [
     sendServiceResult(res, await indexDbSchema(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await clearDbGraph(params.id, query.database || ''))
+    sendServiceResult(res, await clearDbGraph(params.id, query.database || undefined))
   }},
 
   // Graph - query
@@ -746,7 +754,7 @@ const routes: Route[] = [
     sendServiceResult(res, await indexDocs(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await clearDocs(params.id, query.project))
+    sendServiceResult(res, await clearDocs(params.id, query.project || undefined))
   }},
 
   // Skills
@@ -769,7 +777,7 @@ const routes: Route[] = [
     sendServiceResult(res, addSkill(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+    sendServiceResult(res, removeSkill(params.id, query.skill || undefined))
   }},
 
   // Subconscious
@@ -790,7 +798,7 @@ const routes: Route[] = [
     sendServiceResult(res, updateRepos(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeRepo(params.id, query.url || ''))
+    sendServiceResult(res, removeRepo(params.id, query.url || undefined))
   }},
 
   // Playback
@@ -939,7 +947,7 @@ const routes: Route[] = [
     sendServiceResult(res, getHostIdentity())
   }},
   { method: 'GET', pattern: /^\/api\/hosts\/health$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await checkRemoteHealth(query.url || ''))
+    sendServiceResult(res, await checkRemoteHealth(query.url || undefined))
   }},
   { method: 'GET', pattern: /^\/api\/hosts\/sync$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getMeshStatus())
@@ -1024,7 +1032,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? (isNaN(parseInt(query.limit)) ? undefined : parseInt(query.limit)) : undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')

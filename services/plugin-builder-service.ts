@@ -140,6 +140,15 @@ function validateSkillPath(skillPath: string): string | null {
   return null
 }
 
+function validateMarketplaceName(name: string): string | null {
+  if (!name || typeof name !== 'string') return 'Marketplace name is required'
+  if (name.includes('..')) return 'Marketplace name must not contain ".."'
+  if (!SAFE_PATH_SEGMENT_RE.test(name)) {
+    return `Marketplace name "${name}" contains invalid characters`
+  }
+  return null
+}
+
 function validateBuildConfig(config: PluginBuildConfig): string | null {
   const nameErr = validatePluginName(config.name)
   if (nameErr) return nameErr
@@ -160,6 +169,10 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace name to prevent path traversal in generateManifest
+      const marketplaceErr = validateMarketplaceName(skill.marketplace)
+      if (marketplaceErr) return `Marketplace skill "${skill.name}": ${marketplaceErr}`
     }
   }
 
@@ -178,7 +191,9 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up stale build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -190,7 +205,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up oldest build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -316,14 +333,14 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Evict stale builds before adding new ones
+  evictStaleBuildResults()
+
+  activeOps++
+  const buildId = randomUUID()
+  const buildDir = path.join(BUILDS_DIR, buildId)
+
   try {
-    // Evict stale builds before adding new ones
-    evictStaleBuildResults()
-
-    activeOps++
-    const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
-
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
 
@@ -363,7 +380,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously — decrement activeOps when the build process truly finishes
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -381,8 +398,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
 
     return { data: result, status: 202 }
   } catch (error) {
+    // activeOps was incremented before try — decrement it here for synchronous setup errors
     activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
+    // Clean up the partially created build directory
+    await fs.rm(buildDir, { recursive: true, force: true }).catch(cleanupErr => {
+      console.error(`Error cleaning up build directory ${buildDir}:`, cleanupErr)
+    })
     return { error: 'Failed to start plugin build', status: 500 }
   }
 }
@@ -713,6 +735,10 @@ function execPromise(
         err.stderr = stderr
         reject(err)
       } else {
+        // Log stderr warnings even when the command exits successfully
+        if (stderr) {
+          console.warn(`Command "${command} ${args.join(' ')}" wrote to stderr:`, stderr)
+        }
         resolve(stdout)
       }
     })

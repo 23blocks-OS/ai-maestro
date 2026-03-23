@@ -759,14 +759,10 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package; always show stderr so errors are visible to the user
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
-            else
-                npm install -g "$pkg" 2>/dev/null
-            fi
+            npm install -g "$pkg"
         }
 
         case "$ai_choice" in
@@ -1058,7 +1054,9 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            # Use double quotes so bash expands $PORT before sed sees it;
+                            # escaping \$ prevents sed treating $ as a backreference
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1108,7 +1106,8 @@ act4_start_and_register() {
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                # Restart all PM2 services so updated gateway services also pick up new code
+                pm2 restart all 2>/dev/null || true
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1181,17 +1180,19 @@ act4_start_and_register() {
     mkdir -p "$AGENT_DIR"
 
     # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+    # Escapes: \ & | [ ] . * ^ $ / @ (covers regex specials + our @ delimiter)
+    # The @ delimiter is used below to avoid conflicts when INSTALL_DIR contains | characters.
     local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g; s/@/\\@/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
         # Substitute install-time variables (portable sed)
-        portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
+        # Use @ as delimiter so that escaped | in safe_dir does not terminate the sed expression
+        portable_sed "s@{{INSTALL_DIR}}@${safe_dir}@g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s@{{VERSION}}@$VERSION@g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s@{{SELECTED_GATEWAYS}}@${SELECTED_GATEWAYS}@g" "$AGENT_DIR/CLAUDE.md"
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
@@ -1208,7 +1209,8 @@ act4_start_and_register() {
         mkdir -p "$MAILMAN_DIR"
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
-            portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Use @ as delimiter so that escaped | in safe_dir does not terminate the sed expression
+            portable_sed "s@{{INSTALL_DIR}}@${safe_dir}@g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
@@ -1227,7 +1229,7 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s@{{ACTIVE_GATEWAYS_LIST}}@${gw_list}@g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
@@ -1297,12 +1299,18 @@ act5_grand_finale() {
             # Not in tmux — create session and attach (handle re-install collision)
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
+                tmux attach-session -t "my-first-agent" || maestro_fail "Failed to attach to existing tmux session."
             else
-                tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                # Create session and only attach if creation succeeded
+                if tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
+                        "$AI_TOOL \"$INITIAL_PROMPT\""; then
+                    sleep 2
+                    tmux attach-session -t "my-first-agent" || maestro_fail "Failed to attach to new tmux session."
+                else
+                    maestro_fail "Failed to create tmux session 'my-first-agent'."
+                    maestro_info "You can try manually: tmux new-session -s my-first-agent -c '$AGENT_DIR' '$AI_TOOL'"
+                fi
             fi
-            sleep 2
-            tmux attach-session -t "my-first-agent"
             echo ""
             maestro_ok "Welcome back! Your agent session is still running in tmux."
             maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"

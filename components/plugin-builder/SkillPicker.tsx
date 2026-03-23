@@ -254,6 +254,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}

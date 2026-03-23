@@ -208,7 +208,7 @@ function detectPluginErrors(pluginDir: string, pluginName: string): string[] {
 function detectOrphanPlugins(enabledPlugins: Record<string, boolean>, knownPluginKeys: Set<string>): { name: string; key: string; errors: string[] }[] {
   const orphans: { name: string; key: string; errors: string[] }[] = []
   for (const key of Object.keys(enabledPlugins)) {
-    if (!enabledPlugins[key]) continue // disabled entries don't matter
+    // Include both enabled and disabled — stale references are errors regardless
     if (knownPluginKeys.has(key)) continue // found in a marketplace
     const atIdx = key.lastIndexOf('@')
     const pluginName = atIdx > 0 ? key.substring(0, atIdx) : key

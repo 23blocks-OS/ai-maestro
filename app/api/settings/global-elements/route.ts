@@ -263,7 +263,8 @@ async function listMcpServers(versionDir: string, pluginName: string, marketplac
   try {
     const content = await readFile(mcpPath, 'utf-8')
     const parsed = JSON.parse(content)
-    const servers = parsed.mcpServers || {}
+    // Some plugins use { mcpServers: { ... } }, others put servers at root level
+    const servers = parsed.mcpServers || (Object.values(parsed).some((v: unknown) => v && typeof v === 'object' && 'command' in (v as Record<string, unknown>)) ? parsed : {})
     return Object.keys(servers).map(name => {
       const srv = servers[name]
       // Store the individual server entry as JSON for element-specific preview

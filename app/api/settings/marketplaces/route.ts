@@ -348,6 +348,62 @@ export async function GET() {
             } catch { /* ignore dir scan errors */ }
           }
 
+          // Case 4: Scan the CACHE for plugins belonging to this marketplace
+          // Registry-style marketplaces (like emasoft-plugins) list plugins in README
+          // but each plugin is in its own repo — only the cache has the actual files.
+          const mktCacheDir = join(CACHE_DIR, mktName)
+          if (existsSync(mktCacheDir)) {
+            try {
+              const cachedPlugins = await readdir(mktCacheDir)
+              for (const plugName of cachedPlugins) {
+                if (plugName.startsWith('.') || seenPlugins.has(plugName)) continue
+                const plugCacheDir = join(mktCacheDir, plugName)
+                try {
+                  const ps = await stat(plugCacheDir)
+                  if (!ps.isDirectory()) continue
+                } catch { continue }
+
+                seenPlugins.add(plugName)
+
+                const key = `${plugName}@${mktName}`
+                const enabled = enabledPlugins[key] === true
+                const latestVersion = await getLatestVersion(plugCacheDir)
+
+                let description: string | null = null
+                let elementCounts: PluginStatus['elementCounts'] = null
+                let errors: string[] = []
+                let sourceUrl: string | null = null
+
+                if (latestVersion) {
+                  const metadataDir = join(plugCacheDir, latestVersion)
+                  const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
+                  if (manifest) {
+                    description = (manifest.description as string) || null
+                    const plugSrc = manifest.source as Record<string, string> | undefined
+                    if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
+                    else if (plugSrc?.path) sourceUrl = plugSrc.path
+                  }
+                  elementCounts = await countElements(metadataDir)
+                  errors = detectPluginErrors(metadataDir, plugName)
+                }
+
+                info.plugins.push({
+                  name: plugName,
+                  key,
+                  installed: true, // in cache = installed
+                  enabled,
+                  version: latestVersion,
+                  description,
+                  sourceUrl,
+                  errors,
+                  elementCounts,
+                })
+                info.installedCount++
+                if (enabled) info.enabledCount++
+              }
+            } catch { /* ignore */ }
+          }
+
           info.pluginCount = info.plugins.length
           info.plugins.sort((a, b) => {
             // Installed first, then alphabetically

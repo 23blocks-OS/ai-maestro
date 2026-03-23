@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  Puzzle, Loader2, ChevronDown, ChevronRight, Store,
+  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search,
   ToggleLeft, ToggleRight,
   Wand2, Bot, Terminal, Webhook, Server, FileCode,
   ScrollText, Palette,
@@ -63,12 +63,10 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
 
 /**
  * Global Elements Section — manages user-level plugins grouped by marketplace.
- * Only elements from ENABLED plugins are active for all agents.
- * Toggling a plugin on/off writes to ~/.claude/settings.json enabledPlugins.
- * Shows elements (skills, agents, commands, hooks, MCP, LSP) from enabled plugins.
+ * Three tabs: Plugins (toggle + info), Elements (active elements), Marketplaces (full management).
  */
 export default function GlobalElementsSection() {
-  const [activeTab, setActiveTab] = useState<'plugins' | 'marketplaces'>('plugins')
+  const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>('plugins')
   const [groups, setGroups] = useState<MarketplaceGroup[]>([])
   const [enabledCount, setEnabledCount] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
@@ -76,11 +74,14 @@ export default function GlobalElementsSection() {
   const [toggling, setToggling] = useState<string | null>(null)
   const [expandedMarketplaces, setExpandedMarketplaces] = useState<Set<string>>(new Set())
 
+  // Search states
+  const [pluginSearch, setPluginSearch] = useState('')
+  const [elementSearch, setElementSearch] = useState('')
+
   // Element listing state
   const [pluginElements, setPluginElements] = useState<PluginElements[]>([])
   const [elementTotals, setElementTotals] = useState<ElementTotals>({ skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcpServers: 0, lspServers: 0, outputStyles: 0 })
   const [loadingElements, setLoadingElements] = useState(false)
-  const [showElements, setShowElements] = useState(true)
   const [expandedElementPlugins, setExpandedElementPlugins] = useState<Set<string>>(new Set())
 
   const fetchPlugins = useCallback(async () => {
@@ -141,18 +142,15 @@ export default function GlobalElementsSection() {
         body: JSON.stringify({ key, enabled: !currentEnabled }),
       })
       if (res.ok) {
-        // Optimistic update
         setGroups(prev => prev.map(g => ({
           ...g,
           plugins: g.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
-        // Re-fetch elements immediately after successful toggle
         fetchElements()
       }
     } catch (err) {
       console.error('Error toggling plugin:', err)
-      // Re-fetch to resync UI with actual backend state after failure
       fetchPlugins()
     }
     finally { setToggling(null) }
@@ -171,6 +169,49 @@ export default function GlobalElementsSection() {
     elementTotals.hooks + elementTotals.rules + elementTotals.mcpServers + elementTotals.lspServers +
     elementTotals.outputStyles
 
+  // Filter plugins by search
+  const filteredGroups = useMemo(() => {
+    if (!pluginSearch.trim()) return groups
+    const q = pluginSearch.toLowerCase()
+    return groups
+      .map(g => ({
+        ...g,
+        plugins: g.plugins.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          g.marketplace.toLowerCase().includes(q)
+        ),
+      }))
+      .filter(g => g.plugins.length > 0)
+  }, [groups, pluginSearch])
+
+  // Filter elements by search
+  const filteredElements = useMemo(() => {
+    if (!elementSearch.trim()) return pluginElements
+    const q = elementSearch.toLowerCase()
+    return pluginElements
+      .map(plugin => {
+        const filterItems = (items: ElementInfo[]) => items.filter(i => i.name.toLowerCase().includes(q))
+        return {
+          ...plugin,
+          skills: filterItems(plugin.skills),
+          agents: filterItems(plugin.agents),
+          commands: filterItems(plugin.commands),
+          hooks: filterItems(plugin.hooks),
+          rules: filterItems(plugin.rules),
+          mcpServers: filterItems(plugin.mcpServers),
+          lspServers: filterItems(plugin.lspServers),
+          outputStyles: filterItems(plugin.outputStyles),
+        }
+      })
+      .filter(plugin => {
+        const total = plugin.skills.length + plugin.agents.length + plugin.commands.length +
+          plugin.hooks.length + plugin.rules.length + plugin.mcpServers.length +
+          plugin.lspServers.length + plugin.outputStyles.length
+        // Also match plugin name itself
+        return total > 0 || plugin.pluginName.toLowerCase().includes(q) || plugin.marketplace.toLowerCase().includes(q)
+      })
+  }, [pluginElements, elementSearch])
+
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-3">
@@ -187,7 +228,7 @@ export default function GlobalElementsSection() {
         User-level plugins shared by <strong>all agents</strong> on this host.
       </p>
 
-      {/* Tab bar: Plugins | Marketplaces */}
+      {/* Tab bar: Plugins | Elements | Marketplaces */}
       <div className="flex items-center gap-1 mb-6 bg-gray-800/30 rounded-lg p-1">
         <button
           onClick={() => setActiveTab('plugins')}
@@ -202,6 +243,18 @@ export default function GlobalElementsSection() {
           <span className="opacity-60">{enabledCount}/{totalCount}</span>
         </button>
         <button
+          onClick={() => setActiveTab('elements')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
+            activeTab === 'elements'
+              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+              : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
+          }`}
+        >
+          <Wand2 className="w-3.5 h-3.5" />
+          Elements
+          {totalElements > 0 && <span className="opacity-60">{totalElements}</span>}
+        </button>
+        <button
           onClick={() => setActiveTab('marketplaces')}
           className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'marketplaces'
@@ -211,19 +264,34 @@ export default function GlobalElementsSection() {
         >
           <Store className="w-3.5 h-3.5" />
           Marketplaces
-          <span className="opacity-60">{groups.length}</span>
         </button>
       </div>
 
+      {/* ================================================================= */}
       {/* Marketplaces tab */}
+      {/* ================================================================= */}
       {activeTab === 'marketplaces' && <MarketplaceManager />}
 
+      {/* ================================================================= */}
       {/* Plugins tab */}
+      {/* ================================================================= */}
       {activeTab === 'plugins' && (<>
 
+      {/* Search plugins */}
+      <div className="relative mb-4">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Filter plugins..."
+          value={pluginSearch}
+          onChange={e => setPluginSearch(e.target.value)}
+          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+        />
+      </div>
+
       {/* Plugin list grouped by marketplace */}
-      <div className="space-y-3 mb-8">
-        {groups.map(group => {
+      <div className="space-y-3">
+        {filteredGroups.map(group => {
           const expanded = expandedMarketplaces.has(group.marketplace)
           const enabledInGroup = group.plugins.filter(p => p.enabled).length
           return (
@@ -236,8 +304,10 @@ export default function GlobalElementsSection() {
                 {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
                 <Store className="w-4 h-4 text-amber-400 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-200 flex-1 truncate">{group.marketplace}</span>
-                <span className="text-xs text-gray-500">
-                  {enabledInGroup}/{group.plugins.length}
+                <span className="text-xs text-gray-500 tabular-nums">
+                  {enabledInGroup > 0 && <span className="text-emerald-400">{enabledInGroup}</span>}
+                  {enabledInGroup > 0 && '/'}
+                  {group.plugins.length}
                 </span>
               </button>
 
@@ -280,104 +350,112 @@ export default function GlobalElementsSection() {
             </div>
           )
         })}
-      </div>
 
-      {/* Elements from enabled plugins */}
-      <div className="border-t border-gray-800 pt-6">
-        <button
-          onClick={() => setShowElements(!showElements)}
-          className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-        >
-          {showElements ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-          <h3 className="text-lg font-semibold text-white">Active Elements</h3>
-          {loadingElements ? (
-            <Loader2 className="w-4 h-4 text-gray-500 animate-spin ml-2" />
-          ) : (
-            <span className="text-xs text-gray-500 ml-2">
-              {totalElements} elements from {pluginElements.length} plugins
-            </span>
-          )}
-        </button>
-
-        {showElements && (
-          <>
-            {/* Summary row */}
-            <div className="flex flex-wrap gap-3 mb-4">
-              {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
-                const count = elementTotals[key] || 0
-                if (count === 0) return null
-                return (
-                  <div key={key} className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-800/50 rounded-lg px-2.5 py-1.5">
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{count} {label}</span>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Per-plugin element listing */}
-            {pluginElements.length === 0 && !loadingElements && (
-              <p className="text-sm text-gray-500 italic">No enabled plugins with elements found.</p>
-            )}
-
-            <div className="space-y-2">
-              {pluginElements.map(plugin => {
-                const pluginKey = `${plugin.pluginName}@${plugin.marketplace}`
-                const isExpanded = expandedElementPlugins.has(pluginKey)
-                const elemCount = plugin.skills.length + plugin.agents.length + plugin.commands.length +
-                  plugin.hooks.length + plugin.rules.length + plugin.mcpServers.length +
-                  plugin.lspServers.length + plugin.outputStyles.length
-
-                return (
-                  <div key={pluginKey} className="rounded-lg border border-gray-800/60 overflow-hidden">
-                    {/* Plugin header */}
-                    <button
-                      onClick={() => toggleElementPlugin(pluginKey)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 bg-gray-800/30 hover:bg-gray-800/50 transition-colors text-left"
-                    >
-                      {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
-                      <Puzzle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                      <span className="text-xs font-medium text-gray-200 flex-1 truncate">{plugin.pluginName}</span>
-                      <span className="text-[10px] text-gray-600 truncate max-w-[120px]">{plugin.marketplace}</span>
-                      <span className="text-[10px] text-gray-500 tabular-nums">{elemCount}</span>
-                    </button>
-
-                    {/* Element sections */}
-                    {isExpanded && (
-                      <div className="px-3 py-2 space-y-2 bg-gray-900/20">
-                        {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
-                          const items = plugin[key]
-                          if (!items || items.length === 0) return null
-                          return (
-                            <div key={key}>
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <Icon className="w-3 h-3 text-gray-500" />
-                                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</span>
-                                <span className="text-[10px] text-gray-600">{items.length}</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {items.map((item, idx) => (
-                                  <span
-                                    key={`${plugin.pluginName}-${plugin.marketplace}-${key}-${item.name}-${idx}`}
-                                    className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40"
-                                    title={item.name}
-                                  >
-                                    {item.name}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </>
+        {filteredGroups.length === 0 && (
+          <p className="text-xs text-gray-500 italic py-4 text-center">
+            {pluginSearch ? 'No plugins match your search' : 'No installed plugins found'}
+          </p>
         )}
       </div>
+      </>)}
+
+      {/* ================================================================= */}
+      {/* Elements tab */}
+      {/* ================================================================= */}
+      {activeTab === 'elements' && (<>
+
+      {/* Summary badges */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
+          const count = elementTotals[key] || 0
+          if (count === 0) return null
+          return (
+            <div key={key} className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-800/50 rounded-lg px-2.5 py-1.5">
+              <Icon className="w-3.5 h-3.5" />
+              <span>{count} {label}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Search elements */}
+      <div className="relative mb-4">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Filter elements by name, plugin, or marketplace..."
+          value={elementSearch}
+          onChange={e => setElementSearch(e.target.value)}
+          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500"
+        />
+      </div>
+
+      {loadingElements ? (
+        <div className="flex items-center gap-3 py-6">
+          <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+          <span className="text-sm text-gray-500">Loading elements...</span>
+        </div>
+      ) : filteredElements.length === 0 ? (
+        <p className="text-sm text-gray-500 italic py-4 text-center">
+          {elementSearch ? 'No elements match your search' : 'No enabled plugins with elements found.'}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {filteredElements.map(plugin => {
+            const pluginKey = `${plugin.pluginName}@${plugin.marketplace}`
+            const isExpanded = expandedElementPlugins.has(pluginKey)
+            const elemCount = plugin.skills.length + plugin.agents.length + plugin.commands.length +
+              plugin.hooks.length + plugin.rules.length + plugin.mcpServers.length +
+              plugin.lspServers.length + plugin.outputStyles.length
+
+            return (
+              <div key={pluginKey} className="rounded-lg border border-gray-800/60 overflow-hidden">
+                {/* Plugin header */}
+                <button
+                  onClick={() => toggleElementPlugin(pluginKey)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 bg-gray-800/30 hover:bg-gray-800/50 transition-colors text-left"
+                >
+                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+                  <Puzzle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span className="text-xs font-medium text-gray-200 flex-1 truncate">{plugin.pluginName}</span>
+                  <span className="text-[10px] text-gray-600 truncate max-w-[120px]">{plugin.marketplace}</span>
+                  <span className="text-[10px] text-gray-500 tabular-nums">{elemCount}</span>
+                </button>
+
+                {/* Element sections */}
+                {isExpanded && (
+                  <div className="px-3 py-2 space-y-2 bg-gray-900/20">
+                    {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
+                      const items = plugin[key]
+                      if (!items || items.length === 0) return null
+                      return (
+                        <div key={key}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Icon className="w-3 h-3 text-gray-500" />
+                            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</span>
+                            <span className="text-[10px] text-gray-600">{items.length}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {items.map((item, idx) => (
+                              <span
+                                key={`${plugin.pluginName}-${plugin.marketplace}-${key}-${item.name}-${idx}`}
+                                className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40"
+                                title={item.name}
+                              >
+                                {item.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
       </>)}
     </div>
   )

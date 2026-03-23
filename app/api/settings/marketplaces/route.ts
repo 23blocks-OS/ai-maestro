@@ -536,6 +536,22 @@ export async function POST(req: NextRequest) {
     if (action === 'check-updates') {
       return await handleCheckUpdates(body.marketplaceName, body.force === true)
     }
+    // New CLI-backed actions that don't require pluginKey
+    if (action === 'disable-all') {
+      return await handleDisableAll()
+    }
+    if (action === 'list-plugins') {
+      return await handleListPlugins(body.available === true)
+    }
+    if (action === 'validate') {
+      return await handleValidate(body.path)
+    }
+    if (action === 'update-all-marketplaces') {
+      return await handleUpdateAllMarketplaces()
+    }
+    if (action === 'list-marketplaces') {
+      return await handleListMarketplacesCli()
+    }
 
     // Plugin-level actions require pluginKey
     if (!pluginKey) {
@@ -776,17 +792,23 @@ async function handleUpdateMarketplace(marketplaceName?: string) {
   if (!marketplaceName) {
     return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
   }
-  const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
-  if (!existsSync(cloneDir)) {
-    return NextResponse.json({ error: `Marketplace "${marketplaceName}" not found` }, { status: 404 })
-  }
   const { execSync } = await import('child_process')
+  // Use Claude CLI marketplace update (preferred)
   try {
-    execSync('git pull --ff-only', { cwd: cloneDir, timeout: 60000, stdio: 'pipe' })
-  } catch (err) {
-    return NextResponse.json({ error: `Failed to update: ${err}` }, { status: 500 })
+    const cliName = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin marketplace update "${cliName}" 2>&1`, { timeout: 60000, stdio: 'pipe' })
+  } catch {
+    // Fallback: git pull directly on clone dir
+    const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
+    if (!existsSync(cloneDir)) {
+      return NextResponse.json({ error: `Marketplace "${marketplaceName}" not found` }, { status: 404 })
+    }
+    try {
+      execSync('git pull --ff-only', { cwd: cloneDir, timeout: 60000, stdio: 'pipe' })
+    } catch (err) {
+      return NextResponse.json({ error: `Failed to update: ${err}` }, { status: 500 })
+    }
   }
-  // Invalidate version check cache after update
   UPDATE_CHECK_CACHE.delete(marketplaceName!)
   return NextResponse.json({ success: true, action: 'update-marketplace', marketplaceName })
 }
@@ -1024,6 +1046,74 @@ async function handleAddMarketplace(url?: string) {
 }
 
 /** Run CPV security check on a plugin */
+/** Disable all plugins via Claude CLI */
+async function handleDisableAll() {
+  try {
+    const { execSync } = await import('child_process')
+    execSync('claude plugin disable --all --scope user 2>&1', { timeout: 30000 })
+    return NextResponse.json({ success: true, action: 'disable-all' })
+  } catch (err) {
+    return NextResponse.json({ error: `Disable all failed: ${err}` }, { status: 500 })
+  }
+}
+
+/** List plugins via Claude CLI (JSON output) */
+async function handleListPlugins(available: boolean) {
+  try {
+    const { execSync } = await import('child_process')
+    const flags = available ? '--json --available' : '--json'
+    const output = execSync(`claude plugin list ${flags} 2>&1`, { timeout: 30000 }).toString()
+    const data = JSON.parse(output)
+    return NextResponse.json({ success: true, action: 'list-plugins', data })
+  } catch (err) {
+    return NextResponse.json({ error: `List plugins failed: ${err}` }, { status: 500 })
+  }
+}
+
+/** Validate a plugin or marketplace manifest via Claude CLI */
+async function handleValidate(path?: string) {
+  if (!path) {
+    return NextResponse.json({ error: 'path is required for validate action' }, { status: 400 })
+  }
+  // Security: only allow paths under ~/.claude/plugins/
+  if (!path.startsWith(join(HOME, '.claude', 'plugins'))) {
+    return NextResponse.json({ error: 'Path must be under ~/.claude/plugins/' }, { status: 403 })
+  }
+  try {
+    const { execSync } = await import('child_process')
+    const output = execSync(`claude plugin validate "${path}" 2>&1`, { timeout: 30000 }).toString()
+    return NextResponse.json({ success: true, action: 'validate', output })
+  } catch (err) {
+    const errMsg = err instanceof Error ? (err as { stdout?: Buffer }).stdout?.toString() || err.message : String(err)
+    return NextResponse.json({ success: false, action: 'validate', output: errMsg })
+  }
+}
+
+/** Update all marketplaces via Claude CLI */
+async function handleUpdateAllMarketplaces() {
+  try {
+    const { execSync } = await import('child_process')
+    execSync('claude plugin marketplace update 2>&1', { timeout: 120000 })
+    // Invalidate all version caches
+    UPDATE_CHECK_CACHE.clear()
+    return NextResponse.json({ success: true, action: 'update-all-marketplaces' })
+  } catch (err) {
+    return NextResponse.json({ error: `Update all marketplaces failed: ${err}` }, { status: 500 })
+  }
+}
+
+/** List marketplaces via Claude CLI (JSON output) */
+async function handleListMarketplacesCli() {
+  try {
+    const { execSync } = await import('child_process')
+    const output = execSync('claude plugin marketplace list --json 2>&1', { timeout: 15000 }).toString()
+    const data = JSON.parse(output)
+    return NextResponse.json({ success: true, action: 'list-marketplaces', data })
+  } catch (err) {
+    return NextResponse.json({ error: `List marketplaces failed: ${err}` }, { status: 500 })
+  }
+}
+
 async function handleSecurityCheck(pluginKey?: string) {
   if (!pluginKey) {
     return NextResponse.json({ error: 'pluginKey is required for security-check' }, { status: 400 })

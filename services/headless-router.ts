@@ -218,6 +218,7 @@ import {
   listTeamTasks,
   getTeamTask,
   createTeamTask,
+  getTeamTask,
   updateTeamTask,
   deleteTeamTask,
   listTeamDocuments,
@@ -468,6 +469,7 @@ function sendServiceResult(res: ServerResponse, result: any) {
 }
 
 function getHeader(req: IncomingMessage, name: string): string | null {
+  // Node.js headers can be string | string[] | undefined; for repeated headers take the first value
   const val = req.headers[name.toLowerCase()]
   // Node.js headers can be string[] when the same header is sent multiple times.
   // Return the first element in that case so callers always get a usable string.
@@ -1430,10 +1432,17 @@ const routes: Route[] = [
     await sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    // Normalise empty strings to null so downstream service receives null for absent optional params
+    const agent = query.agent || null
+    const id = query.id || null
+    const action = query.action || null
+    sendServiceResult(res, await updateGlobalMessage(agent, id, action))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    // Normalise empty strings to null so downstream service receives null for absent optional params
+    const agent = query.agent || null
+    const id = query.id || null
+    sendServiceResult(res, await removeMessage(agent, id))
   }},
 
   // =========================================================================
@@ -2447,6 +2456,12 @@ function matchRoute(method: string, pathname: string): { handler: RouteHandler; 
 
     const match = pathname.match(route.pattern)
     if (!match) continue
+
+    // Sanity-check: the regex must have produced at least as many capture groups as
+    // paramNames expects.  A mismatch means the route definition is inconsistent;
+    // rather than assigning undefined to params (causing a downstream TypeError when
+    // the service receives an undefined ID/name), skip this route and keep looking.
+    if (match.length < route.paramNames.length + 1) continue
 
     const params: Record<string, string> = {}
     route.paramNames.forEach((name, i) => {

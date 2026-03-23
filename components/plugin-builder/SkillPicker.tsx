@@ -22,6 +22,23 @@ interface SkillPickerProps {
   onRemoveSkill: (key: string) => void
 }
 
+/**
+ * Generate a unique key for a skill selection (used for deduplication).
+ * Defined before SkillPicker so it is in scope at the point of use.
+ */
+export function getSkillKey(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return `core:${skill.name}`
+    case 'marketplace':
+      return `marketplace:${skill.id}`
+    case 'repo':
+      // Include ref so skills from the same URL on different branches never
+      // share the same key.  Must match the key format in RepoScanner.tsx.
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
+  }
+}
+
 export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill }: SkillPickerProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])

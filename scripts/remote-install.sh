@@ -217,6 +217,9 @@ parse_args() {
                     exit 1
                 fi
                 INSTALL_DIR="${2/#\~/$HOME}"
+                # Reject paths outside $HOME to prevent accidental writes to system dirs.
+                # Allow exact $HOME or any path strictly under it.
+                [[ "$INSTALL_DIR" == "$HOME" ]] || [[ "$INSTALL_DIR" == "$HOME"/* ]] || { maestro_fail "INSTALL_DIR must be inside HOME"; exit 1; }
                 shift 2
                 ;;
             -y|--yes|--non-interactive)
@@ -718,6 +721,10 @@ act2_install_prerequisites() {
             nvm install 20
             nvm use 20
             nvm alias default 20
+            # Verify node is actually on PATH after nvm setup; nvm sourcing can silently
+            # fail (e.g. incomplete install, restricted shell), which would make the
+            # subsequent yarn/node calls fail in confusing ways.
+            command -v node &>/dev/null || { maestro_fail "Node.js not available after nvm setup"; exit 1; }
         fi
         # Verify the installed Node.js meets the minimum version requirement
         local post_node_ver post_node_major
@@ -1032,7 +1039,7 @@ act3_clone_and_build() {
                     if ! git stash pop --quiet; then
                         maestro_warn "Could not cleanly restore your local changes after update."
                         maestro_info "Your changes are saved in git stash. To recover:"
-                        echo "   cd $INSTALL_DIR && git stash list"
+                        echo "   cd \"$INSTALL_DIR\" && git stash list"
                         echo "   git stash pop   # (resolve any conflicts manually)"
                         maestro_info "You may need to resolve merge conflicts. Check 'git status'."
                     else
@@ -1184,6 +1191,11 @@ act4_start_and_register() {
     echo ""
     maestro_say "Starting the dashboard..."
 
+    # Build the base API URL once using printf so that $PORT (already validated as a
+    # plain integer) is never expanded directly inside a double-quoted curl argument.
+    local api_base
+    api_base=$(printf "http://localhost:%s" "$PORT")
+
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
     if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
@@ -1275,7 +1287,7 @@ act4_start_and_register() {
             maestro_ok "AI Maestro running on port $PORT"
         else
             maestro_warn "Service is starting slowly — it may need a moment"
-            maestro_info "Check: curl http://localhost:${PORT}/api/sessions"
+            maestro_info "Check: curl ${api_base}/api/sessions"
         fi
     fi
 
@@ -1369,7 +1381,7 @@ act4_start_and_register() {
 
     # Open dashboard in browser
     maestro_info "Opening dashboard in your browser..."
-    open_browser "http://localhost:${PORT}"
+    open_browser "${api_base}"
 
     # WSL-specific tips
     if [ "$OS" = "wsl" ]; then

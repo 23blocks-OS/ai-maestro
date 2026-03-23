@@ -42,6 +42,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   // Clean up polling and copy timeout on unmount
   useEffect(() => {
+    mountedRef.current = true
     return () => {
       if (pollRef.current) clearTimeout(pollRef.current)
       // SF-022: Abort any in-flight poll fetch on unmount
@@ -53,6 +54,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (pollRef.current) {
       clearTimeout(pollRef.current)
       pollRef.current = null
+      clearInterval(intervalId)
     }
     // SF-022: Abort any in-flight poll fetch when clearing.
     // Capture the ref in a local variable first, then abort, then null the ref.
@@ -308,6 +310,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <div className="flex items-center gap-2 ml-auto">
             {building && (
               <span className="text-sm text-yellow-400">Building...</span>
+            )}
+            {/* Show stalled state when poll failed: result still says 'building' but building is false */}
+            {result?.status === 'building' && !building && (
+              <span className="text-sm text-yellow-400">Build stalled</span>
             )}
             {isComplete && (
               <>

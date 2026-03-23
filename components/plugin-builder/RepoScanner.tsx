@@ -88,6 +88,26 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
     return () => { abortRef.current?.abort() }
   }, [])
 
+  // Abort any in-flight fetch when the component unmounts to avoid resource leaks.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
+  // Clear stale scan results whenever the user changes the URL or ref, so the
+  // displayed skills always correspond to the currently-entered coordinates.
+  // Also abort any in-flight scan and reset the scanning flag so the button
+  // is re-enabled immediately rather than left stuck with its spinner.
+  useEffect(() => {
+    setScanResult(null)
+    setError(null)
+    setScanning(false)
+    setScannedUrl(null)
+    setScannedRef(null)
+    abortRef.current?.abort()
+  }, [url, ref])
+
   const handleScan = async () => {
     // Capture current state values before any async operations to avoid stale closures.
     // Default ref to 'main' here (single source of truth) rather than forcing it in onChange.
@@ -247,6 +267,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
                     <p className="text-xs text-gray-500 truncate">{skill.description}</p>
                   )}
                 </div>
+                {/* Toggle: remove when selected, add when not — mirrors core/marketplace skill UX */}
                 <button
                   onClick={() => isSelected ? onRemoveSkill(key) : handleAddSkill(skill)}
                   className="ml-2 p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 transition-colors flex-shrink-0"

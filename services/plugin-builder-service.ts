@@ -595,6 +595,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // early errors (after mkdir but before runBuild is launched).
   let buildDir: string | undefined
 
+  // Increment before try so the catch-block decrement always matches this increment
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones; await to ensure map is clean
     // before the new entry is inserted (prevents stale entries from racing with the new build)

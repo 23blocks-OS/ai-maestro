@@ -63,6 +63,13 @@ export default function MarketplaceManager() {
   const [securityReport, setSecurityReport] = useState<{ name: string; summary: string; report: string } | null>(null)
   const [addUrl, setAddUrl] = useState('')
   const [addingMkt, setAddingMkt] = useState(false)
+  // Lazy version check state: marketplaceName -> { checking, remoteVersion, marketplaceOutdated, pluginUpdates }
+  const [updateChecks, setUpdateChecks] = useState<Record<string, {
+    checking: boolean
+    remoteVersion: string | null
+    marketplaceOutdated: boolean
+    pluginUpdates: Record<string, { remote: string; outdated: boolean }>
+  }>>({})
 
   const fetchMarketplaces = useCallback(async () => {
     try {
@@ -87,7 +94,13 @@ export default function MarketplaceManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...payload }),
       })
-      if (res.ok) await fetchMarketplaces()
+      if (res.ok) {
+        // Invalidate version check cache for updated marketplace
+        if (action === 'update-marketplace' && payload.marketplaceName) {
+          setUpdateChecks(prev => { const next = { ...prev }; delete next[payload.marketplaceName]; return next })
+        }
+        await fetchMarketplaces()
+      }
     } catch { /* ignore */ }
     finally { setActionInProgress(null) }
   }
@@ -110,6 +123,35 @@ export default function MarketplaceManager() {
     finally { setActionInProgress(null) }
   }
 
+  // Lazy-check updates from GitHub for a marketplace
+  // force=true bypasses the 5min server cache (used when user explicitly expands)
+  const checkUpdates = async (mktName: string, force = false) => {
+    if (!force && updateChecks[mktName]) return // already checked or checking (unless forced)
+    setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: true, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {} } }))
+    try {
+      const res = await fetch('/api/settings/marketplaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check-updates', marketplaceName: mktName, force }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const plugUpdates: Record<string, { remote: string; outdated: boolean }> = {}
+        for (const p of data.pluginUpdates || []) {
+          plugUpdates[p.name] = { remote: p.remote, outdated: p.outdated }
+        }
+        setUpdateChecks(prev => ({ ...prev, [mktName]: {
+          checking: false, remoteVersion: data.remoteVersion,
+          marketplaceOutdated: data.marketplaceOutdated, pluginUpdates: plugUpdates,
+        }}))
+      } else {
+        setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {} } }))
+      }
+    } catch {
+      setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {} } }))
+    }
+  }
+
   const handleExpandMkt = (name: string) => {
     if (expandedMkt === name) {
       setExpandedMkt(null)
@@ -118,8 +160,9 @@ export default function MarketplaceManager() {
       setLoadingExpand(true)
       setExpandedMkt(name)
       setPluginSearch('')
-      // Simulate loading for lazy-loaded feel
       setTimeout(() => setLoadingExpand(false), 100)
+      // Trigger fresh update check for expanded marketplace (force bypasses cache)
+      checkUpdates(name, true)
     }
   }
 
@@ -211,6 +254,7 @@ export default function MarketplaceManager() {
         {filtered.map(mkt => {
           const isExpanded = expandedMkt === mkt.name
           const isActioning = actionInProgress === mkt.name
+          const uc = updateChecks[mkt.name]
 
           // Filter plugins by plugin search
           const filteredPlugins = isExpanded && pluginSearch.trim()
@@ -219,13 +263,20 @@ export default function MarketplaceManager() {
 
           return (
             <div key={mkt.name} className="rounded-xl border border-gray-800 overflow-hidden">
-              {/* Marketplace header */}
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-800/50 hover:bg-gray-800/70 transition-colors">
+              {/* Marketplace header — darker bg than plugin rows */}
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-800/70 hover:bg-gray-800/90 transition-colors">
                 <button onClick={() => handleExpandMkt(mkt.name)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <Store className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                   <span className="text-xs font-medium text-gray-200 truncate">{mkt.name}</span>
                   {mkt.version && <span className="text-[9px] text-gray-600 flex-shrink-0">v{mkt.version}</span>}
+                  {/* Remote version check indicator */}
+                  {uc?.checking && <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin flex-shrink-0" />}
+                  {uc && !uc.checking && uc.marketplaceOutdated && (
+                    <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0" title={`Remote: v${uc.remoteVersion}`}>
+                      v{uc.remoteVersion} available
+                    </span>
+                  )}
                 </button>
 
                 {/* Counts */}
@@ -299,6 +350,8 @@ export default function MarketplaceManager() {
                     const isPluginActioning = actionInProgress === plugin.key
                     const isSelected = selectedPlugin === plugin.key
                     const hasErrors = plugin.errors.length > 0
+                    // Remote version from lazy check
+                    const plugUc = uc?.pluginUpdates?.[plugin.name]
 
                     return (
                       <div key={plugin.key}>
@@ -317,12 +370,21 @@ export default function MarketplaceManager() {
                                   {plugin.name}
                                 </span>
                                 {plugin.version && <span className="text-[9px] text-gray-600 tabular-nums">v{plugin.version}</span>}
-                                {!plugin.version && plugin.availableVersion && <span className="text-[9px] text-gray-600 tabular-nums">v{plugin.availableVersion}</span>}
+                                {!plugin.version && (plugin.availableVersion || plugUc?.remote) && <span className="text-[9px] text-gray-600 tabular-nums">v{plugUc?.remote || plugin.availableVersion}</span>}
+                                {/* Outdated from local comparison */}
                                 {plugin.outdated && (
                                   <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded" title={`Update available: v${plugin.availableVersion}`}>
                                     v{plugin.availableVersion}
                                   </span>
                                 )}
+                                {/* Outdated from remote GitHub check */}
+                                {!plugin.outdated && plugUc?.outdated && (
+                                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded" title={`Remote: v${plugUc.remote}`}>
+                                    v{plugUc.remote}
+                                  </span>
+                                )}
+                                {/* Checking spinner */}
+                                {uc?.checking && !plugUc && plugin.installed && <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin" />}
                                 {elCount > 0 && <span className="text-[9px] text-gray-600">{elCount}el</span>}
                                 {hasErrors && (
                                   <button

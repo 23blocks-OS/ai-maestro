@@ -399,6 +399,9 @@ export async function POST(req: NextRequest) {
     if (action === 'security-check') {
       return await handleSecurityCheck(pluginKey)
     }
+    if (action === 'check-updates') {
+      return await handleCheckUpdates(body.marketplaceName, body.force === true)
+    }
 
     // Plugin-level actions require pluginKey
     if (!pluginKey) {
@@ -529,7 +532,121 @@ async function handleUpdateMarketplace(marketplaceName?: string) {
   } catch (err) {
     return NextResponse.json({ error: `Failed to update: ${err}` }, { status: 500 })
   }
+  // Invalidate version check cache after update
+  UPDATE_CHECK_CACHE.delete(marketplaceName!)
   return NextResponse.json({ success: true, action: 'update-marketplace', marketplaceName })
+}
+
+// 5-minute cache for remote version checks to avoid GitHub rate limits
+const UPDATE_CHECK_CACHE = new Map<string, { data: unknown; timestamp: number }>()
+const UPDATE_CHECK_TTL = 5 * 60 * 1000 // 5 minutes
+
+/** Check for updates by fetching marketplace.json from GitHub via raw.githubusercontent.com */
+async function handleCheckUpdates(marketplaceName?: string, force?: boolean) {
+  if (!marketplaceName) {
+    return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
+  }
+
+  // Return cached result if within TTL — unless force (marketplace actively expanded by user)
+  const cached = UPDATE_CHECK_CACHE.get(marketplaceName)
+  if (cached && Date.now() - cached.timestamp < UPDATE_CHECK_TTL && !force) {
+    return NextResponse.json(cached.data)
+  }
+
+  // Get the source repo for this marketplace
+  const settings = await readJsonSafe(SETTINGS_PATH) || {}
+  const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+  const ekmEntry = ekm[marketplaceName] as Record<string, unknown> | undefined
+  const srcInfo = ekmEntry?.source as Record<string, string> | undefined
+  const repo = srcInfo?.repo
+
+  if (!repo) {
+    return NextResponse.json({ error: 'No source repo configured for this marketplace' }, { status: 404 })
+  }
+
+  // Fetch remote marketplace.json via raw.githubusercontent.com (avoids API rate limits)
+  const branches = ['main', 'master']
+  const paths = ['.claude-plugin/marketplace.json', 'marketplace.json', '.claude-plugin/plugin.json']
+
+  let remoteData: Record<string, unknown> | null = null
+  for (const branch of branches) {
+    for (const path of paths) {
+      try {
+        const url = `https://raw.githubusercontent.com/${repo}/${branch}/${path}`
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+        if (res.ok) {
+          remoteData = await res.json() as Record<string, unknown>
+          break
+        }
+      } catch { /* try next */ }
+    }
+    if (remoteData) break
+  }
+
+  if (!remoteData) {
+    return NextResponse.json({ error: 'Could not fetch remote version info' }, { status: 502 })
+  }
+
+  // Extract marketplace version
+  const remoteVersion = (remoteData.version as string) || null
+
+  // Extract plugin versions from remote marketplace.json
+  const remotePlugins: Record<string, string> = {}
+  if (Array.isArray(remoteData.plugins)) {
+    for (const p of remoteData.plugins as Record<string, unknown>[]) {
+      const name = p.name as string
+      const ver = p.version as string
+      if (name && ver) remotePlugins[name] = ver
+    }
+  }
+
+  // Compare with local: installed versions from cache
+  const mktCacheDir = join(CACHE_DIR, marketplaceName)
+  const localPlugins: Record<string, string> = {}
+  if (existsSync(mktCacheDir)) {
+    try {
+      const entries = await readdir(mktCacheDir)
+      for (const plugName of entries) {
+        if (plugName.startsWith('.')) continue
+        const ver = await getLatestVersion(join(mktCacheDir, plugName))
+        if (ver) localPlugins[plugName] = ver
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Build comparison results
+  const pluginUpdates: { name: string; installed: string | null; remote: string; outdated: boolean }[] = []
+  for (const [name, remoteVer] of Object.entries(remotePlugins)) {
+    const localVer = localPlugins[name] || null
+    pluginUpdates.push({
+      name,
+      installed: localVer,
+      remote: remoteVer,
+      outdated: !!(localVer && localVer < remoteVer),
+    })
+  }
+
+  // Local marketplace version
+  const mktPath = join(MARKETPLACES_DIR, marketplaceName)
+  const localMktJson = await readJsonSafe(join(mktPath, '.claude-plugin', 'marketplace.json'))
+    || await readJsonSafe(join(mktPath, 'marketplace.json'))
+  const localVersion = (localMktJson?.version as string) || null
+  const marketplaceOutdated = !!(localVersion && remoteVersion && localVersion < remoteVersion)
+
+  const result = {
+    success: true,
+    action: 'check-updates',
+    marketplaceName,
+    localVersion,
+    remoteVersion,
+    marketplaceOutdated,
+    pluginUpdates,
+  }
+
+  // Cache successful result for 5 minutes
+  UPDATE_CHECK_CACHE.set(marketplaceName, { data: result, timestamp: Date.now() })
+
+  return NextResponse.json(result)
 }
 
 /** Clone a GitHub marketplace repo */

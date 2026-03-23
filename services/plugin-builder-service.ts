@@ -518,8 +518,8 @@ export function generateManifest(config: PluginBuildConfig, buildDir: string): P
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
-      name: `${group.plugin}-from-${group.marketplace}`,
-      description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
+      name: `${sanitizedPlugin}-from-${sanitizedMarketplace}`,
+      description: `Skills from ${sanitizedPlugin} plugin (${sanitizedMarketplace} marketplace)`,
       type: 'local',
       path: installPath,
       map,

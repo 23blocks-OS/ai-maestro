@@ -279,21 +279,20 @@ export default function GlobalElementsSection() {
   const togglePlugin = async (key: string, currentEnabled: boolean) => {
     setToggling(key)
     try {
-      const res = await fetch('/api/settings/global-plugins', {
+      const action = currentEnabled ? 'disable' : 'enable'
+      const res = await fetch('/api/settings/marketplaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, enabled: !currentEnabled }),
+        body: JSON.stringify({ action, pluginKey: key }),
       })
       if (res.ok) {
         setGroups(prev => prev.map(g => ({
           ...g,
-          // Guard against null/undefined plugins array that the API might return for a group
           plugins: (g.plugins || []).map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
         fetchElements()
       } else {
-        // Revert optimistic state: server rejected the toggle
         fetchPlugins()
       }
     } catch (err) {

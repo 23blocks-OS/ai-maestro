@@ -28,14 +28,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
+  // Track mounted state so the polling callback never calls setState after unmount
+  const mountedRef = useRef(true)
 
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [])
-
+  // clearPoll must be declared before the cleanup useEffect that depends on it
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current)
@@ -43,6 +39,17 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     }
     pollFailures.current = 0
   }, [])
+
+  // Clean up polling on unmount — use memoized clearPoll to avoid stale closure on pollRef
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      // Mark unmounted before clearing the interval so the in-flight callback
+      // sees the flag and skips any pending setState calls
+      mountedRef.current = false
+      clearPoll()
+    }
+  }, [clearPoll])
 
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
@@ -64,13 +71,22 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Build failed')
+        // Guard against non-JSON error responses (e.g. gateway errors, HTML pages)
+        let errorMsg = 'Build failed'
+        try {
+          const data = await res.json()
+          errorMsg = data.error || errorMsg
+        } catch { /* server returned non-JSON — keep default message */ }
+        // Guard: component may have unmounted while awaiting the error-response body
+        if (!mountedRef.current) return
+        setError(errorMsg)
         setBuilding(false)
         return
       }
 
       const data: PluginBuildResult = await res.json()
+      // Guard: component may have unmounted while the initial fetch response body was being parsed
+      if (!mountedRef.current) return
       setResult(data)
 
       // Poll for completion
@@ -81,6 +97,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             if (statusRes.ok) {
               pollFailures.current = 0
               const statusData: PluginBuildResult = await statusRes.json()
+              // Guard: component may have unmounted while the fetch was in flight
+              if (!mountedRef.current) return
               setResult(statusData)
 
               if (statusData.status !== 'building') {
@@ -92,16 +110,31 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
-                setError('Lost connection to build server')
+                if (!mountedRef.current) return
+                // Non-2xx response indicates a server-side error, not a lost connection
+                let serverMsg = 'Failed to retrieve build status'
+                try {
+                  const errData = await statusRes.json()
+                  if (errData?.error) serverMsg = errData.error
+                } catch { /* ignore parse errors — use the default message */ }
+                // Re-check after the await: component may have unmounted while parsing the error response
+                if (!mountedRef.current) return
+                setError(serverMsg)
                 setBuilding(false)
+                // Do not auto-expand logs on status failure — the error message is sufficient
+                // and any partial logs may be incomplete or misleading
               }
             }
           } catch {
+            // A thrown exception means a genuine network failure (no response received)
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
+              if (!mountedRef.current) return
               setError('Lost connection to build server')
               setBuilding(false)
+              // Do not auto-expand logs on connection failure — the error message is sufficient
+              // and any partial logs may be incomplete or misleading
             }
           }
         }, 1000)
@@ -110,6 +143,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         setShowLogs(true)
       }
     } catch {
+      // Guard: component may have unmounted while the initial fetch was in flight
+      if (!mountedRef.current) return
       setError('Failed to connect to server')
       setBuilding(false)
     }
@@ -137,7 +172,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         }),
       })
 
-      const data = await res.json()
+      // Guard against non-JSON responses (e.g. gateway errors, HTML pages)
+      let data: { message?: string; error?: string } = {}
+      try {
+        data = await res.json()
+      } catch { /* server returned non-JSON — fall through with empty data so defaults apply */ }
       setPushResult({
         ok: res.ok,
         message: res.ok ? (data.message || 'Pushed successfully') : (data.error || 'Push failed'),
@@ -183,7 +222,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!isComplete || disabled}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -216,11 +255,16 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </div>
         )}
 
-        {error && !result && (
+        {/* Show error when present, unless the result already shows a failed status indicator
+            (which covers the isFailed case). Polling failures set error while result still
+            holds the in-progress build data, so !result would wrongly suppress the message. */}
+        {error && !isFailed && (
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {/* Show disabledReason whenever the button is disabled and not actively building,
+            regardless of whether a prior result exists */}
+        {disabledReason && disabled && !building && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -242,7 +286,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             </div>
             <button
               onClick={handlePush}
-              disabled={pushing || !forkUrl.trim()}
+              disabled={pushing || !forkUrl.trim() || disabled}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}

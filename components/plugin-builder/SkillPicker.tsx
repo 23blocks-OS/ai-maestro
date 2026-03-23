@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, Plus, Check, Package, Brain, BookOpen, GitBranch, Code, Loader2 } from 'lucide-react'
 import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'
-import type { PluginSkillSelection } from '@/types/plugin-builder'
+import type { PluginSkillSelection, RepoSkillInfo } from '@/types/plugin-builder'
 
 // Core AI Maestro skills (from plugin/src/skills/)
 const CORE_SKILLS = [
@@ -26,6 +26,10 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])
   const [loadingMarketplace, setLoadingMarketplace] = useState(true)
   const [activeTab, setActiveTab] = useState<'core' | 'marketplace' | 'repo'>('core')
+
+  // Track skills found by the last RepoScanner scan so the parent component
+  // is aware of available repo skills, honoring the onSkillsFound contract.
+  const [_repoScanResults, setRepoScanResults] = useState<RepoSkillInfo[]>([])
 
   // Build a set of selected skill keys for fast lookup
   const selectedKeys = useMemo(() => {
@@ -78,7 +82,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   const tabs = [
     { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
     { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
-    { id: 'repo' as const, label: 'GitHub Repo', count: null },
+    { id: 'repo' as const, label: 'GitHub Repo', count: _repoScanResults.length },
   ]
 
   return (
@@ -103,7 +107,12 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                // Clear stale repo scan results when leaving the repo tab so
+                // the count badge never shows data that is no longer visible.
+                if (activeTab === 'repo' && tab.id !== 'repo') setRepoScanResults([])
+                setActiveTab(tab.id)
+              }}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 activeTab === tab.id
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
@@ -252,8 +261,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
-            onSkillsFound={() => {}}
+            onSkillsFound={(skills, _url, _ref) => setRepoScanResults(skills)}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}
@@ -272,6 +282,8 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include skill.ref so that the same path on different branches/commits
+      // produces distinct keys and selection state is tracked correctly.
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

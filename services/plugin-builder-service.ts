@@ -16,7 +16,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import matter from 'gray-matter'
 import type { ServiceResult } from '@/services/marketplace-service'
 import type {
@@ -160,6 +160,28 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names against path traversal and invalid chars.
+      // These values are used in path.join() inside generateManifest, so they must be
+      // safe path segments with no ".." sequences or shell-significant characters.
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') {
+        return `Marketplace skill "${skill.name}": Marketplace name is required`
+      }
+      if (skill.marketplace.includes('..')) {
+        return `Marketplace skill "${skill.name}": Marketplace name must not contain ".."`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": Marketplace name "${skill.marketplace}" contains invalid characters`
+      }
+      if (!skill.plugin || typeof skill.plugin !== 'string') {
+        return `Marketplace skill "${skill.name}": Plugin name is required`
+      }
+      if (skill.plugin.includes('..')) {
+        return `Marketplace skill "${skill.name}": Plugin name must not contain ".."`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": Plugin name "${skill.plugin}" contains invalid characters`
+      }
     }
   }
 
@@ -170,28 +192,44 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 // Build result lifecycle (TTL + eviction)
 // ============================================================================
 
-function evictStaleBuildResults(): void {
+async function evictStaleBuildResults(): Promise<void> {
   const now = Date.now()
+  // Collect IDs to evict and their cleanup promises separately so that the
+  // map is only mutated *after* all filesystem cleanup attempts have settled.
+  const idsToDelete: string[] = []
+  const cleanupPromises: Promise<void>[] = []
+
   for (const [id, result] of buildResults) {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
-      buildResults.delete(id)
-      // Best-effort cleanup of build directory
+      idsToDelete.push(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      // Best-effort cleanup — errors intentionally ignored
+      cleanupPromises.push(fs.rm(buildDir, { recursive: true, force: true }).catch(() => {}))
     }
   }
 
-  // If still over limit, evict oldest
-  if (buildResults.size > MAX_BUILD_RESULTS) {
+  // If still over limit after TTL eviction, also evict oldest entries
+  const remainingCount = buildResults.size - idsToDelete.length
+  if (remainingCount > MAX_BUILD_RESULTS) {
     const entries = [...buildResults.entries()]
+      .filter(([id]) => !idsToDelete.includes(id))
       .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
-    const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
+    const toRemove = entries.slice(0, remainingCount - MAX_BUILD_RESULTS)
     for (const [id] of toRemove) {
-      buildResults.delete(id)
+      idsToDelete.push(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      cleanupPromises.push(fs.rm(buildDir, { recursive: true, force: true }).catch(() => {}))
     }
+  }
+
+  // Wait for all cleanup operations; allSettled ensures we never throw
+  await Promise.allSettled(cleanupPromises)
+
+  // Delete from the in-memory map only after filesystem cleanup has been attempted,
+  // so the map accurately reflects filesystem state throughout the eviction window.
+  for (const id of idsToDelete) {
+    buildResults.delete(id)
   }
 }
 
@@ -242,7 +280,23 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Enforce SAFE_PATH_SEGMENT_RE — the same regex used in validateBuildConfig — at
+    // the point of use.  This is stricter than a substring '..' check: it rejects any
+    // character that is not alphanumeric, dot, underscore, or hyphen, which means
+    // slashes, null bytes, and all other path-traversal characters are impossible.
+    // generateManifest is exported and may be called without prior validation, so we
+    // cannot rely on validateBuildConfig having run first.
+    if (!SAFE_PATH_SEGMENT_RE.test(group.marketplace)) {
+      throw new Error(`Invalid marketplace name: "${group.marketplace}" must be a single path segment containing only letters, digits, dots, underscores, or hyphens`)
+    }
+    const marketplaceBase = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces')
+    const installPath = path.join(marketplaceBase, group.marketplace)
+    // Post-construction containment check: even if SAFE_PATH_SEGMENT_RE is somehow
+    // bypassed, path.resolve() collapses any residual traversal sequences so we can
+    // assert the final path stays within the intended base directory.
+    if (!path.resolve(installPath).startsWith(path.resolve(marketplaceBase) + path.sep)) {
+      throw new Error(`Resolved marketplace path "${installPath}" escapes the intended base directory`)
+    }
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -316,13 +370,21 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
-  try {
-    // Evict stale builds before adding new ones
-    evictStaleBuildResults()
+  // Declared outside try so the catch block can access them for cleanup.
+  // buildDir is set to a non-empty string only after the directory is created,
+  // so the catch block can test it to know whether cleanup is needed.
+  let buildDir = ''
+  // opIncremented tracks whether activeOps++ executed before runBuild was
+  // launched, so the catch block can reverse it if an early error prevented
+  // runBuild (and therefore its finally decrement) from ever running.
+  let opIncremented = false
 
-    activeOps++
+  try {
+    // Evict stale builds before adding new ones (async, best-effort cleanup)
+    await evictStaleBuildResults()
+
     const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
+    buildDir = path.join(BUILDS_DIR, buildId)
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -347,8 +409,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (symlinkErr) {
+        // If symlink fails (e.g., permissions or unsupported fs), log the reason and copy instead
+        console.warn(`Failed to symlink core skills from ${srcDir} to ${linkTarget}, copying instead:`, symlinkErr)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -363,10 +426,20 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Increment activeOps here, immediately before launching the async build.
+    // runBuild owns the decrement via its finally block, so the counter stays
+    // elevated for the entire duration of the real async work — not just until
+    // buildPlugin returns. This is the correct place to count a "running" build.
+    activeOps++
+    // Mark the increment so the catch block can reverse it if runBuild is never
+    // reached (e.g., a synchronous throw between here and the runBuild call).
+    opIncremented = true
+
+    // Run build asynchronously. runBuild's finally block decrements activeOps
+    // when the build actually completes or fails, regardless of outcome.
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
+      // Ensure status is updated even on unexpected errors that escape runBuild
       const r = buildResults.get(buildId)
       if (r && r.status === 'building') {
         buildResults.set(buildId, {
@@ -375,14 +448,27 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
     })
+    // runBuild is now running — its finally block owns the activeOps decrement,
+    // so we must not touch opIncremented or activeOps from this point forward.
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
+
+    // If activeOps was incremented but runBuild was never launched (error between
+    // the increment and the runBuild call), runBuild's finally block will never
+    // run, so we must decrement here to keep the counter accurate.
+    if (opIncremented) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
+
+    // Clean up any partially-created build directory so it does not accumulate
+    // on disk across repeated early failures.
+    if (buildDir) {
+      await fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+    }
+
     return { error: 'Failed to start plugin build', status: 500 }
   }
 }
@@ -561,6 +647,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
   const existing = buildResults.get(buildId)
   if (!existing) return
 
+  // Outer try/catch/finally: catch ensures any unexpected error is reflected in
+  // the build status; finally decrements activeOps exactly once when the build
+  // truly completes or fails — keeping the counter accurate for the full async
+  // duration rather than just until buildPlugin returns its 202 response.
   try {
     const output = await execPromise(
       path.join(buildDir, 'build-plugin.sh'),
@@ -609,6 +699,11 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       status: 'failed',
       logs,
     })
+  } finally {
+    // Decrement when the build truly finishes (success or failure), not when
+    // buildPlugin schedules it. This is the paired decrement for the activeOps++
+    // in buildPlugin immediately before runBuild is launched.
+    activeOps = Math.max(0, activeOps - 1)
   }
 }
 
@@ -683,15 +778,32 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
 
 /**
  * Sanitize a URL into a valid source name.
+ * Returns 'unnamed-source' if the URL reduces to an empty string after sanitization.
+ *
+ * When the sanitized string must be truncated to 40 characters, a 7-character
+ * hash suffix (derived from the full original URL) is appended to prevent two
+ * different long URLs from producing the same name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 40)
+
+  if (!sanitized) return 'unnamed-source'
+
+  // If truncation would occur, append a 7-char hash of the original URL so
+  // that two different long URLs that share the same first 40 sanitized
+  // characters are still distinguishable (e.g. repo-very-long-name-1 vs -2).
+  if (sanitized.length > 40) {
+    const hash = createHash('sha256').update(url).digest('hex').slice(0, 7)
+    // Reserve the last 8 chars (dash + 7-char hash) within the 40-char limit
+    return `${sanitized.slice(0, 32)}-${hash}`
+  }
+
+  return sanitized
 }
 
 /**
@@ -706,7 +818,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — generous limit for large build/git output
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any
@@ -721,13 +833,20 @@ function execPromise(
 
 /**
  * Recursively copy a directory, skipping symlinks.
+ * Symlinks are intentionally not followed to prevent copying files outside the
+ * source tree. A warning is logged for each skipped symlink so that incomplete
+ * plugin builds caused by symlinked entries are diagnosable.
  */
 async function copyDir(src: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true })
   const entries = await fs.readdir(src, { withFileTypes: true })
   for (const entry of entries) {
-    // Skip symlinks to prevent copying files outside the source tree
-    if (entry.isSymbolicLink()) continue
+    // Skip symlinks to prevent copying files outside the source tree.
+    // Log a warning so operators can diagnose missing entries in the build output.
+    if (entry.isSymbolicLink()) {
+      console.warn(`copyDir: skipping symlink '${path.join(src, entry.name)}' — it will not appear in the plugin output`)
+      continue
+    }
 
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)

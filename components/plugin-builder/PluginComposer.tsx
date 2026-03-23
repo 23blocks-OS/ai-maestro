@@ -210,8 +210,13 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
   switch (skill.type) {
     case 'core':
       return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+    case 'marketplace': {
+      // id format is "publisher:plugin:skillName" — use the skill name part when present,
+      // fall back to the plugin field (always present on marketplace skills) if the id
+      // does not contain at least three colon-separated segments.
+      const parts = skill.id.split(':')
+      return parts.length > 2 ? parts[2] : skill.plugin
+    }
     case 'repo':
       return skill.name
   }

@@ -11,21 +11,26 @@ import type { NextRequest } from 'next/server'
 import { buildPlugin } from '@/services/plugin-builder-service'
 
 export async function POST(request: NextRequest) {
+  // Parse JSON body first; a failure here is always a client error (400)
+  let body: unknown
   try {
-    const body = await request.json()
-    const result = await buildPlugin(body)
-
-    if (result.error) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
-      )
-    }
-    return NextResponse.json(result.data, { status: result.status })
+    body = await request.json()
   } catch {
     return NextResponse.json(
       { error: 'Invalid request body' },
       { status: 400 }
     )
   }
+
+  // buildPlugin absorbs all errors internally and always returns a ServiceResult —
+  // it never throws, so no try/catch is needed here.
+  const result = await buildPlugin(body)
+
+  if (result.error) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status }
+    )
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

@@ -13,6 +13,7 @@ interface PluginInfo {
   name: string
   key: string
   enabled: boolean
+  version: string | null
 }
 
 interface MarketplaceGroup {
@@ -327,6 +328,7 @@ export default function GlobalElementsSection() {
                         <span className={`text-xs flex-1 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`}>
                           {plugin.name}
                         </span>
+                        <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
                         {/* Toggle switch */}
                         <button
                           onClick={() => togglePlugin(plugin.key, plugin.enabled)}

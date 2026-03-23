@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile } from 'fs/promises'
+import { readFile, writeFile, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
@@ -25,7 +25,7 @@ interface PluginEntry {
 
 interface GroupedPlugins {
   marketplace: string
-  plugins: { name: string; key: string; enabled: boolean }[]
+  plugins: { name: string; key: string; enabled: boolean; version: string | null }[]
 }
 
 async function readSettings(): Promise<Record<string, unknown>> {
@@ -57,10 +57,21 @@ export async function GET() {
       if (!grouped[entry.marketplace]) {
         grouped[entry.marketplace] = { marketplace: entry.marketplace, plugins: [] }
       }
+      // Read installed version from cache
+      let version: string | null = null
+      const cacheDir = join(HOME, '.claude', 'plugins', 'cache', entry.marketplace, entry.pluginName)
+      if (existsSync(cacheDir)) {
+        try {
+          const dirs = (await readdir(cacheDir)).filter(e => !e.startsWith('.')).sort()
+          if (dirs.length > 0) version = dirs[dirs.length - 1]
+        } catch { /* ignore */ }
+      }
+
       grouped[entry.marketplace].plugins.push({
         name: entry.pluginName,
         key: entry.key,
         enabled: entry.enabled,
+        version,
       })
     }
 

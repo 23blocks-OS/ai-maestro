@@ -419,21 +419,20 @@ export default function MarketplaceManager() {
                                 <span className={`text-[11px] font-medium truncate ${plugin.installed ? 'text-gray-200' : 'text-gray-500'}`}>
                                   {plugin.name}
                                 </span>
-                                <span className="text-[9px] text-gray-600 tabular-nums">{plugin.version ? `v${plugin.version}` : plugin.availableVersion || plugUc?.remote ? `v${plugUc?.remote || plugin.availableVersion}` : '-'}</span>
-                                {/* Outdated from local comparison */}
-                                {plugin.outdated && (
-                                  <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded" title={`Update available: v${plugin.availableVersion}`}>
-                                    v{plugin.availableVersion}
+                                {/* Version number */}
+                                <span className="text-[9px] text-gray-600 tabular-nums">
+                                  {plugin.version ? `v${plugin.version}` : (plugin.availableVersion || plugUc?.remote) ? `v${plugUc?.remote || plugin.availableVersion}` : '-'}
+                                </span>
+                                {/* Update status label — always visible once checked */}
+                                {uc?.checking ? (
+                                  <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin flex-shrink-0" />
+                                ) : (plugin.outdated || plugUc?.outdated) ? (
+                                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0" title={`Update: v${plugUc?.remote || plugin.availableVersion}`}>
+                                    {plugUc?.remote || plugin.availableVersion}
                                   </span>
-                                )}
-                                {/* Outdated from remote GitHub check */}
-                                {!plugin.outdated && plugUc?.outdated && (
-                                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded" title={`Remote: v${plugUc.remote}`}>
-                                    v{plugUc.remote}
-                                  </span>
-                                )}
-                                {/* Checking spinner */}
-                                {uc?.checking && !plugUc && plugin.installed && <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin" />}
+                                ) : plugUc && plugin.installed ? (
+                                  <span className="text-[9px] text-emerald-500/70 flex-shrink-0">up to date</span>
+                                ) : null}
                                 {elCount > 0 && <span className="text-[9px] text-gray-600">{elCount}el</span>}
                                 {hasErrors && (
                                   <button

@@ -685,7 +685,10 @@ export default function GlobalElementsSection() {
                     {['hook', 'mcp', 'lsp'].includes(el.type) ? (<>
                       {el.description && (
                         <div className="mt-1">
-                          <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{el.description}</pre>
+                          <div className="relative group/code">
+                            <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 pr-8 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{el.description}</pre>
+                            <button onClick={() => navigator.clipboard.writeText(el.description || '')} className="absolute top-1.5 right-1.5 p-1 rounded bg-gray-800/80 hover:bg-gray-700 opacity-0 group-hover/code:opacity-100 transition-opacity" title="Copy"><Copy className="w-3 h-3 text-gray-400" /></button>
+                          </div>
                         </div>
                       )}
                       {/* View Script button for hooks that reference a script file */}
@@ -740,7 +743,10 @@ export default function GlobalElementsSection() {
                       )}
                       {elementContent[elKey] && (
                         <div className="mt-2 pt-2 border-t border-gray-800/30">
-                          <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{elementContent[elKey]}</pre>
+                          <div className="relative group/code">
+                            <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 pr-8 max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{elementContent[elKey]}</pre>
+                            <button onClick={() => navigator.clipboard.writeText(elementContent[elKey] || '')} className="absolute top-1.5 right-1.5 p-1 rounded bg-gray-800/80 hover:bg-gray-700 opacity-0 group-hover/code:opacity-100 transition-opacity" title="Copy"><Copy className="w-3 h-3 text-gray-400" /></button>
+                          </div>
                         </div>
                       )}
                     </>)}

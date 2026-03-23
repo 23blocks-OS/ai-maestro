@@ -19,20 +19,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate ref is a string if provided — scanRepo requires string, not number/object
+    if (body.ref !== undefined && typeof body.ref !== 'string') {
+      return NextResponse.json(
+        { error: 'Repository reference must be a string' },
+        { status: 400 }
+      )
+    }
+
     const result = await scanRepo(body.url, body.ref || 'main')
 
     if (result.error) {
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        // Default to 500 if service returns an unexpected non-number status
+        { status: typeof result.status === 'number' ? result.status : 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error scanning repo:', error)
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+    // Any other unexpected error is a server-side fault
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

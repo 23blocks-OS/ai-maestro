@@ -86,7 +86,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               if (statusData.status !== 'building') {
                 clearPoll()
                 setBuilding(false)
-                setShowLogs(true)
+                // Do not force-show logs here — user may have hidden them; showLogs was already reset to false at build start
               }
             } else {
               pollFailures.current++
@@ -107,7 +107,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         }, 1000)
       } else {
         setBuilding(false)
-        setShowLogs(true)
+        // Do not force-show logs here — user may have hidden them; showLogs was already reset to false at build start
       }
     } catch {
       setError('Failed to connect to server')
@@ -183,7 +183,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!result?.manifest || result?.status !== 'complete'}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -258,11 +258,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
-              claude plugin install {result.outputPath}
+              claude plugin install {result?.outputPath}
             </code>
             <button
               onClick={copyInstallCommand}
@@ -280,14 +280,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result && result.logs?.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}
             className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-400 transition-colors mb-2"
           >
             {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            Build Logs ({result.logs.length} lines)
+            Build Logs ({result.logs?.length ?? 0} lines)
           </button>
           {showLogs && (
             <div className="bg-gray-950 rounded-lg p-3 max-h-48 overflow-y-auto border border-gray-800">

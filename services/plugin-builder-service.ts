@@ -40,6 +40,15 @@ const PLUGIN_DIR = path.join(process.cwd(), 'plugin')
 const BUILD_SCRIPT = path.join(PLUGIN_DIR, 'build-plugin.sh')
 const BUILDS_DIR = path.join(os.tmpdir(), 'ai-maestro-plugin-builds')
 
+/**
+ * Base directory where Claude Code marketplace plugins are installed.
+ * Override via CLAUDE_MARKETPLACE_PLUGINS_DIR env var when running in
+ * environments where the process user's home directory differs from the
+ * intended plugin installation location.
+ */
+const MARKETPLACE_PLUGINS_DIR = process.env.CLAUDE_MARKETPLACE_PLUGINS_DIR
+  || path.join(os.homedir(), '.claude', 'plugins', 'marketplaces')
+
 /** Max builds to keep in memory before evicting oldest */
 const MAX_BUILD_RESULTS = 50
 /** Auto-evict build results older than this (ms) */
@@ -176,9 +185,11 @@ function evictStaleBuildResults(): void {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
-      // Best-effort cleanup of build directory
+      // Best-effort cleanup of build directory — log warnings so disk/permission issues are visible
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up build directory ${buildDir} during TTL eviction:`, err)
+      })
     }
   }
 
@@ -190,7 +201,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up build directory ${buildDir} during count eviction:`, err)
+      })
     }
   }
 }
@@ -242,7 +255,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(MARKETPLACE_PLUGINS_DIR, group.marketplace)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -316,11 +329,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Increment before the try block so the finally/.catch path always decrements exactly once
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
-
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -347,8 +361,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (symlinkError) {
+        // If symlink fails (e.g., permissions, unsupported filesystem), log and copy instead
+        console.warn(`Failed to symlink core skills directory from ${srcDir} to ${linkTarget}. Falling back to copy.`, symlinkError)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -444,8 +459,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
       status: 200,
     }
   } catch (error: unknown) {
-    // Clean up on error
-    await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
+    // Clean up on error — log warnings so disk/permission issues are visible
+    await fs.rm(scanDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up scan directory ${scanDir} after error:`, err)
+    })
 
     const exitCode = (error as any)?.code
     const message = error instanceof Error ? error.message : String(error)
@@ -540,7 +557,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       status: 200,
     }
   } catch (error: unknown) {
-    await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
+    // Clean up on error — log warnings so disk/permission issues are visible
+    await fs.rm(pushDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up push directory ${pushDir} after error:`, err)
+    })
     const message = error instanceof Error ? error.message : String(error)
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
@@ -558,8 +578,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
  * Uses atomic replacement of the map entry to avoid torn reads.
  */
 async function runBuild(buildId: string, buildDir: string, manifest: PluginManifest): Promise<void> {
-  const existing = buildResults.get(buildId)
-  if (!existing) return
+  // Verify the build entry exists before starting the expensive operation
+  if (!buildResults.get(buildId)) return
 
   try {
     const output = await execPromise(
@@ -589,9 +609,16 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       // Stats collection failed — non-critical
     }
 
+    // Re-fetch the latest state before writing; skip if evicted while execPromise was running
+    const currentResult = buildResults.get(buildId)
+    if (!currentResult) {
+      console.warn(`Build ${buildId} was evicted during execution — discarding result`)
+      return
+    }
+
     // Atomic replacement: avoids torn reads from polling clients
     buildResults.set(buildId, {
-      ...existing,
+      ...currentResult,
       status: 'complete',
       outputPath,
       logs: output.split('\n'),
@@ -603,9 +630,16 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
 
+    // Re-fetch the latest state before writing; skip if evicted while execPromise was running
+    const currentResult = buildResults.get(buildId)
+    if (!currentResult) {
+      console.warn(`Build ${buildId} was evicted during execution — discarding failure status`)
+      return
+    }
+
     // Atomic replacement
     buildResults.set(buildId, {
-      ...existing,
+      ...currentResult,
       status: 'failed',
       logs,
     })
@@ -685,13 +719,15 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  // Fallback to prevent empty string from being used as a file/identifier name
+  return sanitized || 'unknown-source'
 }
 
 /**

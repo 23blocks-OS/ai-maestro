@@ -312,7 +312,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always prioritize result.error — a response with both error and data is still an error
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -470,7 +471,11 @@ const routes: Route[] = [
     sendServiceResult(res, await restoreSessions(body))
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+    if (!query.sessionId) {
+      sendJson(res, 400, { error: 'Missing required query parameter: sessionId' })
+      return
+    }
+    sendServiceResult(res, deletePersistedSession(query.sessionId))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
@@ -537,7 +542,16 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Malformed JSON in the options multipart field is a client error
+          sendJson(res, 400, { error: 'Invalid JSON in options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -649,7 +663,11 @@ const routes: Route[] = [
     sendServiceResult(res, await updateLongTermMemory(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await deleteLongTermMemory(params.id, query.id || ''))
+    if (!query.id) {
+      sendJson(res, 400, { error: 'Missing required query parameter: id' })
+      return
+    }
+    sendServiceResult(res, await deleteLongTermMemory(params.id, query.id))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getMemory(params.id))
@@ -769,7 +787,11 @@ const routes: Route[] = [
     sendServiceResult(res, addSkill(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+    if (!query.skill) {
+      sendJson(res, 400, { error: 'Missing required query parameter: skill' })
+      return
+    }
+    sendServiceResult(res, removeSkill(params.id, query.skill))
   }},
 
   // Subconscious
@@ -790,7 +812,11 @@ const routes: Route[] = [
     sendServiceResult(res, updateRepos(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeRepo(params.id, query.url || ''))
+    if (!query.url) {
+      sendJson(res, 400, { error: 'Missing required query parameter: url' })
+      return
+    }
+    sendServiceResult(res, removeRepo(params.id, query.url))
   }},
 
   // Playback
@@ -1071,10 +1097,18 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    if (!query.agent || !query.id) {
+      sendJson(res, 400, { error: 'Missing required query parameters: agent and id' })
+      return
+    }
+    sendServiceResult(res, await updateGlobalMessage(query.agent, query.id, query.action || null))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    if (!query.agent || !query.id) {
+      sendJson(res, 400, { error: 'Missing required query parameters: agent and id' })
+      return
+    }
+    sendServiceResult(res, await removeMessage(query.agent, query.id))
   }},
 
   // =========================================================================

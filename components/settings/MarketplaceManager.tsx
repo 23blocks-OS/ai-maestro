@@ -334,7 +334,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                 <button onClick={() => handleExpandMkt(mkt.name)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <Store className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                  <span className="text-xs font-medium text-gray-200 truncate">{mkt.name}</span>
+                  <span className="text-xs font-medium text-gray-200 min-w-0 truncate" title={mkt.name}>{mkt.name}</span>
                   <span className="text-[9px] text-gray-600 flex-shrink-0">{mkt.version ? `v${mkt.version}` : '-'}</span>
                   {/* Remote version check indicator */}
                   {uc?.checking && <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin flex-shrink-0" />}
@@ -385,7 +385,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                   <div className="flex flex-wrap gap-x-3">
                     <span>Author: <span className="text-gray-500">{mkt.author || '-'}</span></span>
                     <span>Email: <span className="text-gray-500">{mkt.authorEmail || '-'}</span></span>
-                    <span>Source: <span className="text-gray-500 truncate">{mkt.sourceUrl || '-'}</span></span>
+                    <span>Source: <span className="text-gray-500 break-all" title={mkt.sourceUrl || ''}>{mkt.sourceUrl || '-'}</span></span>
                   </div>
                 </div>
               )}
@@ -438,14 +438,14 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span
-                                  className={`text-[11px] font-medium truncate ${plugin.installed ? 'text-gray-200 hover:text-blue-400 cursor-pointer' : 'text-gray-500'}`}
+                                  className={`text-[11px] font-medium min-w-0 truncate ${plugin.installed ? 'text-gray-200 hover:text-blue-400 cursor-pointer' : 'text-gray-500'}`}
                                   onClick={plugin.installed && onGoToPlugin ? (e) => { e.stopPropagation(); onGoToPlugin(plugin.key) } : undefined}
-                                  title={plugin.installed ? 'View in Plugins tab' : undefined}
+                                  title={plugin.installed ? `${plugin.name} — View in Plugins tab` : plugin.name}
                                 >
                                   {plugin.name}
                                 </span>
                                 {/* Version number */}
-                                <span className="text-[9px] text-gray-600 tabular-nums">
+                                <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">
                                   {plugin.version ? `v${plugin.version}` : (plugin.availableVersion || plugUc?.remote) ? `v${plugUc?.remote || plugin.availableVersion}` : '-'}
                                 </span>
                                 {/* Update status label — always visible once checked */}
@@ -573,7 +573,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                               <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Source: <span className="text-gray-400 truncate">{plugin.sourceUrl || '-'}</span>
+                              <span>Source: <span className="text-gray-400 break-all" title={plugin.sourceUrl || ''}>{plugin.sourceUrl || '-'}</span>
                                 {plugin.sourceUrl?.startsWith('http') && (
                                   <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-block ml-0.5 align-middle">
                                     <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />

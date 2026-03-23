@@ -87,7 +87,7 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
  * Three tabs: Plugins (toggle + info), Elements (active elements), Marketplaces (full management).
  */
 export default function GlobalElementsSection() {
-  const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>('plugins')
+  const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>('elements')
   // Scroll position per tab — restore when switching back
   const scrollPositions = useRef<Record<string, number>>({ plugins: 0, elements: 0, marketplaces: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
@@ -330,48 +330,48 @@ export default function GlobalElementsSection() {
   }
 
   return (
-    <div ref={containerRef} className="p-6 max-w-4xl">
+    <div ref={containerRef} className="p-4 sm:p-6 max-w-4xl">
       <h2 className="text-xl font-bold text-white mb-2">Global Elements</h2>
       <p className="text-sm text-gray-400 mb-4">
         User-level plugins shared by <strong>all agents</strong> on this host.
       </p>
 
-      {/* Tab bar: Plugins | Elements | Marketplaces */}
-      <div className="flex items-center gap-1 mb-6 bg-gray-800/30 rounded-lg p-1">
-        <button
-          onClick={() => switchTab('plugins')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
-            activeTab === 'plugins'
-              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-              : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
-          }`}
-        >
-          <Puzzle className="w-3.5 h-3.5" />
-          Plugins
-          <span className="opacity-60">{enabledCount}/{totalCount}</span>
-        </button>
+      {/* Tab bar: Elements | Plugins | Marketplaces */}
+      <div className="flex items-center gap-1 mb-4 sm:mb-6 bg-gray-800/30 rounded-lg p-1">
         <button
           onClick={() => switchTab('elements')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'elements'
               ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
               : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
           }`}
         >
-          <Wand2 className="w-3.5 h-3.5" />
-          Elements
+          <Wand2 className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="hidden sm:inline">Elements</span>
           {totalElements > 0 && <span className="opacity-60">{totalElements}</span>}
         </button>
         <button
+          onClick={() => switchTab('plugins')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-md text-xs font-semibold transition-all ${
+            activeTab === 'plugins'
+              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+              : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
+          }`}
+        >
+          <Puzzle className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="hidden sm:inline">Plugins</span>
+          <span className="opacity-60">{enabledCount}/{totalCount}</span>
+        </button>
+        <button
           onClick={() => switchTab('marketplaces')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 sm:px-3 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'marketplaces'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
               : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
           }`}
         >
-          <Store className="w-3.5 h-3.5" />
-          Marketplaces
+          <Store className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="hidden sm:inline">Marketplaces</span>
         </button>
       </div>
 
@@ -411,7 +411,7 @@ export default function GlobalElementsSection() {
               >
                 {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
                 <Store className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-200 flex-1 truncate">{group.marketplace}</span>
+                <span className="text-sm font-medium text-gray-200 flex-1 min-w-0 truncate" title={group.marketplace}>{group.marketplace}</span>
                 <span className="text-xs text-gray-500 tabular-nums">
                   {enabledInGroup > 0 && <span className="text-emerald-400">{enabledInGroup}</span>}
                   {enabledInGroup > 0 && '/'}
@@ -439,7 +439,7 @@ export default function GlobalElementsSection() {
                           onClick={() => setExpandedPlugin(isExpPl ? null : plugin.key)}
                         >
                           <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${plugin.enabled ? 'text-emerald-400' : 'text-gray-600'}`} />
-                          <span className={`text-xs flex-1 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`}>
+                          <span className={`text-xs flex-1 min-w-0 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`} title={plugin.name}>
                             {plugin.name}
                           </span>
                           <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
@@ -553,8 +553,8 @@ export default function GlobalElementsSection() {
       {/* ================================================================= */}
       {activeTab === 'elements' && (<>
 
-      {/* Summary badges */}
-      <div className="flex flex-wrap gap-2 mb-3">
+      {/* Summary badges — horizontal scroll on mobile */}
+      <div className="flex flex-nowrap sm:flex-wrap gap-2 mb-3 overflow-x-auto pb-1 scrollbar-thin">
         {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {
           const count = elementTotals[key] || 0
           if (count === 0) return null
@@ -612,35 +612,39 @@ export default function GlobalElementsSection() {
 
             return (
               <div key={`${elKey}-${idx}`} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
-                {/* Element card header */}
+                {/* Element card header — two-row layout: name on top, source info below on mobile */}
                 <div
-                  className={`flex items-center gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}
+                  className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}
                   onClick={() => setExpandedElement(isExp ? null : elKey)}
                 >
-                  <TypeIcon className={`w-3.5 h-3.5 flex-shrink-0 ${ti.color}`} />
-                  <span className="text-[11px] font-medium text-gray-200 truncate">{el.name}</span>
-                  <span className="text-[9px] text-gray-700">{ti.label.replace(/ Servers?$/, '').replace(/Output /, '')}</span>
-                  {!el.pluginEnabled && <span className="text-[8px] text-amber-500/80 bg-amber-500/10 px-1 rounded" title="Enable the plugin to activate this element">disabled</span>}
-                  <span className="flex-1" />
-                  {/* Plugin info */}
-                  <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
-                  <span
-                    className="text-[9px] text-gray-600 truncate max-w-[80px] hover:text-blue-400 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); goToPlugin(`${el.sourcePlugin}@${el.sourceMarketplace}`) }}
-                    title="View in Plugins tab"
-                  >{el.sourcePlugin}</span>
-                  <span className="text-[9px] text-gray-700">{el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
-                  <Store className="w-2.5 h-2.5 text-amber-400/40 flex-shrink-0" />
-                  <span
-                    className="text-[9px] text-gray-700 truncate max-w-[60px] hover:text-amber-400 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); goToMarketplace(el.sourceMarketplace) }}
-                    title={`Go to ${el.sourceMarketplace}`}
-                  >{el.sourceMarketplace}</span>
-                  {el.pluginSourceUrl && (
-                    <a href={el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
-                      <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
-                    </a>
-                  )}
+                  {/* Row 1: type icon + name + type label + disabled badge */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <TypeIcon className={`w-3.5 h-3.5 flex-shrink-0 ${ti.color}`} />
+                    <span className="text-[11px] font-medium text-gray-200 min-w-0 truncate" title={el.name}>{el.name}</span>
+                    <span className="text-[9px] text-gray-700 flex-shrink-0">{ti.label.replace(/ Servers?$/, '').replace(/Output /, '')}</span>
+                    {!el.pluginEnabled && <span className="text-[8px] text-amber-500/80 bg-amber-500/10 px-1 rounded flex-shrink-0" title="Enable the plugin to activate this element">disabled</span>}
+                  </div>
+                  {/* Row 2 (mobile) / right side (desktop): plugin + marketplace info */}
+                  <div className="flex items-center gap-1.5 ml-[22px] sm:ml-auto flex-shrink-0">
+                    <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
+                    <span
+                      className="text-[9px] text-gray-600 min-w-0 truncate hover:text-blue-400 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); goToPlugin(`${el.sourcePlugin}@${el.sourceMarketplace}`) }}
+                      title={`${el.sourcePlugin} — View in Plugins tab`}
+                    >{el.sourcePlugin}</span>
+                    <span className="text-[9px] text-gray-700 flex-shrink-0">{el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
+                    <Store className="w-2.5 h-2.5 text-amber-400/40 flex-shrink-0" />
+                    <span
+                      className="text-[9px] text-gray-700 min-w-0 truncate hover:text-amber-400 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); goToMarketplace(el.sourceMarketplace) }}
+                      title={`${el.sourceMarketplace} — Go to Marketplaces tab`}
+                    >{el.sourceMarketplace}</span>
+                    {el.pluginSourceUrl && (
+                      <a href={el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
+                        <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
+                      </a>
+                    )}
+                  </div>
                 </div>
                 {/* Expanded: description + metadata */}
                 {isExp && (

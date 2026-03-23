@@ -750,15 +750,23 @@ export default function GlobalElementsSection() {
                     {/* All frontmatter fields — rendered generically */}
                     {el.frontmatter && Object.entries(el.frontmatter)
                       .filter(([k]) => k !== 'description') // already shown above
-                      .map(([key, val]) => (
-                        <div key={key}>
-                          {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}: {
-                            Array.isArray(val)
-                              ? <span className="text-gray-400">{val.join(', ')}</span>
-                              : <span className="text-gray-400">{String(val)}</span>
-                          }
-                        </div>
-                      ))
+                      .map(([key, val]) => {
+                        // Sanitize key: only allow alphanumeric, spaces, dashes, underscores
+                        const safeKey = key.replace(/[^a-zA-Z0-9_ -]/g, '').substring(0, 50)
+                        if (!safeKey) return null
+                        // Sanitize values: strip control chars, limit length
+                        const sanitize = (s: string) => s.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').substring(0, 500)
+                        const label = safeKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                        return (
+                          <div key={safeKey}>
+                            {label}: {
+                              Array.isArray(val)
+                                ? <span className="text-gray-400">{val.map(v => sanitize(String(v))).join(', ')}</span>
+                                : <span className="text-gray-400">{sanitize(String(val))}</span>
+                            }
+                          </div>
+                        )
+                      })
                     }
                     <div>Plugin: <span
                       className="text-gray-400 hover:text-blue-400 cursor-pointer"

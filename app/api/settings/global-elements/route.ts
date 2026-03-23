@@ -88,8 +88,16 @@ async function extractFrontmatter(filePath: string): Promise<{ description: stri
     }
     // Flush last key
     if (currentKey && currentList) result[currentKey] = currentList
-    const desc = typeof result.description === 'string' ? result.description.substring(0, 200) : null
-    return { description: desc, frontmatter: result }
+    // Sanitize: strip control chars, limit key/value lengths, reject suspicious keys
+    const sanitize = (s: string) => s.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').substring(0, 1000)
+    const safeResult: Record<string, string | string[]> = {}
+    for (const [k, v] of Object.entries(result)) {
+      const safeKey = k.replace(/[^a-zA-Z0-9_ -]/g, '').substring(0, 50)
+      if (!safeKey) continue
+      safeResult[safeKey] = Array.isArray(v) ? v.map(sanitize) : sanitize(String(v))
+    }
+    const desc = typeof safeResult.description === 'string' ? safeResult.description.substring(0, 200) : null
+    return { description: desc, frontmatter: safeResult }
   } catch { return { description: null, frontmatter: {} } }
 }
 

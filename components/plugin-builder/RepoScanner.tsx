@@ -82,6 +82,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
     }
   }, [])
 
+  // Abort any in-flight scan when the component unmounts to prevent
+  // setting state on an unmounted component and resource leaks.
+  useEffect(() => {
+    return () => { abortRef.current?.abort() }
+  }, [])
+
   const handleScan = async () => {
     // Capture current state values before any async operations to avoid stale closures.
     // Default ref to 'main' here (single source of truth) rather than forcing it in onChange.

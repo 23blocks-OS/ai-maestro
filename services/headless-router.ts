@@ -664,8 +664,8 @@ const routes: Route[] = [
     await sendServiceResult(res, await deleteSession(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = await checkIdleStatus(params.id)
-    sendJson(res, 200, result)
+    // Use sendServiceResult so that error responses from checkIdleStatus are not masked as 200 OK.
+    sendServiceResult(res, await checkIdleStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)

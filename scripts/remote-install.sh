@@ -203,7 +203,7 @@ GATEWAYS_REPO="https://github.com/23blocks-OS/aimaestro-gateways.git"
 if [ ! -t 0 ]; then
     # When piped, we can't read from stdin for prompts
     # Redirect stdin from /dev/tty so read works
-    exec < /dev/tty 2>/dev/null || NON_INTERACTIVE=true
+    exec < /dev/tty 2>/dev/null || { NON_INTERACTIVE=true; TYPE_SPEED=0; }
 fi
 
 parse_args() {
@@ -567,7 +567,11 @@ act1_hello_and_discovery() {
         maestro_check "Git" "${RED}not found (Xcode CLI tools required)${NC}"
         NEED_GIT=true
     else
-        maestro_check "Git" "${RED}not found${NC}"
+        if [ "$OS" = "macos" ] && ! xcode-select -p &>/dev/null; then
+            maestro_check "Git" "${RED}not found (Xcode CLI tools required)${NC}"
+        else
+            maestro_check "Git" "${RED}not found${NC}"
+        fi
         NEED_GIT=true
     fi
 
@@ -770,11 +774,15 @@ act2_install_prerequisites() {
         if [ "$OS" = "macos" ]; then
             maestro_info "Installing tmux via Homebrew"
             brew install tmux
+            maestro_ok "tmux installed"
         elif [ "$SKIP_SYSPKG" != true ]; then
             maestro_info "Installing tmux"
-            _install_pkg tmux
+            if _install_pkg tmux; then
+                maestro_ok "tmux installed"
+            else
+                maestro_warn "tmux install failed"
+            fi
         fi
-        [ "$SKIP_SYSPKG" != true ] && maestro_ok "tmux installed"
     fi
 
     # jq
@@ -783,10 +791,14 @@ act2_install_prerequisites() {
         maestro_info "Installing jq"
         if [ "$OS" = "macos" ]; then
             brew install jq
+            maestro_ok "jq installed"
         elif [ "$SKIP_SYSPKG" != true ]; then
-            _install_pkg jq
+            if _install_pkg jq; then
+                maestro_ok "jq installed"
+            else
+                maestro_warn "jq install failed"
+            fi
         fi
-        [ "$SKIP_SYSPKG" != true ] && maestro_ok "jq installed"
     fi
 
     # AI Tool choice (skip if --skip-ai-tool or user already has Claude)
@@ -980,7 +992,16 @@ act3_clone_and_build() {
             # M20/M21: Show current version and check if update is needed
             local old_version=""
             if [ -f "$INSTALL_DIR/package.json" ]; then
-                old_version=$(grep '"version"' "$INSTALL_DIR/package.json" 2>/dev/null | head -1 | sed 's/.*"version".*"\([^"]*\)".*/\1/')
+                # Use jq when available (precise top-level field lookup).
+                # Fall back to sed anchored to the top-level "version" field: the first
+                # occurrence that appears before the first nested object (i.e., before any
+                # indented/nested "version" key in dependencies or devDependencies).
+                if command -v jq &>/dev/null; then
+                    old_version=$(jq -r '.version // empty' "$INSTALL_DIR/package.json" 2>/dev/null || true)
+                else
+                    old_version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                        "$INSTALL_DIR/package.json" 2>/dev/null | head -1 || true)
+                fi
             fi
             if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
                 maestro_ok "AI Maestro v${VERSION} is already up to date"

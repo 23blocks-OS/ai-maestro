@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
     const result = await scanRepo(repoUrl, ref ?? undefined)
 
     if (result.error) {
+      // Provide a 500 fallback in case the service omits status on error
       return NextResponse.json(
         { error: result.error },
         // Fall back to 500 when scanRepo sets error but omits status

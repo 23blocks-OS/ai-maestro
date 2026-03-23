@@ -435,8 +435,14 @@ function ensureEvictionStarted(): void {
 
 /**
  * Generate a plugin.manifest.json from the UI-provided build config.
+ *
+ * @param config - The build configuration from the UI.
+ * @param buildDir - The temporary build directory where build-plugin.sh will run.
+ *   Required so that marketplace skill paths can be expressed as paths relative
+ *   to the build directory, which is how build-plugin.sh resolves "local" sources
+ *   (it prepends $SCRIPT_DIR to every local path).
  */
-export function generateManifest(config: PluginBuildConfig): PluginManifest {
+export function generateManifest(config: PluginBuildConfig, buildDir: string): PluginManifest {
   const sources: PluginManifestSource[] = []
 
   // Group skills by source type
@@ -588,8 +594,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
 
-    // Generate manifest
-    const manifest = generateManifest(config)
+    // Generate manifest — buildDir must be passed so marketplace paths are relative to it
+    const manifest = generateManifest(config, buildDir)
 
     // Write manifest to build directory
     await fs.writeFile(
@@ -755,6 +761,7 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     let message = execError.message || String(error)
     if (execError.stderr) message += `\nStderr: ${execError.stderr}`
 
+    // git exits with code 128 for "repository not found" / authentication failures
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}. ${message}`, status: 404 }
     }
@@ -763,7 +770,8 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
       return { error: `Git clone timed out after 30 seconds for repository: ${url}`, status: 504 }
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${message}`, status: 500 }
+    const detail = stderr ? `${message}\n${stderr}` : message
+    return { error: `Failed to scan repository: ${detail}`, status: 500 }
   } finally {
     release()
   }
@@ -1032,9 +1040,10 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           const relativePath = relativeSkillDir
 
           skills.push({
-            name: (frontmatter.name as string) || skillFolder,
+            // Use String() coercion to safely handle non-string frontmatter values (numbers, booleans, etc.)
+            name: frontmatter.name != null ? String(frontmatter.name) : skillFolder,
             path: relativePath,
-            description: (frontmatter.description as string) || '',
+            description: frontmatter.description != null ? String(frontmatter.description) : '',
           })
         } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
           // Resolve subdirectory realpath and verify it is strictly within the scan

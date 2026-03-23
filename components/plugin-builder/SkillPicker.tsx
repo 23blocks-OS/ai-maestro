@@ -241,7 +241,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                     onClick={() => {
                       if (isSelected) {
                         onRemoveSkill(key)
-                      } else {
+                      } else if (skill.id != null) {
+                        // Only add if the skill has a valid id — skills without an id cannot
+                        // be keyed, deduped, or referenced reliably by downstream consumers.
                         onAddSkill({
                           type: 'marketplace',
                           id: skill.id,

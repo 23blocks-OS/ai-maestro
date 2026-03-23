@@ -22,9 +22,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
@@ -37,7 +34,7 @@ TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
 # Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
 if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
-    RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+    RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
 fi
 
 # Auto-disable typing animation over SSH
@@ -543,7 +540,6 @@ act1_hello_and_discovery() {
     fi
 
     # Claude Code
-    NEED_CLAUDE=false
     HAS_CLAUDE=false
     if command -v claude &>/dev/null; then
         local claude_ver
@@ -552,24 +548,19 @@ act1_hello_and_discovery() {
         HAS_CLAUDE=true
     else
         maestro_check "Claude Code" "${YELLOW}not found${NC}"
-        NEED_CLAUDE=true
     fi
 
     # Codex
-    HAS_CODEX=false
     if command -v codex &>/dev/null; then
         maestro_check "OpenAI Codex" "${GREEN}✓${NC}"
-        HAS_CODEX=true
     else
         maestro_check "OpenAI Codex" "${DIM}not found${NC}"
     fi
 
     # Tailscale
     NEED_TAILSCALE=false
-    HAS_TAILSCALE=false
     if command -v tailscale &>/dev/null; then
         maestro_check "Tailscale" "${GREEN}✓${NC}"
-        HAS_TAILSCALE=true
     else
         maestro_check "Tailscale" "${DIM}not found${NC}"
         NEED_TAILSCALE=true
@@ -775,7 +766,6 @@ act2_install_prerequisites() {
                 _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
                 } || {
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
@@ -785,7 +775,6 @@ act2_install_prerequisites() {
                 maestro_info "Installing OpenAI Codex"
                 _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
                 } || {
                     maestro_warn "Could not install Codex automatically"
                 }
@@ -795,13 +784,11 @@ act2_install_prerequisites() {
                 _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
                 } || maestro_warn "Could not install Claude Code"
 
                 maestro_info "Installing OpenAI Codex"
                 _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
                 } || maestro_warn "Could not install Codex"
                 ;;
             4)
@@ -823,7 +810,6 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
-            HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
         fi
@@ -1058,7 +1044,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1188,10 +1174,15 @@ act4_start_and_register() {
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
+        # Escape sed metacharacters in substitution values before use in portable_sed
+        # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+        local safe_version safe_gateways
+        safe_version=$(printf '%s' "$VERSION" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+        safe_gateways=$(printf '%s' "$SELECTED_GATEWAYS" | sed 's/[[\.*^$|&\\\/]/\\&/g')
         # Substitute install-time variables (portable sed)
         portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s|{{VERSION}}|${safe_version}|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s|{{SELECTED_GATEWAYS}}|${safe_gateways}|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
@@ -1227,7 +1218,11 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Escape sed metacharacters in gw_list before use in portable_sed
+            # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+            local safe_gw_list
+            safe_gw_list=$(printf '%s' "$gw_list" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${safe_gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
@@ -1340,7 +1335,7 @@ main() {
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then
-        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+        RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
     fi
 
     # M1: Warn if running as root (curl | sudo bash is dangerous)

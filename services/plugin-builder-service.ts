@@ -155,11 +155,11 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
   for (const skill of config.skills) {
     if (skill.type === 'repo') {
       const urlErr = validateGitUrl(skill.url)
-      if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
+      if (urlErr) return `Repo skill "${skill.skillName}": ${urlErr}`
       const refErr = validateGitRef(skill.ref)
-      if (refErr) return `Repo skill "${skill.name}": ${refErr}`
+      if (refErr) return `Repo skill "${skill.skillName}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
-      if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+      if (pathErr) return `Repo skill "${skill.skillName}": ${pathErr}`
     }
   }
 
@@ -273,7 +273,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     const map: Record<string, string> = {}
     for (const skill of skills) {
       // skillPath already validated against path traversal
-      map[skill.skillPath] = `skills/${skill.name}`
+      map[skill.skillPath] = `skills/${skill.skillName}`
     }
     sources.push({
       name: sanitizeSourceName(first.url),
@@ -316,13 +316,21 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Track whether runBuild was initiated so activeOps is decremented exactly once.
+  // If runBuild is successfully launched (async), its .finally() owns the decrement.
+  // If an error occurs before runBuild is called, the catch block owns the decrement.
+  let buildLaunched = false
+  // Hoisted so the catch block can clean up a partially-created build directory on
+  // early errors (after mkdir but before runBuild is launched).
+  let buildDir: string | undefined
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
     activeOps++
     const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
+    buildDir = path.join(BUILDS_DIR, buildId)
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -363,6 +371,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
+    // Mark as launched before firing the async chain so the catch block knows
+    // not to decrement activeOps (the .finally() below owns it from here on).
+    buildLaunched = true
+
     // Run build asynchronously
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
@@ -381,7 +393,17 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement if runBuild was not yet launched; otherwise .finally() handles it.
+    if (!buildLaunched) {
+      activeOps = Math.max(0, activeOps - 1)
+      // Clean up a partially-created build directory so it does not accumulate on disk.
+      // buildDir is defined once fs.mkdir succeeds; if it was never set the rm is a no-op.
+      if (buildDir !== undefined) {
+        fs.rm(buildDir, { recursive: true, force: true }).catch(rmErr => {
+          console.error(`Failed to remove partial build directory ${buildDir}:`, rmErr)
+        })
+      }
+    }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }

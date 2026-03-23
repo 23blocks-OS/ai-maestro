@@ -16,6 +16,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Stores the ref that was actually used for the most recent successful scan so that
+  // handleAddSkill uses the correct ref even if the user edits the input field afterwards.
+  const [scannedRef, setScannedRef] = useState<string>('main')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -26,6 +29,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
 
+    // Resolve the effective ref: fall back to 'main' only when the user left the field empty
+    const effectiveRef = ref.trim() || 'main'
+
     setScanning(true)
     setError(null)
     setScanResult(null)
@@ -34,7 +40,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: url.trim(), ref: effectiveRef }),
         signal,
       })
 
@@ -47,7 +53,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Persist the ref used for this scan so handleAddSkill references the right branch.
+        setScannedRef(effectiveRef)
+        onSkillsFound(data.skills, url.trim(), effectiveRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -58,12 +66,14 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use the ref that was captured at scan time, not the current input value, because
+    // the user may have edited or cleared the branch field after the scan completed.
     onAddSkill({
       type: 'repo',
       url: url.trim(),
-      ref,
+      ref: scannedRef,
       skillPath: skill.path,
-      name: skill.name,
+      skillName: skill.name,
     })
   }
 
@@ -93,7 +103,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -128,7 +138,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={`repo:${url}:${skill.path}`}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">

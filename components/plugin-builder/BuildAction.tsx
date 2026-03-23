@@ -94,6 +94,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 clearPoll()
                 setError('Lost connection to build server')
                 setBuilding(false)
+                setShowLogs(true)
               }
             }
           } catch {
@@ -102,6 +103,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               clearPoll()
               setError('Lost connection to build server')
               setBuilding(false)
+              setShowLogs(true)
             }
           }
         }, 1000)
@@ -112,6 +114,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     } catch {
       setError('Failed to connect to server')
       setBuilding(false)
+      setShowLogs(true)
     }
   }
 
@@ -280,7 +283,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result && result?.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

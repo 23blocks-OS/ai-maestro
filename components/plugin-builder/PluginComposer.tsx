@@ -213,7 +213,7 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'marketplace':
       return skill.id.split(':')[2] || skill.id
     case 'repo':
-      return skill.name
+      return skill.skillName
   }
 }
 

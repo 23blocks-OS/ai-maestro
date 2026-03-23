@@ -8,9 +8,14 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { scanRepo } from '@/services/plugin-builder-service'
 
+interface ScanRepoRequestBody {
+  url: string
+  ref?: string
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body: ScanRepoRequestBody = await request.json()
 
     if (!body.url || typeof body.url !== 'string') {
       return NextResponse.json(
@@ -30,9 +35,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error scanning repo:', error)
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error during repository scan' },
+      { status: 500 }
     )
   }
 }

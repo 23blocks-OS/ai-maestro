@@ -312,7 +312,10 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Check for error first: if result.error is present, always send an error response,
+  // regardless of whether result.data is also set. The old condition `result.error && !result.data`
+  // would incorrectly treat the result as successful when both fields are present.
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -393,10 +396,10 @@ const routes: Route[] = [
   // Config & System
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSystemConfig())
+    sendServiceResult(res, await getSystemConfig())
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getOrganization())
+    sendServiceResult(res, await getOrganization())
   }},
   { method: 'POST', pattern: /^\/api\/organization$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -416,7 +419,7 @@ const routes: Route[] = [
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
-    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
+    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || undefined)
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {

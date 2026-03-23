@@ -25,6 +25,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   const [searchQuery, setSearchQuery] = useState('')
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])
   const [loadingMarketplace, setLoadingMarketplace] = useState(true)
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'core' | 'marketplace' | 'repo'>('core')
 
   // Build a set of selected skill keys for fast lookup
@@ -46,10 +47,32 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         const res = await fetch('/api/marketplace/skills?includeContent=false', { signal })
         if (res.ok) {
           const data = await res.json()
-          if (!signal.aborted) setMarketplaceSkills(data.skills || [])
+          if (!signal.aborted) {
+            setMarketplaceSkills(data.skills || [])
+            // Clear any previous error now that the fetch succeeded
+            setMarketplaceError(null)
+          }
+        } else {
+          if (!signal.aborted) {
+            // Attempt to parse a descriptive error message from the response body
+            let errorMessage = `Failed to load marketplace skills: ${res.status} ${res.statusText}`
+            try {
+              const errorData = await res.json()
+              if (errorData && errorData.message) {
+                errorMessage = `Failed to load marketplace skills: ${errorData.message}`
+              }
+            } catch {
+              // JSON parsing failed — fall back to the status text error message already set above
+            }
+            setMarketplaceError(errorMessage)
+          }
         }
-      } catch {
-        // Marketplace may not be available or request aborted
+      } catch (err: unknown) {
+        // Only surface the error to the user when the request was not intentionally aborted
+        if (!signal.aborted) {
+          const message = err instanceof Error ? err.message : 'Unknown error'
+          setMarketplaceError(`Failed to load marketplace skills: ${message}`)
+        }
       } finally {
         if (!signal.aborted) setLoadingMarketplace(false)
       }
@@ -185,6 +208,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
               </div>
+            ) : marketplaceError ? (
+              <p className="text-sm text-red-400 text-center py-4">{marketplaceError}</p>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
                 const key = `marketplace:${skill.id}`

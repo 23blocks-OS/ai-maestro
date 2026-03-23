@@ -13,6 +13,7 @@
  *   DELETE /api/teams/[id]                     -> deleteTeamById
  *   GET    /api/teams/[id]/tasks               -> listTeamTasks
  *   POST   /api/teams/[id]/tasks               -> createTeamTask
+ *   GET    /api/teams/[id]/tasks/[taskId]      -> getTeamTask
  *   PUT    /api/teams/[id]/tasks/[taskId]      -> updateTeamTask
  *   DELETE /api/teams/[id]/tasks/[taskId]      -> deleteTeamTask
  *   GET    /api/teams/[id]/documents            -> listTeamDocuments
@@ -187,6 +188,25 @@ export function listTeamTasks(teamId: string): ServiceResult<{ tasks: any[] }> {
   const tasks = loadTasks(teamId)
   const resolved = resolveTaskDeps(tasks)
   return { data: { tasks: resolved }, status: 200 }
+}
+
+/**
+ * Get a single task by ID within a team.
+ */
+export function getTeamTask(teamId: string, taskId: string): ServiceResult<{ task: any }> {
+  const team = getTeam(teamId)
+  if (!team) {
+    return { error: 'Team not found', status: 404 }
+  }
+
+  const task = getTask(teamId, taskId)
+  if (!task) {
+    return { error: 'Task not found', status: 404 }
+  }
+
+  // Resolve dependency metadata (isBlocked flag etc.) consistent with listTeamTasks
+  const [resolved] = resolveTaskDeps([task])
+  return { data: { task: resolved }, status: 200 }
 }
 
 /**

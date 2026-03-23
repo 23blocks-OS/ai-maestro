@@ -209,6 +209,7 @@ import {
   deleteTeamById,
   listTeamTasks,
   createTeamTask,
+  getTeamTask,
   updateTeamTask,
   deleteTeamTask,
   listTeamDocuments,
@@ -307,12 +308,18 @@ function sendJson(res: ServerResponse, statusCode: number, data: any, headers?: 
 }
 
 function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Uint8Array, headers: Record<string, string>) {
-  res.writeHead(statusCode, headers)
+  // Always derive Content-Length from the actual buffer byte count rather than trusting
+  // the caller-provided value; a mismatch would produce a truncated or invalid HTTP response.
+  res.writeHead(statusCode, {
+    ...headers,
+    'Content-Length': buffer.byteLength.toString(),
+  })
   res.end(buffer)
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // If error is present it always takes precedence — a result with both error and data is still an error
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -320,8 +327,9 @@ function sendServiceResult(res: ServerResponse, result: any) {
 }
 
 function getHeader(req: IncomingMessage, name: string): string | null {
+  // Node.js headers can be string | string[] | undefined; for repeated headers take the first value
   const val = req.headers[name.toLowerCase()]
-  return typeof val === 'string' ? val : null
+  return Array.isArray(val) ? val[0] : typeof val === 'string' ? val : null
 }
 
 function getQuery(url: string): Record<string, string> {
@@ -336,30 +344,78 @@ function getQuery(url: string): Record<string, string> {
 /**
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
+ *
+ * Parses entirely on the raw Buffer to avoid latin1 string roundtrip corruption of
+ * binary file content (bytes 128-255 would be mangled if the body were converted to a
+ * string and back). Only the MIME headers — which are always ASCII — are decoded to
+ * strings for Content-Disposition inspection; the part body bytes are never stringified.
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
-  const boundary = '--' + boundaryMatch[1]
-  const bodyStr = body.toString('latin1')
-  const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
+  // Encode delimiter bytes directly so we can find them in the binary buffer.
+  // CRLF + "--" + boundary is the standard part separator defined by RFC 2046.
+  const boundaryBytes = Buffer.from('\r\n--' + boundaryMatch[1])
+  // The very first boundary at the start of the body has no leading CRLF, so we
+  // check for it separately as a prefix.
+  const firstBoundaryBytes = Buffer.from('--' + boundaryMatch[1])
+  const CRLF_CRLF = Buffer.from('\r\n\r\n')
+  const CRLF = Buffer.from('\r\n')
 
   let file: Buffer | null = null
   let options: string | null = null
 
-  for (const part of parts) {
-    const headerEnd = part.indexOf('\r\n\r\n')
-    if (headerEnd === -1) continue
+  // Collect all boundary positions in the buffer.
+  const positions: number[] = []
 
-    const headers = part.substring(0, headerEnd)
-    const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
+  // Check for the initial boundary (no leading CRLF).
+  if (body.slice(0, firstBoundaryBytes.length).equals(firstBoundaryBytes)) {
+    positions.push(0)
+  }
 
-    if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
-      file = Buffer.from(content, 'latin1')
-    } else if (headers.includes('name="options"')) {
-      options = content
+  // Find all subsequent CRLF+boundary occurrences.
+  let searchFrom = 0
+  while (true) {
+    const idx = body.indexOf(boundaryBytes, searchFrom)
+    if (idx === -1) break
+    positions.push(idx + 2) // +2 to skip the leading CRLF; points at "--boundary"
+    searchFrom = idx + boundaryBytes.length
+  }
+
+  // Each part lives between positions[i] and positions[i+1].
+  for (let i = 0; i < positions.length - 1; i++) {
+    // Skip past "--boundary\r\n" to reach the part headers.
+    const partStart = positions[i] + firstBoundaryBytes.length
+    // Check for "--\r\n" terminator (final boundary) — stop processing.
+    if (body[partStart] === 0x2D && body[partStart + 1] === 0x2D) break
+    // Skip the CRLF that follows the boundary line.
+    const headersStart = partStart + CRLF.length
+
+    // The part body starts after the blank line (CRLF CRLF) that ends the headers.
+    const headerEndIdx = body.indexOf(CRLF_CRLF, headersStart)
+    if (headerEndIdx === -1) continue
+
+    // Decode only the headers as ASCII (they are always 7-bit safe per RFC 2822).
+    const headers = body.slice(headersStart, headerEndIdx).toString('ascii')
+    // Lowercase for case-insensitive comparison: MIME header names and parameter names
+    // are case-insensitive per RFC 2045/7578, so "Name=" and "NAME=" must match too.
+    const lowerHeaders = headers.toLowerCase()
+
+    // The part content starts right after the blank line.
+    const contentStart = headerEndIdx + CRLF_CRLF.length
+
+    // The part content ends at the start of the next boundary delimiter.
+    // positions[i+1] points at the "--boundary" bytes; the CRLF before it belongs
+    // to the boundary delimiter, not to the part content, so subtract 2 bytes.
+    const contentEnd = positions[i + 1] - 2  // exclude the leading CRLF of next boundary
+
+    if (lowerHeaders.includes('name="file"')) {
+      // Extract raw file bytes — no string conversion whatsoever preserves binary integrity.
+      file = body.slice(contentStart, contentEnd)
+    } else if (lowerHeaders.includes('name="options"')) {
+      // Options field is plain text JSON, safe to decode as UTF-8.
+      options = body.slice(contentStart, contentEnd).toString('utf-8')
     }
   }
 
@@ -416,7 +472,8 @@ const routes: Route[] = [
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
-    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
+    // params.file is already decoded by url.parse before route matching — no second decoding needed.
+    const result = await getConversationMessages(params.file, query.agentId || '')
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
@@ -430,16 +487,11 @@ const routes: Route[] = [
   // Sessions
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/sessions$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    try {
-      if (query.local === 'true') {
-        const result = await listLocalSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: false })
-      } else {
-        const result = await listSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
-      }
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+    // Route through sendServiceResult so service-level errors are propagated correctly
+    if (query.local === 'true') {
+      sendServiceResult(res, await listLocalSessions())
+    } else {
+      sendServiceResult(res, await listSessions())
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -450,8 +502,7 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteSession(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = await checkIdleStatus(params.id)
-    sendJson(res, 200, result)
+    sendServiceResult(res, await checkIdleStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -462,28 +513,29 @@ const routes: Route[] = [
     sendServiceResult(res, await renameSession(params.id, body.name))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
-    const result = await listRestorableSessions()
-    sendJson(res, 200, result)
+    sendServiceResult(res, await listRestorableSessions())
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await restoreSessions(body))
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+    // sessionId is required — an empty string would silently fail or delete the wrong record
+    if (!query.sessionId) {
+      sendJson(res, 400, { error: 'sessionId query param required' })
+      return
+    }
+    // deletePersistedSession is async — must await to get the result object, not a Promise
+    sendServiceResult(res, await deletePersistedSession(query.sessionId))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
-    try {
-      const activity = await getActivity()
-      sendJson(res, 200, { activity })
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
-    }
+    // Route through sendServiceResult so service-level errors are propagated correctly
+    sendServiceResult(res, await getActivity())
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
-    sendServiceResult(res, result)
+    // broadcastActivityUpdate is an IO operation — must await to get the result object, not a Promise
+    sendServiceResult(res, await broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType))
   }},
 
   // =========================================================================
@@ -493,7 +545,7 @@ const routes: Route[] = [
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: query.timeout ? (n => !isNaN(n) ? n : undefined)(parseInt(query.timeout, 10)) : undefined,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -537,7 +589,16 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Malformed JSON from the caller is a client error, not a server error
+          sendJson(res, 400, { error: 'Invalid JSON for options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -564,14 +625,16 @@ const routes: Route[] = [
   // Agent list / create (must be AFTER static agent sub-paths)
   { method: 'GET', pattern: /^\/api\/agents$/, paramNames: [], handler: async (_req, res, _params, query) => {
     if (query.q) {
-      sendServiceResult(res, searchAgentsByQuery(query.q))
+      // searchAgentsByQuery is async like listAgents — must await to get the result object, not a Promise
+      sendServiceResult(res, await searchAgentsByQuery(query.q))
     } else {
       sendServiceResult(res, await listAgents())
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createNewAgent(body))
+    // createNewAgent is an async mutation operation — must await to get the result object, not a Promise
+    sendServiceResult(res, await createNewAgent(body))
   }},
 
   // =========================================================================
@@ -611,7 +674,7 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: query.limit ? (n => !isNaN(n) ? n : undefined)(parseInt(query.limit, 10)) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -635,13 +698,13 @@ const routes: Route[] = [
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: query.limit ? (n => !isNaN(n) ? n : undefined)(parseInt(query.limit, 10)) : undefined,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: query.minConfidence ? (n => !isNaN(n) ? n : undefined)(parseFloat(query.minConfidence)) : undefined,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: query.maxTokens ? (n => !isNaN(n) ? n : undefined)(parseInt(query.maxTokens, 10)) : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -664,15 +727,15 @@ const routes: Route[] = [
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: query.limit ? (n => !isNaN(n) ? n : undefined)(parseInt(query.limit, 10)) : undefined,
+      minScore: query.minScore ? (n => !isNaN(n) ? n : undefined)(parseFloat(query.minScore)) : undefined,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: query.startTs ? (n => !isNaN(n) ? n : undefined)(parseInt(query.startTs, 10)) : undefined,
+      endTs: query.endTs ? (n => !isNaN(n) ? n : undefined)(parseInt(query.endTs, 10)) : undefined,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: query.bm25Weight ? (n => !isNaN(n) ? n : undefined)(parseFloat(query.bm25Weight)) : undefined,
+      semanticWeight: query.semanticWeight ? (n => !isNaN(n) ? n : undefined)(parseFloat(query.semanticWeight)) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -807,14 +870,17 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+        sendJson(res, result.status || 500, { error: result.error || 'Export failed' })
         return
       }
-      const { buffer, filename, agentId, agentName } = result.data
+      const { buffer, agentId } = result.data
+      // Sanitize user-controlled values before injecting into HTTP headers to prevent
+      // response splitting (CRLF injection) and cache poisoning via header manipulation.
+      const filename = result.data.filename.replace(/[\r\n";]/g, '_')
+      const agentName = result.data.agentName.replace(/[\r\n]/g, '_')
       sendBinary(res, 200, new Uint8Array(buffer), {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': buffer.length.toString(),
         'X-Agent-Id': agentId,
         'X-Agent-Name': agentName,
         'X-Export-Version': '1.0.0',
@@ -825,7 +891,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createTranscriptExportJob(params.id, body))
+    sendServiceResult(res, await createTranscriptExportJob(params.id, body))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/transfer$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -834,14 +900,17 @@ const routes: Route[] = [
 
   // AMP addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getAMPAddress(params.id, decodeURIComponent(params.address)))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, getAMPAddress(params.id, params.address))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, updateAMPAddressOnAgent(params.id, params.address, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, removeAMPAddressFromAgent(params.id, params.address))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listAMPAddresses(params.id))
@@ -853,14 +922,17 @@ const routes: Route[] = [
 
   // Email addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getEmailAddressDetail(params.id, decodeURIComponent(params.address)))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, getEmailAddressDetail(params.id, params.address))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, updateEmailAddressOnAgent(params.id, params.address, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, removeEmailAddressFromAgent(params.id, params.address))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listEmailAddresses(params.id))
@@ -896,28 +968,26 @@ const routes: Route[] = [
   // Metadata (uses agents-core-service getAgentById/updateAgentById)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
-    } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
-    }
+    // Shape the result for the metadata sub-resource and delegate all status/error logic to sendServiceResult
+    sendServiceResult(res, result.error
+      ? { error: result.error, status: result.status }
+      : { data: { metadata: result.data?.agent?.metadata || {} }, status: 200 }
+    )
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
-    } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
-    }
+    sendServiceResult(res, result.error
+      ? { error: result.error, status: result.status }
+      : { data: { metadata: result.data?.agent?.metadata }, status: 200 }
+    )
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
-    } else {
-      sendJson(res, 200, { success: true })
-    }
+    sendServiceResult(res, result.error
+      ? { error: result.error, status: result.status }
+      : { data: { success: true }, status: 200 }
+    )
   }},
 
   // Agent CRUD (must be LAST among /api/agents/[id]/* routes)
@@ -1007,7 +1077,8 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentSelf(getHeader(req, 'Authorization')))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/resolve\/([^/]+)$/, paramNames: ['address'], handler: async (req, res, params) => {
-    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), decodeURIComponent(params.address)))
+    // params.address is already decoded by url.parse before route matching — no second decoding needed.
+    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), params.address))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1024,7 +1095,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? (n => !isNaN(n) ? n : undefined)(parseInt(query.limit, 10)) : undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1071,10 +1142,17 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    // Normalise empty strings to null so downstream service receives null for absent optional params
+    const agent = query.agent || null
+    const id = query.id || null
+    const action = query.action || null
+    sendServiceResult(res, await updateGlobalMessage(agent, id, action))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    // Normalise empty strings to null so downstream service receives null for absent optional params
+    const agent = query.agent || null
+    const id = query.id || null
+    sendServiceResult(res, await removeMessage(agent, id))
   }},
 
   // =========================================================================
@@ -1105,9 +1183,8 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await notifyTeamAgents(body))
   }},
-  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, _params) => {
-    // GET single task not implemented in route — taskId routes only have PUT/DELETE
-    sendJson(res, 405, { error: 'Method not allowed' })
+  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getTeamTask(params.id, params.taskId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1252,6 +1329,12 @@ function matchRoute(method: string, pathname: string): { handler: RouteHandler; 
 
     const match = pathname.match(route.pattern)
     if (!match) continue
+
+    // Sanity-check: the regex must have produced at least as many capture groups as
+    // paramNames expects.  A mismatch means the route definition is inconsistent;
+    // rather than assigning undefined to params (causing a downstream TypeError when
+    // the service receives an undefined ID/name), skip this route and keep looking.
+    if (match.length < route.paramNames.length + 1) continue
 
     const params: Record<string, string> = {}
     route.paramNames.forEach((name, i) => {

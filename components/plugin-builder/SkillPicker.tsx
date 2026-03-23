@@ -21,6 +21,23 @@ interface SkillPickerProps {
   onRemoveSkill: (key: string) => void
 }
 
+/**
+ * Generate a unique key for a skill selection (used for deduplication).
+ * Defined before SkillPicker so it is in scope at the point of use.
+ */
+export function getSkillKey(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return `core:${skill.name}`
+    case 'marketplace':
+      return `marketplace:${skill.id}`
+    case 'repo':
+      // Include ref so skills from the same URL on different branches never
+      // share the same key.  Must match the key format in RepoScanner.tsx.
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
+  }
+}
+
 export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill }: SkillPickerProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])
@@ -71,7 +88,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      // description is optional on MarketplaceSkill — double optional chaining prevents TypeError when
+      // description is undefined: undefined?.includes(q) short-circuits to undefined, then ?? false kicks in
+      s => s.name.toLowerCase().includes(q) || (s.description?.toLowerCase()?.includes(q) ?? false)
     )
   }, [searchQuery, marketplaceSkills])
 
@@ -208,6 +227,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                           id: skill.id,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,
+                          name: skill.name,
                         })
                       }
                     }}
@@ -215,7 +235,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name })
                       }
                     }}
                     aria-pressed={isSelected}
@@ -254,24 +274,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}
       </div>
     </div>
   )
-}
-
-/**
- * Generate a unique key for a skill selection (used for deduplication).
- */
-export function getSkillKey(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return `core:${skill.name}`
-    case 'marketplace':
-      return `marketplace:${skill.id}`
-    case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
-  }
 }

@@ -28,18 +28,26 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
+  // Track mount state to prevent setState calls on an unmounted component
+  const mountedRef = useRef(true)
 
-  // Clean up polling on unmount
+  // Track mount/unmount lifecycle and clean up polling on unmount
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       if (pollRef.current) clearInterval(pollRef.current)
     }
   }, [])
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current)
+      // Null out the ref BEFORE clearing so any concurrently-executing interval
+      // callback immediately sees null via the `if (!pollRef.current) return` guard,
+      // closing the race window between clearInterval and the null assignment.
+      const intervalId = pollRef.current
       pollRef.current = null
+      clearInterval(intervalId)
     }
     pollFailures.current = 0
   }, [])
@@ -76,11 +84,20 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       // Poll for completion
       if (data.status === 'building') {
         pollRef.current = setInterval(async () => {
+          // Guard: interval was cleared (e.g. rapid re-click) — discard this stale callback
+          if (!pollRef.current) return
+          // Guard: component unmounted while fetch was in-flight — do not call setState
+          if (!mountedRef.current) return
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
             if (statusRes.ok) {
               pollFailures.current = 0
               const statusData: PluginBuildResult = await statusRes.json()
+              // Guard BEFORE any setState call: the component may have unmounted
+              // while the fetch was in-flight; calling setState on an unmounted
+              // component causes a React warning and a potential memory leak.
+              if (!mountedRef.current) return
+              // Safe to update state — component is still mounted
               setResult(statusData)
 
               if (statusData.status !== 'building') {
@@ -92,6 +109,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
+                if (!mountedRef.current) return
                 setError('Lost connection to build server')
                 setBuilding(false)
               }
@@ -100,6 +118,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
+              if (!mountedRef.current) return
               setError('Lost connection to build server')
               setBuilding(false)
             }
@@ -133,7 +152,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           forkUrl: forkUrl.trim(),
-          manifest: result.manifest,
+          manifest: result?.manifest,
         }),
       })
 
@@ -183,7 +202,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={disabled || !isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -195,6 +214,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <div className="flex items-center gap-2 ml-auto">
             {building && (
               <span className="text-sm text-yellow-400">Building...</span>
+            )}
+            {/* Show stalled state when poll failed: result still says 'building' but building is false */}
+            {result?.status === 'building' && !building && (
+              <span className="text-sm text-yellow-400">Build stalled</span>
             )}
             {isComplete && (
               <>
@@ -216,11 +239,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </div>
         )}
 
-        {error && !result && (
+        {error && (
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabledReason && disabled && !building && !result?.status && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -242,7 +265,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             </div>
             <button
               onClick={handlePush}
-              disabled={pushing || !forkUrl.trim()}
+              disabled={disabled || pushing || !forkUrl.trim()}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
@@ -258,7 +281,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">

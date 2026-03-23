@@ -171,14 +171,14 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 **Going deeper:**
 - [Multi-Machine Setup](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
 - [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
-- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
+- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/AGENT-INTELLIGENCE.md#1-code-graph-visualization)
 - [Operations Guide](./docs/OPERATIONS-GUIDE.md)
 
 **Troubleshooting:**
 - [Common Issues](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md) · [Windows Installation](./docs/WINDOWS-INSTALLATION.md)
 
 **Extending:**
-- [Plugin Development](./plugin/README.md) · [API Reference](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
+- [Plugin Development](./plugin/README.md)
 
 ---
 

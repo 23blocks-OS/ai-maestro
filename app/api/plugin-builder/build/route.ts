@@ -11,8 +11,19 @@ import type { NextRequest } from 'next/server'
 import { buildPlugin } from '@/services/plugin-builder-service'
 
 export async function POST(request: NextRequest) {
+  // Isolate JSON parsing so only malformed-body errors produce 400
+  let body: unknown
   try {
-    const body = await request.json()
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 }
+    )
+  }
+
+  // Service errors must surface as 500, not be masked as invalid-request
+  try {
     const result = await buildPlugin(body)
 
     if (result.error) {
@@ -22,10 +33,11 @@ export async function POST(request: NextRequest) {
       )
     }
     return NextResponse.json(result.data, { status: result.status })
-  } catch {
+  } catch (error) {
+    console.error('Unexpected error in POST /api/plugin-builder/build:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

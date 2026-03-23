@@ -26,7 +26,7 @@ export interface PluginBuildConfig {
  */
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
-  | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
+  | { type: 'marketplace'; id: string; marketplace: string; plugin: string; name: string }
   | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
 
 // ============================================================================
@@ -69,22 +69,30 @@ export interface PluginManifest {
 }
 
 export interface PluginManifestMetadata {
-  name: string
-  version: string
+  // name and version live on the top-level PluginManifest — do not duplicate here
   author?: { name: string }
   homepage?: string
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+// Discriminated union: 'local' requires path, 'git' requires repo.
+// Using a type alias (not interface) because discriminated unions cannot be expressed as a single interface.
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                     // Required: local filesystem path to the source
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      repo: string                     // Required: git repository URL
+      ref?: string                     // Git branch/tag (optional, defaults to HEAD)
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
 
 // ============================================================================
 // Repo Scanner

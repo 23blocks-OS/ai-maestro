@@ -153,7 +153,30 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 
   // Validate each skill selection
   for (const skill of config.skills) {
-    if (skill.type === 'repo') {
+    if (skill.type === 'core') {
+      if (!skill.name || typeof skill.name !== 'string') return 'Core skill must have a name'
+      // Use validatePluginName to ensure consistent character and length validation
+      const nameErr = validatePluginName(skill.name)
+      if (nameErr) return `Core skill name "${skill.name}": ${nameErr}`
+    } else if (skill.type === 'marketplace') {
+      if (!skill.id || typeof skill.id !== 'string') return 'Marketplace skill must have an id'
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') return 'Marketplace skill must have a marketplace'
+      if (!skill.plugin || typeof skill.plugin !== 'string') return 'Marketplace skill must have a plugin'
+      // Validate marketplace and plugin names to prevent path traversal in generateManifest
+      const marketplaceErr = validatePluginName(skill.marketplace)
+      if (marketplaceErr) return `Marketplace "${skill.marketplace}" ${marketplaceErr}`
+      const pluginErr = validatePluginName(skill.plugin)
+      if (pluginErr) return `Plugin "${skill.plugin}" ${pluginErr}`
+      // id must follow the expected "marketplace:plugin:skillName" format so the split in generateManifest is safe
+      const idParts = skill.id.split(':')
+      if (idParts.length < 3 || idParts.some(p => p === '')) {
+        return `Marketplace skill id "${skill.id}" must follow the format "marketplace:plugin:skillName"`
+      }
+    } else if (skill.type === 'repo') {
+      // Validate name before using it in error messages and in generateManifest map values
+      if (!skill.name || typeof skill.name !== 'string') return `Repo skill must have a name`
+      const nameErr = validatePluginName(skill.name)
+      if (nameErr) return `Repo skill "${skill.name}": ${nameErr}`
       const urlErr = validateGitUrl(skill.url)
       if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
       const refErr = validateGitRef(skill.ref)
@@ -242,7 +265,8 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Include the plugin subdirectory so the manifest path resolves to the correct installed plugin root
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -291,8 +315,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     description: config.description,
     output: `./plugins/${config.name}`,
     plugin: {
-      name: config.name,
-      version: config.version,
+      // name and version are already on the top-level manifest object — not repeated here
       author: { name: 'Plugin Builder' },
       license: 'MIT',
     },
@@ -316,11 +339,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Increment before try so the catch-block decrement always matches this increment
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 

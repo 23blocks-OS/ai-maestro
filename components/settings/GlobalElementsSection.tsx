@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search,
+  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink,
   ToggleLeft, ToggleRight,
   Wand2, Bot, Terminal, Webhook, Server, FileCode,
   ScrollText, Palette,
@@ -14,6 +14,13 @@ interface PluginInfo {
   key: string
   enabled: boolean
   version: string | null
+  description: string | null
+  author: string | null
+  authorEmail: string | null
+  license: string | null
+  homepage: string | null
+  repository: string | null
+  keywords: string[] | null
 }
 
 interface MarketplaceGroup {
@@ -74,6 +81,8 @@ export default function GlobalElementsSection() {
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
   const [expandedMarketplaces, setExpandedMarketplaces] = useState<Set<string>>(new Set())
+
+  const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null) // accordion for plugin details
 
   // Search states
   const [pluginSearch, setPluginSearch] = useState('')
@@ -317,33 +326,69 @@ export default function GlobalElementsSection() {
                 <div className="divide-y divide-gray-800/50">
                   {group.plugins.map(plugin => {
                     const isToggling = toggling === plugin.key
+                    const isExpPl = expandedPlugin === plugin.key
                     return (
-                      <div
-                        key={plugin.key}
-                        className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
-                          plugin.enabled ? 'bg-emerald-500/5' : 'bg-gray-900/30'
-                        }`}
-                      >
-                        <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${plugin.enabled ? 'text-emerald-400' : 'text-gray-600'}`} />
-                        <span className={`text-xs flex-1 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`}>
-                          {plugin.name}
-                        </span>
-                        <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
-                        {/* Toggle switch */}
-                        <button
-                          onClick={() => togglePlugin(plugin.key, plugin.enabled)}
-                          disabled={isToggling}
-                          className="flex-shrink-0 transition-colors"
-                          title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
+                      <div key={plugin.key}>
+                        <div
+                          className={`flex items-center gap-3 px-4 py-2.5 transition-colors cursor-pointer hover:bg-gray-800/30 ${
+                            plugin.enabled ? 'bg-emerald-500/5' : 'bg-gray-900/30'
+                          } ${isExpPl ? 'bg-gray-800/40' : ''}`}
+                          onClick={() => setExpandedPlugin(isExpPl ? null : plugin.key)}
                         >
-                          {isToggling ? (
-                            <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-                          ) : plugin.enabled ? (
-                            <ToggleRight className="w-6 h-6 text-emerald-400" />
-                          ) : (
-                            <ToggleLeft className="w-6 h-6 text-gray-600" />
-                          )}
-                        </button>
+                          <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${plugin.enabled ? 'text-emerald-400' : 'text-gray-600'}`} />
+                          <span className={`text-xs flex-1 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`}>
+                            {plugin.name}
+                          </span>
+                          <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
+                          {/* Toggle switch */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); togglePlugin(plugin.key, plugin.enabled) }}
+                            disabled={isToggling}
+                            className="flex-shrink-0 transition-colors"
+                            title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
+                          >
+                            {isToggling ? (
+                              <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+                            ) : plugin.enabled ? (
+                              <ToggleRight className="w-6 h-6 text-emerald-400" />
+                            ) : (
+                              <ToggleLeft className="w-6 h-6 text-gray-600" />
+                            )}
+                          </button>
+                        </div>
+                        {/* Detail panel */}
+                        {isExpPl && (
+                          <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1">
+                            <div className="text-[10px] text-gray-400">{plugin.description || '-'}</div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
+                              <span>Author: <span className="text-gray-400">{plugin.author || '-'}</span></span>
+                              <span>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></span>
+                              <span>License: <span className="text-gray-400">{plugin.license || '-'}</span></span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
+                              <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
+                              <span>Marketplace: <span className="text-gray-400">{group.marketplace}</span></span>
+                              <span>Version: <span className="text-gray-400">{plugin.version || '-'}</span></span>
+                            </div>
+                            {(plugin.homepage || plugin.repository) && (
+                              <div className="flex flex-wrap gap-x-3 text-[9px] text-gray-500">
+                                {plugin.homepage && (
+                                  <span>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.homepage}</a></span>
+                                )}
+                                {plugin.repository && !plugin.homepage && (
+                                  <span>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.repository}</a></span>
+                                )}
+                              </div>
+                            )}
+                            {plugin.keywords && plugin.keywords.length > 0 && (
+                              <div className="flex flex-wrap gap-1 text-[8px]">
+                                {plugin.keywords.map((kw, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}

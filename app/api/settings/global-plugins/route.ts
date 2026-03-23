@@ -23,9 +23,16 @@ interface PluginEntry {
   enabled: boolean
 }
 
+interface PluginDetail {
+  name: string; key: string; enabled: boolean; version: string | null
+  description: string | null; author: string | null; authorEmail: string | null
+  license: string | null; homepage: string | null; repository: string | null
+  keywords: string[] | null
+}
+
 interface GroupedPlugins {
   marketplace: string
-  plugins: { name: string; key: string; enabled: boolean; version: string | null }[]
+  plugins: PluginDetail[]
 }
 
 async function readSettings(): Promise<Record<string, unknown>> {
@@ -57,21 +64,45 @@ export async function GET() {
       if (!grouped[entry.marketplace]) {
         grouped[entry.marketplace] = { marketplace: entry.marketplace, plugins: [] }
       }
-      // Read installed version from cache
+      // Read installed version and metadata from cache
       let version: string | null = null
+      let description: string | null = null
+      let author: string | null = null
+      let authorEmail: string | null = null
+      let license: string | null = null
+      let homepage: string | null = null
+      let repository: string | null = null
+      let keywords: string[] | null = null
+
       const cacheDir = join(HOME, '.claude', 'plugins', 'cache', entry.marketplace, entry.pluginName)
       if (existsSync(cacheDir)) {
         try {
           const dirs = (await readdir(cacheDir)).filter(e => !e.startsWith('.')).sort()
-          if (dirs.length > 0) version = dirs[dirs.length - 1]
+          if (dirs.length > 0) {
+            version = dirs[dirs.length - 1]
+            // Read plugin.json for metadata
+            const manifestPath = join(cacheDir, version, '.claude-plugin', 'plugin.json')
+            if (existsSync(manifestPath)) {
+              const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+              description = manifest.description || null
+              const a = manifest.author
+              if (typeof a === 'string') author = a
+              else if (a && typeof a === 'object') {
+                author = a.name || null
+                authorEmail = a.email || null
+              }
+              license = manifest.license || null
+              homepage = manifest.homepage || null
+              repository = manifest.repository || null
+              if (Array.isArray(manifest.keywords)) keywords = manifest.keywords
+            }
+          }
         } catch { /* ignore */ }
       }
 
       grouped[entry.marketplace].plugins.push({
-        name: entry.pluginName,
-        key: entry.key,
-        enabled: entry.enabled,
-        version,
+        name: entry.pluginName, key: entry.key, enabled: entry.enabled,
+        version, description, author, authorEmail, license, homepage, repository, keywords,
       })
     }
 

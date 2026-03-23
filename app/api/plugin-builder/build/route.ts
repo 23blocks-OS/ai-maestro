@@ -22,10 +22,19 @@ export async function POST(request: NextRequest) {
       )
     }
     return NextResponse.json(result.data, { status: result.status })
-  } catch {
+  } catch (error) {
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    // Any other error (e.g. from buildPlugin) is an unexpected server-side failure
+    console.error('Unhandled error in POST /api/plugin-builder/build:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal Server Error' },
+      { status: 500 }
     )
   }
 }

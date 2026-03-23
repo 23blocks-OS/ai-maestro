@@ -37,6 +37,7 @@ TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
 # Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
 if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
+    # shellcheck disable=SC2034  # Full color palette reset; PURPLE/CYAN/BOLD reserved for future use
     RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
 fi
 
@@ -543,7 +544,7 @@ act1_hello_and_discovery() {
     fi
 
     # Claude Code
-    NEED_CLAUDE=false
+    _NEED_CLAUDE=false
     HAS_CLAUDE=false
     if command -v claude &>/dev/null; then
         local claude_ver
@@ -552,24 +553,24 @@ act1_hello_and_discovery() {
         HAS_CLAUDE=true
     else
         maestro_check "Claude Code" "${YELLOW}not found${NC}"
-        NEED_CLAUDE=true
+        _NEED_CLAUDE=true
     fi
 
     # Codex
-    HAS_CODEX=false
+    _HAS_CODEX=false
     if command -v codex &>/dev/null; then
         maestro_check "OpenAI Codex" "${GREEN}✓${NC}"
-        HAS_CODEX=true
+        _HAS_CODEX=true
     else
         maestro_check "OpenAI Codex" "${DIM}not found${NC}"
     fi
 
     # Tailscale
     NEED_TAILSCALE=false
-    HAS_TAILSCALE=false
+    _HAS_TAILSCALE=false
     if command -v tailscale &>/dev/null; then
         maestro_check "Tailscale" "${GREEN}✓${NC}"
-        HAS_TAILSCALE=true
+        _HAS_TAILSCALE=true
     else
         maestro_check "Tailscale" "${DIM}not found${NC}"
         NEED_TAILSCALE=true
@@ -772,10 +773,11 @@ act2_install_prerequisites() {
         case "$ai_choice" in
             1)
                 maestro_info "Installing Claude Code"
+                # shellcheck disable=SC2015  # Intentional: && success block || failure block
                 _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
+                    _NEED_CLAUDE=false
                 } || {
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
@@ -783,25 +785,28 @@ act2_install_prerequisites() {
                 ;;
             2)
                 maestro_info "Installing OpenAI Codex"
+                # shellcheck disable=SC2015  # Intentional: && success block || failure block
                 _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
+                    _HAS_CODEX=true
                 } || {
                     maestro_warn "Could not install Codex automatically"
                 }
                 ;;
             3)
                 maestro_info "Installing Claude Code"
+                # shellcheck disable=SC2015  # Intentional: && success block || failure block
                 _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
+                    _NEED_CLAUDE=false
                 } || maestro_warn "Could not install Claude Code"
 
                 maestro_info "Installing OpenAI Codex"
+                # shellcheck disable=SC2015  # Intentional: && success block || failure block
                 _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
+                    _HAS_CODEX=true
                 } || maestro_warn "Could not install Codex"
                 ;;
             4)
@@ -823,7 +828,7 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
-            HAS_TAILSCALE=true
+            _HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
         fi
@@ -1058,7 +1063,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1102,7 +1107,7 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
@@ -1123,7 +1128,7 @@ act4_start_and_register() {
             # Wait for service to come back up
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                     break
                 fi
                 sleep 1
@@ -1158,7 +1163,7 @@ act4_start_and_register() {
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -1195,7 +1200,7 @@ act4_start_and_register() {
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1230,7 +1235,7 @@ act4_start_and_register() {
             portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true
@@ -1340,6 +1345,7 @@ main() {
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then
+        # shellcheck disable=SC2034  # Full color palette reset; PURPLE/CYAN/BOLD reserved for future use
         RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
     fi
 

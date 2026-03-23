@@ -154,12 +154,14 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
   // Validate each skill selection
   for (const skill of config.skills) {
     if (skill.type === 'repo') {
+      // Use explicit name if provided, otherwise fall back to skillPath as the identifier in error messages
+      const skillId = skill.name ?? skill.skillPath
       const urlErr = validateGitUrl(skill.url)
-      if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
+      if (urlErr) return `Repo skill "${skillId}": ${urlErr}`
       const refErr = validateGitRef(skill.ref)
-      if (refErr) return `Repo skill "${skill.name}": ${refErr}`
+      if (refErr) return `Repo skill "${skillId}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
-      if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+      if (pathErr) return `Repo skill "${skillId}": ${pathErr}`
     }
   }
 
@@ -242,7 +244,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -272,8 +274,12 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     const first = skills[0]
     const map: Record<string, string> = {}
     for (const skill of skills) {
-      // skillPath already validated against path traversal
-      map[skill.skillPath] = `skills/${skill.name}`
+      // skillPath already validated against path traversal.
+      // Use explicit name if provided; otherwise derive the output folder name from the last
+      // segment of skillPath (e.g. "skills/deploy" → "deploy"), which is always unambiguous
+      // and consistent with how RepoSkillInfo.name is populated by the scanner.
+      const outputName = skill.name ?? path.basename(skill.skillPath)
+      map[skill.skillPath] = `skills/${outputName}`
     }
     sources.push({
       name: sanitizeSourceName(first.url),
@@ -316,11 +322,15 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
-  try {
-    // Evict stale builds before adding new ones
-    evictStaleBuildResults()
+  // Evict stale builds before adding new ones
+  evictStaleBuildResults()
 
-    activeOps++
+  activeOps++
+  // buildLaunched tracks whether runBuild was fired. If it was, runBuild's own
+  // .finally() is responsible for decrementing activeOps. If setup fails before
+  // runBuild is called, the try/finally below decrements instead.
+  let buildLaunched = false
+  try {
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -349,7 +359,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
         await fs.symlink(srcDir, linkTarget, 'dir')
       } catch {
         // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
-        await copyDir(srcDir, linkTarget)
+        try {
+          await copyDir(srcDir, linkTarget)
+        } catch (copyError) {
+          throw new Error(`Failed to set up core skills: ${copyError instanceof Error ? copyError.message : String(copyError)}`)
+        }
       }
     }
 
@@ -363,7 +377,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously — its .finally() owns the activeOps decrement from here on
+    buildLaunched = true
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -381,9 +396,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
+  } finally {
+    // Only decrement here if runBuild was never launched; otherwise runBuild.finally() handles it
+    if (!buildLaunched) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
   }
 }
 
@@ -685,13 +704,14 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  return sanitized || 'unnamed-source'
 }
 
 /**

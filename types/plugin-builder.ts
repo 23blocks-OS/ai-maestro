@@ -27,7 +27,7 @@ export interface PluginBuildConfig {
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
   | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
-  | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
+  | { type: 'repo'; url: string; ref: string; skillPath: string; name?: string }
 
 // ============================================================================
 // Build Results

@@ -75,7 +75,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
       // Poll for completion
       if (data.status === 'building') {
+        // Guard flag: skip tick if the previous async fetch is still in flight
+        let polling = false
         pollRef.current = setInterval(async () => {
+          if (polling) return
+          polling = true
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
             if (statusRes.ok) {
@@ -103,6 +107,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               setError('Lost connection to build server')
               setBuilding(false)
             }
+          } finally {
+            polling = false
           }
         }, 1000)
       } else {
@@ -220,7 +226,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabled && disabledReason && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -258,7 +264,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result && result.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
@@ -280,7 +286,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result?.logs && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

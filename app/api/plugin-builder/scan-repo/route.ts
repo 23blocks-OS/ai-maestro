@@ -29,10 +29,18 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(result.data)
   } catch (error) {
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+    // All other errors are unexpected server-side failures
     console.error('Error scanning repo:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'An unexpected error occurred during repository scanning.' },
+      { status: 500 }
     )
   }
 }

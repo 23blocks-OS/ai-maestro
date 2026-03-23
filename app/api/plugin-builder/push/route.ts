@@ -38,9 +38,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
+    // SyntaxError means request.json() failed to parse the body — client error
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+    // Any other exception (network failure, pushToGitHub throw, etc.) is a server error
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error during plugin push' },
+      { status: 500 }
     )
   }
 }

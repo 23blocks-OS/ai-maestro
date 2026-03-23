@@ -13,9 +13,9 @@ import { lookupAgentByDirectoryName } from '@/services/agents-directory-service'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ name: string }> }
+  { params }: { params: { name: string } }
 ) {
-  const { name } = await params
+  const { name } = params
   const result = lookupAgentByDirectoryName(name)
   if (result.error) {
     return NextResponse.json({ found: false }, { status: result.status })

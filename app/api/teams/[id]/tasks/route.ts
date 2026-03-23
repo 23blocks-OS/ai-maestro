@@ -4,9 +4,9 @@ import { listTeamTasks, createTeamTask } from '@/services/teams-service'
 // GET /api/teams/[id]/tasks - List tasks with resolved dependencies
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = listTeamTasks(id)
 
   if (result.error) {
@@ -18,9 +18,9 @@ export async function GET(
 // POST /api/teams/[id]/tasks - Create a new task
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body = await request.json()
   const result = createTeamTask(id, body)
 

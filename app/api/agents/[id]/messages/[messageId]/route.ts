@@ -12,9 +12,9 @@ import {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
-  const { id, messageId } = await params
+  const { id, messageId } = params
   const { searchParams } = new URL(request.url)
   const box = (searchParams.get('box') || 'inbox') as 'inbox' | 'sent'
 
@@ -32,9 +32,9 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
-  const { id, messageId } = await params
+  const { id, messageId } = params
   const body = await request.json()
 
   const result = await updateMessage(id, messageId, body)
@@ -51,9 +51,9 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
-  const { id, messageId } = await params
+  const { id, messageId } = params
 
   const result = await deleteMessageById(id, messageId)
 
@@ -69,9 +69,9 @@ export async function DELETE(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
-  const { id, messageId } = await params
+  const { id, messageId } = params
   const body = await request.json()
 
   const result = await forwardMessage(id, messageId, body)

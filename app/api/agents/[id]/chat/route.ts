@@ -12,10 +12,10 @@ import { getConversationMessages, sendChatMessage } from '@/services/agents-chat
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const searchParams = request.nextUrl.searchParams
     const since = searchParams.get('since')
     const limit = parseInt(searchParams.get('limit') || '100', 10)
@@ -36,10 +36,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const body = await request.json()
 
     const result = await sendChatMessage(agentId, body.message)

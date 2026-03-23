@@ -13,10 +13,10 @@ import { queryDocs, indexDocs, clearDocs } from '@/services/agents-docs-service'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const searchParams = request.nextUrl.searchParams
 
     const result = await queryDocs(agentId, {
@@ -44,10 +44,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
 
     let body: any = {}
     try {
@@ -75,10 +75,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const searchParams = request.nextUrl.searchParams
     const projectPath = searchParams.get('project') || undefined
 

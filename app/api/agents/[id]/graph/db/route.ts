@@ -7,9 +7,9 @@ import { queryDbGraph, indexDbSchema, clearDbGraph } from '@/services/agents-gra
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const searchParams = request.nextUrl.searchParams
 
   const result = await queryDbGraph(agentId, {
@@ -31,9 +31,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const body = await request.json()
 
   const result = await indexDbSchema(agentId, body)
@@ -50,9 +50,9 @@ export async function POST(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const databaseName = request.nextUrl.searchParams.get('database') || ''
 
   const result = await clearDbGraph(agentId, databaseName)

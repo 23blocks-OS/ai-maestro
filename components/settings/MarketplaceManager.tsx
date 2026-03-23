@@ -31,7 +31,8 @@ interface MarketplaceInfo {
   name: string
   version: string | null
   description: string | null
-  owner: string | null
+  author: string | null
+  authorEmail: string | null
   sourceType: 'github' | 'directory' | 'unknown'
   sourceUrl: string | null
   sourceRepo: string | null
@@ -345,13 +346,14 @@ export default function MarketplaceManager() {
                 </button>
               </div>
 
-              {/* Marketplace metadata */}
-              {isExpanded && (mkt.sourceUrl || mkt.description || mkt.owner) && (
+              {/* Marketplace metadata — always shown when expanded */}
+              {isExpanded && (
                 <div className="px-3 py-1.5 bg-gray-900/40 text-[9px] text-gray-600 border-b border-gray-800/50 space-y-0.5">
-                  {mkt.description && <div className="text-gray-500">{mkt.description}</div>}
+                  <div className="text-gray-500">{mkt.description || '-'}</div>
                   <div className="flex flex-wrap gap-x-3">
-                    {mkt.owner && <span>by <span className="text-gray-500">{mkt.owner}</span></span>}
-                    {mkt.sourceUrl && <span className="truncate">{mkt.sourceUrl}</span>}
+                    <span>Author: <span className="text-gray-500">{mkt.author || '-'}</span></span>
+                    <span>Email: <span className="text-gray-500">{mkt.authorEmail || '-'}</span></span>
+                    <span>Source: <span className="text-gray-500 truncate">{mkt.sourceUrl || '-'}</span></span>
                   </div>
                 </div>
               )}

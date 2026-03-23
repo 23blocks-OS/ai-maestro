@@ -256,9 +256,9 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
         return `Repo skill "${skill.name || 'unknown'}": name must be a non-empty safe path segment (letters, numbers, dots, hyphens, underscores; max 32 chars)`
       }
       const urlErr = validateGitUrl(skill.url)
-      if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
+      if (urlErr) return `Repo skill "${skill.skillName}": ${urlErr}`
       const refErr = validateGitRef(skill.ref)
-      if (refErr) return `Repo skill "${skill.name}": ${refErr}`
+      if (refErr) return `Repo skill "${skill.skillName}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
     } else if (skill.type === 'marketplace') {
@@ -516,7 +516,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     const map: Record<string, string> = {}
     for (const skill of skills) {
       // skillPath already validated against path traversal
-      map[skill.skillPath] = `skills/${skill.name}`
+      map[skill.skillPath] = `skills/${skill.skillName}`
     }
     // Append a short hash of the full URL to guarantee uniqueness after sanitization/truncation
     const urlHash = createHash('sha1').update(first.url).digest('hex').slice(0, 8)
@@ -571,6 +571,14 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // was never started. If runBuild is successfully launched, it owns the decrement via its
   // finally block, and the outer catch is never reached (we return 202 before any throw).
   activeOps++
+
+  // Track whether runBuild was initiated so activeOps is decremented exactly once.
+  // If runBuild is successfully launched (async), its .finally() owns the decrement.
+  // If an error occurs before runBuild is called, the catch block owns the decrement.
+  let buildLaunched = false
+  // Hoisted so the catch block can clean up a partially-created build directory on
+  // early errors (after mkdir but before runBuild is launched).
+  let buildDir: string | undefined
 
   try {
     // Evict stale builds before adding new ones; await to ensure map is clean

@@ -163,7 +163,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
       url: lastScannedUrl!,
       ref: lastScannedRef!,
       skillPath: skill.path,
-      name: skill.name,
+      skillName: skill.name,
     })
   }
 

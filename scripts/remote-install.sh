@@ -1273,6 +1273,11 @@ act4_start_and_register() {
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
+        # Escape sed metacharacters in substitution values before use in portable_sed
+        # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+        local safe_version safe_gateways
+        safe_version=$(printf '%s' "$VERSION" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+        safe_gateways=$(printf '%s' "$SELECTED_GATEWAYS" | sed 's/[[\.*^$|&\\\/]/\\&/g')
         # Substitute install-time variables (portable sed)
         portable_sed "s|{{INSTALL_DIR}}|${safe_dir_repl}|g" "$AGENT_DIR/CLAUDE.md"
         portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"

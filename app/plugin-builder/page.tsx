@@ -89,7 +89,7 @@ export default function PluginBuilderPage() {
           <PluginComposer
             name={name}
             version={version}
-            description={description}
+            description={description || undefined}
             includeHooks={includeHooks}
             skills={skills}
             onNameChange={setName}

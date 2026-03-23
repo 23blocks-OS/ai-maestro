@@ -1001,38 +1001,22 @@ async function handleAddMarketplace(url?: string) {
   const repo = match[1].replace(/\.git$/, '')
   const marketplaceName = repo.split('/')[1] // Use repo name as marketplace name
 
-  if (existsSync(join(MARKETPLACES_DIR, marketplaceName))) {
-    return NextResponse.json({ error: `Marketplace "${marketplaceName}" already exists` }, { status: 409 })
-  }
-
-  // Clone the repo
+  // Let Claude CLI handle the cloning and registration — it manages its own clone directory
   const { execSync } = await import('child_process')
   try {
-    await mkdir(MARKETPLACES_DIR, { recursive: true })
-    execSync(`git clone --depth 1 "${url}" "${join(MARKETPLACES_DIR, marketplaceName)}"`, {
-      timeout: 60000,
+    const output = execSync(`claude plugin marketplace add "${repo}" --scope user 2>&1`, {
+      timeout: 120000,
       stdio: 'pipe',
-    })
+    }).toString()
+    // CLI outputs the registered name, e.g. "Successfully added marketplace: kriscard"
+    console.log(`Marketplace add output: ${output}`)
   } catch (err) {
-    return NextResponse.json({ error: `Failed to clone: ${err}` }, { status: 500 })
-  }
-
-  // Register marketplace with Claude Code CLI using the GitHub URL directly
-  try {
-    execSync(`claude plugin marketplace add "${repo}" --scope user 2>&1`, {
-      timeout: 60000,
-      stdio: 'pipe',
-    })
-  } catch (err) {
-    // Fallback: try with local path
-    try {
-      execSync(`claude plugin marketplace add "${join(MARKETPLACES_DIR, marketplaceName)}" --scope user 2>&1`, {
-        timeout: 30000,
-        stdio: 'pipe',
-      })
-    } catch {
-      console.warn(`Claude CLI marketplace add failed (marketplace still available from clone): ${err}`)
+    const errStr = String(err)
+    // If the marketplace already exists, that's fine
+    if (errStr.includes('already') || errStr.includes('exists')) {
+      return NextResponse.json({ error: `Marketplace "${marketplaceName}" already exists` }, { status: 409 })
     }
+    return NextResponse.json({ error: `Failed to add marketplace: ${errStr.substring(0, 500)}` }, { status: 500 })
   }
 
   // Add to extraKnownMarketplaces

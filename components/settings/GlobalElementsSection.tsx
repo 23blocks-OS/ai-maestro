@@ -382,7 +382,7 @@ export default function GlobalElementsSection() {
     <div ref={containerRef} className="p-4 sm:p-6 max-w-4xl">
       <h2 className="text-xl font-bold text-white mb-2">Claude Plugins</h2>
       <p className="text-sm text-gray-400 mb-4">
-        User-level plugins shared by <strong>all agents</strong> on this host.
+        This section is only relevant to agents using Claude Code as CLI client.
       </p>
 
       {/* Tab bar: Elements | Plugins | Marketplaces */}

@@ -590,12 +590,7 @@ export async function POST(req: NextRequest) {
         return await handleEnable(pluginName, marketplaceName, pluginKey)
       case 'disable':
         return await handleDisable(pluginName, marketplaceName, pluginKey)
-      case '_legacy_enable':
-        await setPluginEnabled(pluginKey, true)
-        return NextResponse.json({ success: true, action: 'enable', pluginKey })
-      case '_legacy_disable':
-        await setPluginEnabled(pluginKey, false)
-        return NextResponse.json({ success: true, action: 'disable', pluginKey })
+      // No legacy fallbacks — all actions go through Claude CLI
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
     }
@@ -642,25 +637,24 @@ async function resolveCliMarketplaceName(dirName: string): Promise<string> {
 
 /** Enable plugin via Claude CLI */
 async function handleEnable(pluginName: string, marketplaceName: string, pluginKey: string) {
+  const { execSync } = await import('child_process')
   try {
-    const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
     execSync(`claude plugin enable "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 15000 })
-  } catch {
-    // Fallback: direct settings manipulation
-    await setPluginEnabled(pluginKey, true)
+  } catch (err) {
+    return NextResponse.json({ error: `Enable failed: ${String(err).substring(0, 500)}` }, { status: 500 })
   }
   return NextResponse.json({ success: true, action: 'enable', pluginKey })
 }
 
 /** Disable plugin via Claude CLI */
 async function handleDisable(pluginName: string, marketplaceName: string, pluginKey: string) {
+  const { execSync } = await import('child_process')
   try {
-    const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
     execSync(`claude plugin disable "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 15000 })
-  } catch {
-    await setPluginEnabled(pluginKey, false)
+  } catch (err) {
+    return NextResponse.json({ error: `Disable failed: ${String(err).substring(0, 500)}` }, { status: 500 })
   }
   return NextResponse.json({ success: true, action: 'disable', pluginKey })
 }
@@ -677,80 +671,27 @@ async function handleUpdate(pluginName: string, marketplaceName: string, pluginK
   return NextResponse.json({ success: true, action: 'update', pluginKey })
 }
 
-/** Copy plugin from marketplace clone to cache + enable */
+/** Install plugin via Claude CLI */
 async function handleInstall(pluginName: string, marketplaceName: string, pluginKey: string) {
-  const marketplaceCloneDir = join(MARKETPLACES_DIR, marketplaceName)
-  if (!existsSync(marketplaceCloneDir)) {
-    return NextResponse.json({ error: `Marketplace clone not found` }, { status: 404 })
-  }
-
-  // Find plugin source in marketplace clone
-  let sourceDir: string | null = null
-  for (const p of [join(marketplaceCloneDir, 'plugins', pluginName), join(marketplaceCloneDir, pluginName)]) {
-    if (existsSync(p)) { sourceDir = p; break }
-  }
-  if (!sourceDir) {
-    return NextResponse.json({ error: `Plugin "${pluginName}" not found in marketplace clone` }, { status: 404 })
-  }
-
-  // Read version from plugin.json, fall back to '0.0.0'
   const { execSync } = await import('child_process')
-  let version = '0.0.0'
-  const manifestPath = join(sourceDir, '.claude-plugin', 'plugin.json')
-  if (existsSync(manifestPath)) {
-    try {
-      const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
-      if (manifest.version) version = String(manifest.version)
-    } catch { /* use fallback */ }
-  }
-  // Also check package.json as fallback
-  if (version === '0.0.0') {
-    const pkgPath = join(sourceDir, 'package.json')
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
-        if (pkg.version) version = String(pkg.version)
-      } catch { /* use fallback */ }
-    }
-  }
-  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  const destDir = join(pluginCacheDir, version)
-
-  // Step 1: Copy to cache (for our dashboard's element scanning)
-  try {
-    execSync(`mkdir -p "${destDir}" && cp -R "${sourceDir}/." "${destDir}/"`, { timeout: 30000 })
-  } catch (err) {
-    return NextResponse.json({ error: `Failed to copy plugin: ${err}` }, { status: 500 })
-  }
-
-  // Step 2: Install via Claude Code CLI (registers plugin properly with Claude Code)
   try {
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
     execSync(`claude plugin install --scope user "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" 2>&1`, { timeout: 60000 })
   } catch (err) {
-    // CLI install failed — still usable from cache, but warn
-    console.warn(`Claude CLI plugin install failed (plugin still available from cache): ${err}`)
+    return NextResponse.json({ error: `Install failed: ${String(err).substring(0, 500)}` }, { status: 500 })
   }
-
-  await setPluginEnabled(pluginKey, true)
   return NextResponse.json({ success: true, action: 'install', pluginKey })
 }
 
-/** Remove plugin from cache, uninstall via CLI, and disable in settings */
+/** Uninstall plugin via Claude CLI */
 async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
-  // Uninstall via Claude Code CLI first
+  const { execSync } = await import('child_process')
   try {
-    const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
     execSync(`claude plugin uninstall "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 30000 })
-  } catch {
-    // CLI uninstall may fail if plugin wasn't installed via CLI — continue with cache cleanup
+  } catch (err) {
+    return NextResponse.json({ error: `Uninstall failed: ${String(err).substring(0, 500)}` }, { status: 500 })
   }
-  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  if (existsSync(pluginCacheDir)) {
-    await rm(pluginCacheDir, { recursive: true, force: true })
-  }
-  await setPluginEnabled(pluginKey, false)
   return NextResponse.json({ success: true, action: 'uninstall', pluginKey })
 }
 
@@ -806,21 +747,11 @@ async function handleUpdateMarketplace(marketplaceName?: string) {
     return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
   }
   const { execSync } = await import('child_process')
-  // Use Claude CLI marketplace update (preferred)
   try {
     const cliName = await resolveCliMarketplaceName(marketplaceName)
     execSync(`claude plugin marketplace update "${shellSafe(cliName)}" 2>&1`, { timeout: 60000, stdio: 'pipe' })
-  } catch {
-    // Fallback: git pull directly on clone dir
-    const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
-    if (!existsSync(cloneDir)) {
-      return NextResponse.json({ error: `Marketplace "${marketplaceName}" not found` }, { status: 404 })
-    }
-    try {
-      execSync('git pull --ff-only', { cwd: cloneDir, timeout: 60000, stdio: 'pipe' })
-    } catch (err) {
-      return NextResponse.json({ error: `Failed to update: ${err}` }, { status: 500 })
-    }
+  } catch (err) {
+    return NextResponse.json({ error: `Failed to update marketplace: ${String(err).substring(0, 500)}` }, { status: 500 })
   }
   UPDATE_CHECK_CACHE.delete(marketplaceName!)
   return NextResponse.json({ success: true, action: 'update-marketplace', marketplaceName })

@@ -55,7 +55,11 @@ export function getSkillKey(skill: PluginSkillSelection): string {
 // ============================================================================
 
 /**
- * Result of a plugin build (returned from the API)
+ * Result of a plugin build (returned from the API).
+ * Discriminated union on `status` so that a completed build always carries
+ * outputPath, manifest, and stats — eliminating unnecessary null checks for
+ * the success path while keeping those fields optional for in-progress or
+ * failed builds.
  */
 export interface PluginBuildResult {
   buildId: string

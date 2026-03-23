@@ -213,6 +213,19 @@ function validateSkillPath(skillPath: string): string | null {
   return null
 }
 
+/**
+ * Validate a marketplace or plugin name used in path construction.
+ * Prevents path traversal via crafted marketplace/plugin names.
+ */
+function validateMarketplaceName(name: string): string | null {
+  if (!name || typeof name !== 'string') return 'Name is required'
+  if (name.includes('..')) return 'Name must not contain ".."'
+  if (!SAFE_PATH_SEGMENT_RE.test(name)) {
+    return `Name "${name}" contains invalid characters`
+  }
+  return null
+}
+
 function validateBuildConfig(config: PluginBuildConfig): string | null {
   const nameErr = validatePluginName(config.name)
   if (nameErr) return nameErr

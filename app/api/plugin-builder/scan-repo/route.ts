@@ -130,6 +130,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // Unexpected runtime errors from scanRepo or elsewhere are server-side failures
     console.error('Error scanning repo:', error)
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

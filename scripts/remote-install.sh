@@ -1000,6 +1000,9 @@ act3_clone_and_build() {
                         maestro_info "Your changes are saved in git stash. To recover:"
                         echo "   cd $INSTALL_DIR && git stash list"
                         echo "   git stash pop   # (resolve any conflicts manually)"
+                        maestro_info "You may need to resolve merge conflicts. Check 'git status'."
+                    else
+                        maestro_info "Local changes restored."
                     fi
                 fi
                 git submodule update --init --recursive 2>/dev/null || maestro_warn "Some submodules failed to update"
@@ -1171,9 +1174,18 @@ act4_start_and_register() {
                     # shellcheck disable=SC2086
                     kill $old_pid 2>/dev/null || true
                     sleep 2
+                elif [ -f "$INSTALL_DIR/logs/aimaestro.pid" ]; then
+                    local pid_from_file
+                    pid_from_file=$(cat "$INSTALL_DIR/logs/aimaestro.pid" 2>/dev/null)
+                    if [ -n "$pid_from_file" ] && ps -p "$pid_from_file" > /dev/null 2>&1; then
+                        maestro_info "Killing old process from PID file (PID: $pid_from_file)..."
+                        kill "$pid_from_file" 2>/dev/null || true
+                        sleep 2
+                    fi
                 fi
                 mkdir -p "$INSTALL_DIR/logs"
                 nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
+                echo $! > "$INSTALL_DIR/logs/aimaestro.pid"
             fi
             # Wait for service to come back up
             # Grep for '"sessions"' to confirm it's actually AI Maestro (not a stray 404)

@@ -77,8 +77,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
-
-    setBuilding(true)
     setResult(null)
     setError(null)
     setShowLogs(false)

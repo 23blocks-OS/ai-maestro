@@ -125,7 +125,7 @@ export default function GlobalElementsSection() {
   useEffect(() => {
     const withEnabled = new Set<string>()
     for (const g of groups) {
-      if (g.plugins.some(p => p.enabled)) withEnabled.add(g.marketplace)
+      if ((g.plugins || []).some(p => p.enabled)) withEnabled.add(g.marketplace)
     }
     setExpandedMarketplaces(prev => {
       const next = new Set(prev)
@@ -154,10 +154,14 @@ export default function GlobalElementsSection() {
       if (res.ok) {
         setGroups(prev => prev.map(g => ({
           ...g,
-          plugins: g.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
+          // Guard against null/undefined plugins array that the API might return for a group
+          plugins: (g.plugins || []).map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
         fetchElements()
+      } else {
+        // Non-2xx response: revert optimistic UI by re-fetching authoritative state from server
+        fetchPlugins()
       }
     } catch (err) {
       console.error('Error toggling plugin:', err)
@@ -186,7 +190,7 @@ export default function GlobalElementsSection() {
     return groups
       .map(g => ({
         ...g,
-        plugins: g.plugins.filter(p =>
+        plugins: (g.plugins || []).filter(p =>
           p.name.toLowerCase().includes(q) ||
           g.marketplace.toLowerCase().includes(q)
         ),
@@ -200,7 +204,7 @@ export default function GlobalElementsSection() {
     const q = elementSearch.toLowerCase()
     return pluginElements
       .map(plugin => {
-        const filterItems = (items: ElementInfo[]) => items.filter(i => i.name.toLowerCase().includes(q))
+        const filterItems = (items: ElementInfo[] | null | undefined) => (items || []).filter(i => i.name.toLowerCase().includes(q))
         return {
           ...plugin,
           skills: filterItems(plugin.skills),
@@ -303,7 +307,7 @@ export default function GlobalElementsSection() {
       <div className="space-y-3">
         {filteredGroups.map(group => {
           const expanded = expandedMarketplaces.has(group.marketplace)
-          const enabledInGroup = group.plugins.filter(p => p.enabled).length
+          const enabledInGroup = (group.plugins || []).filter(p => p.enabled).length
           return (
             <div key={group.marketplace} className="rounded-xl border border-gray-800 overflow-hidden">
               {/* Marketplace header */}
@@ -317,14 +321,14 @@ export default function GlobalElementsSection() {
                 <span className="text-xs text-gray-500 tabular-nums">
                   {enabledInGroup > 0 && <span className="text-emerald-400">{enabledInGroup}</span>}
                   {enabledInGroup > 0 && '/'}
-                  {group.plugins.length}
+                  {(group.plugins || []).length}
                 </span>
               </button>
 
               {/* Plugin list */}
               {expanded && (
                 <div className="divide-y divide-gray-800/50">
-                  {group.plugins.map(plugin => {
+                  {(group.plugins || []).map(plugin => {
                     const isToggling = toggling === plugin.key
                     const isExpPl = expandedPlugin === plugin.key
                     return (
@@ -375,15 +379,16 @@ export default function GlobalElementsSection() {
                                 {plugin.homepage && (
                                   <span>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.homepage}</a></span>
                                 )}
-                                {plugin.repository && !plugin.homepage && (
+                                {plugin.repository && (
                                   <span>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.repository}</a></span>
                                 )}
                               </div>
                             )}
                             {plugin.keywords && plugin.keywords.length > 0 && (
                               <div className="flex flex-wrap gap-1 text-[8px]">
-                                {plugin.keywords.map((kw, i) => (
-                                  <span key={i} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
+                                {plugin.keywords.map((kw) => (
+                                  // Use the keyword string itself as key — keywords are unique strings within a plugin
+                                  <span key={kw} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
                                 ))}
                               </div>
                             )}

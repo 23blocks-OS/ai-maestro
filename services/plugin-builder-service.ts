@@ -134,6 +134,12 @@ function validateGitUrl(url: string): string | null {
 
   try {
     const parsed = new URL(url)
+
+    // Reject URLs with embedded credentials — they would be stored in config files and logs
+    if (parsed.username || parsed.password) {
+      return 'Git URL must not contain embedded credentials'
+    }
+
     const host = parsed.hostname.toLowerCase()
 
     // Block internal network addresses
@@ -313,6 +319,34 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
         return `Marketplace skill "${skill.id}": Plugin name contains invalid characters (only letters, numbers, dots, hyphens, underscores allowed)`
       }
     }
+
+    if (skill.type === 'core' && skill.skillPath) {
+      // Reject path traversal sequences and absolute paths in core skill paths.
+      // Split on '/' so multi-segment paths like "skills/my-skill" validate each segment independently.
+      if (skill.skillPath.includes('..') || path.isAbsolute(skill.skillPath)) {
+        return `Path traversal not allowed: ${skill.skillPath}`
+      }
+      const segments = skill.skillPath.split('/')
+      if (segments.some(seg => !SAFE_PATH_SEGMENT_RE.test(seg))) {
+        return `Invalid skillPath: ${skill.skillPath}`
+      }
+    }
+
+    if (skill.type === 'marketplace') {
+      // Require presence of marketplace and plugin fields before validating format —
+      // without them the installPath constructed in generateManifest would be incomplete.
+      if (!skill.id) return `Skill "${skill.id ?? ''}" missing id field`
+      if (!skill.marketplace) return `Skill "${skill.id ?? ''}" missing marketplace field`
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) return `Invalid marketplace: ${skill.marketplace}`
+      if (!skill.plugin) return `Skill "${skill.id ?? ''}" missing plugin field`
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) return `Invalid plugin: ${skill.plugin}`
+      // Validate the skill name component extracted from the id (format: marketplace:plugin:skillName).
+      // Use .at(-1) (last part) — consistent with generateManifest which also takes parts[parts.length - 1].
+      const skillName = skill.id.split(':').at(-1)
+      if (skillName && !SAFE_PATH_SEGMENT_RE.test(skillName)) {
+        return `Invalid skill name in id: ${skillName}`
+      }
+    }
   }
 
   return null
@@ -422,7 +456,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   if (coreSkills.length > 0) {
     const map: Record<string, string> = {}
     for (const skill of coreSkills) {
-      map[`skills/${skill.name}`] = `skills/${skill.name}`
+      // Use skillPath as source key so a custom path within ./src is respected;
+      // fall back to skills/${skill.name} when skillPath is not set.
+      map[skill.skillPath || `skills/${skill.name}`] = `skills/${skill.name}`
     }
     sources.push({
       name: 'core',

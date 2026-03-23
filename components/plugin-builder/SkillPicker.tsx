@@ -266,7 +266,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       <Package className={`w-4 h-4 ${isSelected ? 'text-cyan-400' : 'text-gray-400'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-200">{skill.name}</p>
+                      <p className="text-sm font-medium text-gray-200">{skill.name ?? 'Unnamed'}</p>
                       <p className="text-xs text-gray-500 truncate">
                         {skill.description && skill.description.trim() !== '' ? skill.description : `${skill.plugin} / ${skill.marketplace}`}
                       </p>

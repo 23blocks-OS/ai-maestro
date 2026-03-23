@@ -167,6 +167,8 @@ cleanup() {
         maestro_info "Check the output above for details"
         # Remove partial clone if install dir was created but has no package.json
         # Safety: only auto-remove paths under $HOME (never system dirs)
+        local resolved
+        resolved=$(cd -P "$INSTALL_DIR" 2>/dev/null && pwd 2>/dev/null)
         if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
            && [[ "$INSTALL_DIR" == "${HOME}"/* ]]; then
             if [ "$NON_INTERACTIVE" = true ]; then

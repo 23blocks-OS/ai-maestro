@@ -148,7 +148,7 @@ async function listSkillDirs(dir: string, pluginName: string, marketplace: strin
   }
 }
 
-/** Parse hooks from hooks/hooks.json */
+/** Parse hooks from hooks/hooks.json — generates descriptive names */
 async function listHooks(versionDir: string, pluginName: string, marketplace: string): Promise<ElementInfo[]> {
   const hooksJsonPath = join(versionDir, 'hooks', 'hooks.json')
   if (!existsSync(hooksJsonPath)) return []
@@ -157,18 +157,38 @@ async function listHooks(versionDir: string, pluginName: string, marketplace: st
     const parsed = JSON.parse(content)
     const hooksObj = parsed.hooks || parsed
     const results: ElementInfo[] = []
+    let hookIdx = 0
     for (const event of Object.keys(hooksObj)) {
       const eventHooks = hooksObj[event]
       if (Array.isArray(eventHooks)) {
         for (const hookGroup of eventHooks) {
-          const matcher = hookGroup.matcher || '*'
+          hookIdx++
+          const matcher = hookGroup.matcher || ''
           const cmd = hookGroup.command || ''
+          const isSync = hookGroup.sync === true
+          const isPrompt = hookGroup.type === 'prompt'
+          // Build descriptive name: Event_type_matcher_sync_plugin_hook_N
+          const parts: string[] = [event]
+          if (isPrompt) {
+            parts.push('prompt')
+          } else if (cmd) {
+            // Extract script/binary name from command path
+            const cmdName = cmd.split('/').pop()?.replace(/\.[^.]+$/, '') || cmd.split(' ')[0]
+            parts.push('command', cmdName)
+          }
+          if (matcher && matcher !== '*') parts.push(matcher)
+          if (isSync) parts.push('sync')
+          else parts.push('async')
+          parts.push(pluginName, `hook_${hookIdx}`)
+          const name = parts.join('_')
+          // Store the full hook entry as JSON in description for element-specific preview
+          const hookJson = JSON.stringify(hookGroup, null, 2)
           results.push({
-            name: `${event}:${matcher}`,
+            name,
             path: hooksJsonPath,
             sourcePlugin: pluginName,
             sourceMarketplace: marketplace,
-            description: cmd ? `Command: ${cmd.substring(0, 100)}` : null,
+            description: hookJson,
             type: 'hook',
           })
         }
@@ -190,12 +210,14 @@ async function listMcpServers(versionDir: string, pluginName: string, marketplac
     const servers = parsed.mcpServers || {}
     return Object.keys(servers).map(name => {
       const srv = servers[name]
+      // Store the individual server entry as JSON for element-specific preview
+      const srvJson = JSON.stringify({ [name]: srv }, null, 2)
       return {
         name,
         path: mcpPath,
         sourcePlugin: pluginName,
         sourceMarketplace: marketplace,
-        description: srv?.command ? `${srv.command} ${(srv.args || []).join(' ')}`.substring(0, 100) : null,
+        description: srvJson,
         type: 'mcp',
       }
     })
@@ -243,12 +265,13 @@ async function listLspServers(versionDir: string, pluginName: string, marketplac
     const servers = parsed.lspServers || {}
     return Object.keys(servers).map(name => {
       const srv = servers[name]
+      const srvJson = JSON.stringify({ [name]: srv }, null, 2)
       return {
         name,
         path: lspPath,
         sourcePlugin: pluginName,
         sourceMarketplace: marketplace,
-        description: srv?.command ? `${srv.command}` : null,
+        description: srvJson,
         type: 'lsp',
       }
     })

@@ -357,8 +357,9 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
             placeholder="Filter marketplaces..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            className="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
           />
+          {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-700"><X className="w-3 h-3 text-gray-500" /></button>}
         </div>
         <button
           onClick={async () => {
@@ -466,8 +467,9 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                       placeholder="Filter plugins..."
                       value={pluginSearch}
                       onChange={e => setPluginSearch(e.target.value)}
-                      className="w-full pl-7 pr-3 py-1 text-[10px] bg-gray-800/50 border border-gray-700/50 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                      className="w-full pl-7 pr-7 py-1 text-[10px] bg-gray-800/50 border border-gray-700/50 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500"
                     />
+                    {pluginSearch && <button onClick={() => setPluginSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-700"><X className="w-2.5 h-2.5 text-gray-500" /></button>}
                   </div>
                 </div>
               )}

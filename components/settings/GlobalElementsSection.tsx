@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink,
+  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink, X, Copy,
   ToggleLeft, ToggleRight,
   Wand2, Bot, Terminal, Webhook, Server, FileCode,
   ScrollText, Palette,
@@ -104,7 +104,9 @@ export default function GlobalElementsSection() {
   // Cross-tab navigation targets
   const [navigateToMkt, setNavigateToMkt] = useState<string | null>(null)
   const [navigateToPlugin, setNavigateToPlugin] = useState<string | null>(null) // plugin key to expand in Plugins tab
+  const [navigateToElement, setNavigateToElement] = useState<string | null>(null) // element key to expand in Elements tab
   const pluginRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const elementRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [groups, setGroups] = useState<MarketplaceGroup[]>([])
   const [enabledCount, setEnabledCount] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
@@ -122,6 +124,9 @@ export default function GlobalElementsSection() {
   const [expandedElement, setExpandedElement] = useState<string | null>(null) // accordion for element cards
   const [elementContent, setElementContent] = useState<Record<string, string>>({}) // lazy-loaded file content cache
   const [loadingContent, setLoadingContent] = useState<string | null>(null)
+  // Script viewer modal state
+  const [scriptViewer, setScriptViewer] = useState<{ name: string; content: string } | null>(null)
+  const [loadingScript, setLoadingScript] = useState(false)
 
   // Flat elements list from API
   const [flatElements, setFlatElements] = useState<FlatElement[]>([])
@@ -147,10 +152,14 @@ export default function GlobalElementsSection() {
   }, [activeTab])
 
   // Navigate to a marketplace from Elements/Plugins tab
-  // Navigate to an element in the Elements tab — sets search and type filter
-  const goToElement = useCallback((elementName: string, elementType: string) => {
-    setElementSearch(elementName)
-    setElementTypeFilter(elementType)
+  // Navigate to an exact element in the Elements tab — clears filters, expands, scrolls
+  const goToElement = useCallback((elementName: string, elementType: string, sourcePlugin?: string) => {
+    // Build the element key matching the format used in the Elements tab: type:name@plugin
+    const elKey = `${elementType.replace(/s$/, '')}:${elementName}@${sourcePlugin || ''}`
+    setElementSearch('')
+    setElementTypeFilter('all')
+    setActiveOnly(false)
+    setNavigateToElement(elKey)
     switchTab('elements')
   }, [switchTab])
 
@@ -183,6 +192,29 @@ export default function GlobalElementsSection() {
       })
     }
   }, [navigateToPlugin, activeTab])
+
+  // Handle navigate-to-element after tab switch
+  useEffect(() => {
+    if (navigateToElement && activeTab === 'elements') {
+      setExpandedElement(navigateToElement)
+      const targetKey = navigateToElement
+      setNavigateToElement(null)
+      // Lazy-load content for the target element
+      const targetEl = flatElements.find(el => `${el.type}:${el.name}@${el.sourcePlugin}` === targetKey)
+      if (targetEl?.path && !elementContent[targetKey]) {
+        setLoadingContent(targetKey)
+        fetch(`/api/settings/element-content?path=${encodeURIComponent(targetEl.path)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data?.content) setElementContent(prev => ({ ...prev, [targetKey]: data.content })) })
+          .catch(() => {})
+          .finally(() => setLoadingContent(null))
+      }
+      requestAnimationFrame(() => {
+        const el = elementRefs.current[targetKey]
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+  }, [navigateToElement, activeTab, flatElements, elementContent])
 
   // Element listing state
   const [pluginElements, setPluginElements] = useState<PluginElements[]>([])
@@ -403,8 +435,9 @@ export default function GlobalElementsSection() {
           placeholder="Filter plugins..."
           value={pluginSearch}
           onChange={e => setPluginSearch(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          className="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
+        {pluginSearch && <button onClick={() => setPluginSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-700"><X className="w-3 h-3 text-gray-500" /></button>}
       </div>
 
       {/* Flat plugin list */}
@@ -490,7 +523,7 @@ export default function GlobalElementsSection() {
                                     <span
                                       key={item.name}
                                       className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40 hover:bg-gray-700/60 hover:text-blue-300 cursor-pointer transition-colors"
-                                      onClick={(e) => { e.stopPropagation(); goToElement(item.name, key) }}
+                                      onClick={(e) => { e.stopPropagation(); goToElement(item.name, key, plugin.name) }}
                                       title="View in Elements tab"
                                     >{item.name}</span>
                                   ))}
@@ -559,8 +592,9 @@ export default function GlobalElementsSection() {
             placeholder="Filter by name, description, plugin, or marketplace..."
             value={elementSearch}
             onChange={e => setElementSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            className="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500"
           />
+          {elementSearch && <button onClick={() => setElementSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-700"><X className="w-3 h-3 text-gray-500" /></button>}
         </div>
         <button
           onClick={() => setActiveOnly(!activeOnly)}
@@ -595,7 +629,7 @@ export default function GlobalElementsSection() {
             const TypeIcon = ti.icon
 
             return (
-              <div key={elKey} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
+              <div key={elKey} ref={ref => { elementRefs.current[elKey] = ref }} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}
                 <div
                   className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}
@@ -647,7 +681,43 @@ export default function GlobalElementsSection() {
                 {/* Expanded: description + metadata */}
                 {isExp && (
                   <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-600 space-y-0.5">
-                    <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>
+                    {/* For hooks/mcp/lsp: description IS the element-specific JSON. For others: plain text. */}
+                    {['hook', 'mcp', 'lsp'].includes(el.type) ? (<>
+                      {el.description && (
+                        <div className="mt-1">
+                          <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{el.description}</pre>
+                        </div>
+                      )}
+                      {/* View Script button for hooks that reference a script file */}
+                      {el.type === 'hook' && el.description && (() => {
+                        try {
+                          const hookData = JSON.parse(el.description)
+                          const cmd = hookData.command || ''
+                          // Extract script path — check if it's an absolute path or resolvable
+                          const scriptPath = cmd.startsWith('/') ? cmd.split(' ')[0] : null
+                          if (!scriptPath) return null
+                          return (
+                            <button
+                              onClick={() => {
+                                setLoadingScript(true)
+                                fetch(`/api/settings/element-content?path=${encodeURIComponent(scriptPath)}`)
+                                  .then(r => r.ok ? r.json() : null)
+                                  .then(data => { if (data?.content) setScriptViewer({ name: scriptPath.split('/').pop() || 'script', content: data.content }) })
+                                  .catch(() => {})
+                                  .finally(() => setLoadingScript(false))
+                              }}
+                              disabled={loadingScript}
+                              className="mt-1 flex items-center gap-1.5 text-[9px] text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-1 rounded transition-colors"
+                            >
+                              {loadingScript ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileCode className="w-3 h-3" />}
+                              View Script Source
+                            </button>
+                          )
+                        } catch { return null }
+                      })()}
+                    </>) : (
+                      <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>
+                    )}
                     <div>Type: <span className={ti.color}>{ti.label}</span></div>
                     <div>Plugin: <span
                       className="text-gray-400 hover:text-blue-400 cursor-pointer"
@@ -660,18 +730,20 @@ export default function GlobalElementsSection() {
                       title={`Go to ${el.sourceMarketplace} in Marketplaces tab`}
                     >{el.sourceMarketplace}</span></div>
                     {el.path && <div>Path: <span className="text-gray-500 font-mono break-all text-[8px]" title={el.path}>{el.path}</span></div>}
-                    {/* File content preview */}
-                    {loadingContent === elKey && (
-                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-800/30">
-                        <Loader2 className="w-3 h-3 text-gray-500 animate-spin" />
-                        <span className="text-[9px] text-gray-500">Loading content...</span>
-                      </div>
-                    )}
-                    {elementContent[elKey] && (
-                      <div className="mt-2 pt-2 border-t border-gray-800/30">
-                        <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{elementContent[elKey]}</pre>
-                      </div>
-                    )}
+                    {/* File content preview — only for .md-based types (skills/agents/commands/rules) */}
+                    {!['hook', 'mcp', 'lsp'].includes(el.type) && (<>
+                      {loadingContent === elKey && (
+                        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-800/30">
+                          <Loader2 className="w-3 h-3 text-gray-500 animate-spin" />
+                          <span className="text-[9px] text-gray-500">Loading content...</span>
+                        </div>
+                      )}
+                      {elementContent[elKey] && (
+                        <div className="mt-2 pt-2 border-t border-gray-800/30">
+                          <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{elementContent[elKey]}</pre>
+                        </div>
+                      )}
+                    </>)}
                   </div>
                 )}
               </div>
@@ -680,6 +752,37 @@ export default function GlobalElementsSection() {
         </div>
       )}
       </>)}
+
+      {/* Script source viewer modal */}
+      {scriptViewer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setScriptViewer(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-3xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-medium text-gray-200">{scriptViewer.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { navigator.clipboard.writeText(scriptViewer.content) }}
+                  className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded transition-colors"
+                >
+                  <Copy className="w-3 h-3" />
+                  Copy All
+                </button>
+                <button onClick={() => setScriptViewer(null)} className="p-1 rounded hover:bg-gray-800 transition-colors">
+                  <X className="w-4 h-4 text-gray-400 hover:text-gray-200" />
+                </button>
+              </div>
+            </div>
+            {/* Script content with syntax highlighting */}
+            <div className="flex-1 overflow-auto p-4">
+              <pre className="text-[11px] text-gray-300 font-mono leading-relaxed whitespace-pre-wrap break-words select-text">{scriptViewer.content}</pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

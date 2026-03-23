@@ -59,9 +59,10 @@ interface Totals {
 interface MarketplaceManagerProps {
   expandMarketplace?: string | null
   onNavigateComplete?: () => void
+  onGoToPlugin?: (pluginKey: string) => void
 }
 
-export default function MarketplaceManager({ expandMarketplace, onNavigateComplete }: MarketplaceManagerProps = {}) {
+export default function MarketplaceManager({ expandMarketplace, onNavigateComplete, onGoToPlugin }: MarketplaceManagerProps = {}) {
   const [marketplaces, setMarketplaces] = useState<MarketplaceInfo[]>([])
   const [totals, setTotals] = useState<Totals>({ marketplaces: 0, withPlugins: 0, totalPlugins: 0, installedPlugins: 0, enabledPlugins: 0 })
   const [loading, setLoading] = useState(true)
@@ -436,7 +437,11 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                             {/* Name + version + elements */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className={`text-[11px] font-medium truncate ${plugin.installed ? 'text-gray-200' : 'text-gray-500'}`}>
+                                <span
+                                  className={`text-[11px] font-medium truncate ${plugin.installed ? 'text-gray-200 hover:text-blue-400 cursor-pointer' : 'text-gray-500'}`}
+                                  onClick={plugin.installed && onGoToPlugin ? (e) => { e.stopPropagation(); onGoToPlugin(plugin.key) } : undefined}
+                                  title={plugin.installed ? 'View in Plugins tab' : undefined}
+                                >
                                   {plugin.name}
                                 </span>
                                 {/* Version number */}

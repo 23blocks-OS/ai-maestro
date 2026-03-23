@@ -61,15 +61,16 @@ interface ElementTotals {
   outputStyles: number
 }
 
-const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof Wand2 }[] = [
-  { key: 'skills', label: 'Skills', icon: Wand2 },
-  { key: 'agents', label: 'Agents', icon: Bot },
-  { key: 'commands', label: 'Commands', icon: Terminal },
-  { key: 'hooks', label: 'Hooks', icon: Webhook },
-  { key: 'rules', label: 'Rules', icon: ScrollText },
-  { key: 'mcpServers', label: 'MCP Servers', icon: Server },
-  { key: 'lspServers', label: 'LSP Servers', icon: FileCode },
-  { key: 'outputStyles', label: 'Output Styles', icon: Palette },
+// Element type icons — used across all tabs for consistency
+const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof Wand2; color: string }[] = [
+  { key: 'skills', label: 'Skills', icon: Wand2, color: 'text-purple-400' },
+  { key: 'agents', label: 'Agents', icon: Bot, color: 'text-blue-400' },
+  { key: 'commands', label: 'Commands', icon: Terminal, color: 'text-cyan-400' },
+  { key: 'hooks', label: 'Hooks', icon: Webhook, color: 'text-amber-400' },
+  { key: 'rules', label: 'Rules', icon: ScrollText, color: 'text-orange-400' },
+  { key: 'mcpServers', label: 'MCP Servers', icon: Server, color: 'text-green-400' },
+  { key: 'lspServers', label: 'LSP Servers', icon: FileCode, color: 'text-teal-400' },
+  { key: 'outputStyles', label: 'Output Styles', icon: Palette, color: 'text-pink-400' },
 ]
 
 /**
@@ -81,8 +82,10 @@ export default function GlobalElementsSection() {
   // Scroll position per tab — restore when switching back
   const scrollPositions = useRef<Record<string, number>>({ plugins: 0, elements: 0, marketplaces: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
-  // Marketplace to auto-expand when navigating from Elements tab
+  // Cross-tab navigation targets
   const [navigateToMkt, setNavigateToMkt] = useState<string | null>(null)
+  const [navigateToPlugin, setNavigateToPlugin] = useState<string | null>(null) // plugin key to expand in Plugins tab
+  const pluginRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [groups, setGroups] = useState<MarketplaceGroup[]>([])
   const [enabledCount, setEnabledCount] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
@@ -108,11 +111,33 @@ export default function GlobalElementsSection() {
     })
   }, [activeTab])
 
-  // Navigate to a marketplace from Elements tab — switch to Marketplaces tab and expand it
+  // Navigate to a marketplace from Elements/Plugins tab
   const goToMarketplace = useCallback((mktName: string) => {
     setNavigateToMkt(mktName)
     switchTab('marketplaces')
   }, [switchTab])
+
+  // Navigate to a plugin from Marketplace tab → Plugins tab
+  const goToPlugin = useCallback((pluginKey: string) => {
+    setNavigateToPlugin(pluginKey)
+    // Expand the marketplace group containing this plugin
+    const atIdx = pluginKey.lastIndexOf('@')
+    const mkt = atIdx > 0 ? pluginKey.substring(atIdx + 1) : ''
+    if (mkt) setExpandedMarketplaces(prev => { const next = new Set(prev); next.add(mkt); return next })
+    switchTab('plugins')
+  }, [switchTab])
+
+  // Handle navigate-to-plugin after tab switch
+  useEffect(() => {
+    if (navigateToPlugin && activeTab === 'plugins') {
+      setExpandedPlugin(navigateToPlugin)
+      setNavigateToPlugin(null)
+      requestAnimationFrame(() => {
+        const el = pluginRefs.current[navigateToPlugin]
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+  }, [navigateToPlugin, activeTab])
 
   // Element listing state
   const [pluginElements, setPluginElements] = useState<PluginElements[]>([])
@@ -306,7 +331,7 @@ export default function GlobalElementsSection() {
       {/* ================================================================= */}
       {/* Marketplaces tab */}
       {/* ================================================================= */}
-      {activeTab === 'marketplaces' && <MarketplaceManager expandMarketplace={navigateToMkt} onNavigateComplete={() => setNavigateToMkt(null)} />}
+      {activeTab === 'marketplaces' && <MarketplaceManager expandMarketplace={navigateToMkt} onNavigateComplete={() => setNavigateToMkt(null)} onGoToPlugin={goToPlugin} />}
 
       {/* ================================================================= */}
       {/* Plugins tab */}
@@ -359,7 +384,7 @@ export default function GlobalElementsSection() {
                     const isToggling = toggling === plugin.key
                     const isExpPl = expandedPlugin === plugin.key
                     return (
-                      <div key={plugin.key}>
+                      <div key={plugin.key} ref={el => { pluginRefs.current[plugin.key] = el }}>
                         <div
                           className={`flex items-center gap-3 px-4 py-2.5 transition-colors cursor-pointer hover:bg-gray-800/30 ${
                             plugin.enabled ? 'bg-emerald-500/5' : 'bg-gray-900/30'
@@ -428,6 +453,35 @@ export default function GlobalElementsSection() {
                                 ))}
                               </div>
                             )}
+                            {/* Element sections — ALL 8 types, shown even if empty */}
+                            {(() => {
+                              const pe = pluginElements.find(p => p.pluginName === plugin.name && p.marketplace === group.marketplace)
+                              return (
+                                <div className="mt-2 pt-2 border-t border-gray-800/30 space-y-2">
+                                  {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {
+                                    const items = pe?.[key] || []
+                                    return (
+                                      <div key={key}>
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                          <Icon className={`w-3 h-3 ${items.length > 0 ? color : 'text-gray-700'}`} />
+                                          <span className={`text-[10px] font-medium uppercase tracking-wider ${items.length > 0 ? 'text-gray-400' : 'text-gray-700'}`}>{label}</span>
+                                          <span className={`text-[10px] ${items.length > 0 ? 'text-gray-500' : 'text-gray-700'}`}>{items.length}</span>
+                                        </div>
+                                        {items.length > 0 ? (
+                                          <div className="flex flex-wrap gap-1.5 ml-4">
+                                            {items.map((item, idx) => (
+                                              <span key={idx} className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40">{item.name}</span>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <span className="text-[10px] text-gray-700 ml-4">none</span>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>

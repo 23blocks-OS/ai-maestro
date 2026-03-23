@@ -312,7 +312,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always treat result.error as a failure, regardless of whether result.data is also present
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -439,6 +440,7 @@ const routes: Route[] = [
         sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
       }
     } catch (error) {
+      console.error('Error fetching sessions:', error)
       sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
     }
   }},
@@ -477,6 +479,7 @@ const routes: Route[] = [
       const activity = await getActivity()
       sendJson(res, 200, { activity })
     } catch (error) {
+      console.error('Error fetching activity:', error)
       sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
     }
   }},
@@ -537,7 +540,15 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options: Record<string, unknown> = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          sendJson(res, 400, { error: 'Invalid JSON in options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {

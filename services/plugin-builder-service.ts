@@ -140,6 +140,19 @@ function validateSkillPath(skillPath: string): string | null {
   return null
 }
 
+/**
+ * Validate a marketplace or plugin name used in path construction.
+ * Prevents path traversal via crafted marketplace/plugin names.
+ */
+function validateMarketplaceName(name: string): string | null {
+  if (!name || typeof name !== 'string') return 'Name is required'
+  if (name.includes('..')) return 'Name must not contain ".."'
+  if (!SAFE_PATH_SEGMENT_RE.test(name)) {
+    return `Name "${name}" contains invalid characters`
+  }
+  return null
+}
+
 function validateBuildConfig(config: PluginBuildConfig): string | null {
   const nameErr = validatePluginName(config.name)
   if (nameErr) return nameErr
@@ -160,6 +173,12 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names to prevent path traversal in path.join
+      const marketplaceErr = validateMarketplaceName(skill.marketplace)
+      if (marketplaceErr) return `Marketplace skill "${skill.name}": marketplace ${marketplaceErr}`
+      const pluginErr = validateMarketplaceName(skill.plugin)
+      if (pluginErr) return `Marketplace skill "${skill.name}": plugin ${pluginErr}`
     }
   }
 
@@ -347,8 +366,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
+      } catch (symlinkError) {
         // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+        console.warn(`Failed to symlink core skills directory from ${srcDir} to ${linkTarget}. Falling back to copy.`, symlinkError)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -590,11 +610,15 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     }
 
     // Atomic replacement: avoids torn reads from polling clients
+    // Explicitly include manifest (from runBuild parameter) so the discriminated
+    // union's 'complete' branch can be satisfied — TypeScript cannot infer it is
+    // defined through the spread of 'existing' alone.
     buildResults.set(buildId, {
       ...existing,
       status: 'complete',
       outputPath,
       logs: output.split('\n'),
+      manifest,
       stats,
     })
   } catch (error: unknown) {

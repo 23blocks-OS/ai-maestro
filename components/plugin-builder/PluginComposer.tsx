@@ -211,7 +211,8 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      // skill.plugin is the human-readable plugin name from the PluginSkillSelection type
+      return skill.plugin
     case 'repo':
       return skill.name
   }

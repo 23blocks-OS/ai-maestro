@@ -34,17 +34,31 @@ export type PluginSkillSelection =
 // ============================================================================
 
 /**
- * Result of a plugin build (returned from the API)
+ * Result of a plugin build (returned from the API).
+ * Discriminated union on `status` so that a completed build always carries
+ * outputPath, manifest, and stats — eliminating unnecessary null checks for
+ * the success path while keeping those fields optional for in-progress or
+ * failed builds.
  */
-export interface PluginBuildResult {
-  buildId: string
-  status: 'building' | 'complete' | 'failed'
-  outputPath?: string                  // Where the built plugin lives
-  logs: string[]                       // Build output lines
-  manifest?: PluginManifest            // Generated manifest
-  stats?: PluginBuildStats
-  createdAt: string                    // ISO timestamp
-}
+export type PluginBuildResult =
+  | {
+      buildId: string
+      status: 'building' | 'failed'
+      outputPath?: string               // Not guaranteed until build completes
+      logs: string[]                    // Build output lines
+      manifest?: PluginManifest         // Not guaranteed until build completes
+      stats?: PluginBuildStats          // Not guaranteed until build completes
+      createdAt: string                 // ISO timestamp
+    }
+  | {
+      buildId: string
+      status: 'complete'
+      outputPath: string               // Always present on successful build
+      logs: string[]                   // Build output lines
+      manifest: PluginManifest         // Always present on successful build
+      stats: PluginBuildStats          // Always present on successful build
+      createdAt: string                // ISO timestamp
+    }
 
 export interface PluginBuildStats {
   skills: number
@@ -76,15 +90,30 @@ export interface PluginManifestMetadata {
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+/**
+ * Discriminated union on `type` so that local sources always carry `path`
+ * (never `repo`) and git sources always carry `repo` (never `path`), enforcing
+ * the mutual exclusivity that the build script expects.
+ */
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                     // Required for local sources
+      repo?: never                     // Must not be present for local sources
+      ref?: never                      // Must not be present for local sources
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      path?: never                     // Must not be present for git sources
+      repo: string                     // Required for git sources
+      ref?: string                     // Git branch/tag (optional)
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
 
 // ============================================================================
 // Repo Scanner

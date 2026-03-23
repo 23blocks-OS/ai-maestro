@@ -28,11 +28,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Clean up polling on unmount
+  // Clean up polling and copy timeout on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
     }
   }, [])
 
@@ -45,10 +47,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }, [])
 
   const handleBuild = async () => {
+    // Set building state first to prevent re-entry via rapid clicks (race condition guard)
+    setBuilding(true)
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
-
-    setBuilding(true)
     setResult(null)
     setError(null)
     setShowLogs(false)
@@ -153,7 +155,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (!result?.outputPath) return
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Cancel any pending reset before scheduling a new one (prevents stale-state update on unmount)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopied(false)
+        copyTimeoutRef.current = null
+      }, 2000)
     }).catch(() => {
       // Clipboard API not available (insecure context or unfocused)
     })
@@ -180,10 +187,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           {building ? 'Building...' : 'Quick Build'}
         </button>
 
-        {/* Push to GitHub button */}
+        {/* Push to GitHub button — also requires manifest, which handlePush needs */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!isComplete || !result?.manifest}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />

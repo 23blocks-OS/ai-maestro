@@ -35,12 +35,28 @@ export async function POST(request: NextRequest) {
         { status: result.status }
       )
     }
+    // Guard against a service result that has neither error nor data, which
+    // would cause NextResponse.json(undefined) — an invalid response.
+    if (!result.data) {
+      return NextResponse.json(
+        { error: 'Push operation returned no data' },
+        { status: 500 }
+      )
+    }
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
+    // SyntaxError is thrown by request.json() on malformed JSON — 400.
+    // Any other unexpected error is a server fault — 500.
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Malformed JSON in request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
     )
   }
 }

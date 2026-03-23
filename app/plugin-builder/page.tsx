@@ -42,14 +42,14 @@ export default function PluginBuilderPage() {
 
   // Validation
   const isValid = name.trim().length > 0
-    && /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
+    && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(name)
     && version.trim().length > 0
     && skills.length > 0
 
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
-    : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    : !/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(name)
+    ? 'Invalid plugin name (must start with a letter; letters, numbers, hyphens, underscores only)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0

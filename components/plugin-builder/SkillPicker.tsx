@@ -124,7 +124,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         {activeTab === 'core' && (
           <div className="space-y-2">
             {filteredCoreSkills.map(skill => {
-              const key = `core:${skill.name}`
+              // Use helper to ensure key stays in sync with getSkillKey logic
+              const key = getSkillKey({ type: 'core', name: skill.name })
               const isSelected = selectedKeys.has(key)
               const Icon = skill.icon
               return (
@@ -187,7 +188,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               </div>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
-                const key = `marketplace:${skill.id}`
+                // Use helper to ensure key stays in sync with getSkillKey logic
+                const key = getSkillKey({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div

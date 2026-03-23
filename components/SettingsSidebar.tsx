@@ -29,15 +29,15 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
     },
     {
       id: 'marketplace' as const,
-      label: 'Marketplace',
+      label: 'Skills Explorer',
       icon: Store,
-      description: 'Browse skills',
+      description: 'Install skills into agents',
     },
     {
       id: 'global-elements' as const,
-      label: 'Global Elements',
+      label: 'Claude Plugins',
       icon: Puzzle,
-      description: 'User-level skills & plugins',
+      description: 'Plugins, elements & marketplaces',
     },
     {
       id: 'experiments' as const,

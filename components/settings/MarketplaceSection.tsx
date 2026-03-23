@@ -1,7 +1,7 @@
 /**
- * Marketplace Section
+ * Skills Explorer Section
  *
- * Settings section for browsing the skill marketplace.
+ * Settings section for browsing and installing skills into agents.
  */
 
 'use client'
@@ -28,8 +28,8 @@ export default function MarketplaceSection() {
         <div className="flex items-center gap-3">
           <Store className="w-6 h-6 text-blue-400" />
           <div>
-            <h1 className="text-xl font-semibold text-white">Skill Marketplace</h1>
-            <p className="text-sm text-gray-400">Browse skills from Claude Code marketplaces</p>
+            <h1 className="text-xl font-semibold text-white">Skills Explorer</h1>
+            <p className="text-sm text-gray-400">This section allows to install skills into any agent. All CLI clients are supported.</p>
           </div>
         </div>
         <Link

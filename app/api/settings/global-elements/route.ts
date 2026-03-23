@@ -28,19 +28,12 @@ interface ElementInfo {
   sourceMarketplace: string
   description: string | null
   type: string // 'skill' | 'agent' | 'command' | 'rule' | 'hook' | 'mcp' | 'lsp' | 'outputStyle'
-  // Extra frontmatter fields (populated for skills)
-  author?: string | null
-  version?: string | null
-  userInvocable?: boolean
-  allowedTools?: string[]
-  tags?: string[]
+  // All frontmatter fields as-is (generic key-value pairs)
+  frontmatter?: Record<string, string | string[]>
 }
 
-/** Extract frontmatter fields from a .md file */
-async function extractFrontmatter(filePath: string): Promise<{
-  description: string | null; author?: string | null; version?: string | null
-  userInvocable?: boolean; allowedTools?: string[]; tags?: string[]
-}> {
+/** Extract ALL frontmatter fields from a .md file — no validation, just parse and return */
+async function extractFrontmatter(filePath: string): Promise<{ description: string | null; frontmatter: Record<string, string | string[]> }> {
   try {
     const content = await readFile(filePath, 'utf-8')
     const lines = content.split('\n')
@@ -49,45 +42,55 @@ async function extractFrontmatter(filePath: string): Promise<{
       for (const line of lines.slice(0, 10)) {
         const trimmed = line.trim()
         if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
-          return { description: trimmed.substring(0, 200) }
+          return { description: trimmed.substring(0, 200), frontmatter: {} }
         }
       }
-      return { description: null }
+      return { description: null, frontmatter: {} }
     }
     const endIdx = lines.findIndex((l, i) => i > 0 && l.trim() === '---')
-    if (endIdx <= 0) return { description: null }
-    const fm = lines.slice(1, endIdx).join('\n')
-
-    const getField = (key: string): string | null => {
-      const m = fm.match(new RegExp(`^${key}:\\s*(.+)`, 'im'))
-      return m ? m[1].trim().replace(/^['"]|['"]$/g, '') : null
-    }
-    const getList = (key: string): string[] => {
-      // Match YAML list: key:\n  - item1\n  - item2   OR inline: key: [a, b, c]
-      const inlineMatch = fm.match(new RegExp(`^${key}:\\s*\\[([^\\]]+)\\]`, 'im'))
-      if (inlineMatch) return inlineMatch[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''))
-      const listStart = fm.match(new RegExp(`^${key}:\\s*$`, 'im'))
-      if (!listStart) return []
-      const startLine = fm.substring(0, listStart.index).split('\n').length
-      const allLines = fm.split('\n')
-      const items: string[] = []
-      for (let i = startLine; i < allLines.length; i++) {
-        const m = allLines[i].match(/^\s+-\s+(.+)/)
-        if (m) items.push(m[1].trim().replace(/^['"]|['"]$/g, ''))
-        else if (allLines[i].trim() && !allLines[i].match(/^\s+-/)) break
+    if (endIdx <= 0) return { description: null, frontmatter: {} }
+    const fmLines = lines.slice(1, endIdx)
+    const result: Record<string, string | string[]> = {}
+    let currentKey: string | null = null
+    let currentList: string[] | null = null
+    for (const line of fmLines) {
+      // New key: value pair
+      const kvMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)/)
+      if (kvMatch) {
+        // Save previous list if any
+        if (currentKey && currentList) result[currentKey] = currentList
+        currentKey = kvMatch[1]
+        currentList = null
+        const val = kvMatch[2].trim()
+        if (!val) {
+          // Empty value — might be followed by a YAML list
+          currentList = []
+        } else if (val.startsWith('[') && val.endsWith(']')) {
+          // Inline array: [a, b, c]
+          result[currentKey] = val.slice(1, -1).split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+          currentKey = null
+        } else {
+          result[currentKey] = val.replace(/^['"]|['"]$/g, '')
+          currentKey = null
+        }
+      } else if (currentList !== null) {
+        // List item: - value
+        const listItem = line.match(/^\s+-\s+(.+)/)
+        if (listItem) {
+          currentList.push(listItem[1].trim().replace(/^['"]|['"]$/g, ''))
+        } else if (line.trim()) {
+          // Not a list item, close the list
+          if (currentKey) result[currentKey] = currentList
+          currentKey = null
+          currentList = null
+        }
       }
-      return items
     }
-
-    return {
-      description: (getField('description') || '').substring(0, 200) || null,
-      author: getField('author'),
-      version: getField('version'),
-      userInvocable: getField('user_invocable') === 'true' || getField('userInvocable') === 'true',
-      allowedTools: getList('allowed_tools').length > 0 ? getList('allowed_tools') : getList('allowedTools'),
-      tags: getList('tags'),
-    }
-  } catch { return { description: null } }
+    // Flush last key
+    if (currentKey && currentList) result[currentKey] = currentList
+    const desc = typeof result.description === 'string' ? result.description.substring(0, 200) : null
+    return { description: desc, frontmatter: result }
+  } catch { return { description: null, frontmatter: {} } }
 }
 
 /** Simple description-only extraction (for non-skill elements) */
@@ -144,13 +147,15 @@ async function listMdFiles(dir: string, pluginName: string, marketplace: string,
       const fullPath = join(dir, entry)
       const s = await stat(fullPath)
       if (s.isFile() && entry.endsWith('.md')) {
+        const fm = await extractFrontmatter(fullPath)
         results.push({
           name: entry.replace(/\.md$/, ''),
           path: fullPath,
           sourcePlugin: pluginName,
           sourceMarketplace: marketplace,
-          description: await extractDescription(fullPath),
+          description: fm.description,
           type,
+          frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
         })
       }
     }
@@ -180,11 +185,7 @@ async function listSkillDirs(dir: string, pluginName: string, marketplace: strin
             sourceMarketplace: marketplace,
             description: fm.description,
             type: 'skill',
-            author: fm.author,
-            version: fm.version,
-            userInvocable: fm.userInvocable,
-            allowedTools: fm.allowedTools,
-            tags: fm.tags,
+            frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
           })
         }
       }

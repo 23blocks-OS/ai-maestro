@@ -36,12 +36,8 @@ interface ElementInfo {
   sourceMarketplace: string
   description: string | null
   type: string
-  // Extra frontmatter fields (populated for skills)
-  author?: string | null
-  version?: string | null
-  userInvocable?: boolean
-  allowedTools?: string[]
-  tags?: string[]
+  // All frontmatter fields as-is (generic key-value pairs from YAML frontmatter)
+  frontmatter?: Record<string, string | string[]>
 }
 
 interface FlatElement extends ElementInfo {
@@ -751,18 +747,19 @@ export default function GlobalElementsSection() {
                       <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>
                     )}
                     <div>Type: <span className={ti.color}>{ti.label}</span></div>
-                    {/* Skill-specific frontmatter fields */}
-                    {el.author && <div>Author: <span className="text-gray-400">{el.author}</span></div>}
-                    {el.version && <div>Version: <span className="text-gray-400">{el.version}</span></div>}
-                    {el.userInvocable !== undefined && <div>Invocable: <span className={el.userInvocable ? 'text-amber-400' : 'text-gray-500'}>{el.userInvocable ? `Yes (/${el.name})` : 'No'}</span></div>}
-                    {el.allowedTools && el.allowedTools.length > 0 && (
-                      <div>Allowed Tools: <span className="text-gray-400">{el.allowedTools.join(', ')}</span></div>
-                    )}
-                    {el.tags && el.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {el.tags.map(tag => <span key={tag} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30 text-[8px]">{tag}</span>)}
-                      </div>
-                    )}
+                    {/* All frontmatter fields — rendered generically */}
+                    {el.frontmatter && Object.entries(el.frontmatter)
+                      .filter(([k]) => k !== 'description') // already shown above
+                      .map(([key, val]) => (
+                        <div key={key}>
+                          {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}: {
+                            Array.isArray(val)
+                              ? <span className="text-gray-400">{val.join(', ')}</span>
+                              : <span className="text-gray-400">{String(val)}</span>
+                          }
+                        </div>
+                      ))
+                    }
                     <div>Plugin: <span
                       className="text-gray-400 hover:text-blue-400 cursor-pointer"
                       onClick={() => goToPlugin(el.pluginKey)}

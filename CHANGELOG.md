@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.16] - 2026-03-23
+
+### Fixed
+- **Sync AMP plugin scripts to v0.1.3** — Ran `build-plugin.sh --clean` on `ai-maestro-plugins` to pull latest AMP scripts from upstream via the manifest build system. Includes key rotation proof-of-possession, local fingerprint uniqueness guard, `--id` parameter, client-side UUIDv4, and multiple security fixes.
+
 ## [0.25.15] - 2026-03-23
 
 ### Added

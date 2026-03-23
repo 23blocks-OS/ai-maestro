@@ -95,7 +95,7 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
 ]
 
 /**
- * Global Elements Section — manages user-level plugins grouped by marketplace.
+ * Claude Plugins Section — manages user-level plugins, elements, and marketplaces.
  * Three tabs: Plugins (toggle + info), Elements (active elements), Marketplaces (full management).
  */
 export default function GlobalElementsSection() {
@@ -380,7 +380,7 @@ export default function GlobalElementsSection() {
 
   return (
     <div ref={containerRef} className="p-4 sm:p-6 max-w-4xl">
-      <h2 className="text-xl font-bold text-white mb-2">Global Elements</h2>
+      <h2 className="text-xl font-bold text-white mb-2">Claude Plugins</h2>
       <p className="text-sm text-gray-400 mb-4">
         User-level plugins shared by <strong>all agents</strong> on this host.
       </p>

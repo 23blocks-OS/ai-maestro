@@ -92,19 +92,20 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
   const [orphanPlugins, setOrphanPlugins] = useState<{ name: string; key: string; errors: string[] }[]>([])
   const mktRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
-  // Auto-expand and scroll to marketplace when navigated from another tab
+  // Ref holding the latest updateChecks so checkUpdates can read it without being
+  // recreated on every state update (avoids circular dependency in useCallback).
+  const updateChecksRef = useRef(updateChecks)
+  useEffect(() => { updateChecksRef.current = updateChecks }, [updateChecks])
+
+  // Scroll to the expanded marketplace after the re-render that sets expandedMkt completes
   useEffect(() => {
-    if (expandMarketplace && marketplaces.length > 0) {
-      setExpandedMkt(expandMarketplace)
-      checkUpdates(expandMarketplace, true)
-      onNavigateComplete?.()
-      // Scroll to the marketplace after render
+    if (expandedMkt) {
       requestAnimationFrame(() => {
-        const el = mktRefs.current[expandMarketplace]
+        const el = mktRefs.current[expandedMkt]
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
     }
-  }, [expandMarketplace, marketplaces.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [expandedMkt])
 
   const fetchMarketplaces = useCallback(async () => {
     try {
@@ -136,6 +137,9 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
           setUpdateChecks(prev => { const next = { ...prev }; delete next[payload.marketplaceName]; return next })
         }
         await fetchMarketplaces()
+      } else {
+        const errorText = await res.text()
+        console.error(`Action '${action}' failed for '${key}':`, errorText)
       }
     } catch { /* ignore */ }
     finally { setActionInProgress(null) }
@@ -144,25 +148,33 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
   const handleToggle = async (key: string, currentEnabled: boolean) => {
     setActionInProgress(key)
     try {
-      await fetch('/api/settings/marketplaces', {
+      const res = await fetch('/api/settings/marketplaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: currentEnabled ? 'disable' : 'enable', pluginKey: key }),
       })
-      // Optimistic update
-      setMarketplaces(prev => prev.map(m => ({
-        ...m,
-        plugins: m.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
-        enabledCount: m.enabledCount + (m.plugins.some(p => p.key === key) ? (currentEnabled ? -1 : 1) : 0),
-      })))
+      // Only proceed if server accepted the request
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Toggle failed:', errorText)
+        return
+      }
+      // Refresh all data from the server so that per-marketplace enabledCount and
+      // the global totals.enabledPlugins summary are both kept in sync.
+      await fetchMarketplaces()
     } catch { /* ignore */ }
     finally { setActionInProgress(null) }
   }
 
-  // Lazy-check updates from GitHub for a marketplace
-  // force=true bypasses the 5min server cache (used when user explicitly expands)
-  const checkUpdates = async (mktName: string, force = false) => {
-    if (!force && updateChecks[mktName]) return // already checked or checking (unless forced)
+  // Lazy-check updates from GitHub for a marketplace.
+  // force=true bypasses the 5min server cache (used when user explicitly expands).
+  // Uses updateChecksRef (not state directly) to read the latest value without
+  // needing updateChecks in the dependency array, which would cause an infinite loop
+  // because checkUpdates itself updates updateChecks state.
+  // pluginUpdates and pluginMetadata are keyed by plugin.key (not plugin.name) so that
+  // two plugins in the same marketplace with the same display name never collide.
+  const checkUpdates = useCallback(async (mktName: string, force = false) => {
+    if (!force && updateChecksRef.current[mktName]) return // already checked or checking (unless forced)
     setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: true, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {}, pluginMetadata: {} } }))
     try {
       const res = await fetch('/api/settings/marketplaces', {
@@ -172,27 +184,56 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
       })
       if (res.ok) {
         const data = await res.json()
-        const plugUpdates: Record<string, { remote: string; outdated: boolean }> = {}
-        for (const p of data.pluginUpdates || []) {
-          plugUpdates[p.name] = { remote: p.remote, outdated: p.outdated }
-        }
+        // Key by plugin.key (not plugin.name) to avoid collisions when two plugins share
+        // the same display name within the same marketplace.
+        // The API returns pluginUpdates already as a Record<pluginKey, {remote, outdated}>,
+        // not an array — assign it directly instead of iterating over it.
+        const plugUpdates: Record<string, { remote: string; outdated: boolean }> = data.pluginUpdates || {}
+        // Sync the authoritative outdated flag from the remote check back into the
+        // marketplaces state so that plugin.outdated is always current, not stale
+        // from the initial fetch.
+        setMarketplaces(prevMarketplaces => prevMarketplaces.map(mkt => {
+          if (mkt.name !== mktName) return mkt
+          return {
+            ...mkt,
+            plugins: mkt.plugins.map(plugin => {
+              const updatedPluginInfo = plugUpdates[plugin.key]
+              if (updatedPluginInfo) return { ...plugin, outdated: updatedPluginInfo.outdated }
+              return plugin
+            }),
+          }
+        }))
+        // pluginMetadata from the API is already a Record<pluginKey, metadata>
         setUpdateChecks(prev => ({ ...prev, [mktName]: {
           checking: false, remoteVersion: data.remoteVersion,
           marketplaceOutdated: data.marketplaceOutdated, pluginUpdates: plugUpdates,
           pluginMetadata: data.pluginMetadata || {},
         }}))
       } else {
+        const errorText = await res.text()
+        console.error(`Check updates for marketplace '${mktName}' failed:`, errorText)
         setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {}, pluginMetadata: {} } }))
       }
     } catch {
       setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {}, pluginMetadata: {} } }))
     }
-  }
+  }, []) // stable: reads updateChecks via ref; all state updates use functional form
+
+  // Auto-expand marketplace when navigated from another tab.
+  // Placed after checkUpdates declaration so the stable memoized reference is available.
+  useEffect(() => {
+    if (expandMarketplace && marketplaces.length > 0) {
+      setExpandedMkt(expandMarketplace)
+      checkUpdates(expandMarketplace, true)
+      onNavigateComplete?.()
+    }
+  }, [expandMarketplace, marketplaces.length, checkUpdates, onNavigateComplete])
 
   const handleExpandMkt = (name: string) => {
     if (expandedMkt === name) {
       setExpandedMkt(null)
       setPluginSearch('')
+      setLoadingExpand(false)
     } else {
       setLoadingExpand(true)
       setExpandedMkt(name)
@@ -215,6 +256,9 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
       if (res.ok) {
         setAddUrl('')
         await fetchMarketplaces()
+      } else {
+        const errorText = await res.text()
+        console.error('Add marketplace failed:', errorText)
       }
     } catch { /* ignore */ }
     finally { setAddingMkt(false) }
@@ -271,7 +315,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                   onClick={() => setErrorPopup({ name: p.name, errors: p.errors })}
                   className="text-[9px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded hover:bg-red-500/20 flex-shrink-0"
                 >
-                  {p.errors[0]}
+                  {p.errors[0] || 'Details'}
                 </button>
               </div>
             ))}
@@ -339,17 +383,16 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                   {/* Remote version check indicator */}
                   {uc?.checking && <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin flex-shrink-0" />}
                   {uc && !uc.checking && uc.marketplaceOutdated && (
-                    <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0" title={`Remote: v${uc.remoteVersion}`}>
-                      v{uc.remoteVersion} available
+                    <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0" title={uc.remoteVersion ? `Remote: v${uc.remoteVersion}` : 'Remote: unknown'}>
+                      {uc.remoteVersion ? `v${uc.remoteVersion}` : 'update'} available
                     </span>
                   )}
                 </button>
 
-                {/* Counts */}
+                {/* Counts: enabled/installed/total — always show all three for consistency */}
                 <span className="text-[10px] text-gray-500 flex-shrink-0 tabular-nums">
-                  {mkt.enabledCount > 0 && <span className="text-emerald-400">{mkt.enabledCount}</span>}
-                  {mkt.enabledCount > 0 && '/'}
-                  {mkt.installedCount}/{mkt.pluginCount}
+                  <span className={mkt.enabledCount > 0 ? 'text-emerald-400' : undefined}>{mkt.enabledCount}</span>
+                  /{mkt.installedCount}/{mkt.pluginCount}
                 </span>
 
                 {/* Open source URL */}
@@ -421,8 +464,8 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                     const isPluginActioning = actionInProgress === plugin.key
                     const isSelected = selectedPlugin === plugin.key
                     const hasErrors = plugin.errors.length > 0
-                    // Remote version from lazy check
-                    const plugUc = uc?.pluginUpdates?.[plugin.name]
+                    // Remote version from lazy check — keyed by plugin.key to avoid collisions
+                    const plugUc = uc?.pluginUpdates?.[plugin.key]
 
                     return (
                       <div key={plugin.key}>
@@ -440,20 +483,24 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                                 <span
                                   className={`text-[11px] font-medium min-w-0 truncate ${plugin.installed ? 'text-gray-200 hover:text-blue-400 cursor-pointer' : 'text-gray-500'}`}
                                   onClick={plugin.installed && onGoToPlugin ? (e) => { e.stopPropagation(); onGoToPlugin(plugin.key) } : undefined}
-                                  title={plugin.installed ? `${plugin.name} — View in Plugins tab` : plugin.name}
+                                  title={plugin.installed && onGoToPlugin ? `${plugin.name} — View in Plugins tab` : plugin.name}
                                 >
                                   {plugin.name}
                                 </span>
                                 {/* Version number */}
                                 <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">
-                                  {plugin.version ? `v${plugin.version}` : (plugin.availableVersion || plugUc?.remote) ? `v${plugUc?.remote || plugin.availableVersion}` : '-'}
+                                  {plugin.installed
+                                    ? (plugin.version ? `v${plugin.version}` : '-')
+                                    : (plugUc?.remote || plugin.availableVersion)
+                                      ? `v${plugUc?.remote || plugin.availableVersion}`
+                                      : '-'}
                                 </span>
                                 {/* Update status label — always visible once checked */}
                                 {uc?.checking ? (
                                   <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin flex-shrink-0" />
                                 ) : (plugin.outdated || plugUc?.outdated) ? (
-                                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0" title={`Update: v${plugUc?.remote || plugin.availableVersion}`}>
-                                    {plugUc?.remote || plugin.availableVersion}
+                                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0" title={`Update: v${(plugUc?.remote || plugin.availableVersion) ?? 'unknown'}`}>
+                                    {(plugUc?.remote || plugin.availableVersion) ?? 'update available'}
                                   </span>
                                 ) : plugUc && plugin.installed ? (
                                   <span className="text-[9px] text-emerald-500/70 flex-shrink-0">up to date</span>
@@ -479,7 +526,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleToggle(plugin.key, plugin.enabled) }}
                                     disabled={isPluginActioning}
-                                    className="flex-shrink-0" title={plugin.enabled ? 'Disable' : 'Enable'}
+                                    className="flex-shrink-0" title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
                                   >
                                     {isPluginActioning ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
                                       : plugin.enabled ? <ToggleRight className="w-5 h-5 text-emerald-400" />
@@ -526,6 +573,13 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ action: 'security-check', pluginKey: plugin.key }),
                                       })
+                                      // Check res.ok before parsing JSON — a non-2xx response may
+                                      // return plain text, causing res.json() to throw silently.
+                                      if (!res.ok) {
+                                        const errorText = await res.text()
+                                        setErrorPopup({ name: plugin.name, errors: [errorText] })
+                                        return
+                                      }
                                       const data = await res.json()
                                       if (data.summary || data.report) {
                                         setSecurityReport({ name: plugin.name, summary: data.summary || '', report: data.report || '' })
@@ -533,7 +587,10 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                                         setErrorPopup({ name: plugin.name, errors: [data.error] })
                                       }
                                     } catch { /* ignore */ }
-                                    finally { setActionInProgress(null) }
+                                    // Only clear the specific ':sec' action this handler set,
+                                    // so a concurrently-running install/uninstall action is not
+                                    // prematurely reset by the security-check finally block.
+                                    finally { setActionInProgress(prev => prev === plugin.key + ':sec' ? null : prev) }
                                   }}
                                   disabled={actionInProgress === plugin.key + ':sec'}
                                   className="p-0.5 rounded hover:bg-amber-500/20 transition-colors" title="Security check"
@@ -549,7 +606,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
 
                         {/* Detail panel — merge local metadata with lazy-fetched remote metadata */}
                         {isSelected && (() => {
-                          const lm = uc?.pluginMetadata?.[plugin.name] // lazy metadata
+                          const lm = uc?.pluginMetadata?.[plugin.key] // lazy metadata, keyed by plugin.key
                           const desc = plugin.description || lm?.description || '-'
                           const auth = plugin.author || lm?.author || '-'
                           const email = plugin.authorEmail || lm?.authorEmail || '-'
@@ -568,8 +625,17 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
                               <span>Installed: <span className="text-gray-400">{plugin.version ? `v${plugin.version}` : '-'}</span></span>
-                              <span>Available: <span className={plugin.outdated ? 'text-amber-400' : 'text-gray-400'}>{plugin.availableVersion ? `v${plugin.availableVersion}` : '-'}</span></span>
-                              {plugin.outdated && <span className="text-amber-400">Update available</span>}
+                              {(() => {
+                                // Merge stale initial data with fresh lazy-fetched remote data
+                                const availableVer = plugUc?.remote || plugin.availableVersion || null
+                                const isOutdated = plugUc?.outdated || plugin.outdated
+                                return (
+                                  <>
+                                    <span>Available: <span className={isOutdated ? 'text-amber-400' : 'text-gray-400'}>{availableVer ? `v${availableVer}` : '-'}</span></span>
+                                    {isOutdated && <span className="text-amber-400">Update available</span>}
+                                  </>
+                                )
+                              })()}
                               <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
@@ -583,7 +649,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                               {(hp || repo) && (
                                 <>
                                   {hp && <span>Homepage: <a href={hp} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{hp}</a></span>}
-                                  {repo && !hp && <span>Repo: <a href={repo} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{repo}</a></span>}
+                                  {repo && <span>Repo: <a href={repo} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{repo}</a></span>}
                                 </>
                               )}
                             </div>
@@ -620,7 +686,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
               {/* Empty expanded state */}
               {isExpanded && !loadingExpand && filteredPlugins.length === 0 && (
                 <div className="px-3 py-3 text-[10px] text-gray-600 italic">
-                  {pluginSearch ? 'No plugins match filter' : 'No plugins found in this marketplace'}
+                  {pluginSearch.trim() ? 'No plugins match filter' : 'No plugins found in this marketplace'}
                 </div>
               )}
             </div>
@@ -629,7 +695,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
 
         {filtered.length === 0 && (
           <p className="text-xs text-gray-500 italic py-4 text-center">
-            {searchQuery ? 'No marketplaces match your search' : 'No marketplaces installed'}
+            {searchQuery.trim() ? 'No marketplaces match your search' : 'No marketplaces installed'}
           </p>
         )}
       </div>

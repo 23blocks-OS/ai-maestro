@@ -41,9 +41,14 @@ interface FlatElement extends ElementInfo {
   pluginEnabled: boolean
   pluginVersion: string | null
   pluginSourceUrl: string | null
+  // pluginKey is the plugin's unique key (plugin.key), used to navigate to the plugin in the Plugins tab.
+  // It is distinct from sourcePlugin (which is plugin.name) and must match the key used in pluginRefs.
+  pluginKey: string
 }
 
 interface PluginElements {
+  // pluginKey is the unique identifier (plugin.key) used for all lookups — distinct from pluginName (plugin.name)
+  pluginKey: string
   pluginName: string
   marketplace: string
   enabled: boolean
@@ -70,7 +75,11 @@ interface ElementTotals {
   outputStyles: number
 }
 
-// Element type icons — used across all tabs for consistency
+// Element type section descriptor used by typeInfo() — key is keyof ElementTotals for known sections,
+// or a plain string for unrecognised fallback entries, preventing unsafe casts.
+type ElementSection = { key: keyof ElementTotals | string; label: string; icon: typeof Wand2; color: string }
+
+// Element type icons — used across all tabs for consistency; all keys are valid keyof ElementTotals.
 const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof Wand2; color: string }[] = [
   { key: 'skills', label: 'Skills', icon: Wand2, color: 'text-purple-400' },
   { key: 'agents', label: 'Agents', icon: Bot, color: 'text-blue-400' },
@@ -168,7 +177,6 @@ export default function GlobalElementsSection() {
   const [pluginElements, setPluginElements] = useState<PluginElements[]>([])
   const [elementTotals, setElementTotals] = useState<ElementTotals>({ skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcpServers: 0, lspServers: 0, outputStyles: 0 })
   const [loadingElements, setLoadingElements] = useState(false)
-  const [expandedElementPlugins, setExpandedElementPlugins] = useState<Set<string>>(new Set())
 
   const fetchPlugins = useCallback(async () => {
     try {
@@ -190,7 +198,9 @@ export default function GlobalElementsSection() {
       const data = await res.json()
       setPluginElements(data.plugins || [])
       setFlatElements(data.elements || [])
-      setElementTotals(data.totals || { skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcpServers: 0, lspServers: 0, outputStyles: 0 })
+      // Merge with default zeros so that any keys absent from a partial API response remain 0,
+      // not undefined — prevents broken renders if the server omits an element type.
+      setElementTotals({ skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcpServers: 0, lspServers: 0, outputStyles: 0, ...(data.totals || {}) })
     } catch (err) { console.error('Error fetching elements:', err) }
     finally { setLoadingElements(false) }
   }, [])
@@ -246,15 +256,6 @@ export default function GlobalElementsSection() {
     finally { setToggling(null) }
   }
 
-  const toggleElementPlugin = (pluginName: string) => {
-    setExpandedElementPlugins(prev => {
-      const next = new Set(prev)
-      if (next.has(pluginName)) next.delete(pluginName)
-      else next.add(pluginName)
-      return next
-    })
-  }
-
   const totalElements = elementTotals.skills + elementTotals.agents + elementTotals.commands +
     elementTotals.hooks + elementTotals.rules + elementTotals.mcpServers + elementTotals.lspServers +
     elementTotals.outputStyles
@@ -274,37 +275,35 @@ export default function GlobalElementsSection() {
       .filter(g => g.plugins.length > 0)
   }, [groups, pluginSearch])
 
-  // Filter elements by search — always map through to ensure null safety on every array field
-  const filteredElements = useMemo(() => {
-    const q = elementSearch.trim().toLowerCase()
-    // filterItems returns all items when q is empty (null-safe), or filtered items when q is set
-    const filterItems = (items?: ElementInfo[]) => (items || []).filter(i => !q || i.name.toLowerCase().includes(q))
-    return pluginElements
-      .map(plugin => ({
-        ...plugin,
-        skills: filterItems(plugin.skills),
-        agents: filterItems(plugin.agents),
-        commands: filterItems(plugin.commands),
-        hooks: filterItems(plugin.hooks),
-        rules: filterItems(plugin.rules),
-        mcpServers: filterItems(plugin.mcpServers),
-        lspServers: filterItems(plugin.lspServers),
-        outputStyles: filterItems(plugin.outputStyles),
-      }))
-      .filter(plugin => {
-        if (!q) return true
-        const total = plugin.skills.length + plugin.agents.length + plugin.commands.length +
-          plugin.hooks.length + plugin.rules.length + plugin.mcpServers.length +
-          plugin.lspServers.length + plugin.outputStyles.length
-        // Also match plugin name itself
-        return total > 0 || plugin.pluginName.toLowerCase().includes(q) || plugin.marketplace.toLowerCase().includes(q)
-      })
-  }, [pluginElements, elementSearch])
+  // Type icon/color lookup — maps a singular element type string (e.g. 'skill') to its ELEMENT_SECTIONS
+  // entry using an explicit map instead of fragile string-suffix guessing. Falls back to a neutral
+  // generic entry for unrecognised types instead of misleadingly showing the Skills icon.
+  // Returns ElementSection so the fallback key ('unknown') is a valid string, not a forced keyof ElementTotals cast.
+  const typeInfo = (type: string): ElementSection => {
+    // Explicit singular→plural map keeps the lookup correct regardless of irregular plurals or suffixes.
+    const pluralTypeMap: Record<string, keyof ElementTotals> = {
+      skill: 'skills',
+      agent: 'agents',
+      command: 'commands',
+      hook: 'hooks',
+      rule: 'rules',
+      mcpServer: 'mcpServers',
+      lspServer: 'lspServers',
+      outputStyle: 'outputStyles',
+    }
+    const mappedKey = pluralTypeMap[type]
+    const found = mappedKey ? ELEMENT_SECTIONS.find(s => s.key === mappedKey) : undefined
+    if (found) return found
+    console.warn(`Unknown element type: "${type}". Using generic fallback icon.`)
+    return { key: 'unknown', label: type, icon: Puzzle, color: 'text-gray-500' }
+  }
 
   // Filtered flat elements for card view
   const filteredFlatElements = useMemo(() => {
     let items = flatElements
-    if (elementTypeFilter !== 'all') items = items.filter(e => e.type === elementTypeFilter)
+    // elementTypeFilter holds the plural ELEMENT_SECTIONS key (e.g. 'skills'), while e.type is singular
+    // (e.g. 'skill'). Use typeInfo() to map the singular type to its section key for comparison.
+    if (elementTypeFilter !== 'all') items = items.filter(e => typeInfo(e.type).key === elementTypeFilter)
     if (elementSearch.trim()) {
       const q = elementSearch.trim().toLowerCase()
       items = items.filter(e =>
@@ -316,9 +315,6 @@ export default function GlobalElementsSection() {
     }
     return items
   }, [flatElements, elementTypeFilter, elementSearch])
-
-  // Type icon/color lookup
-  const typeInfo = (type: string) => ELEMENT_SECTIONS.find(s => s.key === type || s.key === type + 's' || s.key === type + 'Servers') || ELEMENT_SECTIONS[0]
 
   if (loading) {
     return (
@@ -495,14 +491,15 @@ export default function GlobalElementsSection() {
                             )}
                             {plugin.keywords && plugin.keywords.length > 0 && (
                               <div className="flex flex-wrap gap-1 text-[8px]">
-                                {plugin.keywords.map((kw, i) => (
-                                  <span key={i} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
+                                {plugin.keywords.map((kw) => (
+                                  <span key={kw} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
                                 ))}
                               </div>
                             )}
                             {/* Element sections — ALL 8 types, shown even if empty */}
                             {(() => {
-                              const pe = pluginElements.find(p => p.pluginName === plugin.name && p.marketplace === group.marketplace)
+                              // Use plugin.key (unique) not plugin.name (may collide across marketplaces)
+                              const pe = pluginElements.find(p => p.pluginKey === plugin.key)
                               return (
                                 <div className="mt-2 pt-2 border-t border-gray-800/30 space-y-2">
                                   {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {
@@ -516,8 +513,8 @@ export default function GlobalElementsSection() {
                                         </div>
                                         {items.length > 0 ? (
                                           <div className="flex flex-wrap gap-1.5 ml-4">
-                                            {items.map((item, idx) => (
-                                              <span key={idx} className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40">{item.name}</span>
+                                            {items.map((item) => (
+                                              <span key={item.name} className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40">{item.name}</span>
                                             ))}
                                           </div>
                                         ) : (
@@ -604,14 +601,14 @@ export default function GlobalElementsSection() {
       ) : (
         <div className="space-y-1">
           <p className="text-[10px] text-gray-600 mb-2">{filteredFlatElements.length} elements</p>
-          {filteredFlatElements.map((el, idx) => {
+          {filteredFlatElements.map((el) => {
             const elKey = `${el.type}:${el.name}@${el.sourcePlugin}`
             const isExp = expandedElement === elKey
             const ti = typeInfo(el.type)
             const TypeIcon = ti.icon
 
             return (
-              <div key={`${elKey}-${idx}`} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
+              <div key={elKey} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}
                 <div
                   className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}
@@ -629,7 +626,7 @@ export default function GlobalElementsSection() {
                     <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
                     <span
                       className="text-[9px] text-gray-600 min-w-0 truncate hover:text-blue-400 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); goToPlugin(`${el.sourcePlugin}@${el.sourceMarketplace}`) }}
+                      onClick={(e) => { e.stopPropagation(); goToPlugin(el.pluginKey) }}
                       title={`${el.sourcePlugin} — View in Plugins tab`}
                     >{el.sourcePlugin}</span>
                     <span className="text-[9px] text-gray-700 flex-shrink-0">{el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
@@ -654,11 +651,13 @@ export default function GlobalElementsSection() {
                       <span>Type: <span className={ti.color}>{ti.label}</span></span>
                       <span>Plugin: <span
                         className="text-gray-400 hover:text-blue-400 cursor-pointer"
-                        onClick={() => goToPlugin(`${el.sourcePlugin}@${el.sourceMarketplace}`)}
+                        onClick={() => goToPlugin(el.pluginKey)}
+                        title={`View ${el.sourcePlugin} in Plugins tab`}
                       >{el.sourcePlugin}</span> {el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
                       <span>Marketplace: <span
                         className="text-gray-400 hover:text-amber-400 cursor-pointer"
                         onClick={() => goToMarketplace(el.sourceMarketplace)}
+                        title={`Go to ${el.sourceMarketplace} in Marketplaces tab`}
                       >{el.sourceMarketplace}</span></span>
                     </div>
                   </div>

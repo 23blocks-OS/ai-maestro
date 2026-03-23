@@ -190,6 +190,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               setBuilding(false)
               return // Prevent further processing in this tick after stopping the poll
             }
+          } finally {
+            polling = false
           }
           // Reschedule the next poll tick if polling was not stopped
           if (pollRef.current !== null) {

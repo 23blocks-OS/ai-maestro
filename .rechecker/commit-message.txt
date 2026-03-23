@@ -1,1 +1,1 @@
-docs: update README with skills table, CLI reference, and plugin submodule
+feat: fully automated rechecker merge script (no manual intervention)

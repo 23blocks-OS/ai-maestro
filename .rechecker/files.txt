@@ -1,2 +1,1 @@
-README.md
-plugin
+scripts/merge-rechecker-worktrees.sh

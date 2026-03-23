@@ -54,7 +54,7 @@ HELP
   esac
 done
 
-CURRENT_BRANCH=$(git branch --show-current)
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null) || { echo "Error: Must be checked out to a branch (not detached HEAD)." >&2; exit 1; }
 DOCS_DEV="$GIT_ROOT/docs_dev"
 mkdir -p "$DOCS_DEV"
 
@@ -72,11 +72,13 @@ if $DRY_RUN; then
   echo ""
   echo "DRY RUN — would merge these branches:"
   echo "$BRANCHES" | while read -r branch; do
-    diff_count=$(git diff --stat "$CURRENT_BRANCH...$branch" --ignore-submodules 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "$diff_count" -le 1 ]]; then
+    # Use a single --name-only call for both empty check and count (avoids redundant --stat call)
+    diff_files=$(git diff --name-only "$CURRENT_BRANCH..$branch" --ignore-submodules 2>/dev/null)
+    if [[ -z "$diff_files" ]]; then
       echo "  $branch  (no changes — would skip)"
     else
-      echo "  $branch  ($((diff_count - 1)) files changed)"
+      diff_file_count=$(echo "$diff_files" | wc -l | tr -d ' ')
+      echo "  $branch  ($diff_file_count files changed)"
     fi
   done
   exit 0
@@ -84,7 +86,10 @@ fi
 
 # ---- Step 1: Auto-stash if dirty ----
 STASHED=false
-if ! git diff --quiet --ignore-submodules 2>/dev/null || ! git diff --cached --quiet --ignore-submodules 2>/dev/null; then
+# Check for modified tracked files (staged or unstaged) AND untracked files
+if ! git diff --quiet --ignore-submodules 2>/dev/null || \
+   ! git diff --cached --quiet --ignore-submodules 2>/dev/null || \
+   git ls-files --others --exclude-standard 2>/dev/null | grep -q .; then
   echo "Auto-stashing uncommitted changes..."
   git stash push --include-untracked -m "auto-stash: rechecker merge $(date +%Y%m%d_%H%M%S)"
   STASHED=true
@@ -92,8 +97,16 @@ fi
 
 # ---- Step 2: Move existing rechecker files to docs_dev ----
 for pattern in "rck-*-merge-pending.md" "rck-*-report.md"; do
-  for f in $pattern; do
-    [[ -f "$f" ]] && mv "$f" "$DOCS_DEV/" 2>/dev/null || true
+  shopt -s nullglob
+  # shellcheck disable=SC2206  # intentional glob expansion into array
+  files=( $pattern )
+  shopt -u nullglob
+  for f in "${files[@]}"; do
+    if [[ -f "$f" ]]; then
+      if ! mv "$f" "$DOCS_DEV/"; then
+        echo "WARNING: Failed to move '$f' to '$DOCS_DEV/'" >&2
+      fi
+    fi
   done
 done
 
@@ -107,17 +120,18 @@ while IFS= read -r branch; do
   [[ -z "$branch" ]] && continue
   echo -n "  $branch... "
 
-  # Check if branch has meaningful changes
-  diff_count=$(git diff --stat "$CURRENT_BRANCH...$branch" --ignore-submodules 2>/dev/null | wc -l | tr -d ' ')
-  if [[ "$diff_count" -le 1 ]]; then
+  # Check if branch has meaningful changes — single --name-only call for both empty check and count
+  diff_files=$(git diff --name-only "$CURRENT_BRANCH..$branch" --ignore-submodules 2>/dev/null)
+  if [[ -z "$diff_files" ]]; then
     echo "skip (no changes)"
     SKIPPED=$((SKIPPED + 1))
     continue
   fi
+  diff_file_count=$(echo "$diff_files" | wc -l | tr -d ' ')
 
   # Merge with ours strategy — our verified fixes take priority over rechecker's
-  if git merge -X ours "$branch" --no-edit 2>/dev/null; then
-    echo "merged ($((diff_count - 1)) files)"
+  if git merge -X ours "$branch" --no-edit; then
+    echo "merged ($diff_file_count files)"
     MERGED=$((MERGED + 1))
   else
     git merge --abort 2>/dev/null || true
@@ -128,8 +142,16 @@ done <<< "$BRANCHES"
 
 # ---- Step 4: Move new rechecker files to docs_dev ----
 for pattern in "rck-*-merge-pending.md" "rck-*-report.md"; do
-  for f in $pattern; do
-    [[ -f "$f" ]] && mv "$f" "$DOCS_DEV/" 2>/dev/null || true
+  shopt -s nullglob
+  # shellcheck disable=SC2206  # intentional glob expansion into array
+  files=( $pattern )
+  shopt -u nullglob
+  for f in "${files[@]}"; do
+    if [[ -f "$f" ]]; then
+      if ! mv "$f" "$DOCS_DEV/"; then
+        echo "WARNING: Failed to move '$f' to '$DOCS_DEV/'" >&2
+      fi
+    fi
   done
 done
 
@@ -149,18 +171,40 @@ if $DELETE_BRANCHES; then
 fi
 
 # ---- Step 6: Auto-commit cleanup ----
-# Stage any deleted tracked rechecker files
-git add rck-*.md reports_dev/rck-*.md .rechecker/rck-progress.json 2>/dev/null || true
+# Stage any deleted tracked rechecker files and moved files in docs_dev
+# Use update mode (-u) for deletions from root, then add docs_dev additions explicitly
+git add -u . 2>/dev/null || echo "WARNING: Failed to stage tracked file deletions" >&2
+shopt -s nullglob
+files=( docs_dev/rck-*.md )
+for f in "${files[@]}"; do
+  [[ -f "$f" ]] && git add "$f"
+done
+shopt -u nullglob
+if [[ -f .rechecker/rck-progress.json ]]; then
+  if ! git add .rechecker/rck-progress.json; then
+    echo "WARNING: Failed to add .rechecker/rck-progress.json" >&2
+  fi
+fi
 
 if ! git diff --cached --quiet 2>/dev/null; then
-  git commit -m "chore: merge $MERGED rechecker worktrees + cleanup reports" 2>/dev/null || true
-  echo "  Auto-committed cleanup"
+  if ! git commit -m "chore: merge $MERGED rechecker worktrees + cleanup reports"; then
+    echo "WARNING: Auto-commit of cleanup failed." >&2
+  else
+    echo "  Auto-committed cleanup"
+  fi
 fi
 
 # ---- Step 7: Restore stash ----
 if $STASHED; then
   echo "Restoring stashed changes..."
-  git stash pop 2>/dev/null || echo "  WARNING: stash pop failed — check 'git stash list'"
+  if git stash apply; then
+    git stash drop
+  else
+    echo "ERROR: Failed to restore stashed changes due to conflicts." >&2
+    echo "Please resolve conflicts manually. The stash entry has NOT been dropped." >&2
+    echo "Run 'git stash drop' after resolving to clean up." >&2
+    exit 1
+  fi
 fi
 
 # ---- Summary ----

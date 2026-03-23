@@ -1,10 +1,12 @@
-=== ESLint Final Pass ===
-ESLint: 0 errors
 
-=== ShellCheck Final Pass ===
---- scripts/remote-install.sh ---
-CLEAN
-ShellCheck errors: 0
+In scripts/merge-rechecker-worktrees.sh line 101:
+  files=( $pattern )
+          ^------^ SC2206 (warning): Quote to prevent word splitting/globbing, or split robustly with mapfile or read -a.
 
-=== TypeScript tsc Final Pass ===
-tsc done.
+
+In scripts/merge-rechecker-worktrees.sh line 145:
+  files=( $pattern )
+          ^------^ SC2206 (warning): Quote to prevent word splitting/globbing, or split robustly with mapfile or read -a.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2206 -- Quote to prevent word splitting/g...

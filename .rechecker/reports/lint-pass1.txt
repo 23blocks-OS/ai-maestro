@@ -1,7 +1,0 @@
-=== Lint Pass 1 ===
-Files to lint: README.md, plugin
-
-README.md: Markdown file - no linter applicable
-plugin: git submodule entry - no linter applicable
-
-Result: 0 lint errors

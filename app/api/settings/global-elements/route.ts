@@ -336,7 +336,7 @@ export async function GET() {
       const total = skills.length + agents.length + commands.length + hooks.length +
         rules.length + mcpServers.length + lspServers.length + outputStyles.length
       if (total > 0) {
-        results.push({ pluginName, marketplace, enabled, version: versionName, sourceUrl, skills, agents, commands, hooks, rules, mcpServers, lspServers, outputStyles })
+        results.push({ pluginName, pluginKey: key, marketplace, enabled, version: versionName, sourceUrl, skills, agents, commands, hooks, rules, mcpServers, lspServers, outputStyles })
       }
     }
 

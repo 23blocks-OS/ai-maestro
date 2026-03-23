@@ -472,7 +472,7 @@ export default function GlobalElementsSection() {
                   )}
                   {/* Element sections — ALL 8 types, shown even if empty */}
                   {(() => {
-                    const pe = pluginElements.find(p => p.pluginKey === plugin.key)
+                    const pe = pluginElements.find(p => p.pluginKey === plugin.key || (p.pluginName === plugin.name && p.marketplace === plugin.marketplace))
                     return (
                       <div className="mt-2 pt-2 border-t border-gray-800/30 space-y-2">
                         {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {

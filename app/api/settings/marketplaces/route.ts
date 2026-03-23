@@ -997,7 +997,7 @@ async function handleAddMarketplace(url?: string) {
 
   // Register marketplace with Claude Code CLI using the GitHub URL directly
   try {
-    execSync(`claude plugin marketplace add "https://github.com/${repo}" --scope user 2>&1`, {
+    execSync(`claude plugin marketplace add "${repo}" --scope user 2>&1`, {
       timeout: 60000,
       stdio: 'pipe',
     })

@@ -362,6 +362,15 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
         return `Invalid skill name in id: ${skillName}`
       }
     }
+    if (skill.type === 'marketplace') {
+      // Both fields are used in path.join — must not contain dots, slashes, or ".."
+      if (!skill.marketplace || !SAFE_NAME_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": marketplace name must contain only letters, numbers, hyphens, and underscores`
+      }
+      if (!skill.plugin || !SAFE_NAME_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": plugin name must contain only letters, numbers, hyphens, and underscores`
+      }
+    }
   }
 
   return null
@@ -1076,6 +1085,7 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     buildResults.set(buildId, {
       ...current,
       status: 'failed',
+      outputPath: undefined,
       logs,
       buildDir: current.buildDir,
       outputPath: undefined,

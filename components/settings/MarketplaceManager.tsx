@@ -258,7 +258,7 @@ export default function MarketplaceManager() {
               )}
 
               {/* Plugin search (inside expanded marketplace) */}
-              {isExpanded && mkt.plugins.length > 5 && (
+              {isExpanded && mkt.plugins.length > 0 && (
                 <div className="px-3 py-1.5 bg-gray-900/30 border-b border-gray-800/50">
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600" />

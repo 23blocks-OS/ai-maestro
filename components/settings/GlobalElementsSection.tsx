@@ -101,13 +101,21 @@ export default function GlobalElementsSection() {
 
   // Switch tab with scroll position save/restore
   const switchTab = useCallback((tab: 'plugins' | 'elements' | 'marketplaces') => {
-    // Save current scroll position
+    // Save current scroll position using a fresh DOM lookup (not a stale closure ref)
     const scrollParent = containerRef.current?.closest('.overflow-y-auto, .overflow-auto') as HTMLElement | null
     if (scrollParent) scrollPositions.current[activeTab] = scrollParent.scrollTop
+    // Clear marketplace navigation target when switching away from marketplaces tab
+    if (activeTab === 'marketplaces' && tab !== activeTab) setNavigateToMkt(null)
     setActiveTab(tab)
-    // Restore scroll position after render
+    // Scroll restoration is handled by the activeTab useEffect below
+  }, [activeTab])
+
+  // Restore saved scroll position after the tab switch renders
+  useEffect(() => {
     requestAnimationFrame(() => {
-      if (scrollParent) scrollParent.scrollTop = scrollPositions.current[tab] || 0
+      // Fresh DOM lookup so we never use a stale reference captured in the callback
+      const scrollParent = containerRef.current?.closest('.overflow-y-auto, .overflow-auto') as HTMLElement | null
+      if (scrollParent) scrollParent.scrollTop = scrollPositions.current[activeTab] || 0
     })
   }, [activeTab])
 
@@ -120,12 +128,15 @@ export default function GlobalElementsSection() {
   // Navigate to a plugin from Marketplace tab → Plugins tab
   const goToPlugin = useCallback((pluginKey: string) => {
     setNavigateToPlugin(pluginKey)
-    // Expand the marketplace group containing this plugin
-    const atIdx = pluginKey.lastIndexOf('@')
-    const mkt = atIdx > 0 ? pluginKey.substring(atIdx + 1) : ''
+    // Expand the marketplace group containing this plugin — look it up in the groups registry
+    // instead of parsing the key string, which is fragile if the format ever changes
+    const pluginGroup = groups.find(g => g.plugins.some((p: PluginInfo) => p.key === pluginKey))
+    const mkt = pluginGroup?.marketplace || ''
     if (mkt) setExpandedMarketplaces(prev => { const next = new Set(prev); next.add(mkt); return next })
+    // Clear any active plugin search so the target plugin is not hidden when scrollIntoView runs
+    setPluginSearch('')
     switchTab('plugins')
-  }, [switchTab])
+  }, [groups, switchTab])
 
   // Handle navigate-to-plugin after tab switch
   useEffect(() => {
@@ -209,6 +220,9 @@ export default function GlobalElementsSection() {
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
         fetchElements()
+      } else {
+        // Revert optimistic state: server rejected the toggle
+        fetchPlugins()
       }
     } catch (err) {
       console.error('Error toggling plugin:', err)
@@ -245,26 +259,25 @@ export default function GlobalElementsSection() {
       .filter(g => g.plugins.length > 0)
   }, [groups, pluginSearch])
 
-  // Filter elements by search
+  // Filter elements by search — always map through to ensure null safety on every array field
   const filteredElements = useMemo(() => {
-    if (!elementSearch.trim()) return pluginElements
-    const q = elementSearch.toLowerCase()
+    const q = elementSearch.trim().toLowerCase()
+    // filterItems returns all items when q is empty (null-safe), or filtered items when q is set
+    const filterItems = (items?: ElementInfo[]) => (items || []).filter(i => !q || i.name.toLowerCase().includes(q))
     return pluginElements
-      .map(plugin => {
-        const filterItems = (items: ElementInfo[]) => items.filter(i => i.name.toLowerCase().includes(q))
-        return {
-          ...plugin,
-          skills: filterItems(plugin.skills),
-          agents: filterItems(plugin.agents),
-          commands: filterItems(plugin.commands),
-          hooks: filterItems(plugin.hooks),
-          rules: filterItems(plugin.rules),
-          mcpServers: filterItems(plugin.mcpServers),
-          lspServers: filterItems(plugin.lspServers),
-          outputStyles: filterItems(plugin.outputStyles),
-        }
-      })
+      .map(plugin => ({
+        ...plugin,
+        skills: filterItems(plugin.skills),
+        agents: filterItems(plugin.agents),
+        commands: filterItems(plugin.commands),
+        hooks: filterItems(plugin.hooks),
+        rules: filterItems(plugin.rules),
+        mcpServers: filterItems(plugin.mcpServers),
+        lspServers: filterItems(plugin.lspServers),
+        outputStyles: filterItems(plugin.outputStyles),
+      }))
       .filter(plugin => {
+        if (!q) return true
         const total = plugin.skills.length + plugin.agents.length + plugin.commands.length +
           plugin.hooks.length + plugin.rules.length + plugin.mcpServers.length +
           plugin.lspServers.length + plugin.outputStyles.length
@@ -441,7 +454,7 @@ export default function GlobalElementsSection() {
                                 {plugin.homepage && (
                                   <span>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.homepage}</a></span>
                                 )}
-                                {plugin.repository && !plugin.homepage && (
+                                {plugin.repository && (
                                   <span>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.repository}</a></span>
                                 )}
                               </div>
@@ -546,9 +559,9 @@ export default function GlobalElementsSection() {
           {filteredElements.map(plugin => {
             const pluginKey = `${plugin.pluginName}@${plugin.marketplace}`
             const isExpanded = expandedElementPlugins.has(pluginKey)
-            const elemCount = plugin.skills.length + plugin.agents.length + plugin.commands.length +
-              plugin.hooks.length + plugin.rules.length + plugin.mcpServers.length +
-              plugin.lspServers.length + plugin.outputStyles.length
+            const elemCount = (plugin.skills?.length || 0) + (plugin.agents?.length || 0) + (plugin.commands?.length || 0) +
+              (plugin.hooks?.length || 0) + (plugin.rules?.length || 0) + (plugin.mcpServers?.length || 0) +
+              (plugin.lspServers?.length || 0) + (plugin.outputStyles?.length || 0)
 
             return (
               <div key={pluginKey} className="rounded-lg border border-gray-800/60 overflow-hidden">

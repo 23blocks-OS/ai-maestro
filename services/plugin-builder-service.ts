@@ -383,6 +383,11 @@ function evictStaleBuildResults(): void {
   } finally {
     isEvicting = false
   }
+
+  // Execute all cleanup promises concurrently; errors are already handled per-promise above
+  await Promise.all(cleanupPromises).catch(err => {
+    console.error('Error during build result eviction cleanup:', err)
+  })
 }
 
 // Lazy eviction: only start the interval when the first build is created,
@@ -538,9 +543,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // finally block, and the outer catch is never reached (we return 202 before any throw).
   activeOps++
 
+  // Declare buildDir outside try so the catch block can clean it up if setup fails
+  let buildDir: string | undefined
   try {
-    // Evict stale builds before adding new ones
-    evictStaleBuildResults()
+    // Evict stale builds before adding new ones; await to ensure map is clean
+    // before the new entry is inserted (prevents stale entries from racing with the new build)
+    await evictStaleBuildResults()
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -715,6 +723,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}. ${message}`, status: 404 }
     }
+    // Detect process kill-on-timeout (execFile sets killed=true) or explicit timeout message
+    if ((error as any)?.killed || message.includes('timed out')) {
+      return { error: `Git clone timed out after 30 seconds for repository: ${url}`, status: 504 }
+    }
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
@@ -835,6 +847,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     const execErr = error as { code?: number; message?: string; stderr?: string }
     if (execErr.stderr) message += `\nStderr: ${execErr.stderr}`
     console.error('Error pushing to GitHub:', error)
+    // Detect process kill-on-timeout (execFile sets killed=true) or explicit timeout message
+    if ((error as any)?.killed || message.includes('timed out')) {
+      return { error: `Git operation timed out after 30 seconds. Failed to push to GitHub: ${message}`, status: 504 }
+    }
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
     release()

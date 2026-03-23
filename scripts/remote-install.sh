@@ -449,7 +449,7 @@ uninstall() {
             # Safety: only remove paths under $HOME to prevent path traversal
             [[ "$INSTALL_DIR" == "$HOME"/* ]] || { maestro_warn "Unsafe path, skipping removal: $INSTALL_DIR"; return; }
             rm -rf "$INSTALL_DIR"
-            maestro_info "Removed $INSTALL_DIR"
+            maestro_info "Removed \"$INSTALL_DIR\""
         fi
     fi
 

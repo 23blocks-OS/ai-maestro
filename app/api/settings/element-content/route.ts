@@ -8,8 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
+import { readFile, stat } from 'fs/promises'
 import { existsSync } from 'fs'
+import { join } from 'path'
 import os from 'os'
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +34,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const content = await readFile(resolved, 'utf-8')
+    // If path is a directory (e.g. skill dir), look for SKILL.md inside
+    const s = await stat(resolved)
+    let actualPath = resolved
+    if (s.isDirectory()) {
+      const skillMd = join(resolved, 'SKILL.md')
+      if (existsSync(skillMd)) {
+        actualPath = skillMd
+      } else {
+        return NextResponse.json({ error: 'Directory does not contain a readable file (no SKILL.md found)' }, { status: 404 })
+      }
+    }
+
+    const content = await readFile(actualPath, 'utf-8')
     // Limit to 50KB to avoid sending huge files to the browser
     const truncated = content.length > 50000
     return NextResponse.json({

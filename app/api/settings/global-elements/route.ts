@@ -26,33 +26,74 @@ interface ElementInfo {
   path: string
   sourcePlugin: string
   sourceMarketplace: string
-  description: string | null // from frontmatter or first lines
+  description: string | null
   type: string // 'skill' | 'agent' | 'command' | 'rule' | 'hook' | 'mcp' | 'lsp' | 'outputStyle'
+  // Extra frontmatter fields (populated for skills)
+  author?: string | null
+  version?: string | null
+  userInvocable?: boolean
+  allowedTools?: string[]
+  tags?: string[]
 }
 
-/** Extract description from frontmatter or first content lines of an .md file */
-async function extractDescription(filePath: string): Promise<string | null> {
+/** Extract frontmatter fields from a .md file */
+async function extractFrontmatter(filePath: string): Promise<{
+  description: string | null; author?: string | null; version?: string | null
+  userInvocable?: boolean; allowedTools?: string[]; tags?: string[]
+}> {
   try {
     const content = await readFile(filePath, 'utf-8')
     const lines = content.split('\n')
-    // Check for YAML frontmatter
-    if (lines[0]?.trim() === '---') {
-      const endIdx = lines.findIndex((l, i) => i > 0 && l.trim() === '---')
-      if (endIdx > 0) {
-        const frontmatter = lines.slice(1, endIdx).join('\n')
-        const descMatch = frontmatter.match(/description:\s*(?:>-?\s*\n\s*)?(.+?)(?:\n|$)/i)
-        if (descMatch) return descMatch[1].trim().substring(0, 200)
+    if (lines[0]?.trim() !== '---') {
+      // No frontmatter — return first non-empty non-heading line as description
+      for (const line of lines.slice(0, 10)) {
+        const trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+          return { description: trimmed.substring(0, 200) }
+        }
       }
+      return { description: null }
     }
-    // No frontmatter — return first non-empty, non-heading line
-    for (const line of lines.slice(0, 10)) {
-      const trimmed = line.trim()
-      if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
-        return trimmed.substring(0, 200)
+    const endIdx = lines.findIndex((l, i) => i > 0 && l.trim() === '---')
+    if (endIdx <= 0) return { description: null }
+    const fm = lines.slice(1, endIdx).join('\n')
+
+    const getField = (key: string): string | null => {
+      const m = fm.match(new RegExp(`^${key}:\\s*(.+)`, 'im'))
+      return m ? m[1].trim().replace(/^['"]|['"]$/g, '') : null
+    }
+    const getList = (key: string): string[] => {
+      // Match YAML list: key:\n  - item1\n  - item2   OR inline: key: [a, b, c]
+      const inlineMatch = fm.match(new RegExp(`^${key}:\\s*\\[([^\\]]+)\\]`, 'im'))
+      if (inlineMatch) return inlineMatch[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+      const listStart = fm.match(new RegExp(`^${key}:\\s*$`, 'im'))
+      if (!listStart) return []
+      const startLine = fm.substring(0, listStart.index).split('\n').length
+      const allLines = fm.split('\n')
+      const items: string[] = []
+      for (let i = startLine; i < allLines.length; i++) {
+        const m = allLines[i].match(/^\s+-\s+(.+)/)
+        if (m) items.push(m[1].trim().replace(/^['"]|['"]$/g, ''))
+        else if (allLines[i].trim() && !allLines[i].match(/^\s+-/)) break
       }
+      return items
     }
-    return null
-  } catch { return null }
+
+    return {
+      description: (getField('description') || '').substring(0, 200) || null,
+      author: getField('author'),
+      version: getField('version'),
+      userInvocable: getField('user_invocable') === 'true' || getField('userInvocable') === 'true',
+      allowedTools: getList('allowed_tools').length > 0 ? getList('allowed_tools') : getList('allowedTools'),
+      tags: getList('tags'),
+    }
+  } catch { return { description: null } }
+}
+
+/** Simple description-only extraction (for non-skill elements) */
+async function extractDescription(filePath: string): Promise<string | null> {
+  const result = await extractFrontmatter(filePath)
+  return result.description
 }
 
 interface PluginElements {
@@ -131,13 +172,19 @@ async function listSkillDirs(dir: string, pluginName: string, marketplace: strin
       if (s.isDirectory()) {
         const skillFile = join(fullPath, 'SKILL.md')
         if (existsSync(skillFile)) {
+          const fm = await extractFrontmatter(skillFile)
           results.push({
             name: entry,
             path: fullPath,
             sourcePlugin: pluginName,
             sourceMarketplace: marketplace,
-            description: await extractDescription(skillFile),
+            description: fm.description,
             type: 'skill',
+            author: fm.author,
+            version: fm.version,
+            userInvocable: fm.userInvocable,
+            allowedTools: fm.allowedTools,
+            tags: fm.tags,
           })
         }
       }

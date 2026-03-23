@@ -36,6 +36,12 @@ interface ElementInfo {
   sourceMarketplace: string
   description: string | null
   type: string
+  // Extra frontmatter fields (populated for skills)
+  author?: string | null
+  version?: string | null
+  userInvocable?: boolean
+  allowedTools?: string[]
+  tags?: string[]
 }
 
 interface FlatElement extends ElementInfo {
@@ -118,6 +124,7 @@ export default function GlobalElementsSection() {
 
   // Search states
   const [pluginSearch, setPluginSearch] = useState('')
+  const [enabledPluginsOnly, setEnabledPluginsOnly] = useState(false)
   const [elementSearch, setElementSearch] = useState('')
   const [elementTypeFilter, setElementTypeFilter] = useState<string>('all')
   const [activeOnly, setActiveOnly] = useState(false) // filter to only show elements from enabled plugins
@@ -311,14 +318,18 @@ export default function GlobalElementsSection() {
 
   // Filter plugins by search — flat list, no marketplace grouping
   const filteredPlugins = useMemo(() => {
-    if (!pluginSearch.trim()) return allPlugins
-    const q = pluginSearch.toLowerCase()
-    return allPlugins.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.marketplace.toLowerCase().includes(q) ||
-      (p.description || '').toLowerCase().includes(q)
-    )
-  }, [allPlugins, pluginSearch])
+    let items = allPlugins
+    if (enabledPluginsOnly) items = items.filter(p => p.enabled)
+    if (pluginSearch.trim()) {
+      const q = pluginSearch.toLowerCase()
+      items = items.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.marketplace.toLowerCase().includes(q) ||
+        (p.description || '').toLowerCase().includes(q)
+      )
+    }
+    return items
+  }, [allPlugins, pluginSearch, enabledPluginsOnly])
 
   // Type icon/color lookup — maps a singular element type string (e.g. 'skill') to its ELEMENT_SECTIONS
   // entry using an explicit map instead of fragile string-suffix guessing. Falls back to a neutral
@@ -427,8 +438,9 @@ export default function GlobalElementsSection() {
       {/* ================================================================= */}
       {activeTab === 'plugins' && (<>
 
-      {/* Search plugins */}
-      <div className="relative mb-4">
+      {/* Search + Enabled-only toggle */}
+      <div className="flex items-center gap-3 mb-4">
+      <div className="relative flex-1">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
         <input
           type="text"
@@ -438,6 +450,19 @@ export default function GlobalElementsSection() {
           className="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
         {pluginSearch && <button onClick={() => setPluginSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-700"><X className="w-3 h-3 text-gray-500" /></button>}
+      </div>
+      <button
+        onClick={() => setEnabledPluginsOnly(!enabledPluginsOnly)}
+        className={`flex items-center gap-1 text-[10px] whitespace-nowrap px-2 py-1.5 rounded-lg transition-all flex-shrink-0 ${
+          enabledPluginsOnly
+            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+            : 'text-gray-500 bg-gray-800/50 hover:bg-gray-800/70 border border-transparent'
+        }`}
+        title="Show only enabled plugins"
+      >
+        {enabledPluginsOnly ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+        Enabled only
+      </button>
       </div>
 
       {/* Flat plugin list */}
@@ -637,8 +662,8 @@ export default function GlobalElementsSection() {
                   onClick={() => {
                     const nextKey = isExp ? null : elKey
                     setExpandedElement(nextKey)
-                    // Lazy-load file content on first expand
-                    if (nextKey && !elementContent[elKey] && el.path) {
+                    // Lazy-load file content on first expand — only for .md-based types (not hooks/mcp/lsp which show JSON inline)
+                    if (nextKey && !elementContent[elKey] && el.path && !['hook', 'mcp', 'lsp'].includes(el.type)) {
                       setLoadingContent(elKey)
                       fetch(`/api/settings/element-content?path=${encodeURIComponent(el.path)}`)
                         .then(r => r.ok ? r.json() : null)
@@ -726,6 +751,18 @@ export default function GlobalElementsSection() {
                       <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>
                     )}
                     <div>Type: <span className={ti.color}>{ti.label}</span></div>
+                    {/* Skill-specific frontmatter fields */}
+                    {el.author && <div>Author: <span className="text-gray-400">{el.author}</span></div>}
+                    {el.version && <div>Version: <span className="text-gray-400">{el.version}</span></div>}
+                    {el.userInvocable !== undefined && <div>Invocable: <span className={el.userInvocable ? 'text-amber-400' : 'text-gray-500'}>{el.userInvocable ? `Yes (/${el.name})` : 'No'}</span></div>}
+                    {el.allowedTools && el.allowedTools.length > 0 && (
+                      <div>Allowed Tools: <span className="text-gray-400">{el.allowedTools.join(', ')}</span></div>
+                    )}
+                    {el.tags && el.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {el.tags.map(tag => <span key={tag} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30 text-[8px]">{tag}</span>)}
+                      </div>
+                    )}
                     <div>Plugin: <span
                       className="text-gray-400 hover:text-blue-400 cursor-pointer"
                       onClick={() => goToPlugin(el.pluginKey)}

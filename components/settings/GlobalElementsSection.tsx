@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink,
   ToggleLeft, ToggleRight,
@@ -77,6 +77,11 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
  */
 export default function GlobalElementsSection() {
   const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>('plugins')
+  // Scroll position per tab — restore when switching back
+  const scrollPositions = useRef<Record<string, number>>({ plugins: 0, elements: 0, marketplaces: 0 })
+  const containerRef = useRef<HTMLDivElement>(null)
+  // Marketplace to auto-expand when navigating from Elements tab
+  const [navigateToMkt, setNavigateToMkt] = useState<string | null>(null)
   const [groups, setGroups] = useState<MarketplaceGroup[]>([])
   const [enabledCount, setEnabledCount] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
@@ -89,6 +94,24 @@ export default function GlobalElementsSection() {
   // Search states
   const [pluginSearch, setPluginSearch] = useState('')
   const [elementSearch, setElementSearch] = useState('')
+
+  // Switch tab with scroll position save/restore
+  const switchTab = useCallback((tab: 'plugins' | 'elements' | 'marketplaces') => {
+    // Save current scroll position
+    const scrollParent = containerRef.current?.closest('.overflow-y-auto, .overflow-auto') as HTMLElement | null
+    if (scrollParent) scrollPositions.current[activeTab] = scrollParent.scrollTop
+    setActiveTab(tab)
+    // Restore scroll position after render
+    requestAnimationFrame(() => {
+      if (scrollParent) scrollParent.scrollTop = scrollPositions.current[tab] || 0
+    })
+  }, [activeTab])
+
+  // Navigate to a marketplace from Elements tab — switch to Marketplaces tab and expand it
+  const goToMarketplace = useCallback((mktName: string) => {
+    setNavigateToMkt(mktName)
+    switchTab('marketplaces')
+  }, [switchTab])
 
   // Element listing state
   const [pluginElements, setPluginElements] = useState<PluginElements[]>([])
@@ -234,7 +257,7 @@ export default function GlobalElementsSection() {
   }
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div ref={containerRef} className="p-6 max-w-4xl">
       <h2 className="text-xl font-bold text-white mb-2">Global Elements</h2>
       <p className="text-sm text-gray-400 mb-4">
         User-level plugins shared by <strong>all agents</strong> on this host.
@@ -243,7 +266,7 @@ export default function GlobalElementsSection() {
       {/* Tab bar: Plugins | Elements | Marketplaces */}
       <div className="flex items-center gap-1 mb-6 bg-gray-800/30 rounded-lg p-1">
         <button
-          onClick={() => setActiveTab('plugins')}
+          onClick={() => switchTab('plugins')}
           className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'plugins'
               ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
@@ -255,7 +278,7 @@ export default function GlobalElementsSection() {
           <span className="opacity-60">{enabledCount}/{totalCount}</span>
         </button>
         <button
-          onClick={() => setActiveTab('elements')}
+          onClick={() => switchTab('elements')}
           className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'elements'
               ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
@@ -267,7 +290,7 @@ export default function GlobalElementsSection() {
           {totalElements > 0 && <span className="opacity-60">{totalElements}</span>}
         </button>
         <button
-          onClick={() => setActiveTab('marketplaces')}
+          onClick={() => switchTab('marketplaces')}
           className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'marketplaces'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -282,7 +305,7 @@ export default function GlobalElementsSection() {
       {/* ================================================================= */}
       {/* Marketplaces tab */}
       {/* ================================================================= */}
-      {activeTab === 'marketplaces' && <MarketplaceManager />}
+      {activeTab === 'marketplaces' && <MarketplaceManager expandMarketplace={navigateToMkt} onNavigateComplete={() => setNavigateToMkt(null)} />}
 
       {/* ================================================================= */}
       {/* Plugins tab */}
@@ -466,7 +489,11 @@ export default function GlobalElementsSection() {
                   <span className="text-xs font-medium text-gray-200 flex-1 truncate">{plugin.pluginName}</span>
                   <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
                   <Store className="w-3 h-3 text-amber-400/50 flex-shrink-0" />
-                  <span className="text-[10px] text-gray-600 truncate max-w-[100px]">{plugin.marketplace}</span>
+                  <span
+                    className="text-[10px] text-gray-600 truncate max-w-[100px] hover:text-amber-400 cursor-pointer transition-colors"
+                    onClick={(e) => { e.stopPropagation(); goToMarketplace(plugin.marketplace) }}
+                    title={`Go to ${plugin.marketplace} marketplace`}
+                  >{plugin.marketplace}</span>
                   <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{elemCount}el</span>
                   {plugin.sourceUrl && (
                     <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={plugin.sourceUrl}>

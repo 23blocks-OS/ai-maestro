@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Store, Loader2, ChevronDown, ChevronRight,
   ToggleLeft, ToggleRight,
@@ -56,7 +56,12 @@ interface Totals {
   enabledPlugins: number
 }
 
-export default function MarketplaceManager() {
+interface MarketplaceManagerProps {
+  expandMarketplace?: string | null
+  onNavigateComplete?: () => void
+}
+
+export default function MarketplaceManager({ expandMarketplace, onNavigateComplete }: MarketplaceManagerProps = {}) {
   const [marketplaces, setMarketplaces] = useState<MarketplaceInfo[]>([])
   const [totals, setTotals] = useState<Totals>({ marketplaces: 0, withPlugins: 0, totalPlugins: 0, installedPlugins: 0, enabledPlugins: 0 })
   const [loading, setLoading] = useState(true)
@@ -84,6 +89,21 @@ export default function MarketplaceManager() {
   }>>({})
 
   const [orphanPlugins, setOrphanPlugins] = useState<{ name: string; key: string; errors: string[] }[]>([])
+  const mktRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  // Auto-expand and scroll to marketplace when navigated from another tab
+  useEffect(() => {
+    if (expandMarketplace && marketplaces.length > 0) {
+      setExpandedMkt(expandMarketplace)
+      checkUpdates(expandMarketplace, true)
+      onNavigateComplete?.()
+      // Scroll to the marketplace after render
+      requestAnimationFrame(() => {
+        const el = mktRefs.current[expandMarketplace]
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+  }, [expandMarketplace, marketplaces.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchMarketplaces = useCallback(async () => {
     try {
@@ -307,7 +327,7 @@ export default function MarketplaceManager() {
             : mkt.plugins
 
           return (
-            <div key={mkt.name} className="rounded-xl border border-gray-800 overflow-hidden">
+            <div key={mkt.name} ref={el => { mktRefs.current[mkt.name] = el }} className="rounded-xl border border-gray-800 overflow-hidden">
               {/* Marketplace header — darker bg than plugin rows */}
               <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-800/70 hover:bg-gray-800/90 transition-colors">
                 <button onClick={() => handleExpandMkt(mkt.name)} className="flex items-center gap-2 flex-1 min-w-0 text-left">

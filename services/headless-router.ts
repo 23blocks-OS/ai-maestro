@@ -331,6 +331,18 @@ import {
 import { updateSystemSettings, type SystemSettings } from '@/lib/system-settings'
 
 // ---------------------------------------------------------------------------
+// Error types
+// ---------------------------------------------------------------------------
+
+/** Thrown for client-caused errors (malformed request). The router maps this to HTTP 400. */
+class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BadRequestError'
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
 
@@ -1093,6 +1105,15 @@ const routes: Route[] = [
         sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
       }
     }
+    const { buffer, filename, agentId, agentName } = result.data
+    sendBinary(res, 200, new Uint8Array(buffer), {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length.toString(),
+      'X-Agent-Id': agentId,
+      'X-Agent-Name': agentName,
+      'X-Export-Version': '1.0.0',
+    })
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1406,10 +1427,12 @@ const routes: Route[] = [
     await sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    // Use undefined (not null) for absent query params — service functions treat undefined as "not provided"
+    sendServiceResult(res, await updateGlobalMessage(query.agent || undefined, query.id || undefined, query.action || undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    // Use undefined (not null) for absent query params — service functions treat undefined as "not provided"
+    sendServiceResult(res, await removeMessage(query.agent || undefined, query.id || undefined))
   }},
 
   // =========================================================================

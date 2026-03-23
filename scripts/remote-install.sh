@@ -374,6 +374,17 @@ uninstall() {
     maestro_say "Removing AI Maestro..."
     echo ""
 
+    # Stop nohup process if running (when pm2 was not used)
+    if [ -f "$INSTALL_DIR/logs/aimaestro.pid" ]; then
+        local pid_to_kill
+        pid_to_kill=$(cat "$INSTALL_DIR/logs/aimaestro.pid" 2>/dev/null)
+        if [ -n "$pid_to_kill" ] && ps -p "$pid_to_kill" > /dev/null 2>&1; then
+            kill "$pid_to_kill" 2>/dev/null || true
+            maestro_info "Stopped nohup AI Maestro process (PID: $pid_to_kill)"
+        fi
+        rm -f "$INSTALL_DIR/logs/aimaestro.pid" 2>/dev/null || true
+    fi
+
     # Stop PM2 services if running
     if command -v pm2 &>/dev/null; then
         pm2 stop ai-maestro 2>/dev/null || true
@@ -1219,7 +1230,7 @@ act4_start_and_register() {
             else
                 pm2 start "yarn start" --name ai-maestro
             fi
-            pm2 save 2>/dev/null || true
+            pm2 save || true
         else
             # No pm2 — start in background
             mkdir -p "$INSTALL_DIR/logs"

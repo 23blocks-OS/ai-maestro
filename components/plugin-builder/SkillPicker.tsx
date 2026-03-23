@@ -29,6 +29,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   // null = no error; string = error message to display in the marketplace tab
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'core' | 'marketplace' | 'repo'>('core')
+  // Track the count of skills found by the repo scanner so the tab badge stays accurate
+  const [repoSkillsCount, setRepoSkillsCount] = useState<number | null>(null)
 
   // Build a set of selected skill keys for fast lookup
   const selectedKeys = useMemo(() => {

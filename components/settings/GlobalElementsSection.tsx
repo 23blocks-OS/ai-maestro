@@ -118,6 +118,7 @@ export default function GlobalElementsSection() {
   const [pluginSearch, setPluginSearch] = useState('')
   const [elementSearch, setElementSearch] = useState('')
   const [elementTypeFilter, setElementTypeFilter] = useState<string>('all')
+  const [activeOnly, setActiveOnly] = useState(false) // filter to only show elements from enabled plugins
   const [expandedElement, setExpandedElement] = useState<string | null>(null) // accordion for element cards
   const [elementContent, setElementContent] = useState<Record<string, string>>({}) // lazy-loaded file content cache
   const [loadingContent, setLoadingContent] = useState<string | null>(null)
@@ -146,6 +147,13 @@ export default function GlobalElementsSection() {
   }, [activeTab])
 
   // Navigate to a marketplace from Elements/Plugins tab
+  // Navigate to an element in the Elements tab — sets search and type filter
+  const goToElement = useCallback((elementName: string, elementType: string) => {
+    setElementSearch(elementName)
+    setElementTypeFilter(elementType)
+    switchTab('elements')
+  }, [switchTab])
+
   const goToMarketplace = useCallback((mktName: string) => {
     setNavigateToMkt(mktName)
     switchTab('marketplaces')
@@ -264,20 +272,21 @@ export default function GlobalElementsSection() {
     elementTotals.hooks + elementTotals.rules + elementTotals.mcpServers + elementTotals.lspServers +
     elementTotals.outputStyles
 
-  // Filter plugins by search
-  const filteredGroups = useMemo(() => {
-    if (!pluginSearch.trim()) return groups
+  // Flat list of all plugins with their marketplace info attached
+  const allPlugins = useMemo(() => {
+    return groups.flatMap(g => (g.plugins || []).map(p => ({ ...p, marketplace: g.marketplace, marketplaceSourceUrl: g.sourceUrl })))
+  }, [groups])
+
+  // Filter plugins by search — flat list, no marketplace grouping
+  const filteredPlugins = useMemo(() => {
+    if (!pluginSearch.trim()) return allPlugins
     const q = pluginSearch.toLowerCase()
-    return groups
-      .map(g => ({
-        ...g,
-        plugins: (g.plugins || []).filter(p =>
-          p.name.toLowerCase().includes(q) ||
-          g.marketplace.toLowerCase().includes(q)
-        ),
-      }))
-      .filter(g => g.plugins.length > 0)
-  }, [groups, pluginSearch])
+    return allPlugins.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.marketplace.toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q)
+    )
+  }, [allPlugins, pluginSearch])
 
   // Type icon/color lookup — maps a singular element type string (e.g. 'skill') to its ELEMENT_SECTIONS
   // entry using an explicit map instead of fragile string-suffix guessing. Falls back to a neutral
@@ -305,6 +314,7 @@ export default function GlobalElementsSection() {
   // Filtered flat elements for card view
   const filteredFlatElements = useMemo(() => {
     let items = flatElements
+    if (activeOnly) items = items.filter(e => e.pluginEnabled)
     // elementTypeFilter holds the plural ELEMENT_SECTIONS key (e.g. 'skills'), while e.type is singular
     // (e.g. 'skill'). Use typeInfo() to map the singular type to its section key for comparison.
     if (elementTypeFilter !== 'all') items = items.filter(e => typeInfo(e.type).key === elementTypeFilter)
@@ -318,7 +328,7 @@ export default function GlobalElementsSection() {
       )
     }
     return items
-  }, [flatElements, elementTypeFilter, elementSearch])
+  }, [flatElements, elementTypeFilter, elementSearch, activeOnly])
 
   if (loading) {
     return (
@@ -376,12 +386,12 @@ export default function GlobalElementsSection() {
       </div>
 
       {/* ================================================================= */}
-      {/* Marketplaces tab */}
+      {/* Marketplaces tab — ONLY lists marketplaces. No plugins or elements here. */}
       {/* ================================================================= */}
       {activeTab === 'marketplaces' && <MarketplaceManager expandMarketplace={navigateToMkt} onNavigateComplete={() => setNavigateToMkt(null)} onGoToPlugin={goToPlugin} />}
 
       {/* ================================================================= */}
-      {/* Plugins tab */}
+      {/* Plugins tab — ONLY lists plugins (flat list). No marketplace grouping. Marketplace is metadata shown when expanded. */}
       {/* ================================================================= */}
       {activeTab === 'plugins' && (<>
 
@@ -397,139 +407,110 @@ export default function GlobalElementsSection() {
         />
       </div>
 
-      {/* Plugin list grouped by marketplace */}
-      <div className="space-y-3">
-        {filteredGroups.map(group => {
-          const expanded = expandedMarketplaces.has(group.marketplace)
-          const enabledInGroup = (group.plugins || []).filter(p => p.enabled).length
+      {/* Flat plugin list */}
+      <div className="space-y-1">
+        {filteredPlugins.map(plugin => {
+          const isToggling = toggling === plugin.key
+          const isExpPl = expandedPlugin === plugin.key
           return (
-            <div key={group.marketplace} className="rounded-xl border border-gray-800 overflow-hidden">
-              {/* Marketplace header */}
+            <div key={plugin.key} ref={el => { pluginRefs.current[plugin.key] = el }} className={`rounded-lg border overflow-hidden ${plugin.enabled ? 'border-gray-800/60' : 'border-gray-800/30'}`}>
               <div
-                className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800/70 transition-colors cursor-pointer"
-                onClick={() => toggleMarketplace(group.marketplace)}
+                className={`flex items-center gap-3 px-4 py-2.5 transition-colors cursor-pointer hover:bg-gray-800/30 ${
+                  plugin.enabled ? 'bg-emerald-500/5' : 'bg-gray-900/30'
+                } ${isExpPl ? 'bg-gray-800/40' : ''}`}
+                onClick={() => setExpandedPlugin(isExpPl ? null : plugin.key)}
               >
-                {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                <Store className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-200 flex-1 min-w-0 truncate" title={group.marketplace}>{group.marketplace}</span>
-                <span className="text-xs text-gray-500 tabular-nums">
-                  {enabledInGroup > 0 && <span className="text-emerald-400">{enabledInGroup}</span>}
-                  {enabledInGroup > 0 && '/'}
-                  {(group.plugins || []).length}
+                <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${plugin.enabled ? 'text-emerald-400' : 'text-gray-600'}`} />
+                <span className={`text-xs flex-1 min-w-0 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`} title={plugin.name}>
+                  {plugin.name}
                 </span>
-                {group.sourceUrl && (
-                  <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={group.sourceUrl}>
-                    <ExternalLink className="w-3 h-3 text-gray-500 hover:text-gray-300" />
-                  </a>
-                )}
+                <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
+                {/* Toggle switch */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); togglePlugin(plugin.key, plugin.enabled) }}
+                  disabled={isToggling}
+                  className="flex-shrink-0 transition-colors"
+                  title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
+                >
+                  {isToggling ? (
+                    <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+                  ) : plugin.enabled ? (
+                    <ToggleRight className="w-6 h-6 text-emerald-400" />
+                  ) : (
+                    <ToggleLeft className="w-6 h-6 text-gray-600" />
+                  )}
+                </button>
               </div>
-
-              {/* Plugin list */}
-              {expanded && (
-                <div className="divide-y divide-gray-800/50">
-                  {(group.plugins || []).map(plugin => {
-                    const isToggling = toggling === plugin.key
-                    const isExpPl = expandedPlugin === plugin.key
+              {/* Detail panel */}
+              {isExpPl && (
+                <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-500 space-y-0.5">
+                  <div>Description: <span className="text-gray-400">{plugin.description || '-'}</span></div>
+                  <div>Author: <span className="text-gray-400">{plugin.author || '-'}</span></div>
+                  <div>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></div>
+                  <div>License: <span className="text-gray-400">{plugin.license || '-'}</span></div>
+                  <div>Key: <span className="text-gray-400 font-mono break-all" title={plugin.key}>{plugin.key}</span></div>
+                  <div>Version: <span className="text-gray-400">{plugin.version || '-'}</span></div>
+                  <div>Marketplace: <span
+                    className="text-gray-400 hover:text-amber-400 cursor-pointer transition-colors"
+                    onClick={(e) => { e.stopPropagation(); goToMarketplace(plugin.marketplace) }}
+                    title={`Go to ${plugin.marketplace}`}
+                  >{plugin.marketplace}</span>
+                    {plugin.marketplaceSourceUrl && (
+                      <a href={plugin.marketplaceSourceUrl.startsWith('/') ? `file://${plugin.marketplaceSourceUrl}` : plugin.marketplaceSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
+                        <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
+                      </a>
+                    )}
+                  </div>
+                  {plugin.homepage && <div>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{plugin.homepage}</a></div>}
+                  {plugin.repository && <div>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{plugin.repository}</a></div>}
+                  {plugin.keywords && plugin.keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1 text-[8px]">
+                      {plugin.keywords.map((kw) => (
+                        <span key={kw} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Element sections — ALL 8 types, shown even if empty */}
+                  {(() => {
+                    const pe = pluginElements.find(p => p.pluginKey === plugin.key)
                     return (
-                      <div key={plugin.key} ref={el => { pluginRefs.current[plugin.key] = el }}>
-                        <div
-                          className={`flex items-center gap-3 px-4 py-2.5 transition-colors cursor-pointer hover:bg-gray-800/30 ${
-                            plugin.enabled ? 'bg-emerald-500/5' : 'bg-gray-900/30'
-                          } ${isExpPl ? 'bg-gray-800/40' : ''}`}
-                          onClick={() => setExpandedPlugin(isExpPl ? null : plugin.key)}
-                        >
-                          <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${plugin.enabled ? 'text-emerald-400' : 'text-gray-600'}`} />
-                          <span className={`text-xs flex-1 min-w-0 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`} title={plugin.name}>
-                            {plugin.name}
-                          </span>
-                          <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
-                          {/* Toggle switch */}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); togglePlugin(plugin.key, plugin.enabled) }}
-                            disabled={isToggling}
-                            className="flex-shrink-0 transition-colors"
-                            title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
-                          >
-                            {isToggling ? (
-                              <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-                            ) : plugin.enabled ? (
-                              <ToggleRight className="w-6 h-6 text-emerald-400" />
-                            ) : (
-                              <ToggleLeft className="w-6 h-6 text-gray-600" />
-                            )}
-                          </button>
-                        </div>
-                        {/* Detail panel */}
-                        {isExpPl && (
-                          <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-500 space-y-0.5">
-                            <div>Description: <span className="text-gray-400">{plugin.description || '-'}</span></div>
-                            <div>Author: <span className="text-gray-400">{plugin.author || '-'}</span></div>
-                            <div>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></div>
-                            <div>License: <span className="text-gray-400">{plugin.license || '-'}</span></div>
-                            <div>Key: <span className="text-gray-400 font-mono break-all" title={plugin.key}>{plugin.key}</span></div>
-                            <div>Version: <span className="text-gray-400">{plugin.version || '-'}</span></div>
-                            <div>Marketplace: <span
-                              className="text-gray-400 hover:text-amber-400 cursor-pointer transition-colors"
-                              onClick={(e) => { e.stopPropagation(); goToMarketplace(group.marketplace) }}
-                              title={`Go to ${group.marketplace}`}
-                            >{group.marketplace}</span>
-                              {group.sourceUrl && (
-                                <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
-                                  <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
-                                </a>
+                      <div className="mt-2 pt-2 border-t border-gray-800/30 space-y-2">
+                        {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {
+                          const items = pe?.[key] || []
+                          return (
+                            <div key={key}>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Icon className={`w-3 h-3 ${items.length > 0 ? color : 'text-gray-700'}`} />
+                                <span className={`text-[10px] font-medium uppercase tracking-wider ${items.length > 0 ? 'text-gray-400' : 'text-gray-700'}`}>{label}</span>
+                                <span className={`text-[10px] ${items.length > 0 ? 'text-gray-500' : 'text-gray-700'}`}>{items.length}</span>
+                              </div>
+                              {items.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5 ml-4">
+                                  {items.map((item) => (
+                                    <span
+                                      key={item.name}
+                                      className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40 hover:bg-gray-700/60 hover:text-blue-300 cursor-pointer transition-colors"
+                                      onClick={(e) => { e.stopPropagation(); goToElement(item.name, key) }}
+                                      title="View in Elements tab"
+                                    >{item.name}</span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-gray-700 ml-4">none</span>
                               )}
                             </div>
-                            {plugin.homepage && <div>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{plugin.homepage}</a></div>}
-                            {plugin.repository && <div>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{plugin.repository}</a></div>}
-                            {plugin.keywords && plugin.keywords.length > 0 && (
-                              <div className="flex flex-wrap gap-1 text-[8px]">
-                                {plugin.keywords.map((kw) => (
-                                  <span key={kw} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
-                                ))}
-                              </div>
-                            )}
-                            {/* Element sections — ALL 8 types, shown even if empty */}
-                            {(() => {
-                              // Use plugin.key (unique) not plugin.name (may collide across marketplaces)
-                              const pe = pluginElements.find(p => p.pluginKey === plugin.key)
-                              return (
-                                <div className="mt-2 pt-2 border-t border-gray-800/30 space-y-2">
-                                  {ELEMENT_SECTIONS.map(({ key, label, icon: Icon, color }) => {
-                                    const items = pe?.[key] || []
-                                    return (
-                                      <div key={key}>
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                          <Icon className={`w-3 h-3 ${items.length > 0 ? color : 'text-gray-700'}`} />
-                                          <span className={`text-[10px] font-medium uppercase tracking-wider ${items.length > 0 ? 'text-gray-400' : 'text-gray-700'}`}>{label}</span>
-                                          <span className={`text-[10px] ${items.length > 0 ? 'text-gray-500' : 'text-gray-700'}`}>{items.length}</span>
-                                        </div>
-                                        {items.length > 0 ? (
-                                          <div className="flex flex-wrap gap-1.5 ml-4">
-                                            {items.map((item) => (
-                                              <span key={item.name} className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40">{item.name}</span>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <span className="text-[10px] text-gray-700 ml-4">none</span>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        )}
+                          )
+                        })}
                       </div>
                     )
-                  })}
+                  })()}
                 </div>
               )}
             </div>
           )
         })}
 
-        {filteredGroups.length === 0 && (
+        {filteredPlugins.length === 0 && (
           <p className="text-xs text-gray-500 italic py-4 text-center">
             {pluginSearch ? 'No plugins match your search' : 'No installed plugins found'}
           </p>
@@ -538,7 +519,7 @@ export default function GlobalElementsSection() {
       </>)}
 
       {/* ================================================================= */}
-      {/* Elements tab — flat alphabetical card list */}
+      {/* Elements tab — ONLY lists elements (all types). No plugins or marketplaces here. Plugin/marketplace shown as metadata. */}
       {/* ================================================================= */}
       {activeTab === 'elements' && (<>
 
@@ -569,16 +550,30 @@ export default function GlobalElementsSection() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-        <input
-          type="text"
-          placeholder="Filter by name, description, plugin, or marketplace..."
-          value={elementSearch}
-          onChange={e => setElementSearch(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500"
-        />
+      {/* Search + Active-only toggle */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Filter by name, description, plugin, or marketplace..."
+            value={elementSearch}
+            onChange={e => setElementSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500"
+          />
+        </div>
+        <button
+          onClick={() => setActiveOnly(!activeOnly)}
+          className={`flex items-center gap-1 text-[10px] whitespace-nowrap px-2 py-1.5 rounded-lg transition-all flex-shrink-0 ${
+            activeOnly
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              : 'text-gray-500 bg-gray-800/50 hover:bg-gray-800/70 border border-transparent'
+          }`}
+          title="Show only elements from enabled plugins"
+        >
+          {activeOnly ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+          Active only
+        </button>
       </div>
 
       {loadingElements ? (

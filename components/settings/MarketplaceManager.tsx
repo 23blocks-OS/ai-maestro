@@ -396,6 +396,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                 <button onClick={() => handleExpandMkt(mkt.name)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <Store className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span className="text-[8px] text-amber-400/50 uppercase tracking-wider flex-shrink-0">Mkt</span>
                   <span className="text-xs font-medium text-gray-200 min-w-0 truncate" title={mkt.name}>{mkt.name}</span>
                   <span className="text-[9px] text-gray-600 flex-shrink-0">{mkt.version ? `v${mkt.version}` : '-'}</span>
                   {/* Remote version check indicator */}
@@ -447,13 +448,11 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
               {isExpanded && (
                 <div className="px-3 py-1.5 bg-gray-900/40 text-[9px] text-gray-600 border-b border-gray-800/50 space-y-0.5">
                   <div>Description: <span className="text-gray-500">{mkt.description || '-'}</span></div>
-                  <div className="flex flex-wrap gap-x-3">
-                    <span>Author: <span className="text-gray-500">{mkt.author || '-'}</span></span>
-                    <span>Email: <span className="text-gray-500">{mkt.authorEmail || '-'}</span></span>
-                    <span>Source: {mkt.sourceUrl ? (
-                      <a href={mkt.sourceUrl.startsWith('/') ? `file://${mkt.sourceUrl}` : mkt.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={mkt.sourceUrl}>{mkt.sourceUrl}</a>
-                    ) : <span className="text-gray-500">-</span>}</span>
-                  </div>
+                  <div>Author: <span className="text-gray-500">{mkt.author || '-'}</span></div>
+                  <div>Email: <span className="text-gray-500">{mkt.authorEmail || '-'}</span></div>
+                  <div>Source: {mkt.sourceUrl ? (
+                    <a href={mkt.sourceUrl.startsWith('/') ? `file://${mkt.sourceUrl}` : mkt.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={mkt.sourceUrl}>{mkt.sourceUrl}</a>
+                  ) : <span className="text-gray-500">-</span>}</div>
                 </div>
               )}
 
@@ -639,40 +638,28 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                           const repo = plugin.repository || lm?.repository || null
                           const kws = plugin.keywords || lm?.keywords || null
                           return (
-                          <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1.5">
+                          <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-500 space-y-0.5">
                             <div>Description: <span className="text-gray-400">{desc}</span></div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Author: <span className="text-gray-400">{auth}</span></span>
-                              <span>Email: <span className="text-gray-400">{email}</span></span>
-                              <span>License: <span className="text-gray-400">{lic}</span></span>
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
-                              <span>Installed: <span className="text-gray-400">{plugin.version ? `v${plugin.version}` : '-'}</span></span>
-                              {(() => {
-                                // Merge stale initial data with fresh lazy-fetched remote data
-                                const availableVer = plugUc?.remote || plugin.availableVersion || null
-                                const isOutdated = plugUc?.outdated || plugin.outdated
-                                return (
-                                  <>
-                                    <span>Available: <span className={isOutdated ? 'text-amber-400' : 'text-gray-400'}>{availableVer ? `v${availableVer}` : '-'}</span></span>
-                                    {isOutdated && <span className="text-amber-400">Update available</span>}
-                                  </>
-                                )
-                              })()}
-                              <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Source: {plugin.sourceUrl ? (
-                                <a href={plugin.sourceUrl.startsWith('/') ? `file://${plugin.sourceUrl}` : plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={plugin.sourceUrl}>{plugin.sourceUrl}</a>
-                              ) : <span className="text-gray-400">-</span>}</span>
-                              {(hp || repo) && (
+                            <div>Author: <span className="text-gray-400">{auth}</span></div>
+                            <div>Email: <span className="text-gray-400">{email}</span></div>
+                            <div>License: <span className="text-gray-400">{lic}</span></div>
+                            <div>Key: <span className="text-gray-400 font-mono break-all" title={plugin.key}>{plugin.key}</span></div>
+                            <div>Installed: <span className="text-gray-400">{plugin.version ? `v${plugin.version}` : '-'}</span></div>
+                            {(() => {
+                              const availableVer = plugUc?.remote || plugin.availableVersion || null
+                              const isOutdated = plugUc?.outdated || plugin.outdated
+                              return (
                                 <>
-                                  {hp && <span>Homepage: <a href={hp} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{hp}</a></span>}
-                                  {repo && <span>Repo: <a href={repo} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{repo}</a></span>}
+                                  <div>Available: <span className={isOutdated ? 'text-amber-400' : 'text-gray-400'}>{availableVer ? `v${availableVer}` : '-'}</span>{isOutdated && <span className="text-amber-400 ml-2">Update available</span>}</div>
                                 </>
-                              )}
-                            </div>
+                              )
+                            })()}
+                            <div>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></div>
+                            <div>Source: {plugin.sourceUrl ? (
+                              <a href={plugin.sourceUrl.startsWith('/') ? `file://${plugin.sourceUrl}` : plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={plugin.sourceUrl}>{plugin.sourceUrl}</a>
+                            ) : <span className="text-gray-400">-</span>}</div>
+                            {hp && <div>Homepage: <a href={hp} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{hp}</a></div>}
+                            {repo && <div>Repo: <a href={repo} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{repo}</a></div>}
                             {/* Keywords */}
                             {kws && kws.length > 0 && (
                               <div className="flex flex-wrap gap-1 text-[8px]">

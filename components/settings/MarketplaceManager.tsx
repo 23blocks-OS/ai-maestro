@@ -71,12 +71,16 @@ export default function MarketplaceManager() {
   const [securityReport, setSecurityReport] = useState<{ name: string; summary: string; report: string } | null>(null)
   const [addUrl, setAddUrl] = useState('')
   const [addingMkt, setAddingMkt] = useState(false)
-  // Lazy version check state: marketplaceName -> { checking, remoteVersion, marketplaceOutdated, pluginUpdates }
+  // Lazy version + metadata check state
   const [updateChecks, setUpdateChecks] = useState<Record<string, {
     checking: boolean
     remoteVersion: string | null
     marketplaceOutdated: boolean
     pluginUpdates: Record<string, { remote: string; outdated: boolean }>
+    pluginMetadata: Record<string, {
+      description: string | null; author: string | null; authorEmail: string | null
+      license: string | null; homepage: string | null; repository: string | null; keywords: string[] | null
+    }>
   }>>({})
 
   const [orphanPlugins, setOrphanPlugins] = useState<{ name: string; key: string; errors: string[] }[]>([])
@@ -138,7 +142,7 @@ export default function MarketplaceManager() {
   // force=true bypasses the 5min server cache (used when user explicitly expands)
   const checkUpdates = async (mktName: string, force = false) => {
     if (!force && updateChecks[mktName]) return // already checked or checking (unless forced)
-    setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: true, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {} } }))
+    setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: true, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {}, pluginMetadata: {} } }))
     try {
       const res = await fetch('/api/settings/marketplaces', {
         method: 'POST',
@@ -154,12 +158,13 @@ export default function MarketplaceManager() {
         setUpdateChecks(prev => ({ ...prev, [mktName]: {
           checking: false, remoteVersion: data.remoteVersion,
           marketplaceOutdated: data.marketplaceOutdated, pluginUpdates: plugUpdates,
+          pluginMetadata: data.pluginMetadata || {},
         }}))
       } else {
-        setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {} } }))
+        setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {}, pluginMetadata: {} } }))
       }
     } catch {
-      setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {} } }))
+      setUpdateChecks(prev => ({ ...prev, [mktName]: { checking: false, remoteVersion: null, marketplaceOutdated: false, pluginUpdates: {}, pluginMetadata: {} } }))
     }
   }
 
@@ -518,14 +523,23 @@ export default function MarketplaceManager() {
                           </div>
                         </div>
 
-                        {/* Detail panel */}
-                        {isSelected && (
+                        {/* Detail panel — merge local metadata with lazy-fetched remote metadata */}
+                        {isSelected && (() => {
+                          const lm = uc?.pluginMetadata?.[plugin.name] // lazy metadata
+                          const desc = plugin.description || lm?.description || '-'
+                          const auth = plugin.author || lm?.author || '-'
+                          const email = plugin.authorEmail || lm?.authorEmail || '-'
+                          const lic = plugin.license || lm?.license || '-'
+                          const hp = plugin.homepage || lm?.homepage || null
+                          const repo = plugin.repository || lm?.repository || null
+                          const kws = plugin.keywords || lm?.keywords || null
+                          return (
                           <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1.5">
-                            <div className="text-[10px] text-gray-400">{plugin.description || '-'}</div>
+                            <div className="text-[10px] text-gray-400">{desc}</div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Author: <span className="text-gray-400">{plugin.author || '-'}</span></span>
-                              <span>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></span>
-                              <span>License: <span className="text-gray-400">{plugin.license || '-'}</span></span>
+                              <span>Author: <span className="text-gray-400">{auth}</span></span>
+                              <span>Email: <span className="text-gray-400">{email}</span></span>
+                              <span>License: <span className="text-gray-400">{lic}</span></span>
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
@@ -542,17 +556,17 @@ export default function MarketplaceManager() {
                                   </a>
                                 )}
                               </span>
-                              {(plugin.homepage || plugin.repository) && (
+                              {(hp || repo) && (
                                 <>
-                                  {plugin.homepage && <span>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.homepage}</a></span>}
-                                  {plugin.repository && !plugin.homepage && <span>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.repository}</a></span>}
+                                  {hp && <span>Homepage: <a href={hp} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{hp}</a></span>}
+                                  {repo && !hp && <span>Repo: <a href={repo} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{repo}</a></span>}
                                 </>
                               )}
                             </div>
                             {/* Keywords */}
-                            {plugin.keywords && plugin.keywords.length > 0 && (
+                            {kws && kws.length > 0 && (
                               <div className="flex flex-wrap gap-1 text-[8px]">
-                                {plugin.keywords.map((kw, i) => (
+                                {kws.map((kw, i) => (
                                   <span key={i} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
                                 ))}
                               </div>
@@ -571,7 +585,8 @@ export default function MarketplaceManager() {
                               </div>
                             )}
                           </div>
-                        )}
+                          )
+                        })()}
                       </div>
                     )
                   })}

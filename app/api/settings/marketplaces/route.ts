@@ -715,13 +715,24 @@ async function handleCheckUpdates(marketplaceName?: string, force?: boolean) {
   // Extract marketplace version
   const remoteVersion = (remoteData.version as string) || null
 
-  // Extract plugin versions from remote marketplace.json
+  // Extract plugin versions and source repos from remote marketplace.json
   const remotePlugins: Record<string, string> = {}
+  const pluginRepos: Record<string, string> = {} // name -> owner/repo
+  const pluginMktMeta: Record<string, { description?: string; repository?: string }> = {}
   if (Array.isArray(remoteData.plugins)) {
     for (const p of remoteData.plugins as Record<string, unknown>[]) {
       const name = p.name as string
+      if (!name) continue
       const ver = p.version as string
-      if (name && ver) remotePlugins[name] = ver
+      if (ver) remotePlugins[name] = ver
+      // Capture source repo for lazy metadata fetching
+      const src = p.source as Record<string, string> | undefined
+      if (src?.repo) pluginRepos[name] = src.repo
+      // Also store description/repository from marketplace.json itself
+      pluginMktMeta[name] = {
+        description: (p.description as string) || undefined,
+        repository: (p.repository as string) || (src?.repo ? `https://github.com/${src.repo}` : undefined),
+      }
     }
   }
 
@@ -751,6 +762,56 @@ async function handleCheckUpdates(marketplaceName?: string, force?: boolean) {
     })
   }
 
+  // Lazy-fetch metadata for uninstalled plugins from their individual repos
+  // Only fetch for plugins that are NOT installed (installed ones already have metadata from cache)
+  const pluginMetadata: Record<string, {
+    description: string | null; author: string | null; authorEmail: string | null
+    license: string | null; homepage: string | null; repository: string | null; keywords: string[] | null
+  }> = {}
+
+  // Fetch up to 5 plugin metadata in parallel (avoid hammering GitHub)
+  const uninstalledWithRepo = Object.entries(pluginRepos)
+    .filter(([name]) => !localPlugins[name])
+    .slice(0, 5)
+
+  await Promise.all(uninstalledWithRepo.map(async ([name, plugRepo]) => {
+    // Try fetching plugin.json from the plugin's own repo
+    for (const branch of ['main', 'master']) {
+      try {
+        const url = `https://raw.githubusercontent.com/${plugRepo}/${branch}/.claude-plugin/plugin.json`
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+        if (res.ok) {
+          const pj = await res.json() as Record<string, unknown>
+          const authorObj = pj.author
+          let author: string | null = null
+          let authorEmail: string | null = null
+          if (typeof authorObj === 'string') author = authorObj
+          else if (authorObj && typeof authorObj === 'object') {
+            author = (authorObj as Record<string, string>).name || null
+            authorEmail = (authorObj as Record<string, string>).email || null
+          }
+          pluginMetadata[name] = {
+            description: (pj.description as string) || pluginMktMeta[name]?.description || null,
+            author, authorEmail,
+            license: (pj.license as string) || null,
+            homepage: (pj.homepage as string) || null,
+            repository: (pj.repository as string) || pluginMktMeta[name]?.repository || null,
+            keywords: Array.isArray(pj.keywords) ? pj.keywords as string[] : null,
+          }
+          return
+        }
+      } catch { /* try next branch */ }
+    }
+    // Fallback: use whatever marketplace.json had
+    if (pluginMktMeta[name]) {
+      pluginMetadata[name] = {
+        description: pluginMktMeta[name].description || null,
+        author: null, authorEmail: null, license: null, homepage: null,
+        repository: pluginMktMeta[name].repository || null, keywords: null,
+      }
+    }
+  }))
+
   // Local marketplace version
   const mktPath = join(MARKETPLACES_DIR, marketplaceName)
   const localMktJson = await readJsonSafe(join(mktPath, '.claude-plugin', 'marketplace.json'))
@@ -766,6 +827,7 @@ async function handleCheckUpdates(marketplaceName?: string, force?: boolean) {
     remoteVersion,
     marketplaceOutdated,
     pluginUpdates,
+    pluginMetadata,
   }
 
   // Cache successful result for 5 minutes

@@ -1,8 +1,8 @@
 {
   "uid": "794461",
-  "status": "running",
+  "status": "completed",
   "created": "2026-03-23T02:56:36.182941",
-  "updated": "2026-03-23T03:05:21.116785",
+  "updated": "2026-03-23T03:09:51.419665",
   "current_loop": 4,
   "current_iter": 1,
   "loops": {
@@ -37,5 +37,5 @@
       "files_clean": []
     }
   },
-  "committed": false
+  "committed": true
 }

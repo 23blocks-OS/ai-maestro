@@ -34,6 +34,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
       keys.add(getSkillKey(skill))
     }
     return keys
+  // getSkillKey is a stable module-level function — not a React value, omitted from deps
   }, [selectedSkills])
 
   // Load marketplace skills with abort support
@@ -71,7 +72,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      // Guard name against null/undefined just as description is guarded
+      s => (s.name || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
     )
   }, [searchQuery, marketplaceSkills])
 
@@ -187,11 +189,13 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               </div>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
-                const key = `marketplace:${skill.id}`
+                // Use nullish fallback so a missing id never produces key="undefined"
+                const skillId = skill.id ?? skill.name ?? 'unknown'
+                const key = `marketplace:${skillId}`
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
-                    key={skill.id}
+                    key={skillId}
                     role="button"
                     tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -203,11 +207,13 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (isSelected) {
                         onRemoveSkill(key)
                       } else {
+                        // Use skillId (the already-resolved fallback) as id so that getSkillKey
+                        // on the stored skill produces a key consistent with the selectedKeys Set.
                         onAddSkill({
                           type: 'marketplace',
-                          id: skill.id,
-                          marketplace: skill.marketplace,
-                          plugin: skill.plugin,
+                          id: skillId,
+                          marketplace: skill.marketplace ?? '',
+                          plugin: skill.plugin ?? '',
                         })
                       }
                     }}
@@ -215,11 +221,17 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        // Use skillId (the already-resolved fallback) as id so that getSkillKey
+                        // on the stored skill produces a key consistent with the selectedKeys Set.
+                        else onAddSkill({ type: 'marketplace', id: skillId, marketplace: skill.marketplace ?? '', plugin: skill.plugin ?? '' })
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={(() => {
+                      const skillName = skill.name ?? 'Unknown'
+                      const detail = skill.description || [skill.plugin, skill.marketplace].filter(Boolean).join(' / ')
+                      return detail ? `${skillName}: ${detail}` : skillName
+                    })()}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -227,9 +239,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       <Package className={`w-4 h-4 ${isSelected ? 'text-cyan-400' : 'text-gray-400'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-200">{skill.name}</p>
+                      <p className="text-sm font-medium text-gray-200">{skill.name ?? 'Unknown'}</p>
                       <p className="text-xs text-gray-500 truncate">
-                        {skill.description || `${skill.plugin} / ${skill.marketplace}`}
+                        {skill.description || `${skill.plugin ?? ''} / ${skill.marketplace ?? ''}`}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
@@ -270,8 +282,17 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'core':
       return `core:${skill.name}`
     case 'marketplace':
-      return `marketplace:${skill.id}`
+      // The PluginSkillSelection.id for marketplace skills is always a resolved, non-null
+      // string when set by this picker (via `skill.id ?? skill.name ?? 'unknown'`).
+      // For data loaded from storage that predates this guarantee, the same three-tier
+      // resolution is applied here so that getSkillKey always produces the same key as
+      // the picker's click handler would for the same logical skill.
+      return `marketplace:${(skill as { id?: string | null; name?: string | null }).id ?? (skill as { name?: string | null }).name ?? 'unknown'}`
     case 'repo':
       return `repo:${skill.url}:${skill.skillPath}`
+    default:
+      // Exhaustive check: all valid PluginSkillSelection types are handled above.
+      // An unknown type indicates corrupted data and must not silently produce a key.
+      throw new Error(`Invalid skill type: ${(skill as PluginSkillSelection).type}`)
   }
 }

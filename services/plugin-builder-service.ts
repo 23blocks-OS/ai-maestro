@@ -140,26 +140,52 @@ function validateSkillPath(skillPath: string): string | null {
   return null
 }
 
-function validateBuildConfig(config: PluginBuildConfig): string | null {
-  const nameErr = validatePluginName(config.name)
+function validateBuildConfig(config: unknown): string | null {
+  // Guard against non-object inputs before accessing any property
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return 'Request body must be a JSON object'
+  }
+
+  // Cast to a loose record so property accesses below are type-safe
+  const c = config as Record<string, unknown>
+
+  const nameErr = validatePluginName(c.name as string)
   if (nameErr) return nameErr
 
-  if (!config.version || typeof config.version !== 'string') return 'Version is required'
-  if (!SEMVER_RE.test(config.version)) return 'Version must be valid semver (e.g., 1.0.0)'
+  if (!c.version || typeof c.version !== 'string') return 'Version is required'
+  if (!SEMVER_RE.test(c.version)) return 'Version must be valid semver (e.g., 1.0.0)'
 
-  if (!config.skills || !Array.isArray(config.skills) || config.skills.length === 0) {
+  if (!c.skills || !Array.isArray(c.skills) || c.skills.length === 0) {
     return 'At least one skill must be selected'
   }
 
   // Validate each skill selection
-  for (const skill of config.skills) {
-    if (skill.type === 'repo') {
-      const urlErr = validateGitUrl(skill.url)
-      if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
-      const refErr = validateGitRef(skill.ref)
-      if (refErr) return `Repo skill "${skill.name}": ${refErr}`
-      const pathErr = validateSkillPath(skill.skillPath)
-      if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+  for (const skill of c.skills) {
+    if (!skill || typeof skill !== 'object' || Array.isArray(skill)) {
+      return 'Each skill must be a JSON object'
+    }
+    const s = skill as Record<string, unknown>
+
+    // All skill types must have a valid name — skill.name flows into manifest map keys,
+    // so characters like '/' or '\0' would produce broken paths during the build.
+    const nameErr = validatePluginName(s.name as string)
+    if (nameErr) return `Skill "${s.name}": ${nameErr}`
+
+    if (s.type === 'repo') {
+      const urlErr = validateGitUrl(s.url as string)
+      if (urlErr) return `Repo skill "${s.name}": ${urlErr}`
+      const refErr = validateGitRef(s.ref as string)
+      if (refErr) return `Repo skill "${s.name}": ${refErr}`
+      const pathErr = validateSkillPath(s.skillPath as string)
+      if (pathErr) return `Repo skill "${s.name}": ${pathErr}`
+    } else if (s.type === 'marketplace') {
+      // marketplace and plugin are concatenated into a local filesystem path via
+      // path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', marketplace, plugin).
+      // Without validation, a value like '../../etc' escapes the marketplaces root.
+      const marketplaceErr = validateSkillPath(s.marketplace as string)
+      if (marketplaceErr) return `Marketplace skill "${s.name}": marketplace — ${marketplaceErr}`
+      const pluginErr = validateSkillPath(s.plugin as string)
+      if (pluginErr) return `Marketplace skill "${s.name}": plugin — ${pluginErr}`
     }
   }
 
@@ -172,14 +198,24 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 
 function evictStaleBuildResults(): void {
   const now = Date.now()
+
+  // Collect stale IDs first — deleting Map entries during for...of iteration can cause
+  // entries that haven't been visited yet to be skipped (per ECMAScript Map iterator spec).
+  const staleIds: string[] = []
   for (const [id, result] of buildResults) {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
-      buildResults.delete(id)
-      // Best-effort cleanup of build directory
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      staleIds.push(id)
     }
+  }
+  for (const id of staleIds) {
+    buildResults.delete(id)
+    // Best-effort cleanup of build directory — log failures so disk-space issues are
+    // visible instead of silently accumulating stale directories.
+    const buildDir = path.join(BUILDS_DIR, id)
+    fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`[evictStaleBuildResults] Failed to remove stale build dir ${buildDir}:`, err)
+    })
   }
 
   // If still over limit, evict oldest
@@ -190,7 +226,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`[evictStaleBuildResults] Failed to remove over-limit build dir ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -242,7 +280,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Path must point to the specific plugin directory, not the marketplace root.
+    // Plugins are installed under marketplaces/<marketplace>/<plugin>.
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -304,23 +344,28 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
  * Build a plugin from a manifest.
  * Writes manifest to temp dir, runs build-plugin.sh, captures output.
  */
-export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceResult<PluginBuildResult>> {
-  // Validate inputs (protects both Next.js routes and headless router)
+export async function buildPlugin(config: unknown): Promise<ServiceResult<PluginBuildResult>> {
+  // Validate inputs — accepts unknown so callers never need an unsafe cast.
+  // All field-level checks live inside validateBuildConfig.
   const validationError = validateBuildConfig(config)
   if (validationError) {
     return { error: validationError, status: 400 }
   }
 
-  // Concurrency guard
+  // After full validation the shape is guaranteed; narrow to the concrete type.
+  const validatedConfig = config as PluginBuildConfig
+
+  // Concurrency guard — increment before the try block so that the outer catch
+  // can never decrement a counter that was never incremented (accounting error).
   if (activeOps >= MAX_CONCURRENT_OPS) {
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
+  activeOps++
 
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -328,7 +373,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     await fs.mkdir(buildDir, { recursive: true })
 
     // Generate manifest
-    const manifest = generateManifest(config)
+    const manifest = generateManifest(validatedConfig)
 
     // Write manifest to build directory
     await fs.writeFile(
@@ -341,14 +386,16 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     await fs.chmod(path.join(buildDir, 'build-plugin.sh'), 0o755)
 
     // If there are core skills, symlink the src directory
-    const hasCoreSkills = config.skills.some(s => s.type === 'core')
+    const hasCoreSkills = validatedConfig.skills.some(s => s.type === 'core')
     if (hasCoreSkills) {
       const srcDir = path.join(PLUGIN_DIR, 'src')
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (symlinkErr) {
+        // If symlink fails (e.g., permissions, cross-device), copy instead (skipping symlinks in source).
+        // Log the original error so disk/permission issues are visible rather than silently falling back.
+        console.warn(`[buildPlugin] Failed to symlink core skills directory from ${srcDir} to ${linkTarget}. Falling back to copy.`, symlinkErr)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -363,18 +410,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously. runBuild owns all buildResults state updates (both
+    // success and failure paths) via its own internal try/catch, so the outer .catch
+    // must never write to buildResults — doing so would race with runBuild's atomic
+    // replacement and could overwrite a 'complete' or 'failed' result with a stale
+    // snapshot taken before runBuild ran.
     runBuild(buildId, buildDir, manifest).catch(err => {
-      console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
-      const r = buildResults.get(buildId)
-      if (r && r.status === 'building') {
-        buildResults.set(buildId, {
-          ...r,
-          status: 'failed',
-          logs: [err instanceof Error ? err.message : String(err)],
-        })
-      }
+      console.error(`Build ${buildId} failed unexpectedly outside runBuild:`, err)
     }).finally(() => {
       activeOps = Math.max(0, activeOps - 1)
     })
@@ -448,7 +490,12 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
 
     const exitCode = (error as any)?.code
-    const message = error instanceof Error ? error.message : String(error)
+    let message = error instanceof Error ? error.message : String(error)
+    // Append stderr from execPromise errors so callers get full git diagnostics
+    const stderr = (error as any)?.stderr
+    if (stderr) {
+      message += `\nStderr: ${stderr}`
+    }
 
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
@@ -506,9 +553,15 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     // Stage and commit
     await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir })
 
-    // Check if there are changes to commit
-    const statusOutput = await execPromise('git', ['status', '--porcelain'], { cwd: pushDir })
-    if (!statusOutput.trim()) {
+    // Check if there are staged changes to commit.
+    // 'git status --porcelain' reports the entire working tree, including untracked and
+    // unstaged changes in the cloned repo that have nothing to do with our manifest file.
+    // This causes 'git commit' to fail with "nothing to commit" when the manifest file
+    // was already up to date (not staged), but other dirt was present in the work tree.
+    // 'git diff --cached --name-only' inspects only the staging area, so it is true if
+    // and only if plugin.manifest.json was actually changed and staged by the 'git add' above.
+    const diffOutput = await execPromise('git', ['diff', '--cached', '--name-only'], { cwd: pushDir })
+    if (!diffOutput.trim()) {
       await fs.rm(pushDir, { recursive: true, force: true })
       return {
         data: {
@@ -526,6 +579,14 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
     ], { cwd: pushDir })
 
+    // Set the remote URL to include credentials when a token is provided.
+    // This is required for authenticated pushes in non-interactive (server) environments.
+    if (config.token) {
+      const parsed = new URL(config.forkUrl)
+      const authedUrl = `https://x-access-token:${config.token}@${parsed.host}${parsed.pathname}`
+      await execPromise('git', ['remote', 'set-url', 'origin', authedUrl], { cwd: pushDir })
+    }
+
     // Push
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
 
@@ -541,7 +602,12 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     }
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
-    const message = error instanceof Error ? error.message : String(error)
+    let message = error instanceof Error ? error.message : String(error)
+    // Append stderr from execPromise errors so callers get full git diagnostics
+    const stderr = (error as any)?.stderr
+    if (stderr) {
+      message += `\nStderr: ${stderr}`
+    }
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
@@ -573,20 +639,33 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const stats = { skills: 0, scripts: 0, hooks: 0 }
 
     try {
-      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(() => [] as string[])
+      // Suppress only ENOENT (directory absent) — log unexpected errors so disk/permission
+      // issues are visible in logs rather than silently producing wrong zero counts.
+      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch((err: NodeJS.ErrnoException) => {
+        if (err.code !== 'ENOENT') console.warn(`[runBuild] Error reading skills dir for build ${buildId}:`, err)
+        return [] as string[]
+      })
       stats.skills = skillEntries.length
 
-      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(() => [] as string[])
+      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch((err: NodeJS.ErrnoException) => {
+        if (err.code !== 'ENOENT') console.warn(`[runBuild] Error reading scripts dir for build ${buildId}:`, err)
+        return [] as string[]
+      })
       stats.scripts = scriptEntries.length
 
       try {
         await fs.access(path.join(outputPath, 'hooks', 'hooks.json'))
         stats.hooks = 1
-      } catch {
+      } catch (err: unknown) {
+        // Only suppress "file not found" — log unexpected errors (permissions, etc.)
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn(`[runBuild] Error accessing hooks.json for build ${buildId}:`, err)
+        }
         stats.hooks = 0
       }
-    } catch {
-      // Stats collection failed — non-critical
+    } catch (statsError) {
+      // Outer catch: non-critical failure during stats collection — log for visibility
+      console.warn(`[runBuild] Stats collection failed for build ${buildId}:`, statsError)
     }
 
     // Atomic replacement: avoids torn reads from polling clients
@@ -617,7 +696,17 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
  */
 async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
   const skills: RepoSkillInfo[] = []
-  const realDir = await fs.realpath(dir)
+
+  // Resolve the canonical root path upfront so symlink traversal can be detected.
+  // If realpath fails (e.g. the directory was already removed) return empty — there
+  // is nothing useful to scan.
+  let realDir: string
+  try {
+    realDir = await fs.realpath(dir)
+  } catch (err) {
+    console.warn(`[findSkillsInDir] Failed to resolve real path for initial directory ${dir}:`, err)
+    return []
+  }
 
   async function scan(currentDir: string, depth: number = 0) {
     if (depth > 5) return
@@ -635,14 +724,25 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           const skillFolder = path.basename(path.dirname(fullPath))
           const relativePath = path.relative(dir, path.dirname(fullPath))
 
+          // Use String() coercion (not type assertion) so non-string YAML values
+          // (e.g., numeric `name: 123`) are properly converted to strings rather
+          // than silently bypassing the `||` fallback as a truthy non-string.
           skills.push({
-            name: (frontmatter.name as string) || skillFolder,
+            name: frontmatter.name != null ? String(frontmatter.name) : skillFolder,
             path: relativePath,
-            description: (frontmatter.description as string) || '',
+            description: frontmatter.description != null ? String(frontmatter.description) : '',
           })
         } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-          // Verify the directory is still within the scan root
-          const realPath = await fs.realpath(fullPath)
+          // Verify the directory is still within the scan root.
+          // Wrap in its own try/catch so a broken symlink or permission error on one
+          // sub-directory doesn't abort scanning of sibling directories.
+          let realPath: string
+          try {
+            realPath = await fs.realpath(fullPath)
+          } catch (realpathErr) {
+            console.warn(`[findSkillsInDir] Failed to resolve real path for ${fullPath}. Skipping.`, realpathErr)
+            continue
+          }
           if (realPath.startsWith(realDir)) {
             await scan(fullPath, depth + 1)
           }
@@ -683,30 +783,54 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
 
 /**
  * Sanitize a URL into a valid source name.
+ * Falls back to 'unnamed-source' when all characters are stripped (e.g., input is "https://---.git").
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  return sanitized || 'unnamed-source'
 }
 
 /**
+ * Trusted commands that may be executed by this service.
+ * execFile does not invoke a shell, but an unrestricted command string could still
+ * allow callers to execute arbitrary binaries. An explicit allowlist prevents any
+ * future code path from accidentally passing user-controlled input as the command.
+ */
+const ALLOWED_COMMANDS = new Set(['git'])
+
+/**
  * Promisified execFile with stdout capture.
+ * Rejects immediately if `command` is not in ALLOWED_COMMANDS and is not an
+ * absolute path confined to BUILDS_DIR — preventing command-injection escalation.
  */
 function execPromise(
   command: string,
   args: string[],
   options: { cwd?: string; timeout?: number } = {}
 ): Promise<string> {
+  // Guard: command must be a known safe binary name or an absolute path inside
+  // the builds temp directory (the only non-git executable this service runs).
+  if (!ALLOWED_COMMANDS.has(command)) {
+    if (!path.isAbsolute(command)) {
+      return Promise.reject(new Error(`execPromise: command must be an absolute path or a known safe command, got: "${command}"`))
+    }
+    const resolvedCommand = path.normalize(command)
+    if (!resolvedCommand.startsWith(path.normalize(BUILDS_DIR) + path.sep)) {
+      return Promise.reject(new Error(`execPromise: command path "${command}" is outside the allowed builds directory`))
+    }
+  }
+
   return new Promise((resolve, reject) => {
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — git clones and build-script output can be large
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

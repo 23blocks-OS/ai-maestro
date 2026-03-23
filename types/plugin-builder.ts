@@ -119,6 +119,7 @@ export interface PluginPushConfig {
   forkUrl: string                      // User's fork URL
   manifest: PluginManifest             // Generated manifest to push
   branch?: string                      // Target branch (default: "main")
+  token?: string                       // GitHub PAT for authenticated push (required for private forks)
 }
 
 export interface PluginPushResult {

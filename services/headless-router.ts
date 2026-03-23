@@ -312,8 +312,13 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
+  // Check only for error presence — data may be null/undefined on error too
+  if (result.error) {
+    // Validate result.status is a real HTTP status code; default to 500 when absent/invalid
+    const status = typeof result.status === 'number' && result.status >= 100 && result.status <= 599
+      ? result.status
+      : 500
+    sendJson(res, status, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
   }
@@ -393,17 +398,17 @@ const routes: Route[] = [
   // Config & System
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSystemConfig())
+    sendServiceResult(res, await getSystemConfig())
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getOrganization())
+    sendServiceResult(res, await getOrganization())
   }},
   { method: 'POST', pattern: /^\/api\/organization$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, setOrganizationName(body))
   }},
   { method: 'GET', pattern: /^\/api\/subconscious$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSubconsciousStatus())
+    sendServiceResult(res, await getSubconsciousStatus())
   }},
   { method: 'GET', pattern: /^\/api\/debug\/pty$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getPtyDebugInfo())
@@ -420,10 +425,10 @@ const routes: Route[] = [
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getExportJobStatus(params.jobId))
+    sendServiceResult(res, await getExportJobStatus(params.jobId))
   }},
   { method: 'DELETE', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteExportJob(params.jobId))
+    sendServiceResult(res, await deleteExportJob(params.jobId))
   }},
 
   // =========================================================================
@@ -433,13 +438,13 @@ const routes: Route[] = [
     try {
       if (query.local === 'true') {
         const result = await listLocalSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: false })
+        sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: false } })
       } else {
         const result = await listSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
+        sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: result.fromCache } })
       }
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+    } catch (error: any) {
+      sendServiceResult(res, { status: error?.status || 500, error: error?.message || 'Failed to fetch sessions' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -475,9 +480,9 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
       const activity = await getActivity()
-      sendJson(res, 200, { activity })
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
+      sendServiceResult(res, { status: 200, data: { activity } })
+    } catch (error: any) {
+      sendServiceResult(res, { status: error?.status || 500, error: error?.message || 'Failed to fetch activity' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
@@ -490,10 +495,12 @@ const routes: Route[] = [
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    // Parse once and reuse — avoids duplicate parseInt calls and ensures NaN guard is consistent
+    const timeoutVal = parseInt(query.timeout, 10)
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: !isNaN(timeoutVal) ? timeoutVal : undefined,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -533,15 +540,25 @@ const routes: Route[] = [
       const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
 
       if (!file) {
-        sendJson(res, 400, { error: 'No file provided' })
+        sendServiceResult(res, { status: 400, error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Return 400 with a clear message instead of letting the outer catch swallow it
+          sendServiceResult(res, { status: 400, error: 'Invalid JSON format for options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
+      // Catches errors from readRawBody/parseMultipart; importAgent returns a result object rather than throwing
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Unknown error during agent import' })
     }
   }},
   // Agent directory
@@ -611,7 +628,8 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      // Guard against NaN: parseInt("abc") === NaN which would corrupt pagination
+      limit: query.limit && !isNaN(parseInt(query.limit, 10)) ? parseInt(query.limit, 10) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -635,13 +653,13 @@ const routes: Route[] = [
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: query.limit && !isNaN(parseInt(query.limit, 10)) ? parseInt(query.limit, 10) : undefined,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: query.minConfidence && !isNaN(parseFloat(query.minConfidence)) ? parseFloat(query.minConfidence) : undefined,
       tier: (query.tier as any) || undefined,
-      view: query.view,
-      memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      view: query.view || undefined,
+      memoryId: query.id || undefined,
+      maxTokens: query.maxTokens && !isNaN(parseInt(query.maxTokens, 10)) ? parseInt(query.maxTokens, 10) : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -664,15 +682,15 @@ const routes: Route[] = [
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: query.limit && !isNaN(parseInt(query.limit, 10)) ? parseInt(query.limit, 10) : undefined,
+      minScore: query.minScore && !isNaN(parseFloat(query.minScore)) ? parseFloat(query.minScore) : undefined,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: query.startTs && !isNaN(parseInt(query.startTs, 10)) ? parseInt(query.startTs, 10) : undefined,
+      endTs: query.endTs && !isNaN(parseInt(query.endTs, 10)) ? parseInt(query.endTs, 10) : undefined,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: query.bm25Weight && !isNaN(parseFloat(query.bm25Weight)) ? parseFloat(query.bm25Weight) : undefined,
+      semanticWeight: query.semanticWeight && !isNaN(parseFloat(query.semanticWeight)) ? parseFloat(query.semanticWeight) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -702,7 +720,15 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: query.action,
+      name: query.name || undefined,
+      from: query.from || undefined,
+      to: query.to || undefined,
+      project: query.project || undefined,
+      nodeId: query.nodeId || undefined,
+      depth: query.depth && !isNaN(parseInt(query.depth, 10)) ? parseInt(query.depth, 10) : undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -714,7 +740,12 @@ const routes: Route[] = [
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: query.action,
+      name: query.name || undefined,
+      column: query.column || undefined,
+      database: query.database || undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -739,14 +770,23 @@ const routes: Route[] = [
 
   // Docs
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDocs(params.id, query as any))
+    sendServiceResult(res, await queryDocs(params.id, {
+      action: query.action,
+      q: query.q || undefined,
+      keyword: query.keyword || undefined,
+      type: query.type || undefined,
+      docId: query.docId || undefined,
+      limit: query.limit && !isNaN(parseInt(query.limit, 10)) ? parseInt(query.limit, 10) : undefined,
+      project: query.project || undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await indexDocs(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await clearDocs(params.id, query.project))
+    // Pass undefined (not empty string) when project is absent — clearDocs treats undefined as "clear all"
+    sendServiceResult(res, await clearDocs(params.id, query.project || undefined))
   }},
 
   // Skills
@@ -769,7 +809,12 @@ const routes: Route[] = [
     sendServiceResult(res, addSkill(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+    // skill is a required identifier — reject early rather than passing an empty string
+    if (!query.skill) {
+      sendJson(res, 400, { error: 'skill query parameter is required' })
+      return
+    }
+    sendServiceResult(res, removeSkill(params.id, query.skill))
   }},
 
   // Subconscious
@@ -790,12 +835,18 @@ const routes: Route[] = [
     sendServiceResult(res, updateRepos(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeRepo(params.id, query.url || ''))
+    // url is a required identifier — reject early rather than passing an empty string
+    if (!query.url) {
+      sendJson(res, 400, { error: 'url query parameter is required' })
+      return
+    }
+    sendServiceResult(res, removeRepo(params.id, query.url))
   }},
 
   // Playback
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, getPlaybackState(params.id, query.sessionId))
+    // sessionId is optional — pass undefined (not an absent property) when not provided
+    sendServiceResult(res, getPlaybackState(params.id, query.sessionId || undefined))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -807,7 +858,8 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+        // Use sendServiceResult so the status code is validated (not passed raw/falsy)
+        sendServiceResult(res, result)
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -820,7 +872,7 @@ const routes: Route[] = [
         'X-Export-Version': '1.0.0',
       })
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Failed to export agent' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -897,26 +949,28 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
+      sendServiceResult(res, { status: 200, data: { metadata: result.data?.agent?.metadata || {} } })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
-    const result = updateAgentById(params.id, { metadata })
+    // await ensures we hold the resolved ServiceResult, not an unresolved Promise, even if updateAgentById becomes async
+    const result = await updateAgentById(params.id, { metadata })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      sendServiceResult(res, { status: 200, data: { metadata: result.data?.agent?.metadata } })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = updateAgentById(params.id, { metadata: {} })
+    // await ensures we hold the resolved ServiceResult, not an unresolved Promise, even if updateAgentById becomes async
+    const result = await updateAgentById(params.id, { metadata: {} })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { success: true })
+      sendServiceResult(res, { status: 200, data: { success: true } })
     }
   }},
 
@@ -1024,10 +1078,11 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    sendServiceResult(res, listPendingMessages(authHeader, query.limit && !isNaN(parseInt(query.limit, 10)) ? parseInt(query.limit, 10) : undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
+    // Pass null (not empty string) when id is absent — service expects string | null
     sendServiceResult(res, acknowledgePendingMessage(authHeader, query.id || null))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res) => {
@@ -1105,10 +1160,9 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await notifyTeamAgents(body))
   }},
-  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, _params) => {
-    // GET single task not implemented in route — taskId routes only have PUT/DELETE
-    sendJson(res, 405, { error: 'Method not allowed' })
-  }},
+  // GET /api/teams/:id/tasks/:taskId is intentionally not registered — no implementation exists.
+  // Omitting the route causes the router to fall through to a 404, which correctly signals
+  // "resource not found" rather than the misleading 405 "method not allowed".
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, updateTeamTask(params.id, params.taskId, body))
@@ -1281,7 +1335,13 @@ export function createHeadlessRouter() {
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
+          // Headers not yet sent — we can still send a proper JSON error response.
           sendJson(res, 500, { error: 'Internal server error' })
+        } else {
+          // Headers were already sent (e.g. handler wrote headers then threw before ending).
+          // We cannot send a new error response, so destroy the socket to signal failure
+          // to the client instead of leaving the connection open indefinitely.
+          res.destroy()
         }
       }
 

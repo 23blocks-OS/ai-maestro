@@ -8,6 +8,10 @@ import PluginComposer from '@/components/plugin-builder/PluginComposer'
 import BuildAction from '@/components/plugin-builder/BuildAction'
 import type { PluginSkillSelection, PluginBuildConfig } from '@/types/plugin-builder'
 
+// Valid plugin names: start and end with alphanumeric, separators (hyphen/underscore)
+// must be surrounded by alphanumeric characters on both sides.
+const PLUGIN_NAME_REGEX = /^[a-zA-Z0-9]+(?:[_-][a-zA-Z0-9]+)*$/
+
 export default function PluginBuilderPage() {
   // Plugin metadata
   const [name, setName] = useState('my-custom-plugin')
@@ -42,14 +46,14 @@ export default function PluginBuilderPage() {
 
   // Validation
   const isValid = name.trim().length > 0
-    && /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
+    && PLUGIN_NAME_REGEX.test(name)
     && version.trim().length > 0
     && skills.length > 0
 
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
-    : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    : !PLUGIN_NAME_REGEX.test(name)
+    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only; cannot start/end with a separator, and separators must not be adjacent)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0
@@ -88,7 +92,7 @@ export default function PluginBuilderPage() {
           <PluginComposer
             name={name}
             version={version}
-            description={description}
+            description={description || undefined}
             includeHooks={includeHooks}
             skills={skills}
             onNameChange={setName}

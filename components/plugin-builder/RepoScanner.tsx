@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
@@ -18,8 +18,26 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
+  // Clear stale scan results whenever the user changes the URL or ref so the
+  // displayed skills always belong to the current inputs.
+  useEffect(() => {
+    setScanResult(null)
+  }, [url, ref])
+
+  // Abort any in-flight fetch when the component unmounts to prevent resource leaks.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
   const handleScan = async () => {
     if (!url.trim()) return
+
+    // Capture inputs at scan-start so that a mid-flight input change cannot
+    // associate the results with the wrong repository/branch (stale closure bug).
+    const scanUrl = url.trim()
+    const scanRef = ref.trim() || 'main' // Use 'main' if ref is empty, consistent with onChange defaulting
 
     // Abort any in-flight scan
     abortRef.current?.abort()
@@ -34,7 +52,8 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        // Use the captured values so the request body matches what we validate below.
+        body: JSON.stringify({ url: scanUrl, ref: scanRef }),
         signal,
       })
 
@@ -45,13 +64,19 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       }
 
       const data: RepoScanResult = await res.json()
-      if (!signal.aborted) {
+      // Guard against both abort and input changes that occurred while the fetch
+      // was in flight — if the user changed url/ref the useEffect already cleared
+      // scanResult, so applying stale results would re-introduce wrong skills.
+      if (!signal.aborted && scanUrl === url.trim() && scanRef === (ref.trim() || 'main')) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        onSkillsFound(data.skills, scanUrl, scanRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
-      setError('Failed to connect to server')
+      // Guard state update so we don't call setState on an unmounted component
+      // (component unmount triggers abort, but a concurrent network failure can
+      // still reach here before the abort propagates).
+      if (!signal.aborted) setError('Failed to connect to server')
     } finally {
       if (!signal.aborted) setScanning(false)
     }
@@ -61,7 +86,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     onAddSkill({
       type: 'repo',
       url: url.trim(),
-      ref,
+      ref: ref.trim() || 'main', // Use 'main' if ref is empty, consistent with onChange and scan behaviour
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +118,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value.trim() || 'main')}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,7 +149,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Key must match exactly what the parent stores via onSkillsFound/onAddSkill:
+            // both url and ref are trimmed there, and ref is included for uniqueness.
+            const key = `repo:${url.trim()}:${ref.trim() || 'main'}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

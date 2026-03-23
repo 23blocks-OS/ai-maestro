@@ -129,6 +129,12 @@ Assemble agents into teams, run meetings in split-pane war rooms, and track task
 
 Custom avatars, personality profiles, and visual presence for every agent. When an agent has a face and a role, you instinctively assign it the right work — just like a real team.
 
+### Plugin Builder
+
+*Every agent needs a different skill set. Installing the right skills by hand was tedious.*
+
+A visual, browser-based tool for composing custom Claude Code plugins without touching any config files. Pick skills from core AI Maestro skills, your local marketplace, or any public GitHub repository. Combine them, set a name and version, and build — the plugin is assembled and ready to install in seconds. Available at `http://localhost:23000/plugin-builder`.
+
 ---
 
 ## Who Is This For
@@ -171,14 +177,15 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 **Going deeper:**
 - [Multi-Machine Setup](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
 - [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
-- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
+- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/AGENT-INTELLIGENCE.md#1-code-graph-visualization)
 - [Operations Guide](./docs/OPERATIONS-GUIDE.md)
 
 **Troubleshooting:**
 - [Common Issues](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md) · [Windows Installation](./docs/WINDOWS-INSTALLATION.md)
 
 **Extending:**
-- [Plugin Development](./plugin/README.md) · [API Reference](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
+- [Plugin Development](./plugin/README.md)
+- [Plugin Builder](./docs/plugin-builder.html) — Visual tool for composing custom Claude Code plugins from multiple skill sources
 
 ---
 

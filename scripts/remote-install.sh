@@ -22,9 +22,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
@@ -37,7 +34,7 @@ TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
 # Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
 if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
-    RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+    RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
 fi
 
 # Auto-disable typing animation over SSH
@@ -204,6 +201,12 @@ parse_args() {
     while [ $# -gt 0 ]; do
         case $1 in
             -d|--dir)
+                # Validate that a non-empty path argument follows the flag
+                if [ $# -lt 2 ] || [ -z "$2" ]; then
+                    maestro_fail "Missing directory path for $1"
+                    show_help
+                    exit 1
+                fi
                 INSTALL_DIR="${2/#\~/$HOME}"
                 shift 2
                 ;;
@@ -233,6 +236,24 @@ parse_args() {
                 shift
                 ;;
             -p|--port)
+                # Validate that a non-empty, numeric port argument follows the flag
+                if [ $# -lt 2 ] || [ -z "$2" ]; then
+                    maestro_fail "Missing port number for $1"
+                    show_help
+                    exit 1
+                fi
+                case "$2" in
+                    *[!0-9]*)
+                        maestro_fail "Invalid port number '$2' for $1 — must be a positive integer"
+                        show_help
+                        exit 1
+                        ;;
+                esac
+                if [ "$2" -lt 1 ] || [ "$2" -gt 65535 ]; then
+                    maestro_fail "Port number '$2' for $1 is out of range (1-65535)"
+                    show_help
+                    exit 1
+                fi
                 PORT="$2"
                 shift 2
                 ;;
@@ -263,7 +284,8 @@ show_help() {
     echo "  -y, --yes           Non-interactive mode (auto-accept all prompts)"
     echo "  --fast              Disable typing animation (auto-enabled over SSH)"
     echo "  --skip-prereqs      Skip prerequisite installation"
-    echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
+    echo "  --skip-tools, --skip-messaging
+                      Skip agent tools (messaging, memory, graph, docs)"
     echo "  --skip-ai-tool      Skip AI coding assistant installation"
     echo "  --skip-gateways     Skip messaging gateway selection"
     echo "  -p, --port PORT     Dashboard port (default: 23000, or AIMAESTRO_PORT env var)"
@@ -361,7 +383,7 @@ uninstall() {
             pm2 stop "${gw}-gateway" 2>/dev/null || true
             pm2 delete "${gw}-gateway" 2>/dev/null || true
         done
-        pm2 save 2>/dev/null || true
+        pm2 save 2>/dev/null || maestro_warn "Failed to save PM2 process list after stop"
         maestro_info "Stopped PM2 services"
     fi
 
@@ -543,7 +565,6 @@ act1_hello_and_discovery() {
     fi
 
     # Claude Code
-    NEED_CLAUDE=false
     HAS_CLAUDE=false
     if command -v claude &>/dev/null; then
         local claude_ver
@@ -552,24 +573,19 @@ act1_hello_and_discovery() {
         HAS_CLAUDE=true
     else
         maestro_check "Claude Code" "${YELLOW}not found${NC}"
-        NEED_CLAUDE=true
     fi
 
     # Codex
-    HAS_CODEX=false
     if command -v codex &>/dev/null; then
         maestro_check "OpenAI Codex" "${GREEN}✓${NC}"
-        HAS_CODEX=true
     else
         maestro_check "OpenAI Codex" "${DIM}not found${NC}"
     fi
 
     # Tailscale
     NEED_TAILSCALE=false
-    HAS_TAILSCALE=false
     if command -v tailscale &>/dev/null; then
         maestro_check "Tailscale" "${GREEN}✓${NC}"
-        HAS_TAILSCALE=true
     else
         maestro_check "Tailscale" "${DIM}not found${NC}"
         NEED_TAILSCALE=true
@@ -695,10 +711,17 @@ act2_install_prerequisites() {
         local npm_prefix
         npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
         if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
-            npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            npm install -g yarn || true
         else
             maestro_info "System Node detected — using sudo for global npm install..."
-            sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            sudo npm install -g yarn || true
+        fi
+        # Verify yarn is actually available — a failed install must stop the build
+        # because act3_clone_and_build runs `yarn install` unconditionally.
+        if ! command -v yarn &>/dev/null; then
+            maestro_fail "Yarn installation failed — it is required to build AI Maestro."
+            maestro_info "Install manually: npm install -g yarn (or: sudo npm install -g yarn)"
+            exit 1
         fi
         maestro_ok "Yarn installed"
     fi
@@ -759,50 +782,47 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package — always show stderr so the user can
+        # diagnose failures in both interactive and non-interactive (CI) modes.
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
-            else
-                npm install -g "$pkg" 2>/dev/null
-            fi
+            npm install -g "$pkg"
         }
 
         case "$ai_choice" in
             1)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
-                } || {
+                else
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
-                }
+                fi
                 ;;
             2)
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
-                } || {
+                else
                     maestro_warn "Could not install Codex automatically"
-                }
+                fi
                 ;;
             3)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
-                } || maestro_warn "Could not install Claude Code"
+                else
+                    maestro_warn "Could not install Claude Code"
+                fi
 
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
-                } || maestro_warn "Could not install Codex"
+                else
+                    maestro_warn "Could not install Codex"
+                fi
                 ;;
             4)
                 maestro_info "Skipping AI tool installation"
@@ -823,7 +843,6 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
-            HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
         fi
@@ -950,10 +969,12 @@ act3_clone_and_build() {
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ] || [ "$REPLY" = "" ]; then
                 maestro_step 1 4 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
-                # Count stashes before so we only pop what we pushed (avoids race condition)
+                # Count stashes before so we only pop what we pushed (avoids race condition).
+                # --include-untracked ensures untracked files in INSTALL_DIR are also
+                # stashed; without it, git pull could overwrite or conflict with them silently.
                 local stash_count_before
                 stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
-                git stash --quiet 2>/dev/null || true
+                git stash --include-untracked --quiet 2>/dev/null || true
                 local stash_count_after
                 stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
                 local had_stash=false
@@ -964,16 +985,25 @@ act3_clone_and_build() {
                 if [ "$had_stash" = true ]; then
                     if ! git stash pop --quiet 2>/dev/null; then
                         maestro_warn "Could not cleanly restore your local changes after update."
-                        maestro_info "Your changes are saved in git stash. To recover:"
-                        echo "   cd $INSTALL_DIR && git stash list"
-                        echo "   git stash pop   # (resolve any conflicts manually)"
+                        # git stash pop with conflicts applies the changes to the working tree
+                        # but leaves conflict markers — the stash entry is consumed.
+                        # Recovery: resolve the conflict markers in the files, then stage them.
+                        maestro_info "Your changes were applied with conflicts. To resolve:"
+                        echo "   cd $INSTALL_DIR && git diff   # (review conflict markers)"
+                        echo "   git add .   # (after manually resolving each conflict)"
                     fi
                 fi
                 git submodule update --init --recursive 2>/dev/null || maestro_warn "Some submodules failed to update"
                 maestro_step 1 4 "Pulling latest changes..." "done"
 
                 maestro_step 2 4 "Installing dependencies..." ""
-                yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+                # Try silent first for cleaner output; fall back with full output on failure.
+                # A failed yarn install produces a broken node_modules — treat it as fatal.
+                if ! { yarn install --silent 2>/dev/null || yarn install; }; then
+                    maestro_fail "yarn install failed — cannot continue with a broken dependency tree."
+                    maestro_info "Check your network connection and try again."
+                    exit 1
+                fi
                 maestro_step 2 4 "Installing dependencies..." "done"
 
                 maestro_step 3 4 "Updating agent tools..." ""
@@ -987,9 +1017,9 @@ act3_clone_and_build() {
                 fi
                 maestro_step 3 4 "Updating agent tools..." "done"
 
-                # Update existing gateways
+                # Update existing gateways (honour --skip-gateways)
                 maestro_step 4 4 "Updating gateways..." ""
-                if [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
+                if [ "$SKIP_GATEWAYS" != true ] && [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
                     cd "$INSTALL_DIR/services"
                     git pull origin main 2>/dev/null || git pull 2>/dev/null || true
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
@@ -1029,7 +1059,13 @@ act3_clone_and_build() {
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
-    yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+    # Try silent first for cleaner output; fall back with full output on failure.
+    # A failed yarn install produces a broken node_modules — treat it as fatal.
+    if ! { yarn install --silent 2>/dev/null || yarn install; }; then
+        maestro_fail "yarn install failed — cannot continue with a broken dependency tree."
+        maestro_info "Check your network connection and try again."
+        exit 1
+    fi
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
     maestro_step 3 "$total_steps" "Setting up agent tools..." ""
@@ -1039,8 +1075,8 @@ act3_clone_and_build() {
     fi
     maestro_step 3 "$total_steps" "Setting up agent tools..." "done"
 
-    # Install selected gateways
-    if [ -n "$SELECTED_GATEWAYS" ]; then
+    # Install selected gateways (honour --skip-gateways)
+    if [ "$SKIP_GATEWAYS" != true ] && [ -n "$SELECTED_GATEWAYS" ]; then
         maestro_step 4 "$total_steps" "Installing gateways..." ""
         if git clone --depth 1 "$GATEWAYS_REPO" "$INSTALL_DIR/services" 2>/dev/null; then
             IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
@@ -1058,7 +1094,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1072,11 +1108,12 @@ act3_clone_and_build() {
                 fi
             done
             maestro_ok "Gateways installed: $SELECTED_GATEWAYS"
+            maestro_step 4 "$total_steps" "Installing gateways..." "done"
         else
             maestro_warn "Could not clone gateways repo — you can add them later"
             SELECTED_GATEWAYS=""
+            maestro_step 4 "$total_steps" "Installing gateways..." "skipped"
         fi
-        maestro_step 4 "$total_steps" "Installing gateways..." "done"
     fi
 
     local config_step=$total_steps
@@ -1102,28 +1139,29 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                # Only restart the ai-maestro process — never restart all PM2 processes
+                # because that would affect unrelated services on the user's machine.
+                pm2 restart ai-maestro 2>/dev/null || maestro_warn "Could not restart 'ai-maestro' PM2 process — it may not be registered yet"
             else
-                # Kill old nohup process and restart
-                local old_pid
-                old_pid=$(lsof -ti:"$PORT" 2>/dev/null || true)
-                if [ -n "$old_pid" ]; then
-                    kill "$old_pid" 2>/dev/null || true
-                    sleep 2
-                fi
+                # Kill old nohup process(es) listening on PORT and restart.
+                # lsof -t outputs one PID per line; there may be multiple (listener +
+                # client connections), so pipe through xargs to kill each one correctly
+                # instead of passing a multi-line string as a single kill argument.
+                lsof -tiTCP:"$PORT" 2>/dev/null | xargs kill 2>/dev/null || true
+                sleep 2
                 mkdir -p "$INSTALL_DIR/logs"
                 nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
             fi
-            # Wait for service to come back up
+            # Wait for service to come back up — validate JSON response, not just HTTP 200
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
                     break
                 fi
                 sleep 1
@@ -1146,7 +1184,7 @@ act4_start_and_register() {
             else
                 pm2 start "yarn start" --name ai-maestro 2>/dev/null
             fi
-            pm2 save 2>/dev/null || true
+            pm2 save 2>/dev/null || maestro_warn "Failed to save PM2 process list — services may not restart automatically after reboot"
         else
             # No pm2 — start in background
             mkdir -p "$INSTALL_DIR/logs"
@@ -1154,11 +1192,11 @@ act4_start_and_register() {
             echo $! > "$INSTALL_DIR/logs/aimaestro.pid"
         fi
 
-        # Wait for service to come up
+        # Wait for service to come up — validate JSON response, not just HTTP 200
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
                 break
             fi
             sleep 1
@@ -1180,22 +1218,28 @@ act4_start_and_register() {
     AGENT_DIR="$HOME/my-first-agent"
     mkdir -p "$AGENT_DIR"
 
-    # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+    # Escape variables for use in a sed replacement string (not pattern).
+    # Only \ and & are special in a replacement string; \ must be escaped first,
+    # then & (two separate passes to avoid double-escaping).
+    # The | delimiter we use requires no escaping in the replacement side.
     local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/\\/\\\\/g; s/&/\\&/g')
+    local safe_version
+    safe_version=$(printf '%s' "$VERSION" | sed 's/\\/\\\\/g; s/&/\\&/g')
+    local safe_selected_gateways
+    safe_selected_gateways=$(printf '%s' "$SELECTED_GATEWAYS" | sed 's/\\/\\\\/g; s/&/\\&/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
         # Substitute install-time variables (portable sed)
         portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s|{{VERSION}}|${safe_version}|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s|{{SELECTED_GATEWAYS}}|${safe_selected_gateways}|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1208,7 +1252,12 @@ act4_start_and_register() {
         mkdir -p "$MAILMAN_DIR"
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
+            # Substitute install-time scalar variables before awk processes the file.
+            # All three portable_sed calls run on the file before awk reads it, so their
+            # changes are preserved in the awk output that is written back.
             portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s|{{VERSION}}|${safe_version}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s|{{SELECTED_GATEWAYS}}|${safe_selected_gateways}|g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
@@ -1222,15 +1271,27 @@ act4_start_and_register() {
                     *)        gw_display="$gw_item" ;;
                 esac
                 if [ -n "$gw_list" ]; then
-                    gw_list="${gw_list}\n- ${gw_display}"
+                    # $'\n' (ANSI-C quoting) produces a real newline — double-quoted \n is literal
+                    gw_list="${gw_list}"$'\n'"- ${gw_display}"
                 else
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Use awk for the multi-line replacement — sed cannot portably handle
+            # embedded newlines in the replacement string across macOS and Linux.
+            local tmp_md
+            tmp_md=$(awk -v repl="$gw_list" '{
+                idx = index($0, "{{ACTIVE_GATEWAYS_LIST}}")
+                if (idx > 0) {
+                    print substr($0, 1, idx - 1) repl substr($0, idx + length("{{ACTIVE_GATEWAYS_LIST}}"))
+                } else {
+                    print
+                }
+            }' "$MAILMAN_DIR/CLAUDE.md")
+            printf '%s\n' "$tmp_md" > "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true
@@ -1295,7 +1356,10 @@ act5_grand_finale() {
             maestro_info "Dashboard: http://localhost:${PORT}"
         else
             # Not in tmux — create session and attach (handle re-install collision)
+            # Track whether the session pre-existed so the post-detach message is accurate.
+            local session_preexisted=false
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
+                session_preexisted=true
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
@@ -1304,7 +1368,11 @@ act5_grand_finale() {
             sleep 2
             tmux attach-session -t "my-first-agent"
             echo ""
-            maestro_ok "Welcome back! Your agent session is still running in tmux."
+            if [ "$session_preexisted" = true ]; then
+                maestro_ok "Welcome back! Your agent session is still running in tmux."
+            else
+                maestro_ok "Detached from agent session."
+            fi
             maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
             maestro_info "Dashboard: http://localhost:${PORT}"
         fi
@@ -1338,9 +1406,16 @@ act5_grand_finale() {
 main() {
     parse_args "$@"
 
-    # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
+    # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag
+    # or auto-detected when stdin is not a TTY — both paths land here).
+    # Also ensure TYPE_SPEED=0 in non-interactive mode: parse_args sets it when
+    # --yes/--non-interactive is passed, but the auto-detection path at the top of
+    # the script (exec < /dev/tty 2>/dev/null || NON_INTERACTIVE=true) skips
+    # parse_args entirely and leaves TYPE_SPEED at its default 0.03, causing
+    # maestro_say to animate character-by-character in non-interactive pipelines.
     if [ "$NON_INTERACTIVE" = true ]; then
-        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+        RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
+        TYPE_SPEED=0
     fi
 
     # M1: Warn if running as root (curl | sudo bash is dangerous)

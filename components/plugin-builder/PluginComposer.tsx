@@ -4,6 +4,28 @@ import { X, Package, GitBranch, Brain, Layers } from 'lucide-react'
 import type { PluginSkillSelection } from '@/types/plugin-builder'
 import { getSkillKey } from './SkillPicker'
 
+function getSkillDisplayName(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return skill.name
+    case 'marketplace':
+      return skill.id.split(':')[2] || skill.id
+    case 'repo':
+      return skill.name
+  }
+}
+
+function getSkillSubtitle(skill: PluginSkillSelection): string | null {
+  switch (skill.type) {
+    case 'core':
+      return null
+    case 'marketplace':
+      return `${skill.plugin} / ${skill.marketplace}`
+    case 'repo':
+      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+  }
+}
+
 interface PluginComposerProps {
   name: string
   version: string
@@ -204,26 +226,4 @@ function SkillGroup({
       </div>
     </div>
   )
-}
-
-function getSkillDisplayName(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
-    case 'repo':
-      return skill.name
-  }
-}
-
-function getSkillSubtitle(skill: PluginSkillSelection): string | null {
-  switch (skill.type) {
-    case 'core':
-      return null
-    case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
-    case 'repo':
-      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
-  }
 }

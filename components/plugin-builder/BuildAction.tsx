@@ -42,7 +42,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       pollRef.current = null
     }
     pollFailures.current = 0
-  }, [])
+  }, [pollRef, pollFailures])
 
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
@@ -86,12 +86,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               if (statusData.status !== 'building') {
                 clearPoll()
                 setBuilding(false)
-                setShowLogs(true)
               }
             } else {
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
+                // Clear result so the error message becomes visible in the UI
+                setResult(null)
                 setError('Lost connection to build server')
                 setBuilding(false)
               }
@@ -100,6 +101,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
+              // Clear result so the error message becomes visible in the UI
+              setResult(null)
               setError('Lost connection to build server')
               setBuilding(false)
             }
@@ -107,7 +110,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         }, 1000)
       } else {
         setBuilding(false)
-        setShowLogs(true)
       }
     } catch {
       setError('Failed to connect to server')
@@ -119,7 +121,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (!forkUrl.trim() || !result?.manifest) return
 
     // Client-side URL validation
-    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
+    if (!forkUrl.trim().match(/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?$/)) {
       setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL' })
       return
     }
@@ -155,7 +157,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {
-      // Clipboard API not available (insecure context or unfocused)
+      // Clipboard API not available (insecure context or unfocused) — surface the error to the user
+      setError('Failed to copy: clipboard not available in this context')
+      setTimeout(() => setError(null), 3000)
     })
   }
 
@@ -180,11 +184,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           {building ? 'Building...' : 'Quick Build'}
         </button>
 
-        {/* Push to GitHub button */}
+        {/* Push to GitHub button — always enabled so users can pre-fill the fork URL;
+            the actual push is guarded by handlePush (requires result.manifest) and
+            the inner Push button (disabled when pushing or forkUrl is empty) */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
           Push to GitHub
@@ -220,13 +225,15 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabled && disabledReason && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
 
-      {/* Push to GitHub section */}
-      {showPush && isComplete && (
+      {/* Push to GitHub section — rendered whenever the toggle is open; the inner
+          Push button is disabled until forkUrl is filled in and handlePush guards
+          against pushing without a completed build result (result.manifest) */}
+      {showPush && (
         <div className="px-4 pb-4 border-t border-gray-800 pt-3">
           <div className="flex gap-2 items-end">
             <div className="flex-1">
@@ -242,7 +249,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             </div>
             <button
               onClick={handlePush}
-              disabled={pushing || !forkUrl.trim()}
+              disabled={pushing || !forkUrl.trim() || !result?.manifest}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
@@ -258,7 +265,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">

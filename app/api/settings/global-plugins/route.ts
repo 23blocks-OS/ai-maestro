@@ -15,6 +15,27 @@ export const dynamic = 'force-dynamic'
 
 const HOME = os.homedir()
 const SETTINGS_PATH = join(HOME, '.claude', 'settings.json')
+// Allowed characters in marketplace and plugin names — rejects path traversal segments
+const SAFE_PATH_COMPONENT = /^[a-zA-Z0-9._-]+$/
+
+// In-memory mutex: serialize all settings reads/writes within a single process
+// to prevent lost-update race conditions on concurrent POST requests.
+let settingsLock: Promise<void> = Promise.resolve()
+
+/**
+ * Compare two version strings numerically segment by segment (e.g. "1.10.0" > "1.9.0").
+ * Returns negative if a < b, positive if a > b, 0 if equal.
+ */
+function compareVersions(a: string, b: string): number {
+  const aParts = a.split('.').map(n => parseInt(n, 10) || 0)
+  const bParts = b.split('.').map(n => parseInt(n, 10) || 0)
+  const len = Math.max(aParts.length, bParts.length)
+  for (let i = 0; i < len; i++) {
+    const diff = (aParts[i] ?? 0) - (bParts[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
 
 interface PluginEntry {
   key: string           // "pluginName@marketplace"
@@ -60,7 +81,8 @@ export async function GET() {
     const epRaw = settings.enabledPlugins
     const ep: Record<string, boolean> = (epRaw && typeof epRaw === 'object' && !Array.isArray(epRaw)) ? epRaw as Record<string, boolean> : {}
 
-    // Parse plugin keys and group by marketplace
+    // Parse plugin keys and group by marketplace.
+    // Boolean() coercion guards against non-boolean values from hand-edited JSON.
     const entries: PluginEntry[] = Object.entries(ep).map(([key, enabled]) => {
       const atIdx = key.lastIndexOf('@')
       const pluginName = atIdx > 0 ? key.substring(0, atIdx) : key
@@ -169,6 +191,11 @@ export async function GET() {
         }
       }
 
+      // Only create the marketplace group after all safety checks pass, so unsafe entries
+      // do not leave empty ghost groups in the response.
+      if (!grouped[entry.marketplace]) {
+        grouped[entry.marketplace] = { marketplace: entry.marketplace, plugins: [] }
+      }
       grouped[entry.marketplace].plugins.push({
         name: entry.pluginName, key: entry.key, enabled: entry.enabled,
         version, description, author, authorEmail, license, homepage, repository, keywords,
@@ -182,8 +209,10 @@ export async function GET() {
       group.plugins.sort((a, b) => a.name.localeCompare(b.name))
     }
 
-    const enabledCount = entries.filter(e => e.enabled).length
-    const totalCount = entries.length
+    // Derive counts from the actually-returned groups so that skipped (unsafe) entries
+    // are not reflected in the counts, keeping them consistent with what was served.
+    const totalCount = result.reduce((sum, g) => sum + g.plugins.length, 0)
+    const enabledCount = result.reduce((sum, g) => sum + g.plugins.filter(p => p.enabled).length, 0)
 
     return NextResponse.json({ groups: result, enabledCount, totalCount })
   } catch (error) {
@@ -199,6 +228,12 @@ export async function POST(req: NextRequest) {
 
     if (!key || typeof key !== 'string') {
       return NextResponse.json({ error: 'key is required' }, { status: 400 })
+    }
+    // Validate that both the plugin-name and marketplace parts of the key contain only
+    // safe path characters, preventing path traversal or arbitrary key injection into settings.json.
+    if (!SAFE_PATH_COMPONENT.test(key.substring(0, key.lastIndexOf('@'))) ||
+        !SAFE_PATH_COMPONENT.test(key.substring(key.lastIndexOf('@') + 1))) {
+      return NextResponse.json({ error: 'Invalid plugin key format' }, { status: 400 })
     }
     if (typeof enabled !== 'boolean') {
       return NextResponse.json({ error: 'enabled must be a boolean' }, { status: 400 })

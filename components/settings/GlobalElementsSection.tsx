@@ -212,7 +212,7 @@ export default function GlobalElementsSection() {
   useEffect(() => {
     const withEnabled = new Set<string>()
     for (const g of groups) {
-      if (g.plugins.some(p => p.enabled)) withEnabled.add(g.marketplace)
+      if ((g.plugins || []).some(p => p.enabled)) withEnabled.add(g.marketplace)
     }
     setExpandedMarketplaces(prev => {
       const next = new Set(prev)
@@ -241,7 +241,8 @@ export default function GlobalElementsSection() {
       if (res.ok) {
         setGroups(prev => prev.map(g => ({
           ...g,
-          plugins: g.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
+          // Guard against null/undefined plugins array that the API might return for a group
+          plugins: (g.plugins || []).map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
         fetchElements()
@@ -267,7 +268,7 @@ export default function GlobalElementsSection() {
     return groups
       .map(g => ({
         ...g,
-        plugins: g.plugins.filter(p =>
+        plugins: (g.plugins || []).filter(p =>
           p.name.toLowerCase().includes(q) ||
           g.marketplace.toLowerCase().includes(q)
         ),
@@ -397,7 +398,7 @@ export default function GlobalElementsSection() {
       <div className="space-y-3">
         {filteredGroups.map(group => {
           const expanded = expandedMarketplaces.has(group.marketplace)
-          const enabledInGroup = group.plugins.filter(p => p.enabled).length
+          const enabledInGroup = (group.plugins || []).filter(p => p.enabled).length
           return (
             <div key={group.marketplace} className="rounded-xl border border-gray-800 overflow-hidden">
               {/* Marketplace header */}
@@ -411,7 +412,7 @@ export default function GlobalElementsSection() {
                 <span className="text-xs text-gray-500 tabular-nums">
                   {enabledInGroup > 0 && <span className="text-emerald-400">{enabledInGroup}</span>}
                   {enabledInGroup > 0 && '/'}
-                  {group.plugins.length}
+                  {(group.plugins || []).length}
                 </span>
                 {group.sourceUrl && (
                   <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={group.sourceUrl}>
@@ -423,7 +424,7 @@ export default function GlobalElementsSection() {
               {/* Plugin list */}
               {expanded && (
                 <div className="divide-y divide-gray-800/50">
-                  {group.plugins.map(plugin => {
+                  {(group.plugins || []).map(plugin => {
                     const isToggling = toggling === plugin.key
                     const isExpPl = expandedPlugin === plugin.key
                     return (

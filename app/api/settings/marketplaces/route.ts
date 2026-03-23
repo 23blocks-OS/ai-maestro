@@ -390,6 +390,9 @@ export async function POST(req: NextRequest) {
     if (action === 'delete-marketplace') {
       return await handleDeleteMarketplace(body.marketplaceName)
     }
+    if (action === 'update-marketplace') {
+      return await handleUpdateMarketplace(body.marketplaceName)
+    }
     if (action === 'add-marketplace') {
       return await handleAddMarketplace(url)
     }
@@ -509,6 +512,24 @@ async function handleDeleteMarketplace(marketplaceName?: string) {
   await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
 
   return NextResponse.json({ success: true, action: 'delete-marketplace', marketplaceName })
+}
+
+/** Update marketplace by pulling latest from git remote */
+async function handleUpdateMarketplace(marketplaceName?: string) {
+  if (!marketplaceName) {
+    return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
+  }
+  const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
+  if (!existsSync(cloneDir)) {
+    return NextResponse.json({ error: `Marketplace "${marketplaceName}" not found` }, { status: 404 })
+  }
+  const { execSync } = await import('child_process')
+  try {
+    execSync('git pull --ff-only', { cwd: cloneDir, timeout: 60000, stdio: 'pipe' })
+  } catch (err) {
+    return NextResponse.json({ error: `Failed to update: ${err}` }, { status: 500 })
+  }
+  return NextResponse.json({ success: true, action: 'update-marketplace', marketplaceName })
 }
 
 /** Clone a GitHub marketplace repo */

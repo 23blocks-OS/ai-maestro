@@ -242,11 +242,20 @@ export default function MarketplaceManager() {
                   </a>
                 )}
 
+                {/* Update marketplace (git pull) */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); executeAction('update-marketplace', { marketplaceName: mkt.name }) }}
+                  disabled={isActioning}
+                  className="p-0.5 rounded hover:bg-blue-500/20 transition-colors" title="Update marketplace (git pull)"
+                >
+                  {actionInProgress === mkt.name ? <Loader2 className="w-3 h-3 text-blue-400 animate-spin" /> : <RefreshCw className="w-3 h-3 text-gray-500 hover:text-blue-400" />}
+                </button>
+
                 {/* Delete marketplace */}
                 <button
                   onClick={(e) => { e.stopPropagation(); setConfirmAction({ action: 'delete-marketplace', target: mkt.name, label: `Delete marketplace "${mkt.name}"? This will uninstall all its plugins and remove the marketplace.` }) }}
                   disabled={isActioning}
-                  className="p-1 rounded hover:bg-red-500/20 transition-colors" title="Delete marketplace"
+                  className="p-0.5 rounded hover:bg-red-500/20 transition-colors" title="Delete marketplace"
                 >
                   <Trash2 className="w-3 h-3 text-gray-600 hover:text-red-400" />
                 </button>

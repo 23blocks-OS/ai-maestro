@@ -1145,7 +1145,9 @@ act3_clone_and_build() {
                     # Copy .env.example to .env with defaults
                     if [ -f ".env.example" ] && [ ! -f ".env" ]; then
                         cp .env.example .env
-                        # Pre-set AI Maestro connection and default agent
+                        # Pre-set AI Maestro connection and default agent.
+                        # Use | as delimiter — it never appears in URLs, port numbers, or Unix paths,
+                        # preventing sed from misinterpreting the http:// in the replacement.
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
                             # Use | as delimiter — URLs never contain | and it matches the
                             # rest of the script's portable_sed convention

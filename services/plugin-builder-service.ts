@@ -642,6 +642,12 @@ export async function buildPlugin(config: unknown): Promise<ServiceResult<Plugin
   const buildId = randomUUID()
   const buildDir = path.join(BUILDS_DIR, buildId)
 
+  // Increment before the try block so the decrement paths are mutually exclusive:
+  // either the outer catch (sync setup failure) or the runBuild .finally() (async path)
+  // will decrement exactly once. Placing the increment inside the try would allow the
+  // catch to decrement an un-incremented counter if an error fires before line 328.
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones; await to ensure map is clean
     // before the new entry is inserted (prevents stale entries from racing with the new build)
@@ -911,6 +917,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       } catch { /* use original URL if parsing fails */ }
     }
 
+  try {
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', cloneUrl, pushDir], {
       timeout: 30000,

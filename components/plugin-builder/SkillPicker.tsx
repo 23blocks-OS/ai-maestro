@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Search, Plus, Check, Package, Brain, BookOpen, GitBranch, Code, Loader2 } from 'lucide-react'
 import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'

@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
-    return NextResponse.json(result.data)
+    return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
     // Unexpected runtime errors from scanRepo or elsewhere are server-side failures
     console.error('Error scanning repo:', error)

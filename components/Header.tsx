@@ -68,6 +68,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           <a
             href={zoomUrl}
             className="text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Zoom View"
           >
             <Grid3X3 className="w-3.5 h-3.5" />
             Zoom

@@ -312,7 +312,9 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always prioritize result.error — a service can set both error and data (partial success),
+  // but the presence of error must always produce an error status, never a 200.
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -339,7 +341,7 @@ function getQuery(url: string): Record<string, string> {
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
-  if (!boundaryMatch) return { file: null, options: null }
+  if (!boundaryMatch) throw new Error('Invalid multipart/form-data: boundary not found in Content-Type header')
 
   const boundary = '--' + boundaryMatch[1]
   const bodyStr = body.toString('latin1')
@@ -399,8 +401,12 @@ const routes: Route[] = [
     sendServiceResult(res, getOrganization())
   }},
   { method: 'POST', pattern: /^\/api\/organization$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, setOrganizationName(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, setOrganizationName(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/subconscious$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getSubconsciousStatus())
@@ -412,8 +418,12 @@ const routes: Route[] = [
     sendServiceResult(res, await getDockerInfo())
   }},
   { method: 'POST', pattern: /^\/api\/conversations\/parse$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, parseConversationFile(body.filePath))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, parseConversationFile(body.filePath))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
     const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
@@ -443,8 +453,12 @@ const routes: Route[] = [
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await createSession(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createSession(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await deleteSession(params.id))
@@ -454,20 +468,32 @@ const routes: Route[] = [
     sendJson(res, 200, result)
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await sendCommand(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await sendCommand(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'PATCH', pattern: /^\/api\/sessions\/([^/]+)\/rename$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await renameSession(params.id, body.name))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await renameSession(params.id, body.name))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
     const result = await listRestorableSessions()
     sendJson(res, 200, result)
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await restoreSessions(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await restoreSessions(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
@@ -481,19 +507,24 @@ const routes: Route[] = [
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
-    sendServiceResult(res, result)
+    try {
+      const body = await readJsonBody(req)
+      const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
+      sendServiceResult(res, result)
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const timeout = query.timeout ? parseInt(query.timeout) : undefined
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: timeout !== undefined && !isNaN(timeout) ? timeout : undefined,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -503,12 +534,20 @@ const routes: Route[] = [
     sendServiceResult(res, await initializeStartup())
   }},
   { method: 'POST', pattern: /^\/api\/agents\/health$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await proxyHealthCheck(body.url))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await proxyHealthCheck(body.url))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/register$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, registerAgent(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, registerAgent(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/agents\/by-name\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
     sendServiceResult(res, lookupAgentByName(params.name))
@@ -522,8 +561,12 @@ const routes: Route[] = [
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/docker\/create$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await createDockerAgent(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createDockerAgent(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   // Agent import (multipart form-data)
   { method: 'POST', pattern: /^\/api\/agents\/import$/, paramNames: [], handler: async (req, res) => {
@@ -570,8 +613,12 @@ const routes: Route[] = [
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createNewAgent(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, createNewAgent(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
@@ -583,12 +630,20 @@ const routes: Route[] = [
     sendServiceResult(res, await getAgentSessionStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, linkAgentSession(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, linkAgentSession(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await sendAgentSessionCommand(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await sendAgentSessionCommand(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await unlinkOrDeleteAgentSession(params.id, {
@@ -599,24 +654,37 @@ const routes: Route[] = [
 
   // Wake / Hibernate
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/wake$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await wakeAgent(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await wakeAgent(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/hibernate$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await hibernateAgent(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await hibernateAgent(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limit = query.limit ? parseInt(query.limit) : undefined
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: limit !== undefined && !isNaN(limit) ? limit : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await sendChatMessage(params.id, body.message))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await sendChatMessage(params.id, body.message))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Memory
@@ -624,29 +692,44 @@ const routes: Route[] = [
     sendServiceResult(res, await getConsolidationStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await triggerConsolidation(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await triggerConsolidation(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await manageConsolidation(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await manageConsolidation(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limit = query.limit ? parseInt(query.limit) : undefined
+    const minConfidence = query.minConfidence ? parseFloat(query.minConfidence) : undefined
+    const maxTokens = query.maxTokens ? parseInt(query.maxTokens) : undefined
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: limit !== undefined && !isNaN(limit) ? limit : undefined,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: minConfidence !== undefined && !isNaN(minConfidence) ? minConfidence : undefined,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: maxTokens !== undefined && !isNaN(maxTokens) ? maxTokens : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await updateLongTermMemory(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateLongTermMemory(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await deleteLongTermMemory(params.id, query.id || ''))
@@ -655,33 +738,51 @@ const routes: Route[] = [
     sendServiceResult(res, await getMemory(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/memory$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await initializeMemory(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await initializeMemory(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limit = query.limit ? parseInt(query.limit) : undefined
+    const minScore = query.minScore ? parseFloat(query.minScore) : undefined
+    const startTs = query.startTs ? parseInt(query.startTs) : undefined
+    const endTs = query.endTs ? parseInt(query.endTs) : undefined
+    const bm25Weight = query.bm25Weight ? parseFloat(query.bm25Weight) : undefined
+    const semanticWeight = query.semanticWeight ? parseFloat(query.semanticWeight) : undefined
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: limit !== undefined && !isNaN(limit) ? limit : undefined,
+      minScore: minScore !== undefined && !isNaN(minScore) ? minScore : undefined,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: startTs !== undefined && !isNaN(startTs) ? startTs : undefined,
+      endTs: endTs !== undefined && !isNaN(endTs) ? endTs : undefined,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: bm25Weight !== undefined && !isNaN(bm25Weight) ? bm25Weight : undefined,
+      semanticWeight: semanticWeight !== undefined && !isNaN(semanticWeight) ? semanticWeight : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await ingestConversations(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await ingestConversations(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/index-delta$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await runDeltaIndex(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await runDeltaIndex(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Tracking / Metrics
@@ -689,15 +790,23 @@ const routes: Route[] = [
     sendServiceResult(res, await getTracking(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/tracking$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await initializeTracking(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await initializeTracking(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metrics$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getMetrics(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metrics$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateMetrics(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, updateMetrics(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Graph - code
@@ -705,8 +814,12 @@ const routes: Route[] = [
     sendServiceResult(res, await queryCodeGraph(params.id, query as any))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await indexCodeGraph(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await indexCodeGraph(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await deleteCodeGraph(params.id, query.projectPath || ''))
@@ -717,8 +830,12 @@ const routes: Route[] = [
     sendServiceResult(res, await queryDbGraph(params.id, query as any))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await indexDbSchema(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await indexDbSchema(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await clearDbGraph(params.id, query.database || ''))
@@ -742,8 +859,12 @@ const routes: Route[] = [
     sendServiceResult(res, await queryDocs(params.id, query as any))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await indexDocs(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await indexDocs(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await clearDocs(params.id, query.project))
@@ -754,19 +875,31 @@ const routes: Route[] = [
     sendServiceResult(res, await getSkillSettings(params.id))
   }},
   { method: 'PUT', pattern: /^\/api\/agents\/([^/]+)\/skills\/settings$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await saveSkillSettings(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await saveSkillSettings(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getSkillsConfig(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await updateSkills(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateSkills(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, addSkill(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, addSkill(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, removeSkill(params.id, query.skill || ''))
@@ -777,8 +910,12 @@ const routes: Route[] = [
     sendServiceResult(res, await getAgentSubconsciousStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/subconscious$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await triggerSubconsciousAction(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await triggerSubconsciousAction(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Repos
@@ -786,8 +923,12 @@ const routes: Route[] = [
     sendServiceResult(res, listRepos(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateRepos(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, updateRepos(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, removeRepo(params.id, query.url || ''))
@@ -798,8 +939,12 @@ const routes: Route[] = [
     sendServiceResult(res, getPlaybackState(params.id, query.sessionId))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, controlPlayback(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, controlPlayback(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Export / Transfer
@@ -807,7 +952,7 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+        sendServiceResult(res, result)
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -824,12 +969,20 @@ const routes: Route[] = [
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createTranscriptExportJob(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, createTranscriptExportJob(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/transfer$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await transferAgent(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await transferAgent(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // AMP addresses
@@ -837,8 +990,12 @@ const routes: Route[] = [
     sendServiceResult(res, getAMPAddress(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
     sendServiceResult(res, removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
@@ -847,8 +1004,12 @@ const routes: Route[] = [
     sendServiceResult(res, listAMPAddresses(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, addAMPAddressToAgent(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, addAMPAddressToAgent(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Email addresses
@@ -856,8 +1017,12 @@ const routes: Route[] = [
     sendServiceResult(res, getEmailAddressDetail(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
     sendServiceResult(res, removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
@@ -866,8 +1031,12 @@ const routes: Route[] = [
     sendServiceResult(res, listEmailAddresses(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, addEmailAddressToAgent(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, addEmailAddressToAgent(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Agent messages
@@ -875,12 +1044,20 @@ const routes: Route[] = [
     sendServiceResult(res, await getAgentMessage(params.id, params.messageId, (query.box as any) || 'inbox'))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await updateAgentMessage(params.id, params.messageId, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateAgentMessage(params.id, params.messageId, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await forwardAgentMessage(params.id, params.messageId, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await forwardAgentMessage(params.id, params.messageId, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params) => {
     sendServiceResult(res, await deleteAgentMessage(params.id, params.messageId))
@@ -889,32 +1066,40 @@ const routes: Route[] = [
     sendServiceResult(res, await listAgentMessages(params.id, query as any))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await sendAgentMessage(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await sendAgentMessage(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // Metadata (uses agents-core-service getAgentById/updateAgentById)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
       sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const metadata = await readJsonBody(req)
-    const result = updateAgentById(params.id, { metadata })
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
-    } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+    try {
+      const metadata = await readJsonBody(req)
+      const result = updateAgentById(params.id, { metadata })
+      if (result.error) {
+        sendServiceResult(res, result)
+      } else {
+        sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      }
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
       sendJson(res, 200, { success: true })
     }
@@ -925,8 +1110,12 @@ const routes: Route[] = [
     sendServiceResult(res, getAgentById(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateAgentById(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, updateAgentById(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, deleteAgentById(params.id, query.hard === 'true'))
@@ -948,23 +1137,39 @@ const routes: Route[] = [
     sendServiceResult(res, await triggerMeshSync())
   }},
   { method: 'POST', pattern: /^\/api\/hosts\/register-peer$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await registerPeer(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await registerPeer(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/hosts\/exchange-peers$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await exchangePeers(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await exchangePeers(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/hosts$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await listHosts())
   }},
   { method: 'POST', pattern: /^\/api\/hosts$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await addNewHost(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await addNewHost(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'PUT', pattern: /^\/api\/hosts\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await updateExistingHost(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateExistingHost(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/hosts\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await deleteExistingHost(params.id))
@@ -980,28 +1185,40 @@ const routes: Route[] = [
     sendServiceResult(res, getProviderInfo())
   }},
   { method: 'POST', pattern: /^\/api\/v1\/register$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, await registerAMPAgent(body, authHeader))
+    try {
+      const body = await readJsonBody(req)
+      const authHeader = getHeader(req, 'Authorization')
+      sendServiceResult(res, await registerAMPAgent(body, authHeader))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/v1\/route$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    const result = await routeMessage(
-      body,
-      getHeader(req, 'Authorization'),
-      getHeader(req, 'X-Forwarded-From'),
-      getHeader(req, 'X-AMP-Envelope-Id'),
-      getHeader(req, 'X-AMP-Signature'),
-      getHeader(req, 'Content-Length'),
-    )
-    sendServiceResult(res, result)
+    try {
+      const body = await readJsonBody(req)
+      const result = await routeMessage(
+        body,
+        getHeader(req, 'Authorization'),
+        getHeader(req, 'X-Forwarded-From'),
+        getHeader(req, 'X-AMP-Envelope-Id'),
+        getHeader(req, 'X-AMP-Signature'),
+        getHeader(req, 'Content-Length'),
+      )
+      sendServiceResult(res, result)
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/me$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, getAgentSelf(getHeader(req, 'Authorization')))
   }},
   { method: 'PATCH', pattern: /^\/api\/v1\/agents\/me$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await updateAgentSelf(getHeader(req, 'Authorization'), body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateAgentSelf(getHeader(req, 'Authorization'), body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/agents\/me$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, await deleteAgentSelf(getHeader(req, 'Authorization')))
@@ -1024,16 +1241,21 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    const limit = query.limit ? parseInt(query.limit) : undefined
+    sendServiceResult(res, listPendingMessages(authHeader, limit !== undefined && !isNaN(limit) ? limit : undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
     sendServiceResult(res, acknowledgePendingMessage(authHeader, query.id || null))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, batchAcknowledgeMessages(authHeader, body.ids))
+    try {
+      const body = await readJsonBody(req)
+      const authHeader = getHeader(req, 'Authorization')
+      sendServiceResult(res, batchAcknowledgeMessages(authHeader, body.ids))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/auth\/revoke-key$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, revokeKey(getHeader(req, 'Authorization')))
@@ -1045,12 +1267,16 @@ const routes: Route[] = [
     sendServiceResult(res, await rotateKeypair(getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/federation\/deliver$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    const result = await deliverFederated(
-      getHeader(req, 'X-AMP-Provider'),
-      body,
-    )
-    sendServiceResult(res, result)
+    try {
+      const body = await readJsonBody(req)
+      const result = await deliverFederated(
+        getHeader(req, 'X-AMP-Provider'),
+        body,
+      )
+      sendServiceResult(res, result)
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
@@ -1060,15 +1286,23 @@ const routes: Route[] = [
     sendServiceResult(res, await getMeetingMessages(query as any))
   }},
   { method: 'POST', pattern: /^\/api\/messages\/forward$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await forwardGlobalMessage(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await forwardGlobalMessage(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await getMessages(query as any))
   }},
   { method: 'POST', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await sendGlobalMessage(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await sendGlobalMessage(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
@@ -1084,8 +1318,12 @@ const routes: Route[] = [
     sendServiceResult(res, getMeetingById(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateExistingMeeting(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, updateExistingMeeting(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, deleteExistingMeeting(params.id))
@@ -1094,68 +1332,100 @@ const routes: Route[] = [
     sendServiceResult(res, listMeetings(query.status))
   }},
   { method: 'POST', pattern: /^\/api\/meetings$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createNewMeeting(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, createNewMeeting(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
   // Teams
   // =========================================================================
   { method: 'POST', pattern: /^\/api\/teams\/notify$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await notifyTeamAgents(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await notifyTeamAgents(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, _params) => {
     // GET single task not implemented in route — taskId routes only have PUT/DELETE
     sendJson(res, 405, { error: 'Method not allowed' })
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateTeamTask(params.id, params.taskId, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateTeamTask(params.id, params.taskId, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteTeamTask(params.id, params.taskId))
+    sendServiceResult(res, await deleteTeamTask(params.id, params.taskId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listTeamTasks(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createTeamTask(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createTeamTask(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (_req, res, params) => {
     sendServiceResult(res, getTeamDocument(params.id, params.docId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateTeamDocument(params.id, params.docId, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateTeamDocument(params.id, params.docId, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteTeamDocument(params.id, params.docId))
+    sendServiceResult(res, await deleteTeamDocument(params.id, params.docId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listTeamDocuments(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/documents$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createTeamDocument(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createTeamDocument(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getTeamById(params.id))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateTeamById(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateTeamById(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteTeamById(params.id))
+    sendServiceResult(res, await deleteTeamById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/teams$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, listAllTeams())
   }},
   { method: 'POST', pattern: /^\/api\/teams$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createNewTeam(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createNewTeam(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
@@ -1168,14 +1438,18 @@ const routes: Route[] = [
     sendServiceResult(res, getWebhookById(params.id))
   }},
   { method: 'DELETE', pattern: /^\/api\/webhooks\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteWebhookById(params.id))
+    sendServiceResult(res, await deleteWebhookById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/webhooks$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, listAllWebhooks())
   }},
   { method: 'POST', pattern: /^\/api\/webhooks$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createNewWebhook(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createNewWebhook(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
@@ -1185,18 +1459,26 @@ const routes: Route[] = [
     sendServiceResult(res, getDomainById(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/domains\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, updateDomainById(params.id, body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await updateDomainById(params.id, body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/domains\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteDomainById(params.id))
+    sendServiceResult(res, await deleteDomainById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/domains$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, listAllDomains())
   }},
   { method: 'POST', pattern: /^\/api\/domains$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, createNewDomain(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await createNewDomain(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 
   // =========================================================================
@@ -1226,19 +1508,31 @@ const routes: Route[] = [
   // Plugin Builder
   // =========================================================================
   { method: 'POST', pattern: /^\/api\/plugin-builder\/build$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await buildPlugin(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await buildPlugin(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/plugin-builder\/builds\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getBuildStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/plugin-builder\/scan-repo$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await scanRepo(body.url, body.ref))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await scanRepo(body.url, body.ref))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'POST', pattern: /^\/api\/plugin-builder\/push$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await pushToGitHub(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await pushToGitHub(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
 ]
 
@@ -1281,7 +1575,21 @@ export function createHeadlessRouter() {
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          // Wrap the error response in its own try-catch: if sendJson itself throws
+          // (e.g. res.writeHead fails) we must not let that propagate unhandled.
+          try {
+            sendJson(res, 500, { error: 'Internal server error' })
+          } catch (sendError) {
+            console.error(`[Headless] Failed to send error response:`, sendError)
+            if (!res.headersSent) {
+              res.writeHead(500, { 'Content-Type': 'text/plain' })
+              res.end('Internal server error')
+            }
+          }
+        } else if (!res.writableEnded) {
+          // Headers already sent (e.g. streaming started then threw) — must end the response
+          // to prevent the client from hanging on an incomplete response.
+          res.end()
         }
       }
 

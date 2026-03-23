@@ -35,7 +35,7 @@ export default function PluginBuilderPage() {
   const buildConfig: PluginBuildConfig = useMemo(() => ({
     name,
     version,
-    description: description || undefined,
+    description,
     skills,
     includeHooks,
   }), [name, version, description, skills, includeHooks])

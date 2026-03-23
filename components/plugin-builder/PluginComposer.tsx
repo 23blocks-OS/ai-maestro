@@ -211,7 +211,8 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      // Use the dedicated `plugin` field from the type — no fragile string splitting needed
+      return skill.plugin
     case 'repo':
       return skill.name
   }
@@ -222,7 +223,10 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
     case 'core':
       return null
     case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
+      // The display name already shows skill.plugin; the subtitle provides
+      // source context by showing only the marketplace name, avoiding
+      // redundant repetition of the plugin name.
+      return skill.marketplace
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
   }

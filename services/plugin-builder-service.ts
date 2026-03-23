@@ -147,6 +147,12 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
   if (!config.version || typeof config.version !== 'string') return 'Version is required'
   if (!SEMVER_RE.test(config.version)) return 'Version must be valid semver (e.g., 1.0.0)'
 
+  // Validate description if provided — must be a string within reasonable length
+  if (config.description !== undefined && config.description !== null) {
+    if (typeof config.description !== 'string') return 'Description must be a string'
+    if (config.description.length > 512) return 'Description too long (max 512 characters)'
+  }
+
   if (!config.skills || !Array.isArray(config.skills) || config.skills.length === 0) {
     return 'At least one skill must be selected'
   }
@@ -178,7 +184,9 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.error(`Failed to remove stale build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -190,7 +198,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.error(`Failed to remove oldest build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -242,7 +252,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Sanitize marketplace name to prevent path traversal (only allow alphanumerics, hyphens, underscores)
+    const safeMarketplace = group.marketplace.replace(/[^a-zA-Z0-9_-]/g, '')
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', safeMarketplace)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -347,9 +359,17 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
-        await copyDir(srcDir, linkTarget)
+      } catch (symlinkError) {
+        // If symlink fails (e.g., permissions or OS limitation), copy instead (skipping symlinks in source)
+        try {
+          await copyDir(srcDir, linkTarget)
+        } catch (copyError) {
+          // Re-throw with a clear message distinguishing the fallback failure from the original symlink failure
+          throw new Error(
+            `Failed to set up core skills: symlink failed (${symlinkError instanceof Error ? symlinkError.message : String(symlinkError)}), ` +
+            `copy fallback also failed (${copyError instanceof Error ? copyError.message : String(copyError)})`
+          )
+        }
       }
     }
 
@@ -436,17 +456,11 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     // Find scripts (*.sh files in scripts/ directory)
     const scripts = await findScriptsInDir(scanDir)
 
-    // Clean up
-    await fs.rm(scanDir, { recursive: true, force: true })
-
     return {
       data: { url, ref, skills, scripts },
       status: 200,
     }
   } catch (error: unknown) {
-    // Clean up on error
-    await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
-
     const exitCode = (error as any)?.code
     const message = error instanceof Error ? error.message : String(error)
 
@@ -456,7 +470,11 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
+    // Always clean up the temp directory regardless of success or failure
     activeOps = Math.max(0, activeOps - 1)
+    fs.rm(scanDir, { recursive: true, force: true }).catch(err => {
+      console.error(`Failed to remove scan directory ${scanDir}:`, err)
+    })
   }
 }
 
@@ -471,9 +489,18 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const urlErr = validateGitUrl(config.forkUrl)
   if (urlErr) return { error: urlErr, status: 400 }
 
-  // Validate manifest
+  // Validate manifest — check presence and required structural fields
   if (!config.manifest || typeof config.manifest !== 'object') {
     return { error: 'Manifest is required', status: 400 }
+  }
+  if (!config.manifest.name || typeof config.manifest.name !== 'string') {
+    return { error: 'Manifest must have a valid name', status: 400 }
+  }
+  if (!config.manifest.version || typeof config.manifest.version !== 'string') {
+    return { error: 'Manifest must have a valid version', status: 400 }
+  }
+  if (!Array.isArray(config.manifest.sources)) {
+    return { error: 'Manifest must have a sources array', status: 400 }
   }
 
   // Validate branch
@@ -509,7 +536,6 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     // Check if there are changes to commit
     const statusOutput = await execPromise('git', ['status', '--porcelain'], { cwd: pushDir })
     if (!statusOutput.trim()) {
-      await fs.rm(pushDir, { recursive: true, force: true })
       return {
         data: {
           status: 'pushed',
@@ -519,18 +545,28 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       }
     }
 
-    // Commit with explicit author (avoids failures when no global git config)
+    // Resolve git author from system config, falling back to a neutral identity
+    // when no global git config is present (e.g., CI environments or fresh installs).
+    const resolveGitConfigValue = async (key: string): Promise<string | null> => {
+      try {
+        const value = await execPromise('git', ['config', '--global', key], { cwd: pushDir })
+        return value.trim() || null
+      } catch {
+        return null
+      }
+    }
+    const authorName = (await resolveGitConfigValue('user.name')) ?? 'Plugin Builder'
+    const authorEmail = (await resolveGitConfigValue('user.email')) ?? 'plugin-builder@aimaestro.local'
+
+    // Commit with resolved author (explicit -c flags override any repo-level config cleanly)
     await execPromise('git', [
-      '-c', 'user.name=Plugin Builder',
-      '-c', 'user.email=plugin-builder@aimaestro.local',
+      '-c', `user.name=${authorName}`,
+      '-c', `user.email=${authorEmail}`,
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
     ], { cwd: pushDir })
 
     // Push
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
-
-    // Clean up
-    await fs.rm(pushDir, { recursive: true, force: true })
 
     return {
       data: {
@@ -540,12 +576,15 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       status: 200,
     }
   } catch (error: unknown) {
-    await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
+    // Always clean up the temp directory regardless of success or failure
     activeOps = Math.max(0, activeOps - 1)
+    fs.rm(pushDir, { recursive: true, force: true }).catch(err => {
+      console.error(`Failed to remove push directory ${pushDir}:`, err)
+    })
   }
 }
 
@@ -706,7 +745,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — build logs from build-plugin.sh can be large
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

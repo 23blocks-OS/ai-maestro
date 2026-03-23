@@ -252,6 +252,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
+            // TODO: onSkillsFound is currently unused — implement to show repo skills list in SkillPicker before adding
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}

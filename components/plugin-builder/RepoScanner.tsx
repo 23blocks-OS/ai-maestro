@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
+import { getSkillKey } from './SkillPicker'
 
 interface RepoScannerProps {
   onSkillsFound: (skills: RepoSkillInfo[], url: string, ref: string) => void
@@ -16,6 +17,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Store the URL and ref that were actually used for the last completed scan,
+  // independently of the input fields which the user may edit afterwards.
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -30,11 +35,16 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     setError(null)
     setScanResult(null)
 
+    // Resolve the effective ref once — used for the API call, stored state,
+    // and the onSkillsFound callback so all three are always consistent.
+    const effectiveRef = ref.trim() || 'main'
+    const trimmedUrl = url.trim()
+
     try {
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: trimmedUrl, ref: effectiveRef }),
         signal,
       })
 
@@ -47,21 +57,31 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Persist the URL and ref that produced this result so that
+        // handleAddSkill and selectedSkillKeys checks remain consistent
+        // even if the user edits the input fields afterwards.
+        setScannedUrl(trimmedUrl)
+        setScannedRef(effectiveRef)
+        onSkillsFound(data.skills, trimmedUrl, effectiveRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       setError('Failed to connect to server')
     } finally {
-      if (!signal.aborted) setScanning(false)
+      // Always clear the scanning state regardless of whether the request was
+      // aborted. Skipping setScanning(false) when aborted would leave the UI
+      // locked in a perpetual "scanning" spinner after a cancellation.
+      setScanning(false)
     }
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use scannedUrl/scannedRef (set at scan time) rather than the live
+    // input-field state, which the user may have changed since the scan.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +113,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,7 +144,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Build the canonical key via getSkillKey so that isSelected stays
+            // consistent with how keys are generated everywhere else in the app.
+            // Use scannedUrl/scannedRef (captured at scan-time) rather than the
+            // live input-field state, which the user may have edited since.
+            const key = getSkillKey({ type: 'repo', url: scannedUrl, ref: scannedRef, skillPath: skill.path, name: skill.name })
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

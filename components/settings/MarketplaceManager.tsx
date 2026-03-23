@@ -71,12 +71,15 @@ export default function MarketplaceManager() {
     pluginUpdates: Record<string, { remote: string; outdated: boolean }>
   }>>({})
 
+  const [orphanPlugins, setOrphanPlugins] = useState<{ name: string; key: string; errors: string[] }[]>([])
+
   const fetchMarketplaces = useCallback(async () => {
     try {
       const res = await fetch('/api/settings/marketplaces')
       if (!res.ok) return
       const data = await res.json()
       setMarketplaces(data.marketplaces || [])
+      setOrphanPlugins(data.orphanPlugins || [])
       setTotals(data.totals || { marketplaces: 0, withPlugins: 0, totalPlugins: 0, installedPlugins: 0, enabledPlugins: 0 })
     } catch { /* ignore */ }
     finally { setLoading(false) }
@@ -211,7 +214,36 @@ export default function MarketplaceManager() {
       {/* Summary */}
       <p className="text-xs text-gray-500 mb-3">
         {totals.marketplaces} marketplaces, {totals.totalPlugins} plugins ({totals.installedPlugins} installed, {totals.enabledPlugins} enabled)
+        {orphanPlugins.length > 0 && <span className="text-red-400 ml-2">{orphanPlugins.length} error{orphanPlugins.length > 1 ? 's' : ''}</span>}
       </p>
+
+      {/* Orphan plugins — enabled but not found in any marketplace */}
+      {orphanPlugins.length > 0 && (
+        <div className="mb-3 rounded-xl border border-red-800/50 overflow-hidden">
+          <div className="px-3 py-2 bg-red-900/20 flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-xs font-medium text-red-400">Plugin Errors</span>
+            <span className="text-[10px] text-red-400/60">{orphanPlugins.length}</span>
+          </div>
+          <div className="divide-y divide-red-800/20">
+            {orphanPlugins.map(p => (
+              <div key={p.key} className="px-3 py-2 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-[11px] font-medium text-gray-300">{p.name}</span>
+                  <span className="text-[9px] text-gray-600 ml-1.5">{p.key}</span>
+                </div>
+                <button
+                  onClick={() => setErrorPopup({ name: p.name, errors: p.errors })}
+                  className="text-[9px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded hover:bg-red-500/20 flex-shrink-0"
+                >
+                  {p.errors[0]}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Add marketplace */}
       <div className="flex items-center gap-2 mb-3">

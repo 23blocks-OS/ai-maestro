@@ -127,7 +127,7 @@ async function countElements(pluginDir: string): Promise<PluginStatus['elementCo
   return counts
 }
 
-/** Detect plugin errors by checking manifest validity */
+/** Detect plugin errors — manifest, LSP executables, MCP servers, hooks */
 function detectPluginErrors(pluginDir: string, pluginName: string): string[] {
   const errors: string[] = []
   const manifestPath = join(pluginDir, '.claude-plugin', 'plugin.json')
@@ -146,7 +146,80 @@ function detectPluginErrors(pluginDir: string, pluginName: string): string[] {
   } catch (e) {
     errors.push(`plugin.json parse error: ${e instanceof Error ? e.message : String(e)}`)
   }
+
+  // Check LSP server executables
+  const lspPath = join(pluginDir, '.lsp.json')
+  if (existsSync(lspPath)) {
+    try {
+      const lsp = JSON.parse(require('fs').readFileSync(lspPath, 'utf-8'))
+      for (const [name, config] of Object.entries(lsp as Record<string, { command?: string }>)) {
+        if (config?.command) {
+          try {
+            require('child_process').execSync(`which "${config.command}"`, { stdio: 'pipe' })
+          } catch {
+            errors.push(`LSP "${name}": executable not found in $PATH: "${config.command}"`)
+          }
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  // Check MCP server executables
+  const mcpPath = join(pluginDir, '.mcp.json')
+  if (existsSync(mcpPath)) {
+    try {
+      const mcp = JSON.parse(require('fs').readFileSync(mcpPath, 'utf-8'))
+      for (const [name, config] of Object.entries(mcp as Record<string, { command?: string }>)) {
+        if (config?.command) {
+          try {
+            require('child_process').execSync(`which "${config.command}"`, { stdio: 'pipe' })
+          } catch {
+            errors.push(`MCP "${name}": executable not found in $PATH: "${config.command}"`)
+          }
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  // Check hook scripts exist
+  const hooksPath = join(pluginDir, 'hooks', 'hooks.json')
+  if (existsSync(hooksPath)) {
+    try {
+      const hooks = JSON.parse(require('fs').readFileSync(hooksPath, 'utf-8'))
+      for (const [eventType, hookList] of Object.entries(hooks as Record<string, { command?: string }[]>)) {
+        if (!Array.isArray(hookList)) continue
+        for (const hook of hookList) {
+          if (hook.command) {
+            // Resolve command — could be absolute or relative to plugin root
+            const cmd = hook.command.split(' ')[0].replace('${CLAUDE_PLUGIN_ROOT}', pluginDir)
+            if (cmd.startsWith('/') && !existsSync(cmd)) {
+              errors.push(`Hook "${eventType}": script not found: "${cmd}"`)
+            }
+          }
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
   return errors
+}
+
+/** Detect orphan plugins — enabled but not found in any marketplace or cache */
+function detectOrphanPlugins(enabledPlugins: Record<string, boolean>, knownPluginKeys: Set<string>): { name: string; key: string; errors: string[] }[] {
+  const orphans: { name: string; key: string; errors: string[] }[] = []
+  for (const key of Object.keys(enabledPlugins)) {
+    if (!enabledPlugins[key]) continue // disabled entries don't matter
+    if (knownPluginKeys.has(key)) continue // found in a marketplace
+    const atIdx = key.lastIndexOf('@')
+    const pluginName = atIdx > 0 ? key.substring(0, atIdx) : key
+    const marketplace = atIdx > 0 ? key.substring(atIdx + 1) : 'unknown'
+    orphans.push({
+      name: pluginName,
+      key,
+      errors: [`Plugin "${pluginName}" not found in marketplace "${marketplace}"`],
+    })
+  }
+  return orphans
 }
 
 /** Build GitHub URL from repo string */
@@ -339,6 +412,13 @@ export async function GET() {
       } catch { /* ignore */ }
     }
 
+    // Detect orphan plugins — enabled but not found in any marketplace
+    const knownPluginKeys = new Set<string>()
+    for (const mkt of marketplaces.values()) {
+      for (const p of mkt.plugins) knownPluginKeys.add(p.key)
+    }
+    const orphans = detectOrphanPlugins(enabledPlugins, knownPluginKeys)
+
     // Sort marketplaces: those with installed plugins first, then alphabetically
     const result = Array.from(marketplaces.values()).sort((a, b) => {
       if (a.installedCount > 0 && b.installedCount === 0) return -1
@@ -348,12 +428,14 @@ export async function GET() {
 
     return NextResponse.json({
       marketplaces: result,
+      orphanPlugins: orphans,
       totals: {
         marketplaces: result.length,
         withPlugins: result.filter(m => m.installedCount > 0).length,
         totalPlugins: result.reduce((sum, m) => sum + m.pluginCount, 0),
         installedPlugins: result.reduce((sum, m) => sum + m.installedCount, 0),
         enabledPlugins: result.reduce((sum, m) => sum + m.enabledCount, 0),
+        orphanCount: orphans.length,
       },
     })
   } catch (error) {

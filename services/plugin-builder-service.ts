@@ -320,7 +320,7 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       }
     }
 
-    if (skill.type === 'core' && skill.skillPath) {
+    if (skill.type === 'repo' && skill.skillPath) {
       // Reject path traversal sequences and absolute paths in core skill paths.
       // Split on '/' so multi-segment paths like "skills/my-skill" validate each segment independently.
       if (skill.skillPath.includes('..') || path.isAbsolute(skill.skillPath)) {
@@ -356,7 +356,7 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 // Build result lifecycle (TTL + eviction)
 // ============================================================================
 
-function evictStaleBuildResults(): void {
+async function evictStaleBuildResults(): Promise<void> {
   // Re-entrancy guard — eviction can be triggered by interval and by manual calls
   if (isEvicting) return
   isEvicting = true
@@ -417,11 +417,6 @@ function evictStaleBuildResults(): void {
   } finally {
     isEvicting = false
   }
-
-  // Execute all cleanup promises concurrently; errors are already handled per-promise above
-  await Promise.all(cleanupPromises).catch(err => {
-    console.error('Error during build result eviction cleanup:', err)
-  })
 }
 
 // Lazy eviction: only start the interval when the first build is created,
@@ -456,9 +451,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   if (coreSkills.length > 0) {
     const map: Record<string, string> = {}
     for (const skill of coreSkills) {
-      // Use skillPath as source key so a custom path within ./src is respected;
-      // fall back to skills/${skill.name} when skillPath is not set.
-      map[skill.skillPath || `skills/${skill.name}`] = `skills/${skill.name}`
+      map[`skills/${skill.name}`] = `skills/${skill.name}`
     }
     sources.push({
       name: 'core',
@@ -579,8 +572,6 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // finally block, and the outer catch is never reached (we return 202 before any throw).
   activeOps++
 
-  // Declare buildDir outside try so the catch block can clean it up if setup fails
-  let buildDir: string | undefined
   try {
     // Evict stale builds before adding new ones; await to ensure map is clean
     // before the new entry is inserted (prevents stale entries from racing with the new build)

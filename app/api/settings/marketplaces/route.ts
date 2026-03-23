@@ -254,8 +254,11 @@ export async function GET() {
           const s = await stat(mktPath)
           if (!s.isDirectory()) continue
 
-          // Read marketplace.json for version/description
-          const mpManifest = await readJsonSafe(join(mktPath, 'marketplace.json'))
+          // Read version/description from marketplace.json or plugin.json (check multiple locations)
+          const mpManifest = await readJsonSafe(join(mktPath, '.claude-plugin', 'marketplace.json'))
+            || await readJsonSafe(join(mktPath, 'marketplace.json'))
+            || await readJsonSafe(join(mktPath, '.claude-plugin', 'plugin.json'))
+            || await readJsonSafe(join(mktPath, 'package.json'))
 
           // Get source info from extraKnownMarketplaces
           const ekm = extraKnown[mktName] as Record<string, unknown> | undefined

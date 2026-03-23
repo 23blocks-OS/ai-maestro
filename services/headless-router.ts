@@ -9,6 +9,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'http'
+import type { MemoryCategory, MemoryTier } from '@/lib/cozo-schema-memory'
 import { authenticateAgent } from '../lib/agent-auth'
 
 // ---------------------------------------------------------------------------
@@ -844,13 +845,14 @@ const routes: Route[] = [
     const limitVal = query.limit ? parseInt(query.limit) : undefined
     const minConfidenceVal = query.minConfidence ? parseFloat(query.minConfidence) : undefined
     const maxTokensVal = query.maxTokens ? parseInt(query.maxTokens) : undefined
+    // Query params are untyped strings — the service validates enum values at runtime
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
-      category: (query.category as any) || undefined,
+      category: (query.category as MemoryCategory) || undefined,
       limit: limitVal !== undefined && !isNaN(limitVal) ? limitVal : undefined,
       includeRelated: query.includeRelated === 'true',
       minConfidence: minConfidenceVal !== undefined && !isNaN(minConfidenceVal) ? minConfidenceVal : undefined,
-      tier: (query.tier as any) || undefined,
+      tier: (query.tier as MemoryTier) || undefined,
       view: query.view,
       memoryId: query.id || undefined,
       maxTokens: maxTokensVal !== undefined && !isNaN(maxTokensVal) ? maxTokensVal : undefined,
@@ -885,7 +887,7 @@ const routes: Route[] = [
       mode: query.mode,
       limit: limitVal !== undefined && !isNaN(limitVal) ? limitVal : undefined,
       minScore: minScoreVal !== undefined && !isNaN(minScoreVal) ? minScoreVal : undefined,
-      roleFilter: (query.roleFilter as any) || undefined,
+      roleFilter: (query.roleFilter as 'user' | 'assistant') || undefined,
       conversationFile: query.conversationFile,
       startTs: startTsVal !== undefined && !isNaN(startTsVal) ? startTsVal : undefined,
       endTs: endTsVal !== undefined && !isNaN(endTsVal) ? endTsVal : undefined,

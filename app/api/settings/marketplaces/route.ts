@@ -50,6 +50,7 @@ interface MarketplaceInfo {
   name: string
   version: string | null
   description: string | null
+  owner: string | null // owner name from marketplace.json
   sourceType: 'github' | 'directory' | 'unknown'
   sourceUrl: string | null // full GitHub URL or local path
   sourceRepo: string | null // GitHub owner/repo format
@@ -267,10 +268,21 @@ export async function GET() {
           const sourceRepo = srcInfo?.repo || null
           const sourceUrl = sourceRepo ? repoToUrl(sourceRepo) : srcInfo?.path || null
 
+          // Extract description from top-level or metadata sub-object
+          const mktDescription = (mpManifest?.description as string)
+            || ((mpManifest?.metadata as Record<string, unknown>)?.description as string)
+            || null
+          // Extract owner name
+          const ownerObj = mpManifest?.owner as Record<string, string> | undefined
+          const mktOwner = ownerObj?.name || null
+
           const info: MarketplaceInfo = {
             name: mktName,
-            version: (mpManifest?.version as string) || null,
-            description: (mpManifest?.description as string) || null,
+            version: (mpManifest?.version as string)
+              || ((mpManifest?.metadata as Record<string, unknown>)?.version as string)
+              || null,
+            description: mktDescription,
+            owner: mktOwner,
             sourceType,
             sourceUrl,
             sourceRepo,

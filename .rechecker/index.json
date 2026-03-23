@@ -1,33 +1,23 @@
 {
-  "uid": "794461",
-  "created": "2026-03-23T02:56:30.811994",
-  "total_files": 2,
+  "uid": "bfb2d5",
+  "created": "2026-03-23T07:54:50.976435",
+  "total_files": 1,
   "files": {
     "FID00001": {
-      "path": "README.md",
-      "lines": 367,
-      "bytes": 15352,
-      "category": "big"
-    },
-    "FID00002": {
-      "path": "plugin",
-      "lines": 0,
-      "bytes": 576,
+      "path": "scripts/merge-rechecker-worktrees.sh",
+      "lines": 175,
+      "bytes": 5501,
       "category": "small"
     }
   },
   "groups": {
     "G001": [
       "FID00001"
-    ],
-    "G002": [
-      "FID00002"
     ]
   },
   "macro_groups": {
     "MG001": [
-      "G001",
-      "G002"
+      "G001"
     ]
   }
 }

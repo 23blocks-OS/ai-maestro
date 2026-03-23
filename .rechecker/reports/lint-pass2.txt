@@ -1,10 +1,12 @@
 
-/Users/emanuelesabetta/ai-maestro/components/AgentBadge.tsx
-  373:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
-  444:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+In scripts/merge-rechecker-worktrees.sh line 100:
+  files=( $pattern )
+          ^------^ SC2206 (warning): Quote to prevent word splitting/globbing, or split robustly with mapfile or read -a.
 
-/Users/emanuelesabetta/ai-maestro/components/AgentList.tsx
-  1181:47  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
 
-✖ 3 problems (0 errors, 3 warnings)
+In scripts/merge-rechecker-worktrees.sh line 142:
+  files=( $pattern )
+          ^------^ SC2206 (warning): Quote to prevent word splitting/globbing, or split robustly with mapfile or read -a.
 
+For more information:
+  https://www.shellcheck.net/wiki/SC2206 -- Quote to prevent word splitting/g...

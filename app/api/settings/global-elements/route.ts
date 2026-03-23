@@ -57,6 +57,7 @@ async function extractDescription(filePath: string): Promise<string | null> {
 
 interface PluginElements {
   pluginName: string
+  pluginKey: string
   marketplace: string
   enabled: boolean
   version: string | null

@@ -58,6 +58,7 @@ import type {
   AMPPayload,
   AMPError,
   AMPNameTakenError,
+  AMPKeypairRotationRequest,
 } from '@/lib/types/amp'
 
 // ---------------------------------------------------------------------------
@@ -608,6 +609,23 @@ export async function registerAgent(
           details: { expected_tenant: configOrg }
         } as AMPError,
         status: 400
+      }
+    }
+
+    // Check if public key fingerprint is already used by a different agent
+    const ampAgents = getAMPRegisteredAgents()
+    const duplicateKeyAgent = ampAgents.find((a: any) =>
+      a.metadata?.amp?.fingerprint === fingerprint &&
+      a.name?.toLowerCase() !== normalizedName
+    )
+    if (duplicateKeyAgent) {
+      return {
+        data: {
+          error: 'key_already_registered',
+          message: 'This public key is already associated with another agent',
+          details: { fingerprint }
+        } as AMPError,
+        status: 409
       }
     }
 
@@ -1613,7 +1631,7 @@ export function rotateKey(authHeader: string | null): ServiceResult<AMPKeyRotati
 // POST /api/v1/auth/rotate-keys
 // ---------------------------------------------------------------------------
 
-export async function rotateKeypair(authHeader: string | null): Promise<ServiceResult<any>> {
+export async function rotateKeypair(body: AMPKeypairRotationRequest | null, authHeader: string | null): Promise<ServiceResult<any>> {
   const auth = authenticateRequest(authHeader)
 
   if (!auth.authenticated) {
@@ -1631,8 +1649,62 @@ export async function rotateKeypair(authHeader: string | null): Promise<ServiceR
     }
   }
 
-  // Generate new keypair and save to disk
-  const newKeyPair = await generateKeyPair()
+  let newKeyPair: { publicPem: string; privatePem: string; publicHex: string; fingerprint: string }
+
+  if (body && body.new_public_key && body.proof) {
+    // ── Proof-of-possession rotation ──────────────────────────────────────
+    if (body.key_algorithm && body.key_algorithm !== 'Ed25519') {
+      return {
+        data: { error: 'invalid_field', message: 'key_algorithm must be Ed25519', field: 'key_algorithm' } as AMPError,
+        status: 400
+      }
+    }
+
+    const newPublicKeyHex = extractPublicKeyHex(body.new_public_key)
+    if (!newPublicKeyHex) {
+      return {
+        data: { error: 'invalid_field', message: 'Invalid new_public_key format. Must be PEM-encoded Ed25519 public key.', field: 'new_public_key' } as AMPError,
+        status: 400
+      }
+    }
+
+    // Load old keypair to verify proof
+    const oldKeyPair = loadKeyPair(auth.agentId!)
+    if (!oldKeyPair) {
+      return {
+        data: { error: 'not_found', message: 'Existing keypair not found for agent' } as AMPError,
+        status: 404
+      }
+    }
+
+    // Verify proof: new_public_key_hex signed with old private key
+    const proofValid = verifySignature(newPublicKeyHex, body.proof, oldKeyPair.publicHex)
+    if (!proofValid) {
+      return {
+        data: { error: 'invalid_signature', message: 'Proof-of-possession verification failed. The proof must be the new public key hex signed with the old private key.' } as AMPError,
+        status: 401
+      }
+    }
+
+    const fingerprint = calculateFingerprint(newPublicKeyHex)
+    newKeyPair = {
+      publicPem: body.new_public_key,
+      privatePem: '',  // Agent holds its own private key — server does not store it
+      publicHex: newPublicKeyHex,
+      fingerprint,
+    }
+  } else if (body && (body.new_public_key || body.proof)) {
+    // Partial body — both fields required
+    const missing = !body.new_public_key ? 'new_public_key' : 'proof'
+    return {
+      data: { error: 'missing_field', message: `Both new_public_key and proof are required for proof-of-possession rotation`, field: missing } as AMPError,
+      status: 400
+    }
+  } else {
+    // ── Legacy: server-side key generation (backward compat) ──────────────
+    newKeyPair = await generateKeyPair()
+  }
+
   saveKeyPair(auth.agentId!, newKeyPair)
 
   // Update agent metadata with new fingerprint

@@ -395,9 +395,13 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                   /{mkt.installedCount}/{mkt.pluginCount}
                 </span>
 
-                {/* Open source URL */}
-                {mkt.sourceUrl && mkt.sourceType === 'github' && (
-                  <a href={mkt.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors" title={mkt.sourceUrl}>
+                {/* Open source URL — works for any URL (http, file://) */}
+                {mkt.sourceUrl && (
+                  <a
+                    href={mkt.sourceUrl.startsWith('/') ? `file://${mkt.sourceUrl}` : mkt.sourceUrl}
+                    target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    className="p-1 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={mkt.sourceUrl}
+                  >
                     <ExternalLink className="w-3 h-3 text-gray-500 hover:text-gray-300" />
                   </a>
                 )}
@@ -428,7 +432,9 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                   <div className="flex flex-wrap gap-x-3">
                     <span>Author: <span className="text-gray-500">{mkt.author || '-'}</span></span>
                     <span>Email: <span className="text-gray-500">{mkt.authorEmail || '-'}</span></span>
-                    <span>Source: <span className="text-gray-500 break-all" title={mkt.sourceUrl || ''}>{mkt.sourceUrl || '-'}</span></span>
+                    <span>Source: {mkt.sourceUrl ? (
+                      <a href={mkt.sourceUrl.startsWith('/') ? `file://${mkt.sourceUrl}` : mkt.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={mkt.sourceUrl}>{mkt.sourceUrl}</a>
+                    ) : <span className="text-gray-500">-</span>}</span>
                   </div>
                 </div>
               )}
@@ -639,13 +645,9 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                               <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Source: <span className="text-gray-400 break-all" title={plugin.sourceUrl || ''}>{plugin.sourceUrl || '-'}</span>
-                                {plugin.sourceUrl?.startsWith('http') && (
-                                  <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-block ml-0.5 align-middle">
-                                    <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
-                                  </a>
-                                )}
-                              </span>
+                              <span>Source: {plugin.sourceUrl ? (
+                                <a href={plugin.sourceUrl.startsWith('/') ? `file://${plugin.sourceUrl}` : plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={plugin.sourceUrl}>{plugin.sourceUrl}</a>
+                              ) : <span className="text-gray-400">-</span>}</span>
                               {(hp || repo) && (
                                 <>
                                   {hp && <span>Homepage: <a href={hp} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{hp}</a></span>}

@@ -414,7 +414,7 @@ export default function GlobalElementsSection() {
                   {group.plugins.length}
                 </span>
                 {group.sourceUrl && (
-                  <a href={group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={group.sourceUrl}>
+                  <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={group.sourceUrl}>
                     <ExternalLink className="w-3 h-3 text-gray-500 hover:text-gray-300" />
                   </a>
                 )}
@@ -472,7 +472,7 @@ export default function GlobalElementsSection() {
                                 title={`Go to ${group.marketplace}`}
                               >{group.marketplace}</span>
                                 {group.sourceUrl && (
-                                  <a href={group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
+                                  <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
                                     <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
                                   </a>
                                 )}
@@ -637,7 +637,7 @@ export default function GlobalElementsSection() {
                       title={`${el.sourceMarketplace} — Go to Marketplaces tab`}
                     >{el.sourceMarketplace}</span>
                     {el.pluginSourceUrl && (
-                      <a href={el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
+                      <a href={el.pluginSourceUrl.startsWith('/') ? `file://${el.pluginSourceUrl}` : el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
                         <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
                       </a>
                     )}

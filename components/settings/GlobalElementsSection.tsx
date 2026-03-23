@@ -458,38 +458,26 @@ export default function GlobalElementsSection() {
                         </div>
                         {/* Detail panel */}
                         {isExpPl && (
-                          <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1">
+                          <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-500 space-y-0.5">
                             <div>Description: <span className="text-gray-400">{plugin.description || '-'}</span></div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Author: <span className="text-gray-400">{plugin.author || '-'}</span></span>
-                              <span>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></span>
-                              <span>License: <span className="text-gray-400">{plugin.license || '-'}</span></span>
+                            <div>Author: <span className="text-gray-400">{plugin.author || '-'}</span></div>
+                            <div>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></div>
+                            <div>License: <span className="text-gray-400">{plugin.license || '-'}</span></div>
+                            <div>Key: <span className="text-gray-400 font-mono break-all" title={plugin.key}>{plugin.key}</span></div>
+                            <div>Version: <span className="text-gray-400">{plugin.version || '-'}</span></div>
+                            <div>Marketplace: <span
+                              className="text-gray-400 hover:text-amber-400 cursor-pointer transition-colors"
+                              onClick={(e) => { e.stopPropagation(); goToMarketplace(group.marketplace) }}
+                              title={`Go to ${group.marketplace}`}
+                            >{group.marketplace}</span>
+                              {group.sourceUrl && (
+                                <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
+                                  <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
+                                </a>
+                              )}
                             </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
-                              <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
-                              <span>Marketplace: <span
-                                className="text-gray-400 hover:text-amber-400 cursor-pointer transition-colors"
-                                onClick={(e) => { e.stopPropagation(); goToMarketplace(group.marketplace) }}
-                                title={`Go to ${group.marketplace}`}
-                              >{group.marketplace}</span>
-                                {group.sourceUrl && (
-                                  <a href={group.sourceUrl.startsWith('/') ? `file://${group.sourceUrl}` : group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
-                                    <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
-                                  </a>
-                                )}
-                              </span>
-                              <span>Version: <span className="text-gray-400">{plugin.version || '-'}</span></span>
-                            </div>
-                            {(plugin.homepage || plugin.repository) && (
-                              <div className="flex flex-wrap gap-x-3 text-[9px] text-gray-500">
-                                {plugin.homepage && (
-                                  <span>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.homepage}</a></span>
-                                )}
-                                {plugin.repository && (
-                                  <span>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.repository}</a></span>
-                                )}
-                              </div>
-                            )}
+                            {plugin.homepage && <div>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{plugin.homepage}</a></div>}
+                            {plugin.repository && <div>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{plugin.repository}</a></div>}
                             {plugin.keywords && plugin.keywords.length > 0 && (
                               <div className="flex flex-wrap gap-1 text-[8px]">
                                 {plugin.keywords.map((kw) => (
@@ -646,21 +634,19 @@ export default function GlobalElementsSection() {
                 </div>
                 {/* Expanded: description + metadata */}
                 {isExp && (
-                  <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1">
+                  <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-600 space-y-0.5">
                     <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>
-                    <div className="flex flex-wrap gap-x-3 text-[9px] text-gray-600">
-                      <span>Type: <span className={ti.color}>{ti.label}</span></span>
-                      <span>Plugin: <span
-                        className="text-gray-400 hover:text-blue-400 cursor-pointer"
-                        onClick={() => goToPlugin(el.pluginKey)}
-                        title={`View ${el.sourcePlugin} in Plugins tab`}
-                      >{el.sourcePlugin}</span> {el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
-                      <span>Marketplace: <span
-                        className="text-gray-400 hover:text-amber-400 cursor-pointer"
-                        onClick={() => goToMarketplace(el.sourceMarketplace)}
-                        title={`Go to ${el.sourceMarketplace} in Marketplaces tab`}
-                      >{el.sourceMarketplace}</span></span>
-                    </div>
+                    <div>Type: <span className={ti.color}>{ti.label}</span></div>
+                    <div>Plugin: <span
+                      className="text-gray-400 hover:text-blue-400 cursor-pointer"
+                      onClick={() => goToPlugin(el.pluginKey)}
+                      title={`View ${el.sourcePlugin} in Plugins tab`}
+                    >{el.sourcePlugin}</span> {el.pluginVersion ? `v${el.pluginVersion}` : ''}</div>
+                    <div>Marketplace: <span
+                      className="text-gray-400 hover:text-amber-400 cursor-pointer"
+                      onClick={() => goToMarketplace(el.sourceMarketplace)}
+                      title={`Go to ${el.sourceMarketplace} in Marketplaces tab`}
+                    >{el.sourceMarketplace}</span></div>
                   </div>
                 )}
               </div>

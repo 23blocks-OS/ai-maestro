@@ -13,7 +13,9 @@
 # Designed to be called by Claude Code without manual intervention.
 # All git operations use safe flags (no -D, no --force, no checkout --).
 
-set -euo pipefail
+# Do NOT use set -e — individual commands may fail (empty stash, branch -d on unmerged, etc.)
+# and we handle errors explicitly per-step.
+set -uo pipefail
 
 GIT_ROOT="$(git rev-parse --show-toplevel)"
 cd "$GIT_ROOT"
@@ -91,8 +93,11 @@ if ! git diff --quiet --ignore-submodules 2>/dev/null || \
    ! git diff --cached --quiet --ignore-submodules 2>/dev/null || \
    git ls-files --others --exclude-standard 2>/dev/null | grep -q .; then
   echo "Auto-stashing uncommitted changes..."
-  git stash push --include-untracked -m "auto-stash: rechecker merge $(date +%Y%m%d_%H%M%S)"
-  STASHED=true
+  if git stash push --include-untracked -m "auto-stash: rechecker merge $(date +%Y%m%d_%H%M%S)"; then
+    STASHED=true
+  else
+    echo "WARNING: stash push failed — proceeding with merge anyway" >&2
+  fi
 fi
 
 # ---- Step 2: Move existing rechecker files to docs_dev ----
@@ -155,11 +160,32 @@ for pattern in "rck-*-merge-pending.md" "rck-*-report.md"; do
   done
 done
 
-# ---- Step 5: Delete merged branches (safe -d) ----
+# ---- Step 5: Remove worktrees + delete merged branches ----
 DELETED=0
 KEPT=0
+
+# Verify we're still on the correct branch after merges
+ACTUAL_BRANCH=$(git branch --show-current 2>/dev/null)
+if [[ "$ACTUAL_BRANCH" != "$CURRENT_BRANCH" ]]; then
+  echo "ERROR: Branch switched from $CURRENT_BRANCH to $ACTUAL_BRANCH during merges!" >&2
+  echo "Switching back to $CURRENT_BRANCH..." >&2
+  git checkout "$CURRENT_BRANCH" 2>/dev/null || { echo "FATAL: Cannot switch back!" >&2; exit 1; }
+fi
+
+# Remove worktrees first (must happen before branch deletion)
+echo ""
+echo "Removing worktrees..."
+while IFS= read -r branch; do
+  [[ -z "$branch" ]] && continue
+  # Find worktree path for this branch
+  wt_path=$(git worktree list --porcelain 2>/dev/null | awk -v b="$branch" '/^worktree / {p=$2} /^branch refs\/heads\// {if ($2 == "refs/heads/"b) print p}')
+  if [[ -n "$wt_path" && -d "$wt_path" ]]; then
+    git worktree remove --force "$wt_path" 2>/dev/null && echo "  removed worktree: $wt_path" || echo "  WARNING: could not remove worktree $wt_path" >&2
+  fi
+done <<< "$BRANCHES"
+
 if $DELETE_BRANCHES; then
-  echo ""
+  echo "Deleting merged branches..."
   while IFS= read -r branch; do
     [[ -z "$branch" ]] && continue
     if git branch -d "$branch" 2>/dev/null; then

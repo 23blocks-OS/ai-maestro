@@ -232,39 +232,3 @@ function SkillGroup({
   )
 }
 
-function getSkillDisplayName(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return skill.name
-    case 'marketplace': {
-      // id format is expected to be "source:plugin:skillname" or "source:skillname".
-      // We want the last segment as the display name.
-      const parts = skill.id.split(':')
-      return parts[parts.length - 1] || skill.id
-    }
-    case 'repo':
-      return skill.name
-    default: {
-      // NT-030: Exhaustiveness check — if a new skill type is added, TypeScript will error here
-      const _exhaustive: never = skill
-      void _exhaustive
-      return 'unknown'
-    }
-  }
-}
-
-function getSkillSubtitle(skill: PluginSkillSelection): string | null {
-  switch (skill.type) {
-    case 'core':
-      return null
-    case 'marketplace':
-      return `${skill.plugin ?? 'Unknown Plugin'} / ${skill.marketplace ?? 'Unknown Marketplace'}`
-    case 'repo':
-      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
-    default: {
-      // Exhaustiveness check (consistent with getSkillDisplayName)
-      const _exhaustive: never = skill
-      return null
-    }
-  }
-}

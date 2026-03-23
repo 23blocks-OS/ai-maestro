@@ -42,7 +42,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   // Clean up polling and copy timeout on unmount
   useEffect(() => {
-    mountedRef.current = true
     return () => {
       if (pollRef.current) clearTimeout(pollRef.current)
       // SF-022: Abort any in-flight poll fetch on unmount
@@ -54,7 +53,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (pollRef.current) {
       clearTimeout(pollRef.current)
       pollRef.current = null
-      clearInterval(intervalId)
     }
     // SF-022: Abort any in-flight poll fetch when clearing.
     // Capture the ref in a local variable first, then abort, then null the ref.
@@ -117,8 +115,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       }
 
       const data: PluginBuildResult = await res.json()
-      // Guard: component may have unmounted while the initial fetch response body was being parsed
-      if (!mountedRef.current) return
       setResult(data)
 
       // Clear any previous poll only after a new build has successfully started,
@@ -191,7 +187,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               return // Prevent further processing in this tick after stopping the poll
             }
           } finally {
-            polling = false
+            // poll tick complete
           }
           // Reschedule the next poll tick if polling was not stopped
           if (pollRef.current !== null) {

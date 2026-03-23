@@ -241,25 +241,26 @@ function validateMarketplaceName(name: string): string | null {
   return null
 }
 
-function validateBuildConfig(config: PluginBuildConfig): string | null {
-  const nameErr = validatePluginName(config.name)
+function validateBuildConfig(config: unknown): string | null {
+  const c = config as PluginBuildConfig
+  const nameErr = validatePluginName(c.name)
   if (nameErr) return nameErr
 
   if (!c.version || typeof c.version !== 'string') return 'Version is required'
   if (!SEMVER_RE.test(c.version)) return 'Version must be valid semver (e.g., 1.0.0)'
 
   // Validate description if provided — must be a string within reasonable length
-  if (config.description !== undefined && config.description !== null) {
-    if (typeof config.description !== 'string') return 'Description must be a string'
-    if (config.description.length > 512) return 'Description too long (max 512 characters)'
+  if (c.description !== undefined && c.description !== null) {
+    if (typeof c.description !== 'string') return 'Description must be a string'
+    if (c.description.length > 512) return 'Description too long (max 512 characters)'
   }
 
-  if (!config.skills || !Array.isArray(config.skills) || config.skills.length === 0) {
+  if (!c.skills || !Array.isArray(c.skills) || c.skills.length === 0) {
     return 'At least one skill must be selected'
   }
 
   // Validate each skill selection
-  for (const skill of config.skills) {
+  for (const skill of c.skills) {
     if (skill.type === 'core') {
       // skill.name is used as a path segment in generateManifest: skills/${skill.name}
       if (!skill.name || typeof skill.name !== 'string' || !SAFE_PATH_SEGMENT_RE.test(skill.name) || skill.name.length > 32) {
@@ -271,9 +272,9 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
         return `Repo skill "${skill.name || 'unknown'}": name must be a non-empty safe path segment (letters, numbers, dots, hyphens, underscores; max 32 chars)`
       }
       const urlErr = validateGitUrl(skill.url)
-      if (urlErr) return `Repo skill "${skill.skillName}": ${urlErr}`
+      if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
       const refErr = validateGitRef(skill.ref)
-      if (refErr) return `Repo skill "${skill.skillName}": ${refErr}`
+      if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
     } else if (skill.type === 'marketplace') {
@@ -363,12 +364,12 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       }
     }
     if (skill.type === 'marketplace') {
-      // Both fields are used in path.join — must not contain dots, slashes, or ".."
-      if (!skill.marketplace || !SAFE_NAME_RE.test(skill.marketplace)) {
-        return `Marketplace skill "${skill.name}": marketplace name must contain only letters, numbers, hyphens, and underscores`
+      // Both fields are used in path.join — must not contain slashes or ".."
+      if (!skill.marketplace || !SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": marketplace name must contain only letters, numbers, dots, hyphens, and underscores`
       }
-      if (!skill.plugin || !SAFE_NAME_RE.test(skill.plugin)) {
-        return `Marketplace skill "${skill.name}": plugin name must contain only letters, numbers, hyphens, and underscores`
+      if (!skill.plugin || !SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": plugin name must contain only letters, numbers, dots, hyphens, and underscores`
       }
     }
   }
@@ -440,24 +441,6 @@ async function evictStaleBuildResults(): Promise<void> {
     }
   } finally {
     isEvicting = false
-  }
-  for (const id of staleIds) {
-    buildResults.delete(id)
-    // Best-effort cleanup of build directory — log failures so disk-space issues are
-    // visible instead of silently accumulating stale directories.
-    const buildDir = path.join(BUILDS_DIR, id)
-    fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
-      console.warn(`[evictStaleBuildResults] Failed to remove stale build dir ${buildDir}:`, err)
-    })
-  }
-
-  // Wait for all cleanup operations; allSettled ensures we never throw
-  await Promise.allSettled(cleanupPromises)
-
-  // Delete from the in-memory map only after filesystem cleanup has been attempted,
-  // so the map accurately reflects filesystem state throughout the eviction window.
-  for (const id of idsToDelete) {
-    buildResults.delete(id)
   }
 }
 
@@ -542,8 +525,8 @@ export function generateManifest(config: PluginBuildConfig, buildDir: string): P
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
-      name: `${sanitizedPlugin}-from-${sanitizedMarketplace}`,
-      description: `Skills from ${sanitizedPlugin} plugin (${sanitizedMarketplace} marketplace)`,
+      name: `${group.plugin}-from-${group.marketplace}`,
+      description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
       type: 'local',
       path: installPath,
       map,
@@ -563,8 +546,8 @@ export function generateManifest(config: PluginBuildConfig, buildDir: string): P
     const first = skills[0]
     const map: Record<string, string> = {}
     for (const skill of skills) {
-      // skillPath already validated against path traversal
-      map[skill.skillPath] = `skills/${skill.skillName}`
+      // skillPath already validated against path traversal; name is the output skill folder
+      map[skill.skillPath] = `skills/${skill.name}`
     }
     // Append a short hash of the full URL to guarantee uniqueness after sanitization/truncation
     const urlHash = createHash('sha1').update(first.url).digest('hex').slice(0, 8)
@@ -616,38 +599,6 @@ export async function buildPlugin(config: unknown): Promise<ServiceResult<Plugin
   const buildId = randomUUID()
   const buildDir = path.join(BUILDS_DIR, buildId)
 
-  // Increment before the try block so the catch always decrements exactly once if runBuild
-  // was never started. If runBuild is successfully launched, it owns the decrement via its
-  // finally block, and the outer catch is never reached (we return 202 before any throw).
-  activeOps++
-
-  // Track whether runBuild was initiated so activeOps is decremented exactly once.
-  // If runBuild is successfully launched (async), its .finally() owns the decrement.
-  // If an error occurs before runBuild is called, the catch block owns the decrement.
-  let buildLaunched = false
-  // Hoisted so the catch block can clean up a partially-created build directory on
-  // early errors (after mkdir but before runBuild is launched).
-  let buildDir: string | undefined
-
-  // Increment before try so the catch-block decrement always matches this increment
-  activeOps++
-
-  // Increment before the try block so the finally/.catch path always decrements exactly once
-  activeOps++
-
-  // Evict stale builds before adding new ones
-  evictStaleBuildResults()
-
-  activeOps++
-  const buildId = randomUUID()
-  const buildDir = path.join(BUILDS_DIR, buildId)
-
-  // Increment before the try block so the decrement paths are mutually exclusive:
-  // either the outer catch (sync setup failure) or the runBuild .finally() (async path)
-  // will decrement exactly once. Placing the increment inside the try would allow the
-  // catch to decrement an un-incremented counter if an error fires before line 328.
-  activeOps++
-
   try {
     // Evict stale builds before adding new ones; await to ensure map is clean
     // before the new entry is inserted (prevents stale entries from racing with the new build)
@@ -657,7 +608,8 @@ export async function buildPlugin(config: unknown): Promise<ServiceResult<Plugin
     await fs.mkdir(buildDir, { recursive: true })
 
     // Generate manifest — buildDir must be passed so marketplace paths are relative to it
-    const manifest = generateManifest(config, buildDir)
+    // config is validated by validateBuildConfig above, so the cast is safe
+    const manifest = generateManifest(config as PluginBuildConfig, buildDir)
 
     // Write manifest to build directory
     await fs.writeFile(
@@ -671,8 +623,10 @@ export async function buildPlugin(config: unknown): Promise<ServiceResult<Plugin
 
     // Symlink the src directory if core skills are selected OR if hooks are included
     // (the hooks-only source also references ./src so the directory must be present).
-    const hasCoreSkills = config.skills.some(s => s.type === 'core')
-    const needsSrcDir = hasCoreSkills || config.includeHooks !== false
+    // config is validated above so the cast is safe
+    const typedConfig = config as PluginBuildConfig
+    const hasCoreSkills = typedConfig.skills.some(s => s.type === 'core')
+    const needsSrcDir = hasCoreSkills || typedConfig.includeHooks !== false
     if (needsSrcDir) {
       const srcDir = path.join(PLUGIN_DIR, 'src')
       const linkTarget = path.join(buildDir, 'src')
@@ -730,26 +684,11 @@ export async function buildPlugin(config: unknown): Promise<ServiceResult<Plugin
     }
     return { data: finalResult || result, status: 200 }
   } catch (error) {
-    // Clean up the build directory if it was created before the error occurred
-    if (!buildDispatched) {
-      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
-        console.warn(`plugin-builder: failed to remove build directory ${buildDir} on early error:`, err)
-      })
-    }
     console.error('Error starting plugin build:', error)
-
-    // If activeOps was incremented but runBuild was never launched (error between
-    // the increment and the runBuild call), runBuild's finally block will never
-    // run, so we must decrement here to keep the counter accurate.
-    if (opIncremented) {
-      activeOps = Math.max(0, activeOps - 1)
-    }
 
     // Clean up any partially-created build directory so it does not accumulate
     // on disk across repeated early failures.
-    if (buildDir) {
-      await fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
-    }
+    await fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
 
     return { error: 'Failed to start plugin build', status: 500 }
   } finally {
@@ -757,7 +696,7 @@ export async function buildPlugin(config: unknown): Promise<ServiceResult<Plugin
     // build was launched.  If the async build was launched, the async chain's
     // own finally block above handles the decrement instead.
     if (!buildDispatched) {
-      activeOps = Math.max(0, activeOps - 1)
+      release()
     }
   }
 }
@@ -845,8 +784,7 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
       return { error: `Git clone timed out after 30 seconds for repository: ${url}`, status: 504 }
     }
     console.error('Error scanning repo:', error)
-    const detail = stderr ? `${message}\n${stderr}` : message
-    return { error: `Failed to scan repository: ${detail}`, status: 500 }
+    return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
     release()
   }
@@ -867,11 +805,11 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   if (!config.manifest || typeof config.manifest !== 'object') {
     return { error: 'Manifest is required', status: 400 }
   }
-  if (!config.manifest.name || typeof config.manifest.name !== 'string') {
-    return { error: 'Manifest must have a valid name', status: 400 }
+  if (!config.manifest.plugin?.name || typeof config.manifest.plugin.name !== 'string') {
+    return { error: 'Manifest must have a valid plugin name', status: 400 }
   }
-  if (!config.manifest.version || typeof config.manifest.version !== 'string') {
-    return { error: 'Manifest must have a valid version', status: 400 }
+  if (!config.manifest.plugin?.version || typeof config.manifest.plugin.version !== 'string') {
+    return { error: 'Manifest must have a valid plugin version', status: 400 }
   }
   if (!Array.isArray(config.manifest.sources)) {
     return { error: 'Manifest must have a sources array', status: 400 }
@@ -902,9 +840,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const pushDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-maestro-push-'))
 
   const release = await acquireSlot()
-  try {
 
-    // Build clone URL. If a token is provided, embed it for auth so private forks can be read.
+  // Build clone URL. If a token is provided, embed it for auth so private forks can be read.
     // Using URL parsing avoids string-replace pitfalls (e.g. double-auth when forkUrl already
     // contains credentials, or when the URL has unusual structure).
     let cloneUrl = config.forkUrl
@@ -953,7 +890,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     const resolveGitConfigValue = async (key: string): Promise<string | null> => {
       try {
         const value = await execPromise('git', ['config', '--global', key], { cwd: pushDir })
-        return value.trim() || null
+        return value.stdout.trim() || null
       } catch {
         return null
       }
@@ -1094,8 +1031,6 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       status: 'failed',
       outputPath: undefined,
       logs,
-      buildDir: current.buildDir,
-      outputPath: undefined,
       stats: undefined,
     })
   } finally {

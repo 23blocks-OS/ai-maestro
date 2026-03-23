@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Monitor } from 'lucide-react'
 
 interface HeaderProps {
@@ -64,7 +65,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <Puzzle className="w-3.5 h-3.5" />
             Plugin Builder
-          </a>
+          </Link>
           <a
             href={zoomUrl}
             className="text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5"
@@ -72,7 +73,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <Grid3X3 className="w-3.5 h-3.5" />
             Zoom
-          </Link>
+          </a>
           <Link
             href={companionUrl}
             className="text-sm px-3 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded transition-colors flex items-center gap-1.5"

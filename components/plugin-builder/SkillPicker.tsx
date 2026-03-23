@@ -6,6 +6,7 @@ import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'
 import type { PluginSkillSelection } from '@/types/plugin-builder'
 import { getSkillKey } from '@/types/plugin-builder'
+import type { RepoSkillInfo } from '@/types/plugin-builder'
 
 // Core AI Maestro skills (from plugin/src/skills/)
 const CORE_SKILLS = [
@@ -22,22 +23,7 @@ interface SkillPickerProps {
   onRemoveSkill: (key: string) => void
 }
 
-/**
- * Generate a unique key for a skill selection (used for deduplication).
- * Defined before SkillPicker so it is in scope at the point of use.
- */
-export function getSkillKey(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return `core:${skill.name}`
-    case 'marketplace':
-      return `marketplace:${skill.id}`
-    case 'repo':
-      // Include ref so skills from the same URL on different branches never
-      // share the same key.  Must match the key format in RepoScanner.tsx.
-      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
-  }
-}
+// getSkillKey is imported from @/types/plugin-builder (canonical source of truth)
 
 export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill }: SkillPickerProps) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -60,7 +46,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
       keys.add(getSkillKey(skill))
     }
     return keys
-  }, [selectedSkills, getSkillKey])
+  }, [selectedSkills])
 
   // Load marketplace skills with abort support
   const abortRef = useRef<AbortController | null>(null)

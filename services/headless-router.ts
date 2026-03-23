@@ -218,7 +218,6 @@ import {
   listTeamTasks,
   getTeamTask,
   createTeamTask,
-  getTeamTask,
   updateTeamTask,
   deleteTeamTask,
   listTeamDocuments,
@@ -1114,15 +1113,6 @@ const routes: Route[] = [
         sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
       }
     }
-    const { buffer, filename, agentId, agentName } = result.data
-    sendBinary(res, 200, new Uint8Array(buffer), {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': buffer.length.toString(),
-      'X-Agent-Id': agentId,
-      'X-Agent-Name': agentName,
-      'X-Export-Version': '1.0.0',
-    })
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)

@@ -103,8 +103,8 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
     setScanResult(null)
     setError(null)
     setScanning(false)
-    setScannedUrl(null)
-    setScannedRef(null)
+    setScannedUrl('')
+    setScannedRef('')
     abortRef.current?.abort()
   }, [url, ref])
 
@@ -207,7 +207,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
       url: lastScannedUrl!,
       ref: lastScannedRef!,
       skillPath: skill.path,
-      skillName: skill.name,
+      name: skill.name,
     })
   }
 

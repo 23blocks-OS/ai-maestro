@@ -194,7 +194,7 @@ export async function GET() {
       // Only create the marketplace group after all safety checks pass, so unsafe entries
       // do not leave empty ghost groups in the response.
       if (!grouped[entry.marketplace]) {
-        grouped[entry.marketplace] = { marketplace: entry.marketplace, plugins: [] }
+        grouped[entry.marketplace] = { marketplace: entry.marketplace, plugins: [], sourceUrl: null }
       }
       grouped[entry.marketplace].plugins.push({
         name: entry.pluginName, key: entry.key, enabled: entry.enabled,

@@ -29,18 +29,25 @@ export async function POST(request: NextRequest) {
 
     const result = await pushToGitHub(body)
 
-    if (result.error) {
+    if (result.error || !result.data) {
       return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
+        { error: result.error || 'Push failed without data' },
+        { status: result.status || 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    console.error('Error pushing to GitHub:', error)
+    console.error('Error in /api/plugin-builder/push:', error)
+    // SyntaxError is thrown by request.json() for malformed request bodies
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

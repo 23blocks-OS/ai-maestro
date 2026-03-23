@@ -31,6 +31,7 @@ interface MarketplaceGroup {
 
 interface ElementInfo {
   name: string
+  path: string | null
   sourcePlugin: string
   sourceMarketplace: string
   description: string | null
@@ -118,6 +119,8 @@ export default function GlobalElementsSection() {
   const [elementSearch, setElementSearch] = useState('')
   const [elementTypeFilter, setElementTypeFilter] = useState<string>('all')
   const [expandedElement, setExpandedElement] = useState<string | null>(null) // accordion for element cards
+  const [elementContent, setElementContent] = useState<Record<string, string>>({}) // lazy-loaded file content cache
+  const [loadingContent, setLoadingContent] = useState<string | null>(null)
 
   // Flat elements list from API
   const [flatElements, setFlatElements] = useState<FlatElement[]>([])
@@ -601,7 +604,21 @@ export default function GlobalElementsSection() {
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}
                 <div
                   className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}
-                  onClick={() => setExpandedElement(isExp ? null : elKey)}
+                  onClick={() => {
+                    const nextKey = isExp ? null : elKey
+                    setExpandedElement(nextKey)
+                    // Lazy-load file content on first expand
+                    if (nextKey && !elementContent[elKey] && el.path) {
+                      setLoadingContent(elKey)
+                      fetch(`/api/settings/element-content?path=${encodeURIComponent(el.path)}`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => {
+                          if (data?.content) setElementContent(prev => ({ ...prev, [elKey]: data.content }))
+                        })
+                        .catch(() => {})
+                        .finally(() => setLoadingContent(null))
+                    }
+                  }}
                 >
                   {/* Row 1: type icon + name + type label + disabled badge */}
                   <div className="flex items-center gap-2 min-w-0">
@@ -647,6 +664,19 @@ export default function GlobalElementsSection() {
                       onClick={() => goToMarketplace(el.sourceMarketplace)}
                       title={`Go to ${el.sourceMarketplace} in Marketplaces tab`}
                     >{el.sourceMarketplace}</span></div>
+                    {el.path && <div>Path: <span className="text-gray-500 font-mono break-all text-[8px]" title={el.path}>{el.path}</span></div>}
+                    {/* File content preview */}
+                    {loadingContent === elKey && (
+                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-800/30">
+                        <Loader2 className="w-3 h-3 text-gray-500 animate-spin" />
+                        <span className="text-[9px] text-gray-500">Loading content...</span>
+                      </div>
+                    )}
+                    {elementContent[elKey] && (
+                      <div className="mt-2 pt-2 border-t border-gray-800/30">
+                        <pre className="text-[9px] text-gray-400 bg-gray-950/50 rounded-md p-2 max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono leading-relaxed">{elementContent[elKey]}</pre>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

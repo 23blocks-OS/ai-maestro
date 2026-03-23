@@ -90,6 +90,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
   }>>({})
 
   const [orphanPlugins, setOrphanPlugins] = useState<{ name: string; key: string; errors: string[] }[]>([])
+  const [updatingAll, setUpdatingAll] = useState(false)
   const mktRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   // Ref holding the latest updateChecks so checkUpdates can read it without being
@@ -347,16 +348,33 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
         )}
       </div>
 
-      {/* Search marketplaces */}
-      <div className="relative mb-3">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-        <input
-          type="text"
-          placeholder="Filter marketplaces..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-        />
+      {/* Search + Update All */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Filter marketplaces..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <button
+          onClick={async () => {
+            setUpdatingAll(true)
+            for (const mkt of marketplaces) {
+              await executeAction('update-marketplace', { marketplaceName: mkt.name })
+            }
+            setUpdatingAll(false)
+          }}
+          disabled={updatingAll || !!actionInProgress}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors disabled:opacity-40 flex-shrink-0"
+          title="Update all marketplaces (git pull)"
+        >
+          {updatingAll ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          Update All
+        </button>
       </div>
 
       {/* Marketplace list */}

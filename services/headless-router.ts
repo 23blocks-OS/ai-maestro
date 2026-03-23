@@ -2438,6 +2438,76 @@ const routes: Route[] = [
       res.end(JSON.stringify({ error: 'Failed to handle marketplaces POST' }))
     }
   }},
+
+  // =========================================================================
+  // Settings: Global Plugins
+  // =========================================================================
+  { method: 'GET', pattern: /^\/api\/settings\/global-plugins$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const mod = await import('@/app/api/settings/global-plugins/route')
+      const response = await mod.GET()
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle global-plugins GET' }))
+    }
+  }},
+  { method: 'POST', pattern: /^\/api\/settings\/global-plugins$/, paramNames: [], handler: async (req, res) => {
+    try {
+      const body = await readJsonBody(req)
+      const { NextRequest } = await import('next/server')
+      const mod = await import('@/app/api/settings/global-plugins/route')
+      const fakeReq = new NextRequest('http://localhost/api/settings/global-plugins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const response = await mod.POST(fakeReq)
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle global-plugins POST' }))
+    }
+  }},
+
+  // =========================================================================
+  // Settings: Global Elements
+  // =========================================================================
+  { method: 'GET', pattern: /^\/api\/settings\/global-elements$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const mod = await import('@/app/api/settings/global-elements/route')
+      const response = await mod.GET()
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle global-elements GET' }))
+    }
+  }},
+
+  // =========================================================================
+  // Settings: Element Content (lazy file read)
+  // =========================================================================
+  { method: 'GET', pattern: /^\/api\/settings\/element-content$/, paramNames: [], handler: async (req, res) => {
+    try {
+      const url = new URL(req.url || '', 'http://localhost')
+      const { NextRequest } = await import('next/server')
+      const mod = await import('@/app/api/settings/element-content/route')
+      const fakeReq = new NextRequest(`http://localhost/api/settings/element-content?path=${url.searchParams.get('path') || ''}`)
+      const response = await mod.GET(fakeReq)
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle element-content GET' }))
+    }
+  }},
 ]
 
 // ---------------------------------------------------------------------------

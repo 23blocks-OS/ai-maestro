@@ -19,6 +19,12 @@ interface PluginStatus {
   availableVersion: string | null
   outdated: boolean
   description: string | null
+  author: string | null
+  authorEmail: string | null
+  license: string | null
+  homepage: string | null
+  repository: string | null
+  keywords: string[] | null
   sourceUrl: string | null
   errors: string[]
   elementCounts: {
@@ -515,22 +521,40 @@ export default function MarketplaceManager() {
                         {/* Detail panel */}
                         {isSelected && (
                           <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1.5">
-                            {plugin.description && <p className="text-[10px] text-gray-400">{plugin.description}</p>}
+                            <div className="text-[10px] text-gray-400">{plugin.description || '-'}</div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
+                              <span>Author: <span className="text-gray-400">{plugin.author || '-'}</span></span>
+                              <span>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></span>
+                              <span>License: <span className="text-gray-400">{plugin.license || '-'}</span></span>
+                            </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
-                              {plugin.version && <span>Installed: <span className="text-gray-400">v{plugin.version}</span></span>}
-                              {plugin.availableVersion && <span>Available: <span className={plugin.outdated ? 'text-amber-400' : 'text-gray-400'}>v{plugin.availableVersion}</span></span>}
+                              <span>Installed: <span className="text-gray-400">{plugin.version ? `v${plugin.version}` : '-'}</span></span>
+                              <span>Available: <span className={plugin.outdated ? 'text-amber-400' : 'text-gray-400'}>{plugin.availableVersion ? `v${plugin.availableVersion}` : '-'}</span></span>
                               {plugin.outdated && <span className="text-amber-400">Update available</span>}
                               <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
                             </div>
-                            {plugin.sourceUrl && (
-                              <div className="flex items-center gap-1 text-[9px] text-gray-600">
-                                <span className="truncate">{plugin.sourceUrl}</span>
-                                {plugin.sourceUrl.startsWith('http') && (
-                                  <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
+                              <span>Source: <span className="text-gray-400 truncate">{plugin.sourceUrl || '-'}</span>
+                                {plugin.sourceUrl?.startsWith('http') && (
+                                  <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-block ml-0.5 align-middle">
                                     <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
                                   </a>
                                 )}
+                              </span>
+                              {(plugin.homepage || plugin.repository) && (
+                                <>
+                                  {plugin.homepage && <span>Homepage: <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.homepage}</a></span>}
+                                  {plugin.repository && !plugin.homepage && <span>Repo: <a href={plugin.repository} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{plugin.repository}</a></span>}
+                                </>
+                              )}
+                            </div>
+                            {/* Keywords */}
+                            {plugin.keywords && plugin.keywords.length > 0 && (
+                              <div className="flex flex-wrap gap-1 text-[8px]">
+                                {plugin.keywords.map((kw, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-500 border border-gray-700/30">{kw}</span>
+                                ))}
                               </div>
                             )}
                             {/* Element breakdown */}

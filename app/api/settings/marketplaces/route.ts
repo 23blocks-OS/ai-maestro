@@ -32,6 +32,12 @@ interface PluginStatus {
   availableVersion: string | null // version available at the source (marketplace.json or clone)
   outdated: boolean // true when installed version < available version
   description: string | null
+  author: string | null
+  authorEmail: string | null
+  license: string | null
+  homepage: string | null
+  repository: string | null
+  keywords: string[] | null
   sourceUrl: string | null // plugin-level source URL/path
   errors: string[] // validation errors
   elementCounts: {
@@ -319,6 +325,12 @@ export async function GET() {
 
             // Read metadata from best available source: cache (installed) > clone > marketplace.json
             let description = mktDesc
+            let author: string | null = null
+            let authorEmail: string | null = null
+            let license: string | null = null
+            let homepage: string | null = null
+            let repository: string | null = null
+            let keywords: string[] | null = null
             let elementCounts: PluginStatus['elementCounts'] = null
             let errors: string[] = []
             let sourceUrl = mktSourceUrl
@@ -335,6 +347,19 @@ export async function GET() {
               const manifest = await readJsonSafe(join(metaDir, '.claude-plugin', 'plugin.json'))
               if (manifest) {
                 if (!description) description = (manifest.description as string) || null
+                // Author can be string or {name, email} object
+                if (!author) {
+                  const a = manifest.author
+                  if (typeof a === 'string') author = a
+                  else if (a && typeof a === 'object') {
+                    author = (a as Record<string, string>).name || null
+                    authorEmail = (a as Record<string, string>).email || null
+                  }
+                }
+                if (!license) license = (manifest.license as string) || null
+                if (!homepage) homepage = (manifest.homepage as string) || null
+                if (!repository) repository = (manifest.repository as string) || null
+                if (!keywords && Array.isArray(manifest.keywords)) keywords = manifest.keywords as string[]
                 if (!sourceUrl) {
                   const plugSrc = manifest.source as Record<string, string> | undefined
                   if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
@@ -349,13 +374,13 @@ export async function GET() {
               errors = detectPluginErrors(join(plugCacheDir, installedVersion), plugName)
             }
 
-            // Version comparison: outdated when installed version < available version
             const outdated = !!(installed && installedVersion && availVer && installedVersion !== availVer && availVer > installedVersion)
 
             info.plugins.push({
               name: plugName, key, installed, enabled: installed && enabled,
               version: installedVersion, availableVersion: availVer, outdated,
-              description, sourceUrl, errors, elementCounts,
+              description, author, authorEmail, license, homepage, repository, keywords,
+              sourceUrl, errors, elementCounts,
             })
             if (installed) info.installedCount++
             if (installed && enabled) info.enabledCount++

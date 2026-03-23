@@ -641,8 +641,12 @@ const routes: Route[] = [
     sendServiceResult(res, { status: 200, data: result })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await restoreSessions(body))
+    try {
+      const body = await readJsonBody(req)
+      sendServiceResult(res, await restoreSessions(body))
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body' })
+    }
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
     if (!query.sessionId) { sendJson(res, 400, { error: 'sessionId query param required' }); return }

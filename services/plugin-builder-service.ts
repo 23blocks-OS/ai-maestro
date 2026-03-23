@@ -248,6 +248,12 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
   if (!config.version || typeof config.version !== 'string') return 'Version is required'
   if (!SEMVER_RE.test(config.version)) return 'Version must be valid semver (e.g., 1.0.0)'
 
+  // Validate description if provided — must be a string within reasonable length
+  if (config.description !== undefined && config.description !== null) {
+    if (typeof config.description !== 'string') return 'Description must be a string'
+    if (config.description.length > 512) return 'Description too long (max 512 characters)'
+  }
+
   if (!config.skills || !Array.isArray(config.skills) || config.skills.length === 0) {
     return 'At least one skill must be selected'
   }
@@ -790,9 +796,6 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     // Find scripts (*.sh files in scripts/ directory)
     const scripts = await findScriptsInDir(scanDir)
 
-    // Clean up
-    await fs.rm(scanDir, { recursive: true, force: true })
-
     return {
       data: { url, ref, skills, scripts },
       status: 200,
@@ -835,9 +838,18 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const urlErr = validateGitUrl(config.forkUrl)
   if (urlErr) return { error: urlErr, status: 400 }
 
-  // Validate manifest
+  // Validate manifest — check presence and required structural fields
   if (!config.manifest || typeof config.manifest !== 'object') {
     return { error: 'Manifest is required', status: 400 }
+  }
+  if (!config.manifest.name || typeof config.manifest.name !== 'string') {
+    return { error: 'Manifest must have a valid name', status: 400 }
+  }
+  if (!config.manifest.version || typeof config.manifest.version !== 'string') {
+    return { error: 'Manifest must have a valid version', status: 400 }
+  }
+  if (!Array.isArray(config.manifest.sources)) {
+    return { error: 'Manifest must have a sources array', status: 400 }
   }
 
   // Validate branch
@@ -910,18 +922,28 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       }
     }
 
-    // Commit with explicit author (avoids failures when no global git config)
+    // Resolve git author from system config, falling back to a neutral identity
+    // when no global git config is present (e.g., CI environments or fresh installs).
+    const resolveGitConfigValue = async (key: string): Promise<string | null> => {
+      try {
+        const value = await execPromise('git', ['config', '--global', key], { cwd: pushDir })
+        return value.trim() || null
+      } catch {
+        return null
+      }
+    }
+    const authorName = (await resolveGitConfigValue('user.name')) ?? 'Plugin Builder'
+    const authorEmail = (await resolveGitConfigValue('user.email')) ?? 'plugin-builder@aimaestro.local'
+
+    // Commit with resolved author (explicit -c flags override any repo-level config cleanly)
     await execPromise('git', [
-      '-c', 'user.name=Plugin Builder',
-      '-c', 'user.email=plugin-builder@aimaestro.local',
+      '-c', `user.name=${authorName}`,
+      '-c', `user.email=${authorEmail}`,
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
     ], { cwd: pushDir, timeout: 10000 })
 
     // Push (the remote origin URL already carries auth from the clone URL built above)
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
-
-    // Clean up
-    await fs.rm(pushDir, { recursive: true, force: true })
 
     return {
       data: {

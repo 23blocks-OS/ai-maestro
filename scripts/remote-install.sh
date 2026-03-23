@@ -53,7 +53,7 @@ maestro_say() {
     fi
     printf "%s" "$MAESTRO_PREFIX"
     local i=0
-    while [ $i -lt ${#msg} ]; do
+    while [ "$i" -lt "${#msg}" ]; do
         printf "%s" "${msg:$i:1}"
         sleep "$TYPE_SPEED"
         i=$((i + 1))
@@ -161,7 +161,7 @@ open_browser() {
 # In interactive mode, the user is warned but no deletion occurs.
 cleanup() {
     local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
+    if [ "$exit_code" -ne 0 ]; then
         echo ""
         maestro_fail "Something went wrong (exit code $exit_code)"
         maestro_info "Check the output above for details"
@@ -655,7 +655,7 @@ act1_hello_and_discovery() {
     [ "$NEED_TMUX" = true ] && need_count=$((need_count + 1))
     [ "$NEED_JQ" = true ] && need_count=$((need_count + 1))
 
-    if [ $need_count -gt 0 ] && [ "$SKIP_PREREQS" != true ]; then
+    if [ "$need_count" -gt 0 ] && [ "$SKIP_PREREQS" != true ]; then
         # Estimate time based on what needs installing
         local time_est="1-2 minutes"
         if [ "$NEED_HOMEBREW" = true ]; then
@@ -1283,7 +1283,7 @@ act4_start_and_register() {
             attempts=$((attempts + 1))
         done
 
-        if [ $attempts -lt $max_attempts ]; then
+        if [ "$attempts" -lt "$max_attempts" ]; then
             maestro_ok "AI Maestro running on port $PORT"
         else
             maestro_warn "Service is starting slowly — it may need a moment"

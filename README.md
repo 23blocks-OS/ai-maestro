@@ -225,6 +225,103 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 
 ---
 
+## Agent Skills
+
+AI Maestro installs 9 skills that teach agents how to use the platform. Each skill is use-case oriented — it lists what you want to do and shows the command to do it.
+
+| Skill | What It Teaches | Trigger Phrases |
+|-------|----------------|-----------------|
+| **agent-messaging** | Send/receive messages between agents via AMP | "send a message", "check inbox", "reply to" |
+| **ai-maestro-agents-management** | Create, manage, hibernate, export agents | "create agent", "list agents", "hibernate", "wake" |
+| **team-governance** | Create teams, assign agents, manage roles | "create team", "assign agent", "chief of staff" |
+| **team-kanban** | Manage kanban boards, tasks, GitHub sync | "create task", "move task", "show kanban", "sync GitHub" |
+| **docs-search** | Search auto-generated code documentation | "search docs", "find function", "check API" |
+| **graph-query** | Query code structure (callers, callees, paths) | "who calls X", "what does X call", "find path" |
+| **memory-search** | Search past conversations and decisions | "search memory", "what did we discuss", "recall" |
+| **planning** | Create persistent task plans in markdown | "create a plan", "track progress" |
+| **debug-hooks** | Debug Claude Code hooks that aren't working | "hook not firing", "debug hook", "hook broken" |
+
+Skills are installed automatically with the AI Maestro plugin. Agents discover them via Claude Code's `/skills` command.
+
+---
+
+## CLI Reference
+
+The `aimaestro-agent.sh` CLI manages agents from the terminal. All commands support `--help`.
+
+### Agent Lifecycle
+
+```bash
+# Create an agent with a working directory
+aimaestro-agent.sh create my-agent -d ~/Code/my-project
+
+# List all agents (filter by status)
+aimaestro-agent.sh list --status online
+
+# Show agent details
+aimaestro-agent.sh show my-agent
+
+# Hibernate and wake
+aimaestro-agent.sh hibernate my-agent
+aimaestro-agent.sh wake my-agent --attach
+
+# Export/import for backup or migration
+aimaestro-agent.sh export my-agent
+aimaestro-agent.sh import agent-backup.zip
+```
+
+### Agent Messaging (AMP)
+
+```bash
+# Initialize identity (first time)
+amp-init.sh --auto
+
+# Send a message
+amp-send.sh backend-api "Deploy ready" "Frontend build passed all tests"
+
+# Check inbox and read
+amp-inbox.sh
+amp-read.sh <message-id>
+
+# Reply and manage
+amp-reply.sh <message-id> "Acknowledged, deploying now"
+amp-delete.sh <message-id>
+```
+
+### Code Intelligence
+
+```bash
+# Index your project
+docs-index.sh ~/Code/my-project
+graph-index-delta.sh ~/Code/my-project
+
+# Search documentation
+docs-search.sh "authentication flow"
+
+# Query code graph
+graph-find-callers.sh handleRequest
+graph-find-callees.sh processPayment
+graph-find-path.sh UserController PaymentService
+
+# Search memory
+memory-search.sh "database migration decision"
+```
+
+### Plugin Management
+
+```bash
+# List installed plugins
+aimaestro-agent.sh plugin list
+
+# Install/uninstall a plugin
+aimaestro-agent.sh plugin install my-plugin --scope local
+aimaestro-agent.sh plugin uninstall my-plugin
+```
+
+Run `aimaestro-agent.sh help` for the full command list.
+
+---
+
 ## What's Next
 
 - Agent search and filtering across the entire mesh

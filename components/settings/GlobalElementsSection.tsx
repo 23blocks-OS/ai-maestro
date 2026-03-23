@@ -338,7 +338,9 @@ export default function GlobalElementsSection() {
       command: 'commands',
       hook: 'hooks',
       rule: 'rules',
+      mcp: 'mcpServers',
       mcpServer: 'mcpServers',
+      lsp: 'lspServers',
       lspServer: 'lspServers',
       outputStyle: 'outputStyles',
     }

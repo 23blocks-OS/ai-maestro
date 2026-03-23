@@ -32,6 +32,7 @@ interface PluginDetail {
 
 interface GroupedPlugins {
   marketplace: string
+  sourceUrl: string | null
   plugins: PluginDetail[]
 }
 
@@ -58,11 +59,19 @@ export async function GET() {
       return { key, pluginName, marketplace, enabled }
     })
 
+    // Read marketplace source URLs from extraKnownMarketplaces
+    const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+    const getMktSourceUrl = (mkt: string): string | null => {
+      const e = ekm[mkt] as Record<string, unknown> | undefined
+      const src = e?.source as Record<string, string> | undefined
+      return src?.repo ? `https://github.com/${src.repo}` : null
+    }
+
     // Group by marketplace
     const grouped: Record<string, GroupedPlugins> = {}
     for (const entry of entries) {
       if (!grouped[entry.marketplace]) {
-        grouped[entry.marketplace] = { marketplace: entry.marketplace, plugins: [] }
+        grouped[entry.marketplace] = { marketplace: entry.marketplace, sourceUrl: getMktSourceUrl(entry.marketplace), plugins: [] }
       }
       // Read installed version and metadata from cache
       let version: string | null = null

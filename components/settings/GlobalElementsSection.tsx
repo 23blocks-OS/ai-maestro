@@ -25,6 +25,7 @@ interface PluginInfo {
 
 interface MarketplaceGroup {
   marketplace: string
+  sourceUrl: string | null
   plugins: PluginInfo[]
 }
 
@@ -332,9 +333,9 @@ export default function GlobalElementsSection() {
           return (
             <div key={group.marketplace} className="rounded-xl border border-gray-800 overflow-hidden">
               {/* Marketplace header */}
-              <button
+              <div
+                className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800/70 transition-colors cursor-pointer"
                 onClick={() => toggleMarketplace(group.marketplace)}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800/70 transition-colors text-left"
               >
                 {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
                 <Store className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -344,7 +345,12 @@ export default function GlobalElementsSection() {
                   {enabledInGroup > 0 && '/'}
                   {group.plugins.length}
                 </span>
-              </button>
+                {group.sourceUrl && (
+                  <a href={group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={group.sourceUrl}>
+                    <ExternalLink className="w-3 h-3 text-gray-500 hover:text-gray-300" />
+                  </a>
+                )}
+              </div>
 
               {/* Plugin list */}
               {expanded && (
@@ -392,7 +398,17 @@ export default function GlobalElementsSection() {
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
-                              <span>Marketplace: <span className="text-gray-400">{group.marketplace}</span></span>
+                              <span>Marketplace: <span
+                                className="text-gray-400 hover:text-amber-400 cursor-pointer transition-colors"
+                                onClick={(e) => { e.stopPropagation(); goToMarketplace(group.marketplace) }}
+                                title={`Go to ${group.marketplace}`}
+                              >{group.marketplace}</span>
+                                {group.sourceUrl && (
+                                  <a href={group.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-block ml-0.5 align-middle">
+                                    <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
+                                  </a>
+                                )}
+                              </span>
                               <span>Version: <span className="text-gray-400">{plugin.version || '-'}</span></span>
                             </div>
                             {(plugin.homepage || plugin.repository) && (

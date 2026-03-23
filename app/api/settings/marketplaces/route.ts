@@ -268,12 +268,20 @@ export async function GET() {
             || await readJsonSafe(join(mktPath, '.claude-plugin', 'plugin.json'))
             || await readJsonSafe(join(mktPath, 'package.json'))
 
-          // Get source info from extraKnownMarketplaces
+          // Get source info from extraKnownMarketplaces, then fallback to git remote
           const ekm = extraKnown[mktName] as Record<string, unknown> | undefined
           const srcInfo = ekm?.source as Record<string, string> | undefined
           const sourceType = (srcInfo?.source === 'github' ? 'github' : srcInfo?.source === 'directory' ? 'directory' : 'unknown') as MarketplaceInfo['sourceType']
           const sourceRepo = srcInfo?.repo || null
-          const sourceUrl = sourceRepo ? repoToUrl(sourceRepo) : srcInfo?.path || null
+          let sourceUrl = sourceRepo ? repoToUrl(sourceRepo) : srcInfo?.path || null
+          // Fallback: read git remote origin URL from the clone directory
+          if (!sourceUrl) {
+            try {
+              const { execSync } = await import('child_process')
+              const gitUrl = execSync(`git -C "${mktPath}" remote get-url origin 2>/dev/null`, { timeout: 3000 }).toString().trim()
+              if (gitUrl) sourceUrl = gitUrl.replace(/\.git$/, '').replace(/^git@github\.com:/, 'https://github.com/')
+            } catch { /* no git remote — leave null */ }
+          }
 
           // Extract description from top-level or metadata sub-object
           const mktDescription = (mpManifest?.description as string)

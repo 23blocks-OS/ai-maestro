@@ -1072,7 +1072,8 @@ const routes: Route[] = [
     sendServiceResult(res, rotateKey(getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/auth\/rotate-keys$/, paramNames: [], handler: async (req, res) => {
-    sendServiceResult(res, await rotateKeypair(getHeader(req, 'Authorization')))
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await rotateKeypair(body, getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/federation\/deliver$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

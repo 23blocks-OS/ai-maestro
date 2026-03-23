@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.15] - 2026-03-23
+
+### Added
+- **Key rotation with proof-of-possession** — `POST /api/v1/auth/rotate-keys` now accepts an optional body with `new_public_key`, `key_algorithm`, and `proof` fields. When provided, the server verifies the proof (new key signed with old private key) before accepting the rotation. Omitting the body falls back to server-side key generation for backward compatibility.
+- **Duplicate public key rejection** — `POST /api/v1/register` now rejects registration when the submitted public key fingerprint is already associated with a different agent (409 `key_already_registered`). Same-agent re-registration with the same key remains allowed.
+
 ## [0.25.14] - 2026-03-21
 
 ### Added

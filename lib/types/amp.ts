@@ -441,6 +441,7 @@ export type AMPErrorCode =
   | 'payload_too_large'     // Message payload exceeds size limit
   | 'missing_header'        // Required HTTP header is missing
   | 'duplicate_message'     // Message ID has already been delivered (replay protection)
+  | 'key_already_registered' // Public key fingerprint is already associated with another agent
 
 /**
  * AMP error response
@@ -500,6 +501,24 @@ export interface AMPKeyRotationResponse {
   api_key: string
   expires_at: string | null
   previous_key_valid_until: string
+}
+
+/**
+ * Keypair rotation request (proof-of-possession)
+ *
+ * POST /v1/auth/rotate-keys
+ * Agent provides new public key + proof (new key signed with old private key).
+ * If body is omitted, server falls back to server-side key generation (backward compat).
+ */
+export interface AMPKeypairRotationRequest {
+  /** PEM-encoded Ed25519 public key */
+  new_public_key: string
+
+  /** Key algorithm — must be 'Ed25519' */
+  key_algorithm: 'Ed25519'
+
+  /** Base64-encoded proof: sign(new_public_key_hex, old_private_key) */
+  proof: string
 }
 
 // ============================================================================

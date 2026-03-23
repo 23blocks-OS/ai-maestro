@@ -118,7 +118,15 @@ import {
   revokeKey,
   rotateKey,
   rotateKeypair,
+  registerAgent,
 } from '@/services/amp-service'
+
+// ============================================================================
+// Test constants
+// ============================================================================
+
+/** Real Ed25519 PEM for tests (extractPublicKeyHex uses crypto.createPublicKey) */
+const TEST_ED25519_PEM = '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAI6oyzfEh2pUxQ2+qFoZ2bZZ9q6kDsSbFmAzLVe89qcs=\n-----END PUBLIC KEY-----\n'
 
 // ============================================================================
 // Setup
@@ -785,7 +793,7 @@ describe('rotateKey', () => {
 describe('rotateKeypair', () => {
   it('returns 401 without auth', async () => {
     mockUnauthenticated()
-    const result = await rotateKeypair(null)
+    const result = await rotateKeypair(null, null)
     expect(result.status).toBe(401)
   })
 
@@ -793,11 +801,11 @@ describe('rotateKeypair', () => {
     mockAuthenticated()
     mockAgentRegistry.getAgent.mockReturnValue(null)
 
-    const result = await rotateKeypair('Bearer test-key')
+    const result = await rotateKeypair(null, 'Bearer test-key')
     expect(result.status).toBe(404)
   })
 
-  it('generates new keypair and updates agent', async () => {
+  it('generates new keypair (no body — backward compat)', async () => {
     mockAuthenticated({ address: 'alice@test' })
     const agent = makeAgent({ id: 'agent-1', metadata: { amp: { fingerprint: 'SHA256:old' } } })
     mockAgentRegistry.getAgent.mockReturnValue(agent)
@@ -808,7 +816,7 @@ describe('rotateKeypair', () => {
       fingerprint: 'SHA256:new-fp',
     })
 
-    const result = await rotateKeypair('Bearer test-key')
+    const result = await rotateKeypair(null, 'Bearer test-key')
 
     expect(result.status).toBe(200)
     expect(result.data).toHaveProperty('rotated', true)
@@ -817,5 +825,122 @@ describe('rotateKeypair', () => {
     expect(result.data).toHaveProperty('key_algorithm', 'Ed25519')
     expect(mockAmpKeys.saveKeyPair).toHaveBeenCalledWith('agent-1', expect.objectContaining({ fingerprint: 'SHA256:new-fp' }))
     expect(mockAgentRegistry.updateAgent).toHaveBeenCalled()
+  })
+
+  it('rotates with valid proof-of-possession', async () => {
+    mockAuthenticated({ agentId: 'agent-1', address: 'alice@test' })
+    const agent = makeAgent({ id: 'agent-1', metadata: { amp: { fingerprint: 'SHA256:old' } } })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAmpKeys.loadKeyPair.mockReturnValue({ publicHex: 'oldhex', privatePem: 'OLD_PRIV', publicPem: 'OLD_PUB', fingerprint: 'SHA256:old' })
+    mockAmpKeys.verifySignature.mockReturnValue(true)
+    mockAmpKeys.calculateFingerprint.mockReturnValue('SHA256:new-pop-fp')
+
+    const body = { new_public_key: TEST_ED25519_PEM, key_algorithm: 'Ed25519' as const, proof: 'base64proof' }
+    const result = await rotateKeypair(body, 'Bearer test-key')
+
+    expect(result.status).toBe(200)
+    expect(result.data).toHaveProperty('rotated', true)
+    expect(result.data).toHaveProperty('fingerprint', 'SHA256:new-pop-fp')
+    expect(mockAmpKeys.verifySignature).toHaveBeenCalled()
+    expect(mockAmpKeys.saveKeyPair).toHaveBeenCalledWith('agent-1', expect.objectContaining({ fingerprint: 'SHA256:new-pop-fp' }))
+  })
+
+  it('returns 401 for invalid proof signature', async () => {
+    mockAuthenticated({ agentId: 'agent-1' })
+    const agent = makeAgent({ id: 'agent-1', metadata: { amp: { fingerprint: 'SHA256:old' } } })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAmpKeys.loadKeyPair.mockReturnValue({ publicHex: 'oldhex', privatePem: 'OLD_PRIV', publicPem: 'OLD_PUB', fingerprint: 'SHA256:old' })
+    mockAmpKeys.verifySignature.mockReturnValue(false)
+
+    const body = { new_public_key: TEST_ED25519_PEM, key_algorithm: 'Ed25519' as const, proof: 'bad-proof' }
+    const result = await rotateKeypair(body, 'Bearer test-key')
+
+    expect(result.status).toBe(401)
+    expect(result.data).toHaveProperty('error', 'invalid_signature')
+  })
+
+  it('returns 400 when proof provided without new_public_key', async () => {
+    mockAuthenticated({ agentId: 'agent-1' })
+    const agent = makeAgent({ id: 'agent-1', metadata: { amp: {} } })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+
+    const body = { proof: 'base64proof' } as any
+    const result = await rotateKeypair(body, 'Bearer test-key')
+
+    expect(result.status).toBe(400)
+    expect(result.data).toHaveProperty('error', 'missing_field')
+  })
+
+  it('returns 400 when new_public_key provided without proof', async () => {
+    mockAuthenticated({ agentId: 'agent-1' })
+    const agent = makeAgent({ id: 'agent-1', metadata: { amp: {} } })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+
+    const body = { new_public_key: '-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----' } as any
+    const result = await rotateKeypair(body, 'Bearer test-key')
+
+    expect(result.status).toBe(400)
+    expect(result.data).toHaveProperty('error', 'missing_field')
+  })
+})
+
+// ============================================================================
+// POST /api/v1/register — duplicate key rejection
+// ============================================================================
+
+describe('registerAgent — duplicate key rejection', () => {
+  const validRegBody = {
+    tenant: 'testorg',
+    name: 'new-agent',
+    public_key: TEST_ED25519_PEM,
+    key_algorithm: 'Ed25519' as const,
+  }
+
+  /** Set up mocks needed for registerAgent to reach the duplicate-key check */
+  function setupRegisterMocks() {
+    mockAmpKeys.calculateFingerprint.mockReturnValue('SHA256:test-fingerprint')
+    mockHostsConfig.getSelfHost.mockReturnValue({ id: 'test-host', name: 'Test Host', url: 'http://localhost:23000' })
+    mockHostsConfig.getSelfHostId.mockReturnValue('test-host')
+    mockHostsConfig.getOrganization.mockReturnValue('testorg')
+  }
+
+  it('rejects registration when fingerprint already used by different agent', async () => {
+    setupRegisterMocks()
+    const existingAgent = makeAgent({ name: 'other-agent', metadata: { amp: { fingerprint: 'SHA256:test-fingerprint', registeredVia: 'local' } } })
+    mockAgentRegistry.getAMPRegisteredAgents.mockReturnValue([existingAgent])
+    mockAgentRegistry.getAgentByName.mockReturnValue(null)
+
+    const result = await registerAgent(validRegBody, null)
+
+    expect(result.status).toBe(409)
+    expect(result.data).toHaveProperty('error', 'key_already_registered')
+    expect((result.data as any).details).toHaveProperty('fingerprint')
+    // Must NOT reveal the other agent's name (info leakage prevention)
+    expect(JSON.stringify(result.data)).not.toContain('other-agent')
+  })
+
+  it('allows same agent re-registering with same key', async () => {
+    setupRegisterMocks()
+    const existingAgent = makeAgent({ name: 'new-agent', metadata: { amp: { fingerprint: 'SHA256:test-fingerprint', registeredVia: 'local' } } })
+    mockAgentRegistry.getAMPRegisteredAgents.mockReturnValue([existingAgent])
+    mockAgentRegistry.getAgentByName.mockReturnValue(existingAgent)
+    mockAmpAuth.createApiKey.mockReturnValue({ key: 'api-key-123', hash: 'hash-123' })
+
+    const result = await registerAgent(validRegBody, null)
+
+    // Should succeed (re-registration), not 409
+    expect(result.status).not.toBe(409)
+  })
+
+  it('allows registration with unique fingerprint', async () => {
+    setupRegisterMocks()
+    mockAgentRegistry.getAMPRegisteredAgents.mockReturnValue([])
+    mockAgentRegistry.getAgentByName.mockReturnValue(null)
+    mockAgentRegistry.createAgent.mockImplementation((data: any) => ({ ...data, id: 'new-id' }))
+    mockAmpAuth.createApiKey.mockReturnValue({ key: 'api-key-123', hash: 'hash-123' })
+
+    const result = await registerAgent(validRegBody, null)
+
+    expect(result.status).not.toBe(409)
   })
 })

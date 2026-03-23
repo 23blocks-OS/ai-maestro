@@ -15,6 +15,19 @@ import semver from 'semver'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Sanitize a string for safe use in shell commands.
+ * Rejects anything with shell metacharacters that could enable command injection.
+ * Only allows: alphanumeric, hyphens, underscores, dots, slashes, @, and colons.
+ */
+function shellSafe(input: string): string {
+  const sanitized = input.replace(/[^a-zA-Z0-9._/@:+-]/g, '')
+  if (sanitized !== input) {
+    throw new Error(`Unsafe shell input rejected: "${input.substring(0, 50)}"`)
+  }
+  return sanitized
+}
+
 const HOME = os.homedir()
 const SETTINGS_PATH = join(HOME, '.claude', 'settings.json')
 const SETTINGS_LOCAL_PATH = join(HOME, '.claude', 'settings.local.json')
@@ -632,7 +645,7 @@ async function handleEnable(pluginName: string, marketplaceName: string, pluginK
   try {
     const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin enable "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 15000 })
+    execSync(`claude plugin enable "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 15000 })
   } catch {
     // Fallback: direct settings manipulation
     await setPluginEnabled(pluginKey, true)
@@ -645,7 +658,7 @@ async function handleDisable(pluginName: string, marketplaceName: string, plugin
   try {
     const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin disable "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 15000 })
+    execSync(`claude plugin disable "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 15000 })
   } catch {
     await setPluginEnabled(pluginKey, false)
   }
@@ -657,7 +670,7 @@ async function handleUpdate(pluginName: string, marketplaceName: string, pluginK
   try {
     const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin update "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 60000 })
+    execSync(`claude plugin update "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 60000 })
   } catch (err) {
     return NextResponse.json({ error: `Update failed: ${err}` }, { status: 500 })
   }
@@ -713,7 +726,7 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
   // Step 2: Install via Claude Code CLI (registers plugin properly with Claude Code)
   try {
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin install --scope user "${pluginName}@${cliMkt}" 2>&1`, { timeout: 60000 })
+    execSync(`claude plugin install --scope user "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" 2>&1`, { timeout: 60000 })
   } catch (err) {
     // CLI install failed — still usable from cache, but warn
     console.warn(`Claude CLI plugin install failed (plugin still available from cache): ${err}`)
@@ -729,7 +742,7 @@ async function handleUninstall(pluginName: string, marketplaceName: string, plug
   try {
     const { execSync } = await import('child_process')
     const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin uninstall "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 30000 })
+    execSync(`claude plugin uninstall "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 30000 })
   } catch {
     // CLI uninstall may fail if plugin wasn't installed via CLI — continue with cache cleanup
   }
@@ -751,7 +764,7 @@ async function handleDeleteMarketplace(marketplaceName?: string) {
   try {
     const { execSync } = await import('child_process')
     const cliName = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin marketplace remove "${cliName}" 2>&1`, { timeout: 15000 })
+    execSync(`claude plugin marketplace remove "${shellSafe(cliName)}" 2>&1`, { timeout: 15000 })
   } catch {
     // CLI removal may fail if not registered — continue with file cleanup
   }
@@ -796,7 +809,7 @@ async function handleUpdateMarketplace(marketplaceName?: string) {
   // Use Claude CLI marketplace update (preferred)
   try {
     const cliName = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin marketplace update "${cliName}" 2>&1`, { timeout: 60000, stdio: 'pipe' })
+    execSync(`claude plugin marketplace update "${shellSafe(cliName)}" 2>&1`, { timeout: 60000, stdio: 'pipe' })
   } catch {
     // Fallback: git pull directly on clone dir
     const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
@@ -1004,7 +1017,7 @@ async function handleAddMarketplace(url?: string) {
   // Let Claude CLI handle the cloning and registration — it manages its own clone directory
   const { execSync } = await import('child_process')
   try {
-    const output = execSync(`claude plugin marketplace add "${repo}" --scope user 2>&1`, {
+    const output = execSync(`claude plugin marketplace add "${shellSafe(repo)}" --scope user 2>&1`, {
       timeout: 120000,
       stdio: 'pipe',
     }).toString()
@@ -1065,7 +1078,7 @@ async function handleValidate(path?: string) {
   }
   try {
     const { execSync } = await import('child_process')
-    const output = execSync(`claude plugin validate "${path}" 2>&1`, { timeout: 30000 }).toString()
+    const output = execSync(`claude plugin validate "${shellSafe(path)}" 2>&1`, { timeout: 30000 }).toString()
     return NextResponse.json({ success: true, action: 'validate', output })
   } catch (err) {
     const errMsg = err instanceof Error ? (err as { stdout?: Buffer }).stdout?.toString() || err.message : String(err)

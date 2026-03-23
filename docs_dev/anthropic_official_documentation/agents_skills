@@ -1,0 +1,284 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://agentskills.io/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Overview
+
+> A simple, open format for giving agents new capabilities and expertise.
+
+export const LogoCarousel = () => {
+  const logos = [{
+    name: "Junie",
+    url: "https://junie.jetbrains.com/",
+    lightSrc: "/images/logos/junie/junie-logo-on-white.svg",
+    darkSrc: "/images/logos/junie/junie-logo-on-dark.svg"
+  }, {
+    name: "Gemini CLI",
+    url: "https://geminicli.com",
+    lightSrc: "/images/logos/gemini-cli/gemini-cli-logo_light.svg",
+    darkSrc: "/images/logos/gemini-cli/gemini-cli-logo_dark.svg"
+  }, {
+    name: "Autohand Code CLI",
+    url: "https://autohand.ai/",
+    lightSrc: "/images/logos/autohand/autohand-light.svg",
+    darkSrc: "/images/logos/autohand/autohand-dark.svg",
+    width: "120px"
+  }, {
+    name: "OpenCode",
+    url: "https://opencode.ai/",
+    lightSrc: "/images/logos/opencode/opencode-wordmark-light.svg",
+    darkSrc: "/images/logos/opencode/opencode-wordmark-dark.svg"
+  }, {
+    name: "OpenHands",
+    url: "https://www.all-hands.dev/",
+    lightSrc: "/images/logos/openhands/openhands-logo-light.svg",
+    darkSrc: "/images/logos/openhands/openhands-logo-dark.svg"
+  }, {
+    name: "Mux",
+    url: "https://mux.coder.com/",
+    lightSrc: "/images/logos/mux/mux-editor-light.svg",
+    darkSrc: "/images/logos/mux/mux-editor-dark.svg",
+    width: "120px"
+  }, {
+    name: "Cursor",
+    url: "https://cursor.com/",
+    lightSrc: "/images/logos/cursor/LOCKUP_HORIZONTAL_2D_LIGHT.svg",
+    darkSrc: "/images/logos/cursor/LOCKUP_HORIZONTAL_2D_DARK.svg"
+  }, {
+    name: "Amp",
+    url: "https://ampcode.com/",
+    lightSrc: "/images/logos/amp/amp-logo-light.svg",
+    darkSrc: "/images/logos/amp/amp-logo-dark.svg",
+    width: "120px"
+  }, {
+    name: "Letta",
+    url: "https://www.letta.com/",
+    lightSrc: "/images/logos/letta/Letta-logo-RGB_OffBlackonTransparent.svg",
+    darkSrc: "/images/logos/letta/Letta-logo-RGB_GreyonTransparent.svg"
+  }, {
+    name: "Firebender",
+    url: "https://firebender.com/",
+    lightSrc: "/images/logos/firebender/firebender-wordmark-light.svg",
+    darkSrc: "/images/logos/firebender/firebender-wordmark-dark.svg"
+  }, {
+    name: "Goose",
+    url: "https://block.github.io/goose/",
+    lightSrc: "/images/logos/goose/goose-logo-black.png",
+    darkSrc: "/images/logos/goose/goose-logo-white.png"
+  }, {
+    name: "GitHub",
+    url: "https://github.com/",
+    lightSrc: "/images/logos/github/GitHub_Lockup_Dark.svg",
+    darkSrc: "/images/logos/github/GitHub_Lockup_Light.svg"
+  }, {
+    name: "VS Code",
+    url: "https://code.visualstudio.com/",
+    lightSrc: "/images/logos/vscode/vscode.svg",
+    darkSrc: "/images/logos/vscode/vscode-alt.svg"
+  }, {
+    name: "Claude Code",
+    url: "https://claude.ai/code",
+    lightSrc: "/images/logos/claude-code/Claude-Code-logo-Slate.svg",
+    darkSrc: "/images/logos/claude-code/Claude-Code-logo-Ivory.svg"
+  }, {
+    name: "Claude",
+    url: "https://claude.ai/",
+    lightSrc: "/images/logos/claude-ai/Claude-logo-Slate.svg",
+    darkSrc: "/images/logos/claude-ai/Claude-logo-Ivory.svg"
+  }, {
+    name: "OpenAI Codex",
+    url: "https://developers.openai.com/codex",
+    lightSrc: "/images/logos/oai-codex/OAI_Codex-Lockup_400px.svg",
+    darkSrc: "/images/logos/oai-codex/OAI_Codex-Lockup_400px_Darkmode.svg"
+  }, {
+    name: "Piebald",
+    url: "https://piebald.ai",
+    lightSrc: "/images/logos/piebald/Piebald_wordmark_light.svg",
+    darkSrc: "/images/logos/piebald/Piebald_wordmark_dark.svg"
+  }, {
+    name: "Factory",
+    url: "https://factory.ai/",
+    lightSrc: "/images/logos/factory/factory-logo-light.svg",
+    darkSrc: "/images/logos/factory/factory-logo-dark.svg"
+  }, {
+    name: "pi",
+    url: "https://shittycodingagent.ai/",
+    lightSrc: "/images/logos/pi/pi-logo-light.svg",
+    darkSrc: "/images/logos/pi/pi-logo-dark.svg",
+    width: "80px"
+  }, {
+    name: "Databricks",
+    url: "https://databricks.com/",
+    lightSrc: "/images/logos/databricks/databricks-logo-light.svg",
+    darkSrc: "/images/logos/databricks/databricks-logo-dark.svg"
+  }, {
+    name: "Agentman",
+    url: "https://agentman.ai/",
+    lightSrc: "/images/logos/agentman/agentman-wordmark-light.svg",
+    darkSrc: "/images/logos/agentman/agentman-wordmark-dark.svg"
+  }, {
+    name: "TRAE",
+    url: "https://trae.ai/",
+    lightSrc: "/images/logos/trae/trae-logo-lightmode.svg",
+    darkSrc: "/images/logos/trae/trae-logo-darkmode.svg"
+  }, {
+    name: "Spring AI",
+    url: "https://docs.spring.io/spring-ai/reference",
+    lightSrc: "/images/logos/spring-ai/spring-ai-logo-light.svg",
+    darkSrc: "/images/logos/spring-ai/spring-ai-logo-dark.svg"
+  }, {
+    name: "Roo Code",
+    url: "https://roocode.com",
+    lightSrc: "/images/logos/roo-code/roo-code-logo-black.svg",
+    darkSrc: "/images/logos/roo-code/roo-code-logo-white.svg"
+  }, {
+    name: "Mistral AI Vibe",
+    url: "https://github.com/mistralai/mistral-vibe",
+    lightSrc: "/images/logos/mistral-vibe/vibe-logo_black.svg",
+    darkSrc: "/images/logos/mistral-vibe/vibe-logo_white.svg",
+    width: "80px"
+  }, {
+    name: "Command Code",
+    url: "https://commandcode.ai/",
+    lightSrc: "/images/logos/command-code/command-code-logo-for-light.svg",
+    darkSrc: "/images/logos/command-code/command-code-logo-for-dark.svg",
+    width: "200px"
+  }, {
+    name: "Ona",
+    url: "https://ona.com",
+    lightSrc: "/images/logos/ona/ona-wordmark-light.svg",
+    darkSrc: "/images/logos/ona/ona-wordmark-dark.svg",
+    width: "120px"
+  }, {
+    name: "VT Code",
+    url: "https://github.com/vinhnx/vtcode",
+    lightSrc: "/images/logos/vtcode/vt_code_light.svg",
+    darkSrc: "/images/logos/vtcode/vt_code_dark.svg"
+  }, {
+    name: "Qodo",
+    url: "https://www.qodo.ai/",
+    lightSrc: "/images/logos/qodo/qodo-logo-light.png",
+    darkSrc: "/images/logos/qodo/qodo-logo-dark.svg"
+  }, {
+    name: "Laravel Boost",
+    url: "https://github.com/laravel/boost",
+    lightSrc: "/images/logos/laravel-boost/boost-light-mode.svg",
+    darkSrc: "/images/logos/laravel-boost/boost-dark-mode.svg"
+  }, {
+    name: "Emdash",
+    url: "https://emdash.sh",
+    lightSrc: "/images/logos/emdash/emdash-logo-light.svg",
+    darkSrc: "/images/logos/emdash/emdash-logo-dark.svg"
+  }];
+  const [shuffled, setShuffled] = useState(logos);
+  useEffect(() => {
+    const shuffle = items => {
+      const copy = [...items];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+    setShuffled(shuffle(logos));
+  }, []);
+  const row1 = shuffled.filter((_, i) => i % 2 === 0);
+  const row2 = shuffled.filter((_, i) => i % 2 === 1);
+  const row1Doubled = [...row1, ...row1];
+  const row2Doubled = [...row2, ...row2];
+  return <>
+      <div className="logo-carousel">
+        <div className="logo-carousel-track" style={{
+    animation: 'logo-scroll 50s linear infinite'
+  }}>
+          {row1Doubled.map((logo, i) => <a key={`${logo.name}-${i}`} href={logo.url} style={{
+    textDecoration: 'none',
+    border: 'none'
+  }}>
+              <img className="block dark:hidden object-contain" style={{
+    width: logo.width || '150px',
+    maxWidth: '100%'
+  }} src={logo.lightSrc} alt={logo.name} />
+              <img className="hidden dark:block object-contain" style={{
+    width: logo.width || '150px',
+    maxWidth: '100%'
+  }} src={logo.darkSrc} alt={logo.name} />
+            </a>)}
+        </div>
+      </div>
+      <div className="logo-carousel">
+        <div className="logo-carousel-track" style={{
+    animation: 'logo-scroll 60s linear infinite reverse'
+  }}>
+          {row2Doubled.map((logo, i) => <a key={`${logo.name}-${i}`} href={logo.url} style={{
+    textDecoration: 'none',
+    border: 'none'
+  }}>
+              <img className="block dark:hidden object-contain" style={{
+    width: logo.width || '150px',
+    maxWidth: '100%'
+  }} src={logo.lightSrc} alt={logo.name} />
+              <img className="hidden dark:block object-contain" style={{
+    width: logo.width || '150px',
+    maxWidth: '100%'
+  }} src={logo.darkSrc} alt={logo.name} />
+            </a>)}
+        </div>
+      </div>
+    </>;
+};
+
+Agent Skills are folders of instructions, scripts, and resources that agents can discover and use to do things more accurately and efficiently.
+
+## Why Agent Skills?
+
+Agents are increasingly capable, but often don't have the context they need to do real work reliably. Skills solve this by giving agents access to procedural knowledge and company-, team-, and user-specific context they can load on demand. Agents with access to a set of skills can extend their capabilities based on the task they're working on.
+
+**For skill authors**: Build capabilities once and deploy them across multiple agent products.
+
+**For compatible agents**: Support for skills lets end users give agents new capabilities out of the box.
+
+**For teams and enterprises**: Capture organizational knowledge in portable, version-controlled packages.
+
+## What can Agent Skills enable?
+
+* **Domain expertise**: Package specialized knowledge into reusable instructions, from legal review processes to data analysis pipelines.
+* **New capabilities**: Give agents new capabilities (e.g. creating presentations, building MCP servers, analyzing datasets).
+* **Repeatable workflows**: Turn multi-step tasks into consistent and auditable workflows.
+* **Interoperability**: Reuse the same skill across different skills-compatible agent products.
+
+## Adoption
+
+Agent Skills are supported by leading AI development tools.
+
+<LogoCarousel />
+
+## Open development
+
+The Agent Skills format was originally developed by [Anthropic](https://www.anthropic.com/), released as an open standard, and has been adopted by a growing number of agent products. The standard is open to contributions from the broader ecosystem.
+
+[View on GitHub](https://github.com/agentskills/agentskills)
+
+## Get started
+
+<CardGroup cols={3}>
+  <Card title="What are skills?" icon="lightbulb" href="/what-are-skills">
+    Learn about skills, how they work, and why they matter.
+  </Card>
+
+  <Card title="Specification" icon="file-code" href="/specification">
+    The complete format specification for SKILL.md files.
+  </Card>
+
+  <Card title="Integrate skills" icon="gear" href="/integrate-skills">
+    Add skills support to your agent or tool.
+  </Card>
+
+  <Card title="Example skills" icon="code" href="https://github.com/anthropics/skills">
+    Browse example skills on GitHub.
+  </Card>
+
+  <Card title="Reference library" icon="wrench" href="https://github.com/agentskills/agentskills/tree/main/skills-ref">
+    Validate skills and generate prompt XML.
+  </Card>
+</CardGroup>

@@ -1,1 +1,1 @@
-fix: menu button bg-black/20 (50% of shadow darkness)
+docs: update README with skills table, CLI reference, and plugin submodule

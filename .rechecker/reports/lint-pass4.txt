@@ -1,4 +1,5 @@
-=== ESLint on TS/TSX files ===
-ESLint exit: 0
-=== ShellCheck on remote-install.sh ===
-ShellCheck exit: 0
+=== Final Lint Pass ===
+Files: README.md, plugin
+README.md: Markdown file - no linter applicable
+plugin: git submodule entry - no linter applicable
+Result: 0 lint errors

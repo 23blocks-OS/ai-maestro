@@ -1,0 +1,303 @@
+MegaLinter can help you to define the same linter configuration locally
+
+INSTRUCTIONS
+
+- Copy the content of IDE-config folder at the root of your repository
+- if you are using Visual Studio Code, just reopen your project after the copy, and you will be prompted to install recommended extensions
+- If not, you can install extensions manually using the following links.
+
+IDE EXTENSIONS APPLICABLE TO YOUR PROJECT
+
+shellcheck (BASH)
+  - emacs:
+    - flycheck: https://github.com/flycheck/flycheck
+    - flymake-shellcheck: https://github.com/federicotdn/flymake-shellcheck
+  - sublime:
+    - SublimeLinter-shellcheck: https://github.com/SublimeLinter/SublimeLinter-shellcheck
+  - vim:
+    - ale: https://github.com/w0rp/ale
+    - neomake: https://github.com/neomake/neomake
+    - syntastic: https://github.com/scrooloose/syntastic
+  - vscode:
+    - vscode-shellcheck: https://marketplace.visualstudio.com/items?itemName=timonwong.shellcheck
+
+shfmt (BASH)
+  - emacs:
+    - emacs-shfmt: https://github.com/purcell/emacs-shfmt/
+  - idea:
+    - shell-scripts: https://www.jetbrains.com/help/idea/shell-scripts.html
+  - micro:
+    - micro: https://micro-editor.github.io/
+  - sublime:
+    - Sublime-Pretty-Shell: https://github.com/aerobounce/Sublime-Pretty-Shell
+  - vim:
+    - vim-shfmt: https://github.com/z0mbix/vim-shfmt
+  - vscode:
+    - shell-format: https://marketplace.visualstudio.com/items?itemName=foxundermoon.shell-format
+
+stylelint (CSS)
+  - emacs:
+    - flycheck: https://github.com/flycheck/flycheck
+  - sublime:
+    - SublimeLinter-stylelint: https://github.com/SublimeLinter/SublimeLinter-stylelint
+    - SublimeLinter-contrib-stylelint_d: https://github.com/jo-sm/SublimeLinter-contrib-stylelint_d
+  - vim:
+    - ale: https://github.com/dense-analysis/ale
+  - vscode:
+    - vscode-stylelint: https://marketplace.visualstudio.com/items?itemName=stylelint.vscode-stylelint
+
+hadolint (DOCKERFILE)
+  - vscode:
+    - hadolint: https://marketplace.visualstudio.com/items?itemName=exiasr.hadolint
+
+djlint (HTML)
+  - sublime:
+    - SublimeLinter-contrib-djlint: https://packagecontrol.io/packages/SublimeLinter-contrib-djlint
+  - vscode:
+    - djlint-vscode: https://marketplace.visualstudio.com/items?itemName=monosans.djlint
+
+htmlhint (HTML)
+  - brackets:
+    - brackets-htmlhint: https://github.com/htmlhint/brackets-htmlhint
+  - sublime:
+    - SublimeLinter-contrib-htmlhint: https://github.com/htmlhint/SublimeLinter-contrib-htmlhint
+  - vscode:
+    - vscode-htmlhint: https://marketplace.visualstudio.com/items?itemName=HTMLHint.vscode-htmlhint
+
+eslint (JAVASCRIPT)
+  - brackets:
+    - brackets-eslint: https://github.com/brackets-userland/brackets-eslint
+  - eclipse:
+    - Tern-Linter-ESLint: https://github.com/angelozerr/tern.java/wiki/Tern-Linter-ESLint
+  - emacs:
+    - flycheck: http://www.flycheck.org/en/latest/languages.html#javascript
+  - idea:
+    - ESLint Plugin: https://plugins.jetbrains.com/plugin/7494-eslint
+  - sublime:
+    - SublimeLinter-eslint: https://github.com/roadhump/SublimeLinter-eslint
+  - vim:
+    - ale: https://github.com/w0rp/ale
+    - Syntastic: https://github.com/vim-syntastic/syntastic/tree/master/syntax_checkers/javascript
+  - vscode:
+    - vscode-eslint: https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint
+
+standard (JAVASCRIPT)
+  - brackets:
+    - brackets-standard: https://github.com/ishamf/brackets-standard/
+  - idea:
+    - native support: https://blog.jetbrains.com/webstorm/2017/01/webstorm-2017-1-eap-171-2272/
+  - sublime:
+    - SublimeLinter-contrib-standard: https://packagecontrol.io/packages/SublimeLinter-contrib-standard
+    - StandardFormat: https://packagecontrol.io/packages/StandardFormat
+  - vscode:
+    - vscode-standard: https://marketplace.visualstudio.com/items?itemName=standard.vscode-standard
+
+prettier (JSON)
+  - emacs:
+    - prettier-emacs: https://github.com/prettier/prettier-emacs
+    - prettier.el: https://github.com/jscheid/prettier.el
+    - apheleia: https://github.com/raxod502/apheleia
+  - idea:
+    - Prettier: https://plugins.jetbrains.com/plugin/10456-prettier
+  - sublime:
+    - JsPrettier: https://packagecontrol.io/packages/JsPrettier
+  - vim:
+    - vim-prettier: https://github.com/prettier/vim-prettier
+  - visual_studio:
+    - JavaScriptPrettier: https://github.com/madskristensen/JavaScriptPrettier
+  - vscode:
+    - prettier-vscode: https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode
+
+v8r (JSON)
+  - eclipse:
+    - native support: https://www.eclipse.org/
+  - idea:
+    - native support: https://www.jetbrains.com/products/#type=ide
+  - vim:
+    - vison: https://github.com/Quramy/vison
+  - vscode:
+    - native support: https://code.visualstudio.com/
+
+markdownlint (MARKDOWN)
+  - sublime:
+    - SublimeLinter-contrib-markdownlint: https://packagecontrol.io/packages/SublimeLinter-contrib-markdownlint
+  - vim:
+    - coc-markdownlint: https://github.com/fannheyward/coc-markdownlint
+  - vscode:
+    - vscode-markdownlint: https://marketplace.visualstudio.com/items/DavidAnson.vscode-markdownlint
+
+markdown-table-formatter (MARKDOWN)
+  - vscode:
+    - Markdown Table Prettify Extension: https://github.com/darkriszty/MarkdownTablePrettify-VSCodeExt
+
+bandit (PYTHON)
+  - sublime:
+    - SublimeLinter-bandit: https://github.com/SublimeLinter/SublimeLinter-bandit
+  - vscode:
+    - Native Support: https://code.visualstudio.com/docs/python/linting#_bandit
+
+black (PYTHON)
+  - emacs:
+    - blacken: https://github.com/pythonic-emacs/blacken
+    - reformatter.el: https://github.com/purcell/reformatter.el
+    - elpy: https://github.com/jorgenschaefer/elpy
+  - idea:
+    - black: https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea
+  - sublime:
+    - sublack: https://github.com/jgirardet/sublack
+  - vscode:
+    - VSCode Python Extension: https://marketplace.visualstudio.com/items?itemName=ms-python.python
+
+flake8 (PYTHON)
+  - idea:
+    - flake8-support: https://plugins.jetbrains.com/plugin/11563-flake8-support
+  - vscode:
+    - Native Support: https://code.visualstudio.com/docs/python/linting#_flake8
+
+isort (PYTHON)
+  - emacs:
+    - py-isort.el: https://github.com/paetzke/py-isort.el
+  - vim:
+    - ale: https://github.com/w0rp/ale
+    - vim-isort: https://github.com/fisadev/vim-isort#installation
+  - vscode:
+    - VSCode Python Extension: https://github.com/Microsoft/vscode-python
+
+mypy (PYTHON)
+  - emacs:
+    - Flycheck mypy: https://github.com/lbolla/emacs-flycheck-mypy
+  - idea:
+    - mypy-official: https://plugins.jetbrains.com/plugin/13348-mypy-official-/
+  - sublime:
+    - SublimeLinter-contrib-mypy: https://github.com/fredcallaway/SublimeLinter-contrib-mypy
+  - vim:
+    - Ale: https://github.com/dense-analysis/ale
+    - Syntastic: https://github.com/vim-syntastic/syntastic
+  - vscode:
+    - Mypy: https://marketplace.visualstudio.com/items?itemName=matangover.mypy
+
+pylint (PYTHON)
+  - eclipse:
+    - PyLint: https://pydev.org/manual_adv_pylint.html
+  - idea:
+    - PyCharm (Native Support): https://www.jetbrains.com/pycharm/
+  - visual_studio:
+    - Native Support: https://docs.microsoft.com/fr-fr/visualstudio/python/linting-python-code?view=vs-2019
+  - vscode:
+    - Native Support: https://code.visualstudio.com/docs/python/linting#_pylint
+
+pyright (PYTHON)
+  - emacs:
+    - LSP-pyright: https://github.com/emacs-lsp/lsp-pyright
+  - sublime:
+    - LSP-pyright: https://packagecontrol.io/packages/LSP-pyright
+  - vim:
+    - Ale: https://github.com/dense-analysis/ale
+    - coc-pyright: https://github.com/fannheyward/coc-pyright
+  - vscode:
+    - PyRight: https://marketplace.visualstudio.com/items?itemName=ms-pyright.pyright
+
+ruff (PYTHON)
+  - idea:
+    - Ruff: https://plugins.jetbrains.com/plugin/20574-ruff
+  - vscode:
+    - Ruff: https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff
+
+devskim (REPOSITORY)
+  - vscode:
+    - VSCode DevSkim: https://marketplace.visualstudio.com/items?itemName=MS-CST-E.vscode-devskim
+
+trivy (REPOSITORY)
+  - vscode:
+    - VSCode Trivy: https://marketplace.visualstudio.com/items?itemName=AquaSecurityOfficial.trivy-vulnerability-scanner
+
+trivy-sbom (REPOSITORY)
+  - vscode:
+    - VSCode Trivy: https://marketplace.visualstudio.com/items?itemName=AquaSecurityOfficial.trivy-vulnerability-scanner
+
+cspell (SPELL)
+  - vscode:
+    - Code Spell Checker: https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker
+
+terraform-fmt (TERRAFORM)
+  - idea:
+    - HashiCorp Terraform / HCL language support: https://plugins.jetbrains.com/plugin/7808-hashicorp-terraform--hcl-language-support
+  - sublime:
+    - Terrafmt: https://packagecontrol.io/packages/Terrafmt
+  - vscode:
+    - HashiCorp Terraform: https://marketplace.visualstudio.com/items?itemName=HashiCorp.terraform
+
+eslint (TSX)
+  - brackets:
+    - brackets-eslint: https://github.com/brackets-userland/brackets-eslint
+  - eclipse:
+    - Tern-Linter-ESLint: https://github.com/angelozerr/tern.java/wiki/Tern-Linter-ESLint
+  - emacs:
+    - flycheck: http://www.flycheck.org/en/latest/languages.html#javascript
+  - idea:
+    - ESLint Plugin: https://plugins.jetbrains.com/plugin/7494-eslint
+  - sublime:
+    - SublimeLinter-eslint: https://github.com/roadhump/SublimeLinter-eslint
+  - vim:
+    - ale: https://github.com/w0rp/ale
+    - Syntastic: https://github.com/vim-syntastic/syntastic/tree/master/syntax_checkers/javascript
+  - vscode:
+    - vscode-eslint: https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint
+
+eslint (TYPESCRIPT)
+  - brackets:
+    - brackets-eslint: https://github.com/brackets-userland/brackets-eslint
+  - eclipse:
+    - Tern-Linter-ESLint: https://github.com/angelozerr/tern.java/wiki/Tern-Linter-ESLint
+  - emacs:
+    - flycheck: http://www.flycheck.org/en/latest/languages.html#javascript
+  - idea:
+    - ESLint Plugin: https://plugins.jetbrains.com/plugin/7494-eslint
+  - sublime:
+    - SublimeLinter-eslint: https://github.com/roadhump/SublimeLinter-eslint
+  - vim:
+    - ale: https://github.com/w0rp/ale
+    - Syntastic: https://github.com/vim-syntastic/syntastic/tree/master/syntax_checkers/javascript
+  - vscode:
+    - vscode-eslint: https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint
+
+ts-standard (TYPESCRIPT)
+  - idea:
+    - native support: https://blog.jetbrains.com/webstorm/2017/01/webstorm-2017-1-eap-171-2272/
+  - sublime:
+    - SublimeLinter-contrib-standard: https://packagecontrol.io/packages/SublimeLinter-contrib-standard
+    - StandardFormat: https://packagecontrol.io/packages/StandardFormat
+  - vscode:
+    - https://marketplace.visualstudio.com/items?itemName=standard.vscode-standard: vscode-standard
+
+prettier (YAML)
+  - emacs:
+    - prettier-emacs: https://github.com/prettier/prettier-emacs
+    - prettier.el: https://github.com/jscheid/prettier.el
+    - apheleia: https://github.com/raxod502/apheleia
+  - idea:
+    - Prettier: https://plugins.jetbrains.com/plugin/10456-prettier
+  - sublime:
+    - JsPrettier: https://packagecontrol.io/packages/JsPrettier
+  - vim:
+    - vim-prettier: https://github.com/prettier/vim-prettier
+  - visual_studio:
+    - JavaScriptPrettier: https://github.com/madskristensen/JavaScriptPrettier
+  - vscode:
+    - prettier-vscode: https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode
+
+v8r (YAML)
+  - eclipse:
+    - native support: https://www.eclipse.org/
+  - idea:
+    - native support: https://www.jetbrains.com/products/#type=ide
+  - vim:
+    - vison: https://github.com/Quramy/vison
+  - vscode:
+    - native support: https://code.visualstudio.com/
+
+yamllint (YAML)
+  - emacs:
+    - flycheck: https://github.com/krzysztof-magosa/flycheck-yamllint
+  - vim:
+    - ale: https://github.com/w0rp/ale

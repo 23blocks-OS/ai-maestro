@@ -1,0 +1,51 @@
+# LLM Externalizer Response
+
+- **Tool**: `code_task`
+- **Model**: `google/gemini-2.5-flash`
+- **Timestamp**: 2026-03-17T14:37:28.270Z
+- **Input file**: `/Users/emanuelesabetta/ai-maestro/docs_dev/epcp-correctness-P4-ea0d592e-d300-4c9c-bdc1-5bcde65df725.md`
+- **Task**: This is an AI Maestro project (Next.js). Find ALL occurrences of the old marketplace name 'ai-maestro-local-marketplace' in each file. Also find any occurrences of the even older name 'role-plugins' used as a marketplace name (NOT as a directory path or URL path segment — only when used as a marketplace identifier/name string). Report the exact line number and the full line content for each occurrence. If a file has zero occurrences, skip it entirely — do not report clean files.
+
+---
+
+- `/Users/emanuelesabetta/ai-maestro/docs_dev/epcp-correctness-P4-ea0d592e-d300-4c9c-bdc1-5bcde65df725.md`:
+  - Line 1: `# Code Correctness Report: headless-router`
+  - Line 3: `**Agent:** epcp-code-correctness-agent`
+  - Line 4: `**Domain:** headless-router`
+  - Line 14: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:1678-1683`
+  - Line 16: `- **Category:** security`
+  - Line 17: `- **Confidence:** CONFIRMED`
+  - Line 18: `- **Description:** The headless router's chief-of-staff POST handler (lines 1604-1701) is missing the `isValidUuid(cosAgentId)` check that exists in the Next.js mirror route at `app/api/teams/[id]/chief-of-staff/route.ts:87-89`. The Next.js route validates `cosAgentId` format before passing it to `getAgent()`:`
+  - Line 21: `// Next.js route (line 87-89) - present:`
+  - Line 25: `The headless route skips directly from the `typeof cosAgentId !== 'string'` check (line 1678) to `getAgent(cosAgentId)` (line 1683) without UUID format validation. This allows malformed agent IDs (including path traversal patterns like `../../etc/passwd`) to be passed to `getAgent()`, which does a file-based registry lookup. While `getAgent` likely uses a Map lookup that would just return undefined for invalid IDs, the contract mismatch between the two routes means the headless router is less secure.`
+  - Line 30: `// headless-router.ts lines 1678-1683 - MISSING isValidUuid check`
+  - Line 36: `- **Fix:** Add `if (!isValidUuid(cosAgentId)) { sendJson(res, 400, { error: 'Invalid agent ID format' }); return }` between lines 1681 and 1683 to match the Next.js route. The `isValidUuid` import already exists at line 245.`
+  - Line 40: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:407-412`
+  - Line 42: `- **Category:** logic`
+  - Line 43: `- **Confidence:** CONFIRMED`
+  - Line 44: `- **Description:** The `getQuery()` helper function was replaced in Pass 3 by inline query parsing in `createHeadlessRouter().handle()` (lines 1868-1869). The function at lines 407-412 is now dead code -- it has zero callers in the entire codebase. Dead code in a security-critical routing module adds confusion and maintenance burden.`
+  - Line 56: `- **Fix:** Remove the `getQuery` function (lines 406-412) since its logic is now inline in `handle()` .`
+  - Line 60: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:922`
+  - Line 62: `- **Category:** security`
+  - Line 63: `- **Confidence:** LIKELY`
+  - Line 64: `- **Description:** The export route at line 922 constructs a `Content-Disposition` header using `filename` from the service result, which is derived from `agent.name || agent.alias`. If an agent name contains `"` or `\r\n` characters, it could inject headers or break the Content-Disposition value. While agent names are typically alphanumeric with hyphens/underscores, the headless router should not rely on upstream validation for HTTP header safety.`
+  - Line 74: `- **Fix:** Sanitize the filename before use: `filename.replace(/["\r\n\\]/g, '_')` or use the RFC 5987 `filename*` encoding. Alternatively, validate at the service layer.`
+  - Line 78: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:321, 1878-1884`
+  - Line 80: `- **Category:** api-contract`
+  - Line 81: `- **Confidence:** CONFIRMED`
+  - Line 82: `- **Description:** The `readJsonBody` function uses `Object.assign(new Error(...), { statusCode: 413 })` to add a `statusCode` property. The catch block in `handle()` at line 1882 reads `error?.statusCode`. This works correctly for `readJsonBody`'s 413 rejection. However, the same `readRawBody` function (line 359) also uses this pattern. The concern is that the `any` type at line 1878 (`catch (error: any)`) means there's no type narrowing -- this works but relies on duck-typing a non-standard property. This is fragile: if any service function throws an error with a different `statusCode` value, it would be exposed to the client as a status code override, which could cause unexpected behavior (e.g. a service throwing `{ statusCode: 0 }` would send status 0).`
+  - Line 95: `- **Fix:** Narrow the statusCode check: only honor `413` specifically rather than any arbitrary `statusCode` from an unknown error. E.g.: `const statusCode = error?.statusCode === 413 ? 413 : 500`.`
+  - Line 99: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:406`
+  - Line 101: `- **Category:** logic`
+  - Line 102: `- **Confidence:** CONFIRMED`
+  - Line 103: `- **Description:** The comment `// NT-002: Use modern URL API instead of deprecated url.parse()` at line 406 refers to the `getQuery` function, which is now dead code (see CC-P4-A3-002). The actual fix for NT-002 was applied inline in `handle()` at line 1864. The comment is misleading since it annotates unused code.`
+  - Line 110: `- **Fix:** Remove the dead function and its comment (same fix as CC-P4-A3-002).`
+  - Line 114: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:833`
+  - Line 116: `- **Category:** api-contract`
+  - Line 117: `- **Confidence:** POSSIBLE`
+  - Line 118: `- **Description:** `clearDocs(params.id, query.project)` passes `query.project` which could be `undefined` if the query parameter is missing. Whether this is a problem depends on the `clearDocs` signature -- if it expects `string | undefined`, this is fine. Other similar patterns in the file use `|| ''` or `|| undefined` as explicit fallbacks. This inconsistency is worth noting for code clarity.`
+  - Line 125: `- **Fix:** Verify `clearDocs` signature and either add `|| ''` if it expects a string, or leave as-is if it handles `undefined`.`
+  - Line 129: `- **File:** `/Users/emanuelesabetta/ai-maestro/services/headless-router.ts`:1321`
+  - Line 131: `- **Category:** logic`
+  - Line 132: `- **Confidence:** CONFIRMED`
+  - Line 133: `- **Description:** The timestamp freshness check `tsAge > 300_000 || tsAge < -60_000` means: a timestamp from up to 5 minutes in the past is accepted, but a timestamp from up to 60 seconds in the future is accepted. This asymmetry is intentional (comment says "5 min window, allow 60s clock skew") but the comment doesn't explain the asymmetry clearly. The same pattern is repeated in 5 places (lines 1321, 1353, 1400, 1449, and the GET governance/sync at line 

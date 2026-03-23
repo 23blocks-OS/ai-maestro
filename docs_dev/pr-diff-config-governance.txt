@@ -1,0 +1,2906 @@
+diff --git a/app/api/agents/[id]/config/deploy/route.ts b/app/api/agents/[id]/config/deploy/route.ts
+new file mode 100644
+index 0000000..9fcc9d4
+--- /dev/null
++++ b/app/api/agents/[id]/config/deploy/route.ts
+@@ -0,0 +1,46 @@
++/**
++ * Agent Config Deploy API
++ *
++ * POST /api/agents/:id/config/deploy — Deploy configuration to agent's .claude/ directory
++ *
++ * Requires agent authentication. Used by cross-host governance and local admin.
++ * Business logic in services/agents-config-deploy-service.ts
++ */
++
++import { NextResponse } from 'next/server'
++import type { NextRequest } from 'next/server'
++import { authenticateAgent } from '@/lib/agent-auth'
++import { deployConfigToAgent } from '@/services/agents-config-deploy-service'
++
++export async function POST(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const { id } = await params
++    const auth = authenticateAgent(
++      request.headers.get('Authorization'),
++      request.headers.get('X-Agent-Id')
++    )
++    if (auth.error) {
++      return NextResponse.json({ error: auth.error }, { status: 403 })
++    }
++
++    let body
++    try { body = await request.json() } catch {
++      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
++    }
++
++    const result = await deployConfigToAgent(id, body.configuration || body, auth.agentId)
++    if (result.error) {
++      return NextResponse.json({ error: result.error }, { status: result.status })
++    }
++    return NextResponse.json(result.data)
++  } catch (error) {
++    console.error('Error deploying agent config:', error)
++    return NextResponse.json(
++      { error: 'Failed to deploy agent config', details: error instanceof Error ? error.message : 'Unknown error' },
++      { status: 500 }
++    )
++  }
++}
+diff --git a/app/api/agents/[id]/skills/route.ts b/app/api/agents/[id]/skills/route.ts
+index 602ba05..575f350 100644
+--- a/app/api/agents/[id]/skills/route.ts
++++ b/app/api/agents/[id]/skills/route.ts
+@@ -12,6 +12,7 @@
+ import { NextResponse } from 'next/server'
+ import type { NextRequest } from 'next/server'
+ import { getSkillsConfig, updateSkills, addSkill, removeSkill } from '@/services/agents-skills-service'
++import { authenticateAgent } from '@/lib/agent-auth'
+ 
+ export async function GET(
+   _request: NextRequest,
+@@ -44,7 +45,9 @@ export async function PATCH(
+     try { body = await request.json() } catch {
+       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+     }
+-    const result = await updateSkills(id, body)
++    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
++    const requestingAgentId = auth.error ? null : (auth.agentId || null)
++    const result = await updateSkills(id, body, requestingAgentId)
+     if (result.error) {
+       return NextResponse.json({ error: result.error }, { status: result.status })
+     }
+@@ -69,7 +72,9 @@ export async function POST(
+     try { body = await request.json() } catch {
+       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+     }
+-    const result = await addSkill(id, body)
++    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
++    const requestingAgentId = auth.error ? null : (auth.agentId || null)
++    const result = await addSkill(id, body, requestingAgentId)
+     if (result.error) {
+       return NextResponse.json({ error: result.error }, { status: result.status })
+     }
+@@ -97,7 +102,9 @@ export async function DELETE(
+       return NextResponse.json({ error: 'Missing required query parameter: skill' }, { status: 400 })
+     }
+ 
+-    const result = await removeSkill(id, skill, type)
++    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
++    const requestingAgentId = auth.error ? null : (auth.agentId || null)
++    const result = await removeSkill(id, skill, type, requestingAgentId)
+     if (result.error) {
+       return NextResponse.json({ error: result.error }, { status: result.status })
+     }
+diff --git a/app/api/agents/[id]/skills/settings/route.ts b/app/api/agents/[id]/skills/settings/route.ts
+index 7d5acd6..4e425a3 100644
+--- a/app/api/agents/[id]/skills/settings/route.ts
++++ b/app/api/agents/[id]/skills/settings/route.ts
+@@ -9,6 +9,7 @@
+ 
+ import { NextRequest, NextResponse } from 'next/server'
+ import { getSkillSettings, saveSkillSettings } from '@/services/agents-skills-service'
++import { authenticateAgent } from '@/lib/agent-auth'
+ 
+ export async function GET(
+   _request: NextRequest,
+@@ -41,7 +42,9 @@ export async function PUT(
+     try { body = await request.json() } catch {
+       return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+     }
+-    const result = await saveSkillSettings(agentId, body.settings)
++    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
++    const requestingAgentId = auth.error ? null : (auth.agentId || null)
++    const result = await saveSkillSettings(agentId, body.settings, requestingAgentId)
+     if (result.error) {
+       return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+     }
+diff --git a/app/api/teams/[id]/chief-of-staff/route.ts b/app/api/teams/[id]/chief-of-staff/route.ts
+index c86e0b3..cc2f271 100644
+--- a/app/api/teams/[id]/chief-of-staff/route.ts
++++ b/app/api/teams/[id]/chief-of-staff/route.ts
+@@ -52,8 +52,30 @@ export async function POST(
+     const managerId = getManagerId()
+ 
+     if (cosAgentId === null) {
++      // Capture old COS id before updateTeam clears it
++      const oldCosId = team.chiefOfStaffId
+       // Remove COS — auto-downgrade team to open (R1.5)
+       const updated = await updateTeam(id, { chiefOfStaffId: null, type: 'open' }, managerId)
++
++      // Auto-reject pending configure-agent requests from the removed COS (11a safeguard)
++      if (oldCosId) {
++        try {
++          const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
++          const file = loadGovernanceRequests()
++          const pendingFromCOS = file.requests.filter((r: { type: string; status: string; requestedBy: string }) =>
++            r.type === 'configure-agent' && r.status === 'pending' && r.requestedBy === oldCosId
++          )
++          for (const req of pendingFromCOS) {
++            await rejectGovernanceRequest(req.id, managerId || 'system', `COS role revoked for team '${team.name}'`)
++          }
++          if (pendingFromCOS.length > 0) {
++            console.log(`[governance] Auto-rejected ${pendingFromCOS.length} pending config request(s) from removed COS ${oldCosId}`)
++          }
++        } catch (err) {
++          console.warn('[governance] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
++        }
++      }
++
+       return NextResponse.json({ success: true, team: updated })
+     }
+ 
+diff --git a/components/AgentProfile.tsx b/components/AgentProfile.tsx
+index 0436a65..4703929 100644
+--- a/components/AgentProfile.tsx
++++ b/components/AgentProfile.tsx
+@@ -877,6 +877,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus,
+                   )}
+                   <Zap className="w-4 h-4" />
+                   Skills
++                  {(governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length > 0) && (
++                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
++                      {governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length}
++                    </span>
++                  )}
+                 </button>
+ 
+                 {expandedSections.installedSkills && (
+diff --git a/components/marketplace/AgentSkillEditor.tsx b/components/marketplace/AgentSkillEditor.tsx
+index 8cc6489..956c89d 100644
+--- a/components/marketplace/AgentSkillEditor.tsx
++++ b/components/marketplace/AgentSkillEditor.tsx
+@@ -21,9 +21,12 @@ import {
+   ChevronDown,
+   ChevronRight,
+   Brain,
+-  X
++  X,
++  Clock,
++  XCircle
+ } from 'lucide-react'
+ import type { MarketplaceSkill, AgentSkillsConfig } from '@/types/marketplace'
++import { useGovernance } from '@/hooks/useGovernance'
+ import SkillBrowser from './SkillBrowser'
+ import SkillDetailModal from './SkillDetailModal'
+ 
+@@ -63,6 +66,11 @@ export default function AgentSkillEditor({
+     custom: true
+   })
+ 
++  // Governance: pending config requests for this agent
++  const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
++  const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
++  const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
++
+   // Load skills
+   const loadSkills = useCallback(async () => {
+     setLoading(true)
+@@ -263,6 +271,48 @@ export default function AgentSkillEditor({
+           </div>
+         )}
+ 
++        {/* Pending Configuration Changes */}
++        {agentPendingConfigs.length > 0 && (
++          <div className="px-4 py-3 border-b border-gray-800">
++            <h4 className="text-xs font-medium text-amber-400 uppercase tracking-wider mb-2">
++              Pending Configuration Changes
++            </h4>
++            <div className="space-y-2">
++              {agentPendingConfigs.map(req => (
++                <div key={req.id} className="flex items-center gap-2 px-3 py-2 rounded bg-amber-500/5 border border-amber-500/20">
++                  <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
++                  <div className="flex-1 min-w-0">
++                    <span className="text-sm text-amber-300">
++                      {req.payload.configuration?.operation || req.type}
++                    </span>
++                    <span className="text-xs text-amber-400/60 ml-2">
++                      {req.status === 'pending' ? 'Awaiting approval' : req.status}
++                    </span>
++                  </div>
++                  {canApprove && req.status === 'pending' && (
++                    <div className="flex items-center gap-1">
++                      <button
++                        onClick={() => resolveConfigRequest(req.id, true)}
++                        className="p-1 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors"
++                        title="Approve"
++                      >
++                        <Check className="w-4 h-4" />
++                      </button>
++                      <button
++                        onClick={() => resolveConfigRequest(req.id, false)}
++                        className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors"
++                        title="Reject"
++                      >
++                        <XCircle className="w-4 h-4" />
++                      </button>
++                    </div>
++                  )}
++                </div>
++              ))}
++            </div>
++          </div>
++        )}
++
+         {/* Skills Lists */}
+         <div className="divide-y divide-gray-800">
+           {/* Marketplace Skills */}
+diff --git a/hooks/useGovernance.ts b/hooks/useGovernance.ts
+index e9e19ad..0925162 100644
+--- a/hooks/useGovernance.ts
++++ b/hooks/useGovernance.ts
+@@ -3,6 +3,7 @@
+ import { useState, useEffect, useCallback, useMemo } from 'react'
+ import type { Team } from '@/types/team'
+ import type { TransferRequest, GovernanceRole } from '@/types/governance'
++import type { GovernanceRequest } from '@/types/governance-request'
+ 
+ // Re-export so downstream consumers still work
+ export type { GovernanceRole } from '@/types/governance'
+@@ -26,6 +27,9 @@ export interface GovernanceState {
+   pendingTransfers: TransferRequest[]
+   requestTransfer: (agentId: string, fromTeamId: string, toTeamId: string, note?: string) => Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }>
+   resolveTransfer: (transferId: string, action: 'approve' | 'reject', rejectReason?: string) => Promise<{ success: boolean; error?: string }>
++  pendingConfigRequests: GovernanceRequest[]
++  submitConfigRequest: (agentId: string, config: Record<string, unknown>) => Promise<{ success: boolean; error?: string; requestId?: string }>
++  resolveConfigRequest: (requestId: string, approved: boolean, reason?: string) => Promise<{ success: boolean; error?: string }>
+ }
+ 
+ export function useGovernance(agentId: string | null): GovernanceState {
+@@ -36,6 +40,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
+   const [managerName, setManagerName] = useState<string | null>(null)
+   const [allTeams, setAllTeams] = useState<Team[]>([])
+   const [pendingTransfers, setPendingTransfers] = useState<TransferRequest[]>([])
++  const [pendingConfigRequests, setPendingConfigRequests] = useState<GovernanceRequest[]>([])
+ 
+   // Derive governance role from current state
+   const agentRole: GovernanceRole = useMemo(() => {
+@@ -88,11 +93,19 @@ export function useGovernance(agentId: string | null): GovernanceState {
+         console.error('[governance] fetch error:', err)
+         return { requests: [] }
+       }),
++      fetch('/api/v1/governance/requests?type=configure-agent&status=pending', { signal }).then((r) => {
++        if (!r.ok) throw new Error('Request failed')
++        return r.json()
++      }).catch((err) => {
++        if (err?.name === 'AbortError') return // Component unmounted
++        console.error('[governance] config requests fetch error:', err)
++        return { requests: [] }
++      }),
+     ])
+-      .then(([govData, teamsData, transfersData]) => {
++      .then(([govData, teamsData, transfersData, configReqData]) => {
+         if (signal?.aborted) return  // Stale response guard
+         // CC-003: Guard against undefined data (AbortError catch returns undefined)
+-        if (!govData || !teamsData || !transfersData) return
++        if (!govData || !teamsData || !transfersData || !configReqData) return
+         // React 18+ batches these 6 setters into a single re-render automatically
+         setHasPassword(govData.hasPassword ?? false)
+         setHasManager(govData.hasManager ?? false)
+@@ -100,6 +113,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
+         setManagerName(govData.managerName ?? null)
+         setAllTeams(teamsData.teams ?? [])
+         setPendingTransfers(transfersData.requests ?? [])
++        setPendingConfigRequests(configReqData.requests ?? [])
+       })
+       .catch(() => {
+         // On fetch failure, reset to safe defaults
+@@ -109,6 +123,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
+         setManagerName(null)
+         setAllTeams([])
+         setPendingTransfers([])
++        setPendingConfigRequests([])
+       })
+       .finally(() => {
+         // CC-001: Prevent setting state on aborted/stale requests (e.g. unmount or rapid agentId change)
+@@ -268,6 +283,53 @@ export function useGovernance(agentId: string | null): GovernanceState {
+     [refresh]
+   )
+ 
++  const submitConfigRequest = useCallback(
++    async (targetAgentId: string, config: Record<string, unknown>): Promise<{ success: boolean; error?: string; requestId?: string }> => {
++      try {
++        const res = await fetch('/api/v1/governance/requests', {
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({
++            type: 'configure-agent',
++            payload: { agentId: targetAgentId, configuration: config },
++          })
++        })
++        if (!res.ok) {
++          const data = await res.json().catch(() => ({}))
++          return { success: false, error: data.error || `HTTP ${res.status}` }
++        }
++        const data = await res.json()
++        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
++        return { success: true, requestId: data.id }
++      } catch (err) {
++        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
++      }
++    },
++    [refresh]
++  )
++
++  const resolveConfigRequest = useCallback(
++    async (requestId: string, approved: boolean, reason?: string): Promise<{ success: boolean; error?: string }> => {
++      try {
++        const endpoint = approved ? 'approve' : 'reject'
++        const res = await fetch(`/api/v1/governance/requests/${requestId}/${endpoint}`, {
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({ reason })
++        })
++        if (!res.ok) {
++          const data = await res.json().catch(() => ({}))
++          return { success: false, error: data.error || `HTTP ${res.status}` }
++        }
++        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
++        return { success: true }
++      } catch (err) {
++        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
++      }
++    },
++    [refresh]
++  )
++
+   const requestTransfer = useCallback(
+     async (targetAgentId: string, fromTeamId: string, toTeamId: string, note?: string): Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }> => {
+       if (!agentId) return { success: false, error: 'No agent selected' } // Guard against null agentId
+@@ -327,5 +389,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
+     pendingTransfers,
+     requestTransfer,
+     resolveTransfer,
++    pendingConfigRequests,
++    submitConfigRequest,
++    resolveConfigRequest,
+   }
+ }
+diff --git a/lib/governance-request-registry.ts b/lib/governance-request-registry.ts
+index e4eff14..f01d73f 100644
+--- a/lib/governance-request-registry.ts
++++ b/lib/governance-request-registry.ts
+@@ -253,10 +253,61 @@ export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number>
+       return updatedAt > cutoff
+     })
+ 
+-    if (filtered.length < before) {
++    // Second pass: auto-reject pending requests past TTL — 7 days (11e safeguard)
++    const pendingCutoff = Date.now() - 7 * 86_400_000
++    let expired = 0
++    for (const req of filtered) {
++      if (req.status === 'pending') {
++        const createdAt = new Date(req.createdAt).getTime()
++        if (createdAt < pendingCutoff) {
++          req.status = 'rejected'
++          req.rejectReason = 'Request expired (TTL: 7d)'
++          req.updatedAt = new Date().toISOString()
++          expired++
++        }
++      }
++    }
++
++    const purged = before - filtered.length
++    if (filtered.length < before || expired > 0) {
+       saveGovernanceRequests({ ...file, requests: filtered })
+     }
++    if (expired > 0) {
++      console.log(`[governance-requests] Expired ${expired} pending request(s) past 7-day TTL`)
++    }
++
++    return purged + expired
++  })
++}
++
++/**
++ * Auto-reject pending governance requests that have exceeded their TTL.
++ * Default TTL: 7 days. Prevents stale pending requests from accumulating.
++ * Can be called independently of purgeOldRequests for targeted TTL enforcement.
++ */
++export async function expirePendingRequests(ttlDays: number = 7): Promise<number> {
++  return withLock('governance-requests', () => {
++    const file = loadGovernanceRequests()
++    const cutoff = Date.now() - ttlDays * 86_400_000
++    let expired = 0
++
++    for (const req of file.requests) {
++      if (req.status === 'pending') {
++        const createdAt = new Date(req.createdAt).getTime()
++        if (createdAt < cutoff) {
++          req.status = 'rejected'
++          req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
++          req.updatedAt = new Date().toISOString()
++          expired++
++        }
++      }
++    }
++
++    if (expired > 0) {
++      saveGovernanceRequests(file)
++      console.log(`[governance-requests] Expired ${expired} pending request(s) past ${ttlDays}-day TTL`)
++    }
+ 
+-    return before - filtered.length
++    return expired
+   })
+ }
+diff --git a/services/agents-config-deploy-service.ts b/services/agents-config-deploy-service.ts
+new file mode 100644
+index 0000000..2bf8ebd
+--- /dev/null
++++ b/services/agents-config-deploy-service.ts
+@@ -0,0 +1,510 @@
++/**
++ * Agent Config Deploy Service
++ *
++ * Deploys configuration changes to an agent's .claude/ directory.
++ * Called by cross-host-governance-service when a configure-agent request is executed,
++ * and by agents-skills-service for direct local deployments.
++ *
++ * Supports: skills, plugins, hooks, MCP servers, model, program-args.
++ */
++
++import { ServiceResult } from '@/types/service'
++import type { ConfigurationPayload, ConfigDiff, ConfigOperationType } from '@/types/governance-request'
++import { getAgent } from '@/lib/agent-registry'
++import fs from 'fs/promises'
++import path from 'path'
++
++export type { ServiceResult }
++
++const LOG_PREFIX = '[config-deploy]'
++
++/** Valid operations that this service can execute */
++const VALID_OPERATIONS: ConfigOperationType[] = [
++  'add-skill', 'remove-skill',
++  'add-plugin', 'remove-plugin',
++  'update-hooks', 'update-mcp',
++  'update-model', 'update-program-args',
++  'bulk-config',
++]
++
++/**
++ * Deploy a configuration change to an agent's .claude/ directory.
++ *
++ * @param agentId - UUID of the target agent
++ * @param config - The configuration payload describing what to change
++ * @param deployedBy - UUID of the agent/user who initiated the deployment (for audit trail)
++ * @returns ConfigDiff showing what changed, or error
++ */
++export async function deployConfigToAgent(
++  agentId: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  // Validate agent exists
++  const agent = getAgent(agentId)
++  if (!agent) {
++    return { error: `Agent '${agentId}' not found`, status: 404 }
++  }
++
++  // Validate operation
++  if (!config.operation || !VALID_OPERATIONS.includes(config.operation)) {
++    return { error: `Invalid configuration operation: '${config.operation}'`, status: 400 }
++  }
++
++  // Get the agent's working directory for .claude/ path resolution
++  const workingDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
++  if (!workingDir) {
++    return { error: `Agent '${agentId}' has no working directory configured`, status: 400 }
++  }
++
++  const claudeDir = path.join(workingDir, '.claude')
++
++  try {
++    switch (config.operation) {
++      case 'add-skill':
++        return await deployAddSkill(claudeDir, config, deployedBy)
++
++      case 'remove-skill':
++        return await deployRemoveSkill(claudeDir, config, deployedBy)
++
++      case 'add-plugin':
++        return await deployAddPlugin(claudeDir, config, deployedBy)
++
++      case 'remove-plugin':
++        return await deployRemovePlugin(claudeDir, config, deployedBy)
++
++      case 'update-hooks':
++        return await deployUpdateSettings(claudeDir, 'hooks', config, deployedBy)
++
++      case 'update-mcp':
++        return await deployUpdateSettings(claudeDir, 'mcpServers', config, deployedBy)
++
++      case 'update-model':
++        return await deployUpdateModel(agentId, config, deployedBy)
++
++      case 'update-program-args':
++        return await deployUpdateProgramArgs(agentId, config, deployedBy)
++
++      case 'bulk-config':
++        return await deployBulkConfig(claudeDir, agentId, config, deployedBy)
++
++      default:
++        return { error: `Unhandled operation: '${config.operation}'`, status: 400 }
++    }
++  } catch (err) {
++    const msg = err instanceof Error ? err.message : String(err)
++    console.error(`${LOG_PREFIX} Deployment failed for agent ${agentId}: ${msg}`)
++    return { error: `Deployment failed: ${msg}`, status: 500 }
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Skill operations
++// ---------------------------------------------------------------------------
++
++async function deployAddSkill(
++  claudeDir: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  if (!config.skills || config.skills.length === 0) {
++    return { error: 'add-skill requires at least one skill name in config.skills', status: 400 }
++  }
++
++  const skillsDir = path.join(claudeDir, 'skills')
++  await fs.mkdir(skillsDir, { recursive: true })
++
++  const before: Record<string, unknown> = {}
++  const after: Record<string, unknown> = {}
++
++  for (const skillName of config.skills) {
++    // Path traversal prevention
++    if (skillName.includes('..') || skillName.includes('/') || skillName.includes('\\')) {
++      return { error: `Invalid skill name: '${skillName}'`, status: 400 }
++    }
++
++    const skillDir = path.join(skillsDir, skillName)
++    const existed = await fileExists(skillDir)
++    before[skillName] = existed ? 'present' : 'absent'
++
++    // Idempotent: if skill already exists with a valid SKILL.md, skip re-creation (11c safeguard)
++    if (existed) {
++      const skillMdCheckPath = path.join(skillDir, 'SKILL.md')
++      const skillMdAlreadyExists = await fileExists(skillMdCheckPath)
++      if (skillMdAlreadyExists) {
++        before[skillName] = 'present'
++        after[skillName] = 'present (unchanged)'
++        continue
++      }
++    }
++
++    // Create skill directory with a placeholder SKILL.md if not exists
++    await fs.mkdir(skillDir, { recursive: true })
++    const skillMdPath = path.join(skillDir, 'SKILL.md')
++    const skillMdExists = await fileExists(skillMdPath)
++    if (!skillMdExists) {
++      await fs.writeFile(skillMdPath, `# ${skillName}\n\nSkill deployed via governance at ${new Date().toISOString()}\n`, 'utf-8')
++    }
++
++    // TODO: ToxicSkills scan on deployed content (11d safeguard)
++    // When @/lib/toxic-skills is implemented, scan skill content here before deployment
++    // and remove the skill directory + return 403 if content is toxic.
++
++    after[skillName] = 'present'
++  }
++
++  console.log(`${LOG_PREFIX} Deployed ${config.skills.length} skill(s) to ${claudeDir}`)
++
++  return {
++    data: {
++      operation: 'add-skill',
++      before,
++      after,
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++async function deployRemoveSkill(
++  claudeDir: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  if (!config.skills || config.skills.length === 0) {
++    return { error: 'remove-skill requires at least one skill name in config.skills', status: 400 }
++  }
++
++  const skillsDir = path.join(claudeDir, 'skills')
++  const before: Record<string, unknown> = {}
++  const after: Record<string, unknown> = {}
++
++  for (const skillName of config.skills) {
++    if (skillName.includes('..') || skillName.includes('/') || skillName.includes('\\')) {
++      return { error: `Invalid skill name: '${skillName}'`, status: 400 }
++    }
++
++    const skillDir = path.join(skillsDir, skillName)
++    const existed = await fileExists(skillDir)
++    before[skillName] = existed ? 'present' : 'absent'
++
++    if (existed) {
++      await fs.rm(skillDir, { recursive: true, force: true })
++    }
++
++    after[skillName] = 'absent'
++  }
++
++  console.log(`${LOG_PREFIX} Removed ${config.skills.length} skill(s) from ${claudeDir}`)
++
++  return {
++    data: {
++      operation: 'remove-skill',
++      before,
++      after,
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Plugin operations
++// ---------------------------------------------------------------------------
++
++async function deployAddPlugin(
++  claudeDir: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  if (!config.plugins || config.plugins.length === 0) {
++    return { error: 'add-plugin requires at least one plugin name in config.plugins', status: 400 }
++  }
++
++  const pluginsDir = path.join(claudeDir, 'plugins')
++  await fs.mkdir(pluginsDir, { recursive: true })
++
++  const before: Record<string, unknown> = {}
++  const after: Record<string, unknown> = {}
++
++  for (const pluginName of config.plugins) {
++    if (pluginName.includes('..') || pluginName.includes('/') || pluginName.includes('\\')) {
++      return { error: `Invalid plugin name: '${pluginName}'`, status: 400 }
++    }
++
++    const pluginDir = path.join(pluginsDir, pluginName)
++    const existed = await fileExists(pluginDir)
++    before[pluginName] = existed ? 'present' : 'absent'
++
++    await fs.mkdir(pluginDir, { recursive: true })
++    after[pluginName] = 'present'
++  }
++
++  console.log(`${LOG_PREFIX} Deployed ${config.plugins.length} plugin(s) to ${claudeDir}`)
++
++  return {
++    data: {
++      operation: 'add-plugin',
++      before,
++      after,
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++async function deployRemovePlugin(
++  claudeDir: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  if (!config.plugins || config.plugins.length === 0) {
++    return { error: 'remove-plugin requires at least one plugin name in config.plugins', status: 400 }
++  }
++
++  const pluginsDir = path.join(claudeDir, 'plugins')
++  const before: Record<string, unknown> = {}
++  const after: Record<string, unknown> = {}
++
++  for (const pluginName of config.plugins) {
++    if (pluginName.includes('..') || pluginName.includes('/') || pluginName.includes('\\')) {
++      return { error: `Invalid plugin name: '${pluginName}'`, status: 400 }
++    }
++
++    const pluginDir = path.join(pluginsDir, pluginName)
++    const existed = await fileExists(pluginDir)
++    before[pluginName] = existed ? 'present' : 'absent'
++
++    if (existed) {
++      await fs.rm(pluginDir, { recursive: true, force: true })
++    }
++
++    after[pluginName] = 'absent'
++  }
++
++  console.log(`${LOG_PREFIX} Removed ${config.plugins.length} plugin(s) from ${claudeDir}`)
++
++  return {
++    data: {
++      operation: 'remove-plugin',
++      before,
++      after,
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Settings operations (hooks, mcpServers)
++// ---------------------------------------------------------------------------
++
++async function deployUpdateSettings(
++  claudeDir: string,
++  section: 'hooks' | 'mcpServers',
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  const newData = section === 'hooks' ? config.hooks : config.mcpServers
++  if (!newData || Object.keys(newData).length === 0) {
++    return { error: `update-${section === 'hooks' ? 'hooks' : 'mcp'} requires non-empty ${section} data`, status: 400 }
++  }
++
++  const settingsPath = path.join(claudeDir, 'settings.json')
++  let settings: Record<string, unknown> = {}
++
++  try {
++    const content = await fs.readFile(settingsPath, 'utf-8')
++    settings = JSON.parse(content)
++  } catch {
++    // File doesn't exist or is invalid -- start fresh
++  }
++
++  const before: Record<string, unknown> = { [section]: settings[section] || {} }
++
++  // Merge new data into existing section
++  const existingSection = (settings[section] as Record<string, unknown>) || {}
++  settings[section] = { ...existingSection, ...newData }
++
++  const after: Record<string, unknown> = { [section]: settings[section] }
++
++  // Ensure .claude/ directory exists
++  await fs.mkdir(claudeDir, { recursive: true })
++  await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
++
++  const opName = section === 'hooks' ? 'update-hooks' : 'update-mcp'
++  console.log(`${LOG_PREFIX} Updated ${section} in ${settingsPath}`)
++
++  return {
++    data: {
++      operation: opName as ConfigOperationType,
++      before,
++      after,
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Model and program-args (registry metadata, not filesystem)
++// ---------------------------------------------------------------------------
++
++async function deployUpdateModel(
++  agentId: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  if (!config.model) {
++    return { error: 'update-model requires a model value', status: 400 }
++  }
++
++  // Import updateAgentById to update the agent's model in the registry
++  const { updateAgentById } = await import('@/services/agents-core-service')
++  const before: Record<string, unknown> = {}
++  const agent = getAgent(agentId)
++  if (agent) {
++    before.model = agent.model || 'default'
++  }
++
++  const result = await updateAgentById(agentId, { model: config.model })
++  if (result.error) {
++    return { error: `Failed to update model: ${result.error}`, status: result.status }
++  }
++
++  console.log(`${LOG_PREFIX} Updated model for agent ${agentId} to '${config.model}'`)
++
++  return {
++    data: {
++      operation: 'update-model',
++      before,
++      after: { model: config.model },
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++async function deployUpdateProgramArgs(
++  agentId: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  if (config.programArgs === undefined) {
++    return { error: 'update-program-args requires a programArgs value', status: 400 }
++  }
++
++  const { updateAgentById } = await import('@/services/agents-core-service')
++  const before: Record<string, unknown> = {}
++  const agent = getAgent(agentId)
++  if (agent) {
++    before.programArgs = agent.programArgs || ''
++  }
++
++  const result = await updateAgentById(agentId, { programArgs: config.programArgs })
++  if (result.error) {
++    return { error: `Failed to update program args: ${result.error}`, status: result.status }
++  }
++
++  console.log(`${LOG_PREFIX} Updated programArgs for agent ${agentId}`)
++
++  return {
++    data: {
++      operation: 'update-program-args',
++      before,
++      after: { programArgs: config.programArgs },
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Bulk config (dispatches multiple operations)
++// ---------------------------------------------------------------------------
++
++async function deployBulkConfig(
++  claudeDir: string,
++  agentId: string,
++  config: ConfigurationPayload,
++  deployedBy?: string
++): Promise<ServiceResult<ConfigDiff>> {
++  const before: Record<string, unknown> = {}
++  const after: Record<string, unknown> = {}
++
++  // Process each non-empty field as a sub-operation
++  if (config.skills && config.skills.length > 0) {
++    const skillResult = await deployAddSkill(claudeDir, config, deployedBy)
++    if (skillResult.error) return skillResult
++    before.skills = skillResult.data?.before
++    after.skills = skillResult.data?.after
++  }
++
++  if (config.plugins && config.plugins.length > 0) {
++    const pluginResult = await deployAddPlugin(claudeDir, config, deployedBy)
++    if (pluginResult.error) return pluginResult
++    before.plugins = pluginResult.data?.before
++    after.plugins = pluginResult.data?.after
++  }
++
++  if (config.hooks && Object.keys(config.hooks).length > 0) {
++    const hooksResult = await deployUpdateSettings(claudeDir, 'hooks', config, deployedBy)
++    if (hooksResult.error) return hooksResult
++    before.hooks = hooksResult.data?.before
++    after.hooks = hooksResult.data?.after
++  }
++
++  if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
++    const mcpResult = await deployUpdateSettings(claudeDir, 'mcpServers', config, deployedBy)
++    if (mcpResult.error) return mcpResult
++    before.mcpServers = mcpResult.data?.before
++    after.mcpServers = mcpResult.data?.after
++  }
++
++  if (config.model) {
++    const modelResult = await deployUpdateModel(agentId, config, deployedBy)
++    if (modelResult.error) return modelResult
++    before.model = modelResult.data?.before
++    after.model = modelResult.data?.after
++  }
++
++  if (config.programArgs !== undefined) {
++    const argsResult = await deployUpdateProgramArgs(agentId, config, deployedBy)
++    if (argsResult.error) return argsResult
++    before.programArgs = argsResult.data?.before
++    after.programArgs = argsResult.data?.after
++  }
++
++  console.log(`${LOG_PREFIX} Bulk config deployed for agent ${agentId}`)
++
++  return {
++    data: {
++      operation: 'bulk-config',
++      before,
++      after,
++      appliedAt: new Date().toISOString(),
++      appliedBy: deployedBy,
++    },
++    status: 200
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Utility
++// ---------------------------------------------------------------------------
++
++async function fileExists(filePath: string): Promise<boolean> {
++  try {
++    await fs.access(filePath)
++    return true
++  } catch {
++    return false
++  }
++}
+diff --git a/services/agents-core-service.ts b/services/agents-core-service.ts
+index 59cbe50..def110c 100644
+--- a/services/agents-core-service.ts
++++ b/services/agents-core-service.ts
+@@ -713,6 +713,23 @@ export async function deleteAgentById(id: string, hard: boolean, requestingAgent
+       return { error: 'Agent not found', status: 404 }
+     }
+ 
++    // Auto-reject pending configure-agent requests targeting the deleted agent (11b safeguard)
++    try {
++      const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
++      const file = loadGovernanceRequests()
++      const pendingForAgent = file.requests.filter((r: { type: string; status: string; payload: { agentId: string } }) =>
++        r.type === 'configure-agent' && r.status === 'pending' && r.payload.agentId === id
++      )
++      for (const req of pendingForAgent) {
++        await rejectGovernanceRequest(req.id, requestingAgentId || 'system', 'Target agent deleted')
++      }
++      if (pendingForAgent.length > 0) {
++        console.log(`[agents] Auto-rejected ${pendingForAgent.length} pending config request(s) for deleted agent ${id}`)
++      }
++    } catch (err) {
++      console.warn('[agents] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
++    }
++
+     return { data: { success: true, hard }, status: 200 }
+   } catch (error) {
+     console.error('Failed to delete agent:', error)
+diff --git a/services/agents-skills-service.ts b/services/agents-skills-service.ts
+index 0f6ac3b..16608d9 100644
+--- a/services/agents-skills-service.ts
++++ b/services/agents-skills-service.ts
+@@ -16,6 +16,8 @@ import {
+ } from '@/lib/agent-registry'
+ import { getSkillById } from '@/lib/marketplace-skills'
+ import { agentRegistry } from '@/lib/agent'
++import { isManager, isChiefOfStaff, getClosedTeamsForAgent } from '@/lib/governance'
++import type { ConfigOperationType, ConfigScope } from '@/types/governance-request'
+ import fs from 'fs/promises'
+ import path from 'path'
+ 
+@@ -24,6 +26,51 @@ import path from 'path'
+ import { ServiceResult } from '@/types/service'
+ export type { ServiceResult }
+ 
++// ── Governance ──────────────────────────────────────────────────────────────
++
++/**
++ * Check if the requesting agent has governance permission for the config operation.
++ * Returns null if allowed, or a ServiceResult error if denied.
++ *
++ * Phase 1 backward compat: if requestingAgentId is null (no auth header),
++ * governance is NOT enforced -- same opt-in pattern as agents-core-service.ts.
++ */
++function checkConfigGovernance(
++  agentId: string,
++  requestingAgentId: string | null,
++  operation: ConfigOperationType,
++  scope: ConfigScope = 'local'
++): ServiceResult<void> | null {
++  // No auth header = no governance enforcement (Phase 1 backward compat)
++  if (requestingAgentId === null) return null
++
++  // user/project scope: MANAGER only
++  if (scope === 'user' || scope === 'project') {
++    if (!isManager(requestingAgentId)) {
++      return { error: `Only the MANAGER can modify ${scope}-scope configuration`, status: 403 }
++    }
++    return null
++  }
++
++  // local scope: MANAGER always allowed
++  if (isManager(requestingAgentId)) return null
++
++  // local scope: COS allowed only for agents in their team(s)
++  const targetTeams = getClosedTeamsForAgent(agentId)
++  for (const team of targetTeams) {
++    if (isChiefOfStaff(requestingAgentId, team.id)) {
++      return null
++    }
++  }
++
++  // If target agent is not in any closed team, only MANAGER can configure
++  if (targetTeams.length === 0) {
++    return { error: 'Only the MANAGER can configure agents not in a closed team', status: 403 }
++  }
++
++  return { error: 'Insufficient governance permissions. Must be MANAGER or COS of the agent\'s team.', status: 403 }
++}
++
+ // ── Public Functions ────────────────────────────────────────────────────────
+ 
+ /**
+@@ -42,13 +89,18 @@ export function getSkillsConfig(agentId: string): ServiceResult<Record<string, u
+  */
+ export async function updateSkills(
+   agentId: string,
+-  body: { add?: string[]; remove?: string[]; aiMaestro?: { enabled?: boolean; skills?: string[] } }
++  body: { add?: string[]; remove?: string[]; aiMaestro?: { enabled?: boolean; skills?: string[] } },
++  requestingAgentId: string | null = null
+ ): Promise<ServiceResult<Record<string, unknown>>> {
+   const agent = getAgent(agentId)
+   if (!agent) {
+     return { error: 'Agent not found', status: 404 }
+   }
+ 
++  // Layer 5: governance RBAC enforcement
++  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'add-skill')
++  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
++
+   // Handle skill additions
+   if (body.add && Array.isArray(body.add) && body.add.length > 0) {
+     const skillsToAdd: Array<{
+@@ -107,13 +159,18 @@ export async function updateSkills(
+  */
+ export async function addSkill(
+   agentId: string,
+-  body: { name: string; content: string; description?: string }
++  body: { name: string; content: string; description?: string },
++  requestingAgentId: string | null = null
+ ): Promise<ServiceResult<Record<string, unknown>>> {
+   const agent = getAgent(agentId)
+   if (!agent) {
+     return { error: 'Agent not found', status: 404 }
+   }
+ 
++  // Layer 5: governance RBAC enforcement
++  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'add-skill')
++  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
++
+   if (!body.name || typeof body.name !== 'string') {
+     return { error: 'Missing required field: name', status: 400 }
+   }
+@@ -149,13 +206,18 @@ export async function addSkill(
+ export async function removeSkill(
+   agentId: string,
+   skillId: string,
+-  type: string = 'auto'
++  type: string = 'auto',
++  requestingAgentId: string | null = null
+ ): Promise<ServiceResult<Record<string, unknown>>> {
+   const agent = getAgent(agentId)
+   if (!agent) {
+     return { error: 'Agent not found', status: 404 }
+   }
+ 
++  // Layer 5: governance RBAC enforcement
++  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'remove-skill')
++  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
++
+   const isMarketplaceSkill = type === 'marketplace' || (type === 'auto' && skillId.includes(':'))
+ 
+   let result = null
+@@ -208,7 +270,8 @@ export async function getSkillSettings(agentId: string): Promise<ServiceResult<R
+  */
+ export async function saveSkillSettings(
+   agentId: string,
+-  settings: Record<string, unknown>
++  settings: Record<string, unknown>,
++  requestingAgentId: string | null = null
+ ): Promise<ServiceResult<Record<string, unknown>>> {
+   if (!settings) {
+     return { error: 'Settings are required', status: 400 }
+@@ -225,6 +288,10 @@ export async function saveSkillSettings(
+     return { error: 'Agent not found', status: 404 }
+   }
+ 
++  // Layer 5: governance RBAC enforcement
++  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'update-hooks')
++  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
++
+   const homeDir = process.env.HOME || process.env.USERPROFILE || ''
+   const settingsPath = path.join(homeDir, '.aimaestro', 'agents', agentId, 'skill-settings.json')
+ 
+diff --git a/services/config-notification-service.ts b/services/config-notification-service.ts
+new file mode 100644
+index 0000000..237b0af
+--- /dev/null
++++ b/services/config-notification-service.ts
+@@ -0,0 +1,114 @@
++/**
++ * Config Notification Service
++ *
++ * Sends notifications when configure-agent governance requests are resolved.
++ * Uses AMP messaging for agent-to-agent notifications and tmux for push notifications.
++ */
++
++import type { GovernanceRequest } from '@/types/governance-request'
++import { getAgent } from '@/lib/agent-registry'
++
++const LOG_PREFIX = '[config-notify]'
++
++type ConfigOutcome = 'approved' | 'rejected'
++
++/**
++ * Notify the requesting agent about a configure-agent request outcome.
++ *
++ * For agent-initiated requests: sends AMP message to the requesting agent.
++ * For all requests: logs the outcome for audit purposes.
++ */
++export async function notifyConfigRequestOutcome(
++  request: GovernanceRequest,
++  outcome: ConfigOutcome
++): Promise<void> {
++  if (request.type !== 'configure-agent') return
++
++  const requestingAgent = getAgent(request.requestedBy)
++  const targetAgent = getAgent(request.payload.agentId)
++  const operation = request.payload.configuration?.operation || 'configure'
++  const targetName = targetAgent?.name || request.payload.agentId
++  const requesterName = requestingAgent?.name || request.requestedBy
++
++  const subject = outcome === 'approved'
++    ? `Config approved: ${operation} on ${targetName}`
++    : `Config refused: ${operation} on ${targetName}`
++
++  const body = outcome === 'approved'
++    ? `Your configuration request (${operation}) for agent "${targetName}" has been approved and executed.\nRequest ID: ${request.id}`
++    : `Your configuration request (${operation}) for agent "${targetName}" was rejected.\nRequest ID: ${request.id}\nReason: ${request.rejectReason || 'No reason provided'}`
++
++  // Send AMP message to requesting agent if they have a session
++  if (requestingAgent?.sessions && requestingAgent.sessions.length > 0) {
++    try {
++      const sessionName = requestingAgent.name || requestingAgent.alias
++      if (sessionName) {
++        await sendAmpNotification(sessionName, subject, body)
++        console.log(`${LOG_PREFIX} Sent ${outcome} notification to ${requesterName} (${sessionName})`)
++      }
++    } catch (err) {
++      console.warn(`${LOG_PREFIX} Failed to send AMP notification to ${requesterName}: ${err instanceof Error ? err.message : err}`)
++    }
++  }
++
++  // Send tmux push notification if agent has an active session
++  try {
++    await sendTmuxNotification(requestingAgent?.name || request.requestedBy, subject)
++  } catch {
++    // Tmux notification is best-effort
++  }
++
++  console.log(`${LOG_PREFIX} Config request ${request.id} ${outcome}: ${operation} on ${targetName} (requested by ${requesterName})`)
++}
++
++/**
++ * Send an AMP message notification.
++ * Uses the internal message queue rather than shelling out to amp-send.sh.
++ */
++async function sendAmpNotification(
++  toSessionName: string,
++  subject: string,
++  message: string
++): Promise<void> {
++  // Use the internal messaging API
++  const res = await fetch('http://localhost:23000/api/messages', {
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json' },
++    body: JSON.stringify({
++      to: toSessionName,
++      subject,
++      priority: 'high',
++      content: {
++        type: 'notification',
++        message,
++      }
++    })
++  })
++
++  if (!res.ok) {
++    const data = await res.json().catch(() => ({}))
++    throw new Error(data.error || `HTTP ${res.status}`)
++  }
++}
++
++/**
++ * Send a tmux push notification (bell/display-message).
++ */
++async function sendTmuxNotification(
++  sessionName: string,
++  message: string
++): Promise<void> {
++  const { exec } = await import('child_process')
++  const { promisify } = await import('util')
++  const execAsync = promisify(exec)
++
++  // Truncate message for tmux display
++  const truncated = message.length > 100 ? message.substring(0, 97) + '...' : message
++  const escaped = truncated.replace(/"/g, '\\"')
++
++  try {
++    await execAsync(`tmux display-message -t "${sessionName}" "[GOVERNANCE] ${escaped}"`, { timeout: 5000 })
++  } catch {
++    // Session may not exist or tmux not running -- silently ignore
++  }
++}
+diff --git a/services/cross-host-governance-service.ts b/services/cross-host-governance-service.ts
+index 6b6208a..b0a68f9 100644
+--- a/services/cross-host-governance-service.ts
++++ b/services/cross-host-governance-service.ts
+@@ -12,7 +12,7 @@
+ 
+ import { ServiceResult } from '@/types/service'
+ export type { ServiceResult }
+-import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload } from '@/types/governance-request'
++import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload, ConfigurationPayload } from '@/types/governance-request'
+ import type { AgentRole } from '@/types/agent'
+ import { verifyPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
+ import { getAgent } from '@/lib/agent-registry'
+@@ -91,11 +91,25 @@ export async function submitCrossHostRequest(params: {
+   }
+ 
+   // SR-007: Only allow implemented cross-host request types
+-  const IMPLEMENTED_TYPES: GovernanceRequestType[] = ['add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos', 'transfer-agent']
++  const IMPLEMENTED_TYPES: GovernanceRequestType[] = ['add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos', 'transfer-agent', 'configure-agent']
+   if (!IMPLEMENTED_TYPES.includes(params.type)) {
+     return { error: `Request type '${params.type}' is not yet implemented`, status: 400 }
+   }
+ 
++  // Validate configure-agent payload has required configuration field
++  if (params.type === 'configure-agent') {
++    if (!params.payload.configuration) {
++      return { error: 'configure-agent requests require a configuration payload', status: 400 }
++    }
++    if (!params.payload.configuration.operation) {
++      return { error: 'configure-agent configuration must specify an operation', status: 400 }
++    }
++    // Cross-host only supports local scope (user/project scopes are local-only by design)
++    if (params.payload.configuration.scope && params.payload.configuration.scope !== 'local') {
++      return { error: `Cross-host configure-agent only supports 'local' scope (got '${params.payload.configuration.scope}')`, status: 400 }
++    }
++  }
++
+   // Create local record with sourceHostId = this host
+   const selfHostId = getSelfHostId()
+   const request = await createGovernanceRequest({
+@@ -193,6 +207,15 @@ export async function receiveCrossHostRequest(
+       const approvedRequest = await approveGovernanceRequest(request.id, localManagerId, 'targetManager')
+       if (approvedRequest?.status === 'executed') {
+         await performRequestExecution(approvedRequest)
++        // Notify the requesting agent that their configure-agent request was auto-approved
++        if (approvedRequest.type === 'configure-agent') {
++          try {
++            const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
++            await notifyConfigRequestOutcome(approvedRequest, 'approved')
++          } catch (err) {
++            console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
++          }
++        }
+       }
+     }
+   }
+@@ -263,6 +286,16 @@ export async function approveCrossHostRequest(
+   // If both managers approved and status became 'executed', perform the actual mutation
+   if (updated.status === 'executed') {
+     await performRequestExecution(updated)
++
++    // Notify the requesting agent that their configure-agent request was approved
++    if (updated.type === 'configure-agent') {
++      try {
++        const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
++        await notifyConfigRequestOutcome(updated, 'approved')
++      } catch (err) {
++        console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
++      }
++    }
+   }
+ 
+   return { data: updated, status: 200 }
+@@ -309,6 +342,16 @@ export async function rejectCrossHostRequest(
+     return { error: `Failed to reject request '${requestId}'`, status: 500 }
+   }
+ 
++  // Notify the requesting agent that their configure-agent request was rejected
++  if (updated.type === 'configure-agent') {
++    try {
++      const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
++      await notifyConfigRequestOutcome(updated, 'rejected')
++    } catch (err) {
++      console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
++    }
++  }
++
+   // If the request originated from another host, notify the source host (fire-and-forget)
+   const selfHostId = getSelfHostId()
+   if (request.sourceHostId !== selfHostId) {
+@@ -437,8 +480,26 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
+           break
+         }
+ 
++        case 'configure-agent': {
++          // Deploy configuration to the target agent
++          const config = request.payload.configuration
++          if (!config) {
++            console.warn(`${LOG_PREFIX} configure-agent request ${request.id} missing configuration payload`)
++            return
++          }
++          // Import and call the config deploy service (lazy import to avoid circular deps)
++          const { deployConfigToAgent } = await import('@/services/agents-config-deploy-service')
++          const deployResult = await deployConfigToAgent(request.payload.agentId, config, request.requestedBy)
++          if (deployResult.error) {
++            console.warn(`${LOG_PREFIX} configure-agent execution failed for request ${request.id}: ${deployResult.error}`)
++            return
++          }
++          console.log(`${LOG_PREFIX} configure-agent executed for agent ${request.payload.agentId}: ${config.operation}`)
++          break
++        }
++
+         default:
+-          // Other types (create-agent, delete-agent, configure-agent) are not yet implemented
++          // Other types (create-agent, delete-agent) are not yet implemented
+           console.warn(`${LOG_PREFIX} Request type '${request.type}' execution is not yet implemented`)
+           return
+       }
+diff --git a/services/headless-router.ts b/services/headless-router.ts
+index 15ef07a..74c8d04 100644
+--- a/services/headless-router.ts
++++ b/services/headless-router.ts
+@@ -122,6 +122,8 @@ import {
+   saveSkillSettings,
+ } from '@/services/agents-skills-service'
+ 
++import { deployConfigToAgent } from '@/services/agents-config-deploy-service'
++
+ import {
+   getSubconsciousStatus as getAgentSubconsciousStatus,
+   triggerSubconsciousAction,
+@@ -800,21 +802,37 @@ const routes: Route[] = [
+   }},
+   { method: 'PUT', pattern: /^\/api\/agents\/([^/]+)\/skills\/settings$/, paramNames: ['id'], handler: async (req, res, params) => {
+     const body = await readJsonBody(req)
+-    sendServiceResult(res, await saveSkillSettings(params.id, body))
++    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
++    sendServiceResult(res, await saveSkillSettings(params.id, body, auth.error ? null : auth.agentId))
+   }},
+   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
+     sendServiceResult(res, getSkillsConfig(params.id))
+   }},
+   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
+     const body = await readJsonBody(req)
+-    sendServiceResult(res, await updateSkills(params.id, body))
++    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
++    sendServiceResult(res, await updateSkills(params.id, body, auth.error ? null : auth.agentId))
+   }},
+   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
+     const body = await readJsonBody(req)
+-    sendServiceResult(res, await addSkill(params.id, body))
++    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
++    sendServiceResult(res, await addSkill(params.id, body, auth.error ? null : auth.agentId))
+   }},
+   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+-    sendServiceResult(res, await removeSkill(params.id, query.skill || ''))
++    const auth = authenticateAgent(getHeader(_req, 'Authorization'), getHeader(_req, 'X-Agent-Id'))
++    sendServiceResult(res, await removeSkill(params.id, query.skill || '', undefined, auth.error ? null : auth.agentId))
++  }},
++
++  // Config deployment (governance-gated)
++  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/config\/deploy$/, paramNames: ['id'], handler: async (req, res, params) => {
++    const body = await readJsonBody(req)
++    // Accept host-signature auth (cross-host) or governance password auth (local admin)
++    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
++    if (auth.error) {
++      sendJson(res, 403, { error: auth.error })
++      return
++    }
++    sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration || body, auth.agentId))
+   }},
+ 
+   // Subconscious
+diff --git a/tests/agent-config-governance-extended.test.ts b/tests/agent-config-governance-extended.test.ts
+new file mode 100644
+index 0000000..079d8c0
+--- /dev/null
++++ b/tests/agent-config-governance-extended.test.ts
+@@ -0,0 +1,1379 @@
++/**
++ * Extended Unit Tests for Agent Configuration Governance
++ *
++ * Tests FOUR modules across Steps 2, 4, 5, 9 of the governance implementation:
++ *
++ *   Module 1: services/agents-skills-service.ts — RBAC enforcement (15 tests)
++ *     checkConfigGovernance() enforces governance on updateSkills, addSkill, removeSkill, saveSkillSettings.
++ *     getSkillsConfig has NO governance (reads are public). getSkillSettings has NO governance.
++ *
++ *   Module 2: services/agents-config-deploy-service.ts — Deployment operations (12 tests)
++ *     deployConfigToAgent() validates agent existence, operation type, working directory,
++ *     and dispatches to add-skill, remove-skill, add-plugin, remove-plugin, update-hooks,
++ *     update-mcp, update-model, bulk-config operations.
++ *
++ *   Module 3: services/cross-host-governance-service.ts — configure-agent flow (15 tests)
++ *     submitCrossHostRequest validates configure-agent payloads.
++ *     receiveCrossHostRequest accepts configure-agent as a valid type.
++ *     approveCrossHostRequest triggers performRequestExecution for configure-agent.
++ *     listCrossHostRequests returns filtered results.
++ *     Regression: existing types (add-to-team, transfer-agent) still work.
++ *
++ *   Module 4: services/config-notification-service.ts — Notifications (6 tests)
++ *     notifyConfigRequestOutcome sends AMP + tmux notifications for approved/rejected
++ *     configure-agent requests. Non-configure-agent types are silently skipped.
++ *
++ * Total: 48 tests (15 + 12 + 15 + 6)
++ *
++ * Mocking strategy: Only external dependencies are mocked (filesystem, governance,
++ * agent-registry, network fetch, child_process). Internal logic is executed for real.
++ */
++
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import type { Agent } from '@/types/agent'
++import type { Team } from '@/types/team'
++import type { GovernanceRequest, ConfigurationPayload } from '@/types/governance-request'
++
++// ============================================================================
++// MODULE 1 MOCKS: agents-skills-service
++// ============================================================================
++
++// --- Governance mocks ---
++const mockIsManager = vi.fn<(agentId: string) => boolean>(() => false)
++const mockIsChiefOfStaff = vi.fn<(agentId: string, teamId: string) => boolean>(() => false)
++const mockIsChiefOfStaffAnywhere = vi.fn<(agentId: string) => boolean>(() => false)
++const mockGetClosedTeamsForAgent = vi.fn<(agentId: string) => Team[]>(() => [])
++const mockVerifyPassword = vi.fn()
++const mockGetManagerId = vi.fn()
++
++vi.mock('@/lib/governance', () => ({
++  isManager: (...args: [string]) => mockIsManager(...args),
++  isChiefOfStaff: (...args: [string, string]) => mockIsChiefOfStaff(...args),
++  isChiefOfStaffAnywhere: (...args: [string]) => mockIsChiefOfStaffAnywhere(...args),
++  getClosedTeamsForAgent: (...args: [string]) => mockGetClosedTeamsForAgent(...args),
++  verifyPassword: (...args: unknown[]) => mockVerifyPassword(...args),
++  getManagerId: (...args: unknown[]) => mockGetManagerId(...args),
++}))
++
++// --- Agent registry mocks ---
++const mockGetAgent = vi.fn()
++const mockGetAgentSkills = vi.fn()
++const mockAddMarketplaceSkills = vi.fn()
++const mockRemoveMarketplaceSkills = vi.fn()
++const mockAddCustomSkill = vi.fn()
++const mockRemoveCustomSkill = vi.fn()
++const mockUpdateAiMaestroSkills = vi.fn()
++
++vi.mock('@/lib/agent-registry', () => ({
++  getAgent: (...args: unknown[]) => mockGetAgent(...args),
++  getAgentSkills: (...args: unknown[]) => mockGetAgentSkills(...args),
++  addMarketplaceSkills: (...args: unknown[]) => mockAddMarketplaceSkills(...args),
++  removeMarketplaceSkills: (...args: unknown[]) => mockRemoveMarketplaceSkills(...args),
++  addCustomSkill: (...args: unknown[]) => mockAddCustomSkill(...args),
++  removeCustomSkill: (...args: unknown[]) => mockRemoveCustomSkill(...args),
++  updateAiMaestroSkills: (...args: unknown[]) => mockUpdateAiMaestroSkills(...args),
++  loadAgents: vi.fn(() => ({ version: 1, agents: [] })),
++  saveAgents: vi.fn(),
++  createAgent: vi.fn(),
++  getAgentByName: vi.fn(() => null),
++  getAgentBySession: vi.fn(() => null),
++  updateAgent: vi.fn(),
++  deleteAgent: vi.fn(),
++  searchAgents: vi.fn(() => []),
++  linkSession: vi.fn(),
++  unlinkSession: vi.fn(),
++}))
++
++// --- Marketplace skills mock ---
++const mockGetSkillById = vi.fn()
++vi.mock('@/lib/marketplace-skills', () => ({
++  getSkillById: (...args: unknown[]) => mockGetSkillById(...args),
++}))
++
++// --- Agent class mock (agentRegistry.getAgent for saveSkillSettings) ---
++const mockAgentRegistryGetAgent = vi.fn()
++vi.mock('@/lib/agent', () => ({
++  agentRegistry: {
++    getAgent: (...args: unknown[]) => mockAgentRegistryGetAgent(...args),
++  },
++}))
++
++// --- fs/promises mock (for saveSkillSettings and deploy service) ---
++const mockFsReadFile = vi.fn()
++const mockFsWriteFile = vi.fn()
++const mockFsMkdir = vi.fn()
++const mockFsRm = vi.fn()
++const mockFsAccess = vi.fn()
++vi.mock('fs/promises', () => ({
++  default: {
++    readFile: (...args: unknown[]) => mockFsReadFile(...args),
++    writeFile: (...args: unknown[]) => mockFsWriteFile(...args),
++    mkdir: (...args: unknown[]) => mockFsMkdir(...args),
++    rm: (...args: unknown[]) => mockFsRm(...args),
++    access: (...args: unknown[]) => mockFsAccess(...args),
++  },
++  readFile: (...args: unknown[]) => mockFsReadFile(...args),
++  writeFile: (...args: unknown[]) => mockFsWriteFile(...args),
++  mkdir: (...args: unknown[]) => mockFsMkdir(...args),
++  rm: (...args: unknown[]) => mockFsRm(...args),
++  access: (...args: unknown[]) => mockFsAccess(...args),
++}))
++
++// --- Cross-host governance service dependencies ---
++const mockGetHosts = vi.fn()
++const mockGetSelfHostId = vi.fn()
++const mockIsSelf = vi.fn()
++const mockGetHostById = vi.fn()
++vi.mock('@/lib/hosts-config', () => ({
++  getHosts: (...args: unknown[]) => mockGetHosts(...args),
++  getSelfHostId: (...args: unknown[]) => mockGetSelfHostId(...args),
++  isSelf: (...args: unknown[]) => mockIsSelf(...args),
++  getHostById: (...args: unknown[]) => mockGetHostById(...args),
++}))
++
++const mockCreateGovernanceRequest = vi.fn()
++const mockGetGovernanceRequest = vi.fn()
++const mockListGovernanceRequests = vi.fn()
++const mockApproveGovernanceRequest = vi.fn()
++const mockRejectGovernanceRequest = vi.fn()
++const mockLoadGovernanceRequests = vi.fn()
++const mockSaveGovernanceRequests = vi.fn()
++const mockWithLock = vi.fn()
++
++vi.mock('@/lib/governance-request-registry', () => ({
++  createGovernanceRequest: (...args: unknown[]) => mockCreateGovernanceRequest(...args),
++  getGovernanceRequest: (...args: unknown[]) => mockGetGovernanceRequest(...args),
++  listGovernanceRequests: (...args: unknown[]) => mockListGovernanceRequests(...args),
++  approveGovernanceRequest: (...args: unknown[]) => mockApproveGovernanceRequest(...args),
++  rejectGovernanceRequest: (...args: unknown[]) => mockRejectGovernanceRequest(...args),
++  loadGovernanceRequests: (...args: unknown[]) => mockLoadGovernanceRequests(...args),
++  saveGovernanceRequests: (...args: unknown[]) => mockSaveGovernanceRequests(...args),
++}))
++
++vi.mock('@/lib/file-lock', () => ({
++  withLock: (...args: unknown[]) => mockWithLock(...args),
++}))
++
++const mockBroadcastGovernanceSync = vi.fn()
++vi.mock('@/lib/governance-sync', () => ({
++  broadcastGovernanceSync: (...args: unknown[]) => mockBroadcastGovernanceSync(...args),
++}))
++
++vi.mock('@/lib/host-keys', () => ({
++  signHostAttestation: vi.fn(() => 'mock-sig'),
++  getHostPublicKeyHex: vi.fn(() => 'mock-pubkey'),
++  verifyHostAttestation: vi.fn(() => true),
++}))
++
++const mockShouldAutoApprove = vi.fn()
++vi.mock('@/lib/manager-trust', () => ({
++  shouldAutoApprove: (...args: unknown[]) => mockShouldAutoApprove(...args),
++}))
++
++vi.mock('@/lib/rate-limit', () => ({
++  checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
++  recordFailure: vi.fn(),
++  resetRateLimit: vi.fn(),
++}))
++
++const mockLoadTeams = vi.fn()
++const mockSaveTeams = vi.fn()
++vi.mock('@/lib/team-registry', () => ({
++  loadTeams: (...args: unknown[]) => mockLoadTeams(...args),
++  saveTeams: (...args: unknown[]) => mockSaveTeams(...args),
++}))
++
++// --- Agents-core-service mock (for deploy service update-model) ---
++const mockUpdateAgentById = vi.fn()
++vi.mock('@/services/agents-core-service', () => ({
++  updateAgentById: (...args: unknown[]) => mockUpdateAgentById(...args),
++}))
++
++// --- Config notification service mock (for cross-host integration) ---
++const mockNotifyConfigRequestOutcome = vi.fn()
++vi.mock('@/services/config-notification-service', () => ({
++  notifyConfigRequestOutcome: (...args: unknown[]) => mockNotifyConfigRequestOutcome(...args),
++}))
++
++// --- Other imports that agents-core-service or agents-skills-service load ---
++vi.mock('@/lib/messageQueue', () => ({
++  resolveAgentIdentifier: vi.fn(() => null),
++}))
++
++vi.mock('@/lib/session-persistence', () => ({
++  persistSession: vi.fn(),
++  unpersistSession: vi.fn(),
++}))
++
++vi.mock('@/lib/amp-inbox-writer', () => ({
++  initAgentAMPHome: vi.fn(),
++  getAgentAMPDir: vi.fn(() => '/tmp/amp'),
++}))
++
++vi.mock('@/lib/agent-startup', () => ({
++  initializeAllAgents: vi.fn(),
++  getStartupStatus: vi.fn(() => ({ status: 'idle' })),
++}))
++
++vi.mock('@/services/shared-state', () => ({
++  sessionActivity: new Map(),
++}))
++
++vi.mock('@/lib/agent-runtime', () => ({
++  getRuntime: vi.fn(() => null),
++}))
++
++vi.mock('uuid', () => ({
++  v4: vi.fn(() => 'test-uuid-ext-001'),
++}))
++
++vi.mock('fs', () => ({
++  default: {
++    existsSync: vi.fn(() => false),
++    mkdirSync: vi.fn(),
++    readFileSync: vi.fn(() => '{}'),
++    writeFileSync: vi.fn(),
++    renameSync: vi.fn(),
++    copyFileSync: vi.fn(),
++  },
++  existsSync: vi.fn(() => false),
++  mkdirSync: vi.fn(),
++  readFileSync: vi.fn(() => '{}'),
++  writeFileSync: vi.fn(),
++  renameSync: vi.fn(),
++  copyFileSync: vi.fn(),
++}))
++
++// ============================================================================
++// Import modules under test (after all mocks are declared)
++// ============================================================================
++
++import {
++  getSkillsConfig,
++  updateSkills,
++  addSkill,
++  removeSkill,
++  getSkillSettings,
++  saveSkillSettings,
++} from '@/services/agents-skills-service'
++
++import {
++  deployConfigToAgent,
++} from '@/services/agents-config-deploy-service'
++
++import {
++  submitCrossHostRequest,
++  receiveCrossHostRequest,
++  approveCrossHostRequest,
++  listCrossHostRequests,
++} from '@/services/cross-host-governance-service'
++
++// ============================================================================
++// Test data factories
++// ============================================================================
++
++const MANAGER_ID = 'agent-manager-ext-001'
++const COS_ID = 'agent-cos-ext-002'
++const MEMBER_ID = 'agent-member-ext-003'
++const TARGET_AGENT_ID = 'agent-target-ext-004'
++const TEAM_ID = 'team-closed-ext-001'
++const AGENT_UUID = '12345678-1234-1234-1234-123456789abc'
++
++const HOST_LOCAL = { id: 'host-local', url: 'http://localhost:23000', name: 'host-local' }
++const HOST_REMOTE = { id: 'host-remote', url: 'http://10.0.0.5:23000', name: 'host-remote' }
++
++function makeAgent(overrides: Partial<Agent> = {}): Agent {
++  return {
++    id: TARGET_AGENT_ID,
++    name: 'test-target-agent',
++    program: 'Claude Code',
++    taskDescription: 'Extended governance testing',
++    hostId: 'local',
++    sessions: [],
++    role: 'member',
++    status: 'active',
++    workingDirectory: '/tmp/test-agent',
++    createdAt: '2026-01-15T10:00:00.000Z',
++    updatedAt: '2026-01-15T10:00:00.000Z',
++    lastActive: '2026-01-15T10:00:00.000Z',
++    ...overrides,
++  } as Agent
++}
++
++function makeAgentWithSubconscious(overrides: Partial<Agent> = {}): Record<string, unknown> {
++  return {
++    id: AGENT_UUID,
++    name: 'test-agent-runtime',
++    getSubconscious: () => null,
++    ...overrides,
++  }
++}
++
++function makeClosedTeam(overrides: Partial<Team> = {}): Team {
++  return {
++    id: TEAM_ID,
++    name: 'Closed Testing Team',
++    type: 'closed',
++    agentIds: [TARGET_AGENT_ID, COS_ID],
++    chiefOfStaffId: COS_ID,
++    createdAt: '2026-01-01T00:00:00.000Z',
++    updatedAt: '2026-01-01T00:00:00.000Z',
++    ...overrides,
++  }
++}
++
++function makeGovernanceRequest(overrides: Partial<GovernanceRequest> = {}): GovernanceRequest {
++  return {
++    id: 'req-ext-001',
++    type: 'configure-agent',
++    sourceHostId: 'host-local',
++    targetHostId: 'host-remote',
++    requestedBy: 'manager-agent',
++    requestedByRole: 'manager',
++    payload: {
++      agentId: TARGET_AGENT_ID,
++      configuration: {
++        operation: 'add-skill',
++        scope: 'local',
++        skills: ['test-skill'],
++      },
++    },
++    approvals: {},
++    status: 'pending',
++    createdAt: '2026-02-20T10:00:00.000Z',
++    updatedAt: '2026-02-20T10:00:00.000Z',
++    ...overrides,
++  }
++}
++
++// ============================================================================
++// Global setup / teardown
++// ============================================================================
++
++const originalFetch = globalThis.fetch
++
++beforeEach(() => {
++  vi.clearAllMocks()
++
++  // Default: all role checks return false (regular member)
++  mockIsManager.mockReturnValue(false)
++  mockIsChiefOfStaff.mockReturnValue(false)
++  mockIsChiefOfStaffAnywhere.mockReturnValue(false)
++  mockGetClosedTeamsForAgent.mockReturnValue([])
++  mockVerifyPassword.mockImplementation(async (pw: string) => pw === 'correct')
++  mockGetManagerId.mockReturnValue('manager-agent')
++
++  // Default: agent exists
++  mockGetAgent.mockReturnValue(makeAgent())
++  mockGetAgentSkills.mockReturnValue({ marketplace: [], custom: [], aiMaestro: { enabled: true, skills: [] } })
++
++  // Default: Agent class registry mock
++  mockAgentRegistryGetAgent.mockResolvedValue(makeAgentWithSubconscious())
++
++  // Default: skills operations succeed
++  mockAddMarketplaceSkills.mockResolvedValue(makeAgent())
++  mockRemoveMarketplaceSkills.mockResolvedValue(makeAgent())
++  mockAddCustomSkill.mockResolvedValue(makeAgent())
++  mockRemoveCustomSkill.mockResolvedValue(makeAgent())
++  mockUpdateAiMaestroSkills.mockResolvedValue(makeAgent())
++  mockGetSkillById.mockResolvedValue({ id: 'skill-1', marketplace: 'official', plugin: 'test', name: 'test-skill', version: '1.0.0' })
++
++  // Default: fs operations succeed
++  mockFsReadFile.mockResolvedValue('{}')
++  mockFsWriteFile.mockResolvedValue(undefined)
++  mockFsMkdir.mockResolvedValue(undefined)
++  mockFsRm.mockResolvedValue(undefined)
++  mockFsAccess.mockRejectedValue(new Error('ENOENT')) // fileExists returns false by default
++
++  // Default: cross-host governance mocks
++  mockGetSelfHostId.mockReturnValue('host-local')
++  mockGetHosts.mockReturnValue([HOST_LOCAL, HOST_REMOTE])
++  mockIsSelf.mockImplementation((id: string) => id === 'host-local')
++  mockGetHostById.mockImplementation((id: string) => {
++    if (id === 'host-local') return HOST_LOCAL
++    if (id === 'host-remote') return HOST_REMOTE
++    return undefined
++  })
++  mockCreateGovernanceRequest.mockResolvedValue(makeGovernanceRequest())
++  mockGetGovernanceRequest.mockReturnValue(null)
++  mockListGovernanceRequests.mockReturnValue([])
++  mockApproveGovernanceRequest.mockResolvedValue(null)
++  mockRejectGovernanceRequest.mockResolvedValue(null)
++  mockBroadcastGovernanceSync.mockResolvedValue(undefined)
++  mockLoadTeams.mockReturnValue([])
++  mockSaveTeams.mockReturnValue(undefined)
++  mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++  mockLoadGovernanceRequests.mockReturnValue({ version: 1, requests: [] })
++  mockSaveGovernanceRequests.mockReturnValue(undefined)
++  mockShouldAutoApprove.mockReturnValue(false)
++  mockNotifyConfigRequestOutcome.mockResolvedValue(undefined)
++  mockUpdateAgentById.mockResolvedValue({ data: { agent: makeAgent() }, status: 200 })
++
++  // Default fetch mock
++  globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) })
++})
++
++afterEach(() => {
++  globalThis.fetch = originalFetch
++})
++
++// ============================================================================
++// MODULE 1: agents-skills-service RBAC (15 tests)
++// ============================================================================
++
++describe('skills service RBAC', () => {
++  // ---- updateSkills governance ----
++
++  it('updateSkills allows when requestingAgentId is null (Phase 1 backward compat)', async () => {
++    /** Verifies that omitting requestingAgentId bypasses all governance checks */
++    const result = await updateSkills(TARGET_AGENT_ID, { add: ['skill-1'] }, null)
++
++    expect(result.status).toBe(200)
++    expect(result.data).toBeDefined()
++    expect(mockIsManager).not.toHaveBeenCalled()
++    expect(mockIsChiefOfStaff).not.toHaveBeenCalled()
++  })
++
++  it('updateSkills allows when requestingAgentId is MANAGER', async () => {
++    /** Verifies that a MANAGER agent is always permitted to modify skills */
++    mockIsManager.mockReturnValue(true)
++
++    const result = await updateSkills(TARGET_AGENT_ID, { add: ['skill-1'] }, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(mockIsManager).toHaveBeenCalledWith(MANAGER_ID)
++  })
++
++  it('updateSkills allows when requestingAgentId is COS of target agents team', async () => {
++    /** Verifies that COS of the target agents closed team can modify skills */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    mockIsChiefOfStaff.mockImplementation((agentId: string, teamId: string) =>
++      agentId === COS_ID && teamId === TEAM_ID
++    )
++
++    const result = await updateSkills(TARGET_AGENT_ID, { add: ['skill-1'] }, COS_ID)
++
++    expect(result.status).toBe(200)
++    expect(mockGetClosedTeamsForAgent).toHaveBeenCalledWith(TARGET_AGENT_ID)
++    expect(mockIsChiefOfStaff).toHaveBeenCalledWith(COS_ID, TEAM_ID)
++  })
++
++  it('updateSkills rejects 403 when requestingAgentId is COS of a different team', async () => {
++    /** Verifies that a COS of team-X cannot modify agents in team-Y */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    // COS is of a different team, not TEAM_ID
++    mockIsChiefOfStaff.mockReturnValue(false)
++
++    const result = await updateSkills(TARGET_AGENT_ID, { add: ['skill-1'] }, COS_ID)
++
++    expect(result.status).toBe(403)
++    expect(result.error).toContain('Insufficient governance permissions')
++  })
++
++  it('updateSkills rejects 403 when requestingAgentId is a regular member', async () => {
++    /** Verifies that a non-privileged agent is denied skill updates with 403 */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    mockIsChiefOfStaff.mockReturnValue(false)
++
++    const result = await updateSkills(TARGET_AGENT_ID, { add: ['skill-1'] }, MEMBER_ID)
++
++    expect(result.status).toBe(403)
++    expect(result.data).toBeUndefined()
++    expect(mockAddMarketplaceSkills).not.toHaveBeenCalled()
++  })
++
++  // ---- addSkill governance ----
++
++  it('addSkill allows when requestingAgentId is null (backward compat)', async () => {
++    /** Verifies that omitting requestingAgentId bypasses governance for addSkill */
++    const result = await addSkill(TARGET_AGENT_ID, { name: 'my-skill', content: '# My Skill' }, null)
++
++    expect(result.status).toBe(200)
++    expect(mockIsManager).not.toHaveBeenCalled()
++  })
++
++  it('addSkill allows when requestingAgentId is MANAGER', async () => {
++    /** Verifies that a MANAGER agent can add custom skills */
++    mockIsManager.mockReturnValue(true)
++
++    const result = await addSkill(TARGET_AGENT_ID, { name: 'my-skill', content: '# My Skill' }, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(mockAddCustomSkill).toHaveBeenCalledWith(TARGET_AGENT_ID, {
++      name: 'my-skill',
++      content: '# My Skill',
++      description: undefined,
++    })
++  })
++
++  it('addSkill rejects 403 when requestingAgentId is a regular member', async () => {
++    /** Verifies that a regular member cannot add custom skills */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    mockIsChiefOfStaff.mockReturnValue(false)
++
++    const result = await addSkill(TARGET_AGENT_ID, { name: 'my-skill', content: '# My Skill' }, MEMBER_ID)
++
++    expect(result.status).toBe(403)
++    expect(mockAddCustomSkill).not.toHaveBeenCalled()
++  })
++
++  // ---- removeSkill governance ----
++
++  it('removeSkill allows when requestingAgentId is MANAGER', async () => {
++    /** Verifies that a MANAGER agent can remove skills */
++    mockIsManager.mockReturnValue(true)
++
++    const result = await removeSkill(TARGET_AGENT_ID, 'skill-1', 'custom', MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(mockRemoveCustomSkill).toHaveBeenCalledWith(TARGET_AGENT_ID, 'skill-1')
++  })
++
++  it('removeSkill allows when requestingAgentId is COS of target agents team', async () => {
++    /** Verifies that COS of the agent's team can remove skills */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    mockIsChiefOfStaff.mockImplementation((agentId: string, teamId: string) =>
++      agentId === COS_ID && teamId === TEAM_ID
++    )
++
++    const result = await removeSkill(TARGET_AGENT_ID, 'skill-1', 'custom', COS_ID)
++
++    expect(result.status).toBe(200)
++  })
++
++  it('removeSkill rejects 403 when requestingAgentId is a regular member', async () => {
++    /** Verifies that a regular member cannot remove skills */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    mockIsChiefOfStaff.mockReturnValue(false)
++
++    const result = await removeSkill(TARGET_AGENT_ID, 'skill-1', 'custom', MEMBER_ID)
++
++    expect(result.status).toBe(403)
++    expect(mockRemoveCustomSkill).not.toHaveBeenCalled()
++  })
++
++  // ---- saveSkillSettings governance ----
++
++  it('saveSkillSettings allows when requestingAgentId is null (backward compat)', async () => {
++    /** Verifies that omitting requestingAgentId bypasses governance for settings save */
++    const result = await saveSkillSettings(AGENT_UUID, { memory: { enabled: true } }, null)
++
++    expect(result.status).toBe(200)
++    expect(result.data).toBeDefined()
++    expect(mockIsManager).not.toHaveBeenCalled()
++  })
++
++  it('saveSkillSettings allows when requestingAgentId is MANAGER', async () => {
++    /** Verifies that a MANAGER agent can save skill settings */
++    mockIsManager.mockReturnValue(true)
++
++    const result = await saveSkillSettings(AGENT_UUID, { memory: { enabled: true } }, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(mockFsWriteFile).toHaveBeenCalled()
++  })
++
++  it('saveSkillSettings rejects 403 when requestingAgentId is a regular member', async () => {
++    /** Verifies that a regular member cannot save skill settings */
++    mockIsManager.mockReturnValue(false)
++    // Agent in a closed team but requester is not COS
++    mockGetClosedTeamsForAgent.mockReturnValue([makeClosedTeam()])
++    mockIsChiefOfStaff.mockReturnValue(false)
++
++    const result = await saveSkillSettings(AGENT_UUID, { memory: { enabled: true } }, MEMBER_ID)
++
++    expect(result.status).toBe(403)
++    expect(mockFsWriteFile).not.toHaveBeenCalled()
++  })
++
++  // ---- getSkillsConfig (no governance on reads) ----
++
++  it('getSkillsConfig always succeeds regardless of caller identity (reads are public)', () => {
++    /** Verifies that getSkillsConfig has no governance checks (pure read operation) */
++    const result = getSkillsConfig(TARGET_AGENT_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data).toBeDefined()
++    // No governance mock should have been called
++    expect(mockIsManager).not.toHaveBeenCalled()
++    expect(mockIsChiefOfStaff).not.toHaveBeenCalled()
++    expect(mockGetClosedTeamsForAgent).not.toHaveBeenCalled()
++  })
++
++  // ---- Additional edge cases ----
++
++  it('updateSkills returns 404 when target agent does not exist', async () => {
++    /** Verifies that updating skills on a non-existent agent returns 404 before governance check */
++    mockGetAgent.mockReturnValue(null)
++
++    const result = await updateSkills('nonexistent', { add: ['skill-1'] }, MANAGER_ID)
++
++    expect(result.status).toBe(404)
++    expect(result.error).toContain('Agent not found')
++    expect(mockIsManager).not.toHaveBeenCalled()
++  })
++
++  it('addSkill returns 404 when target agent does not exist', async () => {
++    /** Verifies that adding a custom skill to a non-existent agent returns 404 */
++    mockGetAgent.mockReturnValue(null)
++
++    const result = await addSkill('nonexistent', { name: 'skill', content: '# Skill' }, MANAGER_ID)
++
++    expect(result.status).toBe(404)
++    expect(result.error).toContain('Agent not found')
++  })
++
++  it('removeSkill returns 404 when target agent does not exist', async () => {
++    /** Verifies that removing a skill from a non-existent agent returns 404 */
++    mockGetAgent.mockReturnValue(null)
++
++    const result = await removeSkill('nonexistent', 'skill-1', 'custom', MANAGER_ID)
++
++    expect(result.status).toBe(404)
++    expect(result.error).toContain('Agent not found')
++  })
++
++  it('updateSkills rejects 403 for agent not in any closed team (MANAGER required)', async () => {
++    /** Verifies that agents not in a closed team can only be configured by MANAGER */
++    mockIsManager.mockReturnValue(false)
++    mockGetClosedTeamsForAgent.mockReturnValue([]) // Not in any closed team
++
++    const result = await updateSkills(TARGET_AGENT_ID, { add: ['skill-1'] }, COS_ID)
++
++    expect(result.status).toBe(403)
++    expect(result.error).toContain('Only the MANAGER can configure agents not in a closed team')
++  })
++
++  it('getSkillsConfig returns 404 when agent skills not found', () => {
++    /** Verifies that getSkillsConfig returns 404 when getAgentSkills returns null */
++    mockGetAgentSkills.mockReturnValue(null)
++
++    const result = getSkillsConfig(TARGET_AGENT_ID)
++
++    expect(result.status).toBe(404)
++    expect(result.error).toContain('Agent not found')
++  })
++})
++
++// ============================================================================
++// MODULE 2: agents-config-deploy-service (12 tests)
++// ============================================================================
++
++describe('config deploy service', () => {
++  it('add-skill creates skill directory and SKILL.md', async () => {
++    /** Verifies that deploying an add-skill creates the skill folder and placeholder SKILL.md */
++    const config: ConfigurationPayload = {
++      operation: 'add-skill',
++      scope: 'local',
++      skills: ['test-analysis-skill'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('add-skill')
++    expect(result.data?.after).toHaveProperty('test-analysis-skill', 'present')
++    // Verify mkdir was called for the skills directory
++    expect(mockFsMkdir).toHaveBeenCalled()
++    // Verify SKILL.md was written
++    expect(mockFsWriteFile).toHaveBeenCalled()
++    const writeCallArgs = mockFsWriteFile.mock.calls[0]
++    expect(writeCallArgs[0]).toContain('test-analysis-skill')
++    expect(writeCallArgs[0]).toContain('SKILL.md')
++  })
++
++  it('add-skill blocks path traversal in skill name', async () => {
++    /** Verifies that path traversal attempts (..) in skill names are rejected with 400 */
++    const config: ConfigurationPayload = {
++      operation: 'add-skill',
++      scope: 'local',
++      skills: ['../etc/passwd'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('Invalid skill name')
++    expect(mockFsWriteFile).not.toHaveBeenCalled()
++  })
++
++  it('remove-skill removes existing skill directory', async () => {
++    /** Verifies that deploying a remove-skill calls fs.rm on the skill directory */
++    // Make fileExists return true (skill exists)
++    mockFsAccess.mockResolvedValue(undefined)
++
++    const config: ConfigurationPayload = {
++      operation: 'remove-skill',
++      scope: 'local',
++      skills: ['obsolete-skill'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('remove-skill')
++    expect(result.data?.before).toHaveProperty('obsolete-skill', 'present')
++    expect(result.data?.after).toHaveProperty('obsolete-skill', 'absent')
++    expect(mockFsRm).toHaveBeenCalled()
++  })
++
++  it('remove-skill is idempotent for non-existent skill (no error)', async () => {
++    /** Verifies that removing a non-existent skill does not throw and marks before as absent */
++    // Default: mockFsAccess rejects (file doesn't exist)
++    const config: ConfigurationPayload = {
++      operation: 'remove-skill',
++      scope: 'local',
++      skills: ['nonexistent-skill'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.before).toHaveProperty('nonexistent-skill', 'absent')
++    expect(result.data?.after).toHaveProperty('nonexistent-skill', 'absent')
++    // rm should NOT have been called (skill didn't exist)
++    expect(mockFsRm).not.toHaveBeenCalled()
++  })
++
++  it('add-plugin creates plugin directory', async () => {
++    /** Verifies that deploying an add-plugin creates the plugin folder */
++    const config: ConfigurationPayload = {
++      operation: 'add-plugin',
++      scope: 'local',
++      plugins: ['my-test-plugin'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('add-plugin')
++    expect(result.data?.after).toHaveProperty('my-test-plugin', 'present')
++    expect(mockFsMkdir).toHaveBeenCalled()
++  })
++
++  it('remove-plugin removes existing plugin directory', async () => {
++    /** Verifies that deploying a remove-plugin calls fs.rm on the plugin directory */
++    mockFsAccess.mockResolvedValue(undefined)
++
++    const config: ConfigurationPayload = {
++      operation: 'remove-plugin',
++      scope: 'local',
++      plugins: ['old-plugin'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('remove-plugin')
++    expect(mockFsRm).toHaveBeenCalled()
++  })
++
++  it('update-hooks merges hooks into settings.json', async () => {
++    /** Verifies that deploying update-hooks merges new hooks into existing settings */
++    mockFsReadFile.mockResolvedValue(JSON.stringify({ hooks: { existingHook: true } }))
++
++    const config: ConfigurationPayload = {
++      operation: 'update-hooks',
++      scope: 'local',
++      hooks: { preToolUse: { command: 'node check.js' } },
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('update-hooks')
++    // Verify writeFile was called with merged settings
++    expect(mockFsWriteFile).toHaveBeenCalled()
++    const writtenContent = JSON.parse(mockFsWriteFile.mock.calls[0][1] as string)
++    expect(writtenContent.hooks).toHaveProperty('existingHook', true)
++    expect(writtenContent.hooks).toHaveProperty('preToolUse')
++  })
++
++  it('update-mcp merges mcpServers into settings.json', async () => {
++    /** Verifies that deploying update-mcp merges new MCP servers into existing settings */
++    mockFsReadFile.mockResolvedValue(JSON.stringify({ mcpServers: { existing: { url: 'http://x' } } }))
++
++    const config: ConfigurationPayload = {
++      operation: 'update-mcp',
++      scope: 'local',
++      mcpServers: { newServer: { url: 'http://new-server:3000' } },
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('update-mcp')
++    const writtenContent = JSON.parse(mockFsWriteFile.mock.calls[0][1] as string)
++    expect(writtenContent.mcpServers).toHaveProperty('existing')
++    expect(writtenContent.mcpServers).toHaveProperty('newServer')
++  })
++
++  it('update-model calls updateAgentById with the new model', async () => {
++    /** Verifies that deploying update-model calls the core service to update the agent registry */
++    const config: ConfigurationPayload = {
++      operation: 'update-model',
++      scope: 'local',
++      model: 'claude-sonnet-4-20250514',
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('update-model')
++    expect(result.data?.after).toHaveProperty('model', 'claude-sonnet-4-20250514')
++    expect(mockUpdateAgentById).toHaveBeenCalledWith(TARGET_AGENT_ID, { model: 'claude-sonnet-4-20250514' })
++  })
++
++  it('bulk-config handles multiple operations in one deployment', async () => {
++    /** Verifies that bulk-config dispatches skills + hooks sub-operations correctly */
++    mockFsReadFile.mockResolvedValue('{}')
++
++    const config: ConfigurationPayload = {
++      operation: 'bulk-config',
++      scope: 'local',
++      skills: ['bulk-skill-1'],
++      hooks: { bulkHook: { enabled: true } },
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.operation).toBe('bulk-config')
++    // Both skills and hooks should be in the diff
++    expect(result.data?.after).toHaveProperty('skills')
++    expect(result.data?.after).toHaveProperty('hooks')
++  })
++
++  it('returns 400 for an invalid operation', async () => {
++    /** Verifies that an unrecognized operation type is rejected with 400 */
++    const config = {
++      operation: 'delete-everything' as any,
++      scope: 'local' as const,
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('Invalid configuration operation')
++  })
++
++  it('returns 404 when agent does not exist', async () => {
++    /** Verifies that deploying to a non-existent agent returns 404 */
++    mockGetAgent.mockReturnValue(null)
++
++    const config: ConfigurationPayload = {
++      operation: 'add-skill',
++      scope: 'local',
++      skills: ['test-skill'],
++    }
++
++    const result = await deployConfigToAgent('nonexistent-agent', config, MANAGER_ID)
++
++    expect(result.status).toBe(404)
++    expect(result.error).toContain('not found')
++    expect(mockFsMkdir).not.toHaveBeenCalled()
++  })
++
++  it('returns 400 when agent has no working directory', async () => {
++    /** Verifies that an agent without workingDirectory is rejected with 400 */
++    mockGetAgent.mockReturnValue(makeAgent({ workingDirectory: undefined, sessions: [] }))
++
++    const config: ConfigurationPayload = {
++      operation: 'add-skill',
++      scope: 'local',
++      skills: ['test-skill'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('no working directory')
++  })
++
++  it('add-plugin blocks path traversal in plugin name', async () => {
++    /** Verifies that path traversal attempts (..) in plugin names are rejected with 400 */
++    const config: ConfigurationPayload = {
++      operation: 'add-plugin',
++      scope: 'local',
++      plugins: ['../malicious'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('Invalid plugin name')
++  })
++
++  it('update-hooks handles missing settings.json gracefully (creates from scratch)', async () => {
++    /** Verifies that update-hooks creates settings from scratch when file does not exist */
++    mockFsReadFile.mockRejectedValue(new Error('ENOENT'))
++
++    const config: ConfigurationPayload = {
++      operation: 'update-hooks',
++      scope: 'local',
++      hooks: { preToolUse: { command: 'lint-check.sh' } },
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(200)
++    expect(mockFsWriteFile).toHaveBeenCalled()
++    const writtenContent = JSON.parse(mockFsWriteFile.mock.calls[0][1] as string)
++    expect(writtenContent.hooks).toHaveProperty('preToolUse')
++  })
++
++  it('deployConfigToAgent returns 500 when filesystem operation throws unexpected error', async () => {
++    /** Verifies that unexpected filesystem errors are caught and returned as 500 */
++    mockFsMkdir.mockRejectedValue(new Error('EACCES: permission denied'))
++
++    const config: ConfigurationPayload = {
++      operation: 'add-skill',
++      scope: 'local',
++      skills: ['test-skill'],
++    }
++
++    const result = await deployConfigToAgent(TARGET_AGENT_ID, config, MANAGER_ID)
++
++    expect(result.status).toBe(500)
++    expect(result.error).toContain('Deployment failed')
++    expect(result.error).toContain('permission denied')
++  })
++})
++
++// ============================================================================
++// MODULE 3: cross-host configure-agent flow (15 tests)
++// ============================================================================
++
++describe('cross-host configure-agent', () => {
++  const configureAgentParams = {
++    type: 'configure-agent' as const,
++    targetHostId: 'host-remote',
++    requestedBy: 'manager-agent',
++    requestedByRole: 'manager' as const,
++    payload: {
++      agentId: TARGET_AGENT_ID,
++      configuration: {
++        operation: 'add-skill' as const,
++        scope: 'local' as const,
++        skills: ['remote-skill'],
++      },
++    },
++    password: 'correct',
++    note: 'Deploying skill to remote agent',
++  }
++
++  // --- Setup: make manager-agent a known manager ---
++  beforeEach(() => {
++    mockIsManager.mockImplementation((id: string) => id === 'manager-agent')
++    mockIsChiefOfStaffAnywhere.mockImplementation((id: string) => id === 'cos-agent')
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager', workingDirectory: '/tmp/mgr' }
++      if (id === 'cos-agent') return { id: 'cos-agent', name: 'COS Agent', workingDirectory: '/tmp/cos' }
++      if (id === TARGET_AGENT_ID) return makeAgent()
++      return null
++    })
++  })
++
++  it('submitCrossHostRequest succeeds with valid configure-agent payload', async () => {
++    /** Verifies that a well-formed configure-agent request is accepted and created */
++    const result = await submitCrossHostRequest(configureAgentParams)
++
++    expect(result.status).toBe(201)
++    expect(result.data).toBeDefined()
++    expect(mockCreateGovernanceRequest).toHaveBeenCalledWith(
++      expect.objectContaining({
++        type: 'configure-agent',
++        payload: expect.objectContaining({
++          configuration: expect.objectContaining({
++            operation: 'add-skill',
++          }),
++        }),
++      })
++    )
++  })
++
++  it('submitCrossHostRequest rejects configure-agent without configuration field', async () => {
++    /** Verifies that configure-agent requires a configuration payload */
++    const result = await submitCrossHostRequest({
++      ...configureAgentParams,
++      payload: { agentId: TARGET_AGENT_ID },
++    })
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('configure-agent requests require a configuration payload')
++    expect(mockCreateGovernanceRequest).not.toHaveBeenCalled()
++  })
++
++  it('submitCrossHostRequest rejects configure-agent with non-local scope', async () => {
++    /** Verifies that cross-host configure-agent only supports local scope */
++    const result = await submitCrossHostRequest({
++      ...configureAgentParams,
++      payload: {
++        agentId: TARGET_AGENT_ID,
++        configuration: { operation: 'add-skill' as const, scope: 'user' as const, skills: ['x'] },
++      },
++    })
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain("only supports 'local' scope")
++    expect(mockCreateGovernanceRequest).not.toHaveBeenCalled()
++  })
++
++  it('submitCrossHostRequest rejects configure-agent without operation field', async () => {
++    /** Verifies that configure-agent configuration must specify an operation */
++    const result = await submitCrossHostRequest({
++      ...configureAgentParams,
++      payload: {
++        agentId: TARGET_AGENT_ID,
++        configuration: { scope: 'local' as const } as any,
++      },
++    })
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('must specify an operation')
++    expect(mockCreateGovernanceRequest).not.toHaveBeenCalled()
++  })
++
++  it('receiveCrossHostRequest accepts configure-agent as a valid type', async () => {
++    /** Verifies that configure-agent is in VALID_REQUEST_TYPES and is accepted by receive */
++    const request = makeGovernanceRequest({
++      sourceHostId: 'host-remote',
++      targetHostId: 'host-local',
++    })
++
++    const result = await receiveCrossHostRequest('host-remote', request)
++
++    expect(result.status).toBe(200)
++    expect(result.data?.ok).toBe(true)
++    expect(result.data?.requestId).toBe('req-ext-001')
++    expect(mockSaveGovernanceRequests).toHaveBeenCalled()
++  })
++
++  it('approveCrossHostRequest triggers execution for configure-agent when dual-approved', async () => {
++    /** Verifies that dual-manager approval triggers performRequestExecution for configure-agent */
++    const executedRequest = makeGovernanceRequest({
++      status: 'executed',
++      approvals: {
++        sourceManager: { approved: true, agentId: 'manager-agent', at: '2026-02-20T10:01:00Z' },
++        targetManager: { approved: true, agentId: 'manager-agent', at: '2026-02-20T10:02:00Z' },
++      },
++    })
++
++    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    // performRequestExecution calls withLock -> deployConfigToAgent
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++
++    const result = await approveCrossHostRequest('req-ext-001', 'manager-agent', 'correct')
++
++    expect(result.status).toBe(200)
++    expect(result.data?.status).toBe('executed')
++    // The notify function should have been called for configure-agent
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledWith(
++      expect.objectContaining({ type: 'configure-agent' }),
++      'approved'
++    )
++  })
++
++  it('performRequestExecution handles deployment failure gracefully for configure-agent', async () => {
++    /** Verifies that a failed deployConfigToAgent logs a warning but does not throw */
++    // Make the agent not found (so deployConfigToAgent returns 404)
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager' }
++      return null // Target agent not found
++    })
++
++    const executedRequest = makeGovernanceRequest({ status: 'executed' })
++    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++
++    // This should NOT throw despite deployment failure
++    const result = await approveCrossHostRequest('req-ext-001', 'manager-agent', 'correct')
++
++    expect(result.status).toBe(200)
++    expect(result.data?.status).toBe('executed')
++  })
++
++  it('listCrossHostRequests returns all requests when no filter is applied', () => {
++    /** Verifies that listCrossHostRequests delegates to registry with no filter */
++    const requests = [makeGovernanceRequest(), makeGovernanceRequest({ id: 'req-ext-002', type: 'add-to-team' })]
++    mockListGovernanceRequests.mockReturnValue(requests)
++
++    const result = listCrossHostRequests()
++
++    expect(result.status).toBe(200)
++    expect(result.data).toHaveLength(2)
++  })
++
++  // --- Regression: existing types still work ---
++
++  it('submitCrossHostRequest still works for add-to-team (regression)', async () => {
++    /** Verifies that the existing add-to-team request type still functions after configure-agent was added */
++    const result = await submitCrossHostRequest({
++      type: 'add-to-team',
++      targetHostId: 'host-remote',
++      requestedBy: 'manager-agent',
++      requestedByRole: 'manager',
++      payload: { agentId: TARGET_AGENT_ID, teamId: 'team-backend' },
++      password: 'correct',
++    })
++
++    expect(result.status).toBe(201)
++    expect(mockCreateGovernanceRequest).toHaveBeenCalledWith(
++      expect.objectContaining({ type: 'add-to-team' })
++    )
++  })
++
++  it('submitCrossHostRequest still works for transfer-agent (regression)', async () => {
++    /** Verifies that the existing transfer-agent request type still functions */
++    const result = await submitCrossHostRequest({
++      type: 'transfer-agent',
++      targetHostId: 'host-remote',
++      requestedBy: 'manager-agent',
++      requestedByRole: 'manager',
++      payload: { agentId: TARGET_AGENT_ID, fromTeamId: 'team-a', toTeamId: 'team-b' },
++      password: 'correct',
++    })
++
++    expect(result.status).toBe(201)
++    expect(mockCreateGovernanceRequest).toHaveBeenCalledWith(
++      expect.objectContaining({ type: 'transfer-agent' })
++    )
++  })
++
++  it('receiveCrossHostRequest auto-approves configure-agent via manager trust', async () => {
++    /** Verifies that shouldAutoApprove triggers auto-approval and execution for configure-agent */
++    mockShouldAutoApprove.mockReturnValue(true)
++
++    const request = makeGovernanceRequest({
++      sourceHostId: 'host-remote',
++      targetHostId: 'host-local',
++      status: 'pending',
++    })
++
++    // When auto-approve: approveGovernanceRequest is called with local manager
++    const executedRequest = makeGovernanceRequest({ status: 'executed' })
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++
++    const result = await receiveCrossHostRequest('host-remote', request)
++
++    expect(result.status).toBe(200)
++    expect(mockApproveGovernanceRequest).toHaveBeenCalledWith(
++      'req-ext-001',
++      'manager-agent',
++      'targetManager'
++    )
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledWith(
++      expect.objectContaining({ type: 'configure-agent' }),
++      'approved'
++    )
++  })
++
++  it('listCrossHostRequests filters by status correctly', () => {
++    /** Verifies that status filter is passed through to the governance request registry */
++    mockListGovernanceRequests.mockReturnValue([makeGovernanceRequest({ status: 'pending' })])
++
++    const result = listCrossHostRequests({ status: 'pending' })
++
++    expect(result.status).toBe(200)
++    expect(mockListGovernanceRequests).toHaveBeenCalledWith({ status: 'pending' })
++  })
++
++  it('listCrossHostRequests filters by agentId correctly', () => {
++    /** Verifies that agentId filter is passed through to the governance request registry */
++    mockListGovernanceRequests.mockReturnValue([makeGovernanceRequest()])
++
++    const result = listCrossHostRequests({ agentId: TARGET_AGENT_ID })
++
++    expect(result.status).toBe(200)
++    expect(mockListGovernanceRequests).toHaveBeenCalledWith({ agentId: TARGET_AGENT_ID })
++  })
++
++  it('submitCrossHostRequest rejects unimplemented type (e.g., create-agent)', async () => {
++    /** Verifies that non-implemented types like create-agent are rejected */
++    const result = await submitCrossHostRequest({
++      type: 'create-agent' as const,
++      targetHostId: 'host-remote',
++      requestedBy: 'manager-agent',
++      requestedByRole: 'manager',
++      payload: { agentId: TARGET_AGENT_ID },
++      password: 'correct',
++    })
++
++    expect(result.status).toBe(400)
++    expect(result.error).toContain('not yet implemented')
++  })
++})
++
++// ============================================================================
++// MODULE 4: config-notification-service (6 tests)
++// ============================================================================
++
++describe('config notifications', () => {
++  // We need to import the real module (not the mock) for this section.
++  // But the module is already mocked above for cross-host tests.
++  // Instead, we test via the cross-host governance service's behavior,
++  // which calls notifyConfigRequestOutcome.
++  // We verify the mock was called with correct arguments.
++
++  // To test the actual notification service, we need to unmock it and use
++  // a separate import. Since vi.mock is hoisted, we test the notification
++  // behavior via the cross-host service integration instead.
++
++  // However, for direct unit testing, let's verify the mock call patterns
++  // that the cross-host service makes to the notification service.
++
++  it('approved configure-agent triggers notification with approved outcome', async () => {
++    /** Verifies that an approved configure-agent request sends an approved notification */
++    const executedRequest = makeGovernanceRequest({ status: 'executed' })
++    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++    mockIsManager.mockImplementation((id: string) => id === 'manager-agent')
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager' }
++      return makeAgent()
++    })
++
++    await approveCrossHostRequest('req-ext-001', 'manager-agent', 'correct')
++
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledTimes(1)
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledWith(
++      expect.objectContaining({
++        type: 'configure-agent',
++        status: 'executed',
++      }),
++      'approved'
++    )
++  })
++
++  it('rejected configure-agent triggers notification with rejected outcome', async () => {
++    /** Verifies that a rejected configure-agent request sends a rejected notification with reason */
++    const rejectedRequest = makeGovernanceRequest({
++      status: 'rejected',
++      rejectReason: 'Skill not approved for this team',
++    })
++    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
++    mockRejectGovernanceRequest.mockResolvedValue(rejectedRequest)
++    mockIsManager.mockImplementation((id: string) => id === 'manager-agent')
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager' }
++      return makeAgent()
++    })
++
++    // Import rejectCrossHostRequest to test rejection flow
++    const { rejectCrossHostRequest } = await import('@/services/cross-host-governance-service')
++    await rejectCrossHostRequest('req-ext-001', 'manager-agent', 'correct', 'Skill not approved for this team')
++
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledTimes(1)
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledWith(
++      expect.objectContaining({
++        type: 'configure-agent',
++        status: 'rejected',
++      }),
++      'rejected'
++    )
++  })
++
++  it('non-configure-agent request type does not trigger notification on approval', async () => {
++    /** Verifies that add-to-team approvals do not call notifyConfigRequestOutcome */
++    const executedRequest = makeGovernanceRequest({
++      type: 'add-to-team',
++      status: 'executed',
++      payload: { agentId: TARGET_AGENT_ID, teamId: 'team-1' },
++    })
++    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest({ type: 'add-to-team', payload: { agentId: TARGET_AGENT_ID, teamId: 'team-1' } }))
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++    mockIsManager.mockImplementation((id: string) => id === 'manager-agent')
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager' }
++      return makeAgent()
++    })
++    mockLoadTeams.mockReturnValue([{
++      id: 'team-1',
++      name: 'Test Team',
++      type: 'open',
++      agentIds: [],
++      chiefOfStaffId: null,
++      createdAt: '2026-01-01T00:00:00.000Z',
++      updatedAt: '2026-01-01T00:00:00.000Z',
++    }])
++
++    await approveCrossHostRequest('req-ext-001', 'manager-agent', 'correct')
++
++    // notifyConfigRequestOutcome should NOT be called for add-to-team
++    expect(mockNotifyConfigRequestOutcome).not.toHaveBeenCalled()
++  })
++
++  it('notification failure does not propagate as error to caller', async () => {
++    /** Verifies that a failed notification does not cause the approve call to fail */
++    const executedRequest = makeGovernanceRequest({ status: 'executed' })
++    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++    mockIsManager.mockImplementation((id: string) => id === 'manager-agent')
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager' }
++      return makeAgent()
++    })
++
++    // Make notification throw
++    mockNotifyConfigRequestOutcome.mockRejectedValue(new Error('AMP service unavailable'))
++
++    const result = await approveCrossHostRequest('req-ext-001', 'manager-agent', 'correct')
++
++    // The approval should still succeed despite notification failure
++    expect(result.status).toBe(200)
++    expect(result.data?.status).toBe('executed')
++  })
++
++  it('auto-approved configure-agent sends notification on receive', async () => {
++    /** Verifies that auto-approval on receive also triggers the notification flow */
++    mockShouldAutoApprove.mockReturnValue(true)
++    mockIsManager.mockImplementation((id: string) => id === 'manager-agent')
++    mockGetAgent.mockImplementation((id: string) => {
++      if (id === 'manager-agent') return { id: 'manager-agent', name: 'Manager' }
++      return makeAgent()
++    })
++
++    const executedRequest = makeGovernanceRequest({ status: 'executed' })
++    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
++    mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())
++
++    const request = makeGovernanceRequest({
++      sourceHostId: 'host-remote',
++      targetHostId: 'host-local',
++    })
++
++    await receiveCrossHostRequest('host-remote', request)
++
++    expect(mockNotifyConfigRequestOutcome).toHaveBeenCalledWith(
++      expect.objectContaining({ type: 'configure-agent', status: 'executed' }),
++      'approved'
++    )
++  })
++
++  it('rejected configure-agent on receive does not send notification (only on reject)', async () => {
++    /** Verifies that receiving a configure-agent request does not pre-emptively notify */
++    mockShouldAutoApprove.mockReturnValue(false)
++
++    const request = makeGovernanceRequest({
++      sourceHostId: 'host-remote',
++      targetHostId: 'host-local',
++    })
++
++    await receiveCrossHostRequest('host-remote', request)
++
++    // No notification should be sent on receive without auto-approve
++    expect(mockNotifyConfigRequestOutcome).not.toHaveBeenCalled()
++  })
++})
+diff --git a/tests/governance-endpoint-auth.test.ts b/tests/governance-endpoint-auth.test.ts
+index 496013b..2ff7db3 100644
+--- a/tests/governance-endpoint-auth.test.ts
++++ b/tests/governance-endpoint-auth.test.ts
+@@ -295,14 +295,14 @@ describe('SR-007: submitCrossHostRequest type whitelist', () => {
+     expect(result.error).toContain('not yet implemented')
+   })
+ 
+-  it('rejects configure-agent type as unimplemented', async () => {
+-    /** Verifies that configure-agent request type returns 400 with not-implemented error */
++  it('rejects configure-agent without configuration payload', async () => {
++    /** Verifies that configure-agent passes the type whitelist but requires a configuration payload */
+     const result = await submitCrossHostRequest({
+       ...baseParams,
+       type: 'configure-agent',
+     })
+     expect(result.status).toBe(400)
+-    expect(result.error).toContain('not yet implemented')
++    expect(result.error).toContain('configuration payload')
+   })
+ 
+   it('allows add-to-team type (implemented)', async () => {
+diff --git a/types/governance-request.ts b/types/governance-request.ts
+index d9b6d3e..48cd444 100644
+--- a/types/governance-request.ts
++++ b/types/governance-request.ts
+@@ -17,9 +17,22 @@ export type GovernanceRequestType =
+   | 'transfer-agent'
+   | 'create-agent'
+   | 'delete-agent'
+-  | 'configure-agent'  // SF-057 (P5): Scaffolded type only -- receiveCrossHostRequest accepts it but
+-                        // submitCrossHostRequest rejects it and performRequestExecution has no handler.
+-                        // TODO: Implement end-to-end or remove if not needed.
++  | 'configure-agent'
++
++/** Types of agent configuration operations governed by RBAC */
++export type ConfigOperationType =
++  | 'add-skill'
++  | 'remove-skill'
++  | 'add-plugin'
++  | 'remove-plugin'
++  | 'update-hooks'
++  | 'update-mcp'
++  | 'update-model'
++  | 'update-program-args'
++  | 'bulk-config'
++
++/** Scope levels for configuration changes */
++export type ConfigScope = 'local' | 'user' | 'project'
+ 
+ /** Status progression: pending -> remote-approved/local-approved/dual-approved -> executed/rejected */
+ export type GovernanceRequestStatus =
+@@ -45,6 +58,27 @@ export interface GovernanceApprovals {
+   targetManager?: GovernanceApproval
+ }
+ 
++/** Structured configuration payload for configure-agent requests */
++export interface ConfigurationPayload {
++  operation: ConfigOperationType
++  scope: ConfigScope
++  skills?: string[]                        // Skill names to add/remove
++  plugins?: string[]                       // Plugin names to add/remove
++  hooks?: Record<string, unknown>          // Hook config to merge/replace
++  mcpServers?: Record<string, unknown>     // MCP server config to merge/replace
++  model?: string                           // Model to set
++  programArgs?: string                     // Program args to set
++}
++
++/** Tracks what changed during a config deployment */
++export interface ConfigDiff {
++  operation: ConfigOperationType
++  before: Record<string, unknown>
++  after: Record<string, unknown>
++  appliedAt?: string                       // ISO timestamp when applied
++  appliedBy?: string                       // agentId who applied it
++}
++
+ /** Payload for a governance request (type-specific fields) */
+ export interface GovernanceRequestPayload {
+   agentId: string                           // Agent being operated on
+@@ -52,7 +86,7 @@ export interface GovernanceRequestPayload {
+   fromTeamId?: string                       // Source team (for transfers)
+   toTeamId?: string                         // Destination team (for transfers)
+   role?: AgentRole                          // Role to assign
+-  configuration?: Record<string, unknown>   // Agent configuration (for configure-agent)
++  configuration?: ConfigurationPayload      // Agent configuration (for configure-agent)
+ }
+ 
+ /** A cross-host governance request */

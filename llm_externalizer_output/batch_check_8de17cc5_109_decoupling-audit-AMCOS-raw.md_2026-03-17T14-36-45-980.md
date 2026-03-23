@@ -1,0 +1,59 @@
+# LLM Externalizer Response
+
+- **Tool**: `code_task`
+- **Model**: `google/gemini-2.5-flash`
+- **Timestamp**: 2026-03-17T14:36:45.980Z
+- **Input file**: `/Users/emanuelesabetta/ai-maestro/docs_dev/decoupling-audit-AMCOS-raw.md`
+- **Task**: This is an AI Maestro project (Next.js). Find ALL occurrences of the old marketplace name 'ai-maestro-local-marketplace' in each file. Also find any occurrences of the even older name 'role-plugins' used as a marketplace name (NOT as a directory path or URL path segment — only when used as a marketplace identifier/name string). Report the exact line number and the full line content for each occurrence. If a file has zero occurrences, skip it entirely — do not report clean files.
+
+---
+
+- **File**: `/Users/emanuelesabetta/ai-maestro/docs_dev/decoupling-audit-AMCOS-raw.md`
+  - Line 4: `**Plugin:** ai-maestro-chief-of-staff (AMCOS)`
+  - Line 242: `curl -s "http://localhost:23000/api/sessions" | jq '.sessions[] | select(.project == "auth-service")'`
+  - Line 245: `Why it's a violation: A SKILL.md file must not embed raw curl commands, hardcoded endpoint URLs, or API syntax patterns. This violates the Plugin Abstraction Principle rule 1: "Plugin skills/commands/agents MUST NOT embed API syntax." The skill should instead instruct the reader to use the `ai-maestro-agents-management` skill.`
+  - Line 247: `Fix: Replace the curl example with a prose description: "Use the `ai-maestro-agents-management` skill to list agents filtered by project."`
+  - Line 255: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/" \`
+  - Line 265: `Why it's a violation: Embeds raw curl with endpoint URL and HTTP headers directly in skill procedure body. Should say "use the `team-governance` skill to create a TransferRequest."`
+  - Line 269: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/{id}/approve" \`
+  - Line 277: `Why it's a violation: Same as above — raw curl in skill body.`
+  - Line 281: `amp-send.sh "<source-manager-session>" "Transfer approval needed" \`
+  - Line 284: `Why it's a violation: Embeds direct `amp-send.sh` call with hardcoded argument syntax inside a SKILL.md. Skills must reference the `agent-messaging` skill, not call amp-send.sh directly.`
+  - Line 288: `amp-send.sh "<target-cos-session>" "Incoming transfer request" \`
+  - Line 291: `Why it's a violation: Same as Violation 4.`
+  - Line 295: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/{id}/execute" \`
+  - Line 298: `Why it's a violation: Raw curl in skill body.`
+  - Line 303: `curl -s "$AIMAESTRO_API/api/governance/transfers/{id}" | jq .`
+  - Line 306: `Why it's a violation: Raw curl GET call with endpoint URL in skill body.`
+  - Line 310: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/{id}/approve" \`
+  - Line 320: `Why it's a violation: Raw curl in skill body.`
+  - Line 324: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/{id}/approve" \`
+  - Line 333: `Why it's a violation: Raw curl in skill body. Should say "use the `team-governance` skill."`
+  - Line 339: `The Examples section repeats all the curl and amp-send.sh patterns from the Procedures section, with concrete placeholder values.`
+  - Line 342: `- Line 188: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/"``
+  - Line 343: `- Line 200: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/tr-001/approve"``
+  - Line 344: `- Line 210: `amp-send.sh "eama-main" "Transfer approval:..."``
+  - Line 345: `- Line 214: `amp-send.sh "amcos-beta" "Incoming transfer:..."``
+  - Line 346: `- Line 218: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/tr-001/execute"``
+  - Line 347: `- Line 222: `amp-send.sh "epa-alpha-backend" "Transfer complete"...``
+  - Line 348: `- Line 232: `curl -s "$AIMAESTRO_API/api/messages?agent=amcos-beta..."`  ← AMP inbox via curl`
+  - Line 349: `- Line 235: `curl -s "$AIMAESTRO_API/api/governance/transfers/tr-001" | jq .``
+  - Line 350: `- Line 239: `curl -X POST "$AIMAESTRO_API/api/governance/transfers/tr-001/approve"``
+  - Line 351: `- Line 249: `amp-send.sh "eama-main" "Transfer approval:..."``
+  - Line 352: `- Line 258-266: Rejection example with curl`
+  - Line 353: `- Line 269: `amp-send.sh "amcos-alpha" "Transfer rejected:..."``
+  - Line 355: `Why these are violations: Examples in a SKILL.md file must illustrate what to tell the AI agent to do conceptually, not provide raw shell scripts. All API calls must be replaced with references to `team-governance` skill. All amp-send.sh calls must be replaced with references to `agent-messaging` skill.`
+  - Line 357: `Fix for entire amcos-transfer-management/SKILL.md: All procedure steps and examples must be rewritten in prose, replacing every curl block with "use the `team-governance` skill to [action]" and every amp-send.sh call with "use the `agent-messaging` skill to [action]."`
+  - Line 367: `4. `POST /api/v1/governance/requests` with payload`
+  - Line 369: `2. `GET /api/v1/governance/requests/{requestId}` to poll state`
+  - Line 372: `Why it's a violation: Embedding specific API endpoint paths directly in the skill procedure. Skills should not specify HTTP methods + paths; they should say "use the `team-governance` skill to submit a GovernanceRequest."`
+  - Line 374: `Severity: MEDIUM — These are references without curl syntax, but they still embed endpoint URL patterns. The GovernanceRequest API exists, but the skill should abstract it behind "use the `team-governance` skill."`
+  - Line 392: `Why it's a violation: The example instructs the agent to directly call `POST /api/v1/governance/requests`. Should say "use the `team-governance` skill to submit a GovernanceRequest."`
+  - Line 402: `2. `POST /api/v1/governance/requests``
+  - Line 403: `3. Track state via `GET /api/v1/governance/requests/{requestId}``
+  - Line 406: `Why it's a violation: A command file should not embed API endpoint syntax. The command should describe behavior at a high level and delegate to a skill. However, note that command files are more implementation-oriented than skill files; this is still a violation because the Principle says plugins must not embed API syntax.`
+  - Line 427: `REQUEST_ID="GR-$(date +%Y%m%d%H%M%S)-$(openssl rand -hex 4)"`
+  - Line 430: `Why it's a violation: Embeds bash syntax for request ID generation directly in the command. While less severe than curl, this is still implementation detail that belongs in a script, not in a command description.`
+  - Line 439: `2. **Create TransferRequest** - `POST /api/governance/transfers/` with agent, source team, target team, and reason`
+  - Line 442: `Why it's a violation: Command files must not embed API endpoint paths. Should say "use the `team-governance` skill to create a TransferRequest."`
+  - Line 451: `You submit requests to `POST /api/v1/governance/requests`, track state transitions...`

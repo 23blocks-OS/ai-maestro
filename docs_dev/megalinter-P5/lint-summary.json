@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "has_errors": true,
+  "error_count": 0,
+  "success_count": 0,
+  "total_linters": 0,
+  "error_linters": [],
+  "success_linters": [],
+  "report_dir": "/Users/emanuelesabetta/ai-maestro/docs_dev/megalinter-P5"
+}

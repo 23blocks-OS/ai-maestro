@@ -1,0 +1,21 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-pyright.pyright",
+        "monosans.djlint",
+        "MS-CST-E.vscode-devskim",
+        "AquaSecurityOfficial.trivy-vulnerability-scanner",
+        "exiasr.hadolint",
+        "standard.vscode-standard",
+        "HTMLHint.vscode-htmlhint",
+        "matangover.mypy",
+        "dbaeumer.vscode-eslint",
+        "streetsidesoftware.code-spell-checker",
+        "timonwong.shellcheck",
+        "stylelint.vscode-stylelint",
+        "foxundermoon.shell-format",
+        "HashiCorp.terraform",
+        "charliermarsh.ruff",
+        "esbenp.prettier-vscode"
+    ]
+}

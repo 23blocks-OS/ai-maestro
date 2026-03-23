@@ -1,0 +1,1 @@
+cf2fc07 fix: pass 7 -- resolve 4 review findings (2 MUST-FIX missing await + 2 bonus)

@@ -1,1 +1,2 @@
-components/AgentBadge.tsx
+README.md
+plugin

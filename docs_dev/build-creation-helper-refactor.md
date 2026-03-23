@@ -1,0 +1,404 @@
+yarn run v1.22.22
+(node:36098) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+warning ../package.json: No license field
+$ NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 next build
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ⚠ Compiled with warnings
+
+./lib/cerebellum/voice-subsystem.ts
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./lib/cerebellum/voice-subsystem.ts
+./lib/agent.ts
+./services/agents-docs-service.ts
+./app/api/agents/[id]/docs/route.ts
+
+./lib/memory/claude-provider.ts
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./lib/memory/claude-provider.ts
+./lib/memory/consolidate.ts
+./services/agents-memory-service.ts
+./app/api/agents/[id]/memory/route.ts
+
+./node_modules/@huggingface/transformers/dist/transformers.node.mjs
+Critical dependency: Accessing import.meta directly is unsupported (only property access or destructuring is supported)
+
+Import trace for requested module:
+./node_modules/@huggingface/transformers/dist/transformers.node.mjs
+./lib/rag/embeddings.ts
+./services/agents-memory-service.ts
+./app/api/agents/[id]/memory/route.ts
+
+   Linting and checking validity of types ...
+
+./app/companion/page.tsx
+122:6  Warning: React Hook useEffect has a missing dependency: 'activeAgentId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+356:6  Warning: React Hook useEffect has a missing dependency: 'activeAgent.hostId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+408:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+615:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+647:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+906:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1002:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/immersive/page.tsx
+237:6  Warning: React Hook useEffect has a missing dependency: 'activeAgent.hostId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/zoom/agent/page.tsx
+108:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/zoom/page.tsx
+364:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/AMPAddressesSection.tsx
+53:6  Warning: React Hook useEffect has a missing dependency: 'fetchAddresses'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/AgentBadge.tsx
+343:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/AgentCreationHelper.tsx
+216:6  Warning: React Hook useCallback has a missing dependency: 'captureInitialGreeting'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+355:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+437:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+518:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/AgentCreationWizard.tsx
+463:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+653:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/AgentGraph.tsx
+296:6  Warning: React Hook useEffect has missing dependencies: 'detectProjectPath', 'fetchGraphData', and 'fetchStats'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/AgentList.tsx
+1259:47  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/AgentProfile.tsx
+450:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/AvatarPicker.tsx
+163:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/ChatView.tsx
+133:6  Warning: React Hook useCallback has an unnecessary dependency: 'messages.length'. Either exclude it or remove the dependency array.  react-hooks/exhaustive-deps
+155:6  Warning: React Hook useEffect has a missing dependency: 'fetchMessages'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/ConversationDetailPanel.tsx
+76:6  Warning: React Hook useEffect has a missing dependency: 'loadConversation'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+484:6  Warning: React Hook useEffect has a missing dependency: 'performSemanticSearch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+494:9  Warning: The 'matchIndices' conditional could make the dependencies of useEffect Hook (at line 555) change on every render. To fix this, wrap the initialization of 'matchIndices' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+./components/CreateAgentAnimation.tsx
+359:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+466:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/DocumentationPanel.tsx
+160:6  Warning: React Hook useEffect has missing dependencies: 'fetchDocuments' and 'fetchStats'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/EmailAddressDialog.tsx
+76:6  Warning: React Hook useEffect has a missing dependency: 'fetchDomains'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/EmailAddressesSection.tsx
+55:6  Warning: React Hook useEffect has a missing dependency: 'fetchAddresses'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/MemoryViewer.tsx
+209:6  Warning: React Hook useEffect has missing dependencies: 'fetchMemories' and 'fetchStats'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+216:6  Warning: React Hook useEffect has a missing dependency: 'fetchGraph'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+810:6  Warning: React Hook useEffect has a missing dependency: 'nodes.length'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+810:13  Warning: React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked.  react-hooks/exhaustive-deps
+
+./components/MessageCenter.tsx
+1137:15  Warning: The attribute aria-expanded is not supported by the role textbox. This role is implicit on the element input.  jsx-a11y/role-supports-aria-props
+
+./components/MobileConversationDetail.tsx
+87:6  Warning: React Hook useEffect has a missing dependency: 'loadConversation'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/MobileHostsList.tsx
+124:6  Warning: React Hook useMemo has a missing dependency: 'getHostName'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/MobileKeyToolbar.tsx
+90:6  Warning: React Hook useCallback has a missing dependency: 'stopRepeat'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/MobileWorkTree.tsx
+260:6  Warning: React Hook useEffect has a missing dependency: 'fetchWorkTree'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/TabletDashboard.tsx
+146:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/TransferAgentDialog.tsx
+101:6  Warning: React Hook useEffect has a missing dependency: 'baseUrl'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/WorkTree.tsx
+219:6  Warning: React Hook useEffect has a missing dependency: 'fetchWorkTree'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/marketplace/SkillDetailModal.tsx
+55:6  Warning: React Hook useEffect has a missing dependency: 'loadSkillContent'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/onboarding/FirstAgentWizard.tsx
+121:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/onboarding/UseCaseSelector.tsx
+79:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/settings/HostsSection.tsx
+146:6  Warning: React Hook useEffect has a missing dependency: 'refreshAllHosts'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/sidebar/TeamCard.tsx
+56:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/sidebar/TeamListView.tsx
+238:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/team-meeting/AgentPicker.tsx
+75:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/team-meeting/MeetingSidebar.tsx
+180:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+293:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/team-meeting/RingingAnimation.tsx
+122:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/team-meeting/SelectedAgentsBar.tsx
+52:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/zoom/AgentCard.tsx
+129:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/zoom/AgentProfileTab.tsx
+344:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+   Collecting page data ...
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+(node:37926) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+(node:37922) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+[AgentRegistry] Initialized with max 10 agents (LRU eviction enabled)
+(node:37916) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37919) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37915) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37917) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37920) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37913) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37921) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37925) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37918) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37923) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:37924) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+   Generating static pages (0/53) ...
+[Unified Agents GET] Error: B [Error]: Dynamic server usage: Route /api/agents/unified couldn't be rendered statically because it used `request.url`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at V (/Users/emanuelesabetta/ai-maestro/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21778)
+    at Object.get (/Users/emanuelesabetta/ai-maestro/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:29465)
+    at p (/Users/emanuelesabetta/ai-maestro/.next/server/app/api/agents/unified/route.js:1:1081)
+    at /Users/emanuelesabetta/ai-maestro/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38417
+    at /Users/emanuelesabetta/ai-maestro/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+    at ContextAPI.with (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+    at NoopTracer.startActiveSpan (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+    at /Users/emanuelesabetta/ai-maestro/node_modules/next/dist/server/lib/trace/tracer.js:122:103 {
+  description: "Route /api/agents/unified couldn't be rendered statically because it used `request.url`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+[Hosts] Added default self host
+[Hosts] Loaded 3 host(s) from /Users/emanuelesabetta/.aimaestro/hosts.json
+[Email Index GET] error: B [Error]: Dynamic server usage: Route /api/agents/email-index couldn't be rendered statically because it used `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at V (/Users/emanuelesabetta/ai-maestro/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21778)
+    at Object.get (/Users/emanuelesabetta/ai-maestro/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:29137)
+    at d (/Users/emanuelesabetta/ai-maestro/.next/server/app/api/agents/email-index/route.js:1:815)
+    at /Users/emanuelesabetta/ai-maestro/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38417
+    at /Users/emanuelesabetta/ai-maestro/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+    at ContextAPI.with (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+    at NoopTracer.startActiveSpan (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (/Users/emanuelesabetta/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+    at /Users/emanuelesabetta/ai-maestro/node_modules/next/dist/server/lib/trace/tracer.js:122:103 {
+  description: "Route /api/agents/email-index couldn't be rendered statically because it used `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (13/53) 
+   Generating static pages (26/53) 
+   Generating static pages (39/53) 
+ ✓ Generating static pages (53/53)
+   Finalizing page optimization ...
+   Collecting build traces ...
+(node:36127) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Route (app)                                     Size     First Load JS
+┌ ○ /                                           333 kB          485 kB
+├ ○ /_not-found                                 883 B          89.1 kB
+├ ○ /.well-known/agent-messaging.json           0 B                0 B
+├ ƒ /api/agents                                 0 B                0 B
+├ ƒ /api/agents/[id]                            0 B                0 B
+├ ƒ /api/agents/[id]/amp/addresses              0 B                0 B
+├ ƒ /api/agents/[id]/amp/addresses/[address]    0 B                0 B
+├ ƒ /api/agents/[id]/chat                       0 B                0 B
+├ ƒ /api/agents/[id]/config/deploy              0 B                0 B
+├ ƒ /api/agents/[id]/database                   0 B                0 B
+├ ƒ /api/agents/[id]/docs                       0 B                0 B
+├ ƒ /api/agents/[id]/email/addresses            0 B                0 B
+├ ƒ /api/agents/[id]/email/addresses/[address]  0 B                0 B
+├ ƒ /api/agents/[id]/export                     0 B                0 B
+├ ƒ /api/agents/[id]/graph/code                 0 B                0 B
+├ ƒ /api/agents/[id]/graph/db                   0 B                0 B
+├ ƒ /api/agents/[id]/graph/query                0 B                0 B
+├ ƒ /api/agents/[id]/hibernate                  0 B                0 B
+├ ƒ /api/agents/[id]/index-delta                0 B                0 B
+├ ƒ /api/agents/[id]/memory                     0 B                0 B
+├ ƒ /api/agents/[id]/memory/consolidate         0 B                0 B
+├ ƒ /api/agents/[id]/memory/long-term           0 B                0 B
+├ ƒ /api/agents/[id]/messages                   0 B                0 B
+├ ƒ /api/agents/[id]/messages/[messageId]       0 B                0 B
+├ ƒ /api/agents/[id]/metadata                   0 B                0 B
+├ ƒ /api/agents/[id]/metrics                    0 B                0 B
+├ ƒ /api/agents/[id]/playback                   0 B                0 B
+├ ƒ /api/agents/[id]/repos                      0 B                0 B
+├ ƒ /api/agents/[id]/search                     0 B                0 B
+├ ƒ /api/agents/[id]/session                    0 B                0 B
+├ ƒ /api/agents/[id]/skills                     0 B                0 B
+├ ƒ /api/agents/[id]/skills/settings            0 B                0 B
+├ ƒ /api/agents/[id]/subconscious               0 B                0 B
+├ ƒ /api/agents/[id]/tracking                   0 B                0 B
+├ ƒ /api/agents/[id]/transfer                   0 B                0 B
+├ ƒ /api/agents/[id]/wake                       0 B                0 B
+├ ƒ /api/agents/by-name/[name]                  0 B                0 B
+├ ƒ /api/agents/creation-helper/chat            0 B                0 B
+├ ○ /api/agents/creation-helper/response        0 B                0 B
+├ ƒ /api/agents/creation-helper/session         0 B                0 B
+├ ○ /api/agents/directory                       0 B                0 B
+├ ƒ /api/agents/directory/lookup/[name]         0 B                0 B
+├ ƒ /api/agents/directory/sync                  0 B                0 B
+├ ƒ /api/agents/docker/create                   0 B                0 B
+├ ƒ /api/agents/email-index                     0 B                0 B
+├ ƒ /api/agents/health                          0 B                0 B
+├ ƒ /api/agents/import                          0 B                0 B
+├ ƒ /api/agents/normalize-hosts                 0 B                0 B
+├ ƒ /api/agents/register                        0 B                0 B
+├ ƒ /api/agents/startup                         0 B                0 B
+├ ƒ /api/agents/unified                         0 B                0 B
+├ ○ /api/config                                 0 B                0 B
+├ ƒ /api/conversations/[file]/messages          0 B                0 B
+├ ƒ /api/conversations/parse                    0 B                0 B
+├ ƒ /api/debug/pty                              0 B                0 B
+├ ƒ /api/docker/info                            0 B                0 B
+├ ƒ /api/domains                                0 B                0 B
+├ ƒ /api/domains/[id]                           0 B                0 B
+├ ƒ /api/export/jobs/[jobId]                    0 B                0 B
+├ ƒ /api/governance                             0 B                0 B
+├ ƒ /api/governance/manager                     0 B                0 B
+├ ƒ /api/governance/password                    0 B                0 B
+├ ƒ /api/governance/reachable                   0 B                0 B
+├ ƒ /api/governance/transfers                   0 B                0 B
+├ ƒ /api/governance/transfers/[id]/resolve      0 B                0 B
+├ ƒ /api/governance/trust                       0 B                0 B
+├ ƒ /api/governance/trust/[hostId]              0 B                0 B
+├ ƒ /api/help/agent                             0 B                0 B
+├ ƒ /api/hosts                                  0 B                0 B
+├ ƒ /api/hosts/[id]                             0 B                0 B
+├ ƒ /api/hosts/exchange-peers                   0 B                0 B
+├ ƒ /api/hosts/health                           0 B                0 B
+├ ƒ /api/hosts/identity                         0 B                0 B
+├ ƒ /api/hosts/register-peer                    0 B                0 B
+├ ƒ /api/hosts/sync                             0 B                0 B
+├ ƒ /api/marketplace/skills                     0 B                0 B
+├ ƒ /api/marketplace/skills/[id]                0 B                0 B
+├ ƒ /api/meetings                               0 B                0 B
+├ ƒ /api/meetings/[id]                          0 B                0 B
+├ ƒ /api/messages                               0 B                0 B
+├ ƒ /api/messages/forward                       0 B                0 B
+├ ƒ /api/messages/meeting                       0 B                0 B
+├ ƒ /api/organization                           0 B                0 B
+├ ƒ /api/plugin-builder/build                   0 B                0 B
+├ ƒ /api/plugin-builder/builds/[id]             0 B                0 B
+├ ƒ /api/plugin-builder/push                    0 B                0 B
+├ ƒ /api/plugin-builder/scan-repo               0 B                0 B
+├ ƒ /api/sessions                               0 B                0 B
+├ ƒ /api/sessions/[id]                          0 B                0 B
+├ ƒ /api/sessions/[id]/command                  0 B                0 B
+├ ƒ /api/sessions/[id]/rename                   0 B                0 B
+├ ƒ /api/sessions/activity                      0 B                0 B
+├ ƒ /api/sessions/activity/update               0 B                0 B
+├ ƒ /api/sessions/create                        0 B                0 B
+├ ƒ /api/sessions/restore                       0 B                0 B
+├ ƒ /api/subconscious                           0 B                0 B
+├ ƒ /api/teams                                  0 B                0 B
+├ ƒ /api/teams/[id]                             0 B                0 B
+├ ƒ /api/teams/[id]/chief-of-staff              0 B                0 B
+├ ƒ /api/teams/[id]/documents                   0 B                0 B
+├ ƒ /api/teams/[id]/documents/[docId]           0 B                0 B
+├ ƒ /api/teams/[id]/tasks                       0 B                0 B
+├ ƒ /api/teams/[id]/tasks/[taskId]              0 B                0 B
+├ ƒ /api/teams/names                            0 B                0 B
+├ ƒ /api/teams/notify                           0 B                0 B
+├ ƒ /api/teams/stats                            0 B                0 B
+├ ƒ /api/v1/agents                              0 B                0 B
+├ ƒ /api/v1/agents/me                           0 B                0 B
+├ ƒ /api/v1/agents/resolve/[address]            0 B                0 B
+├ ƒ /api/v1/auth/revoke-key                     0 B                0 B
+├ ƒ /api/v1/auth/rotate-key                     0 B                0 B
+├ ƒ /api/v1/auth/rotate-keys                    0 B                0 B
+├ ƒ /api/v1/federation/deliver                  0 B                0 B
+├ ƒ /api/v1/governance/requests                 0 B                0 B
+├ ƒ /api/v1/governance/requests/[id]/approve    0 B                0 B
+├ ƒ /api/v1/governance/requests/[id]/reject     0 B                0 B
+├ ƒ /api/v1/governance/sync                     0 B                0 B
+├ ○ /api/v1/health                              0 B                0 B
+├ ○ /api/v1/info                                0 B                0 B
+├ ƒ /api/v1/messages/[id]/read                  0 B                0 B
+├ ƒ /api/v1/messages/pending                    0 B                0 B
+├ ƒ /api/v1/register                            0 B                0 B
+├ ƒ /api/v1/route                               0 B                0 B
+├ ƒ /api/webhooks                               0 B                0 B
+├ ƒ /api/webhooks/[id]                          0 B                0 B
+├ ƒ /api/webhooks/[id]/test                     0 B                0 B
+├ ○ /companion                                  10.4 kB         149 kB
+├ ○ /immersive                                  2.6 kB         93.1 kB
+├ ○ /logos                                      6.53 kB        94.7 kB
+├ ○ /marketplace                                2.79 kB         109 kB
+├ ○ /plugin-builder                             7.28 kB         105 kB
+├ ○ /settings                                   17.4 kB         126 kB
+├ ○ /team-meeting                               15.8 kB         172 kB
+├ ○ /teams                                      5.34 kB         103 kB
+├ ƒ /teams/[id]                                 8.36 kB         115 kB
+├ ○ /zoom                                       6.71 kB         107 kB
+└ ○ /zoom/agent                                 3.75 kB         104 kB
++ First Load JS shared by all                   88.2 kB
+  ├ chunks/2117-91f6db247bbd2cc7.js             31.9 kB
+  ├ chunks/fd9d1056-175135dbaad28189.js         53.7 kB
+  └ other shared chunks (total)                 2.65 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Done in 25.86s.

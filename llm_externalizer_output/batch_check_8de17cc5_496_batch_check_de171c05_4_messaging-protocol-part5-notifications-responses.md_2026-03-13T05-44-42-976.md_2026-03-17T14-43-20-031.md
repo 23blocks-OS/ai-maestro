@@ -1,0 +1,98 @@
+# LLM Externalizer Response
+
+- **Tool**: `code_task`
+- **Model**: `google/gemini-2.5-flash`
+- **Timestamp**: 2026-03-17T14:43:20.031Z
+- **Input file**: `/Users/emanuelesabetta/ai-maestro/llm_externalizer_output/batch_check_de171c05_4_messaging-protocol-part5-notifications-responses.md_2026-03-13T05-44-42-976.md`
+- **Task**: This is an AI Maestro project (Next.js). Find ALL occurrences of the old marketplace name 'ai-maestro-local-marketplace' in each file. Also find any occurrences of the even older name 'role-plugins' used as a marketplace name (NOT as a directory path or URL path segment — only when used as a marketplace identifier/name string). Report the exact line number and the full line content for each occurrence. If a file has zero occurrences, skip it entirely — do not report clean files.
+
+---
+
+I have analyzed the provided markdown file. Here are the occurrences of the specified marketplace names:
+
+**File**: `/Users/emanuelesabetta/ai-maestro/llm_externalizer_output/batch_check_de171c05_4_messaging-protocol-part5-notifications-responses.md_2026-03-13T05-44-42-976.md`
+- Line 1: `# Code Check Report`
+- Line 3: `- **File**: `/Users/emanuelesabetta/Code/EMASOFT-ORCHESTRATOR-AGENT/ai-maestro-orchestrator-agent/skills/amoa-remote-agent-coordinator/references/messaging-protocol-part5-notifications-responses.md``
+- Line 5: `For each file, extract:`
+- Line 20: `Let me go through each item:`
+- Line 22: `1. MESSAGE TEMPLATES: Exact message templates with all fields and placeholders`
+- Line 23: `2. NOTIFICATION TYPES: What types of notifications exist?`
+- Line 24: `3. MESSAGE PRIORITY: How are messages prioritized?`
+- Line 25: `4. DELIVERY METHOD: Does it use AMP (amp-send.sh) or direct API calls?`
+- Line 26: `5. RESPONSE PROTOCOLS: What responses are expected from agents?`
+- Line 27: `6. LIFECYCLE MESSAGES: Messages for each task state transition`
+- Line 29: `Let me analyze the document:`
+- Line 31: `**MESSAGE TEMPLATES:**`
+- Line 34: `**NOTIFICATION TYPES:**`
+- Line 48: `**MESSAGE PRIORITY:**`
+- Line 52: `**DELIVERY METHOD:**`
+- Line 59: `**RESPONSE PROTOCOLS:**`
+- Line 62: `| Sent Message Type | Expected Response Type | Timeout | Required? |`
+- Line 63: `|-------------------|------------------------|---------|-----------|`
+- Line 64: `| `task` | `task-acknowledgment` | 5 min | YES |`
+- Line 65: `| `fix-request` | `task-acknowledgment` | 5 min | YES |`
+- Line 66: `| `status-request` | `progress-update` | 2 min | YES |`
+- Line 68: `| `approval` | None | N/A | NO |`
+- Line 69: `| `rejection` | `task-acknowledgment` | 5 min | YES |`
+- Line 70: `| `escalation` | `escalation-response` | Varies | YES |`
+- Line 71: `| `escalation-response` | None | N/A | NO |`
+- Line 72: `| `completion-report` (success) | `report-ack` | 5 min | YES |`
+- Line 73: `| `completion-report` (failed/blocked) | `escalation-response` | 30 min | YES |`
+- Line 75: `I'll continue analyzing the message lifecycle, focusing on how different message types interact and the expected progression of communications between the orchestrator and agents.`
+- Line 77: `The key message flow involves distinct stages: task assignment triggers an acknowledgment, followed by periodic progress updates, and concluding with a completion report that receives an acknowledgment. When tasks face challenges like failures or blockages, an escalation-response becomes necessary.# Messaging Protocol Analysis: AI Maestro Orchestrator Agent`
+- Line 81: `### Notification Template (Subconscious Alert)`
+- Line 86: `## 2. NOTIFICATION TYPES`
+- Line 88: `| Message Type | Purpose |`
+- Line 89: `|--------------|---------|`
+- Line 90: `| `task` | New task assignment |`
+- Line 91: `| `fix-request` | Request for bug fix |`
+- Line 92: `| `status-request` | Request for status update |`
+- Line 93: `| `approval` | Informational confirmation of successful review |`
+- Line 94: `| `rejection` | Task/fix rejection |`
+- Line 95: `| `escalation` | Escalation trigger |`
+- Line 96: `| `escalation-response` | Response to escalation (ends escalation thread) |`
+- Line 97: `| `progress-update` | Periodic status update |`
+- Line 98: `| `completion-report` (success) | Task completed successfully |`
+- Line 99: `| `completion-report` (failed/blocked) | Task failed or blocked |`
+- Line 100: `| `report-ack` | Acknowledgment of completion report |`
+- Line 104: `## 3. MESSAGE PRIORITY`
+- Line 106: `| Priority Level | Usage |`
+- Line 107: `|----------------|-------|`
+- Line 108: `| **High/Urgent** | For urgent messages requiring immediate attention |`
+- Line 109: `| **Standard** | Default priority (5-minute polling latency) |`
+- Line 113: `## 4. DELIVERY METHOD`
+- Line 115: `### Primary: Subconscious Polling System`
+- Line 123: `### No explicit AMP (amp-send.sh) or direct API calls documented in this file`
+- Line 127: `## 5. RESPONSE PROTOCOLS`
+- Line 129: `### Response Expectations Table`
+- Line 131: `| Sent Message Type | Expected Response Type | Timeout | Required? |`
+- Line 132: `|-------------------|------------------------|---------|-----------|`
+- Line 133: `| `task` | `task-acknowledgment` | 5 min | YES |`
+- Line 134: `| `fix-request` | `task-acknowledgment` | 5 min | YES |`
+- Line 135: `| `status-request` | `progress-update` | 2 min | YES |`
+- Line 136: `| `approval` | None | N/A | NO |`
+- Line 137: `| `rejection` | `task-acknowledgment` | 5 min | YES |`
+- Line 138: `| `escalation` | `escalation-response` | Varies | YES |`
+- Line 139: `| `escalation-response` | None | N/A | NO |`
+- Line 140: `| `completion-report` (success) | `report-ack` | 5 min | YES |`
+- Line 141: `| `completion-report` (failed/blocked) | `escalation-response` | 30 min | YES |`
+- Line 144: `### When Progress Updates Require Response`
+- Line 149: `### No-Response-Required Messages`
+- Line 154: `### Handling No Response`
+- Line 165: `## 6. LIFECYCLE MESSAGES (Task State Transitions)`
+- Line 167: `### Flow Diagram`
+- Line 169: `Orchestrator                    Agent`
+- Line 170: `    │                            │`
+- Line 171: `    ├──── task ─────────────────►│`
+- Line 172: `    │◄─── task-acknowledgment ───┤`
+- Line 173: `    │                            │`
+- Line 174: `    │◄─── progress-update ───────┤ (periodic)`
+- Line 175: `    │                            │`
+- Line 176: `    │◄─── completion-report ─────┤`
+- Line 177: `    ├──── report-ack ───────────►│`
+- Line 178: `    │                            │`
+- Line 180: `### State Transitions`
+- Line 182: `| State | Message Triggered By | Expected Response |`
+- Line 183: `|-------|---------------------|-------------------|`
+- Line 184: `| **Assigned** | `task` sent to agent | `task-acknowledgment` (required, 5min) |`
+- Line 185: `| **In-Progress** | Agent sends

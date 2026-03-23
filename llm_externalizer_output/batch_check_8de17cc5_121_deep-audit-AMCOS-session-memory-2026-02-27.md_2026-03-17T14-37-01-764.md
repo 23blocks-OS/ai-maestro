@@ -1,0 +1,59 @@
+# LLM Externalizer Response
+
+- **Tool**: `code_task`
+- **Model**: `google/gemini-2.5-flash`
+- **Timestamp**: 2026-03-17T14:37:01.764Z
+- **Input file**: `/Users/emanuelesabetta/ai-maestro/docs_dev/deep-audit-AMCOS-session-memory-2026-02-27.md`
+- **Task**: This is an AI Maestro project (Next.js). Find ALL occurrences of the old marketplace name 'ai-maestro-local-marketplace' in each file. Also find any occurrences of the even older name 'role-plugins' used as a marketplace name (NOT as a directory path or URL path segment — only when used as a marketplace identifier/name string). Report the exact line number and the full line content for each occurrence. If a file has zero occurrences, skip it entirely — do not report clean files.
+
+---
+
+`/Users/emanuelesabetta/ai-maestro/docs_dev/deep-audit-AMCOS-session-memory-2026-02-27.md`
+- Line 17: `The AMCOS session-memory-library skill (v1.0.0, last updated 2025-02-01) contains **5 primary integration reference files** that document AI Maestro integration.`
+- Line 20: `**Key Finding:** All AI Maestro interactions are delegated to two skills:`
+- Line 22: `- `ai-maestro-agents-management` skill - Session and agent operations`
+- Line 31: `This file documents the complete AI Maestro messaging architecture and how the Chief of Staff interacts with it.`
+- Line 33: `- `1.1 What Is AI Maestro` - Messaging system overview`
+- Line 50: `├── Get session details → ai-maestro-agents-management skill`
+- Line 51: `└── Check session existence → ai-maestro-agents-management skill`
+- Line 64: `The reference describes endpoints conceptually but does NOT contain actual curl commands or endpoint paths:`
+- Line 100: `- AI Maestro unavailable`
+- Line 121: `If delivery failed, use ai-maestro-agents-management skill to check if recipient session exists`
+- Line 200: `┌─────────────────────────────────────────────────────┐`
+- Line 201: `│ AMCOS Session Memory Library (Chief of Staff)       │`
+- Line 202: `└─────────────────────────────────────────────────────┘`
+- Line 206: `│  ai-maestro-     │`
+- Line 210: `│  AI Maestro      │`
+- Line 211: `│  Message API     │`
+- Line 213: `│  AI Maestro      │`
+- Line 214: `│  Session API     │`
+- Line 248: `✗ No hardcoded API endpoints (e.g., `http://localhost:23000/api/messages`)`
+- Line 251: `✗ No governance rule enforcement code`
+- Line 256: `**Why:** All these are abstracted into the two dedicated skills that AMCOS delegates to.`
+- Line 262: `1. **Message Authenticity** - Messages are signed/verified (handled by skills)`
+- Line 263: `2. **Session Registration** - Sessions are registered with AI Maestro (handled by registration hooks)`
+- Line 276: `Chief of Staff discovers sessions via:`
+- Line 278: `ai-maestro-agents-management skill:`
+- Line 294: `3. Use ai-maestro-agents-management to verify recipient exists`
+- Line 331: `The skill documents the following AI Maestro API conceptual model:`
+- Line 334: `Session API (via ai-maestro-agents-management skill)`
+- Line 364: `### Required AI Maestro Version`
+- Line 365: `- Not specified in AMCOS documentation`
+- Line 366: `- Assumes: localhost:23000 running with messaging API`
+- Line 367: `- Fallback: File-based communication if AI Maestro unavailable`
+- Line 369: `### Optional: EOA (AI Maestro Orchestrator Agent) Plugin`
+- Line 370: `From SKILL.md line 207:`
+- Line 372: `(OPTIONAL: If EOA (AI Maestro Orchestrator Agent) plugin is installed)`
+- Line 374: `No direct API calls to EOA in AMCOS skill; only through skill abstraction.`
+- Line 394: `**Status:** ✓ Properly Abstracted`
+- Line 395: `- All AI Maestro interactions use skill abstraction`
+- Line 396: `- No hardcoded API paths in AMCOS skill`
+- Line 397: `- Changes to API endpoints don't require AMCOS skill updates`
+- Line 398: `- Skill updates handle breaking changes to messaging API`
+- Line 416: `**Status:** ⚠ Documented but Not Implemented`
+- Line 417: `- AMCOS assumes governance is handled elsewhere (skills, AI Maestro)`
+- Line 420: `- Message authentication delegated to agent-messaging skill`
+- Line 434: `**Status:** May need updates if AI Maestro API has changed since 2025-02-01.`
+- Line 437: `- **Requires AI Maestro installed**`
+- Line 452: `The AMCOS session-memory-library skill is a **documentation and procedural skill** that teaches Chief of Staff integration patterns. It does NOT implement AI Maestro API calls directly; all integrations are delegated to the `agent-messaging` and `ai-maestro-agents-management` skills.`
+- Line 455: `**Key Takeaway:** This skill is a knowledge base and reference guide, not an API client. Any governance enforcement, authentication, or message signing is handled by the delegated skills, which should be audited separately for security and compliance.`

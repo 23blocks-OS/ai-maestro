@@ -1,0 +1,81 @@
+# LLM Externalizer Response
+
+- **Tool**: `code_task`
+- **Model**: `google/gemini-2.5-flash`
+- **Timestamp**: 2026-03-17T14:39:56.922Z
+- **Input file**: `/Users/emanuelesabetta/ai-maestro/docs_dev/multihost-governance-analysis-20260220.md`
+- **Task**: This is an AI Maestro project (Next.js). Find ALL occurrences of the old marketplace name 'ai-maestro-local-marketplace' in each file. Also find any occurrences of the even older name 'role-plugins' used as a marketplace name (NOT as a directory path or URL path segment — only when used as a marketplace identifier/name string). Report the exact line number and the full line content for each occurrence. If a file has zero occurrences, skip it entirely — do not report clean files.
+
+---
+
+```markdown
+/Users/emanuelesabetta/ai-maestro/docs_dev/multihost-governance-analysis-20260220.md
+- Line 1: # Multi-Host Mesh Governance Analysis
+- Line 5: **Branch:** `feature/team-governance` (v0.25.2)
+- Line 8: ## Executive Summary
+- Line 10: AI Maestro has a **mature mesh networking layer** (AMP) that enables cross-host agent communication, agent transfer, terminal proxying, and peer discovery. However, the **governance system is 100% localhost-scoped** — every governance component (manager role, teams, ACL, message filter, transfers) reads and writes local files with no awareness of other hosts. This creates a fundamental architectural gap: the communication fabric exists for multi-host operation, but the authorization and control fabric does not.
+- Line 13: The 11 scenarios investigated below reveal that multi-host governance is **feasible but requires significant architectural additions**. No unsolvable blockers exist — the changes are additive, not contradictory.
+- Line 16: ## Current Architecture: What Exists
+- Line 20: | Agent-to-agent messaging | AMP mesh (HTTP forwarding + relay queue) | Working |
+- Line 21: | Agent discovery across hosts | Mesh agent lookup (parallel peer queries) | Working |
+- Line 22: | Agent transfer between hosts | Export ZIP + HTTP import | Working |
+- Line 23: | Remote terminal viewing | WebSocket proxy through local AI Maestro | Working |
+- Line 24: | Host discovery & registration | Bidirectional peer sync with propagation | Working |
+- Line 25: | Docker agent creation on remote host | HTTP forwarding to remote API | Working |
+- Line 26: | Ed25519 message signing | Mandatory for mesh/federated messages | Working |
+- Line 27: | Organization-wide identity | `agent@org.aimaestro.local` addresses | Working |
+- Line 31: | Manager identity | `~/.aimaestro/governance.json` per host | Each host has independent MANAGER |
+- Line 32: | Governance password | bcrypt hash in local `governance.json` | Each host has independent password |
+- Line 33: | Team definitions | `~/.aimaestro/teams/teams.json` per host | Teams invisible to other hosts |
+- Line 34: | Team ACL checks | `lib/team-acl.ts` reads local files | Remote agents bypass all ACL |
+- Line 35: | Message filter rules | `lib/message-filter.ts` reads local state | Cross-host messages use incomplete rules |
+- Line 36: | Transfer requests | `~/.aimaestro/governance-transfers.json` per host | Cannot reference remote teams |
+- Line 37: | COS/role detection | `lib/governance.ts` reads local files | COS on Host A invisible to Host B |
+- Line 38: | Tmux operations | `lib/agent-runtime.ts` via local `tmux` CLI | Cannot operate remote tmux |
+- Line 41: ## Scenario Analysis
+- Line 43: ### Scenario 1: Are Governance Rules Applicable Across Hosts?
+- Line 45: **Verdict: NO — governance rules are silently unenforced across host boundaries.**
+- Line 47: The governance rules (v2) implicitly assume a single flat namespace of agents and teams on one host. Key breakdowns:
+- Line 49: 1. **MANAGER singleton**: Rule says "only one agent can be MANAGER at any time." In multi-host mesh, each host independently appoints its own MANAGER via local `governance.json`. No coordination ensures a single global MANAGER.
+- Line 51: 2. **`isManager(agentId)`** reads local file: A MANAGER appointed on Host A is unrecognized on Host B. If Host A's MANAGER sends a message to an agent on Host B, the message arrives as mesh-forwarded (`senderAgentId: null`), and Host B cannot verify the sender is a MANAGER.
+- Line 53: 3. **`checkTeamAccess()`** reads local teams and governance: An agent on Host B requesting a team resource on Host A gets checked against Host A's local governance — which knows nothing about Host B's governance state.
+- Line 55: 4. **`checkMessageAllowed()`** has one multi-host accommodation: mesh-forwarded messages (`senderAgentId === null`) are blanket-denied for closed-team recipients and blanket-allowed for open-team recipients. This is safe but overly restrictive — a legitimate MANAGER message from another host is denied if the recipient is in a closed team.
+- Line 58: **Required changes:**
+- Line 59: - Governance state must be replicated or queried cross-host
+- Line 60: - `isManager()`, `isChiefOfStaff()` need host-aware lookups
+- Line 61: - Message filter needs mesh sender identity verification (TODO already exists at `message-filter.ts:53`)
+- Line 63: ---
+- Line 65: ### Scenario 2: Teams With Agents Across Different Hosts
+- Line 67: **Verdict: PARTIALLY POSSIBLE — teams can reference remote agent UUIDs, but governance enforcement fails.**
+- Line 69: **What works:**
+- Line 70: - Team `agentIds` are bare UUIDs. Nothing prevents adding a remote agent's UUID to a local team.
+- Line 71: - The agent registry has `hostId` on every agent, so the host of each team member is discoverable.
+- Line 73: **What breaks:**
+- Line 74: - `validateTeamMutation()` checks multi-closed-team constraints against **local teams only**. An agent could be in Closed Team Alpha on Host A and Closed Team Beta on Host B — neither host detects the violation.
+- Line 75: - When notifying team agents, `notifyTeamAgents` skips remote agents (notification-service checks `isSelf(agentHost)` and returns `{ notified: false }` for remote agents).
+- Line 76: - Team tasks and documents are stored locally per team. No cross-host task/document sync.
+- Line 78: **Required changes:**
+- Line 79: - Add `hostId` qualifier to `agentIds` in teams (e.g., `agentId@hostId` or a separate mapping)
+- Line 80: - Cross-host `validateTeamMutation()` must query remote hosts' team registries
+- Line 81: - Team notifications need AMP-based delivery for remote members (not tmux)
+- Line 83: ---
+- Line 85: ### Scenario 3: Remote Agents Following Local COS/Manager Instructions
+- Line 87: **Verdict: COMMUNICATION WORKS, ENFORCEMENT DOES NOT.**
+- Line 89: **What works:**
+- Line 90: - AMP messaging delivers messages from a local COS/Manager to a remote agent reliably
+- Line 91: - The message content (instructions, task assignments) reaches the remote agent
+- Line 92: - The remote agent can read its inbox and act on the message
+- Line 94: **What breaks:**
+- Line 95: - The remote agent's host has no governance context about the sender's role. If the remote agent's code (or a human operator) checks "is this message from my COS?", it must query a governance authority — which doesn't exist cross-host.
+- Line 96: - The remote host's message filter may block the message if the remote agent is in a closed team (mesh-forwarded messages are blanket-denied for closed teams).
+- Line 98: **Required changes:**
+- Line 99: - Mesh-forwarded messages need sender role attestation (e.g., the sending host attests "sender is MANAGER" in a signed header)
+- Line 100: - Remote host's message filter must verify the attestation against the sending host's governance state
+- Line 102: ---
+- Line 104: ### Scenario 4: Local Agents Under Remote Manager Control
+- Line 106: **Verdict: NOT CURRENTLY POSSIBLE.**
+- Line 108: **Detailed breakdown:**
+- Line 110: 1. A remote Manager (on Host B) sends a command to a local agent (on Host A) via AMP.
+- Line 111: 2. The message arrives at Host A as a mesh-forwarded message (`X-Forwarded-From: hostB`).
+- Line 112: 3. Host A's `routeMessage()` authenticates it as `mesh-hostB` (trusted host) and delivers locally.
+- Line 113: 4. If the recipient agent is in a closed team, the message filter **

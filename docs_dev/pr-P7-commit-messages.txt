@@ -1,0 +1,30 @@
+45f89bf fix: pass 6 -- resolve 96 review findings (27 MUST-FIX, 42 SHOULD-FIX, 27 NIT)
+660bfee fix: pass 5 -- resolve 142 review findings (27 MUST-FIX, 70 SHOULD-FIX, 45 NIT)
+6fbda6d fix: pass 4 -- resolve 32 review findings (3 MUST-FIX, 18 SHOULD-FIX, 11 NIT)
+cb522f5 fix: pass 3 -- resolve 21 review findings (2 MUST-FIX, 10 SHOULD-FIX, 9 NIT)
+47b1d3a fix: pass 2 -- resolve 21 review findings (8 SHOULD-FIX, 13 NIT)
+3a7d944 fix: pass 1 -- resolve 49 review findings (4 MUST-FIX, 25 SHOULD-FIX, 20 NIT)
+42079ac fix: resolve 3 build errors from Steps 9/11
+9e4e2cf feat: implement agent configuration governance (Steps 1-11)
+37b272d fix: pass 10 -- resolve 2 in-scope review findings (1 SHOULD-FIX, 1 NIT)
+00ecece merge: integrate origin/main (v0.24.11, plugin-builder feature)
+fec08b6 fix: pass 8 -- resolve 2 review findings (2 MUST-FIX missing await)
+cf2fc07 fix: pass 7 -- resolve 4 review findings (2 MUST-FIX missing await + 2 bonus)
+eb73d87 fix: pass 6 -- resolve 14 review findings (14 MUST-FIX missing await)
+9626e8d fix: pass 5 -- resolve 108 review findings (25 MUST-FIX, 58 SHOULD-FIX, 31 NIT)
+2cbc859 Merge pull request #245 from 23blocks-OS/docs/plugin-builder-page
+261afd7 chore: update plugin submodule (Anthropic skill compliance)
+0a6b95e fix: pass 4 -- resolve 25 review findings (5 MUST-FIX, 12 SHOULD-FIX, 8 NIT)
+ab0ce1f fix: harden plugin builder security, accessibility, and reliability
+96956cb feat: add Plugin Builder page with visual skill composition
+db8b9bf fix: pass 3 -- resolve 8 review findings (4 SHOULD-FIX, 4 NIT)
+f6b89d8 fix: pass 2 -- resolve 19 review findings (6 MUST-FIX, 10 SHOULD-FIX, 3 NIT)
+7796e52 fix: pass 1 -- resolve 164 review findings (35 MUST-FIX, 75 SHOULD-FIX, 54 NIT)
+b4b7782 fix: correct CHANGELOG test count to 167 across 9 files (was 156/8)
+66ac990 chore: replace dynamic imports with static imports in cross-host-governance-service
+8ad45b7 Fix pass-2 audit findings: 2 MUST-FIX + 2 SHOULD-FIX + 1 NIT
+ee8ec1e Fix remaining audit findings: CC-006/007/009/013/014 + SR-004
+e515d1f Fix skeptical-review findings: 3 MUST-FIX + 3 SHOULD-FIX (v0.25.2)
+bdefd88 Fix double-audit findings: 13 MUST-FIX + 6 SHOULD-FIX across 11 files (v0.25.2)
+17f7525 fix: correct new test count in CHANGELOG (156, not 166)
+a9210a8 chore: gitignore .claude/ directory

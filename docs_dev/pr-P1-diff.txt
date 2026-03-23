@@ -1,0 +1,1151 @@
+diff --git a/app/api/agents/[id]/config/deploy/route.ts b/app/api/agents/[id]/config/deploy/route.ts
+index 9fcc9d4..0dd526e 100644
+--- a/app/api/agents/[id]/config/deploy/route.ts
++++ b/app/api/agents/[id]/config/deploy/route.ts
+@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
+ import type { NextRequest } from 'next/server'
+ import { authenticateAgent } from '@/lib/agent-auth'
+ import { deployConfigToAgent } from '@/services/agents-config-deploy-service'
++import { isValidUuid } from '@/lib/validation'
+ 
+ export async function POST(
+   request: NextRequest,
+@@ -18,6 +19,9 @@ export async function POST(
+ ) {
+   try {
+     const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     const auth = authenticateAgent(
+       request.headers.get('Authorization'),
+       request.headers.get('X-Agent-Id')
+@@ -31,7 +35,9 @@ export async function POST(
+       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+     }
+ 
+-    const result = await deployConfigToAgent(id, body.configuration || body, auth.agentId)
++    // Accept configuration either as nested field or as direct body (for cross-host governance service compatibility)
++    const config = body.configuration !== undefined ? body.configuration : body
++    const result = await deployConfigToAgent(id, config, auth.agentId)
+     if (result.error) {
+       return NextResponse.json({ error: result.error }, { status: result.status })
+     }
+diff --git a/app/api/agents/[id]/skills/route.ts b/app/api/agents/[id]/skills/route.ts
+index 575f350..a334c21 100644
+--- a/app/api/agents/[id]/skills/route.ts
++++ b/app/api/agents/[id]/skills/route.ts
+@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
+ import type { NextRequest } from 'next/server'
+ import { getSkillsConfig, updateSkills, addSkill, removeSkill } from '@/services/agents-skills-service'
+ import { authenticateAgent } from '@/lib/agent-auth'
++import { isValidUuid } from '@/lib/validation'
+ 
+ export async function GET(
+   _request: NextRequest,
+@@ -20,6 +21,9 @@ export async function GET(
+ ) {
+   try {
+     const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     const result = getSkillsConfig(id)
+     if (result.error) {
+       return NextResponse.json({ error: result.error }, { status: result.status })
+@@ -40,6 +44,9 @@ export async function PATCH(
+ ) {
+   try {
+     const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     // CC-P2-006: Guard against malformed JSON body
+     let body
+     try { body = await request.json() } catch {
+@@ -67,6 +74,9 @@ export async function POST(
+ ) {
+   try {
+     const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     // CC-P2-006: Guard against malformed JSON body
+     let body
+     try { body = await request.json() } catch {
+@@ -94,6 +104,9 @@ export async function DELETE(
+ ) {
+   try {
+     const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     const searchParams = request.nextUrl.searchParams
+     const skill = searchParams.get('skill')
+     const type = searchParams.get('type') || 'auto'
+diff --git a/app/api/agents/[id]/skills/settings/route.ts b/app/api/agents/[id]/skills/settings/route.ts
+index 4e425a3..8c2e5f9 100644
+--- a/app/api/agents/[id]/skills/settings/route.ts
++++ b/app/api/agents/[id]/skills/settings/route.ts
+@@ -10,6 +10,7 @@
+ import { NextRequest, NextResponse } from 'next/server'
+ import { getSkillSettings, saveSkillSettings } from '@/services/agents-skills-service'
+ import { authenticateAgent } from '@/lib/agent-auth'
++import { isValidUuid } from '@/lib/validation'
+ 
+ export async function GET(
+   _request: NextRequest,
+@@ -17,15 +18,18 @@ export async function GET(
+ ) {
+   try {
+     const { id: agentId } = await params
++    if (!isValidUuid(agentId)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     const result = await getSkillSettings(agentId)
+     if (result.error) {
+-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
++      return NextResponse.json({ error: result.error }, { status: result.status })
+     }
+     return NextResponse.json(result.data)
+   } catch (error) {
+     console.error('[Skill Settings API] GET Error:', error)
+     return NextResponse.json(
+-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
++      { error: error instanceof Error ? error.message : 'Unknown error' },
+       { status: 500 }
+     )
+   }
+@@ -37,22 +41,25 @@ export async function PUT(
+ ) {
+   try {
+     const { id: agentId } = await params
++    if (!isValidUuid(agentId)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+     // CC-P2-007: Guard against malformed JSON body
+     let body
+     try { body = await request.json() } catch {
+-      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
++      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+     }
+     const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
+     const requestingAgentId = auth.error ? null : (auth.agentId || null)
+     const result = await saveSkillSettings(agentId, body.settings, requestingAgentId)
+     if (result.error) {
+-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
++      return NextResponse.json({ error: result.error }, { status: result.status })
+     }
+     return NextResponse.json(result.data)
+   } catch (error) {
+     console.error('[Skill Settings API] PUT Error:', error)
+     return NextResponse.json(
+-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
++      { error: error instanceof Error ? error.message : 'Unknown error' },
+       { status: 500 }
+     )
+   }
+diff --git a/app/api/teams/[id]/chief-of-staff/route.ts b/app/api/teams/[id]/chief-of-staff/route.ts
+index cc2f271..156ef12 100644
+--- a/app/api/teams/[id]/chief-of-staff/route.ts
++++ b/app/api/teams/[id]/chief-of-staff/route.ts
+@@ -27,8 +27,9 @@ export async function POST(
+       return NextResponse.json({ error: 'Governance password not set' }, { status: 400 })
+     }
+ 
+-    // Rate limit password verification to prevent brute-force attacks
+-    const rateCheck = checkRateLimit('governance-cos-auth')
++    // Separate check/record pattern (not checkAndRecordAttempt) so only failed attempts are penalized
++    const rateLimitKey = `governance-cos-auth:${id}`
++    const rateCheck = checkRateLimit(rateLimitKey)
+     if (!rateCheck.allowed) {
+       return NextResponse.json(
+         { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
+@@ -38,11 +39,11 @@ export async function POST(
+ 
+     // Password auth is stronger than ACL — only managers know the governance password
+     if (!(await verifyPassword(password))) {
+-      recordFailure('governance-cos-auth')
++      recordFailure(rateLimitKey)
+       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
+     }
+     // Password verified successfully — reset rate limit counter
+-    resetRateLimit('governance-cos-auth')
++    resetRateLimit(rateLimitKey)
+ 
+     const team = getTeam(id)
+     if (!team) {
+diff --git a/app/api/v1/governance/requests/route.ts b/app/api/v1/governance/requests/route.ts
+index 796b260..d063e1a 100644
+--- a/app/api/v1/governance/requests/route.ts
++++ b/app/api/v1/governance/requests/route.ts
+@@ -86,8 +86,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
+     )
+   }
+   try {
++    // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
+     const result = listCrossHostRequests({
+       status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
++      type: searchParams.get('type') || undefined,
+       hostId: searchParams.get('hostId') || undefined,
+       agentId: searchParams.get('agentId') || undefined,
+     })
+diff --git a/components/AgentProfile.tsx b/components/AgentProfile.tsx
+index 4703929..cb41e6b 100644
+--- a/components/AgentProfile.tsx
++++ b/components/AgentProfile.tsx
+@@ -53,6 +53,12 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus,
+   const [usedAvatars, setUsedAvatars] = useState<string[]>([])
+ 
+   const governance = useGovernance(agentId || null)
++  // Note: AgentSkillEditor also calls useGovernance. In Phase 2, consider a GovernanceContext
++  // provider to avoid duplicate API calls. Acceptable for Phase 1 with localhost-only architecture.
++
++  // Pre-compute filtered pending config requests for this agent (avoids duplicate inline filtering)
++  const agentPendingConfigRequests = governance.pendingConfigRequests.filter(r => r.payload?.agentId === agent?.id)
++  const pendingConfigCount = agentPendingConfigRequests.length
+ 
+   // Repository state
+   const [repositories, setRepositories] = useState<Repository[]>([])
+@@ -877,9 +883,9 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus,
+                   )}
+                   <Zap className="w-4 h-4" />
+                   Skills
+-                  {(governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length > 0) && (
++                  {pendingConfigCount > 0 && (
+                     <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+-                      {governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length}
++                      {pendingConfigCount}
+                     </span>
+                   )}
+                 </button>
+diff --git a/components/marketplace/AgentSkillEditor.tsx b/components/marketplace/AgentSkillEditor.tsx
+index 956c89d..a986dd2 100644
+--- a/components/marketplace/AgentSkillEditor.tsx
++++ b/components/marketplace/AgentSkillEditor.tsx
+@@ -69,8 +69,26 @@ export default function AgentSkillEditor({
+   // Governance: pending config requests for this agent
+   const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
+   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
++  // canApprove checks if the current agent profile belongs to a manager/COS.
++  // In Phase 1 (localhost, single user), the "viewer" IS the system owner who has
++  // full access. In Phase 2 with auth, this should check the viewer's identity instead.
+   const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
+ 
++  // Track which config requests are currently being resolved (for loading/disabled state)
++  const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set())
++
++  // Handle approve/reject with error feedback and loading state
++  const handleResolve = async (requestId: string, approved: boolean) => {
++    setResolvingIds(prev => new Set(prev).add(requestId))
++    try {
++      await resolveConfigRequest(requestId, approved)
++    } catch (err) {
++      console.error('Failed to resolve config request:', err)
++    } finally {
++      setResolvingIds(prev => { const next = new Set(prev); next.delete(requestId); return next })
++    }
++  }
++
+   // Load skills
+   const loadSkills = useCallback(async () => {
+     setLoading(true)
+@@ -283,7 +301,7 @@ export default function AgentSkillEditor({
+                   <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                   <div className="flex-1 min-w-0">
+                     <span className="text-sm text-amber-300">
+-                      {req.payload.configuration?.operation || req.type}
++                      {req.payload?.configuration?.operation || (req.type === 'configure-agent' ? 'Configuration change' : req.type)}
+                     </span>
+                     <span className="text-xs text-amber-400/60 ml-2">
+                       {req.status === 'pending' ? 'Awaiting approval' : req.status}
+@@ -292,16 +310,20 @@ export default function AgentSkillEditor({
+                   {canApprove && req.status === 'pending' && (
+                     <div className="flex items-center gap-1">
+                       <button
+-                        onClick={() => resolveConfigRequest(req.id, true)}
+-                        className="p-1 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors"
++                        onClick={() => handleResolve(req.id, true)}
++                        disabled={resolvingIds.has(req.id)}
++                        className="p-1 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                         title="Approve"
++                        aria-label="Approve configuration request"
+                       >
+                         <Check className="w-4 h-4" />
+                       </button>
+                       <button
+-                        onClick={() => resolveConfigRequest(req.id, false)}
+-                        className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors"
++                        onClick={() => handleResolve(req.id, false)}
++                        disabled={resolvingIds.has(req.id)}
++                        className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                         title="Reject"
++                        aria-label="Reject configuration request"
+                       >
+                         <XCircle className="w-4 h-4" />
+                       </button>
+diff --git a/lib/file-lock.ts b/lib/file-lock.ts
+index bc9d3b2..e371fd9 100644
+--- a/lib/file-lock.ts
++++ b/lib/file-lock.ts
+@@ -15,6 +15,7 @@
+  *   1. 'teams'
+  *   2. 'transfers'
+  *   3. 'governance'
++ *   4. 'governance-requests'
+  * Violating this order will cause deadlock.
+  *
+  * Current nested lock usage:
+diff --git a/lib/governance-request-registry.ts b/lib/governance-request-registry.ts
+index f01d73f..0000e30 100644
+--- a/lib/governance-request-registry.ts
++++ b/lib/governance-request-registry.ts
+@@ -72,15 +72,26 @@ export function saveGovernanceRequests(file: GovernanceRequestsFile): void {
+   fs.renameSync(tmpFile, REQUESTS_FILE)
+ }
+ 
+-/** Find a governance request by ID, or null if not found */
++/**
++ * Find a governance request by ID, or null if not found.
++ *
++ * Intentionally lock-free: reads are non-mutating and acceptable without
++ * serialization in the single-process Phase 1 architecture.
++ */
+ export function getGovernanceRequest(id: string): GovernanceRequest | null {
+   const file = loadGovernanceRequests()
+   return file.requests.find((r) => r.id === id) ?? null
+ }
+ 
+-/** List governance requests with optional filtering by status, hostId, or agentId */
++/**
++ * List governance requests with optional filtering by status, type, hostId, or agentId.
++ *
++ * Intentionally lock-free: reads are non-mutating and acceptable without
++ * serialization in the single-process Phase 1 architecture.
++ */
+ export function listGovernanceRequests(filter?: {
+   status?: GovernanceRequestStatus
++  type?: string
+   hostId?: string
+   agentId?: string
+ }): GovernanceRequest[] {
+@@ -90,6 +101,8 @@ export function listGovernanceRequests(filter?: {
+   return file.requests.filter((r) => {
+     // Filter by status if specified
+     if (filter.status && r.status !== filter.status) return false
++    // SF-024: Filter by request type if specified (e.g. 'configure-agent')
++    if (filter.type && r.type !== filter.type) return false
+     // Filter by hostId: match either source or target host
+     if (filter.hostId && r.sourceHostId !== filter.hostId && r.targetHostId !== filter.hostId) return false
+     // Filter by agentId: match the payload's agentId or the requestedBy field
+@@ -152,7 +165,8 @@ export async function approveGovernanceRequest(
+     const request = file.requests.find((r) => r.id === requestId)
+     if (!request) return null
+ 
+-    // Cannot approve an already rejected or executed request
++    // Terminal states: return the unchanged request so callers can inspect request.status
++    // to distinguish "not found" (null) from "already finalized" (non-null, terminal status).
+     if (request.status === 'rejected' || request.status === 'executed') return request
+ 
+     const now = new Date().toISOString()
+@@ -237,46 +251,69 @@ export async function executeGovernanceRequest(
+   })
+ }
+ 
++/**
++ * Lock-free TTL expiry helper: auto-reject pending requests older than ttlDays.
++ * Operates on the requests array in-place. Caller must hold the governance-requests lock.
++ * Returns the number of requests expired.
++ */
++function expirePendingRequestsInPlace(requests: GovernanceRequest[], ttlDays: number): number {
++  const cutoff = Date.now() - ttlDays * 86_400_000
++  let expired = 0
++  for (const req of requests) {
++    if (req.status === 'pending') {
++      const createdAt = new Date(req.createdAt).getTime()
++      if (createdAt < cutoff) {
++        req.status = 'rejected'
++        req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
++        req.updatedAt = new Date().toISOString()
++        expired++
++      }
++    }
++  }
++  return expired
++}
++
++/** Structured result from purgeOldRequests to avoid double-counting */
++export interface PurgeResult {
++  /** Number of terminal-state (executed/rejected) requests removed */
++  purged: number
++  /** Number of pending requests auto-rejected via TTL expiry */
++  expired: number
++}
++
+ /**
+  * Remove governance requests in terminal states (executed, rejected) that are older
+- * than the specified age. Prevents unbounded growth of governance-requests.json.
++ * than the specified age, and auto-reject stale pending requests via TTL.
++ * Prevents unbounded growth of governance-requests.json.
++ *
++ * Delegates TTL expiry to the canonical expirePendingRequestsInPlace helper
++ * to avoid duplicating TTL logic (SF-002).
+  */
+-export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number> {
++export async function purgeOldRequests(maxAgeDays: number = 30): Promise<PurgeResult> {
+   return withLock('governance-requests', () => {
+     const file = loadGovernanceRequests()
+     const cutoff = Date.now() - maxAgeDays * 86_400_000
+     const before = file.requests.length
+ 
++    // First pass: remove terminal-state requests older than maxAgeDays
+     const filtered = file.requests.filter((r) => {
+       if (r.status !== 'executed' && r.status !== 'rejected') return true
+       const updatedAt = new Date(r.updatedAt).getTime()
+       return updatedAt > cutoff
+     })
+ 
+-    // Second pass: auto-reject pending requests past TTL — 7 days (11e safeguard)
+-    const pendingCutoff = Date.now() - 7 * 86_400_000
+-    let expired = 0
+-    for (const req of filtered) {
+-      if (req.status === 'pending') {
+-        const createdAt = new Date(req.createdAt).getTime()
+-        if (createdAt < pendingCutoff) {
+-          req.status = 'rejected'
+-          req.rejectReason = 'Request expired (TTL: 7d)'
+-          req.updatedAt = new Date().toISOString()
+-          expired++
+-        }
+-      }
+-    }
++    // Second pass: auto-reject stale pending requests via canonical TTL helper
++    const expired = expirePendingRequestsInPlace(filtered, 7)
+ 
+     const purged = before - filtered.length
+-    if (filtered.length < before || expired > 0) {
++    if (purged > 0 || expired > 0) {
+       saveGovernanceRequests({ ...file, requests: filtered })
+     }
+     if (expired > 0) {
+       console.log(`[governance-requests] Expired ${expired} pending request(s) past 7-day TTL`)
+     }
+ 
+-    return purged + expired
++    return { purged, expired }
+   })
+ }
+ 
+@@ -288,20 +325,7 @@ export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number>
+ export async function expirePendingRequests(ttlDays: number = 7): Promise<number> {
+   return withLock('governance-requests', () => {
+     const file = loadGovernanceRequests()
+-    const cutoff = Date.now() - ttlDays * 86_400_000
+-    let expired = 0
+-
+-    for (const req of file.requests) {
+-      if (req.status === 'pending') {
+-        const createdAt = new Date(req.createdAt).getTime()
+-        if (createdAt < cutoff) {
+-          req.status = 'rejected'
+-          req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
+-          req.updatedAt = new Date().toISOString()
+-          expired++
+-        }
+-      }
+-    }
++    const expired = expirePendingRequestsInPlace(file.requests, ttlDays)
+ 
+     if (expired > 0) {
+       saveGovernanceRequests(file)
+diff --git a/server.mjs b/server.mjs
+index 1c99fae..75c9134 100644
+--- a/server.mjs
++++ b/server.mjs
+@@ -1184,15 +1184,15 @@ async function startServer(handleRequest) {
+     // Purge expired governance requests on startup, then every 24 hours
+     try {
+       const { purgeOldRequests } = await import('./lib/governance-request-registry.ts')
+-      const purged = await purgeOldRequests()
+-      if (purged > 0) {
+-        console.log(`[Governance] Purged ${purged} expired request(s) on startup`)
++      const result = await purgeOldRequests()
++      if (result.purged > 0 || result.expired > 0) {
++        console.log(`[Governance] Startup purge: ${result.purged} removed, ${result.expired} expired`)
+       }
+       setInterval(async () => {
+         try {
+-          const count = await purgeOldRequests()
+-          if (count > 0) {
+-            console.log(`[Governance] Purged ${count} expired request(s)`)
++          const result = await purgeOldRequests()
++          if (result.purged > 0 || result.expired > 0) {
++            console.log(`[Governance] Periodic purge: ${result.purged} removed, ${result.expired} expired`)
+           }
+         } catch (err) {
+           console.error('[Governance] Periodic purge failed:', err.message)
+diff --git a/services/agents-config-deploy-service.ts b/services/agents-config-deploy-service.ts
+index 2bf8ebd..95ee5f3 100644
+--- a/services/agents-config-deploy-service.ts
++++ b/services/agents-config-deploy-service.ts
+@@ -11,6 +11,7 @@
+ import { ServiceResult } from '@/types/service'
+ import type { ConfigurationPayload, ConfigDiff, ConfigOperationType } from '@/types/governance-request'
+ import { getAgent } from '@/lib/agent-registry'
++import { isValidUuid } from '@/lib/validation'
+ import fs from 'fs/promises'
+ import path from 'path'
+ 
+@@ -40,6 +41,11 @@ export async function deployConfigToAgent(
+   config: ConfigurationPayload,
+   deployedBy?: string
+ ): Promise<ServiceResult<ConfigDiff>> {
++  // NT-009: Validate agentId is a UUID to prevent path traversal in .claude/ writes
++  if (!isValidUuid(agentId)) {
++    return { error: 'Invalid agent ID format', status: 400 }
++  }
++
+   // Validate agent exists
+   const agent = getAgent(agentId)
+   if (!agent) {
+@@ -57,6 +63,13 @@ export async function deployConfigToAgent(
+     return { error: `Agent '${agentId}' has no working directory configured`, status: 400 }
+   }
+ 
++  // SF-007: Verify agent working directory actually exists on disk before attempting deployment
++  try {
++    await fs.access(workingDir)
++  } catch {
++    return { error: `Agent working directory '${workingDir}' does not exist`, status: 400 }
++  }
++
+   const claudeDir = path.join(workingDir, '.claude')
+ 
+   try {
+@@ -439,7 +452,8 @@ async function deployBulkConfig(
+   const before: Record<string, unknown> = {}
+   const after: Record<string, unknown> = {}
+ 
+-  // Process each non-empty field as a sub-operation
++  // SF-008: bulk-config always ADDS skills/plugins (not removes). To remove, use the specific
++  // remove-skill / remove-plugin operations. This is acceptable for the current use cases.
+   if (config.skills && config.skills.length > 0) {
+     const skillResult = await deployAddSkill(claudeDir, config, deployedBy)
+     if (skillResult.error) return skillResult
+diff --git a/services/agents-core-service.ts b/services/agents-core-service.ts
+index def110c..4490da5 100644
+--- a/services/agents-core-service.ts
++++ b/services/agents-core-service.ts
+@@ -63,6 +63,7 @@ import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
+ import { sessionActivity } from '@/services/shared-state'
+ import { getRuntime } from '@/lib/agent-runtime'
+ import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
++import { isValidUuid } from '@/lib/validation'
+ import { loadTeams } from '@/lib/team-registry'
+ import type { Host } from '@/types/host'
+ 
+@@ -121,7 +122,8 @@ export interface RegisterAgentParams {
+       websocketUrl: string
+     }
+   }
+-  [key: string]: any // Allow additional fields for cloud config
++  // NT-006: Replaced index signature with explicit field for cloud-specific extras
++  cloudConfig?: Record<string, unknown>
+ }
+ 
+ export interface WakeAgentParams {
+@@ -713,18 +715,18 @@ export async function deleteAgentById(id: string, hard: boolean, requestingAgent
+       return { error: 'Agent not found', status: 404 }
+     }
+ 
+-    // Auto-reject pending configure-agent requests targeting the deleted agent (11b safeguard)
++    // SF-006: Auto-reject ALL pending governance requests targeting the deleted agent (not just configure-agent)
+     try {
+       const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
+       const file = loadGovernanceRequests()
+       const pendingForAgent = file.requests.filter((r: { type: string; status: string; payload: { agentId: string } }) =>
+-        r.type === 'configure-agent' && r.status === 'pending' && r.payload.agentId === id
++        r.status === 'pending' && r.payload.agentId === id
+       )
+       for (const req of pendingForAgent) {
+         await rejectGovernanceRequest(req.id, requestingAgentId || 'system', 'Target agent deleted')
+       }
+       if (pendingForAgent.length > 0) {
+-        console.log(`[agents] Auto-rejected ${pendingForAgent.length} pending config request(s) for deleted agent ${id}`)
++        console.log(`[agents] Auto-rejected ${pendingForAgent.length} pending request(s) of any type for deleted agent ${id}`)
+       }
+     } catch (err) {
+       console.warn('[agents] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
+@@ -806,14 +808,19 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
+       agentConfig = body
+     }
+ 
++    // MF-002: Validate agentId format to prevent path traversal (UUID for cloud, sanitized name for session)
++    if (body.id && !isValidUuid(agentId)) {
++      return { error: 'Invalid agent ID format', status: 400 }
++    }
++
+     // Ensure agents directory exists
+     const agentsDir = path.join(os.homedir(), '.aimaestro', 'agents')
+     if (!fs.existsSync(agentsDir)) {
+       fs.mkdirSync(agentsDir, { recursive: true })
+     }
+ 
+-    // Save agent configuration to individual file
+-    const agentFilePath = path.join(agentsDir, `${agentId}.json`)
++    // MF-002: Use path.basename to prevent directory traversal in file path construction
++    const agentFilePath = path.join(agentsDir, `${path.basename(agentId)}.json`)
+     fs.writeFileSync(agentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
+ 
+     return {
+@@ -1574,7 +1581,15 @@ export async function initializeStartup(): Promise<ServiceResult<{
+ // GET /api/agents/startup -- get startup status
+ // ---------------------------------------------------------------------------
+ 
+-export function getStartupInfo(): ServiceResult<any> {
++/** NT-004: Typed return for getStartupInfo */
++interface StartupInfo {
++  success: boolean
++  discoveredAgents: number
++  activeAgents: number
++  agents: Array<{ agentId: string; initialized: boolean; subconscious: boolean }>
++}
++
++export function getStartupInfo(): ServiceResult<StartupInfo> {
+   try {
+     const status = getStartupStatus()
+     return { data: { success: true, ...status }, status: 200 }
+@@ -1591,7 +1606,12 @@ export function getStartupInfo(): ServiceResult<any> {
+ // POST /api/agents/health -- proxy health check
+ // ---------------------------------------------------------------------------
+ 
+-export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>> {
++/** NT-005: Typed return for proxyHealthCheck -- JSON shape comes from the remote agent */
++interface HealthCheckResult {
++  [key: string]: unknown
++}
++
++export async function proxyHealthCheck(url: string): Promise<ServiceResult<HealthCheckResult>> {
+   try {
+     if (!url || typeof url !== 'string') {
+       return { error: 'URL is required', status: 400 }
+@@ -1619,6 +1639,9 @@ export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>>
+     const isPrivateIP = privatePatterns.some(pattern => pattern.test(hostname))
+ 
+     // CC-P1-601: Only allow requests to known peer hosts from hosts.json
++    // SF-010 accepted risk: hosts.json is writable via /api/hosts, so a compromised host entry
++    // could be used as SSRF proxy. In Phase 2 with remote access, add private IP blocking
++    // regardless of hosts.json.
+     const knownHosts = getHosts()
+     const isKnownHost = knownHosts.some(host => {
+       try {
+diff --git a/services/agents-skills-service.ts b/services/agents-skills-service.ts
+index 16608d9..b061de5 100644
+--- a/services/agents-skills-service.ts
++++ b/services/agents-skills-service.ts
+@@ -92,13 +92,19 @@ export async function updateSkills(
+   body: { add?: string[]; remove?: string[]; aiMaestro?: { enabled?: boolean; skills?: string[] } },
+   requestingAgentId: string | null = null
+ ): Promise<ServiceResult<Record<string, unknown>>> {
++  // NT-008: getAgent (sync, file-based registry) used here for RBAC/governance checks
+   const agent = getAgent(agentId)
+   if (!agent) {
+     return { error: 'Agent not found', status: 404 }
+   }
+ 
+-  // Layer 5: governance RBAC enforcement
+-  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'add-skill')
++  // SF-004: Layer 5 governance RBAC -- choose operation type based on which fields are present
++  const govOperation: ConfigOperationType = body.remove && !body.add
++    ? 'remove-skill'
++    : body.add && body.remove
++      ? 'bulk-config'
++      : 'add-skill'
++  const govCheck = checkConfigGovernance(agentId, requestingAgentId, govOperation)
+   if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
+ 
+   // Handle skill additions
+@@ -248,6 +254,7 @@ export async function getSkillSettings(agentId: string): Promise<ServiceResult<R
+     return { error: 'Invalid agent ID format', status: 400 }
+   }
+ 
++  // NT-008: agentRegistry.getAgent (async, in-memory) used here for runtime operations (subconscious access)
+   const agent = await agentRegistry.getAgent(agentId)
+   if (!agent) {
+     return { error: 'Agent not found', status: 404 }
+@@ -288,8 +295,8 @@ export async function saveSkillSettings(
+     return { error: 'Agent not found', status: 404 }
+   }
+ 
+-  // Layer 5: governance RBAC enforcement
+-  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'update-hooks')
++  // SF-005: Layer 5 governance RBAC -- use bulk-config (general-purpose) instead of update-hooks
++  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'bulk-config')
+   if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
+ 
+   const homeDir = process.env.HOME || process.env.USERPROFILE || ''
+@@ -298,12 +305,7 @@ export async function saveSkillSettings(
+   await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+   await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+ 
+-  if ((settings as any).memory) {
+-    const subconscious = agent.getSubconscious()
+-    if (subconscious) {
+-      console.log(`[Skills Service] Updated memory settings for agent ${agentId.substring(0, 8)}`)
+-    }
+-  }
++  // NT-007: Removed dead code block that checked settings.memory but did nothing useful
+ 
+   return { data: { success: true, message: 'Settings saved' }, status: 200 }
+ }
+diff --git a/services/config-notification-service.ts b/services/config-notification-service.ts
+index 237b0af..9fd1781 100644
+--- a/services/config-notification-service.ts
++++ b/services/config-notification-service.ts
+@@ -26,6 +26,12 @@ export async function notifyConfigRequestOutcome(
+ 
+   const requestingAgent = getAgent(request.requestedBy)
+   const targetAgent = getAgent(request.payload.agentId)
++
++  // SF-009: Warn when configure-agent request is missing its configuration field (possible data corruption)
++  if (!request.payload.configuration) {
++    console.warn(`${LOG_PREFIX} configure-agent request ${request.id} missing configuration field`)
++  }
++
+   const operation = request.payload.configuration?.operation || 'configure'
+   const targetName = targetAgent?.name || request.payload.agentId
+   const requesterName = requestingAgent?.name || request.requestedBy
+@@ -98,16 +104,16 @@ async function sendTmuxNotification(
+   sessionName: string,
+   message: string
+ ): Promise<void> {
+-  const { exec } = await import('child_process')
++  // MF-001: Use execFile (no shell) to prevent command injection via sessionName or message
++  const { execFile } = await import('child_process')
+   const { promisify } = await import('util')
+-  const execAsync = promisify(exec)
++  const execFileAsync = promisify(execFile)
+ 
+   // Truncate message for tmux display
+   const truncated = message.length > 100 ? message.substring(0, 97) + '...' : message
+-  const escaped = truncated.replace(/"/g, '\\"')
+ 
+   try {
+-    await execAsync(`tmux display-message -t "${sessionName}" "[GOVERNANCE] ${escaped}"`, { timeout: 5000 })
++    await execFileAsync('tmux', ['display-message', '-t', sessionName, `[GOVERNANCE] ${truncated}`], { timeout: 5000 })
+   } catch {
+     // Session may not exist or tmux not running -- silently ignore
+   }
+diff --git a/services/cross-host-governance-service.ts b/services/cross-host-governance-service.ts
+index b0a68f9..e6cd7e8 100644
+--- a/services/cross-host-governance-service.ts
++++ b/services/cross-host-governance-service.ts
+@@ -39,6 +39,19 @@ const FETCH_TIMEOUT_MS = 5000
+ /** Log prefix for all cross-host governance operations */
+ const LOG_PREFIX = '[cross-host-governance]'
+ 
++/**
++ * NT-011: Extracted helper -- sends config request outcome notification with error suppression.
++ * Lazy-imports config-notification-service to avoid circular dependency chains.
++ */
++async function safeNotifyConfigOutcome(request: GovernanceRequest, outcome: 'approved' | 'rejected'): Promise<void> {
++  try {
++    const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
++    await notifyConfigRequestOutcome(request, outcome)
++  } catch (err) {
++    console.warn(`${LOG_PREFIX} Failed to send config notification:`, err instanceof Error ? err.message : err)
++  }
++}
++
+ // ---------------------------------------------------------------------------
+ // 1. submitCrossHostRequest -- local caller initiates a cross-host operation
+ // ---------------------------------------------------------------------------
+@@ -209,12 +222,7 @@ export async function receiveCrossHostRequest(
+         await performRequestExecution(approvedRequest)
+         // Notify the requesting agent that their configure-agent request was auto-approved
+         if (approvedRequest.type === 'configure-agent') {
+-          try {
+-            const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+-            await notifyConfigRequestOutcome(approvedRequest, 'approved')
+-          } catch (err) {
+-            console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
+-          }
++          await safeNotifyConfigOutcome(approvedRequest, 'approved')
+         }
+       }
+     }
+@@ -289,12 +297,7 @@ export async function approveCrossHostRequest(
+ 
+     // Notify the requesting agent that their configure-agent request was approved
+     if (updated.type === 'configure-agent') {
+-      try {
+-        const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+-        await notifyConfigRequestOutcome(updated, 'approved')
+-      } catch (err) {
+-        console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
+-      }
++      await safeNotifyConfigOutcome(updated, 'approved')
+     }
+   }
+ 
+@@ -344,12 +347,7 @@ export async function rejectCrossHostRequest(
+ 
+   // Notify the requesting agent that their configure-agent request was rejected
+   if (updated.type === 'configure-agent') {
+-    try {
+-      const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+-      await notifyConfigRequestOutcome(updated, 'rejected')
+-    } catch (err) {
+-      console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
+-    }
++    await safeNotifyConfigOutcome(updated, 'rejected')
+   }
+ 
+   // If the request originated from another host, notify the source host (fire-and-forget)
+@@ -487,10 +485,15 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
+             console.warn(`${LOG_PREFIX} configure-agent request ${request.id} missing configuration payload`)
+             return
+           }
+-          // Import and call the config deploy service (lazy import to avoid circular deps)
++          // Lazy import: agents-config-deploy-service imports getAgent which imports governance,
++          // creating a potential circular dependency chain. Keep lazy to be safe.
+           const { deployConfigToAgent } = await import('@/services/agents-config-deploy-service')
+           const deployResult = await deployConfigToAgent(request.payload.agentId, config, request.requestedBy)
+           if (deployResult.error) {
++            // SF-013: The request status is already 'executed' at this point (set by approveGovernanceRequest
++            // before performRequestExecution is called). The 'executed' status means "execution was attempted,"
++            // not "succeeded." The deploy error is logged here. Adding a 'failed' status would require changes
++            // to the GovernanceRequest type and all callers, which is out of scope.
+             console.warn(`${LOG_PREFIX} configure-agent execution failed for request ${request.id}: ${deployResult.error}`)
+             return
+           }
+@@ -523,6 +526,7 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
+ 
+ export function listCrossHostRequests(filter?: {
+   status?: GovernanceRequestStatus
++  type?: string
+   hostId?: string
+   agentId?: string
+ }): ServiceResult<GovernanceRequest[]> {
+diff --git a/services/headless-router.ts b/services/headless-router.ts
+index 74c8d04..66d2515 100644
+--- a/services/headless-router.ts
++++ b/services/headless-router.ts
+@@ -238,6 +238,12 @@ import {
+ import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib/governance-sync'
+ import { getHosts, getSelfHostId } from '@/lib/hosts-config'
+ import { verifyHostAttestation } from '@/lib/host-keys'
++// SF-025: Imports for chief-of-staff endpoint (mirrors app/api/teams/[id]/chief-of-staff/route.ts)
++import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
++import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
++import { getAgent } from '@/lib/agent-registry'
++import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
++import { isValidUuid } from '@/lib/validation'
+ 
+ import {
+   submitCrossHostRequest,
+@@ -829,10 +835,16 @@ const routes: Route[] = [
+     // Accept host-signature auth (cross-host) or governance password auth (local admin)
+     const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
+     if (auth.error) {
+-      sendJson(res, 403, { error: auth.error })
++      sendJson(res, auth.status || 401, { error: auth.error })
++      return
++    }
++    // MF-003: Require authenticated identity — authenticateAgent returns {} when both headers absent
++    if (!auth.agentId) {
++      sendJson(res, 401, { error: 'Authenticated agent identity required for config deployment' })
+       return
+     }
+-    sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration || body, auth.agentId))
++    // SF-012: Strict undefined check — falsy body.configuration (e.g. empty string) should not fall through to body
++    sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration !== undefined ? body.configuration : body, auth.agentId))
+   }},
+ 
+   // Subconscious
+@@ -1365,8 +1377,10 @@ const routes: Route[] = [
+     }
+   }},
+   { method: 'GET', pattern: /^\/api\/v1\/governance\/requests$/, paramNames: [], handler: async (_req, res, _params, query) => {
++    // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
+     sendServiceResult(res, listCrossHostRequests({
+       status: (query.status as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
++      type: query.type || undefined,
+       hostId: query.hostId || undefined,
+       agentId: query.agentId || undefined,
+     }))
+@@ -1549,6 +1563,104 @@ const routes: Route[] = [
+     const requestingAgentId = auth.agentId
+     sendServiceResult(res, await createTeamDocument(params.id, { ...body, requestingAgentId }))
+   }},
++  // SF-025: Chief-of-Staff assignment/removal -- mirrors app/api/teams/[id]/chief-of-staff/route.ts
++  { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/chief-of-staff$/, paramNames: ['id'], handler: async (req, res, params) => {
++    const teamId = params.id
++    if (!isValidUuid(teamId)) {
++      sendJson(res, 400, { error: 'Invalid team ID format' })
++      return
++    }
++    const body = await readJsonBody(req)
++    const { agentId: cosAgentId, password } = body || {}
++
++    if (!password || typeof password !== 'string') {
++      sendJson(res, 400, { error: 'Governance password is required' })
++      return
++    }
++
++    const config = loadGovernance()
++    if (!config.passwordHash) {
++      sendJson(res, 400, { error: 'Governance password not set' })
++      return
++    }
++
++    // Rate limit password verification to prevent brute-force attacks
++    const rateCheck = checkRateLimit('governance-cos-auth')
++    if (!rateCheck.allowed) {
++      sendJson(res, 429, { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` })
++      return
++    }
++
++    // Password auth -- only managers know the governance password
++    if (!(await verifyPassword(password))) {
++      recordFailure('governance-cos-auth')
++      sendJson(res, 401, { error: 'Invalid governance password' })
++      return
++    }
++    resetRateLimit('governance-cos-auth')
++
++    const team = getTeam(teamId)
++    if (!team) {
++      sendJson(res, 404, { error: 'Team not found' })
++      return
++    }
++
++    const managerId = getManagerId()
++
++    try {
++      if (cosAgentId === null) {
++        // Capture old COS id before updateTeam clears it
++        const oldCosId = team.chiefOfStaffId
++        // Remove COS -- auto-downgrade team to open (R1.5)
++        const updated = await updateTeam(teamId, { chiefOfStaffId: null, type: 'open' }, managerId)
++
++        // Auto-reject pending configure-agent requests from the removed COS (11a safeguard)
++        if (oldCosId) {
++          try {
++            const { loadGovernanceRequests: loadGovReqs, rejectGovernanceRequest: rejectGovReq } = await import('@/lib/governance-request-registry')
++            const file = loadGovReqs()
++            const pendingFromCOS = file.requests.filter((r: { type: string; status: string; requestedBy: string }) =>
++              r.type === 'configure-agent' && r.status === 'pending' && r.requestedBy === oldCosId
++            )
++            for (const govReq of pendingFromCOS) {
++              await rejectGovReq(govReq.id, managerId || 'system', `COS role revoked for team '${team.name}'`)
++            }
++            if (pendingFromCOS.length > 0) {
++              console.log(`[governance] Auto-rejected ${pendingFromCOS.length} pending config request(s) from removed COS ${oldCosId}`)
++            }
++          } catch (err) {
++            console.warn('[governance] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
++          }
++        }
++
++        sendJson(res, 200, { success: true, team: updated })
++        return
++      }
++
++      if (typeof cosAgentId !== 'string' || !cosAgentId.trim()) {
++        sendJson(res, 400, { error: 'agentId must be a non-empty string or null' })
++        return
++      }
++
++      const agent = getAgent(cosAgentId)
++      if (!agent) {
++        sendJson(res, 404, { error: `Agent '${cosAgentId}' not found` })
++        return
++      }
++
++      // Assign COS -- auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
++      const updated = await updateTeam(teamId, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
++      sendJson(res, 200, { success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
++    } catch (error) {
++      // TeamValidationException carries the correct HTTP status code from business rule validation
++      if (error instanceof TeamValidationException) {
++        sendJson(res, error.code, { error: error.message })
++        return
++      }
++      console.error('Failed to set chief-of-staff:', error)
++      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to set chief-of-staff' })
++    }
++  }},
+   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+     const auth = authenticateAgent(
+       getHeader(req, 'Authorization'),
+diff --git a/tests/agent-config-governance-extended.test.ts b/tests/agent-config-governance-extended.test.ts
+index 079d8c0..f8af4a1 100644
+--- a/tests/agent-config-governance-extended.test.ts
++++ b/tests/agent-config-governance-extended.test.ts
+@@ -3,16 +3,16 @@
+  *
+  * Tests FOUR modules across Steps 2, 4, 5, 9 of the governance implementation:
+  *
+- *   Module 1: services/agents-skills-service.ts — RBAC enforcement (15 tests)
++ *   Module 1: services/agents-skills-service.ts — RBAC enforcement (20 tests)
+  *     checkConfigGovernance() enforces governance on updateSkills, addSkill, removeSkill, saveSkillSettings.
+  *     getSkillsConfig has NO governance (reads are public). getSkillSettings has NO governance.
+  *
+- *   Module 2: services/agents-config-deploy-service.ts — Deployment operations (12 tests)
++ *   Module 2: services/agents-config-deploy-service.ts — Deployment operations (16 tests)
+  *     deployConfigToAgent() validates agent existence, operation type, working directory,
+  *     and dispatches to add-skill, remove-skill, add-plugin, remove-plugin, update-hooks,
+  *     update-mcp, update-model, bulk-config operations.
+  *
+- *   Module 3: services/cross-host-governance-service.ts — configure-agent flow (15 tests)
++ *   Module 3: services/cross-host-governance-service.ts — configure-agent flow (14 tests)
+  *     submitCrossHostRequest validates configure-agent payloads.
+  *     receiveCrossHostRequest accepts configure-agent as a valid type.
+  *     approveCrossHostRequest triggers performRequestExecution for configure-agent.
+@@ -23,7 +23,7 @@
+  *     notifyConfigRequestOutcome sends AMP + tmux notifications for approved/rejected
+  *     configure-agent requests. Non-configure-agent types are silently skipped.
+  *
+- * Total: 48 tests (15 + 12 + 15 + 6)
++ * Total: 56 tests (20 + 16 + 14 + 6)
+  *
+  * Mocking strategy: Only external dependencies are mocked (filesystem, governance,
+  * agent-registry, network fetch, child_process). Internal logic is executed for real.
+@@ -275,7 +275,7 @@ import {
+ const MANAGER_ID = 'agent-manager-ext-001'
+ const COS_ID = 'agent-cos-ext-002'
+ const MEMBER_ID = 'agent-member-ext-003'
+-const TARGET_AGENT_ID = 'agent-target-ext-004'
++const TARGET_AGENT_ID = '550e8400-e29b-41d4-a716-446655440000'
+ const TEAM_ID = 'team-closed-ext-001'
+ const AGENT_UUID = '12345678-1234-1234-1234-123456789abc'
+ 
+@@ -300,6 +300,8 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
+   } as Agent
+ }
+ 
++// Returns Record<string, unknown> to match the mocked getAgent signature.
++// A more specific type would require importing Agent internals into the test.
+ function makeAgentWithSubconscious(overrides: Partial<Agent> = {}): Record<string, unknown> {
+   return {
+     id: AGENT_UUID,
+@@ -418,7 +420,7 @@ afterEach(() => {
+ })
+ 
+ // ============================================================================
+-// MODULE 1: agents-skills-service RBAC (15 tests)
++// MODULE 1: agents-skills-service RBAC (20 tests)
+ // ============================================================================
+ 
+ describe('skills service RBAC', () => {
+@@ -662,10 +664,20 @@ describe('skills service RBAC', () => {
+ })
+ 
+ // ============================================================================
+-// MODULE 2: agents-config-deploy-service (12 tests)
++// MODULE 2: agents-config-deploy-service (16 tests)
+ // ============================================================================
+ 
+ describe('config deploy service', () => {
++  // SF-007 added fs.access(workingDir) validation before deployment operations.
++  // The mock must succeed for the agent's working directory but reject for other paths
++  // (skill/plugin existence checks) unless overridden in individual tests.
++  beforeEach(() => {
++    mockFsAccess.mockImplementation(async (p: string) => {
++      if (p === '/tmp/test-agent') return undefined  // working directory exists
++      throw new Error('ENOENT')  // other paths (skill/plugin dirs) don't exist
++    })
++  })
++
+   it('add-skill creates skill directory and SKILL.md', async () => {
+     /** Verifies that deploying an add-skill creates the skill folder and placeholder SKILL.md */
+     const config: ConfigurationPayload = {
+@@ -873,7 +885,7 @@ describe('config deploy service', () => {
+       skills: ['test-skill'],
+     }
+ 
+-    const result = await deployConfigToAgent('nonexistent-agent', config, MANAGER_ID)
++    const result = await deployConfigToAgent('00000000-0000-0000-0000-000000000000', config, MANAGER_ID)
+ 
+     expect(result.status).toBe(404)
+     expect(result.error).toContain('not found')
+@@ -947,7 +959,7 @@ describe('config deploy service', () => {
+ })
+ 
+ // ============================================================================
+-// MODULE 3: cross-host configure-agent flow (15 tests)
++// MODULE 3: cross-host configure-agent flow (14 tests)
+ // ============================================================================
+ 
+ describe('cross-host configure-agent', () => {
+@@ -1217,6 +1229,9 @@ describe('cross-host configure-agent', () => {
+ // MODULE 4: config-notification-service (6 tests)
+ // ============================================================================
+ 
++// Module 4 tests verify that cross-host-governance-service calls notifyConfigRequestOutcome
++// with correct arguments. Direct testing of config-notification-service.ts logic is deferred
++// to a future config-notification-service.test.ts file.
+ describe('config notifications', () => {
+   // We need to import the real module (not the mock) for this section.
+   // But the module is already mocked above for cross-host tests.
+diff --git a/tests/governance-endpoint-auth.test.ts b/tests/governance-endpoint-auth.test.ts
+index 2ff7db3..75477d9 100644
+--- a/tests/governance-endpoint-auth.test.ts
++++ b/tests/governance-endpoint-auth.test.ts
+@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ /**
+  * Unit tests for Ed25519 signature verification on governance endpoints (SR-001, SR-002, SR-007)
+  *
+- * Coverage: 13 tests across 3 security fixes
++ * Coverage: 12 tests across 3 security fixes
+  * - SR-001 (signature on outbound): broadcastGovernanceSync signs requests, sendRequestToRemoteHost signs, notifyRemoteHostOfRejection signs
+  * - SR-007 (type whitelist): submitCrossHostRequest rejects unimplemented types (manager + COS roles)
+  * - Signature header format: correct header names and values
+@@ -217,6 +217,7 @@ describe('SR-001: cross-host governance service signs outbound requests', () =>
+     })
+ 
+     // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
++    // vi.waitFor handles the fire-and-forget fetch timing. If flaky in CI, add { timeout: 5000 }.
+     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
+     const fetchCall = mockFetch.mock.calls[0]
+     const headers = fetchCall[1].headers
+diff --git a/tests/services/agents-core-service.test.ts b/tests/services/agents-core-service.test.ts
+index 400d484..061c47b 100644
+--- a/tests/services/agents-core-service.test.ts
++++ b/tests/services/agents-core-service.test.ts
+@@ -480,12 +480,12 @@ describe('registerAgent', () => {
+     mockFs.default.existsSync.mockReturnValue(false)
+ 
+     const result = await registerAgent({
+-      id: 'cloud-agent',
++      id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+       deployment: { cloud: { websocketUrl: 'wss://agent.cloud.com/term' } },
+     })
+ 
+     expect(result.status).toBe(200)
+-    expect(result.data?.agentId).toBe('cloud-agent')
++    expect(result.data?.agentId).toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890')
+   })
+ 
+   it('returns 400 when session name is missing (worktree format)', async () => {
+diff --git a/types/governance-request.ts b/types/governance-request.ts
+index 48cd444..ccd5786 100644
+--- a/types/governance-request.ts
++++ b/types/governance-request.ts
+@@ -58,7 +58,14 @@ export interface GovernanceApprovals {
+   targetManager?: GovernanceApproval
+ }
+ 
+-/** Structured configuration payload for configure-agent requests */
++/**
++ * Structured configuration payload for configure-agent requests.
++ *
++ * Fields are optional because the `operation` field determines which are relevant:
++ * e.g. 'add-skill' uses `skills`, 'update-model' uses `model`, etc.
++ * Runtime validation in agents-config-deploy-service.ts enforces required fields
++ * per operation before deployment.
++ */
+ export interface ConfigurationPayload {
+   operation: ConfigOperationType
+   scope: ConfigScope

@@ -1,0 +1,583 @@
+diff --git a/app/api/agents/[id]/config/deploy/route.ts b/app/api/agents/[id]/config/deploy/route.ts
+index 0dd526e..dcb0f8f 100644
+--- a/app/api/agents/[id]/config/deploy/route.ts
++++ b/app/api/agents/[id]/config/deploy/route.ts
+@@ -27,7 +27,7 @@ export async function POST(
+       request.headers.get('X-Agent-Id')
+     )
+     if (auth.error) {
+-      return NextResponse.json({ error: auth.error }, { status: 403 })
++      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+     }
+ 
+     let body
+diff --git a/app/api/teams/[id]/chief-of-staff/route.ts b/app/api/teams/[id]/chief-of-staff/route.ts
+index 156ef12..2a4d390 100644
+--- a/app/api/teams/[id]/chief-of-staff/route.ts
++++ b/app/api/teams/[id]/chief-of-staff/route.ts
+@@ -83,6 +83,10 @@ export async function POST(
+     if (typeof cosAgentId !== 'string' || !cosAgentId.trim()) {
+       return NextResponse.json({ error: 'agentId must be a non-empty string or null' }, { status: 400 })
+     }
++    // NT-002: Validate cosAgentId format before registry lookup
++    if (!isValidUuid(cosAgentId)) {
++      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
++    }
+ 
+     const agent = getAgent(cosAgentId)
+     if (!agent) {
+diff --git a/app/api/v1/governance/requests/route.ts b/app/api/v1/governance/requests/route.ts
+index d063e1a..45630be 100644
+--- a/app/api/v1/governance/requests/route.ts
++++ b/app/api/v1/governance/requests/route.ts
+@@ -24,38 +24,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
+ 
+   // Determine if this is a remote receive (fromHostId present) or local submission
+   if (body?.fromHostId) {
+-    // Verify Ed25519 signature for remote governance requests (SR-P2-001)
+-    const hostId = request.headers.get('X-Host-Id')
+-    const hostSignature = request.headers.get('X-Host-Signature')
+-    const hostTimestamp = request.headers.get('X-Host-Timestamp')
+-    if (!hostId || !hostSignature || !hostTimestamp) {
+-      return NextResponse.json({ error: 'Missing host authentication headers' }, { status: 401 })
+-    }
+-    if (hostId !== body.fromHostId) {
+-      return NextResponse.json({ error: 'Host ID header does not match body fromHostId' }, { status: 400 })
+-    }
+-    const hosts = getHosts()
+-    const knownHost = hosts.find((h) => h.id === hostId)
+-    if (!knownHost) {
+-      return NextResponse.json({ error: 'Unknown host' }, { status: 403 })
+-    }
+-    if (!knownHost.publicKeyHex) {
+-      return NextResponse.json({ error: 'Host has no registered public key' }, { status: 403 })
+-    }
+-    const signedData = `gov-request|${hostId}|${hostTimestamp}`
+-    if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+-      return NextResponse.json({ error: 'Invalid host signature' }, { status: 403 })
+-    }
+-    const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+-    if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+-      return NextResponse.json({ error: 'Signature expired' }, { status: 403 })
+-    }
++    try {
++      // Verify Ed25519 signature for remote governance requests (SR-P2-001)
++      const hostId = request.headers.get('X-Host-Id')
++      const hostSignature = request.headers.get('X-Host-Signature')
++      const hostTimestamp = request.headers.get('X-Host-Timestamp')
++      if (!hostId || !hostSignature || !hostTimestamp) {
++        return NextResponse.json({ error: 'Missing host authentication headers' }, { status: 401 })
++      }
++      if (hostId !== body.fromHostId) {
++        return NextResponse.json({ error: 'Host ID header does not match body fromHostId' }, { status: 400 })
++      }
++      const hosts = getHosts()
++      const knownHost = hosts.find((h) => h.id === hostId)
++      if (!knownHost) {
++        return NextResponse.json({ error: 'Unknown host' }, { status: 403 })
++      }
++      if (!knownHost.publicKeyHex) {
++        return NextResponse.json({ error: 'Host has no registered public key' }, { status: 403 })
++      }
++      const signedData = `gov-request|${hostId}|${hostTimestamp}`
++      if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
++        return NextResponse.json({ error: 'Invalid host signature' }, { status: 403 })
++      }
++      const tsAge = Date.now() - new Date(hostTimestamp).getTime()
++      if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
++        return NextResponse.json({ error: 'Signature expired' }, { status: 403 })
++      }
+ 
+-    const result = await receiveCrossHostRequest(body.fromHostId, body.request)
+-    if (result.error) {
+-      return NextResponse.json({ error: result.error }, { status: result.status })
++      const result = await receiveCrossHostRequest(body.fromHostId, body.request)
++      if (result.error) {
++        return NextResponse.json({ error: result.error }, { status: result.status })
++      }
++      return NextResponse.json(result.data, { status: result.status })
++    } catch (err) {
++      console.error('[Governance Requests] POST remote-receive error:', err)
++      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+     }
+-    return NextResponse.json(result.data, { status: result.status })
+   }
+ 
+   try {
+@@ -75,6 +80,12 @@ const VALID_GOVERNANCE_REQUEST_STATUSES = new Set([
+   'pending', 'remote-approved', 'local-approved', 'dual-approved', 'executed', 'rejected',
+ ])
+ 
++/** Valid GovernanceRequestType values for query param validation (NT-001) */
++const VALID_GOVERNANCE_REQUEST_TYPES = new Set([
++  'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
++  'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
++])
++
+ export async function GET(request: NextRequest): Promise<NextResponse> {
+   const searchParams = request.nextUrl.searchParams
+   // CC-P4-006: Validate status param against known values before passing through
+@@ -85,11 +96,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
+       { status: 400 }
+     )
+   }
++  // NT-001: Validate type param against known GovernanceRequestType values
++  const typeParam = searchParams.get('type')
++  if (typeParam && !VALID_GOVERNANCE_REQUEST_TYPES.has(typeParam)) {
++    return NextResponse.json(
++      { error: `Invalid type value '${typeParam}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_TYPES].join(', ')}` },
++      { status: 400 }
++    )
++  }
+   try {
+     // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
+     const result = listCrossHostRequests({
+       status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
+-      type: searchParams.get('type') || undefined,
++      type: typeParam || undefined,
+       hostId: searchParams.get('hostId') || undefined,
+       agentId: searchParams.get('agentId') || undefined,
+     })
+diff --git a/components/AgentProfile.tsx b/components/AgentProfile.tsx
+index cb41e6b..006bdb4 100644
+--- a/components/AgentProfile.tsx
++++ b/components/AgentProfile.tsx
+@@ -57,7 +57,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus,
+   // provider to avoid duplicate API calls. Acceptable for Phase 1 with localhost-only architecture.
+ 
+   // Pre-compute filtered pending config requests for this agent (avoids duplicate inline filtering)
+-  const agentPendingConfigRequests = governance.pendingConfigRequests.filter(r => r.payload?.agentId === agent?.id)
++  // payload is non-optional in GovernanceRequest; use agentId prop (not agent?.id) so filtering works before agent state loads
++  const agentPendingConfigRequests = governance.pendingConfigRequests.filter(r => r.payload.agentId === agentId)
+   const pendingConfigCount = agentPendingConfigRequests.length
+ 
+   // Repository state
+@@ -219,7 +220,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus,
+ 
+       if (response.ok) {
+         setHasChanges(false)
+-        setTimeout(() => setSaving(false), 500)
++        setSaving(false)
+       } else {
+         // CC-P1-702: Handle non-OK responses so the save button does not remain stuck in spinner state
+         const errData = await response.json().catch(() => ({ error: 'Save failed' }))
+diff --git a/components/marketplace/AgentSkillEditor.tsx b/components/marketplace/AgentSkillEditor.tsx
+index a986dd2..2fff427 100644
+--- a/components/marketplace/AgentSkillEditor.tsx
++++ b/components/marketplace/AgentSkillEditor.tsx
+@@ -69,10 +69,8 @@ export default function AgentSkillEditor({
+   // Governance: pending config requests for this agent
+   const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
+   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
+-  // canApprove checks if the current agent profile belongs to a manager/COS.
+-  // In Phase 1 (localhost, single user), the "viewer" IS the system owner who has
+-  // full access. In Phase 2 with auth, this should check the viewer's identity instead.
+-  const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
++  // Phase 1: localhost single-user, viewer is always the system owner
++  const canApprove = true
+ 
+   // Track which config requests are currently being resolved (for loading/disabled state)
+   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set())
+diff --git a/lib/file-lock.ts b/lib/file-lock.ts
+index e371fd9..a1ef8f3 100644
+--- a/lib/file-lock.ts
++++ b/lib/file-lock.ts
+@@ -96,8 +96,8 @@ function releaseLock(name: string): void {
+  * Run a function under a named lock.
+  * Convenience wrapper: acquires, runs fn, releases (even on error).
+  *
+- * Note: No deadlock detection or lock timeout.
+- * Lock ordering convention: 'teams' before 'transfers' before 'governance'
++ * Lock acquisition times out after 30s by default (see DEFAULT_LOCK_TIMEOUT_MS).
++ * Lock ordering convention: 'teams' before 'transfers' before 'governance' before 'governance-requests'
+  */
+ export async function withLock<T>(name: string, fn: () => T | Promise<T>): Promise<T> {
+   const release = await acquireLock(name)
+diff --git a/services/agents-core-service.ts b/services/agents-core-service.ts
+index 4490da5..c9dcf5c 100644
+--- a/services/agents-core-service.ts
++++ b/services/agents-core-service.ts
+@@ -808,8 +808,8 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
+       agentConfig = body
+     }
+ 
+-    // MF-002: Validate agentId format to prevent path traversal (UUID for cloud, sanitized name for session)
+-    if (body.id && !isValidUuid(agentId)) {
++    // MF-002 + SF-005: Validate agentId format — reject empty strings and non-UUID values
++    if (body.id !== undefined && (!body.id || !isValidUuid(agentId))) {
+       return { error: 'Invalid agent ID format', status: 400 }
+     }
+ 
+diff --git a/services/agents-skills-service.ts b/services/agents-skills-service.ts
+index b061de5..70f03b0 100644
+--- a/services/agents-skills-service.ts
++++ b/services/agents-skills-service.ts
+@@ -17,6 +17,7 @@ import {
+ import { getSkillById } from '@/lib/marketplace-skills'
+ import { agentRegistry } from '@/lib/agent'
+ import { isManager, isChiefOfStaff, getClosedTeamsForAgent } from '@/lib/governance'
++import { isValidUuid } from '@/lib/validation'
+ import type { ConfigOperationType, ConfigScope } from '@/types/governance-request'
+ import fs from 'fs/promises'
+ import path from 'path'
+@@ -248,9 +249,8 @@ export async function removeSkill(
+  * Get skill settings for an agent.
+  */
+ export async function getSkillSettings(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
+-  // SF-030: Validate agentId is a UUID to prevent path traversal
+-  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+-  if (!agentId || !UUID_PATTERN.test(agentId)) {
++  // SF-030 + NT-009: Use shared isValidUuid from @/lib/validation instead of inline regex
++  if (!agentId || !isValidUuid(agentId)) {
+     return { error: 'Invalid agent ID format', status: 400 }
+   }
+ 
+@@ -284,9 +284,8 @@ export async function saveSkillSettings(
+     return { error: 'Settings are required', status: 400 }
+   }
+ 
+-  // SF-030: Validate agentId is a UUID to prevent path traversal
+-  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+-  if (!agentId || !UUID_PATTERN.test(agentId)) {
++  // SF-030 + NT-009: Use shared isValidUuid from @/lib/validation instead of inline regex
++  if (!agentId || !isValidUuid(agentId)) {
+     return { error: 'Invalid agent ID format', status: 400 }
+   }
+ 
+diff --git a/services/headless-router.ts b/services/headless-router.ts
+index 66d2515..14816fd 100644
+--- a/services/headless-router.ts
++++ b/services/headless-router.ts
+@@ -311,9 +311,13 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
+   return new Promise((resolve, reject) => {
+     const chunks: Buffer[] = []
+     let totalSize = 0
++    // NT-007: Guard against multiple reject() calls (e.g. size limit hit then error event)
++    let rejected = false
+     req.on('data', (chunk: Buffer) => {
++      if (rejected) return
+       totalSize += chunk.length
+       if (totalSize > MAX_BODY_SIZE) {
++        rejected = true
+         req.destroy()
+         reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }))
+         return
+@@ -321,6 +325,7 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
+       chunks.push(chunk)
+     })
+     req.on('end', () => {
++      if (rejected) return
+       const body = Buffer.concat(chunks).toString('utf-8')
+       if (!body) return resolve({})
+       try {
+@@ -329,14 +334,30 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
+         reject(new Error('Invalid JSON body'))
+       }
+     })
+-    req.on('error', reject)
++    req.on('error', (err) => {
++      if (rejected) return
++      rejected = true
++      reject(err)
++    })
+   })
+ }
+ 
++// SF-004: 50 MB size limit for raw body reads (e.g. binary uploads)
++const MAX_RAW_BODY_SIZE = 50 * 1024 * 1024
++
+ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
+   return new Promise((resolve, reject) => {
+     const chunks: Buffer[] = []
+-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
++    let totalSize = 0
++    req.on('data', (chunk: Buffer) => {
++      totalSize += chunk.length
++      if (totalSize > MAX_RAW_BODY_SIZE) {
++        req.destroy()
++        reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }))
++        return
++      }
++      chunks.push(chunk)
++    })
+     req.on('end', () => resolve(Buffer.concat(chunks)))
+     req.on('error', reject)
+   })
+@@ -359,8 +380,9 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
+ 
+ function sendServiceResult(res: ServerResponse, result: any) {
+   // SF-04: prioritize error — if error is set, always send error response
++  // NT-008: Do not spread result.data into error responses to avoid leaking internal state
+   if (result.error) {
+-    sendJson(res, result.status || 500, { error: result.error, ...(result.data || {}) }, result.headers)
++    sendJson(res, result.status || 500, { error: result.error }, result.headers)
+   } else {
+     sendJson(res, result.status || 200, result.data, result.headers)
+   }
+@@ -1584,8 +1606,9 @@ const routes: Route[] = [
+       return
+     }
+ 
+-    // Rate limit password verification to prevent brute-force attacks
+-    const rateCheck = checkRateLimit('governance-cos-auth')
++    // SF-003: Rate limit per-team to prevent brute-force attacks on one team from blocking others
++    const rateLimitKey = `governance-cos-auth:${teamId}`
++    const rateCheck = checkRateLimit(rateLimitKey)
+     if (!rateCheck.allowed) {
+       sendJson(res, 429, { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` })
+       return
+@@ -1593,11 +1616,11 @@ const routes: Route[] = [
+ 
+     // Password auth -- only managers know the governance password
+     if (!(await verifyPassword(password))) {
+-      recordFailure('governance-cos-auth')
++      recordFailure(rateLimitKey)
+       sendJson(res, 401, { error: 'Invalid governance password' })
+       return
+     }
+-    resetRateLimit('governance-cos-auth')
++    resetRateLimit(rateLimitKey)
+ 
+     const team = getTeam(teamId)
+     if (!team) {
+diff --git a/tests/agent-config-governance-extended.test.ts b/tests/agent-config-governance-extended.test.ts
+index f8af4a1..2f6d9da 100644
+--- a/tests/agent-config-governance-extended.test.ts
++++ b/tests/agent-config-governance-extended.test.ts
+@@ -223,8 +223,11 @@ vi.mock('@/lib/agent-runtime', () => ({
+   getRuntime: vi.fn(() => null),
+ }))
+ 
++// NT-011: Incrementing counter avoids collisions when multiple UUIDs are generated
++// in a single test (e.g., creating multiple agents or requests in sequence).
++let uuidExtCounter = 0
+ vi.mock('uuid', () => ({
+-  v4: vi.fn(() => 'test-uuid-ext-001'),
++  v4: vi.fn(() => `test-uuid-ext-${String(++uuidExtCounter).padStart(3, '0')}`),
+ }))
+ 
+ vi.mock('fs', () => ({
+@@ -356,6 +359,7 @@ const originalFetch = globalThis.fetch
+ 
+ beforeEach(() => {
+   vi.clearAllMocks()
++  uuidExtCounter = 0 // NT-011: Reset UUID counter so each test starts from ext-001
+ 
+   // Default: all role checks return false (regular member)
+   mockIsManager.mockReturnValue(false)
+diff --git a/tests/agent-config-governance.test.ts b/tests/agent-config-governance.test.ts
+index 8193788..6015c03 100644
+--- a/tests/agent-config-governance.test.ts
++++ b/tests/agent-config-governance.test.ts
+@@ -12,6 +12,14 @@
+  *   - updateAgentById: 7 tests (no auth, manager, COS, self-update, owning COS, non-owning regular, 404)
+  *   - deleteAgentById: 5 tests (no auth, manager, COS rejected, regular rejected, 404)
+  *
++ * NT-013: Test count discrepancy note
++ *   The total governance test suite across all 9 files contains ~628 discrete test functions
++ *   (it() blocks). However, vitest reports ~836 tests because vitest counts each expansion
++ *   of parameterized tests (it.each / describe.each) as a separate test. For example, a
++ *   single it.each with 4 parameter sets counts as 4 tests in vitest output.
++ *   The CHANGELOG claim of "167 tests across 9 files" refers to the original count before
++ *   extended test files were added, while "836" is vitest's parametric-expanded count.
++ *
+  * Mocking strategy:
+  *   - @/lib/governance: isManager, isChiefOfStaffAnywhere (governance role checks)
+  *   - @/lib/team-registry: loadTeams (team membership for owning-COS check)
+diff --git a/tests/governance-endpoint-auth.test.ts b/tests/governance-endpoint-auth.test.ts
+index 75477d9..4252581 100644
+--- a/tests/governance-endpoint-auth.test.ts
++++ b/tests/governance-endpoint-auth.test.ts
+@@ -1,4 +1,4 @@
+-import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+ 
+ /**
+  * Unit tests for Ed25519 signature verification on governance endpoints (SR-001, SR-002, SR-007)
+@@ -141,6 +141,12 @@ beforeEach(() => {
+   mockSignHostAttestation.mockReturnValue('mock-signature-base64')
+ })
+ 
++// NT-010: Restore stubbed globals (especially fetch) after each test to prevent
++// leaking the mock into other test files that run in the same vitest worker.
++afterEach(() => {
++  vi.unstubAllGlobals()
++})
++
+ // ============================================================================
+ // SR-001: broadcastGovernanceSync includes Ed25519 signature headers
+ // ============================================================================
+diff --git a/tests/governance-request-registry.test.ts b/tests/governance-request-registry.test.ts
+index d805978..1dd2720 100644
+--- a/tests/governance-request-registry.test.ts
++++ b/tests/governance-request-registry.test.ts
+@@ -1,16 +1,18 @@
+ /**
+  * Unit tests for lib/governance-request-registry.ts
+  *
+- * Coverage: 25 tests across 8 exported functions
++ * Coverage: 30 tests across 10 exported functions
+  * - loadGovernanceRequests: missing file defaults, existing file read, corrupted JSON backup
+  * - saveGovernanceRequests: atomic write via temp-file-then-rename
+  * - getGovernanceRequest: by ID found and not found
+- * - listGovernanceRequests: no filter, by status, by hostId, by agentId
++ * - listGovernanceRequests: no filter, by status, by hostId, by agentId, by type (NT-005)
+  * - createGovernanceRequest: UUID generation, persistence, note field
+  * - approveGovernanceRequest: sourceCOS, targetManager, remote-approved, local-approved,
+  *     both-managers auto-execute, unknown ID, rejected guard, executed guard
+  * - rejectGovernanceRequest: sets rejected + reason, executed guard
+  * - executeGovernanceRequest: sets executed, rejected guard
++ * - purgeOldRequests: purges terminal-state + expires stale pending (NT-006)
++ * - expirePendingRequests: TTL-based auto-rejection of stale pending requests (NT-006)
+  *
+  * Mocking strategy:
+  * - fs (external I/O) -- mocked with in-memory fsStore
+@@ -108,6 +110,8 @@ import {
+   approveGovernanceRequest,
+   rejectGovernanceRequest,
+   executeGovernanceRequest,
++  purgeOldRequests,
++  expirePendingRequests,
+ } from '@/lib/governance-request-registry'
+ 
+ import type {
+@@ -335,6 +339,29 @@ describe('listGovernanceRequests', () => {
+     expect(result).toHaveLength(2)
+     expect(result.map(r => r.id)).toEqual(['req-pending', 'req-rejected'])
+   })
++
++  it('filters by type', () => {
++    /** NT-005: Verifies that filtering by request type returns only matching requests */
++    // All three requests in the beforeEach fixture use default type 'add-to-team'.
++    // Override one to a different type to test filtering.
++    seedRequestsFile(makeRequestsFile([
++      makeRequest({ id: 'req-add', type: 'add-to-team', status: 'pending' }),
++      makeRequest({ id: 'req-config', type: 'configure-agent', status: 'pending' }),
++      makeRequest({ id: 'req-transfer', type: 'transfer-agent', status: 'pending' }),
++    ]))
++
++    const configOnly = listGovernanceRequests({ type: 'configure-agent' })
++    expect(configOnly).toHaveLength(1)
++    expect(configOnly[0].id).toBe('req-config')
++
++    const addOnly = listGovernanceRequests({ type: 'add-to-team' })
++    expect(addOnly).toHaveLength(1)
++    expect(addOnly[0].id).toBe('req-add')
++
++    // Non-existent type returns empty
++    const noMatch = listGovernanceRequests({ type: 'assign-cos' })
++    expect(noMatch).toHaveLength(0)
++  })
+ })
+ 
+ // ============================================================================
+@@ -591,3 +618,109 @@ describe('executeGovernanceRequest', () => {
+     expect(result!.rejectReason).toBe('Denied by policy')
+   })
+ })
++
++// ============================================================================
++// purgeOldRequests (NT-006)
++// ============================================================================
++
++describe('purgeOldRequests', () => {
++  it('purges old executed/rejected requests and returns PurgeResult', async () => {
++    /** NT-006: Verifies that terminal-state requests older than maxAgeDays are removed */
++    const oldDate = new Date(Date.now() - 60 * 86_400_000).toISOString() // 60 days ago
++    const recentDate = new Date(Date.now() - 5 * 86_400_000).toISOString() // 5 days ago
++
++    seedRequestsFile(makeRequestsFile([
++      makeRequest({ id: 'req-old-executed', status: 'executed', updatedAt: oldDate }),
++      makeRequest({ id: 'req-old-rejected', status: 'rejected', updatedAt: oldDate }),
++      makeRequest({ id: 'req-recent-executed', status: 'executed', updatedAt: recentDate }),
++      makeRequest({ id: 'req-pending-active', status: 'pending', createdAt: recentDate, updatedAt: recentDate }),
++    ]))
++
++    const result = await purgeOldRequests(30)
++
++    expect(result.purged).toBe(2) // old executed + old rejected
++    expect(result.expired).toBe(0) // pending is recent, not expired
++
++    // Verify persisted state: only recent executed and pending remain
++    const loaded = loadGovernanceRequests()
++    expect(loaded.requests).toHaveLength(2)
++    expect(loaded.requests.map(r => r.id)).toEqual(['req-recent-executed', 'req-pending-active'])
++  })
++
++  it('also expires stale pending requests via 7-day TTL', async () => {
++    /** NT-006: Verifies that purge also auto-rejects pending requests older than 7 days */
++    const stalePendingDate = new Date(Date.now() - 10 * 86_400_000).toISOString() // 10 days ago
++    const freshPendingDate = new Date(Date.now() - 2 * 86_400_000).toISOString() // 2 days ago
++
++    seedRequestsFile(makeRequestsFile([
++      makeRequest({ id: 'req-stale-pending', status: 'pending', createdAt: stalePendingDate, updatedAt: stalePendingDate }),
++      makeRequest({ id: 'req-fresh-pending', status: 'pending', createdAt: freshPendingDate, updatedAt: freshPendingDate }),
++    ]))
++
++    const result = await purgeOldRequests(30)
++
++    expect(result.purged).toBe(0) // no terminal-state old requests
++    expect(result.expired).toBe(1) // stale pending was expired
++
++    // Verify the stale pending was auto-rejected
++    const loaded = loadGovernanceRequests()
++    const stale = loaded.requests.find(r => r.id === 'req-stale-pending')
++    expect(stale!.status).toBe('rejected')
++    expect(stale!.rejectReason).toContain('expired')
++
++    // Fresh pending is untouched
++    const fresh = loaded.requests.find(r => r.id === 'req-fresh-pending')
++    expect(fresh!.status).toBe('pending')
++  })
++})
++
++// ============================================================================
++// expirePendingRequests (NT-006)
++// ============================================================================
++
++describe('expirePendingRequests', () => {
++  it('expires pending requests older than TTL days', async () => {
++    /** NT-006: Verifies that pending requests older than the specified TTL are auto-rejected */
++    const oldDate = new Date(Date.now() - 15 * 86_400_000).toISOString() // 15 days ago
++    const recentDate = new Date(Date.now() - 2 * 86_400_000).toISOString() // 2 days ago
++
++    seedRequestsFile(makeRequestsFile([
++      makeRequest({ id: 'req-old-pending', status: 'pending', createdAt: oldDate }),
++      makeRequest({ id: 'req-recent-pending', status: 'pending', createdAt: recentDate }),
++      makeRequest({ id: 'req-executed', status: 'executed', createdAt: oldDate }),
++    ]))
++
++    const expired = await expirePendingRequests(7)
++
++    expect(expired).toBe(1) // only the old pending request
++
++    // Verify the old pending was rejected with TTL reason
++    const loaded = loadGovernanceRequests()
++    const oldReq = loaded.requests.find(r => r.id === 'req-old-pending')
++    expect(oldReq!.status).toBe('rejected')
++    expect(oldReq!.rejectReason).toContain('TTL')
++
++    // Recent pending untouched
++    const recentReq = loaded.requests.find(r => r.id === 'req-recent-pending')
++    expect(recentReq!.status).toBe('pending')
++
++    // Executed request untouched (not a pending request)
++    const execReq = loaded.requests.find(r => r.id === 'req-executed')
++    expect(execReq!.status).toBe('executed')
++  })
++
++  it('returns 0 when no pending requests exceed TTL', async () => {
++    /** NT-006: Verifies that no expiration occurs when all pending requests are within TTL */
++    const recentDate = new Date(Date.now() - 1 * 86_400_000).toISOString() // 1 day ago
++
++    seedRequestsFile(makeRequestsFile([
++      makeRequest({ id: 'req-fresh', status: 'pending', createdAt: recentDate }),
++    ]))
++
++    const expired = await expirePendingRequests(7)
++
++    expect(expired).toBe(0)
++    const loaded = loadGovernanceRequests()
++    expect(loaded.requests[0].status).toBe('pending')
++  })
++})

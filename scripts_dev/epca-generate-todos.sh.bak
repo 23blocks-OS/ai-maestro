@@ -1,0 +1,258 @@
+#!/bin/bash
+# EPCA TODO Generator — Pre-processes consolidated reports into skeleton TODOs.
+# Extracts violations from consolidated audit reports and generates sequentially
+# numbered TODO entries grouped by priority. Used as a pre-processor before the
+# epca-todo-generator-agent adds context and implementation guidance.
+#
+# Severity mapping:
+#   ## MUST-FIX   → P1 (critical violations requiring immediate fix)
+#   ## SHOULD-FIX → P2 (important violations that should be addressed)
+#   ## NIT        → P3 (style/consistency issues, low priority)
+#
+# Usage:
+#   epca-generate-todos.sh <consolidated_report> <scope_name> <output_path> [todo_prefix]
+#
+# Arguments:
+#   consolidated_report  Path to the consolidated audit report (.md)
+#   scope_name           Name of the audited scope (e.g. "amcos", "plugin-assistant-manager")
+#   output_path          Output path for the generated TODO file
+#   todo_prefix          Optional prefix for TODO IDs (default: scope_name uppercase)
+#
+# Output format (per entry):
+#   ## [PREFIX-NNN] P{1,2,3} — Title
+#   - **File:** path/to/file.ts:line
+#   - **Category:** HARDCODED_API | DIRECT_DEPENDENCY | etc.
+#   - **Finding ID:** [original-finding-id]
+#   - **Status:** PENDING
+#   - **Description:** (to be filled by epca-todo-generator-agent)
+#   - **Fix:** (to be filled by epca-todo-generator-agent)
+#
+# Exit codes:
+#   0 — TODOs generated successfully
+#   2 — Error (missing input, invalid format)
+
+set -eo pipefail
+
+# ── Configuration ──────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+CONSOLIDATED_REPORT="${1:?Error: consolidated_report path is required as first argument}"
+SCOPE_NAME="${2:?Error: scope_name is required as second argument}"
+OUTPUT_PATH="${3:?Error: output_path is required as third argument}"
+TODO_PREFIX="${4:-$(echo "$SCOPE_NAME" | tr '[:lower:]-' '[:upper:]_')}"
+
+# ── Validate input ────────────────────────────────────────────────────────────
+if [ ! -f "$CONSOLIDATED_REPORT" ]; then
+    echo -e "${RED}Error: Consolidated report not found: '${CONSOLIDATED_REPORT}'${NC}"
+    exit 2
+fi
+
+OUTPUT_DIR=$(dirname "$OUTPUT_PATH")
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo -e "${RED}Error: Output directory does not exist: '${OUTPUT_DIR}'${NC}"
+    exit 2
+fi
+
+echo -e "${CYAN}${BOLD}EPCA TODO Generator${NC}"
+echo -e "  Report:  ${CONSOLIDATED_REPORT}"
+echo -e "  Scope:   ${SCOPE_NAME}"
+echo -e "  Prefix:  ${TODO_PREFIX}"
+echo -e "  Output:  ${OUTPUT_PATH}"
+echo ""
+
+# ── Temporary working files ──────────────────────────────────────────────────
+TMP_OUTPUT="${OUTPUT_PATH}.tmp"
+trap 'rm -f "$TMP_OUTPUT"' EXIT
+
+# ── Counters ─────────────────────────────────────────────────────────────────
+TODO_NUM=0
+P1_COUNT=0
+P2_COUNT=0
+P3_COUNT=0
+
+# ── Write TODO file header ───────────────────────────────────────────────────
+TIMESTAMP=$(date +%Y-%m-%d-%H%M%S)
+cat > "$TMP_OUTPUT" << HEADER
+# TODO — ${SCOPE_NAME} Audit Fixes
+
+**Generated:** ${TIMESTAMP}
+**Source:** $(basename "$CONSOLIDATED_REPORT")
+**Scope:** ${SCOPE_NAME}
+**Prefix:** ${TODO_PREFIX}
+**Status:** SKELETON — awaiting epca-todo-generator-agent for implementation details
+
+---
+
+HEADER
+
+# ── Parse consolidated report and extract findings ────────────────────────────
+# State machine: track current severity section and accumulate finding blocks
+
+current_priority=""
+current_finding_id=""
+current_title=""
+current_file=""
+current_category=""
+in_finding=false
+
+flush_finding() {
+    # Write the accumulated finding as a skeleton TODO entry
+    if [ -z "$current_finding_id" ] && [ -z "$current_title" ]; then
+        return
+    fi
+
+    TODO_NUM=$((TODO_NUM + 1))
+    # Zero-pad to 3 digits
+    PADDED_NUM=$(printf "%03d" "$TODO_NUM")
+    PRIORITY_LABEL="$current_priority"
+
+    case "$current_priority" in
+        P1) P1_COUNT=$((P1_COUNT + 1)) ;;
+        P2) P2_COUNT=$((P2_COUNT + 1)) ;;
+        P3) P3_COUNT=$((P3_COUNT + 1)) ;;
+    esac
+
+    # Clean up title: remove leading ##, brackets, whitespace
+    clean_title=$(echo "$current_title" | sed 's/^[[:space:]#]*//; s/^[[:space:]]*//')
+
+    {
+        echo "## [${TODO_PREFIX}-${PADDED_NUM}] ${PRIORITY_LABEL} — ${clean_title}"
+        echo ""
+        if [ -n "$current_file" ]; then
+            echo "- **File:** ${current_file}"
+        else
+            echo "- **File:** (unknown — verify manually)"
+        fi
+        if [ -n "$current_category" ]; then
+            echo "- **Category:** ${current_category}"
+        else
+            echo "- **Category:** (unclassified)"
+        fi
+        if [ -n "$current_finding_id" ]; then
+            echo "- **Finding ID:** ${current_finding_id}"
+        fi
+        echo "- **Status:** PENDING"
+        echo "- **Description:** (to be filled by epca-todo-generator-agent)"
+        echo "- **Fix:** (to be filled by epca-todo-generator-agent)"
+        echo ""
+    } >> "$TMP_OUTPUT"
+
+    # Reset state
+    current_finding_id=""
+    current_title=""
+    current_file=""
+    current_category=""
+    in_finding=false
+}
+
+while IFS= read -r line; do
+    # Detect severity section headers
+    if echo "$line" | grep -qiE '^#{1,3}\s*(MUST.FIX|CRITICAL|FAILED CLAIMS)'; then
+        # Flush any pending finding before switching sections
+        flush_finding
+        current_priority="P1"
+        echo -e "  Entering section: ${BOLD}MUST-FIX (P1)${NC}"
+        continue
+    elif echo "$line" | grep -qiE '^#{1,3}\s*(SHOULD.FIX|PARTIALLY IMPLEMENTED|WARNING)'; then
+        flush_finding
+        current_priority="P2"
+        echo -e "  Entering section: ${BOLD}SHOULD-FIX (P2)${NC}"
+        continue
+    elif echo "$line" | grep -qiE '^#{1,3}\s*(NIT|CONSISTENCY|STYLE|SUGGESTION)'; then
+        flush_finding
+        current_priority="P3"
+        echo -e "  Entering section: ${BOLD}NIT (P3)${NC}"
+        continue
+    elif echo "$line" | grep -qiE '^#{1,3}\s*(CLEAN|VERIFIED|COMPLIANT|NO.VIOLATIONS|SOURCE REPORTS)'; then
+        # End of findings sections — flush and stop priority parsing
+        flush_finding
+        current_priority=""
+        continue
+    fi
+
+    # Skip lines outside a severity section
+    if [ -z "$current_priority" ]; then
+        continue
+    fi
+
+    # Detect individual finding headers: ## [ID-NNN] Title or ### [ID-NNN] Title
+    if echo "$line" | grep -qE '^\#{2,5}\s*\['; then
+        # Flush previous finding
+        flush_finding
+        in_finding=true
+
+        # Extract finding ID
+        current_finding_id=$(echo "$line" | grep -oE '\[[A-Z]{2,4}(-P[0-9]+)?(-A[0-9A-Fa-f]+)?-[0-9]+\]' | head -1)
+        # Extract title (everything after the finding ID)
+        current_title=$(echo "$line" | sed 's/^[[:space:]#]*\[[^]]*\][[:space:]]*//')
+        continue
+    fi
+
+    # Inside a finding block, extract metadata
+    if [ "$in_finding" = true ]; then
+        # Extract file reference: **File:** path or `path:line`
+        if echo "$line" | grep -qiE '^\s*[-*]\s*\*?\*?file\*?\*?\s*:'; then
+            current_file=$(echo "$line" | sed 's/^.*:[[:space:]]*//' | sed 's/[`*]//g' | xargs)
+        fi
+        # Extract file reference from inline code: at `path/to/file.ts:42`
+        if [ -z "$current_file" ] && echo "$line" | grep -qE '`[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+`'; then
+            current_file=$(echo "$line" | grep -oE '`[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+`' | head -1 | tr -d '`')
+        fi
+        # Extract category: **Category:** TYPE or **Type:** TYPE
+        if echo "$line" | grep -qiE '^\s*[-*]\s*\*?\*?(category|type|violation)\*?\*?\s*:'; then
+            current_category=$(echo "$line" | sed 's/^.*:[[:space:]]*//' | sed 's/[`*]//g' | xargs)
+        fi
+        # Extract category from inline markers: HARDCODED_API, DIRECT_DEPENDENCY, etc.
+        if [ -z "$current_category" ] && echo "$line" | grep -qE '[A-Z]{2,}_[A-Z]{2,}'; then
+            current_category=$(echo "$line" | grep -oE '[A-Z]{2,}_[A-Z_]{2,}' | head -1)
+        fi
+    fi
+
+done < "$CONSOLIDATED_REPORT"
+
+# Flush final finding
+flush_finding
+
+# ── Write summary footer ─────────────────────────────────────────────────────
+{
+    echo "---"
+    echo ""
+    echo "## Summary"
+    echo ""
+    echo "| Priority | Count |"
+    echo "|----------|-------|"
+    echo "| **P1 (MUST-FIX)** | ${P1_COUNT} |"
+    echo "| **P2 (SHOULD-FIX)** | ${P2_COUNT} |"
+    echo "| **P3 (NIT)** | ${P3_COUNT} |"
+    echo "| **Total** | ${TODO_NUM} |"
+    echo ""
+    echo "**Next step:** Run epca-todo-generator-agent to fill in descriptions and fix guidance."
+} >> "$TMP_OUTPUT"
+
+# ── Atomic rename ─────────────────────────────────────────────────────────────
+mv "$TMP_OUTPUT" "$OUTPUT_PATH"
+
+# ── Print summary ─────────────────────────────────────────────────────────────
+echo ""
+echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}  EPCA TODO File: ${OUTPUT_PATH}${NC}"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  P1 (MUST-FIX):    ${P1_COUNT}"
+echo -e "  P2 (SHOULD-FIX):  ${P2_COUNT}"
+echo -e "  P3 (NIT):         ${P3_COUNT}"
+echo -e "  Total TODOs:      ${TODO_NUM}"
+echo ""
+if [ "$TODO_NUM" -eq 0 ]; then
+    echo -e "${YELLOW}No findings extracted. Check that the consolidated report has ## MUST-FIX / ## SHOULD-FIX / ## NIT sections.${NC}"
+else
+    echo -e "${GREEN}Generated ${TODO_NUM} skeleton TODO entries.${NC}"
+    echo -e "${YELLOW}Run epca-todo-generator-agent to add implementation details.${NC}"
+fi
+
+exit 0

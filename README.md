@@ -47,13 +47,15 @@ Each **agent** has four distinct attributes. Understanding their differences is 
 | **TITLE** | ALL-CAPS kebab | Governance level — defines the scope of authority | `MANAGER`, `CHIEF-OF-STAFF`, `MEMBER` |
 | **ROLE** | lowercase kebab | The job specialization — associated with a Role Plugin containing all the skills needed | `chief-of-staff`, `architect-agent`, `orchestrator-agent`, `programmer-agent`, `assistant-manager-agent` |
 
+*(Examples above show display-format capitalization; internally stored as lowercase)*
+
 ### AGENT-ID
 
 A 3-word combination that AI Maestro uses to uniquely identify each agent: `<group>-<type>-<name>`. The three segments have distinct meanings — group defines the domain, type defines the function, and name is the unique instance label.
 
 ### PERSONA
 
-The display name of the agent instance. Associated with a specific Claude Code tmux session and a working directory at `~/agents/<persona-name>/`. Internally always handled as lowercase (so `Sammy` and `sammy` are the same persona when sending messages), but the UI always displays it capitalized. For non-Latin names without uppercase letters, it falls back to simple kebab formatting.
+The display name of the agent instance. Associated with a specific Claude Code tmux session and a working directory at `~/agents/<persona-name>/`. Input is case-insensitive — the system normalizes all persona names to lowercase internally (so `Sammy` and `sammy` refer to the same persona in commands and messages). The UI displays persona names capitalized for readability. For non-Latin names without uppercase letters, the display falls back to simple kebab formatting.
 
 ### TITLE
 
@@ -88,7 +90,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 This installs everything you need:
 - AI Maestro dashboard and service
 - Agent messaging system (AMP)
-- Claude Code plugin with 7 skills and 32 CLI scripts
+- Claude Code plugin with 9 skills and 32 CLI scripts
 
 **Time:** 5-10 minutes · **Requires:** Node.js 20+, tmux
 
@@ -120,6 +122,11 @@ See [QUICKSTART.md](./docs/QUICKSTART.md) for detailed setup options.
 </details>
 
 Dashboard opens at `http://localhost:23000`
+
+Then initialize your agent messaging identity (first time only):
+```bash
+amp-init.sh --auto
+```
 
 ---
 
@@ -214,14 +221,14 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 **Going deeper:**
 - [Multi-Machine Setup](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
 - [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
-- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
+- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph Visualization](./docs/images/code_graph01.png)
 - [Operations Guide](./docs/OPERATIONS-GUIDE.md)
 
 **Troubleshooting:**
 - [Common Issues](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md) · [Windows Installation](./docs/WINDOWS-INSTALLATION.md)
 
 **Extending:**
-- [Plugin Development](./plugin/README.md) · [API Reference](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
+- [Plugin Development](./plugin/README.md)
 
 ---
 
@@ -293,7 +300,7 @@ amp-delete.sh <message-id>
 ```bash
 # Index your project
 docs-index.sh ~/Code/my-project
-graph-index-delta.sh ~/Code/my-project
+graph-index-delta.sh ~/Code/my-project  # Update the code graph index for a specific project path
 
 # Search documentation
 docs-search.sh "authentication flow"
@@ -315,7 +322,7 @@ aimaestro-agent.sh plugin list
 
 # Install/uninstall a plugin
 aimaestro-agent.sh plugin install my-plugin --scope local
-aimaestro-agent.sh plugin uninstall my-plugin
+aimaestro-agent.sh plugin uninstall my-plugin --scope local
 ```
 
 Run `aimaestro-agent.sh help` for the full command list.

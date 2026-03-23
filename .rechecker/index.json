@@ -1,23 +1,33 @@
 {
-  "uid": "8de052",
-  "created": "2026-03-22T20:55:41.664008",
-  "total_files": 1,
+  "uid": "794461",
+  "created": "2026-03-23T02:56:30.811994",
+  "total_files": 2,
   "files": {
     "FID00001": {
-      "path": "components/AgentBadge.tsx",
-      "lines": 486,
-      "bytes": 18967,
+      "path": "README.md",
+      "lines": 367,
+      "bytes": 15352,
       "category": "big"
+    },
+    "FID00002": {
+      "path": "plugin",
+      "lines": 0,
+      "bytes": 576,
+      "category": "small"
     }
   },
   "groups": {
     "G001": [
       "FID00001"
+    ],
+    "G002": [
+      "FID00002"
     ]
   },
   "macro_groups": {
     "MG001": [
-      "G001"
+      "G001",
+      "G002"
     ]
   }
 }

@@ -1,8 +1,8 @@
 {
-  "uid": "8de052",
-  "status": "completed",
-  "created": "2026-03-22T20:55:46.155996",
-  "updated": "2026-03-22T21:02:25.288828",
+  "uid": "794461",
+  "status": "running",
+  "created": "2026-03-23T02:56:36.182941",
+  "updated": "2026-03-23T03:05:21.116785",
   "current_loop": 4,
   "current_iter": 1,
   "loops": {
@@ -13,9 +13,12 @@
     },
     "2": {
       "status": "completed",
-      "iter": 1,
-      "files_done": [],
+      "iter": 4,
+      "files_done": [
+        "FID00001"
+      ],
       "files_clean": [
+        "FID00002",
         "FID00001"
       ]
     },
@@ -24,7 +27,8 @@
       "iter": 1,
       "files_done": [],
       "files_clean": [
-        "FID00001"
+        "FID00001",
+        "FID00002"
       ]
     },
     "4": {
@@ -33,5 +37,5 @@
       "files_clean": []
     }
   },
-  "committed": true
+  "committed": false
 }

@@ -19,20 +19,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await scanRepo(body.url, body.ref || 'main')
+    // Validate ref type — non-string and empty-string values must not reach scanRepo
+    const ref = (typeof body.ref === 'string' && body.ref) ? body.ref : 'main'
+    const result = await scanRepo(body.url, ref)
 
     if (result.error) {
+      // Provide a 500 fallback in case the service omits status on error
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        { status: result.status || 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error scanning repo:', error)
+    // SyntaxError from request.json() means the client sent malformed JSON — 400 Bad Request
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!body.manifest || typeof body.manifest !== 'object') {
+    if (!body.manifest || typeof body.manifest !== 'object' || Array.isArray(body.manifest)) {
       return NextResponse.json(
         { error: 'Manifest is required' },
         { status: 400 }
@@ -32,15 +32,15 @@ export async function POST(request: NextRequest) {
     if (result.error) {
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        { status: result.status ?? 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    console.error('Error pushing to GitHub:', error)
+    console.error('Error in /api/plugin-builder/push:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

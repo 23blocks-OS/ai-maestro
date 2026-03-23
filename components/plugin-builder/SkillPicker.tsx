@@ -46,7 +46,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         const res = await fetch('/api/marketplace/skills?includeContent=false', { signal })
         if (res.ok) {
           const data = await res.json()
-          if (!signal.aborted) setMarketplaceSkills(data.skills || [])
+          // Use Array.isArray to guard against truthy non-array responses (e.g. {} or "error")
+          // that would silently break .filter() in filteredMarketplaceSkills
+          if (!signal.aborted) setMarketplaceSkills(Array.isArray(data.skills) ? data.skills : [])
         }
       } catch {
         // Marketplace may not be available or request aborted
@@ -71,13 +73,14 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      // Guard against null/undefined name or description from API response
+      s => (s.name?.toLowerCase().includes(q) ?? false) || (s.description?.toLowerCase().includes(q) ?? false)
     )
   }, [searchQuery, marketplaceSkills])
 
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 
@@ -186,12 +189,14 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                 <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
               </div>
             ) : filteredMarketplaceSkills.length > 0 ? (
-              filteredMarketplaceSkills.map(skill => {
-                const key = `marketplace:${skill.id}`
+              filteredMarketplaceSkills.map((skill, index) => {
+                // Use getSkillKey as the single source of truth for key generation
+                const key = getSkillKey({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
-                    key={skill.id}
+                    // Use index fallback when skill.id is absent to prevent unstable/null React key
+                    key={skill.id ?? `marketplace-${index}`}
                     role="button"
                     tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -202,7 +207,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                     onClick={() => {
                       if (isSelected) {
                         onRemoveSkill(key)
-                      } else {
+                      } else if (skill.id != null) {
+                        // Only add if the skill has a valid id — skills without an id cannot
+                        // be keyed, deduped, or referenced reliably by downstream consumers.
                         onAddSkill({
                           type: 'marketplace',
                           id: skill.id,
@@ -215,11 +222,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else if (skill.id != null) onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name ?? 'Unknown Skill'}: ${skill.description || `${skill.plugin ?? 'Unknown Plugin'} / ${skill.marketplace ?? 'Unknown Marketplace'}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -227,9 +234,10 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       <Package className={`w-4 h-4 ${isSelected ? 'text-cyan-400' : 'text-gray-400'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-200">{skill.name}</p>
+                      {/* Fallback for optional skill.name to avoid rendering blank text */}
+                      <p className="text-sm font-medium text-gray-200">{skill.name ?? 'Unknown Skill'}</p>
                       <p className="text-xs text-gray-500 truncate">
-                        {skill.description || `${skill.plugin} / ${skill.marketplace}`}
+                        {skill.description || `${skill.plugin ?? 'Unknown Plugin'} / ${skill.marketplace ?? 'Unknown Marketplace'}`}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
@@ -273,5 +281,8 @@ export function getSkillKey(skill: PluginSkillSelection): string {
       return `marketplace:${skill.id}`
     case 'repo':
       return `repo:${skill.url}:${skill.skillPath}`
+    default:
+      // Exhaustive check: unknown type means corrupted data; throw immediately
+      throw new Error(`Unknown skill type: ${(skill as { type: unknown }).type}`)
   }
 }

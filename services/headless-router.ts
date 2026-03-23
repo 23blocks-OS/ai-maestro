@@ -270,10 +270,21 @@ import {
 // Utility helpers
 // ---------------------------------------------------------------------------
 
+const MAX_BODY_SIZE = 10 * 1024 * 1024 // 10 MB — reject payloads larger than this to prevent DoS
+
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let totalLength = 0
+    req.on('data', (chunk: Buffer) => {
+      totalLength += chunk.length
+      if (totalLength > MAX_BODY_SIZE) {
+        req.destroy()
+        reject(new Error('Payload too large'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('utf-8')
       if (!body) return resolve({})
@@ -290,7 +301,16 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
 async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let totalLength = 0
+    req.on('data', (chunk: Buffer) => {
+      totalLength += chunk.length
+      if (totalLength > MAX_BODY_SIZE) {
+        req.destroy()
+        reject(new Error('Payload too large'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
@@ -312,7 +332,9 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Check for error presence alone — a service can return both result.error and result.data
+  // (e.g. partial success), so relying on !result.data would silently swallow errors.
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -337,7 +359,7 @@ function getQuery(url: string): Record<string, string> {
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
  */
-function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
+function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: any | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
@@ -346,7 +368,7 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
   const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
 
   let file: Buffer | null = null
-  let options: string | null = null
+  let options: any | null = null
 
   for (const part of parts) {
     const headerEnd = part.indexOf('\r\n\r\n')
@@ -359,7 +381,17 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
       // Convert back to buffer from latin1 encoding
       file = Buffer.from(content, 'latin1')
     } else if (headers.includes('name="options"')) {
-      options = content
+      // Parse JSON here so the caller gets a structured object or null (not a raw string).
+      // Invalid JSON is a client error — return null so the route handler can respond with 400.
+      // The entire body was decoded as latin1 to preserve binary bytes for the file field.
+      // Text fields like "options" were originally UTF-8, so we must reconstruct the original
+      // UTF-8 bytes before JSON.parse — otherwise multi-byte characters (e.g. "José") are
+      // corrupted by the latin1 interpretation, causing JSON.parse to fail with options=null.
+      try {
+        options = JSON.parse(Buffer.from(content, 'latin1').toString('utf8'))
+      } catch {
+        options = null
+      }
     }
   }
 
@@ -416,6 +448,8 @@ const routes: Route[] = [
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
+    // getConversationMessages accepts string (not optional) and validates internally,
+    // returning 400 when agentId is empty — so '' correctly represents an absent agentId.
     const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
     sendServiceResult(res, result)
   }},
@@ -450,8 +484,8 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteSession(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = await checkIdleStatus(params.id)
-    sendJson(res, 200, result)
+    // Use sendServiceResult so that error responses from checkIdleStatus are not masked as 200 OK.
+    sendServiceResult(res, await checkIdleStatus(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -482,7 +516,9 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
+    // await is required — broadcastActivityUpdate is async; omitting it would pass an unresolved
+    // Promise to sendServiceResult, causing JSON.stringify to silently produce '{}'.
+    const result = await broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
     sendServiceResult(res, result)
   }},
 
@@ -490,10 +526,11 @@ const routes: Route[] = [
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const timeoutVal = parseInt(query.timeout)
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: Number.isNaN(timeoutVal) ? undefined : timeoutVal,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -530,15 +567,16 @@ const routes: Route[] = [
     try {
       const contentType = getHeader(req, 'content-type') || ''
       const rawBody = await readRawBody(req)
-      const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
+      // parseMultipart already JSON-parses the options field; options is null when the field
+      // was absent OR when the field contained invalid JSON (client error).
+      const { file, options } = parseMultipart(rawBody, contentType)
 
       if (!file) {
         sendJson(res, 400, { error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
-      const result = await importAgent(file, options)
+      const result = await importAgent(file, options ?? {})
       sendServiceResult(res, result)
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
@@ -609,9 +647,10 @@ const routes: Route[] = [
 
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limitVal = parseInt(query.limit)
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: Number.isNaN(limitVal) ? undefined : limitVal,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -632,16 +671,19 @@ const routes: Route[] = [
     sendServiceResult(res, await manageConsolidation(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limitVal = parseInt(query.limit)
+    const minConfidenceVal = parseFloat(query.minConfidence)
+    const maxTokensVal = parseInt(query.maxTokens)
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: Number.isNaN(limitVal) ? undefined : limitVal,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: Number.isNaN(minConfidenceVal) ? undefined : minConfidenceVal,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: Number.isNaN(maxTokensVal) ? undefined : maxTokensVal,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -661,18 +703,24 @@ const routes: Route[] = [
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limitVal = parseInt(query.limit)
+    const minScoreVal = parseFloat(query.minScore)
+    const startTsVal = parseInt(query.startTs)
+    const endTsVal = parseInt(query.endTs)
+    const bm25WeightVal = parseFloat(query.bm25Weight)
+    const semanticWeightVal = parseFloat(query.semanticWeight)
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: Number.isNaN(limitVal) ? undefined : limitVal,
+      minScore: Number.isNaN(minScoreVal) ? undefined : minScoreVal,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: Number.isNaN(startTsVal) ? undefined : startTsVal,
+      endTs: Number.isNaN(endTsVal) ? undefined : endTsVal,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: Number.isNaN(bm25WeightVal) ? undefined : bm25WeightVal,
+      semanticWeight: Number.isNaN(semanticWeightVal) ? undefined : semanticWeightVal,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -795,11 +843,13 @@ const routes: Route[] = [
 
   // Playback
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, getPlaybackState(params.id, query.sessionId))
+    // await is required — without it an unresolved Promise reaches sendServiceResult/JSON.stringify.
+    sendServiceResult(res, await getPlaybackState(params.id, query.sessionId))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, controlPlayback(params.id, body))
+    // await is required — without it an unresolved Promise reaches sendServiceResult/JSON.stringify.
+    sendServiceResult(res, await controlPlayback(params.id, body))
   }},
 
   // Export / Transfer
@@ -1024,7 +1074,8 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    const limitVal = parseInt(query.limit)
+    sendServiceResult(res, listPendingMessages(authHeader, Number.isNaN(limitVal) ? undefined : limitVal))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')

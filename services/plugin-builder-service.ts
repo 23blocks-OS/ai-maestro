@@ -160,6 +160,12 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names to prevent path traversal
+      const mktErr = validateSkillPath(skill.marketplace)
+      if (mktErr) return `Marketplace skill "${skill.id}" — marketplace "${skill.marketplace}": ${mktErr}`
+      const pluginErr = validateSkillPath(skill.plugin)
+      if (pluginErr) return `Marketplace skill "${skill.id}" — plugin "${skill.plugin}": ${pluginErr}`
     }
   }
 
@@ -205,8 +211,14 @@ evictionInterval.unref() // Don't prevent process exit
 
 /**
  * Generate a plugin.manifest.json from the UI-provided build config.
+ *
+ * @param config - The build configuration from the UI.
+ * @param buildDir - The temporary build directory where build-plugin.sh will run.
+ *   Required so that marketplace skill paths can be expressed as paths relative
+ *   to the build directory, which is how build-plugin.sh resolves "local" sources
+ *   (it prepends $SCRIPT_DIR to every local path).
  */
-export function generateManifest(config: PluginBuildConfig): PluginManifest {
+export function generateManifest(config: PluginBuildConfig, buildDir: string): PluginManifest {
   const sources: PluginManifestSource[] = []
 
   // Group skills by source type
@@ -242,7 +254,13 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Marketplace plugins are installed at ~/.claude/plugins/marketplaces/<marketplace>/<plugin>
+    // build-plugin.sh resolves "local" source paths by prepending its own script directory
+    // (the buildDir), so the path in the manifest must be relative to buildDir — not an
+    // absolute path.  Using os.homedir() here would produce a path that the build script
+    // silently mis-resolves.
+    const absoluteInstallPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
+    const installPath = path.relative(buildDir, absoluteInstallPath)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -327,8 +345,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
 
-    // Generate manifest
-    const manifest = generateManifest(config)
+    // Generate manifest — buildDir must be passed so marketplace paths are relative to it
+    const manifest = generateManifest(config, buildDir)
 
     // Write manifest to build directory
     await fs.writeFile(
@@ -447,14 +465,24 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     // Clean up on error
     await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
 
-    const exitCode = (error as any)?.code
+    // Use a proper type guard: execPromise propagates the child_process execFile error whose
+    // .code property is the numeric process exit code (e.g. 128 for git "not found" errors).
+    const exitCode = (error instanceof Error && 'code' in error && typeof (error as { code: unknown }).code === 'number')
+      ? (error as { code: number }).code
+      : undefined
     const message = error instanceof Error ? error.message : String(error)
+    // execPromise attaches stderr to the error object — include it for diagnostics
+    const stderr = (typeof error === 'object' && error !== null && 'stderr' in error && typeof (error as { stderr: unknown }).stderr === 'string')
+      ? (error as { stderr: string }).stderr.trim()
+      : ''
 
+    // git exits with code 128 for "repository not found" / authentication failures
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${message}`, status: 500 }
+    const detail = stderr ? `${message}\n${stderr}` : message
+    return { error: `Failed to scan repository: ${detail}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -542,8 +570,13 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
+    // execPromise attaches stderr to the error object — include it for diagnostics
+    const stderr = (typeof error === 'object' && error !== null && 'stderr' in error && typeof (error as { stderr: unknown }).stderr === 'string')
+      ? (error as { stderr: string }).stderr.trim()
+      : ''
     console.error('Error pushing to GitHub:', error)
-    return { error: `Failed to push to GitHub: ${message}`, status: 500 }
+    const detail = stderr ? `${message}\n${stderr}` : message
+    return { error: `Failed to push to GitHub: ${detail}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -599,9 +632,12 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    const stderr = (error as any)?.stderr
     const logs = [message]
-    if (stderr) logs.push(...String(stderr).split('\n'))
+    // Use proper type guard to safely check for stderr property without bypassing the type system
+    if (typeof error === 'object' && error !== null && 'stderr' in error) {
+      const stderr = (error as { stderr: unknown }).stderr
+      if (typeof stderr === 'string' && stderr.length > 0) logs.push(...stderr.split('\n'))
+    }
 
     // Atomic replacement
     buildResults.set(buildId, {
@@ -636,9 +672,10 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           const relativePath = path.relative(dir, path.dirname(fullPath))
 
           skills.push({
-            name: (frontmatter.name as string) || skillFolder,
+            // Use String() coercion to safely handle non-string frontmatter values (numbers, booleans, etc.)
+            name: frontmatter.name != null ? String(frontmatter.name) : skillFolder,
             path: relativePath,
-            description: (frontmatter.description as string) || '',
+            description: frontmatter.description != null ? String(frontmatter.description) : '',
           })
         } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
           // Verify the directory is still within the scan root

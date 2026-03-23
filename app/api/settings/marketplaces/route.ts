@@ -205,7 +205,8 @@ export async function GET() {
           // Scan ALL plugins in the marketplace clone
           const seenPlugins = new Set<string>()
 
-          // Helper: check if a directory looks like a plugin
+          // Helper: check if a directory looks like a Claude Code plugin
+          // A plugin can have any combination of these elements
           const looksLikePlugin = (dir: string) =>
             existsSync(join(dir, '.claude-plugin', 'plugin.json')) ||
             existsSync(join(dir, 'skills')) ||
@@ -213,7 +214,9 @@ export async function GET() {
             existsSync(join(dir, 'commands')) ||
             existsSync(join(dir, 'hooks')) ||
             existsSync(join(dir, 'rules')) ||
-            existsSync(join(dir, '.mcp.json'))
+            existsSync(join(dir, '.mcp.json')) ||
+            existsSync(join(dir, '.lsp.json')) ||
+            existsSync(join(dir, 'output-styles'))
 
           // Case 1: The marketplace root itself IS a single plugin
           if (looksLikePlugin(mktPath)) {
@@ -243,7 +246,39 @@ export async function GET() {
             if (installed && enabled) info.enabledCount++
           }
 
-          // Case 2: Scan subdirectories for plugins
+          // Case 2: The plugins/ directory itself IS a plugin (has skills/agents directly, not nested)
+          const pluginsDirPath = join(mktPath, 'plugins')
+          if (existsSync(pluginsDirPath) && !seenPlugins.has(mktName) && looksLikePlugin(pluginsDirPath)) {
+            // Check if plugins/ contains subdirs that look like plugins — if not, plugins/ IS the plugin
+            const pluginsDirEntries = await readdir(pluginsDirPath).catch(() => [] as string[])
+            const hasNestedPlugins = pluginsDirEntries.some(e => !e.startsWith('.') && existsSync(join(pluginsDirPath, e, '.claude-plugin', 'plugin.json')))
+            if (!hasNestedPlugins) {
+              const plugName = mktName
+              seenPlugins.add(plugName)
+              const key = `${plugName}@${mktName}`
+              const enabled = enabledPlugins[key] === true
+              const cacheDir = join(CACHE_DIR, mktName, plugName)
+              const installed = existsSync(cacheDir)
+              const latestVersion = installed ? await getLatestVersion(cacheDir) : null
+              const metadataDir = latestVersion ? join(cacheDir, latestVersion) : pluginsDirPath
+              const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
+              let description: string | null = null
+              let sourceUrl: string | null = null
+              if (manifest) {
+                description = (manifest.description as string) || null
+                const plugSrc = manifest.source as Record<string, string> | undefined
+                if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
+                else if (plugSrc?.path) sourceUrl = plugSrc.path
+              }
+              const elementCounts = await countElements(metadataDir)
+              const errors = (installed && latestVersion) ? detectPluginErrors(join(cacheDir, latestVersion), plugName) : []
+              info.plugins.push({ name: plugName, key, installed, enabled: installed && enabled, version: latestVersion, description, sourceUrl, errors, elementCounts })
+              if (installed) info.installedCount++
+              if (installed && enabled) info.enabledCount++
+            }
+          }
+
+          // Case 3: Scan subdirectories for plugins
           const pluginsDirs = [
             join(mktPath, 'plugins'),
             mktPath, // some marketplaces have plugins at root level

@@ -108,6 +108,19 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
     abortRef.current?.abort()
   }, [url, ref])
 
+  // Clear stale scan results whenever the user changes the URL or ref so the
+  // displayed skills always belong to the current inputs.
+  useEffect(() => {
+    setScanResult(null)
+  }, [url, ref])
+
+  // Abort any in-flight fetch when the component unmounts to prevent resource leaks.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
   const handleScan = async () => {
     // Capture current state values before any async operations to avoid stale closures.
     // Default ref to 'main' here (single source of truth) rather than forcing it in onChange.
@@ -115,6 +128,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, 
     const currentRef = ref.trim() || 'main'
 
     if (!currentUrl) return
+
+    // Capture inputs at scan-start so that a mid-flight input change cannot
+    // associate the results with the wrong repository/branch (stale closure bug).
+    const scanUrl = url.trim()
+    const scanRef = ref.trim() || 'main' // Use 'main' if ref is empty, consistent with onChange defaulting
 
     // Abort any in-flight scan
     abortRef.current?.abort()

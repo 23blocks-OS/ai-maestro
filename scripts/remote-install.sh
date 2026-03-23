@@ -287,7 +287,8 @@ show_help() {
     echo "  -y, --yes           Non-interactive mode (auto-accept all prompts)"
     echo "  --fast              Disable typing animation (auto-enabled over SSH)"
     echo "  --skip-prereqs      Skip prerequisite installation"
-    echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
+    echo "  --skip-tools, --skip-messaging
+                      Skip agent tools (messaging, memory, graph, docs)"
     echo "  --skip-ai-tool      Skip AI coding assistant installation"
     echo "  --skip-gateways     Skip messaging gateway selection"
     echo "  -p, --port PORT     Dashboard port (default: 23000, or AIMAESTRO_PORT env var)"
@@ -1071,9 +1072,9 @@ act3_clone_and_build() {
                 fi
                 maestro_step 3 4 "Updating agent tools..." "done"
 
-                # Update existing gateways
+                # Update existing gateways (honour --skip-gateways)
                 maestro_step 4 4 "Updating gateways..." ""
-                if [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
+                if [ "$SKIP_GATEWAYS" != true ] && [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
                     cd "$INSTALL_DIR/services"
                     git pull origin main 2>/dev/null || git pull origin main 2>/dev/null || true
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
@@ -1127,8 +1128,8 @@ act3_clone_and_build() {
     fi
     maestro_step 3 "$total_steps" "Setting up agent tools..." "done"
 
-    # Install selected gateways
-    if [ -n "$SELECTED_GATEWAYS" ]; then
+    # Install selected gateways (honour --skip-gateways)
+    if [ "$SKIP_GATEWAYS" != true ] && [ -n "$SELECTED_GATEWAYS" ]; then
         maestro_step 4 "$total_steps" "Installing gateways..." ""
         if git clone --depth 1 "$GATEWAYS_REPO" "$INSTALL_DIR/services" 2>/dev/null; then
             IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
@@ -1163,11 +1164,12 @@ act3_clone_and_build() {
                 fi
             done
             maestro_ok "Gateways installed: $SELECTED_GATEWAYS"
+            maestro_step 4 "$total_steps" "Installing gateways..." "done"
         else
             maestro_warn "Could not clone gateways repo — you can add them later"
             SELECTED_GATEWAYS=""
+            maestro_step 4 "$total_steps" "Installing gateways..." "skipped"
         fi
-        maestro_step 4 "$total_steps" "Installing gateways..." "done"
     fi
 
     local config_step=$total_steps
@@ -1445,6 +1447,7 @@ act5_grand_finale() {
             # Not in tmux — create session only if it doesn't already exist, then attach.
             # The sleep is only needed when a new session was just created to let it start.
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
+                session_preexisted=true
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
                 # Attempt to attach; if the session exists but attach fails (e.g. the session
                 # exited between has-session and attach-session), kill the stale session and

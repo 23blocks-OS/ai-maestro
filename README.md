@@ -179,6 +179,12 @@ Assemble agents into teams, run meetings in split-pane war rooms, and track task
 
 Custom avatars, personality profiles, and visual presence for every agent. When an agent has a face and a role, you instinctively assign it the right work — just like a real team.
 
+### Plugin Builder
+
+*Every agent needs a different skill set. Installing the right skills by hand was tedious.*
+
+A visual, browser-based tool for composing custom Claude Code plugins without touching any config files. Pick skills from core AI Maestro skills, your local marketplace, or any public GitHub repository. Combine them, set a name and version, and build — the plugin is assembled and ready to install in seconds. Available at `http://localhost:23000/plugin-builder`.
+
 ---
 
 ## Who Is This For

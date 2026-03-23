@@ -6,6 +6,28 @@ import type { PluginSkillSelection } from '@/types/plugin-builder'
 // importing from the single source of truth prevents cross-component coupling.
 import { getSkillKey } from '@/types/plugin-builder'
 
+function getSkillDisplayName(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return skill.name
+    case 'marketplace':
+      return skill.id.split(':')[2] || skill.id
+    case 'repo':
+      return skill.name
+  }
+}
+
+function getSkillSubtitle(skill: PluginSkillSelection): string | null {
+  switch (skill.type) {
+    case 'core':
+      return null
+    case 'marketplace':
+      return `${skill.plugin} / ${skill.marketplace}`
+    case 'repo':
+      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+  }
+}
+
 interface PluginComposerProps {
   name: string
   version: string

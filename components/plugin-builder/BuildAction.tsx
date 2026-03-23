@@ -64,7 +64,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     abortCtrl?.abort()
     pollAbortRef.current = null
     pollFailures.current = 0
-  }, [])
+  }, [pollRef, pollFailures])
 
   // Clean up polling on unmount — use clearPoll() for consistent cleanup (resets failure counter too)
   useEffect(() => {

@@ -245,8 +245,8 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
   const nameErr = validatePluginName(config.name)
   if (nameErr) return nameErr
 
-  if (!config.version || typeof config.version !== 'string') return 'Version is required'
-  if (!SEMVER_RE.test(config.version)) return 'Version must be valid semver (e.g., 1.0.0)'
+  if (!c.version || typeof c.version !== 'string') return 'Version is required'
+  if (!SEMVER_RE.test(c.version)) return 'Version must be valid semver (e.g., 1.0.0)'
 
   // Validate description if provided — must be a string within reasonable length
   if (config.description !== undefined && config.description !== null) {
@@ -432,6 +432,15 @@ async function evictStaleBuildResults(): Promise<void> {
   } finally {
     isEvicting = false
   }
+  for (const id of staleIds) {
+    buildResults.delete(id)
+    // Best-effort cleanup of build directory — log failures so disk-space issues are
+    // visible instead of silently accumulating stale directories.
+    const buildDir = path.join(BUILDS_DIR, id)
+    fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`[evictStaleBuildResults] Failed to remove stale build dir ${buildDir}:`, err)
+    })
+  }
 
   // Wait for all cleanup operations; allSettled ensures we never throw
   await Promise.allSettled(cleanupPromises)
@@ -578,8 +587,9 @@ export function generateManifest(config: PluginBuildConfig, buildDir: string): P
  * Build a plugin from a manifest.
  * Writes manifest to temp dir, runs build-plugin.sh, captures output.
  */
-export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceResult<PluginBuildResult>> {
-  // Validate inputs (protects both Next.js routes and headless router)
+export async function buildPlugin(config: unknown): Promise<ServiceResult<PluginBuildResult>> {
+  // Validate inputs — accepts unknown so callers never need an unsafe cast.
+  // All field-level checks live inside validateBuildConfig.
   const validationError = validateBuildConfig(config)
   if (validationError) {
     return { error: validationError, status: 400 }
@@ -1112,6 +1122,9 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           const skillFolder = relativeSkillDir ? path.basename(relativeSkillDir) : 'root'
           const relativePath = relativeSkillDir
 
+          // Use String() coercion (not type assertion) so non-string YAML values
+          // (e.g., numeric `name: 123`) are properly converted to strings rather
+          // than silently bypassing the `||` fallback as a truthy non-string.
           skills.push({
             // Use String() coercion to safely handle non-string frontmatter values (numbers, booleans, etc.)
             name: frontmatter.name != null ? String(frontmatter.name) : skillFolder,

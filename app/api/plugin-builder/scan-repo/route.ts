@@ -127,6 +127,16 @@ export async function POST(request: NextRequest) {
         { status: result.status ?? 500 }
       )
     }
+    if (result.data === undefined) {
+      // Guard against a ServiceResult that has neither error nor data — this would
+      // mean a bug in the service layer; surface it as a server error rather than
+      // silently returning an empty 200 body.
+      console.error('scanRepo returned a successful result with no data')
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      )
+    }
     return NextResponse.json(result.data)
   } catch (error) {
     // Unexpected runtime errors from scanRepo or elsewhere are server-side failures

@@ -9,6 +9,10 @@ import BuildAction from '@/components/plugin-builder/BuildAction'
 import { getSkillKey } from '@/types/plugin-builder'
 import type { PluginSkillSelection, PluginBuildConfig } from '@/types/plugin-builder'
 
+// Valid plugin names: start and end with alphanumeric, separators (hyphen/underscore)
+// must be surrounded by alphanumeric characters on both sides.
+const PLUGIN_NAME_REGEX = /^[a-zA-Z0-9]+(?:[_-][a-zA-Z0-9]+)*$/
+
 export default function PluginBuilderPage() {
   // Plugin metadata
   const [name, setName] = useState('my-custom-plugin')

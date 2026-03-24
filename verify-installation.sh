@@ -62,28 +62,21 @@ fi
 # 2. Check AMP messaging scripts (post-AMP migration)
 echo ""
 echo "2. Checking AMP messaging scripts..."
-AMP_SCRIPTS=(
-    "amp-init.sh"
-    "amp-send.sh"
-    "amp-inbox.sh"
-    "amp-read.sh"
-    "amp-reply.sh"
-    "amp-status.sh"
-    "amp-register.sh"
-    "amp-fetch.sh"
-    "amp-delete.sh"
-    "amp-identity.sh"
-    "amp-helper.sh"
-    "amp-security.sh"
-)
-
-for script in "${AMP_SCRIPTS[@]}"; do
-    if [ -x "$HOME/.local/bin/$script" ]; then
-        pass "$script"
-    else
-        fail "$script NOT installed - run install-plugin.sh"
-    fi
-done
+# Auto-discover AMP scripts from plugin directory
+PLUGIN_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/plugin/plugins/ai-maestro/scripts"
+if [ -d "$PLUGIN_SCRIPTS_DIR" ]; then
+    for script_path in "$PLUGIN_SCRIPTS_DIR"/amp-*.sh; do
+        [ -f "$script_path" ] || continue
+        script=$(basename "$script_path")
+        if [ -x "$HOME/.local/bin/$script" ]; then
+            pass "$script"
+        else
+            fail "$script NOT installed - run install-plugin.sh"
+        fi
+    done
+else
+    fail "Plugin scripts directory not found — cannot verify AMP scripts"
+fi
 
 # 3. Check memory scripts
 echo ""
@@ -159,22 +152,21 @@ fi
 # 7. Check Claude Code skills
 echo ""
 echo "7. Checking Claude Code skills..."
-SKILLS=(
-    "agent-messaging"
-    "memory-search"
-    "docs-search"
-    "graph-query"
-    "ai-maestro-agents-management"
-    "planning"
-)
-
-for skill in "${SKILLS[@]}"; do
-    if [ -f "$HOME/.claude/skills/$skill/SKILL.md" ]; then
-        pass "$skill skill"
-    else
-        warn "$skill skill not installed"
-    fi
-done
+# Auto-discover skills from plugin directory
+PLUGIN_SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/plugin/plugins/ai-maestro/skills"
+if [ -d "$PLUGIN_SKILLS_DIR" ]; then
+    for skill_dir in "$PLUGIN_SKILLS_DIR"/*/; do
+        [ -d "$skill_dir" ] || continue
+        skill=$(basename "$skill_dir")
+        if [ -f "$HOME/.claude/skills/$skill/SKILL.md" ]; then
+            pass "$skill skill"
+        else
+            warn "$skill skill not installed"
+        fi
+    done
+else
+    warn "Plugin skills directory not found — cannot verify skills"
+fi
 
 # 8. Check PATH
 echo ""

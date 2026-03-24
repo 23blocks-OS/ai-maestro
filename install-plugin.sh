@@ -74,10 +74,10 @@ WARN="⚠️ "
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
-echo "║          AI Maestro Plugin Installer (23blocks default)       ║"
+echo "║         AI Maestro Plugin Installer (23blocks default)        ║"
 echo "║                                                                ║"
-echo "║    Skills, scripts, and CLI tools for your AI agents          ║"
-echo "║    Customize: ai-maestro.23blocks.com/plugin-builder.html     ║"
+echo "║   Skills, scripts, and CLI tools for your AI agents           ║"
+echo "║   Customize: ai-maestro.23blocks.com/plugin-builder.html      ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -812,10 +812,11 @@ echo ""
 if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Checking AMP scripts..."
 
-    AMP_SCRIPTS=("amp-init.sh" "amp-identity.sh" "amp-send.sh" "amp-inbox.sh" "amp-read.sh" "amp-reply.sh" "amp-status.sh" "amp-register.sh" "amp-fetch.sh" "amp-delete.sh")
     SCRIPTS_OK=true
 
-    for script in "${AMP_SCRIPTS[@]}"; do
+    for script_path in "$PLUGIN_DIR"/scripts/amp-*.sh; do
+        [ -f "$script_path" ] || continue
+        script=$(basename "$script_path")
         if [ -x ~/.local/bin/"$script" ]; then
             print_success "$script"
         else

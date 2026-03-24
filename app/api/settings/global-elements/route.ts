@@ -436,6 +436,57 @@ export async function GET() {
       outputStyles: results.reduce((sum, p) => sum + p.outputStyles.length, 0),
     }
 
+    // Scan standalone MCP/LSP servers from user-level configs (not from plugins)
+    const standaloneMcp: ElementInfo[] = []
+    const standaloneLsp: ElementInfo[] = []
+    const configFiles = [
+      join(HOME, '.claude', '.mcp.json'),
+      join(HOME, '.claude.json'),
+      join(HOME, '.claude', 'settings.json'),
+      join(HOME, '.claude', 'settings.local.json'),
+    ]
+    const pluginMcpNames = new Set(results.flatMap(p => p.mcpServers.map(m => m.name)))
+    const pluginLspNames = new Set(results.flatMap(p => p.lspServers.map(l => l.name)))
+    for (const cfgPath of configFiles) {
+      if (!existsSync(cfgPath)) continue
+      try {
+        const cfg = JSON.parse(await readFile(cfgPath, 'utf-8'))
+        // MCP servers
+        const mcpServers = cfg.mcpServers || {}
+        for (const [name, srv] of Object.entries(mcpServers)) {
+          if (pluginMcpNames.has(name)) continue // already from a plugin
+          pluginMcpNames.add(name) // deduplicate across config files
+          const srvJson = JSON.stringify({ [name]: srv }, null, 2)
+          standaloneMcp.push({
+            name,
+            path: cfgPath,
+            sourcePlugin: '(standalone)',
+            sourceMarketplace: '(user config)',
+            description: srvJson,
+            type: 'mcp',
+          })
+        }
+        // LSP servers
+        const lspServers = cfg.lspServers || {}
+        for (const [name, srv] of Object.entries(lspServers)) {
+          if (pluginLspNames.has(name)) continue
+          pluginLspNames.add(name)
+          const srvJson = JSON.stringify({ [name]: srv }, null, 2)
+          standaloneLsp.push({
+            name,
+            path: cfgPath,
+            sourcePlugin: '(standalone)',
+            sourceMarketplace: '(user config)',
+            description: srvJson,
+            type: 'lsp',
+          })
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    // Update totals with standalone servers
+    totals.mcpServers += standaloneMcp.length
+    totals.lspServers += standaloneLsp.length
+
     // Build flat elements array for the Elements tab card view
     const flatElements: (ElementInfo & { pluginEnabled: boolean; pluginVersion: string | null; pluginSourceUrl: string | null })[] = []
     for (const plugin of results) {
@@ -443,6 +494,10 @@ export async function GET() {
       for (const el of [...plugin.skills, ...plugin.agents, ...plugin.commands, ...plugin.hooks, ...plugin.rules, ...plugin.mcpServers, ...plugin.lspServers, ...plugin.outputStyles]) {
         flatElements.push({ ...el, ...extra })
       }
+    }
+    // Add standalone MCP/LSP servers (always enabled, no plugin version)
+    for (const el of [...standaloneMcp, ...standaloneLsp]) {
+      flatElements.push({ ...el, pluginEnabled: true, pluginVersion: null, pluginSourceUrl: null })
     }
     flatElements.sort((a, b) => a.name.localeCompare(b.name))
 

@@ -692,7 +692,10 @@ export default function GlobalElementsSection() {
                   </div>
                   {/* Row 2 (mobile) / right side (desktop): plugin + marketplace info */}
                   <div className="flex items-center gap-1.5 ml-[34px] sm:ml-auto flex-shrink-0">
-                    <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
+                    {el.sourcePlugin === '(standalone)'
+                      ? <span className="text-[10px] flex-shrink-0" title="Standalone element">⛺︎</span>
+                      : <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
+                    }
                     <span
                       className="text-[9px] text-gray-600 min-w-0 truncate hover:text-blue-400 cursor-pointer"
                       onClick={(e) => { e.stopPropagation(); goToPlugin(el.pluginKey) }}

@@ -449,7 +449,21 @@ export async function GET() {
         : [join(versionDir, 'rules')]
 
       // Scan all directories (custom + defaults) and merge results
-      const skillResults = await Promise.all(skillScanDirs.map(d => listSkillDirs(d, pluginName, marketplace)))
+      // Custom paths may point directly to a skill dir (with SKILL.md) or to a parent dir containing skill subdirs
+      const skillResults: ElementInfo[][] = []
+      for (const d of skillScanDirs) {
+        const fullPath = existsSync(d) ? d : join(versionDir, d)
+        if (!existsSync(fullPath)) continue
+        // If path itself contains SKILL.md, it's a direct skill reference
+        if (existsSync(join(fullPath, 'SKILL.md'))) {
+          const fm = await extractFrontmatter(join(fullPath, 'SKILL.md'))
+          const name = fullPath.split('/').pop() || pluginName
+          skillResults.push([{ name, path: fullPath, sourcePlugin: pluginName, sourceMarketplace: marketplace, description: fm.description, type: 'skill', frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined }])
+        } else {
+          // Otherwise scan as parent dir
+          skillResults.push(await listSkillDirs(fullPath, pluginName, marketplace))
+        }
+      }
       const skills = skillResults.flat()
       // Also check root-level SKILL.md
       const rootSkill = join(versionDir, 'SKILL.md')

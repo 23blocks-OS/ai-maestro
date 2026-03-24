@@ -610,7 +610,7 @@ export default function GlobalElementsSection() {
       </div>
 
       {/* Install hint */}
-      <p className="text-[10px] text-gray-600 italic mb-3">To install single elements (MCP, LSP, skills, subagents, hooks, rules, etc.) in Claude Code just ask the agent to do it. It will take care of everything.</p>
+      <p className="text-[10px] text-gray-600 italic mb-3">To install elements (MCP, LSP, skills, subagents, rules, etc.) just ask the agent. To manage hooks, use the /hooks menu in Claude Code.</p>
 
       {/* Search + Active-only toggle */}
       <div className="flex items-center gap-3 mb-4">
@@ -706,8 +706,8 @@ export default function GlobalElementsSection() {
                         <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
                       </a>
                     )}
-                    {/* Remove button for standalone elements (not from plugins) */}
-                    {el.sourcePlugin === '(standalone)' && (
+                    {/* Remove button for standalone elements (not from plugins). Hooks excluded — too fragile, use /hooks menu. */}
+                    {el.sourcePlugin === '(standalone)' && el.type !== 'hook' && (
                       <button
                         onClick={async (e) => {
                           e.stopPropagation()

@@ -550,8 +550,45 @@ export async function GET() {
       } catch { /* ignore */ }
     }
 
+    // Standalone hooks from settings.json (not from plugins)
+    const standaloneHooks: ElementInfo[] = []
+    const pluginHookNames = new Set(results.flatMap(p => p.hooks.map(h => h.name)))
+    const settingsForHooks = await readJsonSafe(SETTINGS_PATH) || {}
+    const hooksObj = (settingsForHooks as Record<string, unknown>).hooks as Record<string, unknown[]> | undefined
+    if (hooksObj) {
+      let hookIdx = 0
+      for (const event of Object.keys(hooksObj)) {
+        const eventHooks = hooksObj[event]
+        if (!Array.isArray(eventHooks)) continue
+        for (const hookGroup of eventHooks) {
+          hookIdx++
+          const hg = hookGroup as Record<string, unknown>
+          const matcher = (hg.matcher as string) || ''
+          const cmd = (hg.command as string) || ''
+          const isSync = hg.sync === true
+          const isPrompt = hg.type === 'prompt'
+          // Build name same as plugin hooks
+          const parts: string[] = [event]
+          if (isPrompt) { parts.push('prompt') }
+          else if (cmd) { parts.push('command', (cmd.split('/').pop()?.replace(/\.[^.]+$/, '') || cmd.split(' ')[0])) }
+          if (matcher && matcher !== '*') parts.push(matcher)
+          parts.push(isSync ? 'sync' : 'async')
+          parts.push('standalone', `hook_${hookIdx}`)
+          const name = parts.join('_')
+          if (pluginHookNames.has(name)) continue
+          const hookJson = JSON.stringify(hookGroup, null, 2)
+          standaloneHooks.push({
+            name, path: SETTINGS_PATH,
+            sourcePlugin: '(standalone)', sourceMarketplace: '(user config)',
+            description: hookJson, type: 'hook',
+          })
+        }
+      }
+    }
+
     // Update totals with all standalone elements
     totals.mcpServers += standaloneMcp.length
+    totals.hooks += standaloneHooks.length
     totals.lspServers += standaloneLsp.length
     totals.skills += standaloneSkills.length
     totals.rules += standaloneRules.length
@@ -566,7 +603,7 @@ export async function GET() {
       }
     }
     // Add all standalone elements (always enabled, no plugin version)
-    for (const el of [...standaloneMcp, ...standaloneLsp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents]) {
+    for (const el of [...standaloneMcp, ...standaloneLsp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents, ...standaloneHooks]) {
       flatElements.push({ ...el, pluginEnabled: true, pluginVersion: null, pluginSourceUrl: null })
     }
     flatElements.sort((a, b) => a.name.localeCompare(b.name))

@@ -658,7 +658,11 @@ export default function GlobalElementsSection() {
             const TypeIcon = ti.icon
 
             return (
-              <div key={elKey} ref={ref => { elementRefs.current[elKey] = ref }} className={`rounded-lg border overflow-hidden ${el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'}`}>
+              <div key={elKey} ref={ref => { elementRefs.current[elKey] = ref }} className={`rounded-lg border overflow-hidden ${
+                el.sourcePlugin === '(standalone)'
+                  ? 'border-blue-800/40 bg-blue-950/10'
+                  : el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'
+              }`}>
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}
                 <div
                   className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isExp ? 'bg-gray-800/40' : ''}`}

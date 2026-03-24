@@ -553,7 +553,8 @@ export async function GET() {
     // Standalone hooks from settings.json (not from plugins)
     const standaloneHooks: ElementInfo[] = []
     const pluginHookNames = new Set(results.flatMap(p => p.hooks.map(h => h.name)))
-    const settingsForHooks = await readJsonSafe(SETTINGS_PATH) || {}
+    let settingsForHooks: Record<string, unknown> = {}
+    try { settingsForHooks = JSON.parse(await readFile(SETTINGS_PATH, 'utf-8')) } catch { /* ignore */ }
     const hooksObj = (settingsForHooks as Record<string, unknown>).hooks as Record<string, unknown[]> | undefined
     if (hooksObj) {
       let hookIdx = 0

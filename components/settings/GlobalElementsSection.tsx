@@ -130,6 +130,9 @@ export default function GlobalElementsSection() {
   // Script viewer modal state
   const [scriptViewer, setScriptViewer] = useState<{ name: string; content: string } | null>(null)
   const [loadingScript, setLoadingScript] = useState(false)
+  // MCP tools discovery cache
+  const [mcpTools, setMcpTools] = useState<Record<string, { tools: { name: string; description: string }[]; serverInfo?: { name: string; version: string } }>>({})
+  const [loadingMcpTools, setLoadingMcpTools] = useState<string | null>(null)
 
   // Flat elements list from API
   const [flatElements, setFlatElements] = useState<FlatElement[]>([])
@@ -743,6 +746,50 @@ export default function GlobalElementsSection() {
                             </button>
                           )
                         } catch { return null }
+                      })()}
+                      {/* MCP tools discovery button */}
+                      {el.type === 'mcp' && el.path && (() => {
+                        const toolsData = mcpTools[elKey]
+                        return (<>
+                          {!toolsData && (
+                            <button
+                              onClick={() => {
+                                setLoadingMcpTools(elKey)
+                                fetch(`/api/settings/element-content?path=${encodeURIComponent(el.path!)}&server=${encodeURIComponent(el.name)}&action=mcp-tools`)
+                                  .then(r => r.ok ? r.json() : null)
+                                  .then(data => { if (data?.tools) setMcpTools(prev => ({ ...prev, [elKey]: { tools: data.tools, serverInfo: data.serverInfo } })) })
+                                  .catch(() => {})
+                                  .finally(() => setLoadingMcpTools(null))
+                              }}
+                              disabled={loadingMcpTools === elKey}
+                              className="mt-1 flex items-center gap-1.5 text-[9px] text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-2 py-1 rounded transition-colors"
+                            >
+                              {loadingMcpTools === elKey ? <Loader2 className="w-3 h-3 animate-spin" /> : <Server className="w-3 h-3" />}
+                              Discover Tools
+                            </button>
+                          )}
+                          {toolsData && (
+                            <div className="mt-2 pt-2 border-t border-gray-800/30">
+                              {toolsData.serverInfo && (
+                                <div className="text-[9px] text-gray-500 mb-1">Server: {toolsData.serverInfo.name} v{toolsData.serverInfo.version}</div>
+                              )}
+                              <div className="text-[9px] text-gray-500 mb-1">{toolsData.tools.length} tools</div>
+                              <div className="rounded-md bg-gray-950/50 overflow-hidden">
+                                <div className="max-h-60 overflow-auto p-2 space-y-1.5">
+                                  {toolsData.tools.map(tool => (
+                                    <div key={tool.name} className="text-[9px]">
+                                      <span className="font-mono text-emerald-400">{tool.name}</span>
+                                      {tool.description && <span className="text-gray-500 ml-1.5">— {tool.description.substring(0, 120)}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex justify-end px-1.5 py-0.5 border-t border-gray-800/30">
+                                  <button onClick={() => navigator.clipboard.writeText(toolsData.tools.map(t => `${t.name}: ${t.description || ''}`).join('\n'))} className="flex items-center gap-1 text-[8px] text-gray-500 hover:text-gray-300 px-1.5 py-0.5 rounded hover:bg-gray-800 transition-colors"><Copy className="w-2.5 h-2.5" />Copy Tools List</button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>)
                       })()}
                     </>) : (
                       <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>

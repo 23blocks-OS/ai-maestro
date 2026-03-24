@@ -56,9 +56,12 @@ export async function GET(req: NextRequest) {
     }
     try {
       const { execSync } = await import('child_process')
+      // Resolve CLAUDE_PLUGIN_ROOT — it's the directory containing .mcp.json
+      const { dirname } = await import('path')
+      const pluginRoot = dirname(resolved)
       const output = execSync(
         `uv run "${scriptPath}" "${resolved}" "${safeName}" --json 2>/dev/null`,
-        { timeout: 30000, maxBuffer: 1024 * 1024 }
+        { timeout: 30000, maxBuffer: 1024 * 1024, env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot } }
       ).toString()
       const data = JSON.parse(output)
       return NextResponse.json({ tools: data.tools || [], serverInfo: data.serverInfo || null, capabilities: data.capabilities || null })

@@ -609,6 +609,9 @@ export default function GlobalElementsSection() {
         )}
       </div>
 
+      {/* Install hint */}
+      <p className="text-[10px] text-gray-600 italic mb-3">To install single elements (MCP, LSP, skills, subagents, hooks, rules, etc.) in Claude Code just ask the agent to do it. It will take care of everything.</p>
+
       {/* Search + Active-only toggle */}
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1">

@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.1] - 2026-03-23
+
+### Changed
+- **Renamed `install-messaging.sh` → `install-plugin.sh`** — The installer now reflects its actual scope: all skills, scripts, and CLI tools (not just messaging). Added plugin builder references (repo + website) to the script header and banner. Updated all references across docs, CI, and helper scripts.
+- **Auto-discover skills in installer** — Replaced hardcoded skill list with dynamic discovery from the plugin directory. New skills added via the manifest build are automatically installed without modifying the installer.
+
 ## [0.26.0] - 2026-03-23
 
 ### Added

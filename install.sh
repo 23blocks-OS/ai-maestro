@@ -845,13 +845,13 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     TOOLS_INSTALLED=0
 
     # Install messaging (AMP + all plugin/scripts/* tools + skills)
-    if [ "$INSTALL_MESSAGING" = true ] && [ -f "install-messaging.sh" ]; then
+    if [ "$INSTALL_MESSAGING" = true ] && [ -f "install-plugin.sh" ]; then
         echo ""
         print_step "Installing messaging tools..."
         if [ "$NON_INTERACTIVE" = true ]; then
-            ./install-messaging.sh -y
+            ./install-plugin.sh -y
         else
-            ./install-messaging.sh
+            ./install-plugin.sh
         fi
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi

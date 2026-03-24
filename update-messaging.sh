@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI Maestro - Agent Messaging System Updater
 #
-# v0.21.26: Simplified to delegate to install-messaging.sh (single source of truth).
+# v0.21.26: Simplified to delegate to install-plugin.sh (single source of truth).
 # Previously this script iterated messaging_scripts/ which no longer exists.
 
 set -e
@@ -19,7 +19,7 @@ while [[ $# -gt 0 ]]; do
         -y|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
         -h|--help)
             echo "Usage: ./update-messaging.sh [-y|--yes]"
-            echo "Updates messaging scripts and skills via install-messaging.sh"
+            echo "Updates messaging scripts and skills via install-plugin.sh"
             exit 0
             ;;
         *) shift ;;
@@ -33,8 +33,8 @@ echo "╚═══════════════════════�
 echo ""
 
 # Check we're in the right directory
-if [ ! -f "install-messaging.sh" ]; then
-    echo -e "${YELLOW}⚠️  install-messaging.sh not found in current directory${NC}" >&2
+if [ ! -f "install-plugin.sh" ]; then
+    echo -e "${YELLOW}⚠️  install-plugin.sh not found in current directory${NC}" >&2
     echo "   Run this from the AI Maestro root directory:" >&2
     echo "   cd ~/ai-maestro && ./update-messaging.sh" >&2
     exit 1
@@ -51,9 +51,9 @@ if [ "$NON_INTERACTIVE" != true ]; then
     fi
 fi
 
-# Delegate to install-messaging.sh (the single source of truth)
+# Delegate to install-plugin.sh (the single source of truth)
 echo ""
-./install-messaging.sh -y
+./install-plugin.sh -y
 
 echo ""
 echo -e "${GREEN}✅ Messaging update complete!${NC}"

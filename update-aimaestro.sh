@@ -227,12 +227,12 @@ print_step "$ROCKET" "Reinstalling scripts and skills..."
 # ─────────────────────────────────────────────────────────────────────────
 
 # 1. AMP messaging scripts + all plugin/scripts/* tools + skills
-if [ -f "install-messaging.sh" ]; then
+if [ -f "install-plugin.sh" ]; then
     print_info "Reinstalling AMP messaging & CLI tools..."
-    ./install-messaging.sh -y
+    ./install-plugin.sh -y
     print_success "Messaging & CLI tools reinstalled"
 else
-    print_warning "install-messaging.sh not found - skipping messaging tools"
+    print_warning "install-plugin.sh not found - skipping messaging tools"
 fi
 
 # 2. Memory tools (optional — skip with --skip-memory)

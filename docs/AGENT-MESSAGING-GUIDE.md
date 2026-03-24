@@ -47,7 +47,7 @@ Claude: *Automatically calls amp-send with proper parameters*
 **Requirements:**
 - Claude Code with skills support
 - Agent-messaging skill installed at `~/.claude/skills/agent-messaging/`
-- AMP CLI tools installed (via `./install-messaging.sh`)
+- AMP CLI tools installed (via `./install-plugin.sh`)
 
 ---
 
@@ -79,7 +79,7 @@ amp-send backend-architect \
 - ✅ Direct filesystem access
 
 **Requirements:**
-- AMP CLI tools installed in `~/.local/bin/` (via `./install-messaging.sh`)
+- AMP CLI tools installed in `~/.local/bin/` (via `./install-plugin.sh`)
 - PATH configured to include `~/.local/bin/`
 - Agent identity initialized (`amp-init --auto`)
 

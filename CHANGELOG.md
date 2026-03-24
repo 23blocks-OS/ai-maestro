@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.3] - 2026-03-24
+
+### Changed
+- **AID v0.2.0 — fully independent from AMP** — Agent Identity no longer requires AMP to be installed. New commands: `aid-init` (standalone identity init), `aid-helper` (self-contained helper with OpenSSL auto-detection, Ed25519 signing). All `aid-*` scripts now source `aid-helper.sh` instead of `amp-helper.sh`. If both AMP and AID are installed, they share `~/.agent-messaging/agents/` — one Ed25519 identity serves both protocols. Plugin now ships 50 scripts (was 48).
+
 ## [0.26.1] - 2026-03-23
 
 ### Changed

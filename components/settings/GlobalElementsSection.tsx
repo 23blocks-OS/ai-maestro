@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink, X, Copy,
+  Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink, X, Copy, Trash2,
   ToggleLeft, ToggleRight,
   Wand2, Bot, Terminal, Webhook, Server, FileCode,
   ScrollText, Palette,
@@ -705,6 +705,29 @@ export default function GlobalElementsSection() {
                       <a href={el.pluginSourceUrl.startsWith('/') ? `file://${el.pluginSourceUrl}` : el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
                         <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
                       </a>
+                    )}
+                    {/* Remove button for standalone MCP/LSP servers */}
+                    {el.sourcePlugin === '(standalone)' && ['mcp', 'lsp'].includes(el.type) && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!confirm(`Remove standalone ${el.type.toUpperCase()} server "${el.name}"?`)) return
+                          try {
+                            const res = await fetch('/api/settings/marketplaces', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'remove-mcp', mcpName: el.name }),
+                            })
+                            if (res.ok) {
+                              fetchElements()
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="p-0.5 rounded hover:bg-red-500/20 transition-colors flex-shrink-0"
+                        title={`Remove ${el.name}`}
+                      >
+                        <Trash2 className="w-2.5 h-2.5 text-gray-600 hover:text-red-400" />
+                      </button>
                     )}
                   </div>
                 </div>

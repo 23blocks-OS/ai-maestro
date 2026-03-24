@@ -549,6 +549,26 @@ export async function POST(req: NextRequest) {
     if (action === 'check-updates') {
       return await handleCheckUpdates(body.marketplaceName, body.force === true)
     }
+    // Standalone MCP server management
+    if (action === 'remove-mcp') {
+      const mcpName = body.mcpName as string | undefined
+      if (!mcpName) return NextResponse.json({ error: 'mcpName is required' }, { status: 400 })
+      try {
+        const { execSync } = await import('child_process')
+        execSync(`claude mcp remove "${shellSafe(mcpName)}" --scope user 2>&1`, { timeout: 15000 })
+        return NextResponse.json({ success: true, action: 'remove-mcp', mcpName })
+      } catch (err) {
+        // Try without scope (removes from whichever scope it exists in)
+        try {
+          const { execSync } = await import('child_process')
+          execSync(`claude mcp remove "${shellSafe(mcpName)}" 2>&1`, { timeout: 15000 })
+          return NextResponse.json({ success: true, action: 'remove-mcp', mcpName })
+        } catch (err2) {
+          return NextResponse.json({ error: `Remove MCP failed: ${String(err2).substring(0, 500)}` }, { status: 500 })
+        }
+      }
+    }
+
     // New CLI-backed actions that don't require pluginKey
     if (action === 'disable-all') {
       return await handleDisableAll()

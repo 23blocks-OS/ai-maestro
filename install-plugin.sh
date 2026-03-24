@@ -1,11 +1,21 @@
 #!/bin/bash
-# AI Maestro - Agent Messaging Protocol (AMP) Installer
-# Installs AMP scripts and Claude Code skills
+# AI Maestro Plugin Installer — 23blocks default plugin
+#
+# Installs the AI Maestro plugin: all skills, scripts, and CLI tools.
+# This is the default plugin configuration maintained by 23blocks.
+# Users can customize their own plugin builds by forking the plugin builder:
+#
+#   Repo:    https://github.com/23blocks-OS/ai-maestro-plugins
+#   Website: https://ai-maestro.23blocks.com/plugin-builder.html
+#
+# The plugin builder lets you compose custom skill sets from any source
+# (GitHub repos, local files, private repos) into a single plugin.
+# This installer ships the default set that supports AI Maestro.
 #
 # Usage:
-#   ./install-messaging.sh           # Interactive mode
-#   ./install-messaging.sh -y        # Non-interactive (install all)
-#   ./install-messaging.sh --migrate # Migrate from old messaging system
+#   ./install-plugin.sh           # Interactive mode
+#   ./install-plugin.sh -y        # Non-interactive (install all)
+#   ./install-plugin.sh --migrate # Migrate from old messaging system
 
 set -e
 
@@ -23,9 +33,9 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "AI Maestro - Agent Messaging Protocol (AMP) Installer"
+            echo "AI Maestro Plugin Installer (23blocks default)"
             echo ""
-            echo "Usage: ./install-messaging.sh [OPTIONS]"
+            echo "Usage: ./install-plugin.sh [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  -y, --yes          Non-interactive mode (install all, assume yes)"
@@ -64,9 +74,10 @@ WARN="⚠️ "
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
-echo "║      AI Maestro - Agent Messaging Protocol (AMP) Installer    ║"
+echo "║          AI Maestro Plugin Installer (23blocks default)       ║"
 echo "║                                                                ║"
-echo "║              Email for AI Agents - Local First                ║"
+echo "║    Skills, scripts, and CLI tools for your AI agents          ║"
+echo "║    Customize: ai-maestro.23blocks.com/plugin-builder.html     ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -112,7 +123,7 @@ if [ ! -d "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR/scripts" ]; then
         echo "  git submodule update --init --recursive"
         echo ""
         echo "Then run:"
-        echo "  ./install-messaging.sh"
+        echo "  ./install-plugin.sh"
         exit 1
     fi
 fi
@@ -752,10 +763,12 @@ if [ "$INSTALL_SKILL" = true ]; then
         print_error "AMP messaging skill not found in plugin"
     fi
 
-    # Install other AI Maestro skills
-    OTHER_SKILLS=("graph-query" "memory-search" "docs-search" "planning" "ai-maestro-agents-management")
-
-    for skill in "${OTHER_SKILLS[@]}"; do
+    # Install all other AI Maestro skills (auto-discovered from plugin)
+    for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+        [ -d "$skill_dir" ] || continue
+        skill=$(basename "$skill_dir")
+        # agent-messaging already installed above
+        [ "$skill" = "agent-messaging" ] && continue
         if [ -d "$PLUGIN_DIR/skills/$skill" ]; then
             SKILL_INSTALL_OK=true
             # Back up existing skill before replacing (preserves user customizations)
@@ -824,7 +837,9 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     print_info "Checking installed skills..."
 
-    for skill in agent-messaging graph-query memory-search docs-search planning; do
+    for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+        [ -d "$skill_dir" ] || continue
+        skill=$(basename "$skill_dir")
         if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
             print_success "$skill"
         else

@@ -116,7 +116,7 @@ Added `viaSlack?: boolean` field to `MessageSummary` interface. This is populate
 | `messaging_scripts/check-aimaestro-messages.sh` | Added 📱 indicator + [via Slack] tag |
 | `lib/messageQueue.ts` | Added `viaSlack` field to MessageSummary |
 | `skills/agent-messaging/SKILL.md` | Full documentation for Slack integration |
-| `install-messaging.sh` | Added reply script to verification |
+| `install-plugin.sh` | Added reply script to verification |
 
 ---
 

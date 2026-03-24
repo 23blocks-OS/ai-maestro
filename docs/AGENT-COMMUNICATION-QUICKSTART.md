@@ -64,7 +64,7 @@ amp-send backend-architect "Subject" "Message body" normal request
 - ✅ Full control over parameters
 - ✅ No dependencies on Claude Code
 
-**Requirements:** AMP CLI tools in PATH (install via `./install-messaging.sh`) + Agent identity initialized (`amp-init --auto`)
+**Requirements:** AMP CLI tools in PATH (install via `./install-plugin.sh`) + Agent identity initialized (`amp-init --auto`)
 
 ---
 
@@ -74,12 +74,12 @@ amp-send backend-architect "Subject" "Message body" normal request
 
 ```bash
 cd /path/to/ai-maestro
-./install-messaging.sh
+./install-plugin.sh
 ```
 
 **Unattended installation** (for CI/CD, scripts):
 ```bash
-./install-messaging.sh -y
+./install-plugin.sh -y
 ```
 
 The `-y` flag auto-selects full installation (scripts + skills) without prompts.
@@ -516,7 +516,7 @@ AMP tools should be in `~/.local/bin/`:
 which amp-send amp-inbox amp-init
 
 # If missing, install from the repo
-./install-messaging.sh
+./install-plugin.sh
 
 # Or manually
 cp plugins/amp-messaging/scripts/amp-*.sh ~/.local/bin/

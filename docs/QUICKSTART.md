@@ -68,7 +68,7 @@ yarn build
 # or: npm run build
 
 # Install CLI scripts and skills
-./install-messaging.sh -y
+./install-plugin.sh -y
 ```
 
 ### Start AI Maestro

@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2026-01-03
-**Current Version:** v0.26.0
+**Current Version:** v0.26.1
 
 ---
 
@@ -613,7 +613,7 @@ Add "Memory" tab to AI Maestro dashboard:
 - [ ] Create `recall-memory.sh` script (50 lines)
 - [ ] Create `update-memory-context.sh` helper (30 lines)
 - [ ] Add memory template (markdown structure)
-- [ ] Add to `install-messaging.sh` installer
+- [ ] Add to `install-plugin.sh` installer
 - [ ] Test with sample memories across sessions
 
 **Phase 2: Claude Integration (v0.5.0)**
@@ -686,7 +686,7 @@ Add "Memory" tab to AI Maestro dashboard:
 - `plugin/scripts/update-memory-context.sh` (30 lines)
 - `plugin/skills/agent-memory/SKILL.md` (200 lines)
 - `docs/AGENT-MEMORY-GUIDE.md` (comprehensive guide)
-- Update `install-messaging.sh` to install memory scripts
+- Update `install-plugin.sh` to install memory scripts
 
 ---
 
@@ -1380,7 +1380,7 @@ send-to-slack.sh "@juan" "Issue identified: DB connection pool exhausted. Restar
 - [ ] Add environment variable configuration
 - [ ] Create Claude Code skill for Slack notifications
 - [ ] Test sending messages to channels/users
-- [ ] Update `install-messaging.sh` to include Slack setup
+- [ ] Update `install-plugin.sh` to include Slack setup
 
 **Phase 2: Receive via Socket Mode - 3 days**
 - [ ] Install `@slack/socket-mode` and `@slack/web-api` dependencies
@@ -1472,7 +1472,7 @@ Similar pattern could be applied to Discord:
 - `plugin/scripts/slack-webhook-server.sh` (100 lines) - Events API alternative
 - `plugin/skills/slack-integration/SKILL.md` (200 lines) - Claude Code skill
 - `docs/SLACK-INTEGRATION-GUIDE.md` (500 lines) - Complete setup guide
-- Update `install-messaging.sh` to offer Slack setup
+- Update `install-plugin.sh` to offer Slack setup
 - Update `package.json` with Slack dependencies
 - Update `.env.example` with Slack configuration
 

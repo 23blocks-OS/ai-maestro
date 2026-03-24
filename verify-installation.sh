@@ -3,7 +3,7 @@
 # Run this after installation to verify everything works
 #
 # v0.21.26: Updated to check AMP scripts (post-migration) instead of
-#           old messaging scripts that were removed by install-messaging.sh.
+#           old messaging scripts that were removed by install-plugin.sh.
 #           Added planning skill check. Fixed runtime tests.
 
 # Don't use set -e - we want to continue on failures
@@ -44,7 +44,7 @@ echo "1. Checking shell helpers..."
 if [ -f "$HOME/.local/share/aimaestro/shell-helpers/common.sh" ]; then
     pass "common.sh installed"
 else
-    fail "common.sh NOT installed - run install-messaging.sh"
+    fail "common.sh NOT installed - run install-plugin.sh"
 fi
 
 if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
@@ -81,7 +81,7 @@ for script in "${AMP_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-messaging.sh"
+        fail "$script NOT installed - run install-plugin.sh"
     fi
 done
 
@@ -97,7 +97,7 @@ for script in "${MEMORY_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-messaging.sh"
+        fail "$script NOT installed - run install-plugin.sh"
     fi
 done
 
@@ -117,7 +117,7 @@ for script in "${GRAPH_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-messaging.sh"
+        fail "$script NOT installed - run install-plugin.sh"
     fi
 done
 
@@ -137,7 +137,7 @@ for script in "${DOCS_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-messaging.sh"
+        fail "$script NOT installed - run install-plugin.sh"
     fi
 done
 
@@ -275,7 +275,7 @@ echo ""
 
 if [ $FAIL -gt 0 ]; then
     echo -e "${RED}Some checks failed. Run the appropriate installer:${NC}"
-    echo "  ./install-messaging.sh    - AMP scripts + memory/graph/docs tools + skills"
+    echo "  ./install-plugin.sh    - AMP scripts + memory/graph/docs tools + skills"
     echo "  ./install-agent-cli.sh    - Agent management CLI"
     echo ""
     echo "Or run the full updater to fix everything at once:"

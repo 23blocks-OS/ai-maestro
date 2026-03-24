@@ -41,12 +41,12 @@ jobs:
           mkdir -p ~/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Test install-messaging.sh
+      - name: Test install-plugin.sh
         run: |
-          echo "=== Testing install-messaging.sh ==="
+          echo "=== Testing install-plugin.sh ==="
 
           # Run installer in non-interactive mode
-          ./install-messaging.sh -y
+          ./install-plugin.sh -y
 
           # Verify common.sh was installed
           if [ ! -f ~/.local/share/aimaestro/shell-helpers/common.sh ]; then
@@ -274,7 +274,7 @@ jobs:
           echo "==========================================="
           echo ""
           echo "Tested installers:"
-          echo "  ✓ install-messaging.sh"
+          echo "  ✓ install-plugin.sh"
           echo "  ✓ install-memory-tools.sh"
           echo "  ✓ install-graph-tools.sh"
           echo "  ✓ install-doc-tools.sh"

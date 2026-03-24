@@ -504,7 +504,7 @@ scripts/
   register-agent-from-session.mjs - Register agent(s) from tmux session(s)
   setup-tmux.sh                   - Setup tmux configuration
 
-install-messaging.sh    - Installer for messaging system to user's environment
+install-plugin.sh    - Plugin installer (skills, scripts, CLI tools)
 
 server.mjs              - Custom Next.js server (HTTP + WebSocket)
 CLAUDE.md               - This file - guidance for Claude Code
@@ -526,13 +526,13 @@ The AMP plugin is bundled in the plugin submodule at `plugin/plugins/ai-maestro/
 
 ```bash
 # Install AMP scripts and skills
-./install-messaging.sh
+./install-plugin.sh
 
 # Non-interactive installation
-./install-messaging.sh -y
+./install-plugin.sh -y
 
 # Migrate existing messages only
-./install-messaging.sh --migrate
+./install-plugin.sh --migrate
 ```
 
 **What gets installed:**
@@ -902,7 +902,7 @@ Two test scripts exist for validating the Agent Messaging Protocol:
 ./scripts/test-amp-cross-host.sh --skip-inbox  # Skip inbox verification
 ```
 
-**Prerequisites:** AI Maestro running on localhost:23000, jq installed, AMP scripts installed (`./install-messaging.sh -y`).
+**Prerequisites:** AI Maestro running on localhost:23000, jq installed, AMP scripts installed (`./install-plugin.sh -y`).
 
 **No other automated tests yet.** Phase 1 focuses on getting the core working.
 

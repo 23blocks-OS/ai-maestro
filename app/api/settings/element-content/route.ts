@@ -56,13 +56,26 @@ export async function GET(req: NextRequest) {
     }
     try {
       const { execSync } = await import('child_process')
-      // Resolve CLAUDE_PLUGIN_ROOT — it's the directory containing .mcp.json
-      const { dirname } = await import('path')
+      const { dirname, join: pathJoin } = await import('path')
+      const { writeFileSync, unlinkSync } = await import('fs')
       const pluginRoot = dirname(resolved)
-      const output = execSync(
-        `uv run "${scriptPath}" "${resolved}" "${safeName}" --json 2>/dev/null`,
-        { timeout: 30000, maxBuffer: 1024 * 1024, env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot } }
-      ).toString()
+
+      // Resolve ${CLAUDE_PLUGIN_ROOT} and other Claude plugin variables in .mcp.json
+      // before passing to the discovery script, since node/python won't expand shell vars in JSON
+      let mcpJsonContent = await readFile(resolved, 'utf-8')
+      mcpJsonContent = mcpJsonContent.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot)
+      const tmpMcpJson = pathJoin(os.tmpdir(), `mcp-resolved-${Date.now()}.json`)
+      writeFileSync(tmpMcpJson, mcpJsonContent)
+
+      let output: string
+      try {
+        output = execSync(
+          `uv run "${scriptPath}" "${tmpMcpJson}" "${safeName}" --json 2>/dev/null`,
+          { timeout: 30000, maxBuffer: 1024 * 1024, env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot } }
+        ).toString()
+      } finally {
+        try { unlinkSync(tmpMcpJson) } catch { /* ignore */ }
+      }
       const data = JSON.parse(output)
       return NextResponse.json({ tools: data.tools || [], serverInfo: data.serverInfo || null, capabilities: data.capabilities || null })
     } catch (err) {

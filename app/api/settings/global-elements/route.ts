@@ -20,6 +20,7 @@ export const dynamic = 'force-dynamic'
 const HOME = os.homedir()
 const SETTINGS_PATH = join(HOME, '.claude', 'settings.json')
 const PLUGINS_CACHE = join(HOME, '.claude', 'plugins', 'cache')
+const MARKETPLACES_DIR = join(HOME, '.claude', 'plugins', 'marketplaces')
 
 interface ElementInfo {
   name: string
@@ -208,6 +209,30 @@ async function listSkillDirs(dir: string, pluginName: string, marketplace: strin
   }
 }
 
+/** List skills: subdirs of skills/ AND root-level SKILL.md (some plugins put SKILL.md at plugin root) */
+async function listSkillDirsAndRoot(versionDir: string, pluginName: string, marketplace: string): Promise<ElementInfo[]> {
+  const results = await listSkillDirs(join(versionDir, 'skills'), pluginName, marketplace)
+  // Also check for root-level SKILL.md (plugin IS the skill)
+  const rootSkill = join(versionDir, 'SKILL.md')
+  if (existsSync(rootSkill)) {
+    const fm = await extractFrontmatter(rootSkill)
+    const name = (fm.frontmatter.name as string) || pluginName
+    // Avoid duplicates if skills/ subdir already found this
+    if (!results.some(r => r.name === name)) {
+      results.push({
+        name,
+        path: versionDir,
+        sourcePlugin: pluginName,
+        sourceMarketplace: marketplace,
+        description: fm.description,
+        type: 'skill',
+        frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+      })
+    }
+  }
+  return results
+}
+
 /** Parse hooks from hooks/hooks.json — generates descriptive names */
 async function listHooks(versionDir: string, pluginName: string, marketplace: string): Promise<ElementInfo[]> {
   const hooksJsonPath = join(versionDir, 'hooks', 'hooks.json')
@@ -391,7 +416,7 @@ export async function GET() {
 
       // Scan for elements
       const [skills, agents, commands, hooks, rules, mcpServers, lspServers, outputStyles] = await Promise.all([
-        listSkillDirs(join(versionDir, 'skills'), pluginName, marketplace),
+        listSkillDirsAndRoot(versionDir, pluginName, marketplace),
         listMdFiles(join(versionDir, 'agents'), pluginName, marketplace, 'agent'),
         listMdFiles(join(versionDir, 'commands'), pluginName, marketplace, 'command'),
         listHooks(versionDir, pluginName, marketplace),
@@ -400,6 +425,36 @@ export async function GET() {
         listLspServers(versionDir, pluginName, marketplace),
         listOutputStyles(versionDir, pluginName, marketplace),
       ])
+
+      // Fallback: read LSP/MCP from marketplace manifest if not found in cache
+      if (lspServers.length === 0 || mcpServers.length === 0) {
+        const mktDir = join(MARKETPLACES_DIR, marketplace)
+        for (const manifestPath of [join(mktDir, '.claude-plugin', 'marketplace.json'), join(mktDir, 'marketplace.json')]) {
+          if (!existsSync(manifestPath)) continue
+          try {
+            const mktManifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+            const pluginEntry = (mktManifest.plugins as Array<Record<string, unknown>> | undefined)?.find(p => p.name === pluginName)
+            if (!pluginEntry) continue
+            // LSP from manifest
+            if (lspServers.length === 0 && pluginEntry.lspServers) {
+              const lspObj = pluginEntry.lspServers as Record<string, unknown>
+              for (const [name, srv] of Object.entries(lspObj)) {
+                const srvJson = JSON.stringify({ [name]: srv }, null, 2)
+                lspServers.push({ name, path: manifestPath, sourcePlugin: pluginName, sourceMarketplace: marketplace, description: srvJson, type: 'lsp' })
+              }
+            }
+            // MCP from manifest
+            if (mcpServers.length === 0 && pluginEntry.mcpServers) {
+              const mcpObj = pluginEntry.mcpServers as Record<string, unknown>
+              for (const [name, srv] of Object.entries(mcpObj)) {
+                const srvJson = JSON.stringify({ [name]: srv }, null, 2)
+                mcpServers.push({ name, path: manifestPath, sourcePlugin: pluginName, sourceMarketplace: marketplace, description: srvJson, type: 'mcp' })
+              }
+            }
+            break
+          } catch { /* ignore */ }
+        }
+      }
 
       // Read version and source URL from plugin.json
       const versionName = versionDir.split('/').pop() || null

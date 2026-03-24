@@ -162,9 +162,15 @@ export default function GlobalElementsSection() {
 
   // Navigate to a marketplace from Elements/Plugins tab
   // Navigate to an exact element in the Elements tab — clears filters, expands, scrolls
-  const goToElement = useCallback((elementName: string, elementType: string, sourcePlugin?: string) => {
-    // Build the element key matching the format used in the Elements tab: type:name@plugin
-    const elKey = `${elementType.replace(/s$/, '')}:${elementName}@${sourcePlugin || ''}`
+  const goToElement = useCallback((elementName: string, elementType: string, sourcePlugin?: string, sourceMarketplace?: string) => {
+    // Map plural ELEMENT_SECTIONS keys to the singular type used in flatElements/API
+    const pluralToSingular: Record<string, string> = {
+      skills: 'skill', agents: 'agent', commands: 'command', hooks: 'hook',
+      rules: 'rule', mcpServers: 'mcp', lspServers: 'lsp', outputStyles: 'outputStyle',
+    }
+    const singularType = pluralToSingular[elementType] || elementType
+    // Build the element key matching the format used in the Elements tab: type:name@plugin@marketplace
+    const elKey = `${singularType}:${elementName}@${sourcePlugin || ''}@${sourceMarketplace || ''}`
     setElementSearch('')
     setElementTypeFilter('all')
     setActiveOnly(false)
@@ -193,10 +199,11 @@ export default function GlobalElementsSection() {
   // Handle navigate-to-plugin after tab switch
   useEffect(() => {
     if (navigateToPlugin && activeTab === 'plugins') {
-      setExpandedPlugin(navigateToPlugin)
+      const targetKey = navigateToPlugin
+      setExpandedPlugin(targetKey)
       setNavigateToPlugin(null)
       requestAnimationFrame(() => {
-        const el = pluginRefs.current[navigateToPlugin]
+        const el = pluginRefs.current[targetKey]
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
     }
@@ -208,9 +215,10 @@ export default function GlobalElementsSection() {
       setExpandedElement(navigateToElement)
       const targetKey = navigateToElement
       setNavigateToElement(null)
-      // Lazy-load content for the target element
-      const targetEl = flatElements.find(el => `${el.type}:${el.name}@${el.sourcePlugin}` === targetKey)
-      if (targetEl?.path && !elementContent[targetKey]) {
+      // Lazy-load content for the target element — key format: type:name@plugin@marketplace
+      // Skip for hooks/mcp/lsp which render inline JSON, not fetched .md content
+      const targetEl = flatElements.find(el => `${el.type}:${el.name}@${el.sourcePlugin}@${el.sourceMarketplace}` === targetKey)
+      if (targetEl?.path && !elementContent[targetKey] && !['hook', 'mcp', 'lsp'].includes(targetEl.type)) {
         setLoadingContent(targetKey)
         fetch(`/api/settings/element-content?path=${encodeURIComponent(targetEl.path)}`)
           .then(r => r.ok ? r.json() : null)
@@ -218,9 +226,12 @@ export default function GlobalElementsSection() {
           .catch(() => {})
           .finally(() => setLoadingContent(null))
       }
+      // Double rAF: first lets React commit the render (expandedElement change), second scrolls to the now-visible element
       requestAnimationFrame(() => {
-        const el = elementRefs.current[targetKey]
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        requestAnimationFrame(() => {
+          const el = elementRefs.current[targetKey]
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
       })
     }
   }, [navigateToElement, activeTab, flatElements, elementContent])
@@ -552,7 +563,7 @@ export default function GlobalElementsSection() {
                                     <span
                                       key={item.name}
                                       className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40 hover:bg-gray-700/60 hover:text-blue-300 cursor-pointer transition-colors"
-                                      onClick={(e) => { e.stopPropagation(); goToElement(item.name, key, plugin.name) }}
+                                      onClick={(e) => { e.stopPropagation(); goToElement(item.name, key, plugin.name, plugin.marketplace) }}
                                       title="View in Elements tab"
                                     >{item.name}</span>
                                   ))}

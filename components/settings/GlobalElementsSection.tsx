@@ -660,7 +660,7 @@ export default function GlobalElementsSection() {
             return (
               <div key={elKey} ref={ref => { elementRefs.current[elKey] = ref }} className={`rounded-lg border overflow-hidden ${
                 el.sourcePlugin === '(standalone)'
-                  ? 'border-gray-800/60 bg-[#FF0090]/[0.35]'
+                  ? 'border-gray-800/60 bg-[#FF0090]/[0.15]'
                   : el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'
               }`}>
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}

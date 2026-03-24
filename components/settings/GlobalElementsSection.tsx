@@ -755,7 +755,11 @@ export default function GlobalElementsSection() {
                             <button
                               onClick={() => {
                                 setLoadingMcpTools(elKey)
-                                fetch(`/api/settings/element-content?path=${encodeURIComponent(el.path!)}&server=${encodeURIComponent(el.name)}&action=mcp-tools`)
+                                fetch('/api/settings/mcp-discover', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ configPath: el.path, serverName: el.name }),
+                                })
                                   .then(r => r.ok ? r.json() : null)
                                   .then(data => { if (data?.tools) setMcpTools(prev => ({ ...prev, [elKey]: { tools: data.tools, serverInfo: data.serverInfo } })) })
                                   .catch(() => {})

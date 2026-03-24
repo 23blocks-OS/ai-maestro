@@ -2508,6 +2508,29 @@ const routes: Route[] = [
       res.end(JSON.stringify({ error: 'Failed to handle element-content GET' }))
     }
   }},
+
+  // =========================================================================
+  // Settings: MCP Server Discovery
+  // =========================================================================
+  { method: 'POST', pattern: /^\/api\/settings\/mcp-discover$/, paramNames: [], handler: async (req, res) => {
+    try {
+      const body = await readJsonBody(req)
+      const { NextRequest } = await import('next/server')
+      const mod = await import('@/app/api/settings/mcp-discover/route')
+      const fakeReq = new NextRequest('http://localhost/api/settings/mcp-discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const response = await mod.POST(fakeReq)
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle mcp-discover POST' }))
+    }
+  }},
 ]
 
 // ---------------------------------------------------------------------------

@@ -652,7 +652,7 @@ export default function GlobalElementsSection() {
         <div className="space-y-1">
           <p className="text-[10px] text-gray-600 mb-2">{filteredFlatElements.length} elements</p>
           {filteredFlatElements.map((el) => {
-            const elKey = `${el.type}:${el.name}@${el.sourcePlugin}`
+            const elKey = `${el.type}:${el.name}@${el.sourcePlugin}@${el.sourceMarketplace}`
             const isExp = expandedElement === elKey
             const ti = typeInfo(el.type)
             const TypeIcon = ti.icon
@@ -660,7 +660,7 @@ export default function GlobalElementsSection() {
             return (
               <div key={elKey} ref={ref => { elementRefs.current[elKey] = ref }} className={`rounded-lg border overflow-hidden ${
                 el.sourcePlugin === '(standalone)'
-                  ? 'border-blue-800/40 bg-blue-950/10'
+                  ? 'border-blue-700/30 bg-blue-950/20'
                   : el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'
               }`}>
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}

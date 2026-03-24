@@ -439,9 +439,9 @@ export async function GET() {
     // Scan standalone MCP/LSP servers from user-level configs (not from plugins)
     const standaloneMcp: ElementInfo[] = []
     const standaloneLsp: ElementInfo[] = []
+    // Claude Code standalone MCP/LSP configs (NOT ~/.claude.json which is Claude Desktop)
     const configFiles = [
       join(HOME, '.claude', '.mcp.json'),
-      join(HOME, '.claude.json'),
       join(HOME, '.claude', 'settings.json'),
       join(HOME, '.claude', 'settings.local.json'),
     ]

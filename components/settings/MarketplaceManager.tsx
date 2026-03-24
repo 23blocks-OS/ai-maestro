@@ -716,9 +716,12 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setConfirmAction(null)}>
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 max-w-sm mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-gray-200 mb-2">Confirm Action</h3>
-            <p className="text-xs text-gray-400 mb-4">{confirmAction.label}</p>
+            <p className="text-xs text-gray-400 mb-2">{confirmAction.label}</p>
+            {(confirmAction.action === 'uninstall' || confirmAction.action === 'delete-marketplace') && (
+              <p className="text-[10px] text-red-400 mb-3">This operation is not reversible.</p>
+            )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmAction(null)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors">Cancel</button>
+              <button onClick={() => setConfirmAction(null)} autoFocus className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors">Cancel</button>
               <button
                 onClick={() => {
                   if (confirmAction.action === 'delete-marketplace') {

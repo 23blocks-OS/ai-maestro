@@ -134,6 +134,9 @@ export default function GlobalElementsSection() {
   const [mcpTools, setMcpTools] = useState<Record<string, { tools: { name: string; description: string }[]; serverInfo?: { name: string; version: string } }>>({})
   const [loadingMcpTools, setLoadingMcpTools] = useState<string | null>(null)
 
+  // Confirm dialog for destructive actions
+  const [confirmRemove, setConfirmRemove] = useState<{ name: string; type: string; path: string | null; onConfirm: () => void } | null>(null)
+
   // Flat elements list from API
   const [flatElements, setFlatElements] = useState<FlatElement[]>([])
 
@@ -724,17 +727,24 @@ export default function GlobalElementsSection() {
                     {/* Remove button for standalone elements (not from plugins). Hooks excluded — too fragile, use /hooks menu. */}
                     {el.sourcePlugin === '(standalone)' && el.type !== 'hook' && (
                       <button
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation()
-                          if (!confirm(`Remove standalone ${el.type} "${el.name}"?`)) return
-                          try {
-                            const res = await fetch('/api/settings/marketplaces', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'remove-element', elementName: el.name, elementType: el.type, elementPath: el.path }),
-                            })
-                            if (res.ok) fetchElements()
-                          } catch { /* ignore */ }
+                          setConfirmRemove({
+                            name: el.name,
+                            type: el.type,
+                            path: el.path,
+                            onConfirm: async () => {
+                              try {
+                                const res = await fetch('/api/settings/marketplaces', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'remove-element', elementName: el.name, elementType: el.type, elementPath: el.path }),
+                                })
+                                if (res.ok) fetchElements()
+                              } catch { /* ignore */ }
+                              setConfirmRemove(null)
+                            },
+                          })
                         }}
                         className="p-0.5 rounded hover:bg-red-500/20 transition-colors flex-shrink-0"
                         title={`Remove ${el.name}`}
@@ -924,6 +934,35 @@ export default function GlobalElementsSection() {
             {/* Script content with syntax highlighting */}
             <div className="flex-1 overflow-auto p-4">
               <pre className="text-[11px] text-gray-300 font-mono leading-relaxed whitespace-pre-wrap break-words select-text">{scriptViewer.content}</pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm removal dialog */}
+      {confirmRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setConfirmRemove(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-md p-5" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-white mb-3">Remove {confirmRemove.type}?</h3>
+            <div className="text-[11px] text-gray-300 space-y-1.5 mb-2">
+              <div>Name: <span className="font-mono text-gray-200">{confirmRemove.name}</span></div>
+              {confirmRemove.path && <div>Path: <span className="font-mono text-gray-400 break-all text-[10px]">{confirmRemove.path}</span></div>}
+            </div>
+            <p className="text-[10px] text-red-400 mb-4">This operation is not reversible. The element will be permanently deleted.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmRemove(null)}
+                autoFocus
+                className="px-3 py-1.5 text-xs rounded-lg text-gray-400 bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRemove.onConfirm}
+                className="px-3 py-1.5 text-xs rounded-lg font-medium text-red-400 bg-red-500/20 hover:bg-red-500/30 transition-colors"
+              >
+                Remove
+              </button>
             </div>
           </div>
         </div>

@@ -528,10 +528,16 @@ function resolvePluginKeyToPath(key: string): string | null {
   const cachePath = path.join(homeDir, '.claude', 'plugins', 'cache', marketplaceName, pluginName)
   if (fs.existsSync(cachePath)) {
     // Return latest version
-    const versions = safeReaddir(cachePath).filter(e => !e.startsWith('.') && semver.valid(e))
-    if (versions.length > 0) {
-      versions.sort(semver.rcompare)
-      return path.join(cachePath, versions[0])
+    const allVersions = safeReaddir(cachePath).filter(e => !e.startsWith('.'))
+    if (allVersions.length > 0) {
+      const semverVersions = allVersions.filter(e => semver.valid(e))
+      if (semverVersions.length > 0) {
+        semverVersions.sort(semver.rcompare)
+        return path.join(cachePath, semverVersions[0])
+      }
+      // Fallback for non-semver version dirs (git hashes, timestamps)
+      allVersions.sort()
+      return path.join(cachePath, allVersions[allVersions.length - 1])
     }
   }
 

@@ -94,10 +94,16 @@ async function readJsonSafe(filePath: string): Promise<Record<string, unknown> |
 async function getLatestVersion(pluginCacheDir: string): Promise<string | null> {
   try {
     const entries = await readdir(pluginCacheDir)
-    const dirs = entries.filter(e => !e.startsWith('.') && semver.valid(e))
-    if (dirs.length === 0) return null
-    dirs.sort(semver.rcompare)
-    return dirs[0]
+    const allDirs = entries.filter(e => !e.startsWith('.'))
+    if (allDirs.length === 0) return null
+    const semverDirs = allDirs.filter(e => semver.valid(e))
+    if (semverDirs.length > 0) {
+      semverDirs.sort(semver.rcompare)
+      return semverDirs[0]
+    }
+    // No semver dirs — fallback to last alphabetically (handles git hashes, timestamps)
+    allDirs.sort()
+    return allDirs[allDirs.length - 1]
   } catch {
     return null
   }

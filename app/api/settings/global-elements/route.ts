@@ -137,9 +137,13 @@ async function getLatestVersionDir(pluginDir: string): Promise<string | null> {
       }
     }
     const semverDirs = dirs.filter(d => semver.valid(d))
-    if (semverDirs.length === 0) return null
-    semverDirs.sort(semver.rcompare)
-    return join(pluginDir, semverDirs[0])
+    if (semverDirs.length > 0) {
+      semverDirs.sort(semver.rcompare)
+      return join(pluginDir, semverDirs[0])
+    }
+    // No semver dirs — use the most recently modified directory (handles git hashes, timestamps, etc.)
+    dirs.sort()
+    return join(pluginDir, dirs[dirs.length - 1])
   } catch {
     return null
   }

@@ -693,21 +693,29 @@ export default function GlobalElementsSection() {
                   {/* Row 2 (mobile) / right side (desktop): plugin + marketplace info */}
                   <div className="flex items-center gap-1.5 ml-[34px] sm:ml-auto flex-shrink-0">
                     {el.sourcePlugin === '(standalone)'
-                      ? <span className="text-[10px] flex-shrink-0" title="Standalone element">⛺︎</span>
+                      ? <span className="text-[10px] text-gray-600 flex-shrink-0" title="Standalone element">⛺︎</span>
                       : <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
                     }
-                    <span
-                      className="text-[9px] text-gray-600 min-w-0 truncate hover:text-blue-400 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); goToPlugin(el.pluginKey) }}
-                      title={`${el.sourcePlugin} — View in Plugins tab`}
-                    >{el.sourcePlugin}</span>
+                    {el.sourcePlugin === '(standalone)' ? (
+                      <span className="text-[9px] text-gray-600 min-w-0 truncate">{el.sourcePlugin}</span>
+                    ) : (
+                      <span
+                        className="text-[9px] text-gray-600 min-w-0 truncate hover:text-blue-400 cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); goToPlugin(el.pluginKey) }}
+                        title={`${el.sourcePlugin} — View in Plugins tab`}
+                      >{el.sourcePlugin}</span>
+                    )}
                     <span className="text-[9px] text-gray-700 flex-shrink-0">{el.pluginVersion ? `v${el.pluginVersion}` : ''}</span>
                     <Store className="w-2.5 h-2.5 text-amber-400/40 flex-shrink-0" />
-                    <span
-                      className="text-[9px] text-gray-700 min-w-0 truncate hover:text-amber-400 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); goToMarketplace(el.sourceMarketplace) }}
-                      title={`${el.sourceMarketplace} — Go to Marketplaces tab`}
-                    >{el.sourceMarketplace}</span>
+                    {el.sourceMarketplace === '(user config)' ? (
+                      <span className="text-[9px] text-gray-700 min-w-0 truncate">{el.sourceMarketplace}</span>
+                    ) : (
+                      <span
+                        className="text-[9px] text-gray-700 min-w-0 truncate hover:text-amber-400 cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); goToMarketplace(el.sourceMarketplace) }}
+                        title={`${el.sourceMarketplace} — Go to Marketplaces tab`}
+                      >{el.sourceMarketplace}</span>
+                    )}
                     {el.pluginSourceUrl && (
                       <a href={el.pluginSourceUrl.startsWith('/') ? `file://${el.pluginSourceUrl}` : el.pluginSourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 flex-shrink-0">
                         <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />

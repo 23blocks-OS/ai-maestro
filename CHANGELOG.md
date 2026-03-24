@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.0] - 2026-03-23
+
+### Added
+- **Agent Identity (AID) integration** — Added `agentmessaging/agent-identity` as a new source in the ai-maestro plugin manifest. AID provides passwordless OAuth 2.0 authentication for AI agents using their AMP Ed25519 cryptographic identity — no passwords, no API keys, no secrets to rotate. New commands: `aid-register`, `aid-status`, `aid-token`. New skill: `agent-identity`. Plugin now ships 7 skills and 48 scripts.
+
 ## [0.25.16] - 2026-03-23
 
 ### Fixed

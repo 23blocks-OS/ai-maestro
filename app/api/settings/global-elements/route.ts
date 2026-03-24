@@ -561,9 +561,10 @@ export async function GET() {
     // Scan standalone MCP/LSP servers from user-level configs (not from plugins)
     const standaloneMcp: ElementInfo[] = []
     const standaloneLsp: ElementInfo[] = []
-    // Claude Code standalone MCP/LSP configs (NOT ~/.claude.json which is Claude Desktop)
+    // User-scoped MCP servers are in ~/.claude.json top-level mcpServers (NOT ~/.claude/.mcp.json)
+    // LSP servers are in ~/.claude/settings.json or settings.local.json
     const configFiles = [
-      join(HOME, '.claude', '.mcp.json'),
+      join(HOME, '.claude.json'),
       join(HOME, '.claude', 'settings.json'),
       join(HOME, '.claude', 'settings.local.json'),
     ]

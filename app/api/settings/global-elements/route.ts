@@ -414,13 +414,57 @@ export async function GET() {
       const versionDir = await getLatestVersionDir(pluginCacheDir)
       if (!versionDir) continue
 
-      // Scan for elements
-      const [skills, agents, commands, hooks, rules, mcpServers, lspServers, outputStyles] = await Promise.all([
-        listSkillDirsAndRoot(versionDir, pluginName, marketplace),
-        listMdFiles(join(versionDir, 'agents'), pluginName, marketplace, 'agent'),
-        listMdFiles(join(versionDir, 'commands'), pluginName, marketplace, 'command'),
+      // Read manifest for custom element paths (plugins can override default dirs)
+      let customSkillPaths: string[] = []
+      let customAgentPaths: string[] = []
+      let customCommandPaths: string[] = []
+      let customRulePaths: string[] = []
+      for (const mp of [join(versionDir, '.claude-plugin', 'plugin.json'), join(versionDir, '.claude-plugin', 'marketplace.json')]) {
+        if (!existsSync(mp)) continue
+        try {
+          const manifest = JSON.parse(await readFile(mp, 'utf-8'))
+          // Check both top-level and per-plugin entries
+          const entries = manifest.plugins ? (manifest.plugins as Array<Record<string, unknown>>).filter(p => p.name === pluginName) : [manifest]
+          for (const entry of entries) {
+            if (Array.isArray(entry.skills)) customSkillPaths.push(...(entry.skills as string[]))
+            if (Array.isArray(entry.agents)) customAgentPaths.push(...(entry.agents as string[]))
+            if (Array.isArray(entry.commands)) customCommandPaths.push(...(entry.commands as string[]))
+            if (Array.isArray(entry.rules)) customRulePaths.push(...(entry.rules as string[]))
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Scan for elements — use custom paths if declared, otherwise defaults
+      const skillScanDirs = customSkillPaths.length > 0
+        ? customSkillPaths.map(p => join(versionDir, p))
+        : [join(versionDir, 'skills')]
+      const agentScanDirs = customAgentPaths.length > 0
+        ? customAgentPaths.map(p => join(versionDir, p))
+        : [join(versionDir, 'agents')]
+      const commandScanDirs = customCommandPaths.length > 0
+        ? customCommandPaths.map(p => join(versionDir, p))
+        : [join(versionDir, 'commands')]
+      const ruleScanDirs = customRulePaths.length > 0
+        ? customRulePaths.map(p => join(versionDir, p))
+        : [join(versionDir, 'rules')]
+
+      // Scan all directories (custom + defaults) and merge results
+      const skillResults = await Promise.all(skillScanDirs.map(d => listSkillDirs(d, pluginName, marketplace)))
+      const skills = skillResults.flat()
+      // Also check root-level SKILL.md
+      const rootSkill = join(versionDir, 'SKILL.md')
+      if (existsSync(rootSkill) && !skills.some(s => s.name === pluginName)) {
+        const fm = await extractFrontmatter(rootSkill)
+        skills.push({ name: (fm.frontmatter.name as string) || pluginName, path: versionDir, sourcePlugin: pluginName, sourceMarketplace: marketplace, description: fm.description, type: 'skill', frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined })
+      }
+      const agentResults = await Promise.all(agentScanDirs.map(d => listMdFiles(d, pluginName, marketplace, 'agent')))
+      const agents = agentResults.flat()
+      const commandResults = await Promise.all(commandScanDirs.map(d => listMdFiles(d, pluginName, marketplace, 'command')))
+      const commands = commandResults.flat()
+      const ruleResults = await Promise.all(ruleScanDirs.map(d => listMdFiles(d, pluginName, marketplace, 'rule')))
+      const rules = ruleResults.flat()
+      const [hooks, mcpServers, lspServers, outputStyles] = await Promise.all([
         listHooks(versionDir, pluginName, marketplace),
-        listMdFiles(join(versionDir, 'rules'), pluginName, marketplace, 'rule'),
         listMcpServers(versionDir, pluginName, marketplace),
         listLspServers(versionDir, pluginName, marketplace),
         listOutputStyles(versionDir, pluginName, marketplace),

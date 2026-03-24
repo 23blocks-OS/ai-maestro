@@ -96,7 +96,7 @@ function scanClaudeDirectory(claudeDir: string, workDir: string): AgentLocalConf
   const hooks = scanHooks(claudeDir)
   const rules = scanRules(claudeDir)
   const commands = scanCommands(claudeDir)
-  const mcpServers = scanMcpServers(claudeDir)
+  const mcpServers = scanMcpServers(workDir)
   const lspServers = scanLspServers(claudeDir)
   const outputStyles = scanOutputStyles(claudeDir)
 
@@ -259,12 +259,19 @@ function scanOutputStyles(claudeDir: string): LocalOutputStyle[] {
   return results
 }
 
-function scanMcpServers(claudeDir: string): LocalMcpServer[] {
-  const mcpPath = path.join(claudeDir, 'mcp.local.json')
-  const data = readJsonSafe(mcpPath)
-  if (!data || typeof data !== 'object') return []
+function scanMcpServers(workDir: string): LocalMcpServer[] {
+  // Local-scoped MCP servers are stored in ~/.claude.json under projects[workDir].mcpServers
+  // Read directly for performance (polled every 4s). Modifications use `claude mcp` CLI.
+  const claudeJson = readJsonSafe(path.join(os.homedir(), '.claude.json'))
+  if (!claudeJson || typeof claudeJson !== 'object') return []
 
-  const servers = (data as Record<string, unknown>).mcpServers as Record<string, unknown> | undefined
+  const projects = (claudeJson as Record<string, unknown>).projects as Record<string, unknown> | undefined
+  if (!projects || typeof projects !== 'object') return []
+
+  const projectData = projects[workDir] as Record<string, unknown> | undefined
+  if (!projectData || typeof projectData !== 'object') return []
+
+  const servers = projectData.mcpServers as Record<string, unknown> | undefined
   if (!servers || typeof servers !== 'object') return []
 
   const results: LocalMcpServer[] = []

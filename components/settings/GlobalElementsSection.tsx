@@ -735,8 +735,8 @@ export default function GlobalElementsSection() {
                         <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
                       </a>
                     )}
-                    {/* Remove button for standalone elements (not from plugins). Hooks excluded — too fragile, use /hooks menu. */}
-                    {el.sourcePlugin === '(standalone)' && el.type !== 'hook' && (
+                    {/* Remove button for standalone elements (not from plugins). Hooks excluded — too fragile. LSP excluded — only exists in plugins. */}
+                    {el.sourcePlugin === '(standalone)' && el.type !== 'hook' && el.type !== 'lsp' && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

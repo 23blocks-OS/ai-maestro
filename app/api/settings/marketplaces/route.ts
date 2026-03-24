@@ -576,16 +576,8 @@ export async function POST(req: NextRequest) {
             break
           }
           case 'lsp': {
-            // LSP servers are in settings — remove from .lsp.json or settings
-            // No CLI command, remove the entry from the config file
-            if (elementPath && existsSync(elementPath)) {
-              const content = JSON.parse(await readFile(elementPath, 'utf-8'))
-              const servers = content.lspServers || content
-              delete servers[elementName]
-              if (content.lspServers) content.lspServers = servers
-              await writeFile(elementPath, JSON.stringify(content, null, 2) + '\n')
-            }
-            break
+            // LSP servers only exist inside plugins — no standalone LSP removal
+            return NextResponse.json({ error: 'LSP servers can only be managed through their parent plugin' }, { status: 400 })
           }
           case 'skill': {
             // Skills at user level are folders in ~/.claude/skills/<name>/

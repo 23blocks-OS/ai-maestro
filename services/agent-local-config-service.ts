@@ -97,7 +97,8 @@ function scanClaudeDirectory(claudeDir: string, workDir: string): AgentLocalConf
   const rules = scanRules(claudeDir)
   const commands = scanCommands(claudeDir)
   const mcpServers = scanMcpServers(workDir)
-  const lspServers = scanLspServers(claudeDir)
+  // LSP servers only exist inside plugins — no standalone scanning
+  const lspServers: LocalLspServer[] = []
   const outputStyles = scanOutputStyles(claudeDir)
 
   // Also scan inside each non-Role-Plugin for bundled elements, tagging with sourcePlugin
@@ -287,24 +288,7 @@ function scanMcpServers(workDir: string): LocalMcpServer[] {
   return results
 }
 
-function scanLspServers(claudeDir: string): LocalLspServer[] {
-  const data = readJsonSafe(path.join(claudeDir, 'settings.local.json'))
-  if (!data || typeof data !== 'object') return []
-
-  const lspServers = (data as Record<string, unknown>).lspServers as Record<string, unknown> | undefined
-  if (!lspServers || typeof lspServers !== 'object') return []
-
-  const results: LocalLspServer[] = []
-  for (const [name, config] of Object.entries(lspServers)) {
-    if (!config || typeof config !== 'object') continue
-    const cfg = config as Record<string, unknown>
-    const command = typeof cfg.command === 'string' ? cfg.command : ''
-    const extToLang = cfg.extensionToLanguage as Record<string, string> | undefined
-    const languages = extToLang ? Object.values(extToLang) : []
-    results.push({ name, command, languages })
-  }
-  return results
-}
+// No scanLspServers() — LSP servers only exist inside plugins (.lsp.json at plugin root)
 
 /** Scan .mcp.json at plugin root for bundled MCP servers */
 function scanPluginMcpServers(pluginDir: string): LocalMcpServer[] {

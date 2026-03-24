@@ -558,54 +558,31 @@ export async function GET() {
       outputStyles: results.reduce((sum, p) => sum + p.outputStyles.length, 0),
     }
 
-    // Scan standalone MCP/LSP servers from user-level configs (not from plugins)
+    // Scan standalone MCP servers from user-level config (not from plugins)
+    // User-scoped MCP servers are in ~/.claude.json top-level mcpServers
+    // LSP servers only exist inside plugins — no standalone scanning
     const standaloneMcp: ElementInfo[] = []
-    const standaloneLsp: ElementInfo[] = []
-    // User-scoped MCP servers are in ~/.claude.json top-level mcpServers (NOT ~/.claude/.mcp.json)
-    // LSP servers are in ~/.claude/settings.json or settings.local.json
-    const configFiles = [
-      join(HOME, '.claude.json'),
-      join(HOME, '.claude', 'settings.json'),
-      join(HOME, '.claude', 'settings.local.json'),
-    ]
     const pluginMcpNames = new Set(results.flatMap(p => p.mcpServers.map(m => m.name)))
-    const pluginLspNames = new Set(results.flatMap(p => p.lspServers.map(l => l.name)))
-    for (const cfgPath of configFiles) {
-      if (!existsSync(cfgPath)) continue
-      try {
-        const cfg = JSON.parse(await readFile(cfgPath, 'utf-8'))
-        // MCP servers
+    try {
+      const claudeJsonPath = join(HOME, '.claude.json')
+      if (existsSync(claudeJsonPath)) {
+        const cfg = JSON.parse(await readFile(claudeJsonPath, 'utf-8'))
         const mcpServers = cfg.mcpServers || {}
         for (const [name, srv] of Object.entries(mcpServers)) {
-          if (pluginMcpNames.has(name)) continue // already from a plugin
-          pluginMcpNames.add(name) // deduplicate across config files
+          if (pluginMcpNames.has(name)) continue
+          pluginMcpNames.add(name)
           const srvJson = JSON.stringify({ [name]: srv }, null, 2)
           standaloneMcp.push({
             name,
-            path: cfgPath,
+            path: claudeJsonPath,
             sourcePlugin: '(standalone)',
             sourceMarketplace: '(user config)',
             description: srvJson,
             type: 'mcp',
           })
         }
-        // LSP servers
-        const lspServers = cfg.lspServers || {}
-        for (const [name, srv] of Object.entries(lspServers)) {
-          if (pluginLspNames.has(name)) continue
-          pluginLspNames.add(name)
-          const srvJson = JSON.stringify({ [name]: srv }, null, 2)
-          standaloneLsp.push({
-            name,
-            path: cfgPath,
-            sourcePlugin: '(standalone)',
-            sourceMarketplace: '(user config)',
-            description: srvJson,
-            type: 'lsp',
-          })
-        }
-      } catch { /* ignore parse errors */ }
-    }
+      }
+    } catch { /* ignore parse errors */ }
     // Scan standalone user-level skills (~/.claude/skills/), rules (~/.claude/rules/), agents (~/.claude/agents/)
     const standaloneSkills: ElementInfo[] = []
     const standaloneRules: ElementInfo[] = []
@@ -713,7 +690,6 @@ export async function GET() {
     // Update totals with all standalone elements
     totals.mcpServers += standaloneMcp.length
     totals.hooks += standaloneHooks.length
-    totals.lspServers += standaloneLsp.length
     totals.skills += standaloneSkills.length
     totals.rules += standaloneRules.length
     totals.agents += standaloneAgents.length
@@ -727,7 +703,7 @@ export async function GET() {
       }
     }
     // Add all standalone elements (always enabled, no plugin version)
-    for (const el of [...standaloneMcp, ...standaloneLsp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents, ...standaloneHooks]) {
+    for (const el of [...standaloneMcp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents, ...standaloneHooks]) {
       flatElements.push({ ...el, pluginEnabled: true, pluginVersion: null, pluginSourceUrl: null })
     }
     flatElements.sort((a, b) => a.name.localeCompare(b.name))

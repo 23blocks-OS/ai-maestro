@@ -549,23 +549,68 @@ export async function POST(req: NextRequest) {
     if (action === 'check-updates') {
       return await handleCheckUpdates(body.marketplaceName, body.force === true)
     }
-    // Standalone MCP server management
-    if (action === 'remove-mcp') {
-      const mcpName = body.mcpName as string | undefined
-      if (!mcpName) return NextResponse.json({ error: 'mcpName is required' }, { status: 400 })
+    // Standalone element removal (MCP, LSP, skills, rules, agents, hooks)
+    if (action === 'remove-element') {
+      const { elementName, elementType, elementPath } = body as { elementName?: string; elementType?: string; elementPath?: string }
+      if (!elementName || !elementType) {
+        return NextResponse.json({ error: 'elementName and elementType are required' }, { status: 400 })
+      }
+      const safeName = shellSafe(elementName)
+      const { execSync } = await import('child_process')
+
       try {
-        const { execSync } = await import('child_process')
-        execSync(`claude mcp remove "${shellSafe(mcpName)}" --scope user 2>&1`, { timeout: 15000 })
-        return NextResponse.json({ success: true, action: 'remove-mcp', mcpName })
-      } catch (err) {
-        // Try without scope (removes from whichever scope it exists in)
-        try {
-          const { execSync } = await import('child_process')
-          execSync(`claude mcp remove "${shellSafe(mcpName)}" 2>&1`, { timeout: 15000 })
-          return NextResponse.json({ success: true, action: 'remove-mcp', mcpName })
-        } catch (err2) {
-          return NextResponse.json({ error: `Remove MCP failed: ${String(err2).substring(0, 500)}` }, { status: 500 })
+        switch (elementType) {
+          case 'mcp': {
+            // claude mcp remove <name>
+            try {
+              execSync(`claude mcp remove "${safeName}" --scope user 2>&1`, { timeout: 15000 })
+            } catch {
+              execSync(`claude mcp remove "${safeName}" 2>&1`, { timeout: 15000 })
+            }
+            break
+          }
+          case 'lsp': {
+            // LSP servers are in settings — remove from .lsp.json or settings
+            // No CLI command, remove the entry from the config file
+            if (elementPath && existsSync(elementPath)) {
+              const content = JSON.parse(await readFile(elementPath, 'utf-8'))
+              const servers = content.lspServers || content
+              delete servers[elementName]
+              if (content.lspServers) content.lspServers = servers
+              await writeFile(elementPath, JSON.stringify(content, null, 2) + '\n')
+            }
+            break
+          }
+          case 'skill': {
+            // Skills at user level are folders in ~/.claude/skills/<name>/
+            const skillDir = join(HOME, '.claude', 'skills', elementName)
+            if (existsSync(skillDir)) {
+              await rm(skillDir, { recursive: true, force: true })
+            }
+            break
+          }
+          case 'rule': {
+            // Rules at user level are files in ~/.claude/rules/<name>.md
+            const rulePath = elementPath || join(HOME, '.claude', 'rules', `${elementName}.md`)
+            if (existsSync(rulePath)) {
+              await rm(rulePath)
+            }
+            break
+          }
+          case 'agent': {
+            // Agents at user level are files in ~/.claude/agents/<name>.md
+            const agentPath = elementPath || join(HOME, '.claude', 'agents', `${elementName}.md`)
+            if (existsSync(agentPath)) {
+              await rm(agentPath)
+            }
+            break
+          }
+          default:
+            return NextResponse.json({ error: `Unsupported element type for removal: ${elementType}` }, { status: 400 })
         }
+        return NextResponse.json({ success: true, action: 'remove-element', elementName, elementType })
+      } catch (err) {
+        return NextResponse.json({ error: `Remove failed: ${String(err).substring(0, 500)}` }, { status: 500 })
       }
     }
 

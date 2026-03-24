@@ -483,9 +483,79 @@ export async function GET() {
         }
       } catch { /* ignore parse errors */ }
     }
-    // Update totals with standalone servers
+    // Scan standalone user-level skills (~/.claude/skills/), rules (~/.claude/rules/), agents (~/.claude/agents/)
+    const standaloneSkills: ElementInfo[] = []
+    const standaloneRules: ElementInfo[] = []
+    const standaloneAgents: ElementInfo[] = []
+    const pluginSkillNames = new Set(results.flatMap(p => p.skills.map(s => s.name)))
+    const pluginRuleNames = new Set(results.flatMap(p => p.rules.map(r => r.name)))
+    const pluginAgentNames = new Set(results.flatMap(p => p.agents.map(a => a.name)))
+
+    // Standalone skills
+    const userSkillsDir = join(HOME, '.claude', 'skills')
+    if (existsSync(userSkillsDir)) {
+      try {
+        for (const entry of await readdir(userSkillsDir)) {
+          if (entry.startsWith('.') || pluginSkillNames.has(entry)) continue
+          const skillDir = join(userSkillsDir, entry)
+          const s = await stat(skillDir)
+          if (!s.isDirectory()) continue
+          const skillFile = join(skillDir, 'SKILL.md')
+          if (!existsSync(skillFile)) continue
+          const fm = await extractFrontmatter(skillFile)
+          standaloneSkills.push({
+            name: entry, path: skillDir, sourcePlugin: '(standalone)', sourceMarketplace: '(user config)',
+            description: fm.description, type: 'skill',
+            frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+          })
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Standalone rules
+    const userRulesDir = join(HOME, '.claude', 'rules')
+    if (existsSync(userRulesDir)) {
+      try {
+        for (const entry of await readdir(userRulesDir)) {
+          if (entry.startsWith('.') || !entry.endsWith('.md')) continue
+          const ruleName = entry.replace(/\.md$/, '')
+          if (pluginRuleNames.has(ruleName)) continue
+          const rulePath = join(userRulesDir, entry)
+          const fm = await extractFrontmatter(rulePath)
+          standaloneRules.push({
+            name: ruleName, path: rulePath, sourcePlugin: '(standalone)', sourceMarketplace: '(user config)',
+            description: fm.description, type: 'rule',
+            frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+          })
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Standalone agents
+    const userAgentsDir = join(HOME, '.claude', 'agents')
+    if (existsSync(userAgentsDir)) {
+      try {
+        for (const entry of await readdir(userAgentsDir)) {
+          if (entry.startsWith('.') || !entry.endsWith('.md')) continue
+          const agentName = entry.replace(/\.md$/, '')
+          if (pluginAgentNames.has(agentName)) continue
+          const agentPath = join(userAgentsDir, entry)
+          const fm = await extractFrontmatter(agentPath)
+          standaloneAgents.push({
+            name: agentName, path: agentPath, sourcePlugin: '(standalone)', sourceMarketplace: '(user config)',
+            description: fm.description, type: 'agent',
+            frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+          })
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Update totals with all standalone elements
     totals.mcpServers += standaloneMcp.length
     totals.lspServers += standaloneLsp.length
+    totals.skills += standaloneSkills.length
+    totals.rules += standaloneRules.length
+    totals.agents += standaloneAgents.length
 
     // Build flat elements array for the Elements tab card view
     const flatElements: (ElementInfo & { pluginEnabled: boolean; pluginVersion: string | null; pluginSourceUrl: string | null })[] = []
@@ -495,8 +565,8 @@ export async function GET() {
         flatElements.push({ ...el, ...extra })
       }
     }
-    // Add standalone MCP/LSP servers (always enabled, no plugin version)
-    for (const el of [...standaloneMcp, ...standaloneLsp]) {
+    // Add all standalone elements (always enabled, no plugin version)
+    for (const el of [...standaloneMcp, ...standaloneLsp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents]) {
       flatElements.push({ ...el, pluginEnabled: true, pluginVersion: null, pluginSourceUrl: null })
     }
     flatElements.sort((a, b) => a.name.localeCompare(b.name))

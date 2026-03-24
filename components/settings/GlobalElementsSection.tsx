@@ -706,21 +706,19 @@ export default function GlobalElementsSection() {
                         <ExternalLink className="w-2.5 h-2.5 text-gray-600 hover:text-gray-300" />
                       </a>
                     )}
-                    {/* Remove button for standalone MCP/LSP servers */}
-                    {el.sourcePlugin === '(standalone)' && ['mcp', 'lsp'].includes(el.type) && (
+                    {/* Remove button for standalone elements (not from plugins) */}
+                    {el.sourcePlugin === '(standalone)' && (
                       <button
                         onClick={async (e) => {
                           e.stopPropagation()
-                          if (!confirm(`Remove standalone ${el.type.toUpperCase()} server "${el.name}"?`)) return
+                          if (!confirm(`Remove standalone ${el.type} "${el.name}"?`)) return
                           try {
                             const res = await fetch('/api/settings/marketplaces', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'remove-mcp', mcpName: el.name }),
+                              body: JSON.stringify({ action: 'remove-element', elementName: el.name, elementType: el.type, elementPath: el.path }),
                             })
-                            if (res.ok) {
-                              fetchElements()
-                            }
+                            if (res.ok) fetchElements()
                           } catch { /* ignore */ }
                         }}
                         className="p-0.5 rounded hover:bg-red-500/20 transition-colors flex-shrink-0"

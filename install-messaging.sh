@@ -520,14 +520,14 @@ fi
 
 # Ask user what to install (or auto-select in non-interactive mode)
 if [ "$NON_INTERACTIVE" = true ]; then
-    print_info "Non-interactive mode: installing scripts and skills..."
+    print_info "Non-interactive mode: installing scripts and plugin..."
     CHOICE=3
 else
     echo "📦 What would you like to install?"
     echo ""
     echo "  1) AMP scripts only (amp-send, amp-inbox, etc.)"
-    echo "  2) Claude Code skills only (requires Claude Code)"
-    echo "  3) Both scripts and skills (recommended)"
+    echo "  2) Claude Code plugin only (requires Claude Code)"
+    echo "  3) Both scripts and plugin (recommended)"
     echo "  4) Cancel installation"
     echo ""
     read -p "Enter your choice (1-4): " CHOICE
@@ -542,7 +542,7 @@ case $CHOICE in
         INSTALL_SCRIPTS=false
         INSTALL_SKILL=true
         if ! command -v claude &> /dev/null; then
-            print_error "Claude Code not found. Cannot install skills."
+            print_error "Claude Code not found. Cannot install plugin."
             exit 1
         fi
         ;;
@@ -703,92 +703,52 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     fi
 fi
 
-# Install Claude Code skills
+# Install AI Maestro plugin from marketplace (replaces standalone skill installation)
 if [ "$INSTALL_SKILL" = true ]; then
     echo ""
-    print_info "Installing Claude Code skills to ~/.claude/skills/..."
+    print_info "Installing AI Maestro plugin from marketplace..."
 
-    mkdir -p ~/.claude/skills
+    MARKETPLACE_REPO="23blocks-OS/ai-maestro-plugins"
+    PLUGIN_NAME="ai-maestro"
 
-    # Install AMP messaging skill from plugin
-    if [ -d "$PLUGIN_DIR/skills/agent-messaging" ]; then
-        SKILL_INSTALL_OK=true
-        # Back up existing skill before replacing (preserves user customizations)
-        if [ -d ~/.claude/skills/agent-messaging ]; then
-            if ! cp -r ~/.claude/skills/agent-messaging ~/.claude/skills/agent-messaging.backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
-                print_warning "Backup failed for agent-messaging skill, skipping install (existing skill preserved)"
-                SKILL_INSTALL_OK=false
-            fi
-        fi
-
-        if [ "$SKILL_INSTALL_OK" = true ]; then
-            # Copy new version to temp location first, then swap (safe against cp failure)
-            TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/agent-messaging.tmp.XXXXXX)
-            if cp -r "$PLUGIN_DIR/skills/agent-messaging/." "$TEMP_SKILL_DIR/"; then
-                # Copy succeeded - remove old and rename temp to final
-                rm -rf ~/.claude/skills/agent-messaging
-                mv "$TEMP_SKILL_DIR" ~/.claude/skills/agent-messaging
-                print_success "Installed: agent-messaging skill (AMP protocol)"
-
-                if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
-                    SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
-                    print_success "Skill file verified (${SKILL_SIZE} bytes)"
-                fi
-            else
-                # Copy failed - clean up temp, restore backup if we made one
-                rm -rf "$TEMP_SKILL_DIR"
-                if [ ! -d ~/.claude/skills/agent-messaging ]; then
-                    # Original was removed somehow, restore from latest backup
-                    LATEST_BACKUP=$(ls -1d ~/.claude/skills/agent-messaging.backup-* 2>/dev/null | tail -1)
-                    if [ -n "$LATEST_BACKUP" ]; then
-                        mv "$LATEST_BACKUP" ~/.claude/skills/agent-messaging
-                        print_warning "Install failed, restored agent-messaging from backup"
-                    fi
-                fi
-                print_error "Failed to install agent-messaging skill"
-            fi
-        fi
+    # Step 1: Register the marketplace (idempotent — no error if already registered)
+    print_info "Registering marketplace: $MARKETPLACE_REPO"
+    if claude plugin marketplace add "$MARKETPLACE_REPO" 2>/dev/null; then
+        print_success "Marketplace registered: $MARKETPLACE_REPO"
     else
-        print_error "AMP messaging skill not found in plugin"
+        # May already be registered — that's fine
+        print_info "Marketplace may already be registered (continuing)"
     fi
 
-    # Install other AI Maestro skills
-    OTHER_SKILLS=("graph-query" "memory-search" "docs-search" "planning" "ai-maestro-agents-management" "team-governance")
+    # Step 2: Install the ai-maestro plugin with user scope
+    print_info "Installing plugin: $PLUGIN_NAME (--scope user)"
+    if claude plugin install "$PLUGIN_NAME" "$MARKETPLACE_REPO" --scope user 2>/dev/null; then
+        print_success "Plugin installed: $PLUGIN_NAME"
+    else
+        # May already be installed — try to update
+        print_warning "Install returned non-zero (may already be installed)"
+        print_info "Attempting plugin update..."
+        claude plugin update "$PLUGIN_NAME" 2>/dev/null && print_success "Plugin updated" || true
+    fi
 
-    for skill in "${OTHER_SKILLS[@]}"; do
-        if [ -d "$PLUGIN_DIR/skills/$skill" ]; then
-            SKILL_INSTALL_OK=true
-            # Back up existing skill before replacing (preserves user customizations)
-            if [ -d ~/.claude/skills/"$skill" ]; then
-                if ! cp -r ~/.claude/skills/"$skill" ~/.claude/skills/"$skill".backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
-                    print_warning "Backup failed for $skill skill, skipping install (existing skill preserved)"
-                    SKILL_INSTALL_OK=false
-                fi
-            fi
+    # Step 3: Remove legacy standalone skills (now bundled in plugin)
+    LEGACY_SKILLS=("agent-messaging" "graph-query" "memory-search" "docs-search" "planning" "ai-maestro-agents-management" "team-governance")
+    REMOVED_COUNT=0
 
-            if [ "$SKILL_INSTALL_OK" = true ]; then
-                # Copy new version to temp location first, then swap (safe against cp failure)
-                TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/"$skill".tmp.XXXXXX)
-                if cp -r "$PLUGIN_DIR/skills/$skill/." "$TEMP_SKILL_DIR/"; then
-                    # Copy succeeded - remove old and rename temp to final
-                    rm -rf ~/.claude/skills/"$skill"
-                    mv "$TEMP_SKILL_DIR" ~/.claude/skills/"$skill"
-                    print_success "Installed: $skill skill"
-                else
-                    # Copy failed - clean up temp, restore backup if needed
-                    rm -rf "$TEMP_SKILL_DIR"
-                    if [ ! -d ~/.claude/skills/"$skill" ]; then
-                        LATEST_BACKUP=$(ls -1d ~/.claude/skills/"$skill".backup-* 2>/dev/null | tail -1)
-                        if [ -n "$LATEST_BACKUP" ]; then
-                            mv "$LATEST_BACKUP" ~/.claude/skills/"$skill"
-                            print_warning "Install failed for $skill, restored from backup"
-                        fi
-                    fi
-                    print_error "Failed to install $skill skill"
-                fi
-            fi
+    for skill in "${LEGACY_SKILLS[@]}"; do
+        if [ -d ~/.claude/skills/"$skill" ]; then
+            # Back up before removing (safety)
+            mv ~/.claude/skills/"$skill" ~/.claude/skills/"$skill".legacy-"$(date +%Y%m%d%H%M%S)" 2>/dev/null
+            print_info "Migrated standalone skill to legacy backup: $skill"
+            REMOVED_COUNT=$((REMOVED_COUNT + 1))
         fi
     done
+
+    if [ "$REMOVED_COUNT" -gt 0 ]; then
+        print_success "Migrated $REMOVED_COUNT standalone skills to .legacy backups"
+        print_info "These skills are now provided by the $PLUGIN_NAME plugin"
+        print_info "Legacy backups can be removed after verifying the plugin works"
+    fi
 fi
 
 echo ""
@@ -823,18 +783,29 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     fi
 fi
 
-# Verify skills
+# Verify plugin installation
 if [ "$INSTALL_SKILL" = true ]; then
     echo ""
-    print_info "Checking installed skills..."
+    print_info "Checking AI Maestro plugin..."
 
+    # Check if the plugin appears in claude plugin list
+    if claude plugin list 2>/dev/null | grep -q "ai-maestro@ai-maestro-plugins"; then
+        print_success "ai-maestro plugin installed and enabled"
+    else
+        print_warning "ai-maestro plugin not found in plugin list (may need /reload-plugins)"
+    fi
+
+    # Verify no standalone skills remain (they should have been migrated)
+    STANDALONE_REMAINING=0
     for skill in agent-messaging graph-query memory-search docs-search planning ai-maestro-agents-management team-governance; do
-        if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
-            print_success "$skill"
-        else
-            print_warning "$skill not found"
+        if [ -d ~/.claude/skills/"$skill" ]; then
+            print_warning "Standalone skill still exists: $skill (should use plugin version)"
+            STANDALONE_REMAINING=$((STANDALONE_REMAINING + 1))
         fi
     done
+    if [ "$STANDALONE_REMAINING" -eq 0 ]; then
+        print_success "No standalone skill conflicts — all skills provided by plugin"
+    fi
 fi
 
 echo ""
@@ -867,11 +838,12 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 fi
 
 if [ "$INSTALL_SKILL" = true ]; then
-    echo "5️⃣  Or use natural language with Claude Code:"
+    echo "5️⃣  Or use slash commands and natural language with Claude Code:"
     echo ""
+    echo "   > /amp-send alice \"Hello\" \"How are you?\""
+    echo "   > /amp-inbox"
     echo "   > \"Check my messages\""
     echo "   > \"Send a message to backend-api about the deployment\""
-    echo "   > \"Reply to the last message\""
     echo ""
 fi
 

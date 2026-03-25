@@ -17,6 +17,7 @@ import {
   FolderOpen,
   XCircle,
   ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
@@ -45,13 +46,7 @@ const TABS: TabDef[] = [
   { id: 'outputStyles', label: 'Styles', icon: Palette, colorClass: 'text-pink-400', countKey: 'outputStyles' },
 ]
 
-// Tab grid layout: 3 rows of 3 + 1 bottom row
-const TAB_ROWS: TabId[][] = [
-  ['settings', 'role', 'plugins'],
-  ['skills', 'agents', 'hooks'],
-  ['rules', 'commands', 'mcps'],
-  ['outputStyles'],    // single-item row, left-aligned
-]
+// Accordion section order for Config tab (Plugins is always LAST)
 
 // ---------------------------------------------------------------------------
 // Props
@@ -75,7 +70,7 @@ interface AgentProfilePanelProps {
 // Main component
 // ---------------------------------------------------------------------------
 
-type TopTab = 'overview' | 'config'
+type TopTab = 'overview' | 'config' | 'advanced'
 
 export default function AgentProfilePanel({
   agentId,
@@ -228,7 +223,7 @@ export default function AgentProfilePanel({
 
       {/* Top-level tabs */}
       <div className="flex border-b border-gray-800">
-        {(['overview', 'config'] as TopTab[]).map(t => (
+        {([['overview', 'Overview'], ['config', 'Config'], ['advanced', 'Advanced']] as [TopTab, string][]).map(([t, label]) => (
           <div
             key={t}
             onClick={() => setTopTab(t)}
@@ -238,7 +233,7 @@ export default function AgentProfilePanel({
                 : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            {t === 'overview' ? 'Overview' : 'Config'}
+            {label}
           </div>
         ))}
       </div>
@@ -308,16 +303,16 @@ export default function AgentProfilePanel({
             )}
           </div>
 
-          {/* Embedded AgentProfile */}
+          {/* Embedded AgentProfile — overview sections only (no elements, no metrics/danger) */}
           <AgentProfile
             isOpen={true}
             onClose={() => {}}
             embedded={true}
+            renderMode="overview"
             agentId={agentId}
             sessionStatus={sessionStatus}
             onStartSession={onStartSession}
             onDeleteAgent={onDeleteAgent}
-            scrollToDangerZone={scrollToDangerZone}
             hostUrl={hostUrl}
           />
         </div>
@@ -361,60 +356,76 @@ export default function AgentProfilePanel({
             />
           )}
 
-          {/* Tab bar (3x3 grid) — hidden when browsing */}
-          {!browsePath && <div className="px-3 py-2 border-b border-gray-800">
-            {TAB_ROWS.map((row, rowIdx) => (
-              <div key={rowIdx} className="grid grid-cols-3 gap-1 mb-1 last:mb-0">
-                {row.map((tabId) => {
-                  const tab = TABS.find(t => t.id === tabId)!
-                  const Icon = tab.icon
-                  const isActive = activeTab === tabId
-                  const count = tab.countKey && config
-                    ? (config[tab.countKey] as unknown[])?.length ?? 0
-                    : null
-
-                  return (
-                    <div
-                      key={tabId}
-                      onClick={() => setActiveTab(tabId)}
-                      className={`
-                        flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-md cursor-pointer
-                        text-[10px] font-medium transition-all duration-150
-                        ${isActive
-                          ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
-                          : 'bg-gray-800/40 border border-gray-700/30 text-gray-500 hover:text-gray-300 hover:bg-gray-800/60'
-                        }
-                      `}
-                    >
-                      <Icon className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{tab.label}</span>
-                      {count !== null && (
-                        <span className={`
-                          ml-auto text-[9px] px-1 py-0 rounded-full
-                          ${isActive ? 'bg-amber-500/20 text-amber-300' : 'bg-gray-700/60 text-gray-500'}
-                        `}>
-                          {count}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ))}
-          </div>}
-
-          {/* Tab content — fills remaining space, scrollable — hidden when browsing */}
+          {/* Collapsible accordion sections — hidden when browsing */}
           {!browsePath && (
-            <div className="flex-1 overflow-y-auto px-4 py-3" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
+            <div className="flex-1 overflow-y-auto" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
               {!config && !error && (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
                 </div>
               )}
-              {config && <TabContent tab={activeTab} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} onSwitchTab={setActiveTab} />}
+              {config && TABS.map(tab => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.id
+                const count = tab.countKey
+                  ? (config[tab.countKey] as unknown[])?.length ?? 0
+                  : null
+
+                return (
+                  <div key={tab.id}>
+                    {/* Section header */}
+                    <div
+                      onClick={() => setActiveTab(isActive ? (null as unknown as TabId) : tab.id)}
+                      className={`flex items-center gap-2 px-4 py-2 cursor-pointer border-b border-gray-800/30 transition-colors ${
+                        isActive ? 'bg-amber-500/10' : 'hover:bg-gray-800/30'
+                      }`}
+                    >
+                      {isActive
+                        ? <ChevronDown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                      }
+                      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? tab.colorClass : 'text-gray-600'}`} />
+                      <span className={`text-[11px] font-medium flex-1 ${isActive ? 'text-gray-200' : 'text-gray-500'}`}>
+                        {tab.label}
+                      </span>
+                      {count !== null && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                          isActive ? 'bg-amber-500/20 text-amber-300' : 'bg-gray-800/60 text-gray-600'
+                        }`}>
+                          {count}
+                        </span>
+                      )}
+                    </div>
+                    {/* Section content */}
+                    {isActive && (
+                      <div className="px-4 py-3 border-b border-gray-800/30">
+                        <TabContent tab={tab.id} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} onSwitchTab={setActiveTab} />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </>
+      )}
+
+      {/* Advanced tab — Metrics, Documentation, Danger Zone */}
+      {topTab === 'advanced' && (
+        <div className="flex-1 overflow-y-auto" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
+          <AgentProfile
+            isOpen={true}
+            onClose={() => {}}
+            embedded={true}
+            renderMode="advanced"
+            agentId={agentId}
+            sessionStatus={sessionStatus}
+            onStartSession={onStartSession}
+            onDeleteAgent={onDeleteAgent}
+            scrollToDangerZone={scrollToDangerZone}
+            hostUrl={hostUrl}
+          />
+        </div>
       )}
     </div>
   )

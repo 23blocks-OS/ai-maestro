@@ -36,6 +36,7 @@ interface AgentProfileProps {
   scrollToDangerZone?: boolean        // Whether to auto-scroll to danger zone
   hostUrl?: string                    // Base URL for remote hosts
   embedded?: boolean                  // When true, renders inline (no fixed overlay/backdrop)
+  renderMode?: 'full' | 'overview' | 'advanced'  // Which sections to render (default: 'full')
   renderAfterHeader?: () => React.ReactNode  // Content injected between header and body
   renderAfterGovernanceTitle?: () => React.ReactNode  // Content injected after the Governance Title row (used for Role Plugin selector)
 }
@@ -62,7 +63,7 @@ function PluginToggle({ agentId, pluginKey, enabled, onToggled }: { agentId: str
   )
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderAfterHeader, renderAfterGovernanceTitle }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle }: AgentProfileProps) {
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
   const [agent, setAgent] = useState<Agent | null>(null)
@@ -922,8 +923,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
               {/* User-level skills are managed in Settings → Global Elements */}
 
-              {/* ── Local Plugins Section ── */}
-              {localConfig && localConfig.plugins.length > 0 && (
+              {/* ── Local elements & plugins — hidden in overview/advanced mode (moved to Config tab) ── */}
+              {renderMode === 'full' && localConfig && localConfig.plugins.length > 0 && (
                 <section>
                   <button
                     onClick={() => toggleSection('localPlugins')}
@@ -967,10 +968,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 </section>
               )}
 
-              {/* ── Local Elements Sections ── */}
-              {/* Shows ALL element types. Role-plugin elements are green (read-only). */}
-              {/* Extras (independently installed) use default gray styling. */}
-              {(() => {
+              {/* ── Local Elements Sections — hidden in overview/advanced mode (moved to Config tab) ── */}
+              {renderMode === 'full' && (() => {
                 const rpName = localConfig?.rolePlugin?.name
                 const isFromRP = (sourcePlugin?: string) => !!rpName && sourcePlugin === rpName
 
@@ -1077,7 +1076,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 ))
               })()}
 
-              {/* Metrics Section */}
+              {/* Metrics/Documentation/Danger — hidden in overview mode (moved to Advanced tab) */}
+              {renderMode !== 'overview' && (<>
               <section>
                 <button
                   onClick={() => toggleSection('metrics')}
@@ -1225,6 +1225,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   </div>
                 )}
               </section>
+              </>)}
             </div>
           </>
         )}

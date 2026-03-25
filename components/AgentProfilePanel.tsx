@@ -89,11 +89,22 @@ export default function AgentProfilePanel({
   const [topTab, setTopTab] = useState<TopTab>('overview')
   const [activeTab, setActiveTab] = useState<TabId>('role')
   const [browsePath, setBrowsePath] = useState<string | null>(null)
+  const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Role Plugin selector state
   const [availablePlugins, setAvailablePlugins] = useState<AvailableRolePlugin[]>([])
   const [pluginDropdownOpen, setPluginDropdownOpen] = useState(false)
   const [switchingPlugin, setSwitchingPlugin] = useState(false)
+
+  // Cross-section navigation: expand section + scroll to it
+  const handleSwitchSection = useCallback((tab: TabId) => {
+    setActiveTab(tab)
+    // Scroll to the section header after React renders the expanded content
+    requestAnimationFrame(() => {
+      const el = sectionRefs.current.get(tab)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
 
   // Reset browse mode and close dropdown when agent changes
   useEffect(() => { setBrowsePath(null); setPluginDropdownOpen(false) }, [agentId])
@@ -374,7 +385,7 @@ export default function AgentProfilePanel({
                   : null
 
                 return (
-                  <div key={tab.id}>
+                  <div key={tab.id} ref={(el) => { if (el) sectionRefs.current.set(tab.id, el) }}>
                     {/* Section header — non-collapsible sections have no toggle */}
                     <div
                       onClick={pinned ? undefined : () => setActiveTab(isActive ? (null as unknown as TabId) : tab.id)}
@@ -401,7 +412,7 @@ export default function AgentProfilePanel({
                     {/* Section content */}
                     {isActive && (
                       <div className="px-4 py-3 border-b border-gray-800/30">
-                        <TabContent tab={tab.id} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} onSwitchTab={setActiveTab} />
+                        <TabContent tab={tab.id} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} onSwitchTab={handleSwitchSection} />
                       </div>
                     )}
                   </div>

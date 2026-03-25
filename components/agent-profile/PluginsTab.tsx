@@ -2,21 +2,65 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { XCircle, ExternalLink } from 'lucide-react'
+import {
+  XCircle,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  Sparkles,
+  Users,
+  Webhook,
+  ScrollText,
+  Terminal as TerminalIcon,
+  Server,
+  Palette,
+  Puzzle,
+} from 'lucide-react'
 import type { AgentLocalConfig, LocalPlugin } from '@/types/agent-local-config'
-import { EmptyState } from './shared'
+import { EmptyState, type TabId } from './shared'
 
-export default function PluginsTab({ config }: { config: AgentLocalConfig }) {
+/** Element type counts for a plugin */
+function pluginElementCounts(p: LocalPlugin) {
+  if (!p.elements) return null
+  const e = p.elements
+  return {
+    skills: e.skills?.length ?? 0,
+    agents: e.agents?.length ?? 0,
+    hooks: e.hooks?.length ?? 0,
+    rules: e.rules?.length ?? 0,
+    commands: e.commands?.length ?? 0,
+    mcpServers: e.mcpServers?.length ?? 0,
+    outputStyles: e.outputStyles?.length ?? 0,
+  }
+}
+
+/** Small count chip for element types */
+const ELEMENT_CHIPS: { key: string; label: string; icon: typeof Sparkles; tabId: TabId }[] = [
+  { key: 'skills', label: 'Skills', icon: Sparkles, tabId: 'skills' },
+  { key: 'agents', label: 'Agents', icon: Users, tabId: 'agents' },
+  { key: 'hooks', label: 'Hooks', icon: Webhook, tabId: 'hooks' },
+  { key: 'rules', label: 'Rules', icon: ScrollText, tabId: 'rules' },
+  { key: 'commands', label: 'Cmds', icon: TerminalIcon, tabId: 'commands' },
+  { key: 'mcpServers', label: 'MCP', icon: Server, tabId: 'mcps' },
+  { key: 'outputStyles', label: 'Styles', icon: Palette, tabId: 'outputStyles' },
+]
+
+interface PluginsTabProps {
+  config: AgentLocalConfig
+  /** Callback to switch accordion section in parent (cross-section navigation) */
+  onSwitchTab?: (tab: TabId) => void
+}
+
+export default function PluginsTab({ config, onSwitchTab }: PluginsTabProps) {
   const router = useRouter()
   const [confirmUninstall, setConfirmUninstall] = useState<LocalPlugin | null>(null)
   const [uninstalling, setUninstalling] = useState(false)
+  const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
 
   const handleUninstall = async (plugin: LocalPlugin) => {
     setUninstalling(true)
     try {
-      // Extract the marketplace name from the plugin key ("name@marketplace") so that
-      // the correct pluginKey is removed from settings — without this, plugins installed
-      // from a non-default marketplace would not be uninstalled correctly.
+      // Extract marketplace from plugin key ("name@marketplace") for correct removal
       const marketplaceName = plugin.key?.includes('@') ? plugin.key.split('@').slice(1).join('@') : undefined
       const res = await fetch('/api/agents/role-plugins/install', {
         method: 'DELETE',
@@ -44,67 +88,152 @@ export default function PluginsTab({ config }: { config: AgentLocalConfig }) {
 
   return (
     <div className="space-y-1.5">
-      {config.plugins.map((p) => (
-        <div
-          key={p.name}
-          className={`px-2.5 py-2 rounded-lg border ${
-            p.isConflictingRolePlugin
-              ? 'border-red-500/40 bg-red-500/10'
-              : 'border-gray-700/30 bg-gray-800/20'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <p className={`text-xs font-medium truncate ${p.isConflictingRolePlugin ? 'text-red-300' : 'text-gray-200'}`}>
-                {p.name}
-              </p>
-              {p.isConflictingRolePlugin && (
-                <p className="text-[10px] text-red-400/80 mt-0.5">
-                  Conflicting Role Plugin — only one is allowed per agent
+      {config.plugins.map((p) => {
+        const isRole = p.name === config.rolePlugin?.name
+        const isExpanded = expandedPlugin === p.name
+        const counts = pluginElementCounts(p)
+        const totalElements = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0
+        const mkt = p.key?.includes('@') ? p.key.split('@').slice(1).join('@') : undefined
+
+        return (
+          <div
+            key={p.name}
+            className={`rounded-lg border overflow-hidden ${
+              p.isConflictingRolePlugin
+                ? 'border-red-500/40 bg-red-500/10'
+                : isRole
+                  ? 'border-emerald-500/20 bg-emerald-500/5'
+                  : 'border-gray-700/30 bg-gray-800/20'
+            }`}
+          >
+            {/* Plugin header — clickable to expand/collapse */}
+            <div
+              onClick={() => setExpandedPlugin(isExpanded ? null : p.name)}
+              className="flex items-center gap-2 px-2.5 py-2 cursor-pointer hover:bg-gray-800/20 transition-colors"
+            >
+              {isExpanded
+                ? <ChevronDown className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                : <ChevronRight className="w-3 h-3 text-gray-500 flex-shrink-0" />
+              }
+              <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${isRole ? 'text-emerald-400' : 'text-blue-400'}`} />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-medium truncate ${p.isConflictingRolePlugin ? 'text-red-300' : 'text-gray-200'}`}>
+                  {p.name}
                 </p>
+              </div>
+              {/* Version badge */}
+              {p.version && (
+                <span className="text-[8px] text-gray-600 px-1 flex-shrink-0">{p.version}</span>
               )}
-              {!p.isConflictingRolePlugin && p.description && (
-                <p className="text-[10px] text-gray-500 leading-snug mt-0.5 line-clamp-2">{p.description}</p>
+              {/* Element count chip */}
+              {totalElements > 0 && (
+                <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800/60 text-gray-500 flex-shrink-0">
+                  {totalElements}
+                </span>
               )}
-              {/* Marketplace link — extracted from plugin key (name@marketplace) */}
-              {p.key?.includes('@') && (() => {
-                const mkt = p.key!.split('@').slice(1).join('@')
-                return (
+              {/* Role/Uninstall actions */}
+              {isRole ? (
+                <span className="text-[9px] text-emerald-400/70 px-1.5 flex-shrink-0">role</span>
+              ) : p.isConflictingRolePlugin ? (
+                <div
+                  onClick={(e) => { e.stopPropagation(); setConfirmUninstall(p) }}
+                  className="flex-shrink-0 p-1 rounded-md cursor-pointer hover:bg-red-500/20"
+                  title="Uninstall this plugin"
+                >
+                  <XCircle className="w-3.5 h-3.5 text-red-400" />
+                </div>
+              ) : (
+                <div
+                  onClick={(e) => { e.stopPropagation(); setConfirmUninstall(p) }}
+                  className="flex-shrink-0 p-1 rounded-md cursor-pointer hover:bg-gray-700/60"
+                  title="Uninstall this plugin"
+                >
+                  <XCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" />
+                </div>
+              )}
+            </div>
+
+            {/* Expanded details */}
+            {isExpanded && (
+              <div className="px-3 pb-2.5 border-t border-gray-800/30 space-y-2 pt-2">
+                {/* Description */}
+                {p.description && (
+                  <p className="text-[10px] text-gray-500 leading-snug line-clamp-3">{p.description}</p>
+                )}
+
+                {/* Metadata rows */}
+                <div className="space-y-0.5">
+                  {p.author && (
+                    <div className="flex items-center gap-1.5 text-[9px]">
+                      <span className="text-gray-600 w-14 flex-shrink-0">Author</span>
+                      <span className="text-gray-400 truncate">{p.author}</span>
+                    </div>
+                  )}
+                  {p.version && (
+                    <div className="flex items-center gap-1.5 text-[9px]">
+                      <span className="text-gray-600 w-14 flex-shrink-0">Version</span>
+                      <span className="text-gray-400">{p.version}</span>
+                    </div>
+                  )}
+                  {p.license && (
+                    <div className="flex items-center gap-1.5 text-[9px]">
+                      <span className="text-gray-600 w-14 flex-shrink-0">License</span>
+                      <span className="text-gray-400">{p.license}</span>
+                    </div>
+                  )}
+                  {p.isConflictingRolePlugin && (
+                    <p className="text-[10px] text-red-400/80 mt-0.5">
+                      Conflicting Role Plugin — only one is allowed per agent
+                    </p>
+                  )}
+                </div>
+
+                {/* Marketplace link */}
+                {mkt && (
                   <span
                     onClick={(e) => {
                       e.stopPropagation()
-                      // Save profile panel state before navigating
                       sessionStorage.setItem('profile-panel-return', JSON.stringify({ agentId: config.workingDirectory, tab: 'plugins' }))
                       router.push(`/settings?tab=global-elements&subtab=plugins&marketplace=${encodeURIComponent(mkt)}`)
                     }}
-                    className="inline-flex items-center gap-1 text-[9px] text-emerald-400/70 hover:text-emerald-300 cursor-pointer mt-0.5"
+                    className="inline-flex items-center gap-1 text-[9px] text-emerald-400/70 hover:text-emerald-300 cursor-pointer"
                     title={`View in Settings → ${mkt}`}
                   >
                     <ExternalLink className="w-2.5 h-2.5" />
                     {mkt}
                   </span>
-                )
-              })()}
-            </div>
-            {/* No uninstall for role plugins — use role selector to switch/remove */}
-            {p.name !== config.rolePlugin?.name ? (
-              <div
-                onClick={() => setConfirmUninstall(p)}
-                className={`flex-shrink-0 p-1 rounded-md cursor-pointer transition-colors ${
-                  p.isConflictingRolePlugin
-                    ? 'hover:bg-red-500/20'
-                    : 'hover:bg-gray-700/60'
-                }`}
-                title="Uninstall this plugin"
-              >
-                <XCircle className={`w-4 h-4 ${p.isConflictingRolePlugin ? 'text-red-400' : 'text-gray-500 hover:text-gray-300'}`} />
+                )}
+
+                {/* Element sections — clickable chips that navigate to element accordion section */}
+                {counts && totalElements > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {ELEMENT_CHIPS.map(({ key, label, icon: Icon, tabId }) => {
+                      const count = counts[key as keyof typeof counts]
+                      if (!count) return null
+                      return (
+                        <div
+                          key={key}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Cross-section navigation: switch to the element's accordion section
+                            if (onSwitchTab) onSwitchTab(tabId)
+                          }}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-800/40 hover:bg-gray-700/60 cursor-pointer transition-colors"
+                          title={`View ${label} from this plugin`}
+                        >
+                          <Icon className="w-2.5 h-2.5 text-gray-500" />
+                          <span className="text-[8px] text-gray-400">{label}</span>
+                          <span className="text-[8px] text-gray-600">{count}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            ) : (
-              <span className="text-[9px] text-emerald-400/70 px-1.5 flex-shrink-0">role</span>
             )}
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Uninstall confirmation dialog */}
       {confirmUninstall && (

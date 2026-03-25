@@ -519,26 +519,14 @@ function extractEnabledPluginPaths(settings: Record<string, unknown>, paths: Set
   const ep = settings.enabledPlugins as Record<string, boolean> | undefined
   if (!ep || typeof ep !== 'object') return
 
-  const homeDir = os.homedir()
-  const localMarketplaceDir = path.join(homeDir, 'agents', 'role-plugins', 'plugins')
-
-  const LOCAL_MARKETPLACE_NAME = 'ai-maestro-local-roles-marketplace'
-
   for (const [key, enabled] of Object.entries(ep)) {
     if (!enabled) continue
-    const atIdx = key.lastIndexOf('@')
-    if (atIdx <= 0) continue
-    const pluginName = key.substring(0, atIdx)
-    const marketplaceName = key.substring(atIdx + 1)
-
-    // Resolve marketplace name to directory path
-    if (marketplaceName === LOCAL_MARKETPLACE_NAME) {
-      const pluginPath = path.join(localMarketplaceDir, pluginName)
-      if (fs.existsSync(pluginPath)) {
-        paths.add(pluginPath)
-      }
+    // Use resolvePluginKeyToPath which handles ALL marketplace types
+    // (local role-plugins, global cache, and any future marketplace formats)
+    const resolved = resolvePluginKeyToPath(key)
+    if (resolved && fs.existsSync(resolved)) {
+      paths.add(resolved)
     }
-    // Other marketplace types can be added here in the future
   }
 }
 

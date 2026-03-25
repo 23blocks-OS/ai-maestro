@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.4] - 2026-03-25
+
+### Fixed
+- **AMP mesh routing restored** — `amp-send.sh` was incorrectly using filesystem delivery for remote agents after message migration created local directories. Now checks for `config.json` to distinguish real local agents from migration-created inbox directories (upstream PR #15).
+- **AMP fetch URL fix** — `amp-fetch.sh` was missing `/v1/` prefix on fetch and acknowledge endpoints, causing 404s against external providers like Crabmail (upstream PR #14).
+- **AMP message ID timestamps** — `generate_message_id()` now uses seconds-precision timestamps per AMP spec (was milliseconds) (upstream PR #14).
+
 ## [0.26.3] - 2026-03-24
 
 ### Changed

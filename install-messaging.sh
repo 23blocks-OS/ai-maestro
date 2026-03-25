@@ -710,25 +710,16 @@ if [ "$INSTALL_SKILL" = true ]; then
 
     MARKETPLACE_REPO="23blocks-OS/ai-maestro-plugins"
     PLUGIN_NAME="ai-maestro"
-    LOCAL_PLUGIN_DIR="$SCRIPT_DIR/plugin"
 
-    # Step 1: Register the marketplace — prefer local submodule, fallback to GitHub
-    if [ -d "$LOCAL_PLUGIN_DIR/.claude-plugin" ]; then
-        # Local submodule available — use it as the marketplace source (always up-to-date)
-        print_info "Registering local marketplace from submodule: $LOCAL_PLUGIN_DIR"
-        if claude plugin marketplace add "$LOCAL_PLUGIN_DIR" 2>/dev/null; then
-            print_success "Local marketplace registered"
-        else
-            print_info "Local marketplace may already be registered (continuing)"
-        fi
+    # Step 1: Register the marketplace from GitHub (enables future updates via claude CLI)
+    # Always use the GitHub source — local submodule copies become stale and prevent
+    # Claude Code from fetching updates via `claude plugin marketplace update`.
+    print_info "Registering marketplace: $MARKETPLACE_REPO"
+    if claude plugin marketplace add "$MARKETPLACE_REPO" 2>/dev/null; then
+        print_success "Marketplace registered: $MARKETPLACE_REPO"
     else
-        # No local submodule — fall back to GitHub remote
-        print_info "Registering remote marketplace: $MARKETPLACE_REPO"
-        if claude plugin marketplace add "$MARKETPLACE_REPO" 2>/dev/null; then
-            print_success "Marketplace registered: $MARKETPLACE_REPO"
-        else
-            print_info "Marketplace may already be registered (continuing)"
-        fi
+        # May already be registered — that's fine
+        print_info "Marketplace may already be registered (continuing)"
     fi
 
     # Step 2: Install the ai-maestro plugin with user scope

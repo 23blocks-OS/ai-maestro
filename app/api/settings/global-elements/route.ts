@@ -687,12 +687,36 @@ export async function GET() {
       }
     }
 
+    // Standalone output styles from ~/.claude/output-styles/
+    const standaloneOutputStyles: ElementInfo[] = []
+    const pluginOutputStyleNames = new Set(results.flatMap(p => p.outputStyles.map(o => o.name)))
+    const userOutputStylesDir = join(HOME, '.claude', 'output-styles')
+    if (existsSync(userOutputStylesDir)) {
+      try {
+        for (const entry of await readdir(userOutputStylesDir)) {
+          if (entry.startsWith('.')) continue
+          const filePath = join(userOutputStylesDir, entry)
+          const s = await stat(filePath)
+          if (s.isDirectory()) continue
+          const styleName = entry.replace(/\.[^.]+$/, '')
+          if (pluginOutputStyleNames.has(styleName)) continue
+          const fm = await extractFrontmatter(filePath)
+          standaloneOutputStyles.push({
+            name: styleName, path: filePath, sourcePlugin: '(standalone)', sourceMarketplace: '(user config)',
+            description: fm.description, type: 'outputStyle',
+            frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+          })
+        }
+      } catch { /* ignore */ }
+    }
+
     // Update totals with all standalone elements
     totals.mcpServers += standaloneMcp.length
     totals.hooks += standaloneHooks.length
     totals.skills += standaloneSkills.length
     totals.rules += standaloneRules.length
     totals.agents += standaloneAgents.length
+    totals.outputStyles += standaloneOutputStyles.length
 
     // Build flat elements array for the Elements tab card view
     const flatElements: (ElementInfo & { pluginEnabled: boolean; pluginVersion: string | null; pluginSourceUrl: string | null })[] = []
@@ -703,7 +727,7 @@ export async function GET() {
       }
     }
     // Add all standalone elements (always enabled, no plugin version)
-    for (const el of [...standaloneMcp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents, ...standaloneHooks]) {
+    for (const el of [...standaloneMcp, ...standaloneSkills, ...standaloneRules, ...standaloneAgents, ...standaloneHooks, ...standaloneOutputStyles]) {
       flatElements.push({ ...el, pluginEnabled: true, pluginVersion: null, pluginSourceUrl: null })
     }
     flatElements.sort((a, b) => a.name.localeCompare(b.name))

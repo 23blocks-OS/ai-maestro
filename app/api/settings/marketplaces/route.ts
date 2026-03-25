@@ -603,6 +603,13 @@ export async function POST(req: NextRequest) {
             }
             break
           }
+          case 'outputStyle': {
+            // Output styles at user level are files in ~/.claude/output-styles/
+            if (elementPath && existsSync(elementPath)) {
+              await rm(elementPath)
+            }
+            break
+          }
           default:
             return NextResponse.json({ error: `Unsupported element type for removal: ${elementType}` }, { status: 400 })
         }

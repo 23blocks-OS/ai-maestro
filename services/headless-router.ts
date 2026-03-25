@@ -820,6 +820,22 @@ const routes: Route[] = [
     sendServiceResult(res, scanAgentLocalConfig(params.id))
   }},
 
+  // Remove local element — delegates to the same logic as the Next.js route
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/remove-element$/, paramNames: ['id'], handler: async (req, res, params) => {
+    // Forward to the Next.js API handler by importing it dynamically
+    const { POST } = await import('@/app/api/agents/[id]/remove-element/route')
+    const nextReq = new Request(`http://localhost/api/agents/${params.id}/remove-element`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(await readJsonBody(req)),
+    })
+    const nextRes = await POST(nextReq as never, { params: Promise.resolve({ id: params.id }) })
+    const data = await nextRes.json()
+    res.statusCode = nextRes.status
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify(data))
+  }},
+
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     // Guard limit against NaN (parseInt returns NaN for non-numeric strings).

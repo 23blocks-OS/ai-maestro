@@ -11,6 +11,7 @@ import {
   ScrollText,
   Terminal,
   Server,
+  Palette,
   Loader2,
   AlertCircle,
   FolderOpen,
@@ -40,14 +41,16 @@ const TABS: TabDef[] = [
   { id: 'hooks', label: 'Hooks', icon: Webhook, colorClass: 'text-amber-400', countKey: 'hooks' },
   { id: 'rules', label: 'Rules', icon: ScrollText, colorClass: 'text-gray-400', countKey: 'rules' },
   { id: 'commands', label: 'Commands', icon: Terminal, colorClass: 'text-violet-400', countKey: 'commands' },
-  { id: 'mcps', label: 'MCP Servers', icon: Server, colorClass: 'text-purple-400', countKey: 'mcpServers' },
+  { id: 'mcps', label: 'MCP', icon: Server, colorClass: 'text-purple-400', countKey: 'mcpServers' },
+  { id: 'outputStyles', label: 'Styles', icon: Palette, colorClass: 'text-pink-400', countKey: 'outputStyles' },
 ]
 
-// Tab grid layout: 3 rows x 3 columns
+// Tab grid layout: 3 rows of 3 + 1 bottom row
 const TAB_ROWS: TabId[][] = [
   ['settings', 'role', 'plugins'],
   ['skills', 'agents', 'hooks'],
   ['rules', 'commands', 'mcps'],
+  ['outputStyles'],    // single-item row, left-aligned
 ]
 
 // ---------------------------------------------------------------------------
@@ -86,7 +89,7 @@ export default function AgentProfilePanel({
   scrollToDangerZone,
   hostUrl,
 }: AgentProfilePanelProps) {
-  const { config, error, loading } = useAgentLocalConfig(agentId)
+  const { config, error, loading, refetch } = useAgentLocalConfig(agentId)
   const [topTab, setTopTab] = useState<TopTab>('overview')
   const [activeTab, setActiveTab] = useState<TabId>('settings')
   const [browsePath, setBrowsePath] = useState<string | null>(null)
@@ -408,7 +411,7 @@ export default function AgentProfilePanel({
                   <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
                 </div>
               )}
-              {config && <TabContent tab={activeTab} config={config} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} />}
+              {config && <TabContent tab={activeTab} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} />}
             </div>
           )}
         </>

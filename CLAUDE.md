@@ -536,9 +536,14 @@ The AMP plugin is bundled in the plugin submodule at `plugin/plugins/ai-maestro/
 ```
 
 **What gets installed:**
-- AMP scripts (`amp-*.sh`) → `~/.local/bin/`
-- AMP skill → `~/.claude/skills/agent-messaging/`
+- AMP scripts (`amp-*.sh`) → `~/.local/bin/` (CLI tools on PATH)
+- `ai-maestro` plugin → from marketplace `23blocks-OS/ai-maestro-plugins` (`--scope user`)
+  - 11 skills: agent-messaging, agent-identity, ai-maestro-agents-management, graph-query, memory-search, docs-search, planning, team-governance, team-kanban, debug-hooks, mcp-discovery
+  - 12 AMP slash commands: `/amp-send`, `/amp-inbox`, `/amp-read`, etc.
+  - Hooks: session tracking + message notifications
 - Message storage → `~/.agent-messaging/`
+
+**Note:** All skills are bundled in the `ai-maestro` plugin. There are NO standalone skills in `~/.claude/skills/` — everything is managed via the plugin system.
 
 ### Quick Start
 
@@ -673,23 +678,27 @@ All AI Maestro functionality is exposed through two abstraction layers. External
 
 ### Layer 1: Skills (for agents)
 
-AI Maestro installs global skills that teach agents the canonical API syntax:
+All AI Maestro skills are bundled in the `ai-maestro` plugin (marketplace: `23blocks-OS/ai-maestro-plugins`). Key skills:
 
 | Skill | Covers |
 |-------|--------|
 | `team-governance` | Team CRUD, COS assignment, governance requests, transfers, auth headers |
 | `ai-maestro-agents-management` | Agent lifecycle via `aimaestro-agent.sh` CLI |
-| `agent-messaging` | Inter-agent messaging via `amp-*` scripts |
+| `agent-messaging` | Inter-agent messaging via `amp-*` scripts + governance messaging rules |
+| `agent-identity` | AID protocol — Ed25519 identity, proof of possession, OAuth token exchange |
+| `team-kanban` | Team task boards, dependencies, status tracking, GitHub sync |
+| `mcp-discovery` | Discover MCP server tools without installing plugins |
 
-These skills ARE the authoritative reference. When the API changes, only these skill files need updating. All plugins inherit automatically.
+These skills ARE the authoritative reference. When the API changes, only these skill files need updating. The plugin also includes 12 AMP slash commands (`/amp-send`, `/amp-inbox`, etc.).
 
 ### Layer 2: Scripts (for hooks)
 
-AI Maestro installs global scripts that wrap API calls:
+AI Maestro installs CLI scripts to `~/.local/bin/` that wrap API calls:
 - `aimaestro-agent.sh` — Agent lifecycle CLI (delegates to `agent-*.sh` modules)
 - `amp-send.sh`, `amp-inbox.sh`, `amp-read.sh`, etc. — Messaging CLI
+- `aid-init.sh`, `aid-token.sh`, etc. — Agent Identity CLI
 
-When the API changes, only these scripts need updating.
+The same scripts are also bundled in the plugin (for slash commands). When the API changes, only these scripts need updating.
 
 ### Rules for External Plugins
 

@@ -98,13 +98,13 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
  * Claude Plugins Section — manages user-level plugins, elements, and marketplaces.
  * Three tabs: Plugins (toggle + info), Elements (active elements), Marketplaces (full management).
  */
-export default function GlobalElementsSection() {
-  const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>('elements')
+export default function GlobalElementsSection({ initialSubtab, initialMarketplace }: { initialSubtab?: 'plugins' | 'elements' | 'marketplaces' | null; initialMarketplace?: string | null } = {}) {
+  const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>(initialSubtab || 'elements')
   // Scroll position per tab — restore when switching back
   const scrollPositions = useRef<Record<string, number>>({ plugins: 0, elements: 0, marketplaces: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
-  // Cross-tab navigation targets
-  const [navigateToMkt, setNavigateToMkt] = useState<string | null>(null)
+  // Cross-tab navigation targets — seed from URL params if provided
+  const [navigateToMkt, setNavigateToMkt] = useState<string | null>(initialMarketplace || null)
   const [navigateToPlugin, setNavigateToPlugin] = useState<string | null>(null) // plugin key to expand in Plugins tab
   const [navigateToElement, setNavigateToElement] = useState<string | null>(null) // element key to expand in Elements tab
   const pluginRefs = useRef<Record<string, HTMLDivElement | null>>({})

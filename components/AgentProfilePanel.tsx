@@ -411,7 +411,7 @@ export default function AgentProfilePanel({
                   <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
                 </div>
               )}
-              {config && <TabContent tab={activeTab} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} />}
+              {config && <TabContent tab={activeTab} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} onSwitchTab={setActiveTab} />}
             </div>
           )}
         </>

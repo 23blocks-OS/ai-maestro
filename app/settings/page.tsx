@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import SettingsSidebar from '@/components/SettingsSidebar'
 import HostsSection from '@/components/settings/HostsSection'
 import DomainsSection from '@/components/settings/DomainsSection'
@@ -16,7 +17,25 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gray-950 text-gray-500">Loading settings…</div>}>
+      <SettingsPageInner />
+    </Suspense>
+  )
+}
+
+function SettingsPageInner() {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
   const [activeSection, setActiveSection] = useState<'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements'>('hosts')
+
+  // Navigate to section from URL params (e.g. /settings?tab=global-elements)
+  useEffect(() => {
+    const validTabs = ['hosts', 'domains', 'webhooks', 'help', 'about', 'onboarding', 'experiments', 'marketplace', 'global-elements'] as const
+    if (tabParam && (validTabs as readonly string[]).includes(tabParam)) {
+      setActiveSection(tabParam as typeof validTabs[number])
+    }
+  }, [tabParam])
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white">
@@ -44,7 +63,7 @@ export default function SettingsPage() {
           {activeSection === 'domains' && <DomainsSection />}
           {activeSection === 'webhooks' && <WebhooksSection />}
           {activeSection === 'marketplace' && <MarketplaceSection />}
-          {activeSection === 'global-elements' && <GlobalElementsSection />}
+          {activeSection === 'global-elements' && <GlobalElementsSection initialSubtab={searchParams.get('subtab') as 'plugins' | 'elements' | 'marketplaces' | null} initialMarketplace={searchParams.get('marketplace')} />}
           {activeSection === 'experiments' && <ExperimentsSection />}
           {activeSection === 'onboarding' && <OnboardingSection />}
           {activeSection === 'help' && <HelpSection />}

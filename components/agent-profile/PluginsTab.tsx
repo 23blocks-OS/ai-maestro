@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { XCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { XCircle, ExternalLink } from 'lucide-react'
 import type { AgentLocalConfig, LocalPlugin } from '@/types/agent-local-config'
 import { EmptyState } from './shared'
 
 export default function PluginsTab({ config }: { config: AgentLocalConfig }) {
+  const router = useRouter()
   const [confirmUninstall, setConfirmUninstall] = useState<LocalPlugin | null>(null)
   const [uninstalling, setUninstalling] = useState(false)
 
@@ -64,6 +66,25 @@ export default function PluginsTab({ config }: { config: AgentLocalConfig }) {
               {!p.isConflictingRolePlugin && p.description && (
                 <p className="text-[10px] text-gray-500 leading-snug mt-0.5 line-clamp-2">{p.description}</p>
               )}
+              {/* Marketplace link — extracted from plugin key (name@marketplace) */}
+              {p.key?.includes('@') && (() => {
+                const mkt = p.key!.split('@').slice(1).join('@')
+                return (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // Save profile panel state before navigating
+                      sessionStorage.setItem('profile-panel-return', JSON.stringify({ agentId: config.workingDirectory, tab: 'plugins' }))
+                      router.push(`/settings?tab=global-elements&subtab=plugins&marketplace=${encodeURIComponent(mkt)}`)
+                    }}
+                    className="inline-flex items-center gap-1 text-[9px] text-emerald-400/70 hover:text-emerald-300 cursor-pointer mt-0.5"
+                    title={`View in Settings → ${mkt}`}
+                  >
+                    <ExternalLink className="w-2.5 h-2.5" />
+                    {mkt}
+                  </span>
+                )
+              })()}
             </div>
             <div
               onClick={() => setConfirmUninstall(p)}

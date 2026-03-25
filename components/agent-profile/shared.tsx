@@ -74,13 +74,15 @@ interface ExpandableCardProps {
   workDir?: string
   /** Callback after successful removal */
   onRemoved?: () => void
+  /** Callback when plugin badge is clicked — navigates to Plugins tab */
+  onPluginClick?: (pluginName: string) => void
   /** Extra content rendered inside the expanded area (e.g. MCP discovery) */
   children?: React.ReactNode
 }
 
 export function ExpandableElementCard({
   name, elementType, detail, sourcePlugin, path: elPath,
-  metadata, jsonContent, agentId, workDir, onRemoved, children,
+  metadata, jsonContent, agentId, workDir, onRemoved, onPluginClick, children,
 }: ExpandableCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [content, setContent] = useState<string | null>(null)
@@ -145,7 +147,11 @@ export function ExpandableElementCard({
         <TypeIcon className={`w-3.5 h-3.5 flex-shrink-0 ${meta.color}`} />
         <p className="text-xs font-medium text-gray-200 truncate flex-1">{name}</p>
         {sourcePlugin && (
-          <span className="text-[9px] text-blue-400/70 bg-blue-500/10 border border-blue-500/15 rounded px-1.5 py-0.5 flex-shrink-0 truncate max-w-[120px]">
+          <span
+            className={`text-[9px] text-blue-400/70 bg-blue-500/10 border border-blue-500/15 rounded px-1.5 py-0.5 flex-shrink-0 truncate max-w-[120px] ${onPluginClick ? 'cursor-pointer hover:text-blue-300 hover:bg-blue-500/20' : ''}`}
+            onClick={onPluginClick ? (e) => { e.stopPropagation(); onPluginClick(sourcePlugin) } : undefined}
+            title={onPluginClick ? `Go to ${sourcePlugin} in Plugins tab` : undefined}
+          >
             plugin: {sourcePlugin}
           </span>
         )}

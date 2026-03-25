@@ -2,7 +2,7 @@
  * AMP (Agent Messaging Protocol) Types
  *
  * Type definitions for implementing AMP protocol in AI Maestro.
- * Based on the AMP Protocol Specification v0.1.0
+ * Based on the AMP Protocol Specification v0.1.3
  *
  * AI Maestro acts as an AMP PROVIDER for local agents.
  * This enables three deployment scenarios:
@@ -34,7 +34,7 @@ export const AMP_API_KEY_PREFIX = 'amp_live_sk_'
 // Protocol Version
 // ============================================================================
 
-export const AMP_PROTOCOL_VERSION = '0.1.0'
+export const AMP_PROTOCOL_VERSION = '0.1.3'
 
 /**
  * Default provider name (used when organization is not set)

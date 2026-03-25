@@ -80,7 +80,7 @@ const {
     getOrganization: vi.fn().mockReturnValue('testorg'),
   },
   mockAmpTypes: {
-    AMP_PROTOCOL_VERSION: '0.1.0',
+    AMP_PROTOCOL_VERSION: '0.1.3',
     getAMPProviderDomain: vi.fn().mockReturnValue('testorg.aimaestro.local'),
   },
 }))
@@ -176,7 +176,7 @@ describe('getHealthStatus', () => {
     expect(result.data?.status).toBe('healthy')
     expect(result.data?.agents_online).toBe(1)
     expect(result.data?.provider).toBe('testorg.aimaestro.local')
-    expect(result.data?.version).toBe('0.1.0')
+    expect(result.data?.version).toBe('0.1.3')
     expect(result.data?.uptime_seconds).toBeGreaterThanOrEqual(0)
   })
 
@@ -207,7 +207,7 @@ describe('getProviderInfo', () => {
 
     expect(result.status).toBe(200)
     expect(result.data?.provider).toBe('testorg.aimaestro.local')
-    expect(result.data?.version).toBe('amp/0.1.0')
+    expect(result.data?.version).toBe('amp/0.1.3')
     expect(result.data?.capabilities).toContain('registration')
     expect(result.data?.capabilities).toContain('local-delivery')
     expect(result.data?.capabilities).toContain('relay-queue')

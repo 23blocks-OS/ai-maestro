@@ -657,27 +657,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         </div>
                       </div>
 
-                      {/* Tree Location Preview */}
-                      <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
-                        <div className="flex items-center gap-2 text-xs font-medium text-gray-400 mb-2">
-                          <FolderTree className="w-4 h-4" />
-                          Sidebar Location Preview
-                        </div>
-                        <div className="font-mono text-sm text-gray-300 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Folder className="w-4 h-4 text-purple-400" />
-                            <span className="text-purple-300">{agent.tags?.[0] || 'ungrouped'}</span>
-                          </div>
-                          <div className="flex items-center gap-2 pl-4">
-                            <Folder className="w-4 h-4 text-blue-400" />
-                            <span className="text-blue-300">{agent.tags?.[1] || 'default'}</span>
-                          </div>
-                          <div className="flex items-center gap-2 pl-8">
-                            <span className="text-green-400">{'>'}</span>
-                            <span className="text-green-300 font-semibold">{agent.label || agent.name || agent.alias}</span>
-                          </div>
-                        </div>
-                      </div>
+                      {/* Sidebar Location Preview removed — tags are self-explanatory */}
                     </div>
                   </div>
                 )}
@@ -899,28 +879,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
-              {/* Long-Term Memory Section (includes memory viewer + memory settings) */}
-              <section>
-                <button
-                  onClick={() => toggleSection('memory')}
-                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
-                >
-                  {expandedSections.memory ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                  <Brain className="w-4 h-4" />
-                  Long-Term Memory
-                </button>
-
-                {expandedSections.memory && (
-                  <div className="space-y-4">
-                    <MemoryViewer agentId={agent.id} hostUrl={hostUrl} isActive={true} />
-                    <SkillsSection agentId={agent.id} hostUrl={hostUrl} />
-                  </div>
-                )}
-              </section>
+              {/* Long-Term Memory section removed — MemoryViewer in toolbar, SkillsSection in Advanced tab */}
 
               </>)}
 
@@ -1079,8 +1038,17 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 ))
               })()}
 
-              {/* Metrics/Documentation/Danger — hidden in overview mode (moved to Advanced tab) */}
+              {/* Long-Term Memory Options + Metrics/Documentation/Danger — hidden in overview mode */}
               {renderMode !== 'overview' && (<>
+              {/* Memory configuration (renamed from "Skill Settings") */}
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500">
+                  <Brain className="w-4 h-4" />
+                  Long-Term Memory Options
+                </div>
+                <SkillsSection agentId={agent.id} hostUrl={hostUrl} />
+              </section>
+
               <section>
                 <button
                   onClick={() => toggleSection('metrics')}

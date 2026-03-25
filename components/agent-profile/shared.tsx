@@ -11,7 +11,7 @@ import type { AgentLocalConfig } from '@/types/agent-local-config'
 // Tab definitions
 // ---------------------------------------------------------------------------
 
-export type TabId = 'settings' | 'role' | 'plugins' | 'skills' | 'agents' | 'hooks' | 'rules' | 'commands' | 'mcps' | 'outputStyles'
+export type TabId = 'role' | 'plugins' | 'skills' | 'agents' | 'hooks' | 'rules' | 'commands' | 'mcps' | 'outputStyles'
 
 export interface TabDef {
   id: TabId
@@ -76,13 +76,15 @@ interface ExpandableCardProps {
   onRemoved?: () => void
   /** Callback when plugin badge is clicked — navigates to Plugins tab */
   onPluginClick?: (pluginName: string) => void
+  /** Name of the active Role Plugin — elements from this plugin get green styling */
+  rolePluginName?: string
   /** Extra content rendered inside the expanded area (e.g. MCP discovery) */
   children?: React.ReactNode
 }
 
 export function ExpandableElementCard({
   name, elementType, detail, sourcePlugin, path: elPath,
-  metadata, jsonContent, agentId, workDir, onRemoved, onPluginClick, children,
+  metadata, jsonContent, agentId, workDir, onRemoved, onPluginClick, rolePluginName, children,
 }: ExpandableCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [content, setContent] = useState<string | null>(null)
@@ -93,6 +95,7 @@ export function ExpandableElementCard({
   const meta = ELEMENT_TYPE_META[elementType] || { icon: Wand2, color: 'text-gray-500', label: elementType }
   const TypeIcon = meta.icon
   const isStandalone = !sourcePlugin
+  const isRolePlugin = !!rolePluginName && sourcePlugin === rolePluginName
   const isContentType = ['skill', 'agent', 'rule', 'command', 'outputStyle'].includes(elementType)
   // Hooks and MCP show inline JSON, not file content
   const hasFileContent = isContentType && elPath
@@ -133,7 +136,9 @@ export function ExpandableElementCard({
     <div className={`rounded-lg border overflow-hidden ${
       isStandalone
         ? 'border-gray-800/60 bg-[#FF0090]/10'
-        : 'border-gray-800/60 bg-gray-800/20'
+        : isRolePlugin
+          ? 'border-emerald-500/20 bg-emerald-500/5'
+          : 'border-gray-800/60 bg-gray-800/20'
     }`}>
       {/* Header row */}
       <div
@@ -148,11 +153,15 @@ export function ExpandableElementCard({
         <p className="text-xs font-medium text-gray-200 truncate flex-1">{name}</p>
         {sourcePlugin && (
           <span
-            className={`text-[9px] text-blue-400/70 bg-blue-500/10 border border-blue-500/15 rounded px-1.5 py-0.5 flex-shrink-0 truncate max-w-[120px] ${onPluginClick ? 'cursor-pointer hover:text-blue-300 hover:bg-blue-500/20' : ''}`}
+            className={`text-[9px] rounded px-1.5 py-0.5 flex-shrink-0 truncate max-w-[120px] ${
+              isRolePlugin
+                ? 'text-emerald-400/70 bg-emerald-500/10 border border-emerald-500/15'
+                : 'text-blue-400/70 bg-blue-500/10 border border-blue-500/15'
+            } ${onPluginClick ? 'cursor-pointer hover:opacity-80' : ''}`}
             onClick={onPluginClick ? (e) => { e.stopPropagation(); onPluginClick(sourcePlugin) } : undefined}
             title={onPluginClick ? `Go to ${sourcePlugin} in Plugins tab` : undefined}
           >
-            plugin: {sourcePlugin}
+            {isRolePlugin ? 'role-plugin' : `plugin: ${sourcePlugin}`}
           </span>
         )}
         {isStandalone && (

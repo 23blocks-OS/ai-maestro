@@ -64,10 +64,7 @@ const DEFAULT_MEMORY_SETTINGS: MemorySkillSettings = {
   }
 }
 
-type TabId = 'memory'
-
 export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('memory')
   const [settings, setSettings] = useState<SkillSettings>({
     memory: DEFAULT_MEMORY_SETTINGS
   })
@@ -164,9 +161,6 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
     }))
   }
 
-  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'memory', label: 'Long-Term Memory', icon: <Brain className="w-4 h-4" /> }
-  ]
 
   if (loading) {
     return (
@@ -185,7 +179,7 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
       <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-200">Skill Settings</span>
+          <span className="text-sm font-medium text-gray-200">Long-Term Memory Options</span>
         </div>
         <div className="flex items-center gap-2">
           {saveSuccess && (
@@ -221,34 +215,14 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-800">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
-              activeTab === tab.id
-                ? 'text-blue-400 border-blue-400 bg-blue-500/5'
-                : 'text-gray-400 border-transparent hover:text-gray-300 hover:bg-gray-800/50'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
+      {/* Memory Settings Content */}
       <div className="p-4">
-        {activeTab === 'memory' && (
-          <MemorySkillTab
-            settings={settings.memory}
-            updateSettings={updateMemorySettings}
-            updateConsolidation={updateConsolidation}
-            updateRetention={updateRetention}
-          />
-        )}
+        <MemorySkillTab
+          settings={settings.memory}
+          updateSettings={updateMemorySettings}
+          updateConsolidation={updateConsolidation}
+          updateRetention={updateRetention}
+        />
       </div>
     </div>
   )

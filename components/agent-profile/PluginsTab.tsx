@@ -86,17 +86,22 @@ export default function PluginsTab({ config }: { config: AgentLocalConfig }) {
                 )
               })()}
             </div>
-            <div
-              onClick={() => setConfirmUninstall(p)}
-              className={`flex-shrink-0 p-1 rounded-md cursor-pointer transition-colors ${
-                p.isConflictingRolePlugin
-                  ? 'hover:bg-red-500/20'
-                  : 'hover:bg-gray-700/60'
-              }`}
-              title="Uninstall this plugin"
-            >
-              <XCircle className={`w-4 h-4 ${p.isConflictingRolePlugin ? 'text-red-400' : 'text-gray-500 hover:text-gray-300'}`} />
-            </div>
+            {/* No uninstall for role plugins — use role selector to switch/remove */}
+            {p.name !== config.rolePlugin?.name ? (
+              <div
+                onClick={() => setConfirmUninstall(p)}
+                className={`flex-shrink-0 p-1 rounded-md cursor-pointer transition-colors ${
+                  p.isConflictingRolePlugin
+                    ? 'hover:bg-red-500/20'
+                    : 'hover:bg-gray-700/60'
+                }`}
+                title="Uninstall this plugin"
+              >
+                <XCircle className={`w-4 h-4 ${p.isConflictingRolePlugin ? 'text-red-400' : 'text-gray-500 hover:text-gray-300'}`} />
+              </div>
+            ) : (
+              <span className="text-[9px] text-emerald-400/70 px-1.5 flex-shrink-0">role</span>
+            )}
           </div>
         </div>
       ))}

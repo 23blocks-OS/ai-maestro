@@ -374,7 +374,9 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
     if (activeOnly) items = items.filter(e => e.pluginEnabled)
     // elementTypeFilter holds the plural ELEMENT_SECTIONS key (e.g. 'skills'), while e.type is singular
     // (e.g. 'skill'). Use typeInfo() to map the singular type to its section key for comparison.
-    if (elementTypeFilter !== 'all') items = items.filter(e => typeInfo(e.type).key === elementTypeFilter)
+    // 'ai-maestro' is a special source-plugin filter, not an element-type filter
+    if (elementTypeFilter === 'ai-maestro') items = items.filter(e => e.sourcePlugin === 'ai-maestro')
+    else if (elementTypeFilter !== 'all') items = items.filter(e => typeInfo(e.type).key === elementTypeFilter)
     if (elementSearch.trim()) {
       const q = elementSearch.trim().toLowerCase()
       items = items.filter(e =>
@@ -498,21 +500,25 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
                   {plugin.name}
                 </span>
                 <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
-                {/* Toggle switch */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); togglePlugin(plugin.key, plugin.enabled) }}
-                  disabled={isToggling}
-                  className="flex-shrink-0 transition-colors"
-                  title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
-                >
-                  {isToggling ? (
-                    <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-                  ) : plugin.enabled ? (
-                    <ToggleRight className="w-6 h-6 text-emerald-400" />
-                  ) : (
-                    <ToggleLeft className="w-6 h-6 text-gray-600" />
-                  )}
-                </button>
+                {/* Toggle switch — ai-maestro is a core plugin and cannot be disabled */}
+                {plugin.name !== 'ai-maestro' ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); togglePlugin(plugin.key, plugin.enabled) }}
+                    disabled={isToggling}
+                    className="flex-shrink-0 transition-colors"
+                    title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'}
+                  >
+                    {isToggling ? (
+                      <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+                    ) : plugin.enabled ? (
+                      <ToggleRight className="w-6 h-6 text-emerald-400" />
+                    ) : (
+                      <ToggleLeft className="w-6 h-6 text-gray-600" />
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-[9px] text-amber-400/70 px-1.5">core</span>
+                )}
               </div>
               {/* Detail panel */}
               {isExpPl && (
@@ -616,6 +622,24 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
             </button>
           )
         })}
+        {/* AI Maestro source-plugin filter — separate from element-type badges */}
+        {(() => {
+          const aiMaestroCount = flatElements.filter(e => e.sourcePlugin === 'ai-maestro').length
+          if (aiMaestroCount === 0) return null
+          return (
+            <button
+              onClick={() => setElementTypeFilter(elementTypeFilter === 'ai-maestro' ? 'all' : 'ai-maestro')}
+              className={`flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 transition-all ${
+                elementTypeFilter === 'ai-maestro'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-gray-400 bg-gray-800/50 hover:bg-gray-800/70 border border-transparent'
+              }`}
+            >
+              <Puzzle className={`w-3.5 h-3.5 ${elementTypeFilter === 'ai-maestro' ? 'text-amber-400' : ''}`} />
+              <span>{aiMaestroCount} AI Maestro</span>
+            </button>
+          )
+        })()}
         {elementTypeFilter !== 'all' && (
           <button onClick={() => setElementTypeFilter('all')} className="text-[10px] text-gray-500 hover:text-gray-300 px-2 py-1">
             Show all
@@ -675,7 +699,9 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
               <div key={elKey} ref={ref => { elementRefs.current[elKey] = ref }} className={`rounded-lg border overflow-hidden ${
                 el.sourcePlugin === '(standalone)'
                   ? 'border-gray-800/60 bg-[#FF0090]/10'
-                  : el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'
+                  : el.sourcePlugin === 'ai-maestro'
+                    ? 'border-amber-500/20 bg-amber-500/5'
+                    : el.pluginEnabled ? 'border-gray-800/60' : 'border-gray-800/30 opacity-60'
               }`}>
                 {/* Element card header — two-row layout: name on top, source info below on mobile */}
                 <div

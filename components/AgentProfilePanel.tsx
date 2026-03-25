@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Settings,
   Shield,
   Puzzle,
   Sparkles,
@@ -33,8 +32,10 @@ const AgentProfile = dynamic(() => import('@/components/AgentProfile'), { ssr: f
 // Tab definitions
 // ---------------------------------------------------------------------------
 
+// Sections that are always expanded (no accordion toggle)
+const NON_COLLAPSIBLE = new Set<TabId>(['role'])
+
 const TABS: TabDef[] = [
-  { id: 'settings', label: 'Settings', icon: Settings, colorClass: 'text-gray-400' },
   { id: 'role', label: 'Role', icon: Shield, colorClass: 'text-amber-400' },
   { id: 'skills', label: 'Skills', icon: Sparkles, colorClass: 'text-emerald-400', countKey: 'skills' },
   { id: 'agents', label: 'Agents', icon: Users, colorClass: 'text-cyan-400', countKey: 'agents' },
@@ -86,7 +87,7 @@ export default function AgentProfilePanel({
 }: AgentProfilePanelProps) {
   const { config, error, loading, refetch } = useAgentLocalConfig(agentId)
   const [topTab, setTopTab] = useState<TopTab>('overview')
-  const [activeTab, setActiveTab] = useState<TabId>('settings')
+  const [activeTab, setActiveTab] = useState<TabId>('role')
   const [browsePath, setBrowsePath] = useState<string | null>(null)
 
   // Role Plugin selector state
@@ -366,24 +367,25 @@ export default function AgentProfilePanel({
               )}
               {config && TABS.map(tab => {
                 const Icon = tab.icon
-                const isActive = activeTab === tab.id
+                const pinned = NON_COLLAPSIBLE.has(tab.id)
+                const isActive = pinned || activeTab === tab.id
                 const count = tab.countKey
                   ? (config[tab.countKey] as unknown[])?.length ?? 0
                   : null
 
                 return (
                   <div key={tab.id}>
-                    {/* Section header */}
+                    {/* Section header — non-collapsible sections have no toggle */}
                     <div
-                      onClick={() => setActiveTab(isActive ? (null as unknown as TabId) : tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2 cursor-pointer border-b border-gray-800/30 transition-colors ${
-                        isActive ? 'bg-amber-500/10' : 'hover:bg-gray-800/30'
+                      onClick={pinned ? undefined : () => setActiveTab(isActive ? (null as unknown as TabId) : tab.id)}
+                      className={`flex items-center gap-2 px-4 py-2 border-b border-gray-800/30 transition-colors ${
+                        pinned ? 'bg-amber-500/10' : isActive ? 'bg-amber-500/10 cursor-pointer' : 'hover:bg-gray-800/30 cursor-pointer'
                       }`}
                     >
-                      {isActive
+                      {!pinned && (isActive
                         ? <ChevronDown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                         : <ChevronRight className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                      }
+                      )}
                       <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? tab.colorClass : 'text-gray-600'}`} />
                       <span className={`text-[11px] font-medium flex-1 ${isActive ? 'text-gray-200' : 'text-gray-500'}`}>
                         {tab.label}

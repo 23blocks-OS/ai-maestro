@@ -53,31 +53,43 @@ export async function POST(req: NextRequest) {
     timeout?: number
   }
 
-  if (!configPath) {
-    return NextResponse.json({ error: 'configPath is required' }, { status: 400 })
-  }
   if (!serverName) {
     return NextResponse.json({ error: 'serverName is required' }, { status: 400 })
-  }
-
-  // Security: only allow paths under ~/.claude/plugins/
-  const resolved = configPath.replace(/\.\./g, '')
-  if (!resolved.startsWith(PLUGINS_BASE)) {
-    return NextResponse.json({ error: 'Access denied — configPath must be under ~/.claude/plugins/' }, { status: 403 })
-  }
-  if (!existsSync(resolved)) {
-    return NextResponse.json({ error: 'Config file not found' }, { status: 404 })
   }
   if (!existsSync(SCRIPT_PATH)) {
     return NextResponse.json({ error: 'MCP discovery script not found at scripts_dev/mcp_discovery.py' }, { status: 500 })
   }
 
-  // Resolve ${CLAUDE_PLUGIN_ROOT} and other variables in .mcp.json
-  const pluginRoot = dirname(resolved)
-  let mcpJsonContent = await readFile(resolved, 'utf-8')
-  mcpJsonContent = mcpJsonContent.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot)
-  const tmpFile = join(os.tmpdir(), `mcp-discover-${Date.now()}.json`)
-  writeFileSync(tmpFile, mcpJsonContent)
+  // Two modes:
+  // 1. configPath — plugin-based MCP with .mcp.json file (must be under ~/.claude/plugins/)
+  // 2. serverConfig — inline JSON for standalone MCP (from ~/.claude.json, no file on disk)
+  const { serverConfig } = body as { serverConfig?: Record<string, unknown> }
+  let tmpFile: string
+
+  if (configPath) {
+    // Plugin-based: read from .mcp.json file
+    const resolved = configPath.replace(/\.\./g, '')
+    if (!resolved.startsWith(PLUGINS_BASE)) {
+      return NextResponse.json({ error: 'Access denied — configPath must be under ~/.claude/plugins/' }, { status: 403 })
+    }
+    if (!existsSync(resolved)) {
+      return NextResponse.json({ error: 'Config file not found' }, { status: 404 })
+    }
+    // Resolve ${CLAUDE_PLUGIN_ROOT} and other variables in .mcp.json
+    const pluginRoot = dirname(resolved)
+    let mcpJsonContent = await readFile(resolved, 'utf-8')
+    mcpJsonContent = mcpJsonContent.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot)
+    tmpFile = join(os.tmpdir(), `mcp-discover-${Date.now()}.json`)
+    writeFileSync(tmpFile, mcpJsonContent)
+  } else if (serverConfig && typeof serverConfig === 'object') {
+    // Standalone: create temp .mcp.json from inline server config
+    const safeName = shellSafe(serverName)
+    const mcpJson = { mcpServers: { [safeName]: serverConfig } }
+    tmpFile = join(os.tmpdir(), `mcp-discover-${Date.now()}.json`)
+    writeFileSync(tmpFile, JSON.stringify(mcpJson))
+  } else {
+    return NextResponse.json({ error: 'Either configPath or serverConfig is required' }, { status: 400 })
+  }
 
   // Build command arguments
   const safeName = shellSafe(serverName)
@@ -114,7 +126,7 @@ export async function POST(req: NextRequest) {
     const output = execSync(cmd, {
       timeout: (Math.min(timeout || 25, 60) + 5) * 1000,
       maxBuffer: 2 * 1024 * 1024,
-      env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot },
+      env: { ...process.env, ...(configPath ? { CLAUDE_PLUGIN_ROOT: dirname(configPath.replace(/\.\./g, '')) } : {}) },
     }).toString()
 
     // Clean up temp file

@@ -15,13 +15,15 @@ export default function McpTab({ config, agentId, onRefresh }: McpTabProps) {
   const [mcpTools, setMcpTools] = useState<Record<string, { tools: { name: string; description: string }[]; serverInfo?: { name: string; version: string } }>>({})
   const [loadingTools, setLoadingTools] = useState<string | null>(null)
 
-  const discoverTools = async (serverName: string) => {
+  const discoverTools = async (serverName: string, serverConfig?: Record<string, unknown>) => {
     setLoadingTools(serverName)
     try {
+      // For standalone MCP: pass inline serverConfig so the API can create a temp .mcp.json
+      // For plugin MCP: the API will need a configPath (not supported here yet — would need plugin path)
       const res = await fetch('/api/settings/mcp-discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverName, format: 'json' }),
+        body: JSON.stringify({ serverName, format: 'json', ...(serverConfig ? { serverConfig } : {}) }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -59,7 +61,14 @@ export default function McpTab({ config, agentId, onRefresh }: McpTabProps) {
             <div className="pt-1">
               {!toolsData && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); discoverTools(mcp.name) }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // Build server config for standalone MCP discovery
+                    const cfg: Record<string, unknown> = {}
+                    if (mcp.command) cfg.command = mcp.command
+                    if (mcp.args) cfg.args = mcp.args
+                    discoverTools(mcp.name, Object.keys(cfg).length > 0 ? cfg : undefined)
+                  }}
                   disabled={loadingTools === mcp.name}
                   className="flex items-center gap-1.5 text-[10px] text-green-400/80 hover:text-green-300 px-2 py-1 rounded bg-green-500/10 hover:bg-green-500/15 border border-green-500/20 transition-colors disabled:opacity-50"
                 >

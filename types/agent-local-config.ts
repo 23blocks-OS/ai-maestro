@@ -7,6 +7,8 @@ export interface LocalSkill {
   name: string
   path: string
   description?: string
+  /** All frontmatter key-value pairs from SKILL.md */
+  frontmatter?: Record<string, string | string[]>
   /** Plugin this element belongs to (undefined = individually installed) */
   sourcePlugin?: string
 }
@@ -15,6 +17,7 @@ export interface LocalAgent {
   name: string
   path: string
   description?: string
+  frontmatter?: Record<string, string | string[]>
   sourcePlugin?: string
 }
 
@@ -36,6 +39,7 @@ export interface LocalCommand {
   name: string
   path: string
   trigger?: string
+  frontmatter?: Record<string, string | string[]>
   sourcePlugin?: string
 }
 
@@ -65,9 +69,31 @@ export interface LocalPlugin {
   key?: string
   path: string
   description?: string
+  version?: string
+  author?: string
+  authorEmail?: string
+  license?: string
+  homepage?: string
+  repository?: string
+  keywords?: string[]
+  /** Marketplace name extracted from key */
+  marketplace?: string
+  /** Source URL (marketplace git URL or local path) */
+  sourceUrl?: string
   enabled: boolean
   /** True if this plugin matches the Role-Plugin quad-match but is NOT the official one */
   isConflictingRolePlugin?: boolean
+  /** Bundled elements — populated by scanner for Plugins section element listing */
+  elements?: {
+    skills: LocalSkill[]
+    agents: LocalAgent[]
+    commands: LocalCommand[]
+    hooks: LocalHook[]
+    rules: LocalRule[]
+    mcpServers: LocalMcpServer[]
+    lspServers: LocalLspServer[]
+    outputStyles: LocalOutputStyle[]
+  }
 }
 
 export interface RolePlugin {

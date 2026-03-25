@@ -101,7 +101,8 @@ function scanClaudeDirectory(claudeDir: string, workDir: string): AgentLocalConf
   const lspServers: LocalLspServer[] = []
   const outputStyles = scanOutputStyles(claudeDir)
 
-  // Also scan inside each non-Role-Plugin for bundled elements, tagging with sourcePlugin
+  // Also scan inside each plugin for bundled elements, tagging with sourcePlugin
+  // Keep per-plugin element lists for the Plugins section in the profile panel
   const seenSkills = new Set(skills.map(s => s.name))
   const seenAgents = new Set(agents.map(a => a.name))
   const seenHooks = new Set(hooks.map(h => `${h.name}:${h.eventType || ''}`))
@@ -110,35 +111,60 @@ function scanClaudeDirectory(claudeDir: string, workDir: string): AgentLocalConf
   const seenMcpServers = new Set(mcpServers.map(m => m.name))
   const seenLspServers = new Set(lspServers.map(l => l.name))
   const seenOutputStyles = new Set(outputStyles.map(o => o.name))
+  const pluginElementsMap = new Map<string, NonNullable<LocalPlugin['elements']>>()
 
   for (const { path: pluginDir, name: pluginName } of pluginEntries) {
+    const pe: NonNullable<LocalPlugin['elements']> = { skills: [], agents: [], commands: [], hooks: [], rules: [], mcpServers: [], lspServers: [], outputStyles: [] }
+
     for (const s of scanSkills(pluginDir)) {
-      if (!seenSkills.has(s.name)) { skills.push({ ...s, sourcePlugin: pluginName }); seenSkills.add(s.name) }
+      const tagged = { ...s, sourcePlugin: pluginName }
+      pe.skills.push(tagged)
+      if (!seenSkills.has(s.name)) { skills.push(tagged); seenSkills.add(s.name) }
     }
     for (const a of scanAgents(pluginDir)) {
-      if (!seenAgents.has(a.name)) { agents.push({ ...a, sourcePlugin: pluginName }); seenAgents.add(a.name) }
+      const tagged = { ...a, sourcePlugin: pluginName }
+      pe.agents.push(tagged)
+      if (!seenAgents.has(a.name)) { agents.push(tagged); seenAgents.add(a.name) }
     }
     for (const h of scanHooks(pluginDir)) {
+      const tagged = { ...h, sourcePlugin: pluginName }
+      pe.hooks.push(tagged)
       const key = `${h.name}:${h.eventType || ''}`
-      if (!seenHooks.has(key)) { hooks.push({ ...h, sourcePlugin: pluginName }); seenHooks.add(key) }
+      if (!seenHooks.has(key)) { hooks.push(tagged); seenHooks.add(key) }
     }
     for (const r of scanRules(pluginDir)) {
-      if (!seenRules.has(r.name)) { rules.push({ ...r, sourcePlugin: pluginName }); seenRules.add(r.name) }
+      const tagged = { ...r, sourcePlugin: pluginName }
+      pe.rules.push(tagged)
+      if (!seenRules.has(r.name)) { rules.push(tagged); seenRules.add(r.name) }
     }
     for (const c of scanCommands(pluginDir)) {
-      if (!seenCommands.has(c.name)) { commands.push({ ...c, sourcePlugin: pluginName }); seenCommands.add(c.name) }
+      const tagged = { ...c, sourcePlugin: pluginName }
+      pe.commands.push(tagged)
+      if (!seenCommands.has(c.name)) { commands.push(tagged); seenCommands.add(c.name) }
     }
-    // Plugin MCP servers from .mcp.json at plugin root
     for (const m of scanPluginMcpServers(pluginDir)) {
-      if (!seenMcpServers.has(m.name)) { mcpServers.push({ ...m, sourcePlugin: pluginName }); seenMcpServers.add(m.name) }
+      const tagged = { ...m, sourcePlugin: pluginName }
+      pe.mcpServers.push(tagged)
+      if (!seenMcpServers.has(m.name)) { mcpServers.push(tagged); seenMcpServers.add(m.name) }
     }
-    // Plugin LSP servers from .lsp.json at plugin root
     for (const l of scanPluginLspServers(pluginDir)) {
-      if (!seenLspServers.has(l.name)) { lspServers.push({ ...l, sourcePlugin: pluginName }); seenLspServers.add(l.name) }
+      const tagged = { ...l, sourcePlugin: pluginName }
+      pe.lspServers.push(tagged)
+      if (!seenLspServers.has(l.name)) { lspServers.push(tagged); seenLspServers.add(l.name) }
     }
     for (const o of scanOutputStyles(pluginDir)) {
-      if (!seenOutputStyles.has(o.name)) { outputStyles.push({ ...o, sourcePlugin: pluginName }); seenOutputStyles.add(o.name) }
+      const tagged = { ...o, sourcePlugin: pluginName }
+      pe.outputStyles.push(tagged)
+      if (!seenOutputStyles.has(o.name)) { outputStyles.push(tagged); seenOutputStyles.add(o.name) }
     }
+
+    pluginElementsMap.set(pluginName, pe)
+  }
+
+  // Attach element lists to plugin objects
+  for (const p of plugins) {
+    const pe = pluginElementsMap.get(p.name)
+    if (pe) p.elements = pe
   }
 
   return {
@@ -171,8 +197,11 @@ function scanSkills(claudeDir: string): LocalSkill[] {
     const skillMd = path.join(entryPath, 'SKILL.md')
     if (!fs.existsSync(skillMd)) continue
 
-    const description = extractFrontmatterField(skillMd, 'description')
-    results.push({ name: entry, path: entryPath, description: description || undefined })
+    const fm = extractAllFrontmatter(skillMd)
+    results.push({
+      name: entry, path: entryPath, description: fm.description || undefined,
+      frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+    })
   }
   return results
 }
@@ -186,8 +215,11 @@ function scanAgents(claudeDir: string): LocalAgent[] {
     if (!entry.endsWith('.md')) continue
     const filePath = path.join(agentsDir, entry)
     const name = entry.replace(/\.md$/, '')
-    const description = readFirstLine(filePath)
-    results.push({ name, path: filePath, description: description || undefined })
+    const fm = extractAllFrontmatter(filePath)
+    results.push({
+      name, path: filePath, description: fm.description || undefined,
+      frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+    })
   }
   return results
 }
@@ -242,7 +274,11 @@ function scanCommands(claudeDir: string): LocalCommand[] {
     if (!entry.endsWith('.md')) continue
     const filePath = path.join(commandsDir, entry)
     const name = entry.replace(/\.md$/, '')
-    results.push({ name, path: filePath, trigger: `/${name}` })
+    const fm = extractAllFrontmatter(filePath)
+    results.push({
+      name, path: filePath, trigger: `/${name}`,
+      frontmatter: Object.keys(fm.frontmatter).length > 0 ? fm.frontmatter : undefined,
+    })
   }
   return results
 }
@@ -358,18 +394,25 @@ function scanPlugins(
 
     const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json')
     let pluginName = path.basename(pluginPath)
-    let description: string | undefined
+    let pluginMeta: { description?: string; version?: string; author?: string; authorEmail?: string; license?: string; homepage?: string; repository?: string; keywords?: string[] } = {}
 
     const manifest = readJsonSafe(manifestPath)
     if (manifest && typeof manifest === 'object') {
       const m = manifest as Record<string, unknown>
-      // IS-1: Sanitize pluginName to prevent path traversal via malicious plugin.json
       if (typeof m.name === 'string') pluginName = path.basename(m.name)
-      if (typeof m.description === 'string') description = m.description
+      if (typeof m.description === 'string') pluginMeta.description = m.description
+      if (typeof m.version === 'string') pluginMeta.version = m.version
+      if (typeof m.author === 'string') pluginMeta.author = m.author
+      if (typeof m.authorEmail === 'string') pluginMeta.authorEmail = m.authorEmail
+      if (typeof m.license === 'string') pluginMeta.license = m.license
+      if (typeof m.homepage === 'string') pluginMeta.homepage = m.homepage
+      if (typeof m.repository === 'string') pluginMeta.repository = m.repository
+      if (Array.isArray(m.keywords)) pluginMeta.keywords = m.keywords.filter((k): k is string => typeof k === 'string')
     }
 
-    // Find the plugin key from the enabledMap
+    // Find the plugin key from the enabledMap and extract marketplace
     const pluginKey = findPluginKey(enabledMap, pluginName) || undefined
+    const marketplace = pluginKey?.includes('@') ? pluginKey.split('@').slice(1).join('@') : undefined
 
     // Role-Plugin: quad-match rule (all 4 must be satisfied)
     //   1. plugin.json name == pluginName
@@ -402,14 +445,14 @@ function scanPlugins(
           pluginEntries.push({ path: pluginPath, name: pluginName })
         } else {
           // Additional Role-Plugins are conflicts — show in Plugins tab with warning
-          plugins.push({ name: pluginName, key: pluginKey, path: pluginPath, description, enabled: true, isConflictingRolePlugin: true })
+          plugins.push({ name: pluginName, key: pluginKey, path: pluginPath, ...pluginMeta, marketplace, enabled: true, isConflictingRolePlugin: true })
           pluginEntries.push({ path: pluginPath, name: pluginName })
         }
         continue
       }
     }
 
-    plugins.push({ name: pluginName, key: pluginKey, path: pluginPath, description, enabled: true })
+    plugins.push({ name: pluginName, key: pluginKey, path: pluginPath, ...pluginMeta, marketplace, enabled: true })
     pluginEntries.push({ path: pluginPath, name: pluginName })
   }
 
@@ -422,16 +465,24 @@ function scanPlugins(
 
     const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json')
     let pluginName = path.basename(pluginPath)
-    let description: string | undefined
+    let disabledMeta: { description?: string; version?: string; author?: string; authorEmail?: string; license?: string; homepage?: string; repository?: string; keywords?: string[] } = {}
 
     const manifest = readJsonSafe(manifestPath)
     if (manifest && typeof manifest === 'object') {
       const m = manifest as Record<string, unknown>
       if (typeof m.name === 'string') pluginName = path.basename(m.name)
-      if (typeof m.description === 'string') description = m.description
+      if (typeof m.description === 'string') disabledMeta.description = m.description
+      if (typeof m.version === 'string') disabledMeta.version = m.version
+      if (typeof m.author === 'string') disabledMeta.author = m.author
+      if (typeof m.authorEmail === 'string') disabledMeta.authorEmail = m.authorEmail
+      if (typeof m.license === 'string') disabledMeta.license = m.license
+      if (typeof m.homepage === 'string') disabledMeta.homepage = m.homepage
+      if (typeof m.repository === 'string') disabledMeta.repository = m.repository
+      if (Array.isArray(m.keywords)) disabledMeta.keywords = m.keywords.filter((k): k is string => typeof k === 'string')
     }
+    const disabledMkt = key.includes('@') ? key.split('@').slice(1).join('@') : undefined
 
-    plugins.push({ name: pluginName, key, path: pluginPath, description, enabled: false })
+    plugins.push({ name: pluginName, key, path: pluginPath, ...disabledMeta, marketplace: disabledMkt, enabled: false })
     // Do NOT add to pluginEntries — disabled plugins should not have their elements scanned
   }
 
@@ -628,6 +679,57 @@ function safeReaddir(dirPath: string): string[] {
   } catch {
     return []
   }
+}
+
+/** Extract all YAML frontmatter fields from a .md file */
+function extractAllFrontmatter(filePath: string): { description: string | null; frontmatter: Record<string, string | string[]> } {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8')
+    const lines = content.split('\n')
+    if (lines[0]?.trim() !== '---') {
+      // No frontmatter — first non-empty non-heading line as description
+      for (const line of lines.slice(0, 10)) {
+        const t = line.trim()
+        if (t && !t.startsWith('#') && !t.startsWith('---')) return { description: t.substring(0, 200), frontmatter: {} }
+      }
+      return { description: null, frontmatter: {} }
+    }
+    const endIdx = lines.findIndex((l, i) => i > 0 && l.trim() === '---')
+    if (endIdx <= 0) return { description: null, frontmatter: {} }
+    const result: Record<string, string | string[]> = {}
+    let currentKey: string | null = null
+    let currentList: string[] | null = null
+    for (const line of lines.slice(1, endIdx)) {
+      const kvMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)/)
+      if (kvMatch) {
+        if (currentKey && currentList) result[currentKey] = currentList
+        currentKey = kvMatch[1]; currentList = null
+        const val = kvMatch[2].trim()
+        if (!val) { currentList = [] }
+        else if (val.startsWith('[') && val.endsWith(']')) {
+          result[currentKey] = val.slice(1, -1).split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+          currentKey = null
+        } else {
+          result[currentKey] = val.replace(/^['"]|['"]$/g, '')
+          currentKey = null
+        }
+      } else if (currentList !== null) {
+        const listItem = line.match(/^\s+-\s+(.+)/)
+        if (listItem) currentList.push(listItem[1].trim().replace(/^['"]|['"]$/g, ''))
+        else if (line.trim()) { if (currentKey) result[currentKey] = currentList; currentKey = null; currentList = null }
+      }
+    }
+    if (currentKey && currentList) result[currentKey] = currentList
+    // Sanitize
+    const safe: Record<string, string | string[]> = {}
+    for (const [k, v] of Object.entries(result)) {
+      const sk = k.replace(/[^a-zA-Z0-9_ -]/g, '').substring(0, 50)
+      if (!sk) continue
+      safe[sk] = Array.isArray(v) ? v.map(s => s.substring(0, 500)) : String(v).substring(0, 500)
+    }
+    const desc = typeof safe.description === 'string' ? safe.description : null
+    return { description: desc, frontmatter: safe }
+  } catch { return { description: null, frontmatter: {} } }
 }
 
 function readFirstLine(filePath: string): string | null {

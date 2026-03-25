@@ -36,14 +36,14 @@ const AgentProfile = dynamic(() => import('@/components/AgentProfile'), { ssr: f
 const TABS: TabDef[] = [
   { id: 'settings', label: 'Settings', icon: Settings, colorClass: 'text-gray-400' },
   { id: 'role', label: 'Role', icon: Shield, colorClass: 'text-amber-400' },
-  { id: 'plugins', label: 'Plugins', icon: Puzzle, colorClass: 'text-blue-400', countKey: 'plugins' },
   { id: 'skills', label: 'Skills', icon: Sparkles, colorClass: 'text-emerald-400', countKey: 'skills' },
   { id: 'agents', label: 'Agents', icon: Users, colorClass: 'text-cyan-400', countKey: 'agents' },
   { id: 'hooks', label: 'Hooks', icon: Webhook, colorClass: 'text-amber-400', countKey: 'hooks' },
   { id: 'rules', label: 'Rules', icon: ScrollText, colorClass: 'text-gray-400', countKey: 'rules' },
   { id: 'commands', label: 'Commands', icon: Terminal, colorClass: 'text-violet-400', countKey: 'commands' },
-  { id: 'mcps', label: 'MCP', icon: Server, colorClass: 'text-purple-400', countKey: 'mcpServers' },
-  { id: 'outputStyles', label: 'Styles', icon: Palette, colorClass: 'text-pink-400', countKey: 'outputStyles' },
+  { id: 'mcps', label: 'MCP Servers', icon: Server, colorClass: 'text-purple-400', countKey: 'mcpServers' },
+  { id: 'outputStyles', label: 'Output Styles', icon: Palette, colorClass: 'text-pink-400', countKey: 'outputStyles' },
+  { id: 'plugins', label: 'Plugins', icon: Puzzle, colorClass: 'text-blue-400', countKey: 'plugins' },
 ]
 
 // Accordion section order for Config tab (Plugins is always LAST)

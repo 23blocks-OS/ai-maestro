@@ -336,8 +336,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           </div>
         ) : (
           <>
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+            {/* Header — hidden in advanced mode (parent provides its own header) */}
+            {renderMode !== 'advanced' && <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-bold text-gray-100">Agent Profile</h2>
                 {/* Read-only title label — the clickable control is in the identity section below */}
@@ -399,15 +399,15 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   </button>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Injected content after header (e.g. Role Plugin selector) */}
-            {renderAfterHeader?.()}
+            {renderMode !== 'advanced' && renderAfterHeader?.()}
 
             {/* Content */}
             <div className="p-6 space-y-8">
-              {/* Session Status Section - Shows at top for quick access */}
-              {sessionStatus && (
+              {/* Session Status Section - Shows at top for quick access — hidden in advanced mode */}
+              {renderMode !== 'advanced' && sessionStatus && (
                 <div className={`rounded-xl p-4 border ${
                   sessionStatus.status === 'online'
                     ? 'bg-green-500/10 border-green-500/30'
@@ -466,7 +466,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 </div>
               )}
 
-              {/* Identity Section */}
+              {/* Identity through Memory — hidden in advanced mode (shown in overview and full) */}
+              {renderMode !== 'advanced' && (<>
               <section>
                 <button
                   onClick={() => toggleSection('identity')}
@@ -920,6 +921,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   </div>
                 )}
               </section>
+
+              </>)}
 
               {/* User-level skills are managed in Settings → Global Elements */}
 

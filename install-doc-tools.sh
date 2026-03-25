@@ -1,12 +1,12 @@
 #!/bin/bash
 # AI Maestro Doc Tools Installer
+# Note: docs-search skill is now bundled in the ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/bin"
 HELPER_DIR="$HOME/.local/share/aimaestro/shell-helpers"
-SKILL_DIR="$HOME/.claude/skills/docs-search"
 
 # Parse arguments (v0.21.26: added -y for consistency with other installers)
 NON_INTERACTIVE=false
@@ -23,7 +23,6 @@ echo "==============================="
 
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$HELPER_DIR"
-mkdir -p "$SKILL_DIR"
 
 # Install common shell helpers
 echo "Installing shell helpers to $HELPER_DIR..."
@@ -135,19 +134,6 @@ for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/docs-*.sh "$SCRIPT
         echo "  Installed: $script_name"
     fi
 done
-
-# Install skill
-echo ""
-echo "Installing docs-search skill to $SKILL_DIR..."
-if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
-    echo "  Installed: SKILL.md"
-elif [ -f "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
-    echo "  Installed: SKILL.md"
-else
-    echo "  Warning: SKILL.md not found, skipping"
-fi
 
 # Verify jq is available
 echo ""

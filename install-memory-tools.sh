@@ -1,11 +1,11 @@
 #!/bin/bash
 # AI Maestro Memory Tools Installer
+# Note: memory-search skill is now bundled in the ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/bin"
-SKILL_DIR="$HOME/.claude/skills/memory-search"
 SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
 # Parse arguments (v0.21.26: added -y for consistency with other installers)
@@ -33,7 +33,6 @@ fi
 echo ""
 
 mkdir -p "$INSTALL_DIR"
-mkdir -p "$SKILL_DIR"
 mkdir -p "$SHARE_DIR"
 
 # Install common shell helpers first
@@ -53,15 +52,6 @@ for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/memory-*.sh "$SCRI
         echo "  Installed: $script_name"
     fi
 done
-
-echo ""
-echo "Installing memory-search skill to $SKILL_DIR..."
-if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/memory-search/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
-elif [ -f "$SCRIPT_DIR/plugin/skills/memory-search/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/plugin/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
-fi
-echo "  Installed: SKILL.md"
 
 # Setup PATH
 echo ""

@@ -1,12 +1,12 @@
 #!/bin/bash
 # AI Maestro Graph Tools Installer
-# Installs graph query shell scripts to ~/.local/bin and skill to ~/.claude/skills
+# Installs graph query shell scripts to ~/.local/bin
+# Note: graph-query skill is now bundled in the ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/bin"
-SKILL_DIR="$HOME/.claude/skills/graph-query"
 SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
 # Parse arguments (v0.21.26: added -y for consistency with other installers)
@@ -25,7 +25,6 @@ echo ""
 
 # Create directories if needed
 mkdir -p "$INSTALL_DIR"
-mkdir -p "$SKILL_DIR"
 mkdir -p "$SHARE_DIR"
 
 # Install common shell helpers first
@@ -46,16 +45,6 @@ for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/graph-*.sh "$SCRIP
         echo "  Installed: $script_name"
     fi
 done
-
-# Install skill
-echo ""
-echo "Installing graph-query skill to $SKILL_DIR..."
-if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/graph-query/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
-elif [ -f "$SCRIPT_DIR/plugin/skills/graph-query/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/plugin/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
-fi
-echo "  Installed: SKILL.md"
 
 # Verify jq is available
 echo ""

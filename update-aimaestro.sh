@@ -238,15 +238,21 @@ else
 fi
 
 echo ""
-print_step "$ROCKET" "Reinstalling scripts and skills..."
+print_step "$ROCKET" "Updating AI Maestro plugin and reinstalling scripts..."
 
-# ── v0.21.26 fix: delegate to component installers ──────────────────────
-# Previously this section iterated separate script directories.
-# Scripts now live in plugin/plugins/ai-maestro/scripts/ (submodule).
-# The component installers are the single source of truth for each tool category.
+# ── v0.26.0: Skills are now bundled in the ai-maestro plugin ────────────
+# The plugin is installed from the 23blocks-OS/ai-maestro-plugins marketplace.
+# No standalone skills in ~/.claude/skills/ anymore.
+# Component installers still handle CLI scripts (amp-*.sh, etc.) in ~/.local/bin/.
 # ─────────────────────────────────────────────────────────────────────────
 
-# 1. AMP messaging scripts + all plugin/scripts/* tools + skills
+# 0. Update the AI Maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
+print_info "Updating AI Maestro plugin from marketplace..."
+claude plugin marketplace update ai-maestro-plugins 2>/dev/null || true
+claude plugin update ai-maestro 2>/dev/null || true
+print_success "AI Maestro plugin updated"
+
+# 1. AMP messaging scripts + all plugin/scripts/* tools
 if [ -f "install-messaging.sh" ]; then
     print_info "Reinstalling AMP messaging & CLI tools..."
     ./install-messaging.sh -y
@@ -290,8 +296,7 @@ if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; 
     print_success "Claude Code hooks reinstalled"
 fi
 
-# 7. Marketplace plugin auto-updates via Claude Code /install update
-# No manual sync needed — the ai-maestro-plugins repo is the single source
+# 7. Marketplace plugin already updated in step 0 above
 
 # Issue 7.12: Capture verification exit code instead of piping to || true
 if [ -f "verify-installation.sh" ]; then
@@ -373,10 +378,11 @@ fi
 echo ""
 print_info "What's updated:"
 echo "   • Application code and dependencies (git pull + yarn build)"
+echo "   • AI Maestro plugin (skills bundled from 23blocks-OS/ai-maestro-plugins)"
 echo "   • AMP messaging scripts (amp-*.sh)"
 echo "   • Agent CLI (aimaestro-agent.sh, agent-helper.sh)"
 echo "   • Memory, graph, and docs CLI tools"
-echo "   • Claude Code skills and hooks"
+echo "   • Claude Code hooks"
 echo ""
 
 print_warning "IMPORTANT: Restart your Claude Code sessions to reload updated skills"

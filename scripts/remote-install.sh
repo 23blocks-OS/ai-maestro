@@ -435,14 +435,14 @@ uninstall() {
     done
     maestro_info "Removed agent tool scripts"
 
-    # Remove Claude skills
-    rm -rf "$HOME/.claude/skills/agent-messaging" 2>/dev/null || true
-    rm -rf "$HOME/.claude/skills/memory-search" 2>/dev/null || true
-    rm -rf "$HOME/.claude/skills/graph-query" 2>/dev/null || true
-    rm -rf "$HOME/.claude/skills/docs-search" 2>/dev/null || true
-    rm -rf "$HOME/.claude/skills/planning" 2>/dev/null || true
-    rm -rf "$HOME/.claude/skills/ai-maestro-agents-management" 2>/dev/null || true
-    maestro_info "Removed Claude skills"
+    # Uninstall AI Maestro plugin (skills are bundled in the plugin, not standalone)
+    claude plugin uninstall ai-maestro 2>/dev/null || true
+    claude plugin marketplace remove ai-maestro-plugins 2>/dev/null || true
+    # Also clean up any legacy standalone skills
+    for skill in agent-messaging memory-search graph-query docs-search planning ai-maestro-agents-management team-governance; do
+        rm -rf "$HOME/.claude/skills/$skill" 2>/dev/null || true
+    done
+    maestro_info "Removed AI Maestro plugin and legacy skills"
 
     # Remove shell helpers
     rm -rf "$HOME/.local/share/aimaestro/shell-helpers" 2>/dev/null || true

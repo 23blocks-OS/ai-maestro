@@ -51,9 +51,22 @@ if [ "$NON_INTERACTIVE" != true ]; then
     fi
 fi
 
-# Delegate to install-messaging.sh (the single source of truth)
+# Update AI Maestro plugin (skills are bundled in the plugin, not standalone)
 echo ""
-./install-messaging.sh -y
+echo -e "${BLUE}ℹ️  Updating AI Maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)...${NC}"
+claude plugin marketplace update ai-maestro-plugins 2>/dev/null || true
+claude plugin update ai-maestro 2>/dev/null || true
+echo -e "${GREEN}✅ AI Maestro plugin updated${NC}"
+
+# Update AMP scripts (copy from plugin submodule to ~/.local/bin/)
+echo ""
+echo -e "${BLUE}ℹ️  Updating AMP scripts in ~/.local/bin/...${NC}"
+if [ -f "install-messaging.sh" ]; then
+    ./install-messaging.sh -y
+    echo -e "${GREEN}✅ AMP scripts updated${NC}"
+else
+    echo -e "${YELLOW}⚠️  install-messaging.sh not found - skipping script update${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}✅ Messaging update complete!${NC}"

@@ -844,10 +844,11 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     cd "$INSTALL_DIR"
     TOOLS_INSTALLED=0
 
-    # Install messaging (AMP + all plugin/scripts/* tools + skills)
+    # Install messaging (AMP scripts to ~/.local/bin + ai-maestro plugin from marketplace)
+    # The plugin bundles ALL skills (messaging, memory, graph, docs, planning, governance, etc.)
     if [ "$INSTALL_MESSAGING" = true ] && [ -f "install-messaging.sh" ]; then
         echo ""
-        print_step "Installing messaging tools..."
+        print_step "Installing messaging tools + AI Maestro plugin..."
         if [ "$NON_INTERACTIVE" = true ]; then
             ./install-messaging.sh -y
         else
@@ -856,10 +857,10 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 
-    # Install memory tools
+    # Install memory tools (scripts only — skill bundled in ai-maestro plugin)
     if [ "$INSTALL_MEMORY" = true ] && [ -f "install-memory-tools.sh" ]; then
         echo ""
-        print_step "Installing memory tools..."
+        print_step "Installing memory scripts..."
         if [ "$NON_INTERACTIVE" = true ]; then
             ./install-memory-tools.sh -y
         else
@@ -868,10 +869,10 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 
-    # Install graph tools
+    # Install graph tools (scripts only — skill bundled in ai-maestro plugin)
     if [ "$INSTALL_GRAPH" = true ] && [ -f "install-graph-tools.sh" ]; then
         echo ""
-        print_step "Installing graph tools..."
+        print_step "Installing graph scripts..."
         if [ "$NON_INTERACTIVE" = true ]; then
             ./install-graph-tools.sh -y
         else
@@ -880,10 +881,10 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 
-    # Install doc tools
+    # Install doc tools (scripts only — skill bundled in ai-maestro plugin)
     if [ "$INSTALL_DOCS" = true ] && [ -f "install-doc-tools.sh" ]; then
         echo ""
-        print_step "Installing doc tools..."
+        print_step "Installing doc scripts..."
         if [ "$NON_INTERACTIVE" = true ]; then
             ./install-doc-tools.sh -y
         else

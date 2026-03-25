@@ -156,23 +156,29 @@ else
     fail "agent-helper.sh NOT in helpers dir - run install-agent-cli.sh"
 fi
 
-# 7. Check Claude Code skills
+# 7. Check AI Maestro plugin (skills are bundled in the plugin, not standalone)
 echo ""
-echo "7. Checking Claude Code skills..."
-SKILLS=(
+echo "7. Checking AI Maestro plugin..."
+if claude plugin list 2>/dev/null | grep -q "ai-maestro"; then
+    pass "ai-maestro plugin installed"
+else
+    warn "ai-maestro plugin not installed — install from marketplace 23blocks-OS/ai-maestro-plugins"
+fi
+
+# Also check for legacy standalone skills that should have been cleaned up
+LEGACY_SKILLS=(
     "agent-messaging"
     "memory-search"
     "docs-search"
     "graph-query"
     "ai-maestro-agents-management"
     "planning"
+    "team-governance"
 )
 
-for skill in "${SKILLS[@]}"; do
-    if [ -f "$HOME/.claude/skills/$skill/SKILL.md" ]; then
-        pass "$skill skill"
-    else
-        warn "$skill skill not installed"
+for skill in "${LEGACY_SKILLS[@]}"; do
+    if [ -d "$HOME/.claude/skills/$skill" ]; then
+        warn "Legacy standalone skill '$skill' still exists — should be removed (now bundled in plugin)"
     fi
 done
 

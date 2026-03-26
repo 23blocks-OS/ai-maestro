@@ -36,8 +36,8 @@ echo "  Installed: common.sh"
 echo ""
 # Install graph scripts
 echo "Installing graph scripts to $INSTALL_DIR..."
-# Scripts are in scripts/bin/
-for script in "$SCRIPT_DIR/scripts/bin"/graph-*.sh; do
+# Scripts are in scripts/
+for script in "$SCRIPT_DIR/scripts"/graph-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         cp "$script" "$INSTALL_DIR/$script_name"

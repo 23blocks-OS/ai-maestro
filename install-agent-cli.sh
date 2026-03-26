@@ -238,8 +238,8 @@ cmd_install() {
 
     # Find source files
     local source_dir=""
-    if [[ -f "${script_dir}/scripts/bin/aimaestro-agent.sh" ]]; then
-        source_dir="${script_dir}/scripts/bin"
+    if [[ -f "${script_dir}/scripts/aimaestro-agent.sh" ]]; then
+        source_dir="${script_dir}/scripts"
     elif [[ -f "${script_dir}/aimaestro-agent.sh" ]]; then
         source_dir="${script_dir}"
     else

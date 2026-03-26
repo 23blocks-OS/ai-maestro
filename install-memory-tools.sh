@@ -43,8 +43,8 @@ echo "  Installed: common.sh"
 
 echo ""
 echo "Installing memory scripts to $INSTALL_DIR..."
-# Scripts are in scripts/bin/
-for script in "$SCRIPT_DIR/scripts/bin"/memory-*.sh; do
+# Scripts are in scripts/
+for script in "$SCRIPT_DIR/scripts"/memory-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         cp "$script" "$INSTALL_DIR/$script_name"

@@ -490,7 +490,7 @@ docs/
   REQUIREMENTS.md       - Installation prerequisites
   OPERATIONS-GUIDE.md   - Session management, troubleshooting
 
-scripts/bin/            - CLI scripts installed to ~/.local/bin/ (AMP, graph, docs, memory, agent management)
+scripts/            - CLI scripts installed to ~/.local/bin/ (AMP, graph, docs, memory, agent management)
 
 scripts/
   generate-social-logos.js        - Generate social media logos from SVG

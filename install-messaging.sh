@@ -90,9 +90,9 @@ print_info() {
 
 # Derive absolute path from script location so it works when called from any CWD
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_BIN="$SCRIPT_DIR/scripts/bin"
-if [ ! -d "$SCRIPTS_BIN" ]; then
-    print_error "Scripts not found at $SCRIPTS_BIN"
+SCRIPTS_DIR="$SCRIPT_DIR/scripts"
+if [ ! -d "$SCRIPTS_DIR" ]; then
+    print_error "Scripts not found at $SCRIPTS_DIR"
     exit 1
 fi
 
@@ -556,7 +556,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 
     # Copy AMP scripts from plugin
     SCRIPT_COUNT=0
-    for script in "$SCRIPTS_BIN"/amp-*.sh; do
+    for script in "$SCRIPTS_DIR"/amp-*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             cp "$script" ~/.local/bin/
@@ -618,7 +618,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Installing additional AI Maestro tools..."
 
     TOOL_COUNT=0
-    for script in "$SCRIPTS_BIN"/*.sh; do
+    for script in "$SCRIPTS_DIR"/*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             # Skip old messaging scripts (they're replaced by AMP)

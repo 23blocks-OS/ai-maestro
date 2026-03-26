@@ -490,13 +490,7 @@ docs/
   REQUIREMENTS.md       - Installation prerequisites
   OPERATIONS-GUIDE.md   - Session management, troubleshooting
 
-plugin/                 - Plugin submodule (git submodule from 23blocks-OS/ai-maestro-plugins)
-  .claude-plugin/       - Marketplace manifest
-  plugins/ai-maestro/   - The AI Maestro plugin
-    scripts/            - All CLI scripts (AMP, graph, docs, memory, agent management)
-    skills/             - All 6 Claude Code skills
-    hooks/              - Session tracking hooks
-    .claude-plugin/     - Plugin manifest
+scripts/bin/            - CLI scripts installed to ~/.local/bin/ (AMP, graph, docs, memory, agent management)
 
 scripts/
   generate-social-logos.js        - Generate social media logos from SVG
@@ -522,7 +516,7 @@ CLAUDE.md               - This file - guidance for Claude Code
 
 ### Installation
 
-The AMP plugin is bundled in the plugin submodule at `plugin/plugins/ai-maestro/`.
+The AI Maestro plugins are installed from the marketplace `23blocks-OS/ai-maestro-plugins`.
 
 ```bash
 # Install AMP scripts and skills
@@ -566,7 +560,7 @@ amp-read.sh <message-id>
 **Two Components:**
 
 1. **AMP Plugin (Client)** - Installed on each agent machine
-   - Location: `plugin/plugins/ai-maestro/` (submodule)
+   - Location: marketplace `23blocks-OS/ai-maestro-plugins` → installed to `~/.claude/plugins/cache/`
    - Storage: `~/.agent-messaging/`
    - Commands: `amp-init`, `amp-send`, `amp-inbox`, `amp-read`, etc.
    - Handles: Key generation, message signing, local storage
@@ -657,7 +651,7 @@ The old `~/.aimaestro/messages/` system is no longer used.
 
 ### Claude Code Skill
 
-The AMP skill (`plugin/plugins/ai-maestro/skills/agent-messaging/SKILL.md`) provides natural language:
+The AMP skill (from `agent-messaging` plugin in the marketplace) provides natural language:
 
 ```
 "Check my messages" → amp-inbox.sh
@@ -667,7 +661,7 @@ The AMP skill (`plugin/plugins/ai-maestro/skills/agent-messaging/SKILL.md`) prov
 
 ### Development Notes
 
-- **Submodule**: Plugin repo is at `plugin/` - update with `git submodule update --remote`
+- **Marketplace**: `23blocks-OS/ai-maestro-plugins` — update with `claude plugin marketplace update ai-maestro-plugins`
 - **Protocol spec**: https://agentmessaging.org
 - **Security**: Messages are signed with Ed25519; AI Maestro verifies signatures
 - **Relay queue**: Offline agents get messages via polling (`/api/v1/messages/pending`)

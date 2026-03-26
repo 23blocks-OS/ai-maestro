@@ -90,31 +90,10 @@ print_info() {
 
 # Derive absolute path from script location so it works when called from any CWD
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$SCRIPT_DIR/plugin/plugins/ai-maestro"
-if [ ! -d "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR/scripts" ]; then
-    # Try to auto-initialize the submodule
-    if [ -f "$SCRIPT_DIR/.gitmodules" ] && command -v git &> /dev/null; then
-        print_warning "Plugin submodule not initialized. Initializing now..."
-        git -C "$SCRIPT_DIR" submodule update --init --recursive
-        if [ -d "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR/scripts" ]; then
-            print_success "Submodule initialized"
-        else
-            print_error "Error: Failed to initialize plugin submodule."
-            echo ""
-            echo "Try manually:"
-            echo "  git submodule update --init --recursive"
-            exit 1
-        fi
-    else
-        print_error "Error: Plugin not found. Run from AI Maestro root directory."
-        echo ""
-        echo "If this is a fresh clone, initialize submodules:"
-        echo "  git submodule update --init --recursive"
-        echo ""
-        echo "Then run:"
-        echo "  ./install-messaging.sh"
-        exit 1
-    fi
+SCRIPTS_BIN="$SCRIPT_DIR/scripts/bin"
+if [ ! -d "$SCRIPTS_BIN" ]; then
+    print_error "Scripts not found at $SCRIPTS_BIN"
+    exit 1
 fi
 
 # Validate agent name to prevent path traversal (only alphanumeric, hyphens, underscores)
@@ -577,7 +556,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 
     # Copy AMP scripts from plugin
     SCRIPT_COUNT=0
-    for script in "$PLUGIN_DIR"/scripts/amp-*.sh; do
+    for script in "$SCRIPTS_BIN"/amp-*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             cp "$script" ~/.local/bin/
@@ -639,7 +618,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Installing additional AI Maestro tools..."
 
     TOOL_COUNT=0
-    for script in "$PLUGIN_DIR"/scripts/*.sh; do
+    for script in "$SCRIPTS_BIN"/*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             # Skip old messaging scripts (they're replaced by AMP)

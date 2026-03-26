@@ -238,10 +238,8 @@ cmd_install() {
 
     # Find source files
     local source_dir=""
-    if [[ -f "${script_dir}/plugin/plugins/ai-maestro/scripts/aimaestro-agent.sh" ]]; then
-        source_dir="${script_dir}/plugin/plugins/ai-maestro/scripts"
-    elif [[ -f "${script_dir}/plugin/scripts/aimaestro-agent.sh" ]]; then
-        source_dir="${script_dir}/plugin/scripts"
+    if [[ -f "${script_dir}/scripts/bin/aimaestro-agent.sh" ]]; then
+        source_dir="${script_dir}/scripts/bin"
     elif [[ -f "${script_dir}/aimaestro-agent.sh" ]]; then
         source_dir="${script_dir}"
     else
@@ -364,42 +362,11 @@ cmd_install() {
     fi
     echo ""
 
-    # Install Claude Code skill for agent management
-    # This skill provides natural language interface for aimaestro-agent.sh commands
-    echo "Installing Claude Code skill..."
-    local skill_dir="${HOME}/.claude/skills/ai-maestro-agents-management"
+    # Standalone skill installation removed — skills are now bundled in the
+    # ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins).
+    # Use install-messaging.sh to install the plugin.
+    local skill_dir=""
     local skill_installed="false"
-
-    if command -v claude &> /dev/null; then
-        # Claude Code is installed, install the skill
-        if ! mkdir -p "$skill_dir" 2>/dev/null; then
-            print_warning "Could not create skill directory - skipping skill installation"
-        else
-            # Find the skill source file
-            local skill_source=""
-            if [[ -f "${script_dir}/plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md" ]]; then
-                skill_source="${script_dir}/plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md"
-            elif [[ -f "${script_dir}/plugin/skills/ai-maestro-agents-management/SKILL.md" ]]; then
-                skill_source="${script_dir}/plugin/skills/ai-maestro-agents-management/SKILL.md"
-            elif [[ -f "${source_dir}/../skills/ai-maestro-agents-management/SKILL.md" ]]; then
-                skill_source="${source_dir}/../skills/ai-maestro-agents-management/SKILL.md"
-            fi
-
-            if [[ -n "$skill_source" ]] && [[ -f "$skill_source" ]]; then
-                if cp "$skill_source" "${skill_dir}/SKILL.md" 2>/dev/null; then
-                    print_success "Installed: ai-maestro-agents-management skill"
-                    skill_installed="true"
-                else
-                    print_warning "Could not copy skill file"
-                fi
-            else
-                print_warning "Skill source file not found - skipping skill installation"
-            fi
-        fi
-    else
-        print_info "Claude Code not found - skipping skill installation"
-        print_info "Install Claude Code and re-run to get the skill"
-    fi
     echo ""
 
     # Save manifest - use proper JSON boolean

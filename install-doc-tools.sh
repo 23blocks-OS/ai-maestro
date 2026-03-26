@@ -115,8 +115,8 @@ echo "  Installed: docs-helper.sh"
 # Install doc scripts (modified to use installed helper)
 echo ""
 echo "Installing doc scripts to $INSTALL_DIR..."
-# Scripts are in plugin/plugins/ai-maestro/scripts/
-for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/docs-*.sh "$SCRIPT_DIR/plugin/scripts"/docs-*.sh; do
+# Scripts are in scripts/bin/
+for script in "$SCRIPT_DIR/scripts/bin"/docs-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         # Skip the helper (already installed separately)

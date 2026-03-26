@@ -8,7 +8,7 @@ import type { PluginSkillSelection } from '@/types/plugin-builder'
 import { getSkillKey } from '@/types/plugin-builder'
 import type { RepoSkillInfo } from '@/types/plugin-builder'
 
-// Core AI Maestro skills (from plugin/src/skills/)
+// Core AI Maestro skills (from ai-maestro plugin in marketplace)
 const CORE_SKILLS = [
   { name: 'memory-search', description: 'Search conversation history and semantic memory', icon: Brain },
   { name: 'graph-query', description: 'Query code graph database for relationships', icon: GitBranch },

@@ -478,7 +478,7 @@ export function generateManifest(config: PluginBuildConfig, buildDir: string): P
   const marketplaceSkills = config.skills.filter((s): s is Extract<PluginSkillSelection, { type: 'marketplace' }> => s.type === 'marketplace')
   const repoSkills = config.skills.filter((s): s is Extract<PluginSkillSelection, { type: 'repo' }> => s.type === 'repo')
 
-  // Core skills — local source from plugin/src/
+  // Core skills — source from marketplace cache
   // When core skills are selected, they share a single source entry with the hooks mapping
   // (if hooks are enabled). When no core skills are selected but hooks are enabled, a
   // dedicated hooks-only source is added so hooks are never silently omitted.

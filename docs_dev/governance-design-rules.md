@@ -47,7 +47,7 @@ AI Maestro implements a team governance model with three roles (MANAGER, Chief-o
 | R3.1 | Three governance roles exist: **MANAGER** (global singleton), **Chief-of-Staff** (per closed team), **Normal** (no privileges) | Explicit |
 | R3.2 | Only ONE agent can be MANAGER at any given time (singleton constraint) | Explicit |
 | R3.3 | COS is a per-team role — each closed team has exactly one COS | Explicit |
-| R3.4 | An agent can be COS of **multiple** closed teams simultaneously | Explicit |
+| R3.4 | An agent can be COS of only **ONE** closed team at any time | Explicit (corrected 2026-03-26) |
 | R3.5 | All role changes (assign/remove MANAGER, assign/remove COS) require the governance password | Explicit |
 | R3.6 | MANAGER has full authority over all teams: can add/remove agents, assign COS, approve transfers, create/delete teams, message anyone | Explicit |
 | R3.7 | COS is responsible for **external communication** of their closed team — they are the contact point for outside agents | Explicit |

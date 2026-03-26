@@ -98,6 +98,16 @@ export async function setManagerRole(params: {
   }
 
   await setManager(agentId)
+
+  // Auto-assign required role-plugin for MANAGER title
+  try {
+    const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
+    await autoAssignRolePluginForTitle('manager', agentId)
+  } catch (err) {
+    console.warn('[governance] Failed to auto-assign role-plugin for MANAGER:', err instanceof Error ? err.message : err)
+    // Non-blocking — title assignment succeeds even if plugin assignment fails
+  }
+
   return { data: { success: true, managerId: agentId, managerName: agent.name || agent.alias }, status: 200 }
 }
 

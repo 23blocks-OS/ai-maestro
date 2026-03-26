@@ -9,13 +9,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   installPluginLocally,
   uninstallPluginLocally,
+  PREDEFINED_ROLE_PLUGINS,
 } from '@/services/role-plugin-service'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    let body: { pluginName?: string; agentDir?: string }
+    let body: { pluginName?: string; agentDir?: string; marketplaceName?: string }
     try {
       body = await req.json()
     } catch {
@@ -35,7 +36,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    await installPluginLocally(body.pluginName, body.agentDir)
+    // Auto-detect marketplace: use explicit body param, or look up predefined defaults
+    const predefined = PREDEFINED_ROLE_PLUGINS[body.pluginName]
+    const marketplace = body.marketplaceName || predefined?.marketplace || undefined
+    await installPluginLocally(body.pluginName, body.agentDir, marketplace)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[role-plugins/install] Install failed:', error)

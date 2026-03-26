@@ -99,6 +99,16 @@ export async function POST(
 
     // Assign COS — auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
     const updated = await updateTeam(id, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
+
+    // Auto-assign required role-plugin for CHIEF-OF-STAFF title
+    try {
+      const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
+      await autoAssignRolePluginForTitle('chief-of-staff', cosAgentId)
+    } catch (err) {
+      console.warn('[governance] Failed to auto-assign role-plugin for COS:', err instanceof Error ? err.message : err)
+      // Non-blocking — title assignment succeeds even if plugin assignment fails
+    }
+
     return NextResponse.json({ success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
   } catch (error) {
     // TeamValidationException carries the correct HTTP status code from business rule validation

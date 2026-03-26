@@ -161,7 +161,7 @@ export function listAllTeams(): ServiceResult<{ teams: Team[] }> {
  * Governance: validates team type, passes managerId and agentNames to createTeam
  * for business rule enforcement (R1-R4).
  */
-export async function createNewTeam(params: CreateTeamParams): Promise<ServiceResult<{ team: any }>> {
+export async function createNewTeam(params: CreateTeamParams): Promise<ServiceResult<{ team: any; needsChiefOfStaff?: boolean }>> {
   const { name, description, agentIds } = params
 
   if (!name || typeof name !== 'string') {
@@ -194,7 +194,22 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
       managerId,
       agentNames
     )
-    return { data: { team }, status: 201 }
+
+    // Auto-COS chain: if closed team was created with a chiefOfStaffId,
+    // auto-assign the COS role-plugin so the agent gets its governance persona.
+    if (params.type === 'closed' && params.chiefOfStaffId) {
+      try {
+        const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
+        await autoAssignRolePluginForTitle('chief-of-staff', params.chiefOfStaffId)
+      } catch (err) {
+        // Non-blocking — team creation succeeds even if plugin install fails
+        console.warn('[teams] Failed to auto-assign COS role-plugin:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // Flag if closed team needs a COS (no chiefOfStaffId and no agents assigned)
+    const needsChiefOfStaff = params.type === 'closed' && !team.chiefOfStaffId
+    return { data: { team, needsChiefOfStaff }, status: 201 }
   } catch (error) {
     // TeamValidationException carries a specific HTTP status code from governance rules
     if (error instanceof TeamValidationException) {

@@ -11,6 +11,7 @@ import {
   generatePluginFromToml,
   listRolePlugins,
   deleteRolePlugin,
+  PREDEFINED_ROLE_PLUGINS,
 } from '@/services/role-plugin-service'
 
 export const dynamic = 'force-dynamic'
@@ -59,6 +60,11 @@ export async function DELETE(req: NextRequest) {
   const name = req.nextUrl.searchParams.get('name')
   if (!name) {
     return NextResponse.json({ error: 'name query parameter is required' }, { status: 400 })
+  }
+
+  // Guard: prevent deletion of default marketplace role plugins
+  if (Object.keys(PREDEFINED_ROLE_PLUGINS).includes(name)) {
+    return NextResponse.json({ error: 'Cannot delete default marketplace role plugins' }, { status: 403 })
   }
 
   try {

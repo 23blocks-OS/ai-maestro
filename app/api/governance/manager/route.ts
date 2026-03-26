@@ -57,6 +57,16 @@ export async function POST(request: NextRequest) {
     }
 
     await setManager(agentId)
+
+    // Auto-assign required role-plugin for MANAGER title
+    try {
+      const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
+      await autoAssignRolePluginForTitle('manager', agentId)
+    } catch (err) {
+      console.warn('[governance] Failed to auto-assign role-plugin for MANAGER:', err instanceof Error ? err.message : err)
+      // Non-blocking — title assignment succeeds even if plugin assignment fails
+    }
+
     // NT-028: Use nullish coalescing to preserve empty-string agent names
     return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name ?? agent.alias })
   } catch (error) {

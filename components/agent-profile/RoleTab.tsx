@@ -1,20 +1,36 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Shield, ChevronDown, FolderOpen, Sparkles, ExternalLink } from 'lucide-react'
+import { Shield, ChevronDown, FolderOpen, Sparkles, ExternalLink, Lock } from 'lucide-react'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
 import { SectionLabel } from './shared'
 
+// Governance titles that force a specific role-plugin (dropdown locked)
+const TITLE_PLUGIN_MAP: Record<string, string> = {
+  'manager': 'ai-maestro-assistant-manager-agent',
+  'chief-of-staff': 'ai-maestro-chief-of-staff',
+}
+
 export default function RoleTab({
   config,
+  agentTitle,
   onEditInHaephestos,
   onBrowse,
 }: {
   config: AgentLocalConfig
+  agentTitle?: 'manager' | 'chief-of-staff' | 'member'
   onEditInHaephestos?: (profilePath: string) => void
   onBrowse?: (path: string) => void
 }) {
-  const [availablePlugins, setAvailablePlugins] = useState<{ name: string; description: string }[]>([])
+  // If the agent's governance title requires a specific plugin, lock the selector
+  const requiredPlugin = agentTitle ? TITLE_PLUGIN_MAP[agentTitle] || null : null
+  const isLocked = requiredPlugin !== null
+  const [availablePlugins, setAvailablePlugins] = useState<{
+    name: string
+    description: string
+    source?: 'marketplace' | 'local'
+    marketplace?: string
+  }[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [switching, setSwitching] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -54,18 +70,28 @@ export default function RoleTab({
     if (pluginName === config.rolePlugin?.name) { setShowDropdown(false); return }
     setSwitching(true)
     try {
-      // Uninstall current, install new
+      // Uninstall current role plugin before installing the new one
       if (config.rolePlugin) {
         await fetch('/api/agents/role-plugins/install', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pluginName: config.rolePlugin.name, agentDir: config.workingDirectory }),
+          body: JSON.stringify({
+            pluginName: config.rolePlugin.name,
+            agentDir: config.workingDirectory,
+            marketplaceName: config.rolePlugin.marketplace,
+          }),
         })
       }
+      // Install the selected role plugin, passing its marketplace origin
+      const newPlugin = availablePlugins.find(p => p.name === pluginName)
       await fetch('/api/agents/role-plugins/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pluginName, agentDir: config.workingDirectory }),
+        body: JSON.stringify({
+          pluginName,
+          agentDir: config.workingDirectory,
+          marketplaceName: newPlugin?.marketplace,
+        }),
       })
     } catch (err) {
       console.error('[RoleTab] Failed to switch role plugin:', err)
@@ -80,21 +106,34 @@ export default function RoleTab({
       <SectionLabel text="Role Plugin" />
       <div className="relative" ref={dropdownRef}>
         <div
-          onClick={() => setShowDropdown(!showDropdown)}
+          onClick={() => { if (!isLocked) setShowDropdown(!showDropdown) }}
           className={`
-            flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors
+            flex items-center gap-2 px-3 py-2 rounded-lg transition-colors
             border ${config.rolePlugin ? 'border-amber-500/30 bg-amber-500/5' : 'border-gray-700/40 bg-gray-800/30'}
-            hover:bg-amber-500/10
+            ${isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:bg-amber-500/10'}
           `}
+          title={isLocked ? `Locked: ${agentTitle?.toUpperCase()} title requires ${requiredPlugin}` : undefined}
         >
-          <Shield className={`w-4 h-4 flex-shrink-0 ${config.rolePlugin ? 'text-amber-400' : 'text-gray-600'}`} />
+          {isLocked
+            ? <Lock className="w-4 h-4 flex-shrink-0 text-amber-400" />
+            : <Shield className={`w-4 h-4 flex-shrink-0 ${config.rolePlugin ? 'text-amber-400' : 'text-gray-600'}`} />
+          }
           <span className={`text-xs font-medium flex-1 truncate ${config.rolePlugin ? 'text-amber-300' : 'text-gray-500 italic'}`}>
             {switching ? 'Switching…' : (config.rolePlugin?.name || 'None — select a Role Plugin')}
           </span>
-          <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+          {!isLocked && (
+            <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+          )}
         </div>
 
-        {showDropdown && availablePlugins.length > 0 && (
+        {/* Locked notice when governance title forces a specific plugin */}
+        {isLocked && (
+          <p className="text-[10px] text-amber-400/70 mt-1 px-1">
+            Locked by <span className="font-bold tracking-wider">{agentTitle?.toUpperCase()}</span> title — requires {requiredPlugin}
+          </p>
+        )}
+
+        {showDropdown && !isLocked && availablePlugins.length > 0 && (
           <div className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
             {availablePlugins.map((rp) => (
               <div
@@ -108,7 +147,15 @@ export default function RoleTab({
                   }
                 `}
               >
-                <p className="truncate">{rp.name}</p>
+                <p className="truncate flex items-center gap-1.5">
+                  {rp.name}
+                  {/* Show "(custom)" badge for locally-created role plugins */}
+                  {rp.source === 'local' && (
+                    <span className="text-[9px] text-purple-400/80 bg-purple-500/10 border border-purple-500/20 rounded px-1 py-px leading-none flex-shrink-0">
+                      custom
+                    </span>
+                  )}
+                </p>
                 {rp.description && (
                   <p className="text-[10px] text-gray-500 truncate mt-0.5">{rp.description}</p>
                 )}

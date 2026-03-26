@@ -434,11 +434,16 @@ function scanPlugins(
       ) {
         if (!rolePlugin) {
           // First Role-Plugin found becomes the official one
+          // Extract marketplace from plugin key (part after @), default to local roles marketplace
+          const roleMarketplace = pluginKey?.includes('@')
+            ? pluginKey.split('@').slice(1).join('@')
+            : 'ai-maestro-local-roles-marketplace'
           rolePlugin = {
             name: pluginName,
             profilePath: agentTomlPath,
             mainAgentName,
             mainAgentPath,
+            marketplace: roleMarketplace,
           }
           globalDependencies = extractTomlDependencies(agentTomlPath)
           // Also scan role plugin's bundled elements (skills, agents, hooks, etc.)

@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Whitelist expected fields instead of spreading raw body
-  const { name, description, agentIds, type } = body
-  const result = await createNewTeam({ name, description, agentIds, type, requestingAgentId })
+  const { name, description, agentIds, type, chiefOfStaffId } = body
+  const result = await createNewTeam({ name, description, agentIds, type, chiefOfStaffId, requestingAgentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

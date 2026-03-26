@@ -315,6 +315,7 @@ import {
   deleteRolePlugin,
   createPersona,
   syncDefaultRolePlugins,
+  PREDEFINED_ROLE_PLUGINS,
 } from '@/services/role-plugin-service'
 
 import {
@@ -2075,6 +2076,16 @@ const routes: Route[] = [
 
       // Assign COS -- auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
       const updated = await updateTeam(teamId, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
+
+      // Auto-assign required role-plugin for CHIEF-OF-STAFF title
+      try {
+        const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
+        await autoAssignRolePluginForTitle('chief-of-staff', cosAgentId)
+      } catch (err) {
+        console.warn('[governance] Failed to auto-assign role-plugin for COS:', err instanceof Error ? err.message : err)
+        // Non-blocking — title assignment succeeds even if plugin assignment fails
+      }
+
       sendJson(res, 200, { success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
     } catch (error) {
       // TeamValidationException carries the correct HTTP status code from business rule validation
@@ -2285,6 +2296,10 @@ const routes: Route[] = [
     const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
     const name = url.searchParams.get('name')
     if (!name) return sendJson(res, 400, { error: 'name query parameter is required' })
+    // Guard: prevent deletion of default marketplace role plugins
+    if (Object.keys(PREDEFINED_ROLE_PLUGINS).includes(name)) {
+      return sendJson(res, 403, { error: 'Cannot delete default marketplace role plugins' })
+    }
     try {
       await deleteRolePlugin(name)
       sendJson(res, 200, { success: true })
@@ -2294,7 +2309,10 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     if (!body.pluginName || !body.agentDir) return sendJson(res, 400, { error: 'pluginName and agentDir are required' })
     try {
-      await installPluginLocally(body.pluginName, body.agentDir)
+      // Auto-detect marketplace: use explicit body param, or look up predefined defaults
+      const predefined = PREDEFINED_ROLE_PLUGINS[body.pluginName]
+      const marketplace = body.marketplaceName || predefined?.marketplace || undefined
+      await installPluginLocally(body.pluginName, body.agentDir, marketplace)
       sendJson(res, 200, { success: true })
     } catch (e) { sendJson(res, 500, { error: String(e) }) }
   }},
@@ -2316,6 +2334,16 @@ const routes: Route[] = [
       const result = await syncDefaultRolePlugins(force)
       sendJson(res, 200, { success: true, ...result })
     } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+
+  // Title → required role-plugin lookup
+  { method: 'GET', pattern: /^\/api\/agents\/role-plugins\/required$/, paramNames: [], handler: async (req, res) => {
+    const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
+    const title = url.searchParams.get('title')
+    if (!title) return sendJson(res, 400, { error: 'title parameter required' })
+    const { getRequiredPluginForTitle } = await import('@/services/role-plugin-service')
+    const required = getRequiredPluginForTitle(title)
+    sendJson(res, 200, { title, requiredPlugin: required })
   }},
 
   // Browse directory (Folder browser in profile panel)

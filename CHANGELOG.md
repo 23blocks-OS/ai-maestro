@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.5] - 2026-03-25
+
+### Added
+- **Auto-install Claude Code status line** — `install-plugin.sh` now configures the AMP status line automatically, showing agent identity and unread message count in Claude Code's footer. Idempotent and reversible via `amp-statusline.sh --uninstall`.
+
 ## [0.26.4] - 2026-03-25
 
 ### Fixed

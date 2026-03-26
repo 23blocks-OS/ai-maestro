@@ -849,6 +849,17 @@ if [ "$INSTALL_SKILL" = true ]; then
     done
 fi
 
+# Install Claude Code status line (shows agent identity + unread count)
+if [ "$INSTALL_SCRIPTS" = true ] && command -v amp-statusline.sh &> /dev/null; then
+    echo ""
+    print_info "Configuring Claude Code status line..."
+    if amp-statusline.sh --install 2>/dev/null; then
+        print_success "Status line configured (shows agent identity + unread messages)"
+    else
+        print_warning "Status line setup skipped (run 'amp-statusline.sh --install' manually)"
+    fi
+fi
+
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                    Installation Complete!                      ║"

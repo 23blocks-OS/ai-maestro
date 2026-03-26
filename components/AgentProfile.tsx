@@ -6,7 +6,7 @@ import {
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
-  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
+  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send, RotateCcw,
   GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
   FolderTree, Terminal, Crown, Shield, Webhook, ScrollText, Users, Puzzle, Palette,
   ToggleLeft, ToggleRight, Loader2
@@ -224,6 +224,39 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  // Send a command string to the agent's tmux session via the command API
+  const sendCommandToSession = async (command: string) => {
+    const sessionName = sessionStatus?.tmuxSessionName || agent?.name
+    if (!sessionName) return
+    try {
+      await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(sessionName)}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, addNewline: true }),
+      })
+    } catch (error) {
+      console.error('Failed to send command to session:', error)
+    }
+  }
+
+  // Launch a new Claude session inside the agent's existing tmux shell
+  const handleNewSession = async () => {
+    if (sessionStatus?.status === 'online') return
+    const program = agent?.program || 'claude'
+    const args = agent?.programArgs || ''
+    const cmd = `${program} ${args}`.trim()
+    await sendCommandToSession(cmd)
+  }
+
+  // Resume the previous Claude conversation with --continue
+  const handleResumeSession = async () => {
+    if (sessionStatus?.status === 'online') return
+    const program = agent?.program || 'claude'
+    const args = agent?.programArgs || ''
+    const cmd = `${program} --continue ${args}`.trim()
+    await sendCommandToSession(cmd)
   }
 
   const handleSave = async () => {
@@ -454,6 +487,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                     )}
                   </div>
 
+
                   {/* Session details when online */}
                   {sessionStatus.status === 'online' && sessionStatus.workingDirectory && (
                     <div className="mt-3 pt-3 border-t border-green-500/20">
@@ -610,6 +644,26 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       icon={<Code2 className="w-4 h-4" />}
                       multiline
                     />
+
+                    {/* Session action buttons — inject command into terminal, wait 500ms, send Enter */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleNewSession}
+                        disabled={sessionStatus?.status === 'online'}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-emerald-500/25"
+                      >
+                        <Plus className="w-4 h-4" />
+                        New Session
+                      </button>
+                      <button
+                        onClick={handleResumeSession}
+                        disabled={sessionStatus?.status === 'online'}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-blue-500/25"
+                      >
+                        <Play className="w-4 h-4" />
+                        Resume Session
+                      </button>
+                    </div>
 
                     <EditableField
                       label="Program Arguments (e.g. --continue)"

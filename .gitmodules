@@ -1,4 +1,0 @@
-[submodule "plugin"]
-	path = plugin
-	url = https://github.com/Emasoft/ai-maestro-plugins.git
-	branch = feat/add-role-plugins

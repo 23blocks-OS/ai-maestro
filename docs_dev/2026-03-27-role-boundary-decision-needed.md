@@ -1,7 +1,8 @@
-# Role Boundary Decision Needed: Task Assignment
+# Role Boundary Decision — RESOLVED
 
 **Date:** 2026-03-27
-**Issue:** COS and Orchestrator have conflicting claims about who assigns agents to tasks.
+**Decision:** Option B — Orchestrator assigns tasks, COS manages team roster.
+**Decided by:** User (2026-03-27)
 
 ## Conflict
 

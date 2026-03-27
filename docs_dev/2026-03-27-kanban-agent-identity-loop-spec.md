@@ -6,27 +6,46 @@
 ## The Full Loop
 
 ```
-COS creates kanban task
-  → COS creates/assigns agent to task
-    → Agent proves identity (Ed25519)
-      → Agent reports progress (authenticated API call)
-        → COS verifies progress came from assigned agent
-          → COS updates kanban status
+MANAGER sets requirements
+  → Orchestrator decomposes into kanban tasks
+    → Orchestrator assigns available agents to tasks
+      → If no agent available: Orchestrator requests COS to create one
+        → COS creates agent (with MANAGER GovernanceRequest approval)
+          → COS reports agent name/id to Orchestrator
+            → Orchestrator assigns new agent to task
+              → Agent proves identity (Ed25519)
+                → Agent executes task, reports progress (authenticated API)
+                  → Orchestrator tracks progress on kanban
 ```
+
+## Role Boundaries
+
+| Authority | Orchestrator (AMOA) | Chief-of-Staff (AMCOS) |
+|-----------|:-------------------:|:----------------------:|
+| Create kanban tasks | Yes | No |
+| Assign agents to tasks | Yes | No |
+| Monitor task progress | Yes | No |
+| Create/delete agents | No — requests COS | Yes (with MGR approval) |
+| Assign agents to team | No | Yes |
+| Install role-plugins | No | Yes |
 
 ## Step-by-Step Flow
 
-### 1. COS Creates Kanban Task
-- COS uses team-kanban skill: `POST /api/teams/{id}/tasks`
-- Task has: title, description, assigneeId (agent to do the work), status=pending
-- Auth: COS includes `Authorization: Bearer <token>` + `X-Agent-Id: <cos-id>`
-- API verifies: COS is COS of this team (via `checkTeamAccess()`)
+### 1. Orchestrator Creates Kanban Tasks
+- Orchestrator uses team-kanban skill: `POST /api/teams/{id}/tasks`
+- Task has: title, description, status=pending (no assignee yet)
+- Auth: Orchestrator includes `Authorization: Bearer <token>` + `X-Agent-Id`
+- API verifies: Orchestrator is member of this team
 
-### 2. COS Creates Agent for Task (or Assigns Existing)
-- COS uses agents-management skill: `POST /api/agents` or assigns existing agent
-- For new agent: `aimaestro-agent.sh create <name> --dir <path> --program <client>`
+### 2. Orchestrator Assigns Agents to Tasks
+- For existing available agents: Orchestrator assigns directly via `PATCH /api/teams/{id}/tasks/{taskId}` with `assigneeAgentId`
+- If no agent available for a task type: Orchestrator messages COS requesting a new agent
+
+### 3. COS Creates Agent (When Requested by Orchestrator)
+- COS receives message from Orchestrator: "Need a programmer agent for task X"
+- COS uses agents-management skill: `aimaestro-agent.sh create <name> --dir <path> --program <client>`
 - COS requires GovernanceRequest approval from MANAGER
-- After creation/assignment: COS updates task `assigneeId`
+- After creation: COS reports agent name/id back to Orchestrator via AMP message
 
 ### 3. Agent Identity Initialization
 - **Claude agent**: Identity created during `aid-init.sh --auto` (part of agent startup)

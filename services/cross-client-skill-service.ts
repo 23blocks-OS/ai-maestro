@@ -96,19 +96,17 @@ async function copyDir(src: string, dest: string): Promise<void> {
  * Install ai-maestro skills into a non-Claude agent's working directory.
  * Downloads from GitHub, copies each skill folder to the client-specific path.
  *
- * - Claude/aider agents are skipped (Claude uses plugins, aider has no skill support).
+ * - Claude agents are skipped (they use the plugin system).
+ * - Aider agents also get the `aider-skills` package installed into the project venv.
  * - Claude-only skills (debug-hooks) are skipped for all non-Claude clients.
  */
 export async function installSkillsForClient(
   clientType: ClientType,
   workingDirectory: string
 ): Promise<SkillInstallResult> {
-  // Claude uses its own plugin system; aider has no skill support
+  // Claude uses its own plugin system
   if (clientType === 'claude') {
     return { installed: [], skipped: ['claude uses plugin system'], errors: [] }
-  }
-  if (clientType === 'aider') {
-    return { installed: [], skipped: ['aider has no skill support'], errors: [] }
   }
 
   const skillPath = getSkillTargetPath(clientType, workingDirectory)
@@ -168,6 +166,28 @@ export async function installSkillsForClient(
     // Always clean up the temporary clone directory
     if (tmpRoot) {
       await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  // For Aider: ensure the aider-skills package is installed in the project venv
+  // so the agent can load skills via `aider --read $(aider-skills tmpfile ./skills)`
+  if (clientType === 'aider' && result.installed.length > 0) {
+    try {
+      // Create venv if it doesn't exist, then install aider-skills into it
+      const venvDir = path.join(workingDirectory, '.venv')
+      try { await fs.access(venvDir) } catch {
+        await execFileAsync('uv', ['venv', '--python', '3.12', venvDir], {
+          cwd: workingDirectory, timeout: 60_000,
+        })
+      }
+      await execFileAsync('uv', ['pip', 'install', '--python', path.join(venvDir, 'bin', 'python'), 'aider-skills'], {
+        cwd: workingDirectory, timeout: 60_000,
+      })
+      console.log('[cross-client] Installed aider-skills package into agent venv')
+    } catch (err) {
+      // Non-blocking — skills are copied, package install is best-effort
+      console.warn('[cross-client] Failed to install aider-skills package:', err instanceof Error ? err.message : err)
+      result.errors.push({ skill: 'aider-skills-package', error: `Package install failed: ${err instanceof Error ? err.message : String(err)}` })
     }
   }
 

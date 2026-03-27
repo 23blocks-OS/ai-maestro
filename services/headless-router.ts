@@ -837,6 +837,22 @@ const routes: Route[] = [
     res.end(JSON.stringify(data))
   }},
 
+  // Cross-client skill installation
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/install-skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    const { getAgent } = await import('@/lib/agent-registry')
+    const { detectClientType } = await import('@/lib/client-capabilities')
+    const { installSkillsForClient } = await import('@/services/cross-client-skill-service')
+    const agent = getAgent(params.id)
+    if (!agent) { sendJson(res, 404, { error: 'Agent not found' }); return }
+    const clientType = detectClientType(agent.program || 'claude')
+    if (clientType === 'claude') { sendJson(res, 400, { error: 'Claude agents use the plugin system' }); return }
+    if (clientType === 'aider') { sendJson(res, 400, { error: 'Aider does not support skills' }); return }
+    const workDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
+    if (!workDir) { sendJson(res, 400, { error: 'Agent has no working directory' }); return }
+    const result = await installSkillsForClient(clientType, workDir)
+    sendJson(res, 200, result)
+  }},
+
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     // Guard limit against NaN (parseInt returns NaN for non-numeric strings).

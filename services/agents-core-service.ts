@@ -628,6 +628,24 @@ export async function createNewAgent(body: CreateAgentRequest, requestingAgentId
 
   try {
     const agent = await createAgent(body)
+
+    // Auto-install ai-maestro skills for non-Claude clients (Codex, Gemini, Cursor).
+    // Non-fatal: agent creation succeeds even if skill installation fails.
+    const { detectClientType } = await import('@/lib/client-capabilities')
+    const clientType = detectClientType(agent.program || 'claude')
+    if (clientType !== 'claude' && clientType !== 'aider' && clientType !== 'unknown') {
+      const workDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
+      if (workDir) {
+        try {
+          const { installSkillsForClient } = await import('@/services/cross-client-skill-service')
+          const result = await installSkillsForClient(clientType, workDir)
+          console.log(`[agents] Installed ${result.installed.length} skills for ${clientType} agent "${agent.name}"`)
+        } catch (err) {
+          console.warn(`[agents] Failed to install skills for ${clientType}:`, err instanceof Error ? err.message : err)
+        }
+      }
+    }
+
     return { data: { agent }, status: 201 }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create agent'

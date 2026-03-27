@@ -42,10 +42,10 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     skillPaths: { project: '.gemini/skills', user: '~/.gemini/skills' },
   },
   aider: {
-    skills: false, plugins: false, agents: false, hooks: false,
+    skills: true, plugins: false, agents: false, hooks: false,
     rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
     configFile: '.aider.conf.yml',
-    skillPaths: { project: '', user: '' },
+    skillPaths: { project: '.aider/skills', user: '~/.aider/skills' },
   },
   unknown: {
     skills: true, plugins: false, agents: false, hooks: false,

@@ -5,7 +5,7 @@
  * into non-Claude agents' skill directories (.codex/skills/, .gemini/skills/).
  *
  * Claude agents use the plugin system (claude plugin install ai-maestro) -- this service
- * handles Codex and Gemini which have no native plugin mechanism.
+ * handles Codex, Gemini, and Aider which have no native plugin mechanism.
  */
 
 import fs from 'fs/promises'
@@ -37,6 +37,7 @@ export function getSkillTargetPath(clientType: ClientType, workDir: string): str
   switch (clientType) {
     case 'codex':  return path.join(workDir, '.codex', 'skills')
     case 'gemini': return path.join(workDir, '.gemini', 'skills')
+    case 'aider':  return path.join(workDir, '.aider', 'skills')
     default:       return null
   }
 }

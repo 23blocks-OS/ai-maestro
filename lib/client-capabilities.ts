@@ -4,7 +4,7 @@
  * The profile panel adapts its visible sections based on client capabilities.
  */
 
-export type ClientType = 'claude' | 'codex' | 'gemini' | 'aider' | 'cursor' | 'unknown'
+export type ClientType = 'claude' | 'codex' | 'gemini' | 'aider' | 'unknown'
 
 export interface ClientCapabilities {
   skills: boolean
@@ -47,12 +47,6 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     configFile: '.aider.conf.yml',
     skillPaths: { project: '', user: '' },
   },
-  cursor: {
-    skills: true, plugins: false, agents: false, hooks: false,
-    rules: true, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
-    configFile: '.cursor/rules',
-    skillPaths: { project: '.cursor/skills', user: '' },
-  },
   unknown: {
     skills: true, plugins: false, agents: false, hooks: false,
     rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
@@ -69,7 +63,6 @@ export function detectClientType(program: string): ClientType {
   if (p.includes('codex')) return 'codex'
   if (p.includes('gemini')) return 'gemini'
   if (p.includes('aider')) return 'aider'
-  if (p.includes('cursor')) return 'cursor'
   return 'unknown'
 }
 
@@ -108,7 +101,6 @@ export function clientTypeLabel(clientType: ClientType): string {
     codex: 'Codex CLI',
     gemini: 'Gemini CLI',
     aider: 'Aider',
-    cursor: 'Cursor',
     unknown: 'Unknown',
   }
   return labels[clientType]

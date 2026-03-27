@@ -2,10 +2,10 @@
  * Cross-Client Skill Installation Service
  *
  * Downloads ai-maestro skills from the GitHub plugin repo and copies them
- * into non-Claude agents' skill directories (.codex/skills/, .gemini/skills/, .cursor/skills/).
+ * into non-Claude agents' skill directories (.codex/skills/, .gemini/skills/).
  *
  * Claude agents use the plugin system (claude plugin install ai-maestro) -- this service
- * handles Codex, Gemini, and Cursor which have no native plugin mechanism.
+ * handles Codex and Gemini which have no native plugin mechanism.
  */
 
 import fs from 'fs/promises'
@@ -37,7 +37,6 @@ export function getSkillTargetPath(clientType: ClientType, workDir: string): str
   switch (clientType) {
     case 'codex':  return path.join(workDir, '.codex', 'skills')
     case 'gemini': return path.join(workDir, '.gemini', 'skills')
-    case 'cursor': return path.join(workDir, '.cursor', 'skills')
     default:       return null
   }
 }

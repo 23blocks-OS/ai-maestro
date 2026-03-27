@@ -79,26 +79,27 @@ export default function MarketplaceSection() {
     }
 
     if (clientType === 'claude') {
-      // For Claude agents: check if this skill is already part of an installed plugin
+      // For Claude: check if skill already exists as standalone OR in a plugin
       try {
         const configRes = await fetch(`/api/agents/${agent.id}/local-config`)
         if (configRes.ok) {
           const config = await configRes.json()
-          // Collect all skill names from installed plugins
-          const pluginSkills: Array<{ name: string; pluginName: string }> = []
+          // Check plugin-bundled skills
           const plugins = config.plugins || []
           for (const p of plugins) {
             const pSkills = p.elements?.skills || p.skills || []
             for (const s of pSkills) {
-              pluginSkills.push({ name: typeof s === 'string' ? s : s.name, pluginName: p.name || p.id })
+              const sName = typeof s === 'string' ? s : s.name
+              if (sName === skill.name) {
+                showNotification(`"${skill.name}" is already installed via plugin "${p.name || p.id}".`, 'error')
+                return
+              }
             }
           }
-          const duplicate = pluginSkills.find(s => s.name === skill.name)
-          if (duplicate) {
-            showNotification(
-              `"${skill.name}" is already installed via plugin "${duplicate.pluginName}". Installing standalone would create a duplicate.`,
-              'error'
-            )
+          // Check standalone skills
+          const standaloneSkills = config.skills || []
+          if (standaloneSkills.some((s: { name: string }) => s.name === skill.name)) {
+            showNotification(`"${skill.name}" is already installed as a standalone skill on ${agent.name}.`, 'error')
             return
           }
         }
@@ -119,14 +120,29 @@ export default function MarketplaceSection() {
         showNotification(`Failed to install skill: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
       }
     } else {
-      // Codex / Gemini / Cursor: bulk install all ai-maestro skills
-      showNotification(`Installing all ai-maestro skills for ${clientType} agent "${agent.name}"...`, 'info')
+      // Codex / Gemini / Cursor: check if skill already exists in agent's skill dir
+      try {
+        const configRes = await fetch(`/api/agents/${agent.id}/local-config`)
+        if (configRes.ok) {
+          const config = await configRes.json()
+          const existingSkills = config.skills || []
+          if (existingSkills.some((s: { name: string }) => s.name === skill.name)) {
+            showNotification(`"${skill.name}" is already installed on ${agent.name}.`, 'error')
+            return
+          }
+        }
+      } catch {
+        // If check fails, proceed with install
+      }
+
+      // Install the specific skill (or all ai-maestro skills if not available individually)
+      showNotification(`Installing skills for ${clientType} agent "${agent.name}"...`, 'info')
       try {
         const res = await fetch(`/api/agents/${agent.id}/install-skills`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
-        showNotification(`All ai-maestro skills installed on ${agent.name}.`, 'success')
+        showNotification(`Skills installed on ${agent.name}.`, 'success')
       } catch (err) {
-        showNotification(`Failed to install skills: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+        showNotification(`Failed to install: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
       }
     }
   }

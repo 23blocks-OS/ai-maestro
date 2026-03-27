@@ -24,6 +24,7 @@ import type { AgentLocalConfig } from '@/types/agent-local-config'
 import { type TabId, type TabDef, type AgentInfo, type AvailableRolePlugin } from './agent-profile/shared'
 import TabContent from './agent-profile/TabContent'
 import FolderBrowser from './agent-profile/FolderBrowser'
+import { detectClientType, getClientCapabilities, isTabSupported, clientTypeLabel } from '@/lib/client-capabilities'
 
 // Lazy-load AgentProfile — only mounted when Overview tab is active
 const AgentProfile = dynamic(() => import('@/components/AgentProfile'), { ssr: false })
@@ -95,6 +96,11 @@ export default function AgentProfilePanel({
   const [availablePlugins, setAvailablePlugins] = useState<AvailableRolePlugin[]>([])
   const [pluginDropdownOpen, setPluginDropdownOpen] = useState(false)
   const [switchingPlugin, setSwitchingPlugin] = useState(false)
+
+  // Client capability detection — filter config tabs based on AI client type
+  const clientType = detectClientType(agentInfo?.program || '')
+  const capabilities = getClientCapabilities(agentInfo?.program || '')
+  const visibleTabs = TABS.filter(tab => isTabSupported(tab.id, capabilities))
 
   // Cross-section navigation: expand section + scroll to it
   const handleSwitchSection = useCallback((tab: TabId) => {
@@ -339,6 +345,12 @@ export default function AgentProfilePanel({
             <p className="text-[10px] text-gray-500 truncate flex-1">
               {config?.workingDirectory || 'Live .claude/ configuration'}
             </p>
+            {/* Client type badge — shows which AI client this agent uses */}
+            {clientType !== 'unknown' && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 flex-shrink-0">
+                {clientTypeLabel(clientType)}
+              </span>
+            )}
             {loading && <Loader2 className="w-3 h-3 text-gray-500 animate-spin flex-shrink-0" />}
             {config?.workingDirectory && (
               <div
@@ -376,7 +388,7 @@ export default function AgentProfilePanel({
                   <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
                 </div>
               )}
-              {config && TABS.map(tab => {
+              {config && visibleTabs.map(tab => {
                 const Icon = tab.icon
                 const pinned = NON_COLLAPSIBLE.has(tab.id)
                 const isActive = pinned || activeTab === tab.id

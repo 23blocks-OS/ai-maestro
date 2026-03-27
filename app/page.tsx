@@ -1061,6 +1061,7 @@ export default function DashboardPage() {
                         agentInfo={{
                           name: agent.label || agent.name || agent.alias,
                           title: agent.role as 'manager' | 'chief-of-staff' | 'member' | undefined,
+                          program: agent.program,
                           tags: agent.tags,
                         }}
                         onClose={toggleProfilePanel}

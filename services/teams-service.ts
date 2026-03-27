@@ -36,7 +36,7 @@ import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import type { TeamDocument } from '@/types/document'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
-import { getManagerId, isManager } from '@/lib/governance'
+import { getManagerId, isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { checkTeamAccess } from '@/lib/team-acl'
 import { isValidUuid } from '@/lib/validation'
 import type { TeamType } from '@/types/governance'
@@ -584,6 +584,17 @@ export async function updateTeamTask(
   const existing = getTask(teamId, taskId)
   if (!existing) {
     return { error: 'Task not found', status: 404 }
+  }
+
+  // Task assignee verification: only the assigned agent, COS, or MANAGER can update task status.
+  // This prevents other team members from modifying tasks not assigned to them.
+  if (status !== undefined && requestingAgentId && existing.assigneeAgentId) {
+    const isAssignee = requestingAgentId === existing.assigneeAgentId
+    const callerIsManager = isManager(requestingAgentId)
+    const callerIsCOS = isChiefOfStaffAnywhere(requestingAgentId)
+    if (!isAssignee && !callerIsManager && !callerIsCOS) {
+      return { error: 'Only the assigned agent, COS, or MANAGER can update task status', status: 403 }
+    }
   }
 
   // Validate blockedBy to prevent circular dependencies

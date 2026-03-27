@@ -191,6 +191,25 @@ export async function installSkillsForClient(
     }
   }
 
+  // For ALL non-Claude agents: initialize AMP identity so they can sign messages
+  // and be authenticated by the governance system. Uses aid-init.sh from ~/.local/bin/
+  if (result.installed.length > 0) {
+    try {
+      const aidInit = path.join(os.homedir(), '.local', 'bin', 'aid-init.sh')
+      await fs.access(aidInit)
+      // Extract agent name from the working directory basename
+      const agentName = path.basename(workingDirectory)
+      await execFileAsync('bash', [aidInit, '--auto', '--name', agentName], {
+        cwd: workingDirectory, timeout: 30_000,
+        env: { ...process.env, HOME: os.homedir() },
+      })
+      console.log(`[cross-client] Initialized AMP identity for ${clientType} agent "${agentName}"`)
+    } catch (err) {
+      // Non-blocking — identity can be initialized later via the agent-identity skill
+      console.warn('[cross-client] Failed to initialize AMP identity:', err instanceof Error ? err.message : err)
+    }
+  }
+
   return result
 }
 

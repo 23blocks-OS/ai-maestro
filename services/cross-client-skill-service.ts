@@ -153,6 +153,14 @@ export async function installSkillsForClient(
       try {
         const src = path.join(skillsSourceDir, skillName)
         const dest = path.join(skillPath, skillName)
+        // Check if skill already exists at destination to avoid overwriting user modifications
+        try {
+          await fs.access(path.join(dest, 'SKILL.md'))
+          result.skipped.push(skillName)  // Already installed — skip to preserve local edits
+          continue
+        } catch {
+          // Not installed yet — proceed with copy
+        }
         await copyDir(src, dest)
         result.installed.push(skillName)
       } catch (err) {

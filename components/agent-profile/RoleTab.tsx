@@ -67,6 +67,10 @@ export default function RoleTab({
   }, [showDropdown])
 
   const handleSwitch = async (pluginName: string) => {
+    // Server-side enforcement: MANAGER and COS have locked role-plugins
+    if (agentTitle === 'manager' || agentTitle === 'chief-of-staff') {
+      return // Title-locked — the dropdown is disabled but this is a safety guard
+    }
     if (pluginName === config.rolePlugin?.name) { setShowDropdown(false); return }
     setSwitching(true)
     try {
@@ -82,7 +86,7 @@ export default function RoleTab({
           }),
         })
       }
-      // Install the selected role plugin, passing its marketplace origin
+      // Install the selected role plugin, passing its marketplace origin (explicit scope: 'local' for defense-in-depth)
       const newPlugin = availablePlugins.find(p => p.name === pluginName)
       await fetch('/api/agents/role-plugins/install', {
         method: 'POST',
@@ -91,6 +95,7 @@ export default function RoleTab({
           pluginName,
           agentDir: config.workingDirectory,
           marketplaceName: newPlugin?.marketplace,
+          scope: 'local',
         }),
       })
     } catch (err) {

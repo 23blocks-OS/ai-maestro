@@ -147,6 +147,12 @@ export default function AgentProfilePanel({
     const currentPlugin = config.rolePlugin?.name
     if (currentPlugin === newPluginName) { setPluginDropdownOpen(false); return }
 
+    // Client-side title lock guard: MANAGER and COS have locked role-plugins
+    const agentTitle = agentInfo?.title
+    if (agentTitle === 'manager' || agentTitle === 'chief-of-staff') {
+      return // Title-locked — the server enforces this too via autoAssignRolePluginForTitle
+    }
+
     setSwitchingPlugin(true)
     setPluginDropdownOpen(false)
     try {
@@ -161,11 +167,11 @@ export default function AgentProfilePanel({
         })
       }
 
-      // 2. Install new plugin
+      // 2. Install new plugin (explicit scope: 'local' for defense-in-depth)
       const installRes = await fetch('/api/agents/role-plugins/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pluginName: newPluginName, agentDir }),
+        body: JSON.stringify({ pluginName: newPluginName, agentDir, scope: 'local' }),
       })
       if (!installRes.ok) {
         const err = await installRes.json().catch(() => ({ error: 'Install failed' }))

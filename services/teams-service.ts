@@ -36,7 +36,7 @@ import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import type { TeamDocument } from '@/types/document'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
-import { getManagerId, isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
+import { getManagerId, isManager, isChiefOfStaffAnywhere, verifyPassword, loadGovernance } from '@/lib/governance'
 import { checkTeamAccess } from '@/lib/team-acl'
 import { isValidUuid } from '@/lib/validation'
 import type { TeamType } from '@/types/governance'
@@ -297,7 +297,7 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
  * Delete a team by ID.
  * Governance: closed team deletion requires MANAGER or COS authority.
  */
-export async function deleteTeamById(id: string, requestingAgentId?: string): Promise<ServiceResult<{ success: boolean }>> {
+export async function deleteTeamById(id: string, requestingAgentId?: string, password?: string): Promise<ServiceResult<{ success: boolean }>> {
   // Validate UUID format for consistency with getTeamById (CC-008)
   if (!isValidUuid(id)) {
     return { error: 'Invalid team ID', status: 400 }
@@ -313,6 +313,18 @@ export async function deleteTeamById(id: string, requestingAgentId?: string): Pr
   const access = checkTeamAccess({ teamId: id, requestingAgentId })
   if (!access.allowed) {
     return { error: access.reason || 'Access denied', status: 403 }
+  }
+
+  // Governance: team deletion is a destructive USER-only operation requiring governance password.
+  // This prevents agents from deleting teams without human authorization.
+  const config = loadGovernance()
+  if (config.passwordHash) {
+    if (!password || typeof password !== 'string') {
+      return { error: 'Team deletion requires governance password', status: 400 }
+    }
+    if (!(await verifyPassword(password))) {
+      return { error: 'Invalid governance password', status: 401 }
+    }
   }
 
   // Governance: closed team deletion requires MANAGER or Chief-of-Staff authority

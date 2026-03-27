@@ -66,6 +66,7 @@ export async function PUT(
 }
 
 // DELETE /api/teams/[id] - Delete a team
+// Governance: requires governance password in request body (USER-only destructive operation)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -82,7 +83,17 @@ export async function DELETE(
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
   }
   const requestingAgentId = auth.agentId
-  const result = await deleteTeamById(id, requestingAgentId)
+
+  // Extract governance password from request body for this destructive operation
+  let password: string | undefined
+  try {
+    const body = await request.json()
+    password = body?.password
+  } catch {
+    // No body is OK — deleteTeamById will reject if password is required
+  }
+
+  const result = await deleteTeamById(id, requestingAgentId, password)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

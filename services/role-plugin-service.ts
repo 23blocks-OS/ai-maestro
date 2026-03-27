@@ -918,10 +918,21 @@ export async function autoAssignRolePluginForTitle(
   const requiredPlugin = TITLE_PLUGIN_MAP[title]
   if (!requiredPlugin) return null // MEMBER — no forced plugin
 
-  // Look up the agent's working directory from the registry
+  // Look up the agent from the registry
   const { getAgent } = await import('@/lib/agent-registry')
   const agent = getAgent(agentId)
   if (!agent) throw new Error(`Agent ${agentId} not found`)
+
+  // MANAGER and COS require role-plugins which are Claude-only.
+  // Non-Claude agents cannot hold these titles.
+  const { detectClientType } = await import('@/lib/client-capabilities')
+  const clientType = detectClientType(agent.program || '')
+  if (clientType !== 'claude') {
+    throw new Error(
+      `Cannot assign ${title.toUpperCase()} title to ${clientType} agent "${agent.name || agentId}". ` +
+      `MANAGER and CHIEF-OF-STAFF require Claude Code (role-plugins are Claude-only).`
+    )
+  }
 
   const agentDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
   if (!agentDir) throw new Error(`Agent ${agentId} has no working directory`)

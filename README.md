@@ -61,11 +61,13 @@ The display name of the agent instance. Associated with a specific Claude Code t
 
 The governance title determines what an agent is authorized to do within the AI Maestro governance system. There are exactly three titles:
 
-- **MANAGER** — Global singleton. Full authority over all teams, agents, and governance operations. Only one per host.
-- **CHIEF-OF-STAFF** — Leads one or more closed teams. Can manage team membership and approve transfers within their teams.
+- **MANAGER** — Global singleton. Manages agents and approves GovernanceRequests. Cannot create/delete teams or assign COS (those are USER-only operations requiring governance password). Only one per host.
+- **CHIEF-OF-STAFF** — Leads ONE closed team. Scoped to own team only. All destructive operations require GovernanceRequest approval from MANAGER.
 - **MEMBER** — Default title. Standard agent with no special governance privileges.
 
 Changing a title requires the governance password.
+
+The **USER** (human operator) is the only one who can: create/delete teams, assign/remove COS, assign/remove MANAGER, switch team type open/closed. These operations require a governance password.
 
 ### ROLE
 
@@ -184,6 +186,14 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 *Every agent needs a different skill set. Installing the right skills by hand was tedious.*
 
 A visual, browser-based tool for composing custom Claude Code plugins without touching any config files. Pick skills from core AI Maestro skills, your local marketplace, or any public GitHub repository. Combine them, set a name and version, and build — the plugin is assembled and ready to install in seconds. Available at `http://localhost:23000/plugin-builder`.
+
+### Plugin Ecosystem
+
+AI Maestro uses three categories of plugins:
+
+- **3 user-scope plugins** (installed globally per user): `ai-maestro`, `agent-messaging`, `agent-identity` — from the `Emasoft/ai-maestro-plugins` marketplace
+- **6 local-scope role-plugins** (installed on-demand per agent): `architect-agent`, `orchestrator-agent`, `programmer-agent`, `chief-of-staff`, `assistant-manager-agent`, `tester-agent` — from the local roles marketplace
+- **External dependencies** from the `Emasoft/emasoft-plugins` marketplace: `claude-plugins-validation`, `perfect-skill-suggester`, `code-auditor-agent`, `llm-externalizer-plugin`
 
 ---
 

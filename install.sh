@@ -93,6 +93,21 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ── Detect installed AI clients ──────────────────────────────────────────────
+CLAUDE_INSTALLED=false
+CODEX_INSTALLED=false
+GEMINI_INSTALLED=false
+command -v claude &>/dev/null && CLAUDE_INSTALLED=true
+command -v codex &>/dev/null && CODEX_INSTALLED=true
+command -v gemini &>/dev/null && GEMINI_INSTALLED=true
+
+if [ "$CLAUDE_INSTALLED" = false ]; then
+    echo ""
+    echo -e "${YELLOW}${WARN} WARNING: Claude Code not found. Plugin installation will be skipped.${NC}"
+    echo -e "${BLUE}${INFO}Only scripts and skills (for Codex/Gemini) will be installed.${NC}"
+    echo ""
+fi
+
 if [ "$FROM_REMOTE" != true ]; then
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
@@ -982,6 +997,36 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     fi
 elif [ "$SKIP_TOOLS" = true ]; then
     print_info "Skipping agent tools (--skip-tools flag set)"
+fi
+
+# ── Install Claude Code plugins (only if Claude is available) ────────────────
+if [ -n "$INSTALL_DIR" ] && [ "$CLAUDE_INSTALLED" = true ]; then
+    echo ""
+    print_step "Installing Claude Code plugins..."
+
+    # Core AI Maestro plugins (user-scope)
+    claude plugin marketplace add Emasoft/ai-maestro-plugins 2>/dev/null || true
+    claude plugin install ai-maestro --scope user 2>/dev/null || print_warning "Could not install ai-maestro plugin"
+
+    # External dependency plugins from emasoft-plugins marketplace
+    claude plugin marketplace add Emasoft/emasoft-plugins 2>/dev/null || true
+    claude plugin install claude-plugins-validation --scope user 2>/dev/null || print_warning "Could not install claude-plugins-validation"
+    claude plugin install perfect-skill-suggester --scope user 2>/dev/null || print_warning "Could not install perfect-skill-suggester"
+    claude plugin install code-auditor-agent --scope user 2>/dev/null || print_warning "Could not install code-auditor-agent"
+    claude plugin install llm-externalizer-plugin --scope user 2>/dev/null || print_warning "Could not install llm-externalizer-plugin"
+
+    # Serena from official marketplace
+    claude plugin marketplace add anthropic/claude-plugins-official 2>/dev/null || true
+    claude plugin install serena --scope user 2>/dev/null || true
+
+    # Agentika
+    claude plugin marketplace add agentika-labs/agentika-plugins-marketplace 2>/dev/null || true
+    claude plugin install agentika --scope user 2>/dev/null || true
+
+    print_success "Claude Code plugins installed"
+elif [ -n "$INSTALL_DIR" ] && [ "$CLAUDE_INSTALLED" = false ]; then
+    print_info "Skipping Claude Code plugin installation (claude not found)"
+    print_info "Scripts and skills were still installed for use with Codex/Gemini"
 fi
 
 if [ "$FROM_REMOTE" != true ]; then

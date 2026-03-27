@@ -37,7 +37,7 @@ export function getSkillTargetPath(clientType: ClientType, workDir: string): str
   switch (clientType) {
     case 'codex':  return path.join(workDir, '.codex', 'skills')
     case 'gemini': return path.join(workDir, '.gemini', 'skills')
-    case 'aider':  return path.join(workDir, '.aider', 'skills')
+    case 'aider':  return path.join(workDir, 'skills')  // Aider uses project-local skills/ via aider-skills package
     default:       return null
   }
 }

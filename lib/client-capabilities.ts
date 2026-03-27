@@ -45,7 +45,7 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     skills: true, plugins: false, agents: false, hooks: false,
     rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
     configFile: '.aider.conf.yml',
-    skillPaths: { project: '.aider/skills', user: '~/.aider/skills' },
+    skillPaths: { project: 'skills', user: '' },  // Aider reads via `aider-skills` package (pip install aider-skills) — project-local skills/ dir
   },
   unknown: {
     skills: true, plugins: false, agents: false, hooks: false,

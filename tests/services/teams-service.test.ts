@@ -13,7 +13,7 @@ import { makeTeam, makeTask, makeDocument, makeAgent, resetFixtureCounter } from
 // Mocks — vi.hoisted() ensures these are available when vi.mock() runs
 // ============================================================================
 
-const { mockTeams, mockTasks, mockDocs, mockAgentRegistry, mockNotificationService, MockTeamValidationException } = vi.hoisted(() => {
+const { mockTeams, mockGhProject, mockDocs, mockAgentRegistry, mockNotificationService, MockTeamValidationException } = vi.hoisted(() => {
   // TeamValidationException must be a real class so `instanceof` checks work in the service code
   class _MockTeamValidationException extends Error {
     code: number
@@ -33,14 +33,13 @@ const { mockTeams, mockTasks, mockDocs, mockAgentRegistry, mockNotificationServi
     deleteTeam: vi.fn(),
     TeamValidationException: _MockTeamValidationException,
   },
-  mockTasks: {
-    loadTasks: vi.fn(),
+  mockGhProject: {
+    checkGhAuth: vi.fn(() => null),
+    listTasks: vi.fn(),
     resolveTaskDeps: vi.fn(),
     createTask: vi.fn(),
-    getTask: vi.fn(),
     updateTask: vi.fn(),
     deleteTask: vi.fn(),
-    wouldCreateCycle: vi.fn(),
   },
   mockDocs: {
     loadDocuments: vi.fn(),
@@ -59,7 +58,7 @@ const { mockTeams, mockTasks, mockDocs, mockAgentRegistry, mockNotificationServi
 }})
 
 vi.mock('@/lib/team-registry', () => mockTeams)
-vi.mock('@/lib/task-registry', () => mockTasks)
+vi.mock('@/lib/github-project', () => mockGhProject)
 vi.mock('@/lib/document-registry', () => mockDocs)
 vi.mock('@/lib/agent-registry', () => mockAgentRegistry)
 vi.mock('@/lib/notification-service', () => mockNotificationService)
@@ -68,6 +67,9 @@ vi.mock('@/lib/notification-service', () => mockNotificationService)
 vi.mock('@/lib/governance', () => ({
   getManagerId: vi.fn(() => null),
   isManager: vi.fn(() => false),
+  isChiefOfStaffAnywhere: vi.fn(() => false),
+  verifyPassword: vi.fn(() => Promise.resolve(true)),
+  loadGovernance: vi.fn(() => ({ passwordHash: null })),
 }))
 
 // Mock team-acl module - checkTeamAccess allows all access by default in service tests
@@ -151,9 +153,9 @@ describe('createNewTeam', () => {
 
     expect(result.status).toBe(201)
     expect(result.data?.team.name).toBe('New Team')
-    // createTeam now receives (data, managerId, agentNames)
+    // createTeam now receives (data, managerId, agentNames); type is always 'closed'
     expect(mockTeams.createTeam).toHaveBeenCalledWith(
-      { name: 'New Team', description: undefined, agentIds: [], type: undefined, chiefOfStaffId: undefined },
+      { name: 'New Team', description: undefined, agentIds: [], type: 'closed', chiefOfStaffId: undefined },
       null,
       []
     )
@@ -167,7 +169,7 @@ describe('createNewTeam', () => {
 
     expect(result.status).toBe(201)
     expect(mockTeams.createTeam).toHaveBeenCalledWith(
-      { name: 'Full Team', description: 'A team', agentIds: ['a1', 'a2'], type: undefined, chiefOfStaffId: undefined },
+      { name: 'Full Team', description: 'A team', agentIds: ['a1', 'a2'], type: 'closed', chiefOfStaffId: undefined },
       null,
       []
     )
@@ -211,7 +213,7 @@ describe('createNewTeam', () => {
     await createNewTeam({ name: 'No Agents' })
 
     expect(mockTeams.createTeam).toHaveBeenCalledWith(
-      { name: 'No Agents', description: undefined, agentIds: [], type: undefined, chiefOfStaffId: undefined },
+      { name: 'No Agents', description: undefined, agentIds: [], type: 'closed', chiefOfStaffId: undefined },
       null,
       []
     )
@@ -304,11 +306,12 @@ describe('updateTeamById', () => {
 // ============================================================================
 
 describe('deleteTeamById', () => {
-  it('deletes team successfully', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed' }))
+  it('deletes team successfully when requestingAgentId is manager', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
+    vi.mocked(getManagerId).mockReturnValue('manager-1')
     mockTeams.deleteTeam.mockResolvedValue(true)
 
-    const result = await deleteTeamById('team-1')
+    const result = await deleteTeamById('team-1', 'manager-1')
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
@@ -322,7 +325,7 @@ describe('deleteTeamById', () => {
     expect(result.status).toBe(404)
   })
 
-  it('returns 400 when deleting closed team without requestingAgentId', async () => {
+  it('returns 400 when deleting team without requestingAgentId', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
 
     const result = await deleteTeamById('team-1')
@@ -331,7 +334,7 @@ describe('deleteTeamById', () => {
     expect(result.error).toMatch(/agent identity/i)
   })
 
-  it('returns 403 when unauthorized agent tries to delete closed team', async () => {
+  it('returns 403 when unauthorized agent tries to delete team', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
     vi.mocked(getManagerId).mockReturnValue('manager-1')
 
@@ -341,7 +344,7 @@ describe('deleteTeamById', () => {
     expect(result.error).toMatch(/MANAGER.*Chief-of-Staff/i)
   })
 
-  it('allows COS to delete their own closed team', async () => {
+  it('allows COS to delete their own team', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
     vi.mocked(getManagerId).mockReturnValue('manager-1')
     mockTeams.deleteTeam.mockResolvedValue(true)
@@ -358,26 +361,26 @@ describe('deleteTeamById', () => {
 // ============================================================================
 
 describe('listTeamTasks', () => {
-  it('returns resolved tasks for existing team', async () => {
-    const team = makeTeam({ id: 'team-1' })
+  const ghProjectRef = { owner: 'test', repo: 'test', number: 1 }
+
+  it('returns resolved tasks for team with GitHub Project', async () => {
+    const team = makeTeam({ id: 'team-1', githubProject: ghProjectRef } as any)
     const tasks = [makeTask({ teamId: 'team-1' })]
     const resolvedTasks = tasks.map(t => ({ ...t, blocks: [], isBlocked: false }))
 
     mockTeams.getTeam.mockReturnValue(team)
-    mockTasks.loadTasks.mockReturnValue(tasks)
-    mockTasks.resolveTaskDeps.mockReturnValue(resolvedTasks)
+    mockGhProject.listTasks.mockResolvedValue(tasks)
+    mockGhProject.resolveTaskDeps.mockReturnValue(resolvedTasks)
 
     const result = await listTeamTasks('team-1')
 
     expect(result.status).toBe(200)
     expect(result.data?.tasks).toHaveLength(1)
-    expect(mockTasks.resolveTaskDeps).toHaveBeenCalledWith(tasks)
+    expect(mockGhProject.resolveTaskDeps).toHaveBeenCalledWith(tasks)
   })
 
-  it('returns empty tasks array', async () => {
+  it('returns empty tasks array when team has no GitHub Project', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.loadTasks.mockReturnValue([])
-    mockTasks.resolveTaskDeps.mockReturnValue([])
 
     const result = await listTeamTasks('team-1')
 
@@ -391,7 +394,6 @@ describe('listTeamTasks', () => {
     const result = await listTeamTasks('nope')
 
     expect(result.status).toBe(404)
-    expect(mockTasks.loadTasks).not.toHaveBeenCalled()
   })
 })
 
@@ -400,11 +402,13 @@ describe('listTeamTasks', () => {
 // ============================================================================
 
 describe('createTeamTask', () => {
-  it('creates task successfully', async () => {
-    const team = makeTeam({ id: 'team-1' })
+  const ghProjectRef = { owner: 'test', repo: 'test', number: 1 }
+
+  it('creates task successfully via GitHub Project', async () => {
+    const team = makeTeam({ id: 'team-1', githubProject: ghProjectRef } as any)
     const task = makeTask({ subject: 'Build API' })
     mockTeams.getTeam.mockReturnValue(team)
-    mockTasks.createTask.mockResolvedValue(task)
+    mockGhProject.createTask.mockResolvedValue(task)
 
     const result = await createTeamTask('team-1', { subject: 'Build API' })
 
@@ -412,35 +416,16 @@ describe('createTeamTask', () => {
     expect(result.data?.task.subject).toBe('Build API')
   })
 
-  it('passes all task fields to createTask', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.createTask.mockResolvedValue(makeTask())
-
-    await createTeamTask('team-1', {
-      subject: 'Task',
-      description: 'Desc',
-      assigneeAgentId: 'a1',
-      blockedBy: ['t1'],
-      priority: 1,
-    })
-
-    expect(mockTasks.createTask).toHaveBeenCalledWith({
-      teamId: 'team-1',
-      subject: 'Task',
-      description: 'Desc',
-      assigneeAgentId: 'a1',
-      blockedBy: ['t1'],
-      priority: 1,
-    })
-  })
-
   it('trims subject whitespace', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.createTask.mockResolvedValue(makeTask())
+    const team = makeTeam({ id: 'team-1', githubProject: ghProjectRef } as any)
+    mockTeams.getTeam.mockReturnValue(team)
+    mockGhProject.createTask.mockResolvedValue(makeTask())
 
     await createTeamTask('team-1', { subject: '  Build API  ' })
 
-    expect(mockTasks.createTask).toHaveBeenCalledWith(
+    expect(mockGhProject.createTask).toHaveBeenCalledWith(
+      ghProjectRef,
+      'team-1',
       expect.objectContaining({ subject: 'Build API' })
     )
   })
@@ -454,7 +439,7 @@ describe('createTeamTask', () => {
   })
 
   it('returns 400 when subject is missing', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
+    mockTeams.getTeam.mockReturnValue(makeTeam({ githubProject: ghProjectRef } as any))
 
     const result = await createTeamTask('team-1', { subject: '' })
 
@@ -463,7 +448,7 @@ describe('createTeamTask', () => {
   })
 
   it('returns 400 when subject is whitespace only', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
+    mockTeams.getTeam.mockReturnValue(makeTeam({ githubProject: ghProjectRef } as any))
 
     const result = await createTeamTask('team-1', { subject: '   ' })
 
@@ -471,7 +456,7 @@ describe('createTeamTask', () => {
   })
 
   it('returns 400 when blockedBy is not an array of strings', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
+    mockTeams.getTeam.mockReturnValue(makeTeam({ githubProject: ghProjectRef } as any))
 
     const result = await createTeamTask('team-1', { subject: 'X', blockedBy: [123 as any] })
 
@@ -479,9 +464,18 @@ describe('createTeamTask', () => {
     expect(result.error).toMatch(/blockedBy/i)
   })
 
-  it('returns 500 when createTask throws', async () => {
+  it('returns 400 when team has no GitHub Project', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.createTask.mockRejectedValue(new Error('boom'))
+
+    const result = await createTeamTask('team-1', { subject: 'X' })
+
+    expect(result.status).toBe(400)
+    expect(result.error).toMatch(/GitHub Project/i)
+  })
+
+  it('returns 500 when GitHub createTask throws', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ githubProject: ghProjectRef } as any))
+    mockGhProject.createTask.mockRejectedValue(new Error('boom'))
 
     const result = await createTeamTask('team-1', { subject: 'X' })
 
@@ -494,27 +488,18 @@ describe('createTeamTask', () => {
 // ============================================================================
 
 describe('updateTeamTask', () => {
-  it('updates task successfully', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask({ id: 't1' }))
-    mockTasks.updateTask.mockResolvedValue({ task: makeTask({ id: 't1', status: 'completed' }), unblocked: [] })
+  const ghProjectRef = { owner: 'test', repo: 'test', number: 1 }
+
+  it('updates task successfully via GitHub Project', async () => {
+    const team = makeTeam({ githubProject: ghProjectRef } as any)
+    mockTeams.getTeam.mockReturnValue(team)
+    mockGhProject.updateTask.mockResolvedValue(makeTask({ id: 't1', status: 'completed' }))
 
     const result = await updateTeamTask('team-1', 't1', { status: 'completed' })
 
     expect(result.status).toBe(200)
     expect(result.data?.task.status).toBe('completed')
     expect(result.data?.unblocked).toEqual([])
-  })
-
-  it('returns unblocked tasks', async () => {
-    const unblockedTask = makeTask({ id: 't2', subject: 'Unblocked' })
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask({ id: 't1' }))
-    mockTasks.updateTask.mockResolvedValue({ task: makeTask(), unblocked: [unblockedTask] })
-
-    const result = await updateTeamTask('team-1', 't1', { status: 'completed' })
-
-    expect(result.data?.unblocked).toHaveLength(1)
   })
 
   it('returns 404 when team not found', async () => {
@@ -526,86 +511,42 @@ describe('updateTeamTask', () => {
     expect(result.error).toMatch(/team/i)
   })
 
-  it('returns 404 when task not found', async () => {
+  it('returns 400 when team has no GitHub Project', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(null)
 
-    const result = await updateTeamTask('team-1', 'nope', { subject: 'X' })
-
-    expect(result.status).toBe(404)
-    expect(result.error).toMatch(/task/i)
-  })
-
-  it('returns 400 for self-dependency', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask({ id: 't1' }))
-
-    const result = await updateTeamTask('team-1', 't1', { blockedBy: ['t1'] })
+    const result = await updateTeamTask('team-1', 't1', { subject: 'X' })
 
     expect(result.status).toBe(400)
-    expect(result.error).toMatch(/itself/i)
-  })
-
-  it('returns 400 for circular dependency', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask({ id: 't1' }))
-    mockTasks.wouldCreateCycle.mockReturnValue(true)
-
-    const result = await updateTeamTask('team-1', 't1', { blockedBy: ['t2'] })
-
-    expect(result.status).toBe(400)
-    expect(result.error).toMatch(/circular/i)
-  })
-
-  it('returns 400 for invalid status', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask({ id: 't1' }))
-
-    const result = await updateTeamTask('team-1', 't1', { status: 'invalid' as any })
-
-    expect(result.status).toBe(400)
-    expect(result.error).toMatch(/status/i)
-  })
-
-  it('accepts valid status values', async () => {
-    const validStatuses = ['backlog', 'pending', 'in_progress', 'review', 'completed'] as const
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask())
-
-    for (const status of validStatuses) {
-      mockTasks.updateTask.mockResolvedValue({ task: makeTask({ status }), unblocked: [] })
-      const result = await updateTeamTask('team-1', 't1', { status })
-      expect(result.status).toBe(200)
-    }
+    expect(result.error).toMatch(/GitHub Project/i)
   })
 
   it('returns 400 for non-string blockedBy entries', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask({ id: 't1' }))
+    const team = makeTeam({ githubProject: ghProjectRef } as any)
+    mockTeams.getTeam.mockReturnValue(team)
 
     const result = await updateTeamTask('team-1', 't1', { blockedBy: [42 as any] })
 
     expect(result.status).toBe(400)
   })
 
-  it('returns 500 when updateTask throws', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask())
-    mockTasks.updateTask.mockRejectedValue(new Error('write fail'))
-
-    const result = await updateTeamTask('team-1', 't1', { subject: 'X' })
-
-    expect(result.status).toBe(500)
-  })
-
-  it('returns 404 when updateTask returns null task', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.getTask.mockReturnValue(makeTask())
-    mockTasks.updateTask.mockResolvedValue({ task: null, unblocked: [] })
+  it('returns 404 when GitHub updateTask returns null', async () => {
+    const team = makeTeam({ githubProject: ghProjectRef } as any)
+    mockTeams.getTeam.mockReturnValue(team)
+    mockGhProject.updateTask.mockResolvedValue(null)
 
     const result = await updateTeamTask('team-1', 't1', { subject: 'X' })
 
     expect(result.status).toBe(404)
+  })
+
+  it('returns 502 when GitHub updateTask throws', async () => {
+    const team = makeTeam({ githubProject: ghProjectRef } as any)
+    mockTeams.getTeam.mockReturnValue(team)
+    mockGhProject.updateTask.mockRejectedValue(new Error('GitHub API error'))
+
+    const result = await updateTeamTask('team-1', 't1', { subject: 'X' })
+
+    expect(result.status).toBe(502)
   })
 })
 
@@ -614,9 +555,11 @@ describe('updateTeamTask', () => {
 // ============================================================================
 
 describe('deleteTeamTask', () => {
-  it('deletes task successfully', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.deleteTask.mockResolvedValue(true)
+  const ghProjectRef = { owner: 'test', repo: 'test', number: 1 }
+
+  it('deletes task successfully via GitHub Project', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ githubProject: ghProjectRef } as any))
+    mockGhProject.deleteTask.mockResolvedValue(true)
 
     const result = await deleteTeamTask('team-1', 't1')
 
@@ -632,9 +575,18 @@ describe('deleteTeamTask', () => {
     expect(result.status).toBe(404)
   })
 
-  it('returns 404 when task not found', async () => {
+  it('returns 400 when team has no GitHub Project', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam())
-    mockTasks.deleteTask.mockResolvedValue(false)
+
+    const result = await deleteTeamTask('team-1', 't1')
+
+    expect(result.status).toBe(400)
+    expect(result.error).toMatch(/GitHub Project/i)
+  })
+
+  it('returns 404 when task not found on GitHub', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ githubProject: ghProjectRef } as any))
+    mockGhProject.deleteTask.mockResolvedValue(false)
 
     const result = await deleteTeamTask('team-1', 'nope')
 

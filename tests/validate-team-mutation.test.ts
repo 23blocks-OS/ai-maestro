@@ -172,13 +172,12 @@ describe('validateTeamMutation', () => {
   // --- Type validation (2 tests) ---
 
   describe('type validation', () => {
-    it('rejects invalid team type values (R1.7)', () => {
-      /** Only "open" and "closed" are valid TeamType values */
+    it('ignores invalid team type values after governance simplification (type field is ignored)', () => {
+      /** Type field is ignored post-simplification — all teams are closed regardless of input */
       const result = validateTeamMutation([], null, { name: 'ValidTeam', type: 'hybrid' }, null)
       expect(result).toEqual({
-        valid: false,
-        error: 'Invalid team type: "hybrid" (must be "closed")',
-        code: 400,
+        valid: true,
+        sanitized: { name: 'ValidTeam' },
       })
     })
 
@@ -203,7 +202,7 @@ describe('validateTeamMutation', () => {
 
   describe('COS rules', () => {
     it('accepts assigning a COS on a closed team', () => {
-      /** All teams are closed now; COS assignment should be valid */
+      /** All teams are closed now; COS assignment should be valid. Sanitized includes chiefOfStaffId (SF-034). */
       const result = validateTeamMutation(
         [],
         null,
@@ -215,12 +214,13 @@ describe('validateTeamMutation', () => {
         sanitized: {
           name: 'ClosedTeam',
           agentIds: ['agent-cos'],
+          chiefOfStaffId: 'agent-cos',
         },
       })
     })
 
     it('auto-adds COS to agentIds in the sanitized output when COS is not a member (R4.6)', () => {
-      /** If COS is not in agentIds, validateTeamMutation should add them via sanitized.agentIds */
+      /** If COS is not in agentIds, validateTeamMutation should add them via sanitized.agentIds. Sanitized includes chiefOfStaffId (SF-034). */
       const result = validateTeamMutation(
         [],
         null,
@@ -237,6 +237,7 @@ describe('validateTeamMutation', () => {
         sanitized: {
           name: 'ClosedTeam',
           agentIds: ['agent-1', 'agent-2', 'agent-cos'],
+          chiefOfStaffId: 'agent-cos',
         },
       })
     })
@@ -274,8 +275,8 @@ describe('validateTeamMutation', () => {
   // --- Multi-closed-team constraint (4 tests) ---
 
   describe('multi-closed-team constraint', () => {
-    it('rejects a normal agent that is already in another closed team (R4.1)', () => {
-      /** Normal agents can only belong to one closed team at a time */
+    it('rejects a normal agent that is already in another team (R4.1, single-team membership)', () => {
+      /** Normal agents can only belong to one team at a time (all teams are closed after governance simplification) */
       const existingTeams = [
         makeTeam({
           id: 'team-existing',
@@ -298,13 +299,13 @@ describe('validateTeamMutation', () => {
       )
       expect(result).toEqual({
         valid: false,
-        error: expect.stringContaining('agent-normal is already in closed team'),
+        error: 'Agent agent-normal is already in team "Existing Closed". Remove from that team first.',
         code: 409,
       })
     })
 
-    it('allows the MANAGER agent to be in multiple closed teams (R4.3)', () => {
-      /** MANAGER role is exempt from the one-closed-team constraint */
+    it('allows the MANAGER agent to be in multiple teams (R4.3)', () => {
+      /** MANAGER role is exempt from the single-team membership constraint. Sanitized includes chiefOfStaffId (SF-034). */
       const managerId = 'agent-manager'
       const existingTeams = [
         makeTeam({
@@ -328,12 +329,12 @@ describe('validateTeamMutation', () => {
       )
       expect(result).toEqual({
         valid: true,
-        sanitized: { name: 'New Closed Team' },
+        sanitized: { name: 'New Closed Team', chiefOfStaffId: 'agent-cos-new' },
       })
     })
 
-    it('rejects COS agent already in another closed team (G2: COS limited to 1 closed team, v2 Rule 21)', () => {
-      /** G2: COS is NOT exempt from multi-closed-team constraint — max 1 closed team */
+    it('rejects COS agent already in another team (G2: single-team membership, v2 Rule 21)', () => {
+      /** G2: COS is NOT exempt from single-team membership constraint — max 1 team */
       const cosAgentId = 'agent-promoted-cos'
       const existingTeams = [
         makeTeam({
@@ -357,13 +358,13 @@ describe('validateTeamMutation', () => {
       )
       expect(result).toEqual({
         valid: false,
-        error: expect.stringContaining('agent-promoted-cos is already in closed team'),
+        error: 'Agent agent-promoted-cos is already in team "Existing Closed". Remove from that team first.',
         code: 409,
       })
     })
 
-    it('rejects agent who is COS elsewhere from joining a new closed team (G2: max 1 closed team)', () => {
-      /** G2: An agent already COS of one closed team cannot join another closed team */
+    it('rejects agent who is COS elsewhere from joining a new team (G2: single-team membership)', () => {
+      /** G2: An agent already COS of one team cannot join another team (single-team membership) */
       const cosElsewhere = 'agent-cos-elsewhere'
       const existingTeams = [
         makeTeam({
@@ -387,7 +388,7 @@ describe('validateTeamMutation', () => {
       )
       expect(result).toEqual({
         valid: false,
-        error: expect.stringContaining('agent-cos-elsewhere is already in closed team'),
+        error: 'Agent agent-cos-elsewhere is already in team "Other Closed". Remove from that team first.',
         code: 409,
       })
     })

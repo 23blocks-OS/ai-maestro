@@ -356,7 +356,7 @@ describe('PUT /api/teams/[id]', () => {
     // Name should be updated
     expect(data.team.name).toBe('Updated Name')
     // type and chiefOfStaffId must NOT have been changed
-    expect(data.team.type).toBe('open')
+    expect(data.team.type).toBe('closed')
     // SF-038 (P8): createTeam now defaults chiefOfStaffId to null (not undefined)
     expect(data.team.chiefOfStaffId).toBeNull()
 
@@ -400,16 +400,23 @@ describe('DELETE /api/teams/[id]', () => {
     expect(res.status).toBe(404)
   })
 
-  it('deletes team and returns success', async () => {
+  it('deletes team and returns success when requested by MANAGER', async () => {
+    /** After governance simplification, all teams are closed and deletion requires MANAGER or COS identity */
     const team = await createTeam({ name: 'Delete Me', agentIds: [] })
+    vi.mocked(getManagerId).mockReturnValue('manager-agent')
 
-    const req = makeRequest(`/api/teams/${team.id}`, { method: 'DELETE' })
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'DELETE',
+      headers: { 'X-Agent-Id': 'manager-agent' },
+    })
     const res = await deleteTeamRoute(req, makeParams(team.id) as any)
 
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.success).toBe(true)
     expect(loadTeams()).toHaveLength(0)
+
+    vi.mocked(getManagerId).mockReturnValue(null)
   })
 
   // CC-006: Closed team deletion guard - non-authorized agent gets 403

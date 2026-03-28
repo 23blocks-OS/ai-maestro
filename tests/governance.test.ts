@@ -306,14 +306,14 @@ describe('isChiefOfStaffAnywhere', () => {
     expect(isChiefOfStaffAnywhere('agent-nobody')).toBe(false)
   })
 
-  it('returns false when agent is COS only on open teams', () => {
-    /** Verifies that COS designation on open teams does not count - COS is only valid on closed teams */
+  it('returns true when agent is COS on any team (all teams are closed after governance simplification)', () => {
+    /** After governance simplification all teams are closed, so COS on any team counts */
     const mockedLoadTeams = vi.mocked(loadTeams)
 
     mockedLoadTeams.mockReturnValue([
       {
-        id: 'team-open-1',
-        name: 'Open Team Alpha',
+        id: 'team-1',
+        name: 'Team Alpha',
         type: 'closed',
         agentIds: ['agent-cos-open'],
         chiefOfStaffId: 'agent-cos-open',
@@ -321,8 +321,8 @@ describe('isChiefOfStaffAnywhere', () => {
         updatedAt: '2025-01-01T00:00:00.000Z',
       },
       {
-        id: 'team-open-2',
-        name: 'Open Team Beta',
+        id: 'team-2',
+        name: 'Team Beta',
         type: 'closed',
         agentIds: ['agent-cos-open'],
         chiefOfStaffId: 'agent-cos-open',
@@ -331,6 +331,6 @@ describe('isChiefOfStaffAnywhere', () => {
       },
     ])
 
-    expect(isChiefOfStaffAnywhere('agent-cos-open')).toBe(false)
+    expect(isChiefOfStaffAnywhere('agent-cos-open')).toBe(true)
   })
 })

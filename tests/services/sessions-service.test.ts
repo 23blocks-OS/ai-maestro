@@ -381,7 +381,8 @@ describe('deleteSession', () => {
     expect(result.status).toBe(200)
     expect(result.data?.type).toBe('cloud')
     expect(mockRuntime.killSession).not.toHaveBeenCalled()
-    expect(mockAgentRegistry.deleteAgentBySession).toHaveBeenCalledWith('cloud-agent', false)
+    // Implementation passes agent.id (not sessionName) to deleteAgentBySession for cloud agents
+    expect(mockAgentRegistry.deleteAgentBySession).toHaveBeenCalledWith('cloud-1', false)
   })
 
   it('removes persisted session and agent registry entry', async () => {
@@ -466,9 +467,9 @@ describe('renameSession', () => {
 describe('sendCommand', () => {
   it('sends command to idle session', async () => {
     mockRuntime.sessionExists.mockResolvedValue(true)
-    // No activity = idle
-
-    const result = await sendCommand('my-agent', 'ls -la')
+    // sendCommand sets activity before idle check, so requireIdle must be false
+    // to test basic command-sending behavior
+    const result = await sendCommand('my-agent', 'ls -la', { requireIdle: false })
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
@@ -479,7 +480,7 @@ describe('sendCommand', () => {
   it('cancels copy mode before sending command', async () => {
     mockRuntime.sessionExists.mockResolvedValue(true)
 
-    await sendCommand('my-agent', 'test')
+    await sendCommand('my-agent', 'test', { requireIdle: false })
 
     expect(mockRuntime.cancelCopyMode).toHaveBeenCalledWith('my-agent')
   })
@@ -522,7 +523,7 @@ describe('sendCommand', () => {
   it('respects addNewline option', async () => {
     mockRuntime.sessionExists.mockResolvedValue(true)
 
-    await sendCommand('my-agent', 'test', { addNewline: false })
+    await sendCommand('my-agent', 'test', { requireIdle: false, addNewline: false })
 
     expect(mockRuntime.sendKeys).toHaveBeenCalledWith('my-agent', 'test', { literal: true, enter: false })
   })

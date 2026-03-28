@@ -62,10 +62,22 @@ export async function POST(
   )
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
 
+  const access = checkTeamAccess({ teamId: id, requestingAgentId: auth.agentId })
+  if (!access.allowed) return NextResponse.json({ error: access.reason }, { status: 403 })
+
   const team = getTeam(id)
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
   if (!team.githubProject) {
     return NextResponse.json({ error: 'Team has no GitHub project linked' }, { status: 400 })
+  }
+
+  // Kanban write: only ORCHESTRATOR, COS, or MANAGER agents can modify. Web UI (no agentId) is allowed.
+  if (auth.agentId) {
+    const { isManager, isOrchestrator, isChiefOfStaff } = await import('@/lib/governance')
+    const isWriteAllowed = isManager(auth.agentId) || isOrchestrator(auth.agentId, id) || isChiefOfStaff(auth.agentId, id)
+    if (!isWriteAllowed) {
+      return NextResponse.json({ error: 'Only ORCHESTRATOR, COS, or MANAGER can modify kanban' }, { status: 403 })
+    }
   }
 
   try {

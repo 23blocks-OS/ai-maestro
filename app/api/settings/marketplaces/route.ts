@@ -182,6 +182,11 @@ function detectPluginErrors(pluginDir: string, pluginName: string): string[] {
       const lsp = JSON.parse(require('fs').readFileSync(lspPath, 'utf-8'))
       for (const [name, config] of Object.entries(lsp as Record<string, { command?: string }>)) {
         if (config?.command) {
+          // CRITICAL: Validate command name before passing to execSync to prevent injection
+          if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r~]/.test(config.command) || config.command.length > 200) {
+            errors.push(`LSP "${name}": unsafe command name rejected: "${config.command.substring(0, 50)}"`)
+            continue
+          }
           try {
             require('child_process').execSync(`which "${config.command}"`, { stdio: 'pipe' })
           } catch {
@@ -199,6 +204,11 @@ function detectPluginErrors(pluginDir: string, pluginName: string): string[] {
       const mcp = JSON.parse(require('fs').readFileSync(mcpPath, 'utf-8'))
       for (const [name, config] of Object.entries(mcp as Record<string, { command?: string }>)) {
         if (config?.command) {
+          // CRITICAL: Validate command name before passing to execSync to prevent injection
+          if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r~]/.test(config.command) || config.command.length > 200) {
+            errors.push(`MCP "${name}": unsafe command name rejected: "${config.command.substring(0, 50)}"`)
+            continue
+          }
           try {
             require('child_process').execSync(`which "${config.command}"`, { stdio: 'pipe' })
           } catch {

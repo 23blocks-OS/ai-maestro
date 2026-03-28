@@ -280,6 +280,12 @@ HELP
     [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
     [[ -z "$plugin" ]] && { print_error "Plugin name required"; return 1; }
 
+    # CRITICAL: Reject path traversal and shell metacharacters in plugin name
+    if [[ "$plugin" =~ [/\\] ]] || [[ "$plugin" == *".."* ]] || [[ "$plugin" =~ [\;\&\|\`\$\(\)\{\}\!\#\'\"\<\>\*\?\[\]] ]]; then
+        print_error "Invalid plugin name: contains forbidden characters"
+        return 1
+    fi
+
     resolve_agent "$agent" || return 1
 
     local agent_dir
@@ -790,6 +796,12 @@ HELP
     [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
     [[ -z "$plugin" ]] && { print_error "Plugin name required"; return 1; }
 
+    # CRITICAL: Reject path traversal and shell metacharacters in plugin name
+    if [[ "$plugin" =~ [/\\] ]] || [[ "$plugin" == *".."* ]] || [[ "$plugin" =~ [\;\&\|\`\$\(\)\{\}\!\#\'\"\<\>\*\?\[\]] ]]; then
+        print_error "Invalid plugin name: contains forbidden characters"
+        return 1
+    fi
+
     resolve_agent "$agent" || return 1
 
     local agent_dir
@@ -1208,6 +1220,12 @@ HELP
 
     [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
     [[ -z "$name" ]] && { print_error "Marketplace name required"; return 1; }
+
+    # CRITICAL: Reject path traversal and shell metacharacters in marketplace name
+    if [[ "$name" =~ [/\\] ]] || [[ "$name" == *".."* ]] || [[ "$name" =~ [\;\&\|\`\$\(\)\{\}\!\#\'\"\<\>\*\?\[\]] ]]; then
+        print_error "Invalid marketplace name: contains forbidden characters"
+        return 1
+    fi
 
     resolve_agent "$agent" || return 1
 

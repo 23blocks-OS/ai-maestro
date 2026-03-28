@@ -1,8 +1,8 @@
 'use client'
 
-import { Users, ListTodo, LayoutGrid, FileText, BookOpen } from 'lucide-react'
+import { Users, ListTodo, LayoutGrid, FileText, BookOpen, FolderGit2 } from 'lucide-react'
 
-export type TeamDashboardTab = 'overview' | 'tasks' | 'kanban' | 'documents' | 'instructions'
+export type TeamDashboardTab = 'overview' | 'tasks' | 'kanban' | 'repos' | 'documents' | 'instructions'
 
 interface TeamDashboardSidebarProps {
   activeTab: TeamDashboardTab
@@ -15,6 +15,7 @@ const tabs = [
   { id: 'overview' as const, label: 'Overview', icon: Users, description: 'Team info & agents' },
   { id: 'tasks' as const, label: 'Tasks', icon: ListTodo, description: 'Task list view' },
   { id: 'kanban' as const, label: 'Kanban', icon: LayoutGrid, description: 'Drag-and-drop board' },
+  { id: 'repos' as const, label: 'Repos', icon: FolderGit2, description: 'Project repositories' },
   { id: 'documents' as const, label: 'Documents', icon: FileText, description: 'Team documents' },
   { id: 'instructions' as const, label: 'Instructions', icon: BookOpen, description: 'Team guidelines' },
 ]

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Users, Play } from 'lucide-react'
+import { ArrowLeft, Users, Play, GitBranch, ExternalLink } from 'lucide-react'
 import { useTeam } from '@/hooks/useTeam'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useTasks } from '@/hooks/useTasks'
@@ -14,6 +14,7 @@ import TeamTasksSection from '@/components/teams/TeamTasksSection'
 import TeamKanbanSection from '@/components/teams/TeamKanbanSection'
 import TeamDocumentsSection from '@/components/teams/TeamDocumentsSection'
 import TeamInstructionsSection from '@/components/teams/TeamInstructionsSection'
+import TeamReposSection from '@/components/teams/TeamReposSection'
 import { VersionChecker } from '@/components/VersionChecker'
 import type { TeamDashboardTab } from '@/components/teams/TeamDashboardSidebar'
 
@@ -73,6 +74,18 @@ export default function TeamDashboardPage() {
               <Users className="w-4 h-4 text-emerald-400" />
               <span className="text-sm font-medium text-white">{team.name}</span>
               <span className="text-xs text-gray-500">{team.agentIds.length} agent{team.agentIds.length !== 1 ? 's' : ''}</span>
+              {team.githubProject && (
+                <a
+                  href={`https://github.com/orgs/${team.githubProject.owner}/projects/${team.githubProject.number}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <GitBranch className="w-3 h-3" />
+                  Project #{team.githubProject.number}
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              )}
             </div>
           </div>
           <button
@@ -122,6 +135,12 @@ export default function TeamDashboardPage() {
               teamName={team.name}
               agents={agents}
               teamAgentIds={team.agentIds}
+            />
+          )}
+          {activeTab === 'repos' && (
+            <TeamReposSection
+              teamId={teamId}
+              githubProject={team.githubProject}
             />
           )}
           {activeTab === 'documents' && (

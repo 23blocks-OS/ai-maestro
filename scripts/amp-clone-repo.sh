@@ -69,9 +69,22 @@ if [ -z "$URL" ]; then
   exit 1
 fi
 
+# MF-022: Validate URL format before use to prevent git flag injection via --upload-pack etc.
+if [[ ! "$URL" =~ ^(https://|git://|ssh://|git@) ]]; then
+  echo "Error: Invalid repository URL '${URL}'" >&2
+  echo "URL must start with https://, git://, ssh://, or git@" >&2
+  exit 1
+fi
+
 # Derive local name from URL if not provided
 if [ -z "$LOCAL_NAME" ]; then
   LOCAL_NAME=$(basename "$URL" .git)
+fi
+
+# MF-021: Validate LOCAL_NAME contains no path traversal characters or leading dot
+if [[ "$LOCAL_NAME" == */* ]] || [[ "$LOCAL_NAME" == *\\* ]] || [[ "$LOCAL_NAME" == .* ]]; then
+  echo "Error: Invalid local name '${LOCAL_NAME}': must not contain '/', '\\', or start with '.'" >&2
+  exit 1
 fi
 
 # Get agent work directory from AI Maestro API
@@ -101,5 +114,6 @@ if [ -d "$TARGET/.git" ]; then
 fi
 
 echo "Cloning $URL to $TARGET..."
-git clone "$URL" "$TARGET"
+# MF-022: Use -- separator so URL cannot be parsed as a git flag
+git clone -- "$URL" "$TARGET"
 echo "Cloned to $TARGET"

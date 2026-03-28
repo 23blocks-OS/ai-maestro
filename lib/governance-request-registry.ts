@@ -112,7 +112,8 @@ export function listGovernanceRequests(filter?: {
     // Filter by hostId: match either source or target host
     if (filter.hostId && r.sourceHostId !== filter.hostId && r.targetHostId !== filter.hostId) return false
     // Filter by agentId: match the payload's agentId or the requestedBy field
-    if (filter.agentId && r.payload.agentId !== filter.agentId && r.requestedBy !== filter.agentId) return false
+    // SF-007: use optional chaining -- payload.agentId may be undefined for non-agent request types
+    if (filter.agentId && r.payload?.agentId !== filter.agentId && r.requestedBy !== filter.agentId) return false
     return true
   })
 }
@@ -280,8 +281,10 @@ function expirePendingRequestsInPlace(requests: GovernanceRequest[], ttlDays: nu
     if (NON_TERMINAL_STATUSES.includes(req.status)) {
       const createdAt = new Date(req.createdAt).getTime()
       if (createdAt < cutoff) {
+        // MF-002: Capture previousStatus BEFORE mutation so rejectReason records the actual prior status
+        const previousStatus = req.status
         req.status = 'rejected'
-        req.rejectReason = `Request expired (TTL: ${ttlDays}d, was: ${req.status})`
+        req.rejectReason = `Request expired (TTL: ${ttlDays}d, was: ${previousStatus})`
         req.updatedAt = new Date().toISOString()
         expired++
       }

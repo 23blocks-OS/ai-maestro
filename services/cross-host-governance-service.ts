@@ -204,17 +204,25 @@ export async function receiveCrossHostRequest(
       return false
     }
 
-    // Force status to 'pending' and clear approvals regardless of what remote sent.
+    // SF-001: Use explicit allowlist instead of spread to prevent untrusted remote fields
+    // (e.g. createdAt, rejectReason, undocumented fields) from leaking into the local store.
+    // status is always forced to 'pending' and approvals cleared regardless of what remote sent.
     // A malicious peer could send status:'executed' with pre-filled approvals to bypass the
     // dual-approval workflow. We always start received requests as 'pending' with empty approvals.
-    // The spread copies all request fields -- in Phase 2, tighten to an explicit
-    // allowlist of fields (id, type, payload, requestedBy, requestedByRole, sourceHostId, note)
-    // to prevent unknown/future fields from leaking into the local store.
+    const now = new Date().toISOString()
     file.requests.push({
-      ...request,
-      status: 'pending' as GovernanceRequestStatus,
+      id: request.id,
+      type: request.type,
+      sourceHostId: request.sourceHostId,
+      targetHostId: request.targetHostId,
+      requestedBy: request.requestedBy,
+      requestedByRole: request.requestedByRole,
+      payload: request.payload,
+      ...(request.note ? { note: request.note } : {}),
       approvals: {},
-      updatedAt: new Date().toISOString(),
+      status: 'pending' as GovernanceRequestStatus,
+      createdAt: request.createdAt,
+      updatedAt: now,
     })
     saveGovernanceRequests(file)
     return true
@@ -304,23 +312,19 @@ export async function approveCrossHostRequest(
     return { error: `Request '${requestId}' is already ${request.status}`, status: 409 }
   }
 
-  // Capture pre-approval status to detect TOCTOU race -- another caller may
-  // have transitioned the request to a terminal state between our pre-check and the
-  // lock-protected approveGovernanceRequest call below.
-  // Widen to `string` because TypeScript narrows request.status after the terminal-state
-  // pre-check above, but a concurrent writer could change it between now and the lock.
-  const preApprovalStatus: string = request.status
-
   // Record the approval and update status
   const updated = await approveGovernanceRequest(requestId, approverAgentId, approverType)
   if (!updated) {
     return { error: `Failed to approve request '${requestId}'`, status: 500 }
   }
 
-  // Post-check -- only execute if WE caused the transition to 'executed'.
-  // If the pre-read status was already terminal (race with another approver), skip execution.
-  const weTriggeredExecution =
-    preApprovalStatus !== 'executed' && preApprovalStatus !== 'rejected' && updated.status === 'executed'
+  // SF-006: Detect TOCTOU race -- only execute if WE were the approver that recorded the vote
+  // causing the transition to 'executed'. Checking preApprovalStatus is insufficient: a concurrent
+  // approver could have already executed the request inside the lock between our pre-check and the
+  // lock-protected approveGovernanceRequest call, making preApprovalStatus stale.
+  // Checking our vote was actually recorded (agentId matches) reliably identifies our causal role.
+  const weRecordedVote = updated.approvals[approverType]?.agentId === approverAgentId
+  const weTriggeredExecution = weRecordedVote && updated.status === 'executed'
 
   if (weTriggeredExecution) {
     await performRequestExecution(updated)
@@ -433,6 +437,12 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
           const team = teams.find(t => t.id === request.payload.teamId)
           if (!team) {
             console.error(`${LOG_PREFIX} Cannot execute remove-from-team: team '${request.payload.teamId}' not found`)
+            return
+          }
+          // SF-005: Guard against removing the team's COS -- doing so would leave
+          // chiefOfStaffId pointing at a non-member, creating an invalid team state.
+          if (team.chiefOfStaffId === request.payload.agentId) {
+            console.error(`${LOG_PREFIX} Cannot execute remove-from-team: agent '${request.payload.agentId}' is the team COS; unassign COS first`)
             return
           }
           team.agentIds = team.agentIds.filter(id => id !== request.payload.agentId)

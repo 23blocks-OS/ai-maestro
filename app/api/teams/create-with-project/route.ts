@@ -5,6 +5,8 @@ import { getAgent } from '@/lib/agent-registry'
 import { getManagerId } from '@/lib/governance'
 import { autoAssignRolePluginForTitle } from '@/services/role-plugin-service'
 
+export const dynamic = 'force-dynamic'
+
 interface CreateWithProjectRequest {
   name: string
   description?: string
@@ -23,8 +25,8 @@ interface CreateWithProjectRequest {
   // Orchestrator assignment (optional)
   orchestratorId?: string   // existing agent UUID
 
-  // Initial repos (optional)
-  repos?: string[]
+  // NOTE: repos field intentionally removed — repo registration is not implemented;
+  // callers should use POST /api/teams/[id]/repos after team creation.
 }
 
 // POST /api/teams/create-with-project
@@ -83,6 +85,22 @@ export async function POST(request: NextRequest) {
 
     // Set GitHub project link if provided
     if (body.githubProject) {
+      // Validate githubProject fields to prevent shell injection via gh CLI
+      const safeOwnerRepo = /^[a-zA-Z0-9_.-]+$/
+      if (
+        typeof body.githubProject.owner !== 'string' ||
+        !safeOwnerRepo.test(body.githubProject.owner) ||
+        typeof body.githubProject.repo !== 'string' ||
+        !safeOwnerRepo.test(body.githubProject.repo) ||
+        typeof body.githubProject.number !== 'number' ||
+        !Number.isInteger(body.githubProject.number) ||
+        body.githubProject.number < 1
+      ) {
+        return NextResponse.json(
+          { error: 'githubProject.owner and repo must be alphanumeric, number must be a positive integer' },
+          { status: 400 }
+        )
+      }
       const { updateTeam } = await import('@/lib/team-registry')
       await updateTeam(team.id, { githubProject: body.githubProject })
     }
@@ -121,7 +139,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[create-with-project] Error:', error)
     return NextResponse.json(
-      { error: `Failed to create team: ${(error as Error).message}` },
+      { error: 'Failed to create team' },
       { status: 500 }
     )
   }

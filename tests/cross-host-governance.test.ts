@@ -499,6 +499,8 @@ describe('approveCrossHostRequest', () => {
     const executedRequest = makeGovernanceRequest({
       status: 'executed',
       payload: { agentId: 'agent-target-001', teamId: 'team-backend-001' },
+      // SF-006: approvals must record the approver so weRecordedVote check passes
+      approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2025-06-01T10:00:00.000Z' } } as any,
     })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
@@ -642,6 +644,8 @@ describe('performRequestExecution (via approve flow)', () => {
       type: 'add-to-team',
       status: 'executed',
       payload: { agentId: 'new-remote-agent', teamId: 'team-alpha' },
+      // SF-006: approvals must record the approver so weRecordedVote check passes
+      approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2025-06-01T10:00:00.000Z' } } as any,
     })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
@@ -675,6 +679,8 @@ describe('performRequestExecution (via approve flow)', () => {
       type: 'remove-from-team',
       status: 'executed',
       payload: { agentId: 'agent-a2', teamId: 'team-beta' },
+      // SF-006: approvals must record the approver so weRecordedVote check passes
+      approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2025-06-01T10:00:00.000Z' } } as any,
     })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
@@ -709,6 +715,8 @@ describe('performRequestExecution (via approve flow)', () => {
       type: 'assign-cos',
       status: 'executed',
       payload: { agentId: 'new-cos-agent', teamId: 'team-gamma' },
+      // SF-006: approvals must record the approver so weRecordedVote check passes
+      approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2025-06-01T10:00:00.000Z' } } as any,
     })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
@@ -744,6 +752,8 @@ describe('performRequestExecution (via approve flow)', () => {
       type: 'remove-cos',
       status: 'executed',
       payload: { agentId: 'old-cos-agent', teamId: 'team-delta' },
+      // SF-006: approvals must record the approver so weRecordedVote check passes
+      approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2025-06-01T10:00:00.000Z' } } as any,
     })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
@@ -777,6 +787,8 @@ describe('performRequestExecution (via approve flow)', () => {
       type: 'transfer-agent',
       status: 'executed',
       payload: { agentId: 'transfer-agent', teamId: 'team-dest', fromTeamId: 'team-src', toTeamId: 'team-dest' },
+      // SF-006: approvals must record the approver so weRecordedVote check passes
+      approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2025-06-01T10:00:00.000Z' } } as any,
     })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)

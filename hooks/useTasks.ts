@@ -25,27 +25,31 @@ export function useTasks(teamId: string | null): UseTasksResult {
   const [error, setError] = useState<string | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (signal?: AbortSignal) => {
     if (!teamId) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/tasks`)
+      const res = await fetch(`/api/teams/${teamId}/tasks`, signal ? { signal } : undefined)
       if (!res.ok) throw new Error('Failed to fetch tasks')
       const data = await res.json()
       setTasks(data.tasks || [])
       setError(null)
     } catch (err) {
+      // MF-019: ignore abort errors — they are expected on teamId change
+      if (err instanceof Error && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks')
     }
   }, [teamId])
 
-  // Initial fetch
+  // Initial fetch — MF-019: use AbortController so stale inflight fetches are cancelled on teamId change
   useEffect(() => {
     if (!teamId) {
       setTasks([])
       return
     }
+    const controller = new AbortController()
     setLoading(true)
-    fetchTasks().finally(() => setLoading(false))
+    fetchTasks(controller.signal).finally(() => setLoading(false))
+    return () => { controller.abort() }
   }, [teamId, fetchTasks])
 
   // Poll every 5s for multi-tab sync

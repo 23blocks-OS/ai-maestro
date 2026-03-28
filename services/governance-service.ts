@@ -153,6 +153,9 @@ export async function setGovernancePassword(params: {
   }
 
   await setPassword(password)
+  // SF-004: `config` was loaded before setPassword() updated the hash, so config.passwordHash
+  // reflects the PRE-update state. `isChange` is true when a password *was already set* (being
+  // changed), false when this is the first time a password is set. This is intentional.
   const isChange = !!config.passwordHash
   if (isChange) {
     console.log('[governance] Password changed at', new Date().toISOString())

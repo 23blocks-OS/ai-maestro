@@ -106,12 +106,14 @@ export interface KanbanFieldIds {
 // Helpers
 // ============================================================================
 
-/** Sanitize a value for safe shell interpolation — reject shell metacharacters + length limit */
+/** Sanitize a value for safe shell interpolation — reject shell metacharacters, whitespace, forward slash, and length limit */
 function shellSafe(value: string): string {
   if (value.length > 2000) {
     throw new Error(`Input too long (${value.length} chars, max 2000)`)
   }
-  if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r~]/.test(value)) {
+  // Reject shell metacharacters, whitespace (prevents argument injection via spaces),
+  // and forward slash (prevents path traversal in URL/path interpolation sites).
+  if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r~\s/]/.test(value)) {
     throw new Error(`Unsafe shell characters in value: "${value.substring(0, 50)}"`)
   }
   return value
@@ -141,14 +143,14 @@ function ghApi<T>(endpoint: string, method = 'GET', body?: Record<string, unknow
   shellSafe(endpoint)
   shellSafe(method)
   let cmd = `api "${endpoint}"`
-  if (method !== 'GET') cmd += ` -X ${method}`
+  if (method !== 'GET') cmd += ` -X "${method}"`
   if (body) {
     // Pass body fields as -f flags for simple values
     for (const [key, value] of Object.entries(body)) {
       shellSafe(key)
       if (typeof value === 'string') {
         shellSafe(value)
-        cmd += ` -f ${key}="${value}"`
+        cmd += ` -f "${key}=${value}"`
       } else if (typeof value === 'boolean' || typeof value === 'number') {
         cmd += ` -F ${key}=${value}`
       }
@@ -221,7 +223,7 @@ export function listIdentities(): string[] {
 /** Switch active GitHub identity */
 export function switchIdentity(username: string): void {
   shellSafe(username)
-  gh(`auth switch --user ${username}`)
+  gh(`auth switch --user "${username}"`)
 }
 
 /** Ensure a specific identity is active. Throws if not authenticated. */
@@ -252,7 +254,7 @@ export function hasProjectScope(): boolean {
 /** List repositories for owner (user or org). Defaults to authenticated user. */
 export function listRepos(owner?: string): GhRepo[] {
   if (owner) shellSafe(owner)
-  const ownerArg = owner ? ` ${owner}` : ''
+  const ownerArg = owner ? ` "${owner}"` : ''
   const items = ghJson<Array<{
     name: string
     url: string
@@ -683,6 +685,8 @@ export function moveProjectItem(
   fieldIds: KanbanFieldIds
 ): void {
   shellSafe(owner)
+  shellSafe(itemId)
+  shellSafe(statusValue)
   const optionId = fieldIds.statusOptions[statusValue]
   if (!optionId) {
     throw new Error(`Unknown status column: '${statusValue}'. Valid: ${Object.keys(fieldIds.statusOptions).join(', ')}`)
@@ -773,7 +777,7 @@ export function listPRs(owner: string, repo: string, state?: 'open' | 'closed' |
   shellSafe(owner)
   shellSafe(repo)
   let cmd = `pr list -R "${owner}/${repo}" --json number,title,author,state,url`
-  if (state) cmd += ` --state ${state}`
+  if (state) cmd += ` --state "${shellSafe(state)}"`
   const items = ghJson<Array<{
     number: number
     title: string

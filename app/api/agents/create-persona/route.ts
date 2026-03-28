@@ -39,6 +39,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // MF-024: Validate personaName format — same regex as create-from-toml/route.ts
+    const PERSONA_NAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
+    if (!PERSONA_NAME_RE.test(body.personaName)) {
+      return NextResponse.json(
+        { error: 'personaName must match ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ (lowercase alphanumeric and hyphens, no leading/trailing hyphens)' },
+        { status: 400 },
+      )
+    }
+
     if (body.tomlContent !== undefined && typeof body.tomlContent !== 'string') {
       return NextResponse.json(
         { error: 'tomlContent must be a string if provided' },

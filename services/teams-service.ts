@@ -36,6 +36,7 @@ import type { TeamDocument } from '@/types/document'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
 import { getManagerId, isManager, isChiefOfStaffAnywhere, verifyPassword, loadGovernance } from '@/lib/governance'
+import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { checkTeamAccess } from '@/lib/team-acl'
 import { isValidUuid } from '@/lib/validation'
 import type { TeamType } from '@/types/governance'
@@ -316,9 +317,18 @@ export async function deleteTeamById(id: string, requestingAgentId?: string, pas
     if (!password || typeof password !== 'string') {
       return { error: 'Team deletion requires governance password', status: 400 }
     }
+    // MF-001: Apply rate limiting to prevent brute-force of governance password, consistent
+    // with setManagerRole and setGovernancePassword in governance-service.ts.
+    const rateLimitKey = `team-delete-password:${id}`
+    const rateCheck = checkAndRecordAttempt(rateLimitKey)
+    if (!rateCheck.allowed) {
+      const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
+      return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
+    }
     if (!(await verifyPassword(password))) {
       return { error: 'Invalid governance password', status: 401 }
     }
+    resetRateLimit(rateLimitKey)
   }
 
   // Governance: team deletion requires MANAGER or Chief-of-Staff authority

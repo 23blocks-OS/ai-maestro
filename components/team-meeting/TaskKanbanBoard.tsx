@@ -366,7 +366,7 @@ interface EnhancedColumnProps {
   selectedCardId: string | null
   menuOpen: boolean
   colorPickerOpen: boolean
-  onDrop: (taskId: string, status: string) => void
+  onDrop: (taskId: string, status: string) => void | Promise<void>
   onSelectTask: (task: TaskWithDeps) => void
   onQuickAdd: (status: string) => void
   onFilterChange: (value: string) => void
@@ -389,6 +389,11 @@ function EnhancedColumn({
 }: EnhancedColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
+  // MF-016: Clear stale drag-over highlight when column collapses
+  useEffect(() => {
+    if (state.collapsed) setIsDragOver(false)
+  }, [state.collapsed])
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
@@ -400,11 +405,18 @@ function EnhancedColumn({
     setIsDragOver(false)
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
     const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) onDrop(taskId, colId)
+    // MF-018: await onDrop so errors surface instead of being silently swallowed
+    if (taskId) {
+      try {
+        await onDrop(taskId, colId)
+      } catch (err) {
+        console.error('Drop failed', err)
+      }
+    }
   }
 
   // Collapsed view: header + count only
@@ -648,21 +660,17 @@ function IssueBrowserModal({ teamId, columns, onCreateTask, onClose }: IssueBrow
     if (!selectedRepo) { setIssues([]); return }
     let cancelled = false
     setLoadingIssues(true)
-    // Parse owner/repo from nameWithOwner format
-    const [owner, repo] = selectedRepo.includes('/') ? selectedRepo.split('/') : ['', selectedRepo]
-    fetch(`/api/github/repos?owner=${encodeURIComponent(owner)}`)
-      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load issues')))
-      .then(data => {
-        if (!cancelled) {
-          // The repos endpoint returns repos; we look for issues in the selected one
-          // For now, show the repo list -- issues would need a dedicated endpoint
-          // Use a generic approach: try to fetch issues via gh CLI proxy
-          return fetch(`/api/github/issues?repo=${encodeURIComponent(selectedRepo)}&state=open`)
-        }
-      })
+    // MF-017: Parse owner/repo from nameWithOwner format; guard against empty owner
+    const [owner] = selectedRepo.includes('/') ? selectedRepo.split('/') : ['', selectedRepo]
+    if (!owner) {
+      setIssues([])
+      setLoadingIssues(false)
+      return
+    }
+    // MF-017: Call issues endpoint directly — no spurious repos fetch
+    fetch(`/api/github/issues?repo=${encodeURIComponent(selectedRepo)}&state=open`)
       .then(r => {
-        if (r && r.ok) return r.json()
-        // If issues endpoint doesn't exist, return empty
+        if (r.ok) return r.json()
         return { issues: [] }
       })
       .then(data => {

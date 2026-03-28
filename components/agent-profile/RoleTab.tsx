@@ -77,7 +77,7 @@ export default function RoleTab({
     try {
       // Uninstall current role plugin before installing the new one
       if (config.rolePlugin) {
-        await fetch('/api/agents/role-plugins/install', {
+        const uninstallRes = await fetch('/api/agents/role-plugins/install', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -86,6 +86,11 @@ export default function RoleTab({
             marketplaceName: config.rolePlugin.marketplace,
           }),
         })
+        // MF-025: abort if uninstall failed to avoid dual conflicting role plugins
+        if (!uninstallRes.ok) {
+          console.error('[RoleTab] Uninstall failed, aborting switch to prevent conflicting role plugins')
+          return
+        }
       }
       // Install the selected role plugin, passing its marketplace origin (explicit scope: 'local' for defense-in-depth)
       const newPlugin = availablePlugins.find(p => p.name === pluginName)

@@ -111,8 +111,10 @@ if [ -z "$TEAM_ID" ]; then
 fi
 
 if [ -n "$TEAM_ID" ]; then
+  # MF-020: Use jq for JSON construction to prevent injection via special chars in values
+  REGISTER_BODY=$(jq -n --arg url "$REPO_URL" --arg name "$NAME" '{url: $url, name: $name}')
   curl -sf -X POST "$API/api/teams/$TEAM_ID/repos" \
     -H "Content-Type: application/json" \
-    -d "{\"url\": \"$REPO_URL\", \"name\": \"$NAME\"}" >/dev/null 2>&1 || true
+    -d "$REGISTER_BODY" >/dev/null 2>&1 || true
   echo "Registered with team $TEAM_ID"
 fi

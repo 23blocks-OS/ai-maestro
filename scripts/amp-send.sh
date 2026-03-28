@@ -480,6 +480,9 @@ if [ "$ROUTE" = "local" ]; then
             save_to_sent "$MESSAGE_JSON" >/dev/null
             MSG_ID=$(echo "$MESSAGE_JSON" | jq -r '.envelope.id')
 
+            # MF-023: Validate MSG_ID before using as filesystem path to prevent path traversal
+            validate_message_id "$MSG_ID"
+
             RECIPIENT_INBOX="${RECIPIENT_AMP_DIR}/messages/inbox"
             FROM_ADDR=$(echo "$MESSAGE_JSON" | jq -r '.envelope.from')
             SENDER_DIR=$(sanitize_address_for_path "$FROM_ADDR")
@@ -632,6 +635,9 @@ if [ "$ROUTE" = "local" ]; then
                 # Recipient IS on this machine - filesystem delivery is valid
                 save_to_sent "$MESSAGE_JSON" >/dev/null
                 MSG_ID=$(echo "$MESSAGE_JSON" | jq -r '.envelope.id')
+
+                # MF-023: Validate MSG_ID before using as filesystem path to prevent path traversal
+                validate_message_id "$MSG_ID"
 
                 RECIPIENT_INBOX="${RECIPIENT_AMP_DIR}/messages/inbox"
                 FROM_ADDR=$(echo "$MESSAGE_JSON" | jq -r '.envelope.from')

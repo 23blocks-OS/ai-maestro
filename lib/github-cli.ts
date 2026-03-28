@@ -563,6 +563,7 @@ export function createProjectField(
   }
 
   // Simple field via CLI (TEXT, NUMBER, DATE, ITERATION)
+  shellSafe(dataType)
   gh(`project field-create ${number} --owner "${owner}" --name "${name}" --data-type ${dataType.toLowerCase()}`)
   // Re-fetch project to get the field ID (CLI doesn't return it in parseable format)
   const updatedProject = getProject(owner, number)

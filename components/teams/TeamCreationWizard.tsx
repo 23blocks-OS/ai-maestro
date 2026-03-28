@@ -314,7 +314,7 @@ export default function TeamCreationWizard({
         payload.orchestratorId = data.orchestratorAgentId
       }
 
-      const res = await fetch('/api/teams', {
+      const res = await fetch('/api/teams/create-with-project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

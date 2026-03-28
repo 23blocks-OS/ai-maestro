@@ -20,7 +20,7 @@ export async function GET(
 
   // Validate workDir: must be absolute, no shell metacharacters, must exist
   const { existsSync, statSync } = await import('fs')
-  if (!workDir.startsWith('/') || /[;&|`$(){}]/.test(workDir)) {
+  if (!workDir.startsWith('/') || /[;&|`$(){}!#'"\\<>*?\[\]\n\r~]/.test(workDir) || workDir.length > 2000) {
     return NextResponse.json({ error: 'Invalid working directory' }, { status: 400 })
   }
   if (!existsSync(workDir) || !statSync(workDir).isDirectory()) {

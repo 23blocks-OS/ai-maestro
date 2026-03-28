@@ -13,6 +13,10 @@ export async function PATCH(
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
   }
+  // Validate itemId — GitHub project item IDs are like "PVTI_xxx", not UUIDs
+  if (!itemId || typeof itemId !== 'string' || itemId.length > 100) {
+    return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')
@@ -70,6 +74,10 @@ export async function DELETE(
   const { id, itemId } = await params
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
+  }
+  // Validate itemId — GitHub project item IDs are like "PVTI_xxx", not UUIDs
+  if (!itemId || typeof itemId !== 'string' || itemId.length > 100) {
+    return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 })
   }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),

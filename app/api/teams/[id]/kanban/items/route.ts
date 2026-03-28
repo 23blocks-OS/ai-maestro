@@ -74,6 +74,10 @@ export async function POST(
 
     // Default repo from project owner
     const targetRepo = repo || `${team.githubProject.owner}/${team.githubProject.repo}`
+    // Validate targetRepo format — must be "owner/name" with no shell metacharacters
+    if (!targetRepo || !targetRepo.includes('/') || /[;&|`$(){}!#'"\\<>*?\[\]\n\r~]/.test(targetRepo)) {
+      return NextResponse.json({ error: 'Invalid repo format (expected owner/name)' }, { status: 400 })
+    }
     const [owner, repoName] = targetRepo.split('/')
 
     // Create issue

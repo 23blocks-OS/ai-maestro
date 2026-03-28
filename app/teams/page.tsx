@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Users } from 'lucide-react'
 import TeamListCard from '@/components/teams/TeamListCard'
+import TeamCreationWizard from '@/components/teams/TeamCreationWizard'
 import { VersionChecker } from '@/components/VersionChecker'
 import type { Team } from '@/types/team'
 
@@ -18,10 +19,6 @@ export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamWithCounts[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [newTeamName, setNewTeamName] = useState('')
-  const [newTeamDescription, setNewTeamDescription] = useState('')
-  const [newTeamGithubUrl, setNewTeamGithubUrl] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [reservedNames, setReservedNames] = useState<{ teamNames: string[]; agentNames: string[] }>({ teamNames: [], agentNames: [] })
@@ -71,15 +68,12 @@ export default function TeamsPage() {
     }
   }, [creating])
 
-  // Close Create Team dialog on Escape key pressed anywhere in the document
+  // Escape key closes wizard (wizard also handles this internally)
   useEffect(() => {
     if (!creating) return
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setCreating(false)
-        setNewTeamName('')
-        setNewTeamDescription('')
-        setNewTeamGithubUrl('')
         setCreateError(null)
         setNameValidation({ error: null, warning: null })
       }
@@ -87,87 +81,6 @@ export default function TeamsPage() {
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [creating])
-
-  // Real-time team name validation (runs on every keystroke)
-  // NT-023: This runs synchronously on every keystroke which is fine for the current
-  // regex + array.find() checks. If validation becomes async (e.g. server-side uniqueness
-  // check), debounce should be added here. Deferred to Phase 2.
-  const validateTeamName = useCallback((raw: string) => {
-    // Same sanitization as server-side sanitizeTeamName()
-    const clean = raw.replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim()
-
-    if (clean.length === 0) {
-      setNameValidation({ error: null, warning: null })
-      return
-    }
-    if (clean.length < 4) {
-      setNameValidation({ error: 'Team name must be at least 4 characters', warning: null })
-      return
-    }
-    if (clean.length > 64) {
-      setNameValidation({ error: 'Team name must be at most 64 characters', warning: null })
-      return
-    }
-    if (!/^[a-zA-Z0-9]/.test(clean)) {
-      setNameValidation({ error: 'Team name must start with a letter or number', warning: null })
-      return
-    }
-    if (/[^\w \-.&()]/.test(clean)) {
-      setNameValidation({ error: 'Only letters, numbers, spaces, hyphens, underscores, dots, ampersands, and parentheses are allowed', warning: null })
-      return
-    }
-
-    // Duplicate team name check (case-insensitive)
-    const lowerName = clean.toLowerCase()
-    const teamDupe = reservedNames.teamNames.find(n => n.toLowerCase() === lowerName)
-    if (teamDupe) {
-      setNameValidation({ error: `A team named "${teamDupe}" already exists`, warning: null })
-      return
-    }
-
-    // Agent name collision check (case-insensitive)
-    const agentDupe = reservedNames.agentNames.find(n => n.toLowerCase() === lowerName)
-    if (agentDupe) {
-      setNameValidation({ error: `Name "${agentDupe}" is already used by an agent`, warning: null })
-      return
-    }
-
-    setNameValidation({ error: null, warning: null })
-  }, [reservedNames])
-
-  const handleCreateTeam = async () => {
-    if (!newTeamName.trim() || submitting || nameValidation.error) return
-    setSubmitting(true)
-    setCreateError(null)
-    try {
-      const res = await fetch('/api/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newTeamName.trim(),
-          description: newTeamDescription.trim() || undefined,
-          githubProjectUrl: newTeamGithubUrl.trim() || undefined,
-          agentIds: [],
-        }),
-      })
-      if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Failed to create team')
-      }
-      const data = await res.json()
-      setNewTeamName('')
-      setNewTeamDescription('')
-      setNewTeamGithubUrl('')
-      setCreating(false)
-      router.push(`/teams/${data.team.id}`)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create team'
-      setCreateError(msg)
-      console.error('Failed to create team:', err)
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   const handleDelete = async (teamId: string) => {
     try {
@@ -247,87 +160,13 @@ export default function TeamsPage() {
         )}
       </div>
 
-      {/* Create Team Dialog */}
-      {creating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          {/* SF-012: Add dialog role and aria attributes for screen readers */}
-          <div role="dialog" aria-modal="true" aria-labelledby="create-team-title" className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4">
-            <h4 id="create-team-title" className="text-sm font-medium text-white mb-4">Create Team</h4>
-            {submitting ? (
-              <div className="flex items-center gap-3 py-4">
-                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm text-gray-300">Creating team...</span>
-              </div>
-            ) : (
-              <>
-                {/* Team name */}
-                <label className="text-xs text-gray-500 mb-1 block">Name</label>
-                <p className="text-xs text-gray-600 mb-1">4-64 characters. Letters, numbers, spaces, hyphens, dots allowed. Must be unique.</p>
-                <input
-                  type="text"
-                  value={newTeamName}
-                  onChange={e => { setNewTeamName(e.target.value); setCreateError(null); validateTeamName(e.target.value) }}
-                  placeholder="Team name..."
-                  aria-label="Team name"
-                  className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-sm text-white focus:outline-none mb-1 ${
-                    nameValidation.error ? 'border-red-500 focus:border-red-500' : createError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-emerald-500'
-                  }`}
-                  autoFocus
-                  onKeyDown={e => { if (e.key === 'Enter' && !nameValidation.error) handleCreateTeam(); if (e.key === 'Escape') { setCreating(false); setNewTeamName(''); setCreateError(null) } }}
-                />
-                {nameValidation.error && (
-                  <p className="text-xs text-red-400 mb-1 flex items-center gap-1">
-                    <span className="text-red-500">&#x26A0;</span> {nameValidation.error}
-                  </p>
-                )}
-                {createError && !nameValidation.error && (
-                  <p className="text-xs text-red-400 mb-1">{createError}</p>
-                )}
-                {!nameValidation.error && !createError && newTeamName.trim().length >= 4 && (
-                  <p className="text-xs text-emerald-400 mb-1">Name is available</p>
-                )}
-
-                {/* Description */}
-                <label className="text-xs text-gray-500 mt-2 mb-1 block">Description (optional)</label>
-                <textarea
-                  value={newTeamDescription}
-                  onChange={e => setNewTeamDescription(e.target.value)}
-                  placeholder="What does this team work on?"
-                  aria-label="Team description"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 mb-1 resize-none"
-                  rows={2}
-                />
-
-                {/* GitHub Project URL */}
-                <label className="text-xs text-gray-500 mt-2 mb-1 block">GitHub Project URL (optional)</label>
-                <input
-                  type="url"
-                  value={newTeamGithubUrl}
-                  onChange={e => setNewTeamGithubUrl(e.target.value)}
-                  placeholder="https://github.com/orgs/.../projects/..."
-                  aria-label="GitHub project URL"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 mb-1"
-                />
-                <div className="flex justify-end gap-2 mt-2">
-                  <button
-                    onClick={() => { setCreating(false); setNewTeamName(''); setNewTeamDescription(''); setNewTeamGithubUrl(''); setCreateError(null); setNameValidation({ error: null, warning: null }) }}
-                    className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateTeam}
-                    disabled={!newTeamName.trim() || !!nameValidation.error}
-                    className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors disabled:opacity-50"
-                  >
-                    Create
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Team Creation Wizard */}
+      <TeamCreationWizard
+        isOpen={creating}
+        onClose={() => { setCreating(false); setCreateError(null); setNameValidation({ error: null, warning: null }) }}
+        onCreated={(teamId) => { setCreating(false); router.push(`/teams/${teamId}`) }}
+        reservedNames={reservedNames}
+      />
 
       {/* Delete Confirmation */}
       {deleteConfirm && (

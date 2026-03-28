@@ -284,7 +284,7 @@ export async function createTeam(
 
 export async function updateTeam(
   id: string,
-  updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId' | 'githubProject' | 'kanbanConfig'>>,
+  updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId' | 'orchestratorId' | 'githubProject' | 'kanbanConfig'>>,
   managerId?: string | null,
   reservedNames?: string[]
 ): Promise<Team | null> {

@@ -1,95 +1,52 @@
-/**
- * Agent Repos API
- *
- * GET    /api/agents/[id]/repos — Get agent repositories
- * POST   /api/agents/[id]/repos — Add/update repositories
- * DELETE /api/agents/[id]/repos?url=X — Remove a repository
- *
- * Thin wrapper — business logic in services/agents-repos-service.ts
- */
+import { NextRequest, NextResponse } from 'next/server'
+import { getAgent } from '@/lib/agent-registry'
+import { execSync } from 'child_process'
 
-import { NextResponse } from 'next/server'
-import { listRepos, updateRepos, removeRepo } from '@/services/agents-repos-service'
-import { isValidUuid } from '@/lib/validation'
-
+// GET /api/agents/[id]/repos — Scan agent's working directory for git repos
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
-    if (!isValidUuid(id)) {
-      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-    }
-    const result = listRepos(id)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
-  } catch (error) {
-    console.error('Error getting agent repos:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get repositories' },
-      { status: 500 }
-    )
+  const { id } = await params
+  const agent = getAgent(id)
+  if (!agent) {
+    return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
   }
-}
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
-    if (!isValidUuid(id)) {
-      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-    }
-    let body
-    try { body = await request.json() } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
-    const result = updateRepos(id, body)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
-  } catch (error) {
-    console.error('Error updating agent repos:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update repositories' },
-      { status: 500 }
-    )
+  const workDir = agent.workingDirectory
+  if (!workDir) {
+    return NextResponse.json({ repos: [], message: 'No working directory set' })
   }
-}
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
   try {
-    const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
-    if (!isValidUuid(id)) {
-      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-    }
-    const { searchParams } = new URL(request.url)
-    const remoteUrl = searchParams.get('url')
+    // Find .git directories up to 2 levels deep
+    const gitDirs = execSync(
+      `find "${workDir}" -maxdepth 3 -name .git -type d 2>/dev/null`,
+      { encoding: 'utf-8', timeout: 5000 }
+    ).trim().split('\n').filter(Boolean)
 
-    if (!remoteUrl) {
-      return NextResponse.json({ error: 'url parameter required' }, { status: 400 })
-    }
+    const repos = gitDirs.map(gitDir => {
+      const repoDir = gitDir.replace(/\/\.git$/, '')
+      const name = repoDir.split('/').pop() || ''
+      let remote = ''
+      let branch = ''
+      let dirty = 0
+      try {
+        remote = execSync(`git -C "${repoDir}" remote get-url origin 2>/dev/null`, { encoding: 'utf-8' }).trim()
+      } catch { /* no remote */ }
+      try {
+        branch = execSync(`git -C "${repoDir}" branch --show-current 2>/dev/null`, { encoding: 'utf-8' }).trim()
+      } catch { /* detached */ }
+      try {
+        dirty = execSync(`git -C "${repoDir}" status --porcelain 2>/dev/null`, { encoding: 'utf-8' }).trim().split('\n').filter(Boolean).length
+      } catch { /* error */ }
+      return { path: repoDir, name, remote, branch, dirty }
+    })
 
-    const result = removeRepo(id, remoteUrl)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return NextResponse.json({ repos })
   } catch (error) {
-    console.error('Error removing repo:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to remove repository' },
+      { error: `Repo scan failed: ${(error as Error).message}` },
       { status: 500 }
     )
   }

@@ -397,7 +397,7 @@ describe('getTeamFromAnyHost', () => {
       {
         id: 'local-team-42',
         name: 'Ops Team',
-        type: 'open',
+        type: 'closed',
         chiefOfStaffId: null,
         agentIds: ['a1', 'a2'],
         createdAt: '2025-06-01T00:00:00Z',

@@ -1363,7 +1363,7 @@ describe('config notifications', () => {
     mockLoadTeams.mockReturnValue([{
       id: 'team-1',
       name: 'Test Team',
-      type: 'open',
+      type: 'closed',
       agentIds: [],
       chiefOfStaffId: null,
       createdAt: '2026-01-01T00:00:00.000Z',

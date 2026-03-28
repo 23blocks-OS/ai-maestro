@@ -45,7 +45,7 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
     id: 'team-default',
     name: 'Default Team',
-    type: 'open' as const,
+    type: 'closed' as const,
     agentIds: [],
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
@@ -177,13 +177,13 @@ describe('validateTeamMutation', () => {
       const result = validateTeamMutation([], null, { name: 'ValidTeam', type: 'hybrid' }, null)
       expect(result).toEqual({
         valid: false,
-        error: 'Invalid team type: "hybrid" (must be "open" or "closed")',
+        error: 'Invalid team type: "hybrid" (must be "closed")',
         code: 400,
       })
     })
 
-    it('auto-downgrades closed team without COS to open (G5: COS-closed invariant R1.3/R1.4)', () => {
-      /** G5 (v2 Rule 14): When a closed team loses its COS, it is automatically downgraded to open */
+    it('accepts closed team without COS (all teams are closed after governance simplification)', () => {
+      /** All teams are now closed by default - no auto-downgrade to open */
       const result = validateTeamMutation(
         [],
         null,
@@ -194,7 +194,6 @@ describe('validateTeamMutation', () => {
         valid: true,
         sanitized: {
           name: 'SecureTeam',
-          type: 'open',
         },
       })
     })
@@ -203,18 +202,20 @@ describe('validateTeamMutation', () => {
   // --- COS rules (2 tests) ---
 
   describe('COS rules', () => {
-    it('rejects assigning a COS on an open team (R1.8)', () => {
-      /** COS is only valid on closed teams; open teams cannot have one */
+    it('accepts assigning a COS on a closed team', () => {
+      /** All teams are closed now; COS assignment should be valid */
       const result = validateTeamMutation(
         [],
         null,
-        { name: 'OpenTeam', type: 'open', chiefOfStaffId: 'agent-cos' },
+        { name: 'ClosedTeam', type: 'closed', chiefOfStaffId: 'agent-cos' },
         null,
       )
       expect(result).toEqual({
-        valid: false,
-        error: 'Cannot assign a Chief-of-Staff to an open team (change type to closed first)',
-        code: 400,
+        valid: true,
+        sanitized: {
+          name: 'ClosedTeam',
+          agentIds: ['agent-cos'],
+        },
       })
     })
 

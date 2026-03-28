@@ -102,7 +102,7 @@ function makeSyncMessage(overrides: Partial<GovernanceSyncMessage> = {}): Govern
         {
           id: 'team-remote-1',
           name: 'Remote Alpha',
-          type: 'open',
+          type: 'closed',
           chiefOfStaffId: null,
           agentIds: ['agent-r1', 'agent-r2'],
         },
@@ -146,7 +146,7 @@ describe('buildLocalGovernanceSnapshot', () => {
     const team2 = makeTeam({
       id: 'team-frontend-002',
       name: 'Frontend Crew',
-      type: 'open',
+      type: 'closed',
       agentIds: ['agent-f1'],
       chiefOfStaffId: null,
     })
@@ -172,7 +172,7 @@ describe('buildLocalGovernanceSnapshot', () => {
     expect(snapshot.teams[1]).toEqual({
       id: 'team-frontend-002',
       name: 'Frontend Crew',
-      type: 'open',
+      type: 'closed',
       chiefOfStaffId: null,
       agentIds: ['agent-f1'],
     })
@@ -412,7 +412,7 @@ describe('handleGovernanceSyncMessage', () => {
         managerId: null,
         managerName: null,
         teams: [
-          { id: 't1', name: 'Team One', type: 'open', chiefOfStaffId: null, agentIds: ['a1'] },
+          { id: 't1', name: 'Team One', type: 'closed', chiefOfStaffId: null, agentIds: ['a1'] },
         ],
       },
     }

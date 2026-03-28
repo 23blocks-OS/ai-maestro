@@ -893,6 +893,7 @@ async function migrateDefaultPluginSettings(): Promise<void> {
 const TITLE_PLUGIN_MAP: Record<string, string> = {
   'manager': 'ai-maestro-assistant-manager-agent',
   'chief-of-staff': 'ai-maestro-chief-of-staff',
+  'orchestrator': 'ai-maestro-orchestrator-agent',
 }
 
 /**
@@ -912,7 +913,7 @@ export function getRequiredPluginForTitle(title: string): string | null {
  * Returns the installed plugin name, or null if no auto-assignment needed (MEMBER).
  */
 export async function autoAssignRolePluginForTitle(
-  title: 'manager' | 'chief-of-staff' | 'member',
+  title: 'manager' | 'chief-of-staff' | 'orchestrator' | 'member',
   agentId: string
 ): Promise<string | null> {
   const requiredPlugin = TITLE_PLUGIN_MAP[title]

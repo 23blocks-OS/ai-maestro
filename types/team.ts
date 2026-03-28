@@ -51,6 +51,7 @@ export interface Team {
   type: TeamType           // Always 'closed' — all teams use isolated messaging + ACL
                            // Kept for backward compat with serialized data; always 'closed' at runtime
   chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (every team must have one)
+  orchestratorId?: string | null // Agent UUID of this team's Orchestrator (primary kanban manager)
   kanbanConfig?: KanbanColumnConfig[] // Per-team kanban columns (if undefined, use DEFAULT_KANBAN_COLUMNS)
   githubProject?: GitHubProjectLink   // When set, kanban browses GitHub Project (source of truth)
   /**

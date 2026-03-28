@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Shield, Crown, X, AlertTriangle } from 'lucide-react'
+import { User, Shield, Crown, Megaphone, X, AlertTriangle } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceTitle } from '@/hooks/useGovernance'
 
@@ -45,6 +45,15 @@ const TITLE_OPTIONS: {
     selectedBorder: 'border-yellow-500',
     selectedBg: 'bg-yellow-500/10',
     selectedText: 'text-yellow-300',
+  },
+  {
+    title: 'orchestrator',
+    label: 'ORCHESTRATOR',
+    icon: Megaphone,
+    description: 'Primary kanban manager, direct MANAGER communication',
+    selectedBorder: 'border-blue-500',
+    selectedBg: 'bg-blue-500/10',
+    selectedText: 'text-blue-300',
   },
   {
     title: 'manager',

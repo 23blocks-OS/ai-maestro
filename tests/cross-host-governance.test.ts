@@ -682,7 +682,7 @@ describe('performRequestExecution (via approve flow)', () => {
       {
         id: 'team-beta',
         name: 'Beta Team',
-        type: 'open',
+        type: 'closed',
         agentIds: ['agent-b1', 'agent-a2', 'agent-b3'],
         chiefOfStaffId: null,
         createdAt: '2025-06-01T10:00:00Z',
@@ -784,7 +784,7 @@ describe('performRequestExecution (via approve flow)', () => {
       {
         id: 'team-src',
         name: 'Source Team',
-        type: 'open',
+        type: 'closed',
         agentIds: ['transfer-agent', 'agent-s1'],
         chiefOfStaffId: null,
         createdAt: '2025-06-01T10:00:00Z',
@@ -793,7 +793,7 @@ describe('performRequestExecution (via approve flow)', () => {
       {
         id: 'team-dest',
         name: 'Dest Team',
-        type: 'open',
+        type: 'closed',
         agentIds: ['agent-d1'],
         chiefOfStaffId: null,
         createdAt: '2025-06-01T10:00:00Z',

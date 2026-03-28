@@ -53,60 +53,94 @@ export async function POST(
     }
     const claudeDir = join(resolve(agentWorkDir), '.claude')
 
+    // Resolve the element path BEFORE snapshotting so we can capture the right file/dir
+    let targetPath: string | null = null
     switch (elementType) {
-      case 'skill': {
-        const skillDir = join(claudeDir, 'skills', basename(safeName))
-        if (!existsSync(skillDir)) return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
-        // Path traversal guard
-        if (!skillDir.startsWith(join(claudeDir, 'skills'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        await rm(skillDir, { recursive: true, force: true })
-        return NextResponse.json({ ok: true, removed: safeName })
-      }
-      case 'agent': {
-        const agentFile = join(claudeDir, 'agents', `${basename(safeName)}.md`)
-        if (!existsSync(agentFile)) return NextResponse.json({ error: 'Agent file not found' }, { status: 404 })
-        if (!agentFile.startsWith(join(claudeDir, 'agents'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        await rm(agentFile)
-        return NextResponse.json({ ok: true, removed: safeName })
-      }
-      case 'rule': {
-        const ruleFile = join(claudeDir, 'rules', `${basename(safeName)}.md`)
-        if (!existsSync(ruleFile)) return NextResponse.json({ error: 'Rule file not found' }, { status: 404 })
-        if (!ruleFile.startsWith(join(claudeDir, 'rules'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        await rm(ruleFile)
-        return NextResponse.json({ ok: true, removed: safeName })
-      }
-      case 'command': {
-        const cmdFile = join(claudeDir, 'commands', `${basename(safeName)}.md`)
-        if (!existsSync(cmdFile)) return NextResponse.json({ error: 'Command file not found' }, { status: 404 })
-        if (!cmdFile.startsWith(join(claudeDir, 'commands'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        await rm(cmdFile)
-        return NextResponse.json({ ok: true, removed: safeName })
-      }
-      case 'mcp': {
-        // MCP removal MUST use `claude mcp remove` CLI — never edit ~/.claude.json directly
-        try {
-          execSync(`claude mcp remove "${safeName}" 2>&1`, { timeout: 15000, cwd: agentWorkDir })
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          return NextResponse.json({ error: `MCP removal failed: ${msg}` }, { status: 500 })
-        }
-        return NextResponse.json({ ok: true, removed: safeName })
-      }
-      case 'outputStyle': {
+      case 'skill':
+        targetPath = join(claudeDir, 'skills', basename(safeName))
+        if (!targetPath.startsWith(join(claudeDir, 'skills'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
+        break
+      case 'agent':
+        targetPath = join(claudeDir, 'agents', `${basename(safeName)}.md`)
+        if (!targetPath.startsWith(join(claudeDir, 'agents'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Agent file not found' }, { status: 404 })
+        break
+      case 'rule':
+        targetPath = join(claudeDir, 'rules', `${basename(safeName)}.md`)
+        if (!targetPath.startsWith(join(claudeDir, 'rules'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Rule file not found' }, { status: 404 })
+        break
+      case 'command':
+        targetPath = join(claudeDir, 'commands', `${basename(safeName)}.md`)
+        if (!targetPath.startsWith(join(claudeDir, 'commands'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Command file not found' }, { status: 404 })
+        break
+      case 'mcp':
+        // MCP uses CLI, no filesystem path to snapshot — handled separately below
+        targetPath = null
+        break
+      case 'outputStyle':
         if (!elementPath) return NextResponse.json({ error: 'elementPath required for outputStyle' }, { status: 400 })
-        const safePath = resolve(elementPath)
-        if (!safePath.startsWith(join(claudeDir, 'output-styles'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        if (!existsSync(safePath)) return NextResponse.json({ error: 'File not found' }, { status: 404 })
-        await rm(safePath)
-        return NextResponse.json({ ok: true, removed: safeName })
-      }
+        targetPath = resolve(elementPath)
+        if (!targetPath.startsWith(join(claudeDir, 'output-styles'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+        if (!existsSync(targetPath)) return NextResponse.json({ error: 'File not found' }, { status: 404 })
+        break
       case 'hook':
         return NextResponse.json({ error: 'Hook removal not supported — use /hooks menu or edit settings directly' }, { status: 400 })
       case 'lsp':
         return NextResponse.json({ error: 'LSP servers can only be managed through their parent plugin' }, { status: 400 })
       default:
         return NextResponse.json({ error: `Unknown element type: ${elementType}` }, { status: 400 })
+    }
+
+    // Map elementType to ManifestEntry type
+    type MType = 'cache_dir' | 'skill_dir' | 'script' | 'rule_file' | 'command_file' | 'agent_file' | 'output_style' | 'plugin'
+    const manifestTypeMap: Record<string, MType> = {
+      skill: 'skill_dir', agent: 'agent_file', rule: 'rule_file',
+      command: 'command_file', outputStyle: 'output_style',
+    }
+
+    // Snapshot BEFORE state for transactional undo
+    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
+    const mType: MType = manifestTypeMap[elementType] || 'plugin'
+    const txId = await beginTransaction({
+      description: `Remove ${elementType} ${safeName}`,
+      operation: 'element:remove',
+      scope: 'local',
+      ...(targetPath ? {
+        elements: [{ fsPath: targetPath, archiveMember: safeName }],
+        elementManifest: [{ type: mType, path: targetPath, tar_member: safeName, existed_before: true }],
+      } : {}),
+    })
+
+    try {
+      switch (elementType) {
+        case 'skill':
+          await rm(targetPath!, { recursive: true, force: true })
+          break
+        case 'agent':
+        case 'rule':
+        case 'command':
+        case 'outputStyle':
+          await rm(targetPath!)
+          break
+        case 'mcp':
+          try {
+            execSync(`claude mcp remove "${safeName}" 2>&1`, { timeout: 15000, cwd: agentWorkDir })
+          } catch (err) {
+            discardTransaction(txId)
+            const msg = err instanceof Error ? err.message : String(err)
+            return NextResponse.json({ error: `MCP removal failed: ${msg}` }, { status: 500 })
+          }
+          break
+      }
+
+      commitTransaction(txId)
+      return NextResponse.json({ ok: true, removed: safeName })
+    } catch (innerError) {
+      discardTransaction(txId)
+      throw innerError
     }
   } catch (error) {
     console.error('[remove-element] Error:', error)

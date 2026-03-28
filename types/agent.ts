@@ -447,12 +447,13 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  * Values:
  * - manager: Unrestricted messaging, one per host. Interface with the user.
  * - chief-of-staff: Gateway for a closed team. Routes messages in/out.
+ * - orchestrator: Primary kanban manager for a team. Direct MANAGER communication.
  * - member: Default. In closed teams, can only message teammates + COS + manager.
  *
  * Kept as "AgentRole" type name for backward compatibility with existing API/DB schema.
  * The semantic meaning is "title" — a future migration may rename this.
  */
-export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
+export type AgentRole = 'manager' | 'chief-of-staff' | 'orchestrator' | 'member'
 
 /**
  * Simplified agent for listings

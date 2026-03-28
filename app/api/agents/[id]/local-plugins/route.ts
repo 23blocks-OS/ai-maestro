@@ -46,24 +46,39 @@ export async function POST(
     // Ensure .claude directory exists
     await mkdir(claudeDir, { recursive: true })
 
-    // Read existing settings
-    let settings: Record<string, unknown> = {}
-    if (existsSync(settingsPath)) {
-      try {
-        const content = await readFile(settingsPath, 'utf-8')
-        settings = JSON.parse(content)
-      } catch { /* start fresh */ }
+    // Snapshot BEFORE state for transactional undo
+    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
+    const txId = await beginTransaction({
+      description: `${enabled ? 'Enable' : 'Disable'} local plugin ${key}`,
+      operation: enabled ? 'plugin:enable' : 'plugin:disable',
+      scope: 'local',
+      configFiles: { settings_local: settingsPath },
+    })
+
+    try {
+      // Read existing settings
+      let settings: Record<string, unknown> = {}
+      if (existsSync(settingsPath)) {
+        try {
+          const content = await readFile(settingsPath, 'utf-8')
+          settings = JSON.parse(content)
+        } catch { /* start fresh */ }
+      }
+
+      // Update enabledPlugins
+      const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+      ep[key] = enabled
+      settings.enabledPlugins = ep
+
+      // Write back
+      await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+
+      commitTransaction(txId)
+      return NextResponse.json({ success: true, key, enabled })
+    } catch (innerError) {
+      discardTransaction(txId)
+      throw innerError
     }
-
-    // Update enabledPlugins
-    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-    ep[key] = enabled
-    settings.enabledPlugins = ep
-
-    // Write back
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
-
-    return NextResponse.json({ success: true, key, enabled })
   } catch (error) {
     console.error('[local-plugins] POST failed:', error)
     return NextResponse.json({ error: 'Failed to toggle plugin' }, { status: 500 })

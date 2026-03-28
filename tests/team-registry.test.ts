@@ -73,7 +73,7 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
     id: `team-${++makeTeamCounter}`,
     name: 'Default Team',
-    type: 'open' as const,
+    type: 'closed' as const,
     agentIds: [],
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',

@@ -284,7 +284,7 @@ describe('isChiefOfStaffAnywhere', () => {
       {
         id: 'team-open-1',
         name: 'Open Team',
-        type: 'open',
+        type: 'closed',
         agentIds: ['agent-cos-1'],
         chiefOfStaffId: 'agent-cos-1',
         createdAt: '2025-01-01T00:00:00.000Z',
@@ -314,7 +314,7 @@ describe('isChiefOfStaffAnywhere', () => {
       {
         id: 'team-open-1',
         name: 'Open Team Alpha',
-        type: 'open',
+        type: 'closed',
         agentIds: ['agent-cos-open'],
         chiefOfStaffId: 'agent-cos-open',
         createdAt: '2025-01-01T00:00:00.000Z',
@@ -323,7 +323,7 @@ describe('isChiefOfStaffAnywhere', () => {
       {
         id: 'team-open-2',
         name: 'Open Team Beta',
-        type: 'open',
+        type: 'closed',
         agentIds: ['agent-cos-open'],
         chiefOfStaffId: 'agent-cos-open',
         createdAt: '2025-01-01T00:00:00.000Z',

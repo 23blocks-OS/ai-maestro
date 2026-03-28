@@ -305,7 +305,7 @@ describe('updateTeamById', () => {
 
 describe('deleteTeamById', () => {
   it('deletes team successfully', async () => {
-    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'open' }))
+    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed' }))
     mockTeams.deleteTeam.mockResolvedValue(true)
 
     const result = await deleteTeamById('team-1')

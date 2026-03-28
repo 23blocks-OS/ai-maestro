@@ -339,7 +339,7 @@ describe('PUT /api/teams/[id]', () => {
 
   // CC-005: PUT must strip chiefOfStaffId and type from body (only dedicated endpoints can change these)
   it('ignores chiefOfStaffId and type in body', async () => {
-    const team = await createTeam({ name: 'Original Team', agentIds: [], type: 'open' })
+    const team = await createTeam({ name: 'Original Team', agentIds: [], type: 'closed' })
     // vi.spyOn on dynamic import works in Vitest because await import() returns
     // the same module instance as the route's static import when vi.mock is active.
     const spy = vi.spyOn(await import('@/lib/team-registry'), 'updateTeam')

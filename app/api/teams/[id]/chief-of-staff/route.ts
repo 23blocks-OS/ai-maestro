@@ -59,8 +59,8 @@ export async function POST(
     if (cosAgentId === null) {
       // Capture old COS id before updateTeam clears it
       const oldCosId = team.chiefOfStaffId
-      // Remove COS — auto-downgrade team to open (R1.5)
-      const updated = await updateTeam(id, { chiefOfStaffId: null, type: 'open' }, managerId)
+      // Remove COS — team stays closed (governance simplification: all teams are closed)
+      const updated = await updateTeam(id, { chiefOfStaffId: null }, managerId)
 
       // Auto-reject pending configure-agent requests from the removed COS (11a safeguard)
       if (oldCosId) {

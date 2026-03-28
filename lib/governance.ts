@@ -172,6 +172,25 @@ export function isChiefOfStaffAnywhere(agentId: string): boolean {
   )
 }
 
+/** Check if agentId is the orchestrator for a specific team */
+export function isOrchestrator(agentId: string, teamId: string): boolean {
+  // Guard against null/undefined agentId to prevent false positive from null === null
+  if (!agentId) return false
+  const team = getTeam(teamId)
+  if (!team) return false
+  return team.orchestratorId === agentId
+}
+
+/** Check if agentId is an orchestrator in any team */
+export function isOrchestratorAnywhere(agentId: string): boolean {
+  // Guard against null/undefined to prevent false positive from null === null
+  if (!agentId) return false
+  const teams = loadTeams()
+  return teams.some(
+    (team) => team.orchestratorId === agentId
+  )
+}
+
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get the team where agentId is a member (agents belong to at most one team) */
 export function getClosedTeamForAgent(agentId: string): Team | null {

@@ -781,26 +781,29 @@ export async function listRolePlugins(): Promise<RolePlugin[]> {
   const pluginsByName = new Map<string, RolePlugin>()
 
   // Source 1: GitHub marketplace manifest — discover available role-plugins
-  // Reads the marketplace.json and filters plugins with category === 'role-plugin'
-  // These plugins may NOT be installed yet — they are available for on-demand selection.
+  // Reads the marketplace.json and filters plugins with category === 'role-plugin'.
+  // The 6 default role-plugins are listed in the manifest with source.repo pointing
+  // to their individual GitHub repos (e.g., Emasoft/ai-maestro-programmer-agent).
   if (existsSync(GITHUB_MARKETPLACE_MANIFEST)) {
     try {
       const manifest = JSON.parse(await readFile(GITHUB_MARKETPLACE_MANIFEST, 'utf-8')) as {
-        plugins?: Array<{ name: string; description?: string; version?: string; category?: string; source?: string }>
+        plugins?: Array<{ name: string; description?: string; version?: string; category?: string; source?: string | { repo?: string } }>
       }
       const plugins = manifest.plugins || []
       for (const entry of plugins) {
         // Only include role-plugins, not utility plugins like 'ai-maestro'
         if (entry.category !== 'role-plugin') continue
+        if (pluginsByName.has(entry.name)) continue
 
+        // source can be a string path ("./plugins/name") or object ({ repo: "owner/name" })
+        const sourceStr = typeof entry.source === 'string' ? entry.source : `./plugins/${entry.name}`
         pluginsByName.set(entry.name, {
           name: entry.name,
           version: entry.version || '1.0.0',
           description: entry.description || '',
           model: undefined,
           program: undefined,
-          // pluginDir points to the marketplace source dir (not installed yet)
-          pluginDir: join(GITHUB_MARKETPLACE_DIR, entry.source || `./plugins/${entry.name}`),
+          pluginDir: join(GITHUB_MARKETPLACE_DIR, sourceStr),
           source: 'marketplace',
           marketplace: GITHUB_MARKETPLACE_NAME,
         })

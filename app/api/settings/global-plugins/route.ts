@@ -239,16 +239,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'enabled must be a boolean' }, { status: 400 })
     }
 
-    const settings = await readSettings()
-    // Explicitly reject arrays: JSON allows arrays where an object is expected,
-    // and `|| {}` would not catch that case since `[] || {}` evaluates to `[]`.
-    const epRaw = settings.enabledPlugins
-    const ep: Record<string, boolean> = (epRaw && typeof epRaw === 'object' && !Array.isArray(epRaw)) ? epRaw as Record<string, boolean> : {}
-    ep[key] = enabled
-    settings.enabledPlugins = ep
-    await writeSettings(settings)
+    // Snapshot BEFORE state for transactional undo
+    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
+    const txId = await beginTransaction({
+      description: `${enabled ? 'Enable' : 'Disable'} plugin ${key}`,
+      operation: enabled ? 'plugin:enable' : 'plugin:disable',
+      scope: 'global',
+      configFiles: { settings_json: SETTINGS_PATH },
+    })
 
-    return NextResponse.json({ success: true, key, enabled })
+    try {
+      const settings = await readSettings()
+      // Explicitly reject arrays: JSON allows arrays where an object is expected,
+      // and `|| {}` would not catch that case since `[] || {}` evaluates to `[]`.
+      const epRaw = settings.enabledPlugins
+      const ep: Record<string, boolean> = (epRaw && typeof epRaw === 'object' && !Array.isArray(epRaw)) ? epRaw as Record<string, boolean> : {}
+      ep[key] = enabled
+      settings.enabledPlugins = ep
+      await writeSettings(settings)
+
+      commitTransaction(txId)
+      return NextResponse.json({ success: true, key, enabled })
+    } catch (innerError) {
+      discardTransaction(txId)
+      throw innerError
+    }
   } catch (error) {
     console.error('[global-plugins] POST failed:', error)
     return NextResponse.json({ error: 'Failed to update plugin' }, { status: 500 })

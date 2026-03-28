@@ -395,7 +395,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                 <TeamMembershipSection
                   agentId={agent.id}
                   agentTitle={governance.agentTitle}
-                  memberTeams={governance.memberTeams}
+                  memberTeam={governance.memberTeam}
                   allTeams={governance.allTeams}
                   onJoinTeam={(teamId) => governance.addAgentToTeam(teamId, agent.id)}
                   onLeaveTeam={(teamId) => governance.removeAgentFromTeam(teamId, agent.id)}

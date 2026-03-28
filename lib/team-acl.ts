@@ -2,9 +2,8 @@
  * Team Resource ACL — checks whether an agent (or web UI request)
  * is allowed to access a given team's resources.
  *
- * Open teams (type undefined or 'open') impose no restrictions.
- * Closed teams restrict access to the manager, chief-of-staff,
- * and team members only.
+ * All teams are closed after governance simplification (2026-03-27).
+ * Access is restricted to the manager, chief-of-staff, and team members only.
  */
 
 import { isManager } from './governance'
@@ -23,14 +22,13 @@ export interface TeamAccessResult {
 /**
  * Determine whether the requester may access the team's resources.
  *
- * Decision order:
+ * Decision order (all teams are closed after governance simplification):
  *  1. Web UI (no agentId)      → allowed
  *  2. Team not found           → denied (caller handles 404)
- *  3. Team is open / untyped   → allowed
- *  4. Requester is MANAGER     → allowed
- *  5. Requester is chief-of-staff → allowed
- *  6. Requester is a member    → allowed
- *  7. Otherwise                → denied
+ *  3. Requester is MANAGER     → allowed
+ *  4. Requester is chief-of-staff → allowed
+ *  5. Requester is a member    → allowed
+ *  6. Otherwise                → denied
  */
 export function checkTeamAccess(input: TeamAccessInput): TeamAccessResult {
   // 1. Web UI requests (no X-Agent-Id header) always pass.
@@ -49,26 +47,23 @@ export function checkTeamAccess(input: TeamAccessInput): TeamAccessResult {
     return { allowed: false, reason: 'Team not found' }
   }
 
-  // 3. Open teams (or teams with no explicit type) have no ACL
-  if (team.type !== 'closed') {
-    return { allowed: true }
-  }
+  // All teams are closed — always enforce ACL (open team bypass removed in governance simplification)
 
-  // 4. MANAGER role always has access
+  // 3. MANAGER role always has access
   if (isManager(input.requestingAgentId)) {
     return { allowed: true }
   }
 
-  // 5. Chief-of-Staff of this team has access
+  // 4. Chief-of-Staff of this team has access
   if (team.chiefOfStaffId === input.requestingAgentId) {
     return { allowed: true }
   }
 
-  // 6. Team members have access
+  // 5. Team members have access
   if (team.agentIds.includes(input.requestingAgentId)) {
     return { allowed: true }
   }
 
-  // 7. Everyone else is denied
-  return { allowed: false, reason: 'Access denied: you are not a member of this closed team' }
+  // 6. Everyone else is denied
+  return { allowed: false, reason: 'Access denied: you are not a member of this team' }
 }

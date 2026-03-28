@@ -422,23 +422,7 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
           if (!team.agentIds.includes(request.payload.agentId)) {
             team.agentIds.push(request.payload.agentId)
           }
-          // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke open team memberships
-          // Mirrors team-registry.ts createTeam G4 logic (lines 289-303)
-          if (team.type === 'closed') {
-            const agentId = request.payload.agentId
-            const managerId = getManagerId()
-            // MANAGER is exempt from membership restrictions (v2 Rule 20)
-            // COS keeps open team memberships (v2 Rule 21)
-            if (agentId !== managerId && agentId !== team.chiefOfStaffId) {
-              for (const otherTeam of teams) {
-                if (otherTeam.id === team.id || otherTeam.type !== 'open') continue
-                const idx = otherTeam.agentIds.indexOf(agentId)
-                if (idx !== -1) {
-                  otherTeam.agentIds.splice(idx, 1)
-                }
-              }
-            }
-          }
+          // All teams are closed (governance simplification) — no open team membership revocation needed
           saveTeams(teams)
           break
         }

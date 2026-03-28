@@ -49,6 +49,7 @@
     "@xterm/xterm": "^6.0.0",
     "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
     "cozo-node": "^0.7.6",
     "cytoscape": "^3.33.1",
     "cytoscape-dagre": "^2.5.0",
@@ -78,6 +79,7 @@
   "devDependencies": {
     "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^3.0.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.15.6",
     "@types/react": "^18.3.0",

@@ -17,8 +17,12 @@ import {
   XCircle,
   ChevronDown,
   ChevronRight,
+  RefreshCw,
+  Undo2,
+  Redo2,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useConfigUndoRedo } from '@/hooks/useConfigUndoRedo'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
 import { type TabId, type TabDef, type AgentInfo, type AvailableRolePlugin } from './agent-profile/shared'
@@ -87,6 +91,8 @@ export default function AgentProfilePanel({
   hostUrl,
 }: AgentProfilePanelProps) {
   const { config, error, loading, refetch } = useAgentLocalConfig(agentId)
+  // Shared undo/redo hook — visible in ALL tabs via panel header buttons
+  const undoRedo = useConfigUndoRedo()
   const [topTab, setTopTab] = useState<TopTab>('overview')
   const [activeTab, setActiveTab] = useState<TabId>('role')
   const [browsePath, setBrowsePath] = useState<string | null>(null)
@@ -96,6 +102,10 @@ export default function AgentProfilePanel({
   const [availablePlugins, setAvailablePlugins] = useState<AvailableRolePlugin[]>([])
   const [pluginDropdownOpen, setPluginDropdownOpen] = useState(false)
   const [switchingPlugin, setSwitchingPlugin] = useState(false)
+
+  // Auto-continue state
+  const [autoContinue, setAutoContinue] = useState(false)
+  const [autoContinueLoading, setAutoContinueLoading] = useState(false)
 
   // Client capability detection — filter config tabs based on AI client type
   const clientType = detectClientType(agentInfo?.program || '')
@@ -114,6 +124,34 @@ export default function AgentProfilePanel({
 
   // Reset browse mode and close dropdown when agent changes
   useEffect(() => { setBrowsePath(null); setPluginDropdownOpen(false) }, [agentId])
+
+  // Fetch agent's autoContinue preference
+  useEffect(() => {
+    if (!agentId) return
+    fetch(`/api/agents/${agentId}`)
+      .then(r => r.json())
+      .then(data => { setAutoContinue(!!data.agent?.preferences?.autoContinue) })
+      .catch(() => {})
+  }, [agentId])
+
+  // Toggle autoContinue via PATCH
+  const toggleAutoContinue = useCallback(async () => {
+    if (!agentId || autoContinueLoading) return
+    setAutoContinueLoading(true)
+    try {
+      const newValue = !autoContinue
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferences: { autoContinue: newValue } })
+      })
+      if (res.ok) setAutoContinue(newValue)
+    } catch (err) {
+      console.error('[AgentProfilePanel] Failed to toggle autoContinue:', err)
+    } finally {
+      setAutoContinueLoading(false)
+    }
+  }, [agentId, autoContinue, autoContinueLoading])
 
   // Close dropdown on outside click
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -210,12 +248,14 @@ export default function AgentProfilePanel({
           body: JSON.stringify({ command: startCmd, requireIdle: false }),
         }).catch((err) => { console.error('[RolePluginSelector] Failed to send start command:', err) })
       }
+      // Role-plugin switch invalidates all prior undo entries (programArgs changed, plugin swapped)
+      undoRedo.clearStacks()
     } catch (err) {
       console.error('[RolePluginSelector] Switch failed:', err)
     } finally {
       setSwitchingPlugin(false)
     }
-  }, [config, agentId, agentName, switchingPlugin, sessionStatus])
+  }, [config, agentId, agentName, switchingPlugin, sessionStatus, undoRedo])
 
   if (!agentId) {
     return (
@@ -227,12 +267,36 @@ export default function AgentProfilePanel({
 
   return (
     <div className="flex flex-col w-[420px] flex-shrink-0 bg-gray-900 border-l border-gray-800 overflow-hidden" style={{ overscrollBehavior: 'contain' }}>
-      {/* Header */}
+      {/* Header — includes shared Undo/Redo so they are visible across ALL tabs */}
       <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-800">
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-gray-200 truncate">
             {agentName || 'Profile'}
           </h2>
+        </div>
+        {/* Undo Button — shared across all tabs */}
+        <div
+          onClick={undoRedo.canUndo ? undoRedo.undo : undefined}
+          className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
+            undoRedo.canUndo
+              ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
+              : 'text-gray-700 cursor-not-allowed'
+          }`}
+          title="Undo"
+        >
+          <Undo2 className="w-4 h-4" />
+        </div>
+        {/* Redo Button — shared across all tabs */}
+        <div
+          onClick={undoRedo.canRedo ? undoRedo.redo : undefined}
+          className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
+            undoRedo.canRedo
+              ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
+              : 'text-gray-700 cursor-not-allowed'
+          }`}
+          title="Redo"
+        >
+          <Redo2 className="w-4 h-4" />
         </div>
         {onClose && (
           <div
@@ -338,6 +402,7 @@ export default function AgentProfilePanel({
             onStartSession={onStartSession}
             onDeleteAgent={onDeleteAgent}
             hostUrl={hostUrl}
+            undoRedo={undoRedo}
           />
         </div>
       )}
@@ -389,6 +454,36 @@ export default function AgentProfilePanel({
           {/* Collapsible accordion sections — hidden when browsing */}
           {!browsePath && (
             <div className="flex-1 overflow-y-auto" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
+
+              {/* Auto-Continue toggle — at top of Config tab */}
+              {config && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800/30 bg-gray-900/40">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <RefreshCw className={`w-3.5 h-3.5 flex-shrink-0 ${autoContinue ? 'text-emerald-400' : 'text-gray-600'}`} />
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-medium text-gray-300">Auto-Continue</span>
+                      <p className="text-[9px] text-gray-600 leading-tight">
+                        Keep-alive: Esc + &quot;continue&quot; every 4 min idle.
+                        {!(agentInfo?.programArgs || '').includes('--dangerously-skip-permissions') && (
+                          <span className="text-amber-500"> Requires --dangerously-skip-permissions</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleAutoContinue}
+                    disabled={autoContinueLoading}
+                    className={`relative w-8 h-4 rounded-full transition-colors flex-shrink-0 ${
+                      autoContinue ? 'bg-emerald-500' : 'bg-gray-700'
+                    } ${autoContinueLoading ? 'opacity-50' : ''}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+                      autoContinue ? 'translate-x-4' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+              )}
+
               {!config && !error && (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
@@ -455,6 +550,7 @@ export default function AgentProfilePanel({
             onDeleteAgent={onDeleteAgent}
             scrollToDangerZone={scrollToDangerZone}
             hostUrl={hostUrl}
+            undoRedo={undoRedo}
           />
         </div>
       )}

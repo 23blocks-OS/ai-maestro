@@ -81,6 +81,14 @@ export const companionClients: Map<string, Set<WebSocket>> = state.companionClie
 // Broadcast a status update to all /status WebSocket subscribers
 // ---------------------------------------------------------------------------
 
+// Optional callback invoked after every status broadcast — set by server.mjs for auto-continue
+// NT-039 SYNC: must mirror shared-state-bridge.mjs
+type OnStatusUpdateCallback = (sessionName: string, status: string, hookStatus?: string, notificationType?: string) => void
+let _onStatusUpdate: OnStatusUpdateCallback | null = null
+export function setOnStatusUpdateCallback(fn: OnStatusUpdateCallback): void {
+  _onStatusUpdate = fn
+}
+
 export function broadcastStatusUpdate(
   sessionName: string,
   status: string,
@@ -109,5 +117,10 @@ export function broadcastStatusUpdate(
   })
   for (const ws of dead) {
     statusSubscribers.delete(ws)
+  }
+
+  // Notify auto-continue system of status changes
+  if (_onStatusUpdate) {
+    _onStatusUpdate(sessionName, status, hookStatus, notificationType)
   }
 }

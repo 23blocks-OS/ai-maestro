@@ -19,6 +19,8 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
+  const [newTeamDescription, setNewTeamDescription] = useState('')
+  const [newTeamGithubUrl, setNewTeamGithubUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -76,6 +78,8 @@ export default function TeamsPage() {
       if (e.key === 'Escape') {
         setCreating(false)
         setNewTeamName('')
+        setNewTeamDescription('')
+        setNewTeamGithubUrl('')
         setCreateError(null)
         setNameValidation({ error: null, warning: null })
       }
@@ -139,7 +143,12 @@ export default function TeamsPage() {
       const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTeamName.trim(), agentIds: [] }),
+        body: JSON.stringify({
+          name: newTeamName.trim(),
+          description: newTeamDescription.trim() || undefined,
+          githubProjectUrl: newTeamGithubUrl.trim() || undefined,
+          agentIds: [],
+        }),
       })
       if (!res.ok) {
         const errData = await res.json()
@@ -147,6 +156,8 @@ export default function TeamsPage() {
       }
       const data = await res.json()
       setNewTeamName('')
+      setNewTeamDescription('')
+      setNewTeamGithubUrl('')
       setCreating(false)
       router.push(`/teams/${data.team.id}`)
     } catch (err) {
@@ -240,7 +251,7 @@ export default function TeamsPage() {
       {creating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           {/* SF-012: Add dialog role and aria attributes for screen readers */}
-          <div role="dialog" aria-modal="true" aria-labelledby="create-team-title" className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="create-team-title" className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4">
             <h4 id="create-team-title" className="text-sm font-medium text-white mb-4">Create Team</h4>
             {submitting ? (
               <div className="flex items-center gap-3 py-4">
@@ -249,8 +260,9 @@ export default function TeamsPage() {
               </div>
             ) : (
               <>
-                <p className="text-xs text-gray-500 mb-2">4-64 characters. Letters, numbers, spaces, hyphens, dots allowed. Must be unique.</p>
-                {/* SF-013: Explicit aria-label for screen readers since placeholder is not a label */}
+                {/* Team name */}
+                <label className="text-xs text-gray-500 mb-1 block">Name</label>
+                <p className="text-xs text-gray-600 mb-1">4-64 characters. Letters, numbers, spaces, hyphens, dots allowed. Must be unique.</p>
                 <input
                   type="text"
                   value={newTeamName}
@@ -274,9 +286,31 @@ export default function TeamsPage() {
                 {!nameValidation.error && !createError && newTeamName.trim().length >= 4 && (
                   <p className="text-xs text-emerald-400 mb-1">Name is available</p>
                 )}
+
+                {/* Description */}
+                <label className="text-xs text-gray-500 mt-2 mb-1 block">Description (optional)</label>
+                <textarea
+                  value={newTeamDescription}
+                  onChange={e => setNewTeamDescription(e.target.value)}
+                  placeholder="What does this team work on?"
+                  aria-label="Team description"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 mb-1 resize-none"
+                  rows={2}
+                />
+
+                {/* GitHub Project URL */}
+                <label className="text-xs text-gray-500 mt-2 mb-1 block">GitHub Project URL (optional)</label>
+                <input
+                  type="url"
+                  value={newTeamGithubUrl}
+                  onChange={e => setNewTeamGithubUrl(e.target.value)}
+                  placeholder="https://github.com/orgs/.../projects/..."
+                  aria-label="GitHub project URL"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 mb-1"
+                />
                 <div className="flex justify-end gap-2 mt-2">
                   <button
-                    onClick={() => { setCreating(false); setNewTeamName(''); setCreateError(null); setNameValidation({ error: null, warning: null }) }}
+                    onClick={() => { setCreating(false); setNewTeamName(''); setNewTeamDescription(''); setNewTeamGithubUrl(''); setCreateError(null); setNameValidation({ error: null, warning: null }) }}
                     className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
                   >
                     Cancel

@@ -246,7 +246,7 @@ export default function PluginsTab({ config, onSwitchTab }: PluginsTabProps) {
             Do you want to uninstall <span className="font-semibold">{confirmUninstall.name}</span>?
             {!confirmUninstall.isConflictingRolePlugin && (
               <span className="block mt-1 text-[10px] opacity-80">
-                All elements bundled in this plugin will also be removed.
+                All elements bundled in this plugin will also be removed. This action cannot be undone.
               </span>
             )}
           </p>

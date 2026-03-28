@@ -6,6 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { join } from 'path'
+import { existsSync } from 'fs'
 import {
   installPluginLocally,
   uninstallPluginLocally,
@@ -39,8 +41,28 @@ export async function POST(req: NextRequest) {
     // Auto-detect marketplace: use explicit body param, or look up predefined defaults
     const predefined = PREDEFINED_ROLE_PLUGINS[body.pluginName]
     const marketplace = body.marketplaceName || predefined?.marketplace || undefined
-    await installPluginLocally(body.pluginName, body.agentDir, marketplace)
-    return NextResponse.json({ success: true })
+
+    // Snapshot BEFORE state for transactional undo
+    const settingsPath = join(body.agentDir, '.claude', 'settings.local.json')
+    const cacheDir = join(body.agentDir, '.claude', 'plugins', 'cache', marketplace || 'unknown', body.pluginName)
+    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
+    const txId = await beginTransaction({
+      description: `Install role plugin ${body.pluginName}`,
+      operation: 'plugin:install',
+      scope: 'local',
+      configFiles: { settings_local: settingsPath },
+      elements: [{ fsPath: cacheDir, archiveMember: body.pluginName }],
+      elementManifest: [{ type: 'cache_dir', path: cacheDir, tar_member: body.pluginName, existed_before: existsSync(cacheDir) }],
+    })
+
+    try {
+      await installPluginLocally(body.pluginName, body.agentDir, marketplace)
+      commitTransaction(txId)
+      return NextResponse.json({ success: true })
+    } catch (installError) {
+      discardTransaction(txId)
+      throw installError
+    }
   } catch (error) {
     console.error('[role-plugins/install] Install failed:', error)
     const message = error instanceof Error ? error.message : 'Failed to install plugin'
@@ -70,9 +92,29 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // marketplaceName is optional — defaults to the local role-plugins marketplace
-    await uninstallPluginLocally(body.pluginName, body.agentDir, body.marketplaceName)
-    return NextResponse.json({ success: true })
+    // Snapshot BEFORE state for transactional undo
+    const settingsPath = join(body.agentDir, '.claude', 'settings.local.json')
+    const marketplace = body.marketplaceName || 'ai-maestro-local-roles-marketplace'
+    const cacheDir = join(body.agentDir, '.claude', 'plugins', 'cache', marketplace, body.pluginName)
+    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
+    const txId = await beginTransaction({
+      description: `Uninstall role plugin ${body.pluginName}`,
+      operation: 'plugin:uninstall',
+      scope: 'local',
+      configFiles: { settings_local: settingsPath },
+      elements: [{ fsPath: cacheDir, archiveMember: body.pluginName }],
+      elementManifest: [{ type: 'cache_dir', path: cacheDir, tar_member: body.pluginName, existed_before: existsSync(cacheDir) }],
+    })
+
+    try {
+      // marketplaceName is optional — defaults to the local role-plugins marketplace
+      await uninstallPluginLocally(body.pluginName, body.agentDir, body.marketplaceName)
+      commitTransaction(txId)
+      return NextResponse.json({ success: true })
+    } catch (uninstallError) {
+      discardTransaction(txId)
+      throw uninstallError
+    }
   } catch (error) {
     console.error('[role-plugins/install] Uninstall failed:', error)
     const message = error instanceof Error ? error.message : 'Failed to uninstall plugin'

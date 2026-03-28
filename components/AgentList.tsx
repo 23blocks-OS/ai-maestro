@@ -229,12 +229,11 @@ export default function AgentList({
   // Session activity tracking (for waiting/active/idle status)
   const { getSessionActivity } = useSessionActivity()
 
-  // Teams data for team-based grouping (closed teams only)
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; agentIds: string[]; type: string }>>([])
+  // Teams data for team-based grouping (all teams — open team type removed)
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; agentIds: string[] }>>([])
   useEffect(() => {
     fetch('/api/teams').then(r => r.ok ? r.json() : { teams: [] }).then(data => {
-      // Only use closed teams for sidebar grouping
-      setTeams((data.teams || []).filter((t: { type: string }) => t.type === 'closed'))
+      setTeams(data.teams || [])
     }).catch(() => {})
   }, [])
 

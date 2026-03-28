@@ -95,6 +95,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const [pasteHint, setPasteHint] = useState(false)
   // Touch clipboard buttons vertical position: tracks last selection Y to float near it
   const [clipboardBtnTop, setClipboardBtnTop] = useState<number | null>(null)
+  // Desktop selection tracking (reserved for future use)
+  const hasDesktopSelection = false
   // Touch scroll indicator for xterm-viewport (positioned as sibling, not child)
   const [xtermScrollInfo, setXtermScrollInfo] = useState<{
     thumbTop: number; thumbHeight: number; trackHeight: number; visible: boolean
@@ -1067,6 +1069,11 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [isTouch, terminal])
 
+  // Desktop floating copy/paste buttons: reserved for future implementation.
+  // xterm.js with WebGL renderer captures all mouse events internally, making
+  // document-level mouseup detection unreliable. Touch devices work via the
+  // touch selection tracking in the useEffect below.
+
   // Touch scroll indicator for xterm — uses xterm's buffer API (not DOM scroll)
   // for reliable scroll position on iOS Safari where viewport scroll events
   // and scrollHeight may not work correctly with hidden native scrollbars.
@@ -1849,8 +1856,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             />
           </div>
         )}
-        {/* Touch clipboard toolbar - floats near selection or at top-right by default */}
-        {isTouch && terminal && isReady && (
+        {/* Floating clipboard toolbar - shows on touch devices always, or on desktop when text is selected */}
+        {(isTouch || hasDesktopSelection) && terminal && isReady && (
           <div
             className="absolute right-3 z-20 flex gap-1.5 transition-[top] duration-150"
             style={{ top: clipboardBtnTop != null ? `${clipboardBtnTop}px` : '8px' }}

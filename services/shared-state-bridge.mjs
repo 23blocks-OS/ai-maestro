@@ -35,6 +35,13 @@ export const companionClients = state.companionClients
  * Broadcast a status update to all /status WebSocket subscribers.
  * Used by API routes and server.mjs.
  */
+// Optional callback invoked after every status broadcast — set by server.mjs for auto-continue
+// This avoids duplicating agent-registry logic in this bridge file.
+let _onStatusUpdate = null
+export function setOnStatusUpdateCallback(fn) {
+  _onStatusUpdate = fn
+}
+
 export function broadcastStatusUpdate(sessionName, status, hookStatus, notificationType) {
   const message = JSON.stringify({
     type: 'status_update',
@@ -57,5 +64,10 @@ export function broadcastStatusUpdate(sessionName, status, hookStatus, notificat
   })
   for (const ws of dead) {
     statusSubscribers.delete(ws)
+  }
+
+  // Notify auto-continue system of status changes
+  if (_onStatusUpdate) {
+    _onStatusUpdate(sessionName, status, hookStatus, notificationType)
   }
 }

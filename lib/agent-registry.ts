@@ -465,7 +465,8 @@ export async function createAgent(request: CreateAgentRequest): Promise<Agent> {
     program: request.program,
     model: request.model,
     taskDescription: request.taskDescription,
-    programArgs: request.programArgs || '',
+    // Default --dangerously-skip-permissions for Claude agents (required for auto-continue, standard for managed agents)
+    programArgs: request.programArgs || (request.program?.toLowerCase().includes('claude') ? '--dangerously-skip-permissions' : ''),
     launchCount: 0,
     tags: normalizeTags(request.tags),
     capabilities: [],

@@ -4,18 +4,19 @@
  * Teams represent groups of agents that can be assembled into
  * a "war room" for multi-agent coordination sessions.
  *
- * Team types:
- * - open (default): No messaging restrictions. Backward compatible.
- * - closed: Isolated messaging. External messages routed through the
- *   chief-of-staff. Agents can only message teammates + COS + manager.
+ * All teams are closed (isolated messaging). External messages are
+ * routed through the chief-of-staff. Agents can only message
+ * teammates + COS + manager. Open teams were removed in the
+ * governance simplification (2026-03-27).
  */
 
 /**
- * Team communication type
- * - open: No restrictions, any agent can message team members (default, backward compat)
- * - closed: Isolated — messages from outside the team are routed through the chief-of-staff
+ * Team communication type — always 'closed' after governance simplification.
+ * Kept as a type alias for backward compatibility with serialized data and
+ * cross-host peer summaries that still include a `type` field.
+ * @deprecated All teams are now closed. This type will be removed in a future version.
  */
-export type TeamType = 'open' | 'closed'
+export type TeamType = 'closed'
 
 /** Per-team kanban column configuration */
 export interface KanbanColumnConfig {
@@ -47,9 +48,9 @@ export interface Team {
   description?: string
   agentIds: string[]      // Agent UUIDs (order = display order)
   instructions?: string   // Team-level markdown (like a per-team CLAUDE.md)
-  type: TeamType           // 'open' (default) or 'closed' — governs messaging isolation and ACL
-                           // Always present at runtime — loadTeams() migration guarantees this field is populated
-  chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (null/undefined for open teams)
+  type: TeamType           // Always 'closed' — all teams use isolated messaging + ACL
+                           // Kept for backward compat with serialized data; always 'closed' at runtime
+  chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (every team must have one)
   kanbanConfig?: KanbanColumnConfig[] // Per-team kanban columns (if undefined, use DEFAULT_KANBAN_COLUMNS)
   githubProject?: GitHubProjectLink   // When set, kanban browses GitHub Project (source of truth)
   /**

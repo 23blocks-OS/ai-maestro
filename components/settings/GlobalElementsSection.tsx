@@ -8,6 +8,7 @@ import {
   ScrollText, Palette,
 } from 'lucide-react'
 import MarketplaceManager from './MarketplaceManager'
+import { useSettingsUndoRedoContext } from '@/hooks/SettingsUndoRedoContext'
 
 interface PluginInfo {
   name: string
@@ -99,6 +100,8 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
  * Three tabs: Plugins (toggle + info), Elements (active elements), Marketplaces (full management).
  */
 export default function GlobalElementsSection({ initialSubtab, initialMarketplace }: { initialSubtab?: 'plugins' | 'elements' | 'marketplaces' | null; initialMarketplace?: string | null } = {}) {
+  // Shared undo/redo from Settings page — may be null if rendered outside settings context
+  const settingsUndoRedo = useSettingsUndoRedoContext()
   const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>(initialSubtab || 'elements')
   // Scroll position per tab — restore when switching back
   const scrollPositions = useRef<Record<string, number>>({ plugins: 0, elements: 0, marketplaces: 0 })
@@ -270,6 +273,21 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
 
   useEffect(() => { fetchPlugins() }, [fetchPlugins])
   useEffect(() => { fetchElements() }, [fetchElements])
+  // Re-fetch plugin and element state after an undo/redo operation changes the counts
+  const prevUndoCount = useRef(settingsUndoRedo?.undoCount ?? 0)
+  const prevRedoCount = useRef(settingsUndoRedo?.redoCount ?? 0)
+  useEffect(() => {
+    const uc = settingsUndoRedo?.undoCount ?? 0
+    const rc = settingsUndoRedo?.redoCount ?? 0
+    // Detect if counts changed in a way that indicates an undo/redo operation occurred
+    if ((uc < prevUndoCount.current && rc > prevRedoCount.current) ||
+        (rc < prevRedoCount.current && uc > prevUndoCount.current)) {
+      fetchPlugins()
+      fetchElements()
+    }
+    prevUndoCount.current = uc
+    prevRedoCount.current = rc
+  }, [settingsUndoRedo?.undoCount, settingsUndoRedo?.redoCount, fetchPlugins, fetchElements])
 
   // Auto-expand marketplaces that have enabled plugins
   useEffect(() => {
@@ -296,6 +314,7 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
   const togglePlugin = async (key: string, currentEnabled: boolean) => {
     setToggling(key)
     try {
+      // Server handles undo snapshots — call the API directly, then refresh undo status
       const action = currentEnabled ? 'disable' : 'enable'
       const res = await fetch('/api/settings/marketplaces', {
         method: 'POST',
@@ -303,12 +322,15 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
         body: JSON.stringify({ action, pluginKey: key }),
       })
       if (res.ok) {
+        // Optimistic UI update — API confirmed success
         setGroups(prev => prev.map(g => ({
           ...g,
           plugins: (g.plugins || []).map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
         fetchElements()
+        // Refresh server-side undo/redo counts
+        settingsUndoRedo?.refreshStatus()
       } else {
         fetchPlugins()
       }

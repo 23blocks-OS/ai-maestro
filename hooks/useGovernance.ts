@@ -18,7 +18,7 @@ export interface GovernanceState {
   managerName: string | null
   agentTitle: GovernanceTitle
   cosTeams: Team[]
-  memberTeams: Team[]
+  memberTeam: Team | null  // Agent can be in 0 or 1 team (governance simplification)
   allTeams: Team[]
   refresh: (signal?: AbortSignal) => void
   setPassword: (pw: string, currentPw?: string) => Promise<{ success: boolean; error?: string }>
@@ -55,27 +55,28 @@ export function useGovernance(agentId: string | null): GovernanceState {
   const mutationAbortRef = useRef<AbortController | null>(null)
 
   // Derive governance title from current state
+  // All teams are implicitly closed (governance simplification — open teams removed)
   const agentTitle: GovernanceTitle = useMemo(() => {
     if (!agentId) return 'member'
     if (managerId === agentId) return 'manager'
-    // team.type is now required per types/team.ts
     const isCOS = allTeams.some(
-      (t) => t.type === 'closed' && t.chiefOfStaffId === agentId
+      (t) => t.chiefOfStaffId === agentId
     )
     if (isCOS) return 'chief-of-staff'
     return 'member'
   }, [agentId, managerId, allTeams])
 
-  // Derive cosTeams: closed teams where this agent is chief-of-staff
-  // team.type is now required per types/team.ts
+  // Derive cosTeams: teams where this agent is chief-of-staff
+  // All teams are implicitly closed (governance simplification — open teams removed)
   const cosTeams = useMemo(() => agentId
-    ? allTeams.filter((t) => t.type === 'closed' && t.chiefOfStaffId === agentId)
+    ? allTeams.filter((t) => t.chiefOfStaffId === agentId)
     : [], [agentId, allTeams])
 
-  // Derive memberTeams: teams where agentIds includes this agent
-  const memberTeams = useMemo(() => agentId
-    ? allTeams.filter((t) => t.agentIds.includes(agentId))
-    : [], [agentId, allTeams])
+  // Derive memberTeam: the single team this agent belongs to (0 or 1 team per governance simplification)
+  const memberTeam = useMemo(() => {
+    if (!agentId) return null
+    return allTeams.find((t) => t.agentIds.includes(agentId)) ?? null
+  }, [agentId, allTeams])
 
   const refresh = useCallback((signal?: AbortSignal) => {
     // Fetch governance state and teams in parallel
@@ -256,7 +257,6 @@ export function useGovernance(agentId: string | null): GovernanceState {
           : [...team.agentIds, targetAgentId]
 
         // Server enforces team membership rules; no client-side allTeams check needed
-        // team.type is now required per types/team.ts
 
         const res = await fetch(`/api/teams/${teamId}`, {
           method: 'PUT',
@@ -453,7 +453,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
     managerName,
     agentTitle,
     cosTeams,
-    memberTeams,
+    memberTeam,
     allTeams,
     refresh,
     setPassword,

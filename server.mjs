@@ -18,7 +18,8 @@ import {
   terminalSessions,
   statusSubscribers,
   companionClients,
-  broadcastStatusUpdate
+  broadcastStatusUpdate,
+  setOnStatusUpdateCallback
 } from './services/shared-state-bridge.mjs'
 
 // =============================================================================
@@ -95,6 +96,10 @@ const globalLoggingEnabled = process.env.ENABLE_LOGGING === 'true'
 // sessionActivity, terminalSessions, statusSubscribers, companionClients, broadcastStatusUpdate
 // are imported from shared-state-bridge.mjs (backed by globalThis._sharedState)
 const idleTimers = new Map() // sessionName -> { timer, wasActive }
+
+// Auto-continue timers: when an agent is waiting at prompt for too long, auto-send "continue"
+const autoContinueTimers = new Map() // sessionName -> { timer, startedAt }
+const AUTO_CONTINUE_DEFAULT_MS = 4 * 60 * 1000 // 4 minutes default
 
 // Idle threshold in milliseconds (30 seconds)
 const IDLE_THRESHOLD_MS = 30 * 1000
@@ -367,6 +372,114 @@ function trackSessionActivity(sessionName) {
   idleTimers.set(sessionName, { timer, wasActive: true })
 }
 
+/**
+ * Auto-continue: keeps Claude sessions alive by sending "continue" when idle.
+ *
+ * REQUIRES: Agent must have --dangerously-skip-permissions in programArgs.
+ * This eliminates permission prompts entirely, so the only remaining
+ * interruptions are choice menus — handled by sending Escape first.
+ *
+ * Sequence on idle timeout:
+ *   1. Send Escape (dismiss any choice menu / question if present)
+ *   2. Wait 500ms for prompt to stabilize
+ *   3. Send "continue" + Enter
+ *
+ * This loop repeats indefinitely, keeping the context cache warm
+ * and avoiding massive token reprocessing costs on resume.
+ */
+function startAutoContinueTimer(sessionName, delayMs) {
+  // Cancel any existing timer for this session
+  cancelAutoContinueTimer(sessionName)
+
+  const timer = setTimeout(async () => {
+    autoContinueTimers.delete(sessionName)
+    try {
+      const { getAgentBySession } = await import('./lib/agent-registry.ts')
+      const agent = getAgentBySession(sessionName)
+      if (!agent?.preferences?.autoContinue) return // preference was toggled off
+
+      // SAFETY: require --dangerously-skip-permissions to avoid permission prompt interference
+      const args = agent.programArgs || ''
+      if (!args.includes('--dangerously-skip-permissions')) {
+        console.log(`[AutoContinue] ${sessionName}: skipped — missing --dangerously-skip-permissions`)
+        return
+      }
+
+      // Re-check the hook state before sending
+      const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
+      const crypto = await import('crypto')
+      const cwdHash = crypto.createHash('md5').update(agent.workingDirectory || '').digest('hex').substring(0, 16)
+      const stateFile = path.join(stateDir, `${cwdHash}.json`)
+
+      if (fs.existsSync(stateFile)) {
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'))
+        // Only proceed if waiting_for_input (any notification type — Escape handles menus)
+        if (state.status !== 'waiting_for_input') {
+          console.log(`[AutoContinue] ${sessionName}: skipped — state=${state.status}`)
+          return
+        }
+      } else {
+        return // no state file means we can't confirm it's safe
+      }
+
+      // Step 1: Send Escape to dismiss any choice menu or question
+      const { execSync } = await import('child_process')
+      execSync(`tmux send-keys -t "${sessionName}" Escape`, { timeout: 5000 })
+
+      // Step 2: Wait 500ms for prompt to stabilize after Escape
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Step 3: Send "continue" + Enter
+      execSync(`tmux send-keys -t "${sessionName}" "continue" Enter`, { timeout: 5000 })
+      console.log(`[AutoContinue] ${sessionName}: sent Escape + "continue" after ${delayMs / 1000}s idle`)
+    } catch (err) {
+      console.error(`[AutoContinue] ${sessionName}: failed —`, err.message)
+    }
+  }, delayMs)
+
+  autoContinueTimers.set(sessionName, { timer, startedAt: Date.now() })
+}
+
+function cancelAutoContinueTimer(sessionName) {
+  const existing = autoContinueTimers.get(sessionName)
+  if (existing?.timer) {
+    clearTimeout(existing.timer)
+    autoContinueTimers.delete(sessionName)
+  }
+}
+
+/**
+ * Called when a session's activity status changes.
+ * Manages auto-continue timers based on waiting/idle state.
+ * Triggers on both idle_prompt and permission_prompt (Escape handles menus).
+ */
+async function checkAutoContinue(sessionName, status, hookStatus, notificationType) {
+  // Start timer when waiting for input (any notification type)
+  if (status === 'waiting') {
+    try {
+      const { getAgentBySession } = await import('./lib/agent-registry.ts')
+      const agent = getAgentBySession(sessionName)
+      if (agent?.preferences?.autoContinue) {
+        const delay = agent.preferences.autoContinueDelayMs || AUTO_CONTINUE_DEFAULT_MS
+        // Don't restart timer if one is already running for this session
+        if (!autoContinueTimers.has(sessionName)) {
+          startAutoContinueTimer(sessionName, delay)
+          console.log(`[AutoContinue] ${sessionName}: timer started (${delay / 1000}s, notification=${notificationType})`)
+        }
+      }
+    } catch {
+      // Agent registry not available yet during startup
+    }
+  } else if (status === 'active') {
+    // Agent became active — cancel timer (it's working again)
+    if (autoContinueTimers.has(sessionName)) {
+      cancelAutoContinueTimer(sessionName)
+      console.log(`[AutoContinue] ${sessionName}: timer cancelled (active)`)
+    }
+  }
+  // Note: 'idle' status does NOT cancel — agent may just be between output chunks
+}
+
 // Create logs directory if it doesn't exist
 const logsDir = path.join(process.cwd(), 'logs')
 if (!fs.existsSync(logsDir)) {
@@ -374,6 +487,11 @@ if (!fs.existsSync(logsDir)) {
 }
 
 // statusSubscribers, broadcastStatusUpdate imported from shared-state-bridge.mjs
+
+// Register auto-continue callback to fire on every status broadcast
+setOnStatusUpdateCallback((sessionName, status, hookStatus, notificationType) => {
+  checkAutoContinue(sessionName, status, hookStatus, notificationType)
+})
 
 /**
  * Start the HTTP server with the given request handler.
@@ -1304,6 +1422,19 @@ async function startServer(handleRequest) {
   // Graceful shutdown - kill PTYs FIRST before closing server
   const gracefulShutdown = (signal) => {
     console.log(`[Server] Received ${signal}, shutting down gracefully...`)
+
+    // Cancel all auto-continue timers to prevent commands firing during teardown
+    if (autoContinueTimers.size > 0) {
+      console.log(`[Server] Cancelling ${autoContinueTimers.size} auto-continue timers...`)
+      autoContinueTimers.forEach(({ timer }) => clearTimeout(timer))
+      autoContinueTimers.clear()
+    }
+
+    // Close config-transaction SQLite DB (WAL journal flush)
+    try {
+      // Dynamic import because server.mjs can't statically import TypeScript
+      import('./lib/config-transaction.ts').then(m => m.closeDb()).catch(() => {})
+    } catch { /* best-effort */ }
 
     // Kill all PTY processes FIRST and synchronously
     const sessionCount = terminalSessions.size

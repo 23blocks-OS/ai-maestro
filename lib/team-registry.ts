@@ -44,20 +44,18 @@ export function sanitizeTeamName(raw: string): string {
 /**
  * Validate a team mutation (create or update) against all governance business rules.
  *
- * Rules enforced:
- * - R1.3/R1.4: Closed team must have a COS (COS-closed invariant)
- * - R1.7: TeamType must be 'open' or 'closed'
- * - R1.8: COS can only be set on a closed team
+ * Rules enforced (post-simplification — all teams are closed):
+ * - R1.3/R1.4: Every team must have a COS
  * - R2.1/R2.3: Team names must be unique (case-insensitive)
- * - R4.1: Normal agents can be in at most one closed team
+ * - R4.1: Normal agents can be in at most ONE team (single-team membership)
  * - R4.6: COS must be a member of the team (auto-added to agentIds)
  * - R4.7: Cannot remove COS from agentIds while they are chiefOfStaffId
  * - Team name sanitization: min 4 chars, max 64 chars, alphanumeric start, safe characters only
  *
- * @param teams - Current teams list (for uniqueness and multi-closed checks)
+ * @param teams - Current teams list (for uniqueness and single-team checks)
  * @param teamId - null for create, team ID for update
  * @param data - Proposed team data or updates
- * @param managerId - Current MANAGER agent ID (for multi-closed-team exemption check)
+ * @param managerId - Current MANAGER agent ID (MANAGER can self-join/leave any team)
  * @param reservedNames - Optional list of names that cannot be used (e.g., agent names) — prevents team/agent name collisions
  * @returns Object with valid:true and sanitized corrections, or valid:false with error details
  */
@@ -66,7 +64,7 @@ export function validateTeamMutation(
   teamId: string | null,
   data: {
     name?: string
-    type?: string         // Intentionally string (not TeamType) to catch invalid values
+    type?: string         // Intentionally string (not TeamType) to catch invalid values — ignored post-simplification
     chiefOfStaffId?: string | null
     agentIds?: string[]
   },
@@ -113,29 +111,13 @@ export function validateTeamMutation(
     sanitized.name = clean
   }
 
-  // --- TeamType Validation (R1.7) ---
-  if (data.type !== undefined) {
-    if (data.type !== 'open' && data.type !== 'closed') {
-      return { valid: false, error: `Invalid team type: "${data.type}" (must be "open" or "closed")`, code: 400 }
-    }
-  }
+  // --- TeamType is always 'closed' after governance simplification (2026-03-27) ---
+  // The `type` field in data is ignored; all teams are closed.
 
   // Resolve effective state after this mutation is applied
   const existingTeam = teamId ? teams.find(t => t.id === teamId) : null
-  let effectiveType = (data.type ?? existingTeam?.type ?? 'open') as string
   const effectiveCOS = data.chiefOfStaffId !== undefined ? data.chiefOfStaffId : (existingTeam?.chiefOfStaffId ?? null)
   const effectiveAgentIds = data.agentIds ?? existingTeam?.agentIds ?? []
-
-  // --- COS-Closed Invariant (R1.3, R1.4) ---
-  // G5 (v2 Rule 14): If a closed team loses its COS, auto-downgrade to open
-  if (effectiveType === 'closed' && !effectiveCOS) {
-    sanitized.type = 'open'
-    effectiveType = 'open'  // Update local variable to match G5 auto-downgrade
-  }
-  // --- COS on open team is invalid (R1.8) ---
-  if (effectiveType === 'open' && effectiveCOS) {
-    return { valid: false, error: 'Cannot assign a Chief-of-Staff to an open team (change type to closed first)', code: 400 }
-  }
 
   // --- COS Already-Assigned-Elsewhere Check (G3, v2 Rule 7) ---
   // An agent already serving as COS of another team cannot be assigned as COS of this team
@@ -162,29 +144,24 @@ export function validateTeamMutation(
     }
   }
 
-  // --- Multi-Closed-Team Constraint (R4.1) ---
-  // MANAGER is exempt and can be in unlimited closed teams (R4.3, v2 Rule 20)
-  // COS is NOT exempt from multi-closed-team constraint (v2 Rule 21: max 1 closed team)
-  // Only skip the check for the COS being assigned to THIS specific team in this mutation
-  if (effectiveType === 'closed') {
-    for (const agentId of finalAgentIds) {
-      // Skip agents already in the existing team — but only when the team is ALREADY closed.
-      // When type is changing from open to closed, existing members must be re-checked (SF-06).
-      if (existingTeam?.type === 'closed' && existingTeam.agentIds.includes(agentId)) continue
+  // --- Single-Team Membership Constraint (R4.1, governance simplification) ---
+  // Every agent can be in at most ONE team. MANAGER is exempt (can self-join/leave any team).
+  for (const agentId of finalAgentIds) {
+    // Skip agents already in the existing team (they're not joining a new one)
+    if (existingTeam && existingTeam.agentIds.includes(agentId)) continue
 
-      // MANAGER is exempt — can be in unlimited closed teams (R4.3, v2 Rule 20)
-      if (agentId === managerId) continue
+    // MANAGER is exempt — can be in any team at will (self-service join/leave)
+    if (agentId === managerId) continue
 
-      // Agent (including COS): must not be in another closed team already
-      const otherClosedTeam = teams.find(t =>
-        t.type === 'closed' && t.id !== teamId && t.agentIds.includes(agentId)
-      )
-      if (otherClosedTeam) {
-        return {
-          valid: false,
-          error: `Agent ${agentId} is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team`,
-          code: 409,
-        }
+    // Agent must not be in another team already (single-team membership rule)
+    const otherTeam = teams.find(t =>
+      t.id !== teamId && t.agentIds.includes(agentId)
+    )
+    if (otherTeam) {
+      return {
+        valid: false,
+        error: `Agent ${agentId} is already in team "${otherTeam.name}". Remove from that team first.`,
+        code: 409,
       }
     }
   }
@@ -192,13 +169,8 @@ export function validateTeamMutation(
   // --- Propagate chiefOfStaffId into sanitized output ---
   // SF-034: If chiefOfStaffId was explicitly provided in data, carry it through to sanitized
   // so callers can rely on result.sanitized.chiefOfStaffId being the authoritative value.
-  // Also reflect implicit nullification: when a closed team auto-downgrades to open (G5),
-  // its COS is implicitly cleared — propagate that as null.
   if (data.chiefOfStaffId !== undefined) {
     sanitized.chiefOfStaffId = data.chiefOfStaffId
-  } else if (effectiveType === 'open' && existingTeam?.chiefOfStaffId) {
-    // G5 auto-downgrade: team changed from closed to open, COS role is implicitly removed
-    sanitized.chiefOfStaffId = null
   }
 
   return { valid: true, sanitized }
@@ -227,14 +199,13 @@ export function loadTeams(): Team[] {
     const parsed: TeamsFile = JSON.parse(data)
     const teams = Array.isArray(parsed.teams) ? parsed.teams : []
 
-    // Idempotent convergent migration: ensure all teams have a type field (default to 'open').
-    // If two concurrent calls both trigger the migration, both produce the same result
-    // (every team without a type gets 'open'), so the last write wins safely.
-    // The migrationDone flag ensures we only persist the migration once per process.
+    // Idempotent convergent migration: ensure all teams have type='closed'.
+    // Post governance simplification (2026-03-27), all teams are closed.
+    // Migrates legacy 'open' teams and teams missing the type field.
     let needsSave = false
     for (const team of teams) {
-      if (!team.type) {
-        team.type = 'open'
+      if (team.type !== 'closed') {
+        team.type = 'closed'
         needsSave = true
       }
     }
@@ -274,7 +245,7 @@ export async function createTeam(
   const team = await withLock('teams', () => {
     const teams = loadTeams()
 
-    // Validate all business rules before creation (R1-R4, name sanitization, agent name collision)
+    // Validate all business rules before creation (name, single-team membership, COS)
     const result = validateTeamMutation(teams, null, data, managerId ?? null, reservedNames)
     if (!result.valid) {
       throw new TeamValidationException(result.error, result.code)
@@ -286,7 +257,7 @@ export async function createTeam(
       name: result.sanitized.name ?? data.name,
       description: data.description,
       agentIds: result.sanitized.agentIds ?? data.agentIds,
-      type: result.sanitized.type ?? data.type ?? 'open',
+      type: 'closed',  // All teams are closed after governance simplification
       // SF-034: Prefer sanitized COS ID if present; fall back to raw input; default to null.
       // Three-way chain: sanitized value (if validation set it) -> raw data -> null (no COS).
       // Uses !== undefined because sanitized.chiefOfStaffId can legitimately be null (explicit unset).
@@ -299,27 +270,7 @@ export async function createTeam(
 
     teams.push(newTeam)
 
-    // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke their open team memberships
-    if (newTeam.type === 'closed') {
-      // Normalize managerId to null so undefined is treated identically to null in the comparison below
-      const currentManagerId = managerId ?? null
-      for (const agentId of newTeam.agentIds) {
-        // MANAGER is exempt from membership restrictions (v2 Rule 20)
-        if (agentId === currentManagerId) continue
-        // COS keeps open team memberships (v2 Rule 21)
-        if (agentId === newTeam.chiefOfStaffId) continue
-        // Remove agent from all open teams
-        for (const otherTeam of teams) {
-          if (otherTeam.id === newTeam.id || otherTeam.type !== 'open') continue
-          const idx = otherTeam.agentIds.indexOf(agentId)
-          if (idx !== -1) {
-            otherTeam.agentIds.splice(idx, 1)
-          }
-        }
-      }
-    }
-
-    // Single save: includes new team + any G4 open-team revocations
+    // Single save: new team with validated single-team membership
     saveTeams(teams)
 
     return newTeam
@@ -342,11 +293,7 @@ export async function updateTeam(
     const index = teams.findIndex(t => t.id === id)
     if (index === -1) return null
 
-    // Capture pre-update state for G4 open-team revocation logic
-    const previousAgentIds = [...teams[index].agentIds]
-    const previousType = teams[index].type
-
-    // Validate all business rules before applying the update (R1-R4, name sanitization, agent name collision)
+    // Validate all business rules before applying the update (name, single-team membership, COS)
     // Extract only governance-relevant fields for validation (avoids unsafe Record cast)
     const govFields = { name: updates.name, type: updates.type, chiefOfStaffId: updates.chiefOfStaffId, agentIds: updates.agentIds }
     const result = validateTeamMutation(teams, id, govFields, managerId ?? null, reservedNames)
@@ -355,7 +302,8 @@ export async function updateTeam(
     }
 
     // Apply sanitized corrections (e.g., trimmed name, COS auto-added to agentIds)
-    const finalUpdates = { ...updates, ...result.sanitized }
+    // Force type to 'closed' — all teams are closed after governance simplification
+    const finalUpdates = { ...updates, ...result.sanitized, type: 'closed' as const }
 
     teams[index] = {
       ...teams[index],
@@ -363,37 +311,9 @@ export async function updateTeam(
       updatedAt: new Date().toISOString(),
     }
 
-    // G4 (v2 Rule 22): When the team is closed, revoke open team memberships for non-exempt agents.
-    // MF-05: Perform G4 revocation BEFORE the single save to avoid on-disk inconsistency.
-    // MF-06: Always check when team is closed (not just when agentIds was explicitly provided),
-    //        so that a type change to 'closed' also triggers revocation for existing members.
-    // MF-001 (P5): When type changes from non-closed to closed, iterate ALL agentIds (not just
-    //              newly added ones), because existing members also need open-team revocation.
     const result2 = teams[index]
-    if (result2.type === 'closed') {
-      const typeChangedToClosed = previousType !== 'closed'
-      // If type just changed to closed, revoke for ALL members; otherwise only newly added
-      const agentsToRevoke = typeChangedToClosed
-        ? result2.agentIds
-        : result2.agentIds.filter(aid => !previousAgentIds.includes(aid))
-      if (agentsToRevoke.length > 0) {
-        const currentManagerId = managerId ?? null
-        for (const agentId of agentsToRevoke) {
-          if (agentId === currentManagerId) continue
-          // COS keeps open team memberships (v2 Rule 21)
-          if (agentId === result2.chiefOfStaffId) continue
-          for (const otherTeam of teams) {
-            if (otherTeam.id === result2.id || otherTeam.type !== 'open') continue
-            const idx = otherTeam.agentIds.indexOf(agentId)
-            if (idx !== -1) {
-              otherTeam.agentIds.splice(idx, 1)
-            }
-          }
-        }
-      }
-    }
 
-    // Single save: includes team updates + any G4 open-team revocations (MF-05)
+    // Single save: includes team updates with single-team membership validation
     saveTeams(teams)
 
     return result2
@@ -413,12 +333,9 @@ export async function deleteTeam(id: string): Promise<boolean> {
     const filtered = teams.filter(t => t.id !== id)
     if (filtered.length === teams.length) return false
     saveTeams(filtered)
-    // Clean up orphaned task file for the deleted team
-    // Defense-in-depth: validate UUID format before constructing file path to prevent path traversal
+    // Local task/doc files no longer exist (kanban uses GitHub Projects exclusively)
+    // Document cleanup preserved for backward compatibility with any remaining docs-{id}.json files
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-      const taskFile = path.join(TEAMS_DIR, path.basename(`tasks-${id}.json`))
-      try { if (fs.existsSync(taskFile)) fs.unlinkSync(taskFile) } catch { /* ignore */ }
-      // CC-002: Also clean up orphaned document file for the deleted team
       const docsFile = path.join(TEAMS_DIR, path.basename(`docs-${id}.json`))
       try { if (fs.existsSync(docsFile)) fs.unlinkSync(docsFile) } catch { /* ignore */ }
     }

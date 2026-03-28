@@ -43,6 +43,7 @@ const nextConfig = {
       config.externals.push({
         'node-pty': 'commonjs node-pty',
         'cozo-node': 'commonjs cozo-node',
+        'better-sqlite3': 'commonjs better-sqlite3',
         // Don't externalize @huggingface/transformers - it's ESM-only and needs webpack bundling
         'onnxruntime-node': 'commonjs onnxruntime-node',
         'sharp': 'commonjs sharp',

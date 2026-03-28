@@ -126,7 +126,7 @@ export default function SkillDetailModal({
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-md transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Add to Agent
+                Add Globally
               </button>
             )}
 

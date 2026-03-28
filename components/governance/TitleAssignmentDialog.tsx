@@ -41,7 +41,7 @@ const TITLE_OPTIONS: {
     title: 'chief-of-staff',
     label: 'CHIEF-OF-STAFF',
     icon: Shield,
-    description: 'Leads closed team(s), manages membership',
+    description: 'Leads a team, manages membership',
     selectedBorder: 'border-yellow-500',
     selectedBg: 'bg-yellow-500/10',
     selectedText: 'text-yellow-300',
@@ -127,8 +127,8 @@ export default function TitleAssignmentDialog({
 
   const resolveAgentName = useCallback((id: string) => agentNameMap.get(id) || id.slice(0, 8), [agentNameMap])
 
-  // Closed teams available for COS assignment
-  const closedTeams = governance.allTeams.filter((t) => t.type === 'closed')
+  // All teams available for COS assignment (all teams are implicitly closed now)
+  const availableTeams = governance.allTeams
 
   // Whether the MANAGER role is held by a different agent
   const managerHeldByOther = governance.managerId && governance.managerId !== agentId
@@ -347,12 +347,12 @@ export default function TitleAssignmentDialog({
               {/* COS team checkboxes: shown when chief-of-staff is selected */}
               {selectedTitle === 'chief-of-staff' && (
                 <div className="mt-3 ml-2 space-y-2">
-                  {closedTeams.length === 0 ? (
+                  {availableTeams.length === 0 ? (
                     <p className="text-sm text-gray-500">
-                      No closed teams exist. Create a closed team first.
+                      No teams exist. Create a team first.
                     </p>
                   ) : (
-                    closedTeams.map((team) => {
+                    availableTeams.map((team) => {
                       const isChecked = selectedTeamIds.includes(team.id)
                       // Show current COS if it exists and is not this agent
                       const existingCos = team.chiefOfStaffId && team.chiefOfStaffId !== agentId

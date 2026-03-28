@@ -161,38 +161,52 @@ export function isChiefOfStaff(agentId: string, teamId: string): boolean {
 }
 
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
-/** Check if agentId is chief-of-staff in any closed team */
+/** Check if agentId is chief-of-staff in any team */
 export function isChiefOfStaffAnywhere(agentId: string): boolean {
   // NT-014: Guard against null/undefined to prevent false positive from null === null
   if (!agentId) return false
   const teams = loadTeams()
-  // NT-001 (P5): team.chiefOfStaffId can be null/undefined for open teams; the strict
-  // equality check (===) safely returns false when comparing a string against null/undefined
+  // All teams are closed after governance simplification — no type filter needed
   return teams.some(
-    (team) => team.type === 'closed' && team.chiefOfStaffId === agentId
+    (team) => team.chiefOfStaffId === agentId
   )
 }
 
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
-/** Get the first closed team where agentId is a member (normal agents belong to at most one) */
+/** Get the team where agentId is a member (agents belong to at most one team) */
 export function getClosedTeamForAgent(agentId: string): Team | null {
   // NT-014: Guard against null/undefined to prevent includes(null) false positives
   if (!agentId) return null
   const teams = loadTeams()
+  // All teams are closed after governance simplification — no type filter needed
   return (
     teams.find(
-      (team) => team.type === 'closed' && team.agentIds.includes(agentId)
+      (team) => team.agentIds.includes(agentId)
     ) || null
   )
 }
 
+/**
+ * Get the team where agentId is a member (singular — agents belong to at most one team).
+ * Alias for getClosedTeamForAgent after governance simplification (all teams are closed).
+ */
+export function getTeamForAgent(agentId: string): Team | null {
+  return getClosedTeamForAgent(agentId)
+}
+
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
-/** Get all closed teams where agentId is a member (MANAGER/COS can be in multiple) */
+/**
+ * Get all teams where agentId is a member.
+ * Post-simplification: returns 0 or 1 team for normal agents.
+ * MANAGER may appear in one team if they self-joined.
+ * @deprecated Use getClosedTeamForAgent / getTeamForAgent (singular) instead.
+ */
 export function getClosedTeamsForAgent(agentId: string): Team[] {
   // NT-014: Guard against null/undefined to prevent includes(null) false positives
   if (!agentId) return []
   const teams = loadTeams()
+  // All teams are closed — no type filter needed
   return teams.filter(
-    (team) => team.type === 'closed' && team.agentIds.includes(agentId)
+    (team) => team.agentIds.includes(agentId)
   )
 }

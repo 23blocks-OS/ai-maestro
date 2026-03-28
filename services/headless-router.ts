@@ -581,6 +581,46 @@ const routes: Route[] = [
     const updated = updateSystemSettings(patch)
     sendServiceResult(res, { status: 200, data: { success: true, settings: updated } })
   }},
+  // Config undo/redo — transactional config management
+  { method: 'POST', pattern: /^\/api\/config\/undo$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const { undo, getStatus } = await import('@/lib/config-transaction')
+      const result = await undo()
+      if (!result.success) {
+        sendJson(res, 404, { error: result.error })
+        return
+      }
+      const status = getStatus()
+      sendJson(res, 200, { success: true, description: result.description, ...status })
+    } catch (error) {
+      console.error('[config/undo] Failed:', error)
+      sendJson(res, 500, { error: 'Undo failed' })
+    }
+  }},
+  { method: 'POST', pattern: /^\/api\/config\/redo$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const { redo, getStatus } = await import('@/lib/config-transaction')
+      const result = await redo()
+      if (!result.success) {
+        sendJson(res, 404, { error: result.error })
+        return
+      }
+      const status = getStatus()
+      sendJson(res, 200, { success: true, description: result.description, ...status })
+    } catch (error) {
+      console.error('[config/redo] Failed:', error)
+      sendJson(res, 500, { error: 'Redo failed' })
+    }
+  }},
+  { method: 'GET', pattern: /^\/api\/config\/undo-status$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const { getStatus } = await import('@/lib/config-transaction')
+      sendJson(res, 200, getStatus())
+    } catch (error) {
+      console.error('[config/undo-status] Failed:', error)
+      sendJson(res, 200, { undoCount: 0, redoCount: 0 })
+    }
+  }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getOrganization())
   }},
@@ -2047,8 +2087,8 @@ const routes: Route[] = [
       if (cosAgentId === null) {
         // Capture old COS id before updateTeam clears it
         const oldCosId = team.chiefOfStaffId
-        // Remove COS -- auto-downgrade team to open (R1.5)
-        const updated = await updateTeam(teamId, { chiefOfStaffId: null, type: 'open' }, managerId)
+        // Remove COS — team stays closed (governance simplification: all teams are closed)
+        const updated = await updateTeam(teamId, { chiefOfStaffId: null }, managerId)
 
         // Auto-reject pending configure-agent requests from the removed COS (11a safeguard)
         if (oldCosId) {
@@ -2148,7 +2188,10 @@ const routes: Route[] = [
       return
     }
     const requestingAgentId = auth.agentId
-    sendServiceResult(res, await deleteTeamById(params.id, requestingAgentId))
+    // Extract governance password from request body for this destructive operation
+    const body = await readJsonBody(req).catch(() => ({}))
+    const password = body?.password
+    sendServiceResult(res, await deleteTeamById(params.id, requestingAgentId, password))
   }},
   { method: 'GET', pattern: /^\/api\/teams$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await listAllTeams())

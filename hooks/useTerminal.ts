@@ -12,6 +12,7 @@ export interface UseTerminalOptions {
   sessionId?: string
   onRegister?: (fitAddon: FitAddon) => void
   onUnregister?: () => void
+  onSelectionChange?: (hasSelection: boolean, selection: string) => void
 }
 
 // Debounce utility for resize events
@@ -313,6 +314,11 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         navigator.clipboard.writeText(sel).catch(() => {
           // Clipboard API may be blocked in non-secure contexts; silently ignore
         })
+      }
+      // onSelectionChange callback available for consumers (not used for desktop floating buttons
+      // since document-level mouseup is more reliable with xterm's canvas renderer)
+      if (optionsRef.current.onSelectionChange) {
+        optionsRef.current.onSelectionChange(!!(sel && sel.length > 0), sel || '')
       }
     })
 

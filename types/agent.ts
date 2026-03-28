@@ -401,6 +401,8 @@ export interface AgentPreferences {
   defaultWorkingDirectory?: string
   autoStart?: boolean           // Auto-start session on AI Maestro startup
   notificationLevel?: 'all' | 'urgent' | 'none'
+  autoContinue?: boolean        // Auto-send "continue" when idle at prompt for 4 minutes
+  autoContinueDelayMs?: number  // Custom delay in ms (default: 240000 = 4 minutes)
 }
 
 export interface AgentDocumentation {
@@ -558,6 +560,8 @@ export interface LiveAgentSessionStatus {
   windows?: number                // Number of tmux windows
   hostId?: string                 // Host context for distributed agents
   hostName?: string               // Host display name for distributed agents
+  paneCommand?: string            // Current process in tmux pane (e.g., "claude", "zsh", "node")
+  programRunning?: boolean        // true = AI program is running; false = shell prompt (program exited)
 }
 
 /** @deprecated Use LiveAgentSessionStatus instead. */

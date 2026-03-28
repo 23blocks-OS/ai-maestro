@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Building2, Lock, Unlock, Plus, X, ChevronDown, Clock, Check, XCircle } from 'lucide-react'
+import { Building2, Plus, X, ChevronDown, Clock, Check, XCircle } from 'lucide-react'
 import type { Team } from '@/types/team'
 import type { GovernanceTitle } from '@/types/governance'
 import type { TransferRequest } from '@/types/governance'
@@ -9,8 +9,8 @@ import type { TransferRequest } from '@/types/governance'
 interface TeamMembershipSectionProps {
   agentId: string
   agentTitle: GovernanceTitle
-  memberTeams: Team[]   // teams this agent belongs to
-  allTeams: Team[]      // all teams (for join dropdown)
+  memberTeam: Team | null   // the single team this agent belongs to (0 or 1)
+  allTeams: Team[]           // all teams (for assign dropdown)
   onJoinTeam: (teamId: string) => Promise<{ success: boolean; error?: string }>
   onLeaveTeam: (teamId: string) => Promise<{ success: boolean; error?: string }>
   pendingTransfers?: TransferRequest[]
@@ -21,7 +21,7 @@ interface TeamMembershipSectionProps {
 export default function TeamMembershipSection({
   agentId,
   agentTitle,
-  memberTeams,
+  memberTeam,
   allTeams,
   onJoinTeam,
   onLeaveTeam,
@@ -29,43 +29,32 @@ export default function TeamMembershipSection({
   onRequestTransfer,
   onResolveTransfer,
 }: TeamMembershipSectionProps) {
-  const [showJoinDropdown, setShowJoinDropdown] = useState(false)
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null) // tracks teamId being acted on
-  const [resolvingTransferId, setResolvingTransferId] = useState<string | null>(null) // tracks transferId being resolved
+  const [resolvingTransferId, setResolvingTransferId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    if (!showJoinDropdown) return
+    if (!showAssignDropdown) return
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowJoinDropdown(false)
+        setShowAssignDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showJoinDropdown])
+  }, [showAssignDropdown])
 
-  // Determine which teams this agent can join.
-  // Managers and COS can SEE closed teams in the dropdown, but joining a closed team
-  // requires a transfer request — the Join button opens a transfer request flow rather
-  // than directly adding the agent. Direct joining is only allowed for open teams.
-  // Managers bypass the transfer requirement entirely (they have full authority).
-  const memberTeamIds = new Set(memberTeams.map(t => t.id))
-  const canSeeClosedTeams = agentTitle === 'manager' || agentTitle === 'chief-of-staff'
-  const joinableTeams = allTeams.filter(t => {
-    if (memberTeamIds.has(t.id)) return false
-    if (canSeeClosedTeams) return true
-    // Normal agents can only join non-closed teams
-    return t.type !== 'closed'
+  // Available teams to assign to (exclude the current team)
+  const assignableTeams = allTeams.filter(t => {
+    if (memberTeam && t.id === memberTeam.id) return false
+    return true
   })
 
-  // Filter pending transfers to only those relevant to this agent:
-  // - transfers where this agent is being transferred
-  // - transfers where this agent is the COS of the source team (must approve departure)
-  // - transfers where this agent is the COS of the target team (must approve entry)
+  // Filter pending transfers relevant to this agent
   const relevantTransfers = (pendingTransfers || []).filter(transfer => {
     if (transfer.agentId === agentId) return true
     const fromTeam = allTeams.find(t => t.id === transfer.fromTeamId)
@@ -75,76 +64,56 @@ export default function TeamMembershipSection({
     return false
   })
 
-  const handleJoin = async (teamId: string) => {
+  // COS cannot leave their team (they ARE the team leader)
+  const isCOS = agentTitle === 'chief-of-staff'
+  const canLeaveTeam = memberTeam && !isCOS
+
+  const handleAssign = async (teamId: string) => {
     setError(null)
-    setInfoMessage(null) // Clear stale info messages before new action
+    setInfoMessage(null)
     setLoading(teamId)
     try {
-      const targetTeam = allTeams.find(t => t.id === teamId)
-
-      // Managers bypass all transfer requirements — they have full authority
+      // Managers bypass all transfer requirements
       if (agentTitle === 'manager') {
+        // If already in a team, leave first then join new
+        if (memberTeam) {
+          const leaveResult = await onLeaveTeam(memberTeam.id)
+          if (!leaveResult.success) {
+            setError(leaveResult.error || 'Failed to leave current team')
+            return
+          }
+        }
         const result = await onJoinTeam(teamId)
         if (result.success) {
-          setShowJoinDropdown(false)
+          setShowAssignDropdown(false)
         } else {
-          setError(result.error || 'Failed to join team')
+          setError(result.error || 'Failed to assign to team')
         }
         return
       }
 
-      // Check if a transfer request is needed. Two scenarios require transfers:
-      // 1. The agent is currently in a closed team led by someone else (source COS must approve departure)
-      // 2. The target team is closed (target COS must approve entry)
-      // Direct joining is only allowed for open teams when the agent is not locked in a closed team.
-      const closedSourceTeams = memberTeams.filter(t =>
-        t.type === 'closed' && t.chiefOfStaffId && t.chiefOfStaffId !== agentId
-      )
-      const targetIsClosed = targetTeam?.type === 'closed'
-
-      // Transfer request needed if source team is closed (departure approval)
-      // or target team is closed (entry approval) — either case requires COS oversight
-      const needsTransfer = closedSourceTeams.length > 0 || targetIsClosed
-
-      if (needsTransfer && onRequestTransfer) {
-        // Determine the source team for the transfer request.
-        // If the agent is in a closed team, use that as the source (departure + arrival approval).
-        // If the agent is NOT in a closed team but the target is closed, use the agent's
-        // first team as source context (the target COS still needs to approve entry).
-        const sourceTeam = closedSourceTeams.length > 0
-          ? closedSourceTeams[0]  // Business rule R3: agent can only be in one closed team at a time
-          : memberTeams[0]        // Fallback: use first team as transfer source context
-
-        if (!sourceTeam) {
-          // Agent has no teams yet — a transfer request requires a fromTeamId as source context,
-          // so there is nothing to transfer from. The target team's COS must add them directly.
-          setError('To request a transfer to a closed team, you must already be a member of at least one team (used as the transfer source). Contact the team\'s Chief-of-Staff for direct entry.')
-          return
-        }
-
-        const result = await onRequestTransfer(agentId, sourceTeam.id, teamId)
+      // For non-managers: if agent is already in a team, request a transfer
+      if (memberTeam && onRequestTransfer) {
+        const result = await onRequestTransfer(agentId, memberTeam.id, teamId)
         if (result.success) {
-          setShowJoinDropdown(false)
+          setShowAssignDropdown(false)
           setError(null)
-          // Show info message that transfer is pending
-          const approverDesc = targetIsClosed && closedSourceTeams.length === 0
-            ? `${targetTeam?.name || 'target team'}'s`
-            : `${sourceTeam.name}'s`
-          setInfoMessage(`Transfer request sent. Awaiting approval from ${approverDesc} Chief-of-Staff.`)
+          const targetTeam = allTeams.find(t => t.id === teamId)
+          setInfoMessage(`Transfer request sent. Awaiting approval from ${targetTeam?.name || 'target team'}'s Chief-of-Staff.`)
         } else {
           setError(result.error || 'Failed to request transfer')
         }
       } else {
-        // Direct join — only reaches here for open target teams when agent is not in a closed team
+        // Direct join — agent is not in any team
         const result = await onJoinTeam(teamId)
         if (result.success) {
-          setShowJoinDropdown(false)
+          setShowAssignDropdown(false)
         } else {
-          setError(result.error || 'Failed to join team')
+          setError(result.error || 'Failed to assign to team')
         }
       }
     } catch {
-      setError('Failed to join team')
+      setError('Failed to assign to team')
     } finally {
       setLoading(null)
     }
@@ -152,14 +121,13 @@ export default function TeamMembershipSection({
 
   const handleLeave = async (teamId: string) => {
     setError(null)
-    setInfoMessage(null) // Clear stale info messages before new action
+    setInfoMessage(null)
     setLoading(teamId)
     try {
       const result = await onLeaveTeam(teamId)
       if (!result.success) {
         setError(result.error || 'Failed to leave team')
       } else {
-        // NT-032: Brief success feedback so the user knows the leave action completed
         setInfoMessage('Successfully left team')
       }
     } catch {
@@ -174,41 +142,31 @@ export default function TeamMembershipSection({
       {/* Section header row */}
       <div className="flex items-center gap-2 mb-1">
         <Building2 className="w-4 h-4 text-gray-500" />
-        <span className="text-sm text-gray-400 font-medium">Teams</span>
-        {memberTeams.length > 0 && (
-          <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
-            {memberTeams.length}
-          </span>
-        )}
+        <span className="text-sm text-gray-400 font-medium">Team</span>
         <div className="ml-auto relative" ref={dropdownRef}>
           <button
-            onClick={() => setShowJoinDropdown(!showJoinDropdown)}
+            onClick={() => setShowAssignDropdown(!showAssignDropdown)}
             className="text-xs px-2 py-1 rounded border border-dashed border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
           >
             <Plus className="w-3 h-3" />
-            Join Team
-            <ChevronDown className={`w-3 h-3 transition-transform ${showJoinDropdown ? 'rotate-180' : ''}`} />
+            {memberTeam ? 'Reassign' : 'Assign to Team'}
+            <ChevronDown className={`w-3 h-3 transition-transform ${showAssignDropdown ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Join Team dropdown */}
-          {showJoinDropdown && (
+          {/* Assign Team dropdown */}
+          {showAssignDropdown && (
             <div className="absolute right-0 z-20 bg-gray-800 border border-gray-700 rounded-lg p-1 max-h-48 overflow-y-auto mt-1 min-w-[180px]">
-              {joinableTeams.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-gray-500">No teams available to join</div>
+              {assignableTeams.length === 0 ? (
+                <div className="px-2 py-1.5 text-xs text-gray-500">No teams available</div>
               ) : (
-                joinableTeams.map(team => (
+                assignableTeams.map(team => (
                   <button
                     key={team.id}
-                    onClick={() => handleJoin(team.id)}
+                    onClick={() => handleAssign(team.id)}
                     disabled={loading === team.id}
                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
                   >
                     <span className="truncate">{team.name}</span>
-                    {team.type === 'closed' ? (
-                      <Lock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                    ) : (
-                      <Unlock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                    )}
                   </button>
                 ))
               )}
@@ -217,38 +175,34 @@ export default function TeamMembershipSection({
         </div>
       </div>
 
-      {/* Team list */}
-      {memberTeams.length === 0 ? (
-        <div className="text-sm text-gray-500 italic px-1">Not a member of any team</div>
+      {/* Current team display (single team or "No team") */}
+      {!memberTeam ? (
+        <div className="text-sm text-gray-500 italic px-1">No team</div>
       ) : (
-        <div className="space-y-0.5">
-          {memberTeams.map(team => (
-            <div
-              key={team.id}
-              className="flex items-center gap-2 group px-1 py-1 rounded hover:bg-gray-800/50 transition-colors"
+        <div className="flex items-center gap-2 group px-1 py-1 rounded hover:bg-gray-800/50 transition-colors">
+          <span className="text-sm text-gray-200 truncate">{memberTeam.name}</span>
+          {/* Show COS badge if this agent is chief-of-staff of this team */}
+          {memberTeam.chiefOfStaffId === agentId && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+              COS
+            </span>
+          )}
+          {/* Leave button — disabled for COS (COS must have a team) */}
+          {canLeaveTeam && (
+            <button
+              onClick={() => handleLeave(memberTeam.id)}
+              disabled={loading === memberTeam.id}
+              className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity ml-auto disabled:opacity-50"
+              title="Leave team"
             >
-              <span className="text-sm text-gray-200 truncate">{team.name}</span>
-              {team.type === 'closed' ? (
-                <Lock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-              ) : (
-                <Unlock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-              )}
-              {/* Show COS badge for closed teams where this agent is chief-of-staff */}
-              {team.type === 'closed' && team.chiefOfStaffId === agentId && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
-                  COS
-                </span>
-              )}
-              <button
-                onClick={() => handleLeave(team.id)}
-                disabled={loading === team.id}
-                className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity ml-auto disabled:opacity-50"
-                title="Leave team"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {isCOS && (
+            <span className="ml-auto text-xs text-gray-600" title="COS cannot leave their team">
+              locked
+            </span>
+          )}
         </div>
       )}
 
@@ -259,7 +213,6 @@ export default function TeamMembershipSection({
           {relevantTransfers.map(transfer => {
             const fromTeam = allTeams.find(t => t.id === transfer.fromTeamId)
             const toTeam = allTeams.find(t => t.id === transfer.toTeamId)
-            // A COS of either the source team (approves departure) or the target team (approves entry) can resolve
             const canResolve = onResolveTransfer && (fromTeam?.chiefOfStaffId === agentId || toTeam?.chiefOfStaffId === agentId)
 
             return (
@@ -276,9 +229,7 @@ export default function TeamMembershipSection({
                         setResolvingTransferId(transfer.id)
                         try {
                           const result = await onResolveTransfer(transfer.id, 'approve')
-                          if (result.success) {
-                            setError(null) // Clear any stale error on success
-                          } else {
+                          if (!result.success) {
                             setError(result.error || 'Failed to approve transfer')
                           }
                         } catch {
@@ -299,9 +250,7 @@ export default function TeamMembershipSection({
                         setResolvingTransferId(transfer.id)
                         try {
                           const result = await onResolveTransfer(transfer.id, 'reject')
-                          if (result.success) {
-                            setError(null) // Clear any stale error on success
-                          } else {
+                          if (!result.success) {
                             setError(result.error || 'Failed to reject transfer')
                           }
                         } catch {

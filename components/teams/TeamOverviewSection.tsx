@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Users, Save, X, Plus, Trash2, ListTodo, FileText, Clock, RefreshCw, AlertCircle, Lock, Unlock, Shield } from 'lucide-react'
+import { Users, Save, X, Plus, Trash2, ListTodo, FileText, Clock, RefreshCw, AlertCircle, Shield } from 'lucide-react'
 import type { Team } from '@/types/team'
 import type { Agent } from '@/types/agent'
 
@@ -133,22 +133,13 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
             >
               {team.name}
             </h1>
-            {/* Team type badge (R1.1) */}
-            {team.type === 'closed' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 rounded-full">
-                <Lock className="w-3 h-3" /> Closed
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-500/15 text-gray-400 border border-gray-500/30 rounded-full">
-                <Unlock className="w-3 h-3" /> Open
-              </span>
-            )}
+            {/* Team badge — all teams are closed (governance simplification) */}
           </div>
         )}
       </div>
 
-      {/* COS info for closed teams (R3.7) */}
-      {team.type === 'closed' && team.chiefOfStaffId && (
+      {/* COS info (all teams have a COS) */}
+      {team.chiefOfStaffId && (
         <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
           <Shield className="w-4 h-4 text-indigo-400 flex-shrink-0" />
           <span className="text-sm text-indigo-300">

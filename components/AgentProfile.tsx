@@ -1,16 +1,17 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, User, Building2, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
-  DollarSign, Database, BookOpen, Link2, Edit2, Save,
+  DollarSign, Database, BookOpen, Link2, Edit2, Undo2, Redo2,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send, RotateCcw,
   GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
   FolderTree, Terminal, Crown, Shield, Webhook, ScrollText, Users, Puzzle, Palette,
   ToggleLeft, ToggleRight, Loader2
 } from 'lucide-react'
+import type { UseConfigUndoRedoReturn } from '@/hooks/useConfigUndoRedo'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
 import ExportAgentDialog from './ExportAgentDialog'
@@ -39,6 +40,7 @@ interface AgentProfileProps {
   renderMode?: 'full' | 'overview' | 'advanced'  // Which sections to render (default: 'full')
   renderAfterHeader?: () => React.ReactNode  // Content injected between header and body
   renderAfterGovernanceTitle?: () => React.ReactNode  // Content injected after the Governance Title row (used for Role Plugin selector)
+  undoRedo?: UseConfigUndoRedoReturn   // Shared undo/redo hook — when provided, replaces local undo/redo logic
 }
 
 /** Inline toggle for local plugin enable/disable */
@@ -63,14 +65,20 @@ function PluginToggle({ agentId, pluginKey, enabled, onToggled }: { agentId: str
   )
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle, undoRedo }: AgentProfileProps) {
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
+
+  // Undo/redo — delegate to shared hook when provided, fall back to local stacks for standalone use
+  const undoCount = undoRedo?.undoCount ?? 0
+  const redoCount = undoRedo?.redoCount ?? 0
+  // Per-field debounce timers for auto-save — typing in one field doesn't cancel another field's save
+  const debounceTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // Track which field labels should flash green on successful auto-save
+  const [flashFields, setFlashFields] = useState<Set<string>>(new Set())
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [newTagValue, setNewTagValue] = useState('')
   const [showTransferDialog, setShowTransferDialog] = useState(false)
@@ -116,6 +124,60 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
   // Ref for danger zone scrolling
   const dangerZoneRef = useRef<HTMLElement>(null)
+
+  // Debounced auto-save: PATCHes the specific field to the API after 300ms of inactivity per field
+  const autoSave = useCallback((field: string, value: any) => {
+    // Clear any existing timer for THIS field only — other fields' timers are unaffected
+    if (debounceTimersRef.current[field]) {
+      clearTimeout(debounceTimersRef.current[field])
+    }
+    debounceTimersRef.current[field] = setTimeout(async () => {
+      try {
+        const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: value })
+        })
+        if (response.ok) {
+          // Brief green flash on the field label to confirm auto-save succeeded
+          setFlashFields(prev => new Set(prev).add(field))
+          setTimeout(() => {
+            setFlashFields(prev => {
+              const next = new Set(prev)
+              next.delete(field)
+              return next
+            })
+          }, 600)
+        } else {
+          console.error(`Auto-save failed for ${field}:`, response.statusText)
+        }
+      } catch (error) {
+        console.error(`Auto-save failed for ${field}:`, error)
+      }
+      delete debounceTimersRef.current[field]
+    }, 300)
+  }, [baseUrl, agentId])
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimersRef.current).forEach(clearTimeout)
+    }
+  }, [])
+
+  // Undo/Redo — delegate to the shared hook (API persistence is handled there)
+  const handleUndo = useCallback(() => {
+    if (!undoRedo || !undoRedo.canUndo) return
+    undoRedo.undo()
+    // Note: local React state for the agent is NOT reverted here because the shared
+    // hook handles API persistence. The next fetch cycle will sync the UI. For instant
+    // local feedback, the caller can listen to undoCount changes and re-fetch.
+  }, [undoRedo])
+
+  const handleRedo = useCallback(() => {
+    if (!undoRedo || !undoRedo.canRedo) return
+    undoRedo.redo()
+  }, [undoRedo])
 
   // Auto-scroll to danger zone when requested
   useEffect(() => {
@@ -234,7 +296,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
       await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(sessionName)}/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, addNewline: true }),
+        body: JSON.stringify({ command, addNewline: true, requireIdle: false }),
       })
     } catch (error) {
       console.error('Failed to send command to session:', error)
@@ -242,9 +304,24 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   }
 
   // Launch a new Claude session inside the agent's existing tmux shell
+  // Buttons are disabled only when program is actively running in the tmux pane.
+  // When tmux is alive but showing a shell prompt (Claude exited), buttons are enabled.
+  const isProgramRunning = sessionStatus?.status === 'online' && sessionStatus?.programRunning !== false
+
+  // Resolve display program name (e.g. "claude-code", "Claude Code") to CLI binary name
+  const resolveProgram = (program: string): string => {
+    const p = program.toLowerCase()
+    if (p.includes('claude')) return 'claude'
+    if (p.includes('codex')) return 'codex'
+    if (p.includes('aider')) return 'aider'
+    if (p.includes('gemini')) return 'gemini'
+    if (p.includes('opencode')) return 'opencode'
+    return 'claude'
+  }
+
   const handleNewSession = async () => {
-    if (sessionStatus?.status === 'online') return
-    const program = agent?.program || 'claude'
+    if (isProgramRunning) return
+    const program = resolveProgram(agent?.program || 'claude')
     const args = agent?.programArgs || ''
     const cmd = `${program} ${args}`.trim()
     await sendCommandToSession(cmd)
@@ -252,68 +329,33 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
   // Resume the previous Claude conversation with --continue
   const handleResumeSession = async () => {
-    if (sessionStatus?.status === 'online') return
-    const program = agent?.program || 'claude'
+    if (isProgramRunning) return
+    const program = resolveProgram(agent?.program || 'claude')
     const args = agent?.programArgs || ''
     const cmd = `${program} --continue ${args}`.trim()
     await sendCommandToSession(cmd)
   }
 
-  const handleSave = async () => {
-    if (!agent || !hasChanges) return
-
-    setSaving(true)
-    try {
-      const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: agent.name || agent.alias,
-          label: agent.label,
-          avatar: agent.avatar,
-          owner: agent.owner,
-          team: agent.team,
-          model: agent.model,
-          taskDescription: agent.taskDescription,
-          programArgs: agent.programArgs,
-          tags: agent.tags,
-          documentation: agent.documentation,
-          metadata: agent.metadata
-        })
-      })
-
-      if (response.ok) {
-        setHasChanges(false)
-        setSaving(false)
-      } else {
-        // CC-P1-702: Handle non-OK responses so the save button does not remain stuck in spinner state
-        const errData = await response.json().catch(() => ({ error: 'Save failed' }))
-        console.error('Failed to save agent:', errData.error || response.statusText)
-        setSaving(false)
-      }
-    } catch (error) {
-      console.error('Failed to save agent:', error)
-      setSaving(false)
-    }
-  }
-
   // CC-P1-701: Restrict value type to the actual union of types used by callers
+  // Auto-saves on change, refreshes server-side undo/redo status afterward
   const updateField = (field: string, value: string | string[] | undefined) => {
     if (!agent) return
+    // Update local React state immediately for responsive UI
     setAgent({ ...agent, [field]: value })
-    setHasChanges(true)
+    // Debounced auto-save to API (per-field, 300ms)
+    autoSave(field, value)
+    // Server handles undo snapshots — just refresh the status counts
+    undoRedo?.refreshStatus()
   }
 
   const updateDocField = (field: keyof AgentDocumentation, value: string) => {
     if (!agent) return
-    setAgent({
-      ...agent,
-      documentation: {
-        ...agent.documentation,
-        [field]: value
-      }
-    })
-    setHasChanges(true)
+    const newDoc = { ...agent.documentation, [field]: value }
+    setAgent({ ...agent, documentation: newDoc })
+    // Auto-save the entire documentation object since the API expects it as one field
+    autoSave('documentation', newDoc)
+    // Server handles undo snapshots — just refresh the status counts
+    undoRedo?.refreshStatus()
   }
 
   const addTag = (tag: string) => {
@@ -393,35 +435,49 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 >
                   <Send className="w-5 h-5" />
                 </button>
-                {/* Divider */}
-                <div className="w-px h-6 bg-gray-700 mx-1" />
-                {/* Save Button */}
-                <button
-                  onClick={handleSave}
-                  disabled={!hasChanges || saving}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                    hasChanges
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-500/25'
-                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  {saving ? (
-                    <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Saving
-                    </span>
-                  ) : hasChanges ? (
-                    <span className="flex items-center gap-2">
-                      <Save className="w-4 h-4" />
-                      Save
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Saved
-                    </span>
-                  )}
-                </button>
+                {/* Undo/Redo buttons — hidden when parent panel provides shared undo/redo in its header */}
+                {!undoRedo && (
+                  <>
+                    {/* Divider */}
+                    <div className="w-px h-6 bg-gray-700 mx-1" />
+                    {/* Undo Button */}
+                    <button
+                      onClick={handleUndo}
+                      disabled={undoCount === 0}
+                      className={`relative p-2 rounded-lg transition-all ${
+                        undoCount > 0
+                          ? 'hover:bg-gray-800 text-gray-300 hover:text-blue-400'
+                          : 'text-gray-600 cursor-not-allowed'
+                      }`}
+                      title={`Undo (${undoCount})`}
+                    >
+                      <Undo2 className="w-5 h-5" />
+                      {undoCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                          {undoCount > 99 ? '99' : undoCount}
+                        </span>
+                      )}
+                    </button>
+                    {/* Redo Button */}
+                    <button
+                      onClick={handleRedo}
+                      disabled={redoCount === 0}
+                      className={`relative p-2 rounded-lg transition-all ${
+                        redoCount > 0
+                          ? 'hover:bg-gray-800 text-gray-300 hover:text-blue-400'
+                          : 'text-gray-600 cursor-not-allowed'
+                      }`}
+                      title={`Redo (${redoCount})`}
+                    >
+                      <Redo2 className="w-5 h-5" />
+                      {redoCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                          {redoCount > 99 ? '99' : redoCount}
+                        </span>
+                      )}
+                    </button>
+                  </>
+                )}
                 {/* Close button — only in overlay mode, parent handles closing in embedded */}
                 {!embedded && (
                   <button
@@ -545,6 +601,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                             value={agent.name || agent.alias || ''}
                             onChange={(value) => updateField('name', value)}
                             icon={<User className="w-4 h-4" />}
+                            flashActive={flashFields.has('name')}
                           />
                           <p className="text-xs text-gray-500 mt-1">
                             Technical identifier used for tmux session. Changing requires restart.
@@ -558,6 +615,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                             onChange={(value) => updateField('label', value)}
                             icon={<Tag className="w-4 h-4" />}
                             placeholder={agent.name || agent.alias || 'Same as agent ID'}
+                            flashActive={flashFields.has('label')}
                           />
                           <p className="text-xs text-gray-500 mt-1">
                             The agent&apos;s personal name, shown capitalized in the UI.
@@ -572,6 +630,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateField('owner', value)}
                       icon={<User className="w-4 h-4" />}
                       placeholder="Owner name"
+                      flashActive={flashFields.has('owner')}
                     />
 
                     {/* Governance Title */}
@@ -593,7 +652,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                     <TeamMembershipSection
                       agentId={agent.id}
                       agentTitle={governance.agentTitle}
-                      memberTeams={governance.memberTeams}
+                      memberTeam={governance.memberTeam}
                       allTeams={governance.allTeams}
                       onJoinTeam={(teamId) => governance.addAgentToTeam(teamId, agent.id)}
                       onLeaveTeam={(teamId) => governance.removeAgentFromTeam(teamId, agent.id)}
@@ -627,6 +686,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         value={agent.program}
                         onChange={(value) => updateField('program', value)}
                         icon={<Briefcase className="w-4 h-4" />}
+                        flashActive={flashFields.has('program')}
                       />
                       <EditableField
                         label="Model"
@@ -634,6 +694,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         onChange={(value) => updateField('model', value)}
                         icon={<Cpu className="w-4 h-4" />}
                         placeholder="Model version"
+                        flashActive={flashFields.has('model')}
                       />
                     </div>
 
@@ -643,13 +704,14 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateField('taskDescription', value)}
                       icon={<Code2 className="w-4 h-4" />}
                       multiline
+                      flashActive={flashFields.has('taskDescription')}
                     />
 
                     {/* Session action buttons — inject command into terminal, wait 500ms, send Enter */}
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleNewSession}
-                        disabled={sessionStatus?.status === 'online'}
+                        disabled={isProgramRunning}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-emerald-500/25"
                       >
                         <Plus className="w-4 h-4" />
@@ -657,7 +719,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </button>
                       <button
                         onClick={handleResumeSession}
-                        disabled={sessionStatus?.status === 'online'}
+                        disabled={isProgramRunning}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-blue-500/25"
                       >
                         <Play className="w-4 h-4" />
@@ -670,14 +732,16 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       value={agent.programArgs || ''}
                       onChange={(value) => updateField('programArgs', value)}
                       icon={<Terminal className="w-4 h-4" />}
+                      flashActive={flashFields.has('programArgs')}
                     />
 
                     {/* Tags - Control sidebar tree position */}
                     <div className="space-y-3">
                       <div>
-                        <label className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
+                        <label className={`text-xs font-medium mb-2 flex items-center gap-2 transition-colors duration-300 ${flashFields.has('tags') ? 'text-emerald-400' : 'text-gray-400'}`}>
                           <Tag className="w-4 h-4" />
                           Sidebar Organization (Tags)
+                          {flashFields.has('tags') && <CheckCircle className="w-3 h-3 text-emerald-400" />}
                         </label>
                         <p className="text-xs text-gray-500 mb-3">
                           Tags determine where the agent appears in the sidebar tree. First tag = folder, second tag = subfolder.
@@ -1185,6 +1249,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       icon={<BookOpen className="w-4 h-4" />}
                       multiline
                       placeholder="Detailed description of the agent's purpose"
+                      flashActive={flashFields.has('documentation')}
                     />
                     <EditableField
                       label="Runbook URL"
@@ -1192,6 +1257,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateDocField('runbook', value)}
                       icon={<Link2 className="w-4 h-4" />}
                       placeholder="https://..."
+                      flashActive={flashFields.has('documentation')}
                     />
                     <EditableField
                       label="Wiki URL"
@@ -1199,6 +1265,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateDocField('wiki', value)}
                       icon={<Link2 className="w-4 h-4" />}
                       placeholder="https://..."
+                      flashActive={flashFields.has('documentation')}
                     />
                     <EditableField
                       label="Notes"
@@ -1207,6 +1274,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       icon={<Edit2 className="w-4 h-4" />}
                       multiline
                       placeholder="Free-form notes about the agent"
+                      flashActive={flashFields.has('documentation')}
                     />
                   </div>
                 )}
@@ -1368,7 +1436,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentName={agent.label || agent.name || ''}
           currentTitle={governance.agentTitle}
           governance={governance}
-          onTitleChanged={() => governance.refresh()}
+          onTitleChanged={() => { governance.refresh(); undoRedo?.refreshStatus() }}
         />
       )}
 
@@ -1397,9 +1465,10 @@ interface EditableFieldProps {
   icon?: React.ReactNode
   placeholder?: string
   multiline?: boolean
+  flashActive?: boolean  // Brief green flash on label when auto-save succeeds
 }
 
-function EditableField({ label, value, onChange, icon, placeholder, multiline }: EditableFieldProps) {
+function EditableField({ label, value, onChange, icon, placeholder, multiline, flashActive }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [localValue, setLocalValue] = useState(value)
   const fieldId = `editable-${label.toLowerCase().replace(/\s+/g, '-')}`
@@ -1417,9 +1486,10 @@ function EditableField({ label, value, onChange, icon, placeholder, multiline }:
 
   return (
     <div>
-      <label htmlFor={fieldId} className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
+      <label htmlFor={fieldId} className={`text-xs font-medium mb-2 flex items-center gap-2 transition-colors duration-300 ${flashActive ? 'text-emerald-400' : 'text-gray-400'}`}>
         {icon}
         {label}
+        {flashActive && <CheckCircle className="w-3 h-3 text-emerald-400" />}
       </label>
       {isEditing ? (
         multiline ? (

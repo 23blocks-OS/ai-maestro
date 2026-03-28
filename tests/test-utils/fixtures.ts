@@ -100,7 +100,7 @@ export function makeTeam(overrides: Partial<Team> = {}): Team {
     id: `team-${n}`,
     name: `Test Team ${n}`,
     agentIds: [],
-    type: 'open' as const,
+    type: 'closed' as const,
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...overrides,

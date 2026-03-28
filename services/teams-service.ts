@@ -26,11 +26,10 @@
  */
 
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
-import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
+// Local task-registry removed (governance simplification 2026-03-27) — kanban uses GitHub Projects exclusively
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
 import * as ghProject from '@/lib/github-project'
-import type { TaskStatus, TaskWithDeps } from '@/types/task'
-import { DEFAULT_STATUSES } from '@/types/task'
+import type { TaskWithDeps } from '@/types/task'
 import type { Team, KanbanColumnConfig } from '@/types/team'
 import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import type { TeamDocument } from '@/types/document'
@@ -138,7 +137,7 @@ export interface AgentNotifyResult {
   error?: string
 }
 
-const VALID_TASK_STATUSES = DEFAULT_STATUSES
+// Local VALID_TASK_STATUSES removed — task status validation done by GitHub Projects
 
 // ===========================================================================
 // PUBLIC API -- called by API routes
@@ -157,9 +156,9 @@ export function listAllTeams(): ServiceResult<{ teams: Team[] }> {
 }
 
 /**
- * Create a new team.
- * Governance: validates team type, passes managerId and agentNames to createTeam
- * for business rule enforcement (R1-R4).
+ * Create a new team (always closed after governance simplification).
+ * Governance: passes managerId and agentNames to createTeam for business rule enforcement.
+ * All teams are closed — the type parameter is ignored.
  */
 export async function createNewTeam(params: CreateTeamParams): Promise<ServiceResult<{ team: any; needsChiefOfStaff?: boolean }>> {
   const { name, description, agentIds } = params
@@ -170,11 +169,6 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
 
   if (agentIds && !Array.isArray(agentIds)) {
     return { error: 'agentIds must be an array', status: 400 }
-  }
-
-  // Governance: validate type field
-  if (params.type && params.type !== 'open' && params.type !== 'closed') {
-    return { error: 'type must be "open" or "closed"', status: 400 }
   }
 
   // Governance: only MANAGER or web UI (no requestingAgentId) can create teams
@@ -190,14 +184,14 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
     const managerId = getManagerId()
     const agentNames = loadAgents().map(a => a.name).filter(Boolean)
     const team = await createTeam(
-      { name, description, agentIds: agentIds || [], type: params.type, chiefOfStaffId: params.chiefOfStaffId },
+      { name, description, agentIds: agentIds || [], type: 'closed', chiefOfStaffId: params.chiefOfStaffId },
       managerId,
       agentNames
     )
 
-    // Auto-COS chain: if closed team was created with a chiefOfStaffId,
-    // auto-assign the COS role-plugin so the agent gets its governance persona.
-    if (params.type === 'closed' && params.chiefOfStaffId) {
+    // Auto-COS chain: auto-assign the COS role-plugin so the agent gets its governance persona.
+    // All teams are closed, so always attempt COS plugin assignment when chiefOfStaffId is provided.
+    if (params.chiefOfStaffId) {
       try {
         const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
         await autoAssignRolePluginForTitle('chief-of-staff', params.chiefOfStaffId)
@@ -207,8 +201,8 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
       }
     }
 
-    // Flag if closed team needs a COS (no chiefOfStaffId and no agents assigned)
-    const needsChiefOfStaff = params.type === 'closed' && !team.chiefOfStaffId
+    // Flag if team still needs a COS
+    const needsChiefOfStaff = !team.chiefOfStaffId
     return { data: { team, needsChiefOfStaff }, status: 201 }
   } catch (error) {
     // TeamValidationException carries a specific HTTP status code from governance rules
@@ -327,15 +321,14 @@ export async function deleteTeamById(id: string, requestingAgentId?: string, pas
     }
   }
 
-  // Governance: closed team deletion requires MANAGER or Chief-of-Staff authority
-  if (team.type === 'closed') {
-    if (!requestingAgentId) {
-      return { error: 'Closed team deletion requires agent identity (X-Agent-Id header)', status: 400 }
-    }
-    const managerId = getManagerId()
-    if (requestingAgentId !== managerId && team.chiefOfStaffId !== requestingAgentId) {
-      return { error: 'Only MANAGER or the team Chief-of-Staff can delete a closed team', status: 403 }
-    }
+  // Governance: team deletion requires MANAGER or Chief-of-Staff authority
+  // All teams are closed after governance simplification — always enforce this check
+  if (!requestingAgentId) {
+    return { error: 'Team deletion requires agent identity (X-Agent-Id header)', status: 400 }
+  }
+  const managerId2 = getManagerId()
+  if (requestingAgentId !== managerId2 && team.chiefOfStaffId !== requestingAgentId) {
+    return { error: 'Only MANAGER or the team Chief-of-Staff can delete a team', status: 403 }
   }
 
   const deleted = await deleteTeam(id)
@@ -357,9 +350,10 @@ export function getTeamsBulkStats(): ServiceResult<Record<string, { taskCount: n
   const teams = loadTeams()
   const stats: Record<string, { taskCount: number; docCount: number }> = {}
   for (const team of teams) {
-    const tasks = loadTasks(team.id)
+    // Local task storage removed — task counts come from GitHub Projects (fetched async per-team, not in bulk)
+    // Return 0 for taskCount in bulk stats; UI should use per-team GitHub Project queries for accurate counts
     const documents = loadDocuments(team.id)
-    stats[team.id] = { taskCount: tasks.length, docCount: documents.length }
+    stats[team.id] = { taskCount: 0, docCount: documents.length }
   }
   return { data: stats, status: 200 }
 }
@@ -387,20 +381,19 @@ export async function listTeamTasks(teamId: string, requestingAgentId?: string, 
 
   let resolved: TaskWithDeps[]
 
-  if (team.githubProject) {
-    // GitHub Project is source of truth — fetch from GitHub
-    const ghAuth = ghProject.checkGhAuth()
-    if (ghAuth) return { error: ghAuth, status: 503 }
-    try {
-      const tasks = await ghProject.listTasks(team.githubProject, teamId)
-      resolved = ghProject.resolveTaskDeps(tasks)
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
-    }
-  } else {
-    // Local file storage (legacy/unlinked teams)
-    const tasks = loadTasks(teamId)
-    resolved = resolveTaskDeps(tasks)
+  if (!team.githubProject) {
+    // No GitHub Project linked — team has no task source after local task storage removal
+    return { data: { tasks: [] }, status: 200 }
+  }
+
+  // GitHub Project is source of truth — fetch from GitHub
+  const ghAuth = ghProject.checkGhAuth()
+  if (ghAuth) return { error: ghAuth, status: 503 }
+  try {
+    const tasks = await ghProject.listTasks(team.githubProject, teamId)
+    resolved = ghProject.resolveTaskDeps(tasks)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
   }
 
   let filtered = resolved
@@ -429,26 +422,22 @@ export async function getTeamTask(teamId: string, taskId: string, requestingAgen
     return { error: access.reason || 'Access denied', status: 403 }
   }
 
-  if (team.githubProject) {
-    // GitHub-backed: find task in the full list (cached 10s)
-    const ghAuth = ghProject.checkGhAuth()
-    if (ghAuth) return { error: ghAuth, status: 503 }
-    try {
-      const tasks = await ghProject.listTasks(team.githubProject, teamId)
-      const task = tasks.find(t => t.id === taskId)
-      if (!task) return { error: 'Task not found', status: 404 }
-      return { data: { task }, status: 200 }
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
-    }
+  if (!team.githubProject) {
+    // No GitHub Project linked — no task source after local task storage removal
+    return { error: 'Task not found (team has no GitHub Project linked)', status: 404 }
   }
 
-  const task = getTask(teamId, taskId)
-  if (!task) {
-    return { error: 'Task not found', status: 404 }
+  // GitHub-backed: find task in the full list (cached 10s)
+  const ghAuth = ghProject.checkGhAuth()
+  if (ghAuth) return { error: ghAuth, status: 503 }
+  try {
+    const tasks = await ghProject.listTasks(team.githubProject, teamId)
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return { error: 'Task not found', status: 404 }
+    return { data: { task }, status: 200 }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
   }
-
-  return { data: { task }, status: 200 }
 }
 
 
@@ -483,43 +472,26 @@ export async function createTeamTask(teamId: string, params: CreateTaskParams): 
     }
   }
 
+  if (!team.githubProject) {
+    return { error: 'Cannot create task: team has no GitHub Project linked', status: 400 }
+  }
+
   try {
-    let task
-    if (team.githubProject) {
-      // Create issue + project item on GitHub (source of truth)
-      const ghAuth = ghProject.checkGhAuth()
-      if (ghAuth) return { error: ghAuth, status: 503 }
-      task = await ghProject.createTask(team.githubProject, teamId, {
-        subject: subject.trim(),
-        description,
-        status: taskFields.status,
-        priority,
-        labels: taskFields.labels,
-        assigneeLogin: assigneeAgentId === null ? undefined : assigneeAgentId, // For GitHub-backed teams, this is a GitHub login
-        taskType: taskFields.taskType,
-        blockedBy,
-        acceptanceCriteria: taskFields.acceptanceCriteria,
-        prUrl: taskFields.prUrl,
-      })
-    } else {
-      // Local file storage
-      task = await createTask({
-        teamId,
-        subject: subject.trim(),
-        description,
-        assigneeAgentId,
-        blockedBy,
-        priority,
-        status: taskFields.status,
-        labels: taskFields.labels,
-        taskType: taskFields.taskType,
-        externalRef: taskFields.externalRef,
-        externalProjectRef: taskFields.externalProjectRef,
-        acceptanceCriteria: taskFields.acceptanceCriteria,
-        handoffDoc: taskFields.handoffDoc,
-        prUrl: taskFields.prUrl,
-      })
-    }
+    // Create issue + project item on GitHub (source of truth)
+    const ghAuth = ghProject.checkGhAuth()
+    if (ghAuth) return { error: ghAuth, status: 503 }
+    const task = await ghProject.createTask(team.githubProject, teamId, {
+      subject: subject.trim(),
+      description,
+      status: taskFields.status,
+      priority,
+      labels: taskFields.labels,
+      assigneeLogin: assigneeAgentId === null ? undefined : assigneeAgentId, // For GitHub-backed teams, this is a GitHub login
+      taskType: taskFields.taskType,
+      blockedBy,
+      acceptanceCriteria: taskFields.acceptanceCriteria,
+      prUrl: taskFields.prUrl,
+    })
     return { data: { task }, status: 201 }
   } catch (error) {
     console.error('Failed to create task:', error)
@@ -551,115 +523,46 @@ export async function updateTeamTask(
 
   const { subject, description, status, assigneeAgentId, blockedBy, priority } = taskFields
 
-  if (team.githubProject) {
-    // GitHub Project is source of truth — update project item fields
-    const ghAuth = ghProject.checkGhAuth()
-    if (ghAuth) return { error: ghAuth, status: 503 }
-
-    // Basic blockedBy validation (no cycle check for GitHub — deps are issue-number references)
-    if (Array.isArray(blockedBy)) {
-      for (const depId of blockedBy) {
-        if (typeof depId !== 'string') {
-          return { error: 'blockedBy must contain only string task IDs', status: 400 }
-        }
-      }
-    }
-
-    try {
-      const task = await ghProject.updateTask(team.githubProject, teamId, taskId, {
-        subject,
-        description,
-        status,
-        priority,
-        labels: taskFields.labels,
-        assigneeLogin: assigneeAgentId !== undefined
-          ? (assigneeAgentId || undefined) // null → unassign
-          : undefined,
-        taskType: taskFields.taskType,
-        blockedBy,
-        acceptanceCriteria: taskFields.acceptanceCriteria,
-        prUrl: taskFields.prUrl,
-        previousStatus: taskFields.previousStatus,
-      })
-      if (!task) {
-        return { error: 'Task not found', status: 404 }
-      }
-      return { data: { task, unblocked: [] }, status: 200 }
-    } catch (error) {
-      console.error('Failed to update task:', error)
-      return { error: error instanceof Error ? error.message : 'GitHub API error', status: 502 }
-    }
+  if (!team.githubProject) {
+    return { error: 'Cannot update task: team has no GitHub Project linked', status: 400 }
   }
 
-  // ── Local file storage path ──
+  // GitHub Project is source of truth — update project item fields
+  const ghAuth = ghProject.checkGhAuth()
+  if (ghAuth) return { error: ghAuth, status: 503 }
 
-  const existing = getTask(teamId, taskId)
-  if (!existing) {
-    return { error: 'Task not found', status: 404 }
-  }
-
-  // Task assignee verification: only the assigned agent, COS, or MANAGER can update task status.
-  // This prevents other team members from modifying tasks not assigned to them.
-  if (status !== undefined && requestingAgentId && existing.assigneeAgentId) {
-    const isAssignee = requestingAgentId === existing.assigneeAgentId
-    const callerIsManager = isManager(requestingAgentId)
-    const callerIsCOS = isChiefOfStaffAnywhere(requestingAgentId)
-    if (!isAssignee && !callerIsManager && !callerIsCOS) {
-      return { error: 'Only the assigned agent, COS, or MANAGER can update task status', status: 403 }
-    }
-  }
-
-  // Validate blockedBy to prevent circular dependencies
+  // Basic blockedBy validation (no cycle check for GitHub — deps are issue-number references)
   if (Array.isArray(blockedBy)) {
     for (const depId of blockedBy) {
       if (typeof depId !== 'string') {
         return { error: 'blockedBy must contain only string task IDs', status: 400 }
       }
-      if (depId === taskId) {
-        return { error: 'A task cannot depend on itself', status: 400 }
-      }
-      if (wouldCreateCycle(teamId, taskId, depId)) {
-        return { error: `Adding dependency on task ${depId} would create a circular reference`, status: 400 }
-      }
     }
   }
 
   try {
-
-    // Local file storage — validate status against team's kanban config columns
-    if (status !== undefined) {
-      const validStatuses = (team.kanbanConfig || DEFAULT_KANBAN_COLUMNS).map(c => c.id)
-      if (!validStatuses.includes(status)) {
-        return { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`, status: 400 }
-      }
-    }
-
-    const result = await updateTask(teamId, taskId, {
+    const task = await ghProject.updateTask(team.githubProject, teamId, taskId, {
       subject,
       description,
       status,
-      assigneeAgentId,
-      blockedBy,
       priority,
       labels: taskFields.labels,
+      assigneeLogin: assigneeAgentId !== undefined
+        ? (assigneeAgentId || undefined) // null → unassign
+        : undefined,
       taskType: taskFields.taskType,
-      externalRef: taskFields.externalRef,
-      externalProjectRef: taskFields.externalProjectRef,
-      previousStatus: taskFields.previousStatus,
+      blockedBy,
       acceptanceCriteria: taskFields.acceptanceCriteria,
-      handoffDoc: taskFields.handoffDoc,
       prUrl: taskFields.prUrl,
-      reviewResult: taskFields.reviewResult,
+      previousStatus: taskFields.previousStatus,
     })
-
-    if (!result.task) {
+    if (!task) {
       return { error: 'Task not found', status: 404 }
     }
-
-    return { data: { task: result.task, unblocked: result.unblocked }, status: 200 }
+    return { data: { task, unblocked: [] }, status: 200 }
   } catch (error) {
     console.error('Failed to update task:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to update task', status: 500 }
+    return { error: error instanceof Error ? error.message : 'GitHub API error', status: 502 }
   }
 }
 
@@ -680,18 +583,18 @@ export async function deleteTeamTask(teamId: string, taskId: string, requestingA
     return { error: access.reason || 'Access denied', status: 403 }
   }
 
+  if (!team.githubProject) {
+    return { error: 'Cannot delete task: team has no GitHub Project linked', status: 400 }
+  }
+
+  // GitHub Project is source of truth — remove item from project
+  const ghAuth = ghProject.checkGhAuth()
+  if (ghAuth) return { error: ghAuth, status: 503 }
   let deleted: boolean
-  if (team.githubProject) {
-    // GitHub Project is source of truth — remove item from project
-    const ghAuth = ghProject.checkGhAuth()
-    if (ghAuth) return { error: ghAuth, status: 503 }
-    try {
-      deleted = await ghProject.deleteTask(team.githubProject, taskId, true)
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
-    }
-  } else {
-    deleted = await deleteTask(teamId, taskId)
+  try {
+    deleted = await ghProject.deleteTask(team.githubProject, taskId, true)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
   }
 
   if (!deleted) {

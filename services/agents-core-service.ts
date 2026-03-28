@@ -28,6 +28,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { execSync } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   Agent,
@@ -298,6 +299,21 @@ function createOrphanAgent(
   return agent
 }
 
+/** Check what process is running in the tmux pane (e.g., "claude", "zsh", "node") */
+function getPaneCommand(tmuxSessionName: string): { paneCommand: string; programRunning: boolean } {
+  const SHELL_COMMANDS = new Set(['zsh', 'bash', 'sh', 'fish', 'tcsh', 'csh', 'dash'])
+  try {
+    const cmd = execSync(
+      `tmux list-panes -t "${tmuxSessionName}" -F "#{pane_current_command}" 2>/dev/null`,
+      { encoding: 'utf-8', timeout: 2000 }
+    ).trim()
+    const paneCommand = cmd.split('\n')[0] || ''
+    return { paneCommand, programRunning: !SHELL_COMMANDS.has(paneCommand) }
+  } catch {
+    return { paneCommand: '', programRunning: false }
+  }
+}
+
 /**
  * Merge agent with runtime session status and host info
  */
@@ -486,15 +502,19 @@ export async function listAgents(): Promise<ServiceResult<{
         ? agentSessions.find(s => parseSessionName(s.name).index === onlineSession.index)
         : undefined
 
+      const tmuxName = onlineDiscoveredSession?.name || computeSessionName(agentName, onlineSession?.index ?? 0)
+      const paneInfo = onlineSession ? getPaneCommand(tmuxName) : { paneCommand: '', programRunning: false }
+
       const sessionStatus: AgentSessionStatus = onlineSession
         ? {
             status: 'online',
-            tmuxSessionName: onlineDiscoveredSession?.name || computeSessionName(agentName, onlineSession.index),
+            tmuxSessionName: tmuxName,
             workingDirectory: onlineSession.workingDirectory,
             lastActivity: onlineSession.lastActive,
             windows: onlineDiscoveredSession?.windows,
             hostId,
             hostName,
+            ...paneInfo,
           }
         : {
             status: 'offline',
@@ -542,6 +562,7 @@ export async function listAgents(): Promise<ServiceResult<{
 
         newOrphanAgents.push(orphanAgent)
 
+        const orphanPaneInfo = getPaneCommand(primarySession.name)
         const sessionStatus: AgentSessionStatus = {
           status: 'online',
           tmuxSessionName: primarySession.name,
@@ -550,6 +571,7 @@ export async function listAgents(): Promise<ServiceResult<{
           windows: primarySession.windows,
           hostId,
           hostName,
+          ...orphanPaneInfo,
         }
 
         resultAgents.push({

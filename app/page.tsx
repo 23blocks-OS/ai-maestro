@@ -139,6 +139,7 @@ export default function DashboardPage() {
   }, [agents])
 
   // Check for organization and onboarding completion on mount
+  // Auto-detects GitHub identity via gh CLI if organization is not set (skips onboarding wizard)
   useEffect(() => {
     const checkOrganization = async () => {
       try {
@@ -146,22 +147,43 @@ export default function DashboardPage() {
         const data = await response.json()
 
         if (!data.isSet) {
-          // No organization set - show organization setup first
+          // Auto-detect GitHub identity from gh CLI — skip manual organization setup
+          try {
+            const ghRes = await fetch('/api/github/auth')
+            if (ghRes.ok) {
+              const ghData = await ghRes.json()
+              const activeUser = ghData.accounts?.find((a: { active: boolean }) => a.active)
+              if (activeUser?.username) {
+                // Auto-set organization from GitHub username
+                await fetch('/api/organization', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: activeUser.username }),
+                })
+                // Auto-complete onboarding since gh identity is the only required thing
+                localStorage.setItem('aimaestro-onboarding-completed', 'true')
+                // Skip both organization setup and onboarding wizard
+                setOrganizationChecked(true)
+                return
+              }
+            }
+          } catch {
+            // gh auto-detect failed — fall through to manual setup
+          }
+          // No gh identity found — show organization setup
           setShowOrganizationSetup(true)
         } else {
           // Organization is set, check onboarding
           const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
           if (!onboardingCompleted) {
-            setShowOnboarding(true)
+            // Auto-complete onboarding — the wizard is optional, gh identity is enough
+            localStorage.setItem('aimaestro-onboarding-completed', 'true')
           }
         }
       } catch (error) {
         console.error('Failed to check organization:', error)
-        // On error, proceed with normal onboarding check
-        const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
-        if (!onboardingCompleted) {
-          setShowOnboarding(true)
-        }
+        // On error, skip onboarding entirely — don't block the user
+        localStorage.setItem('aimaestro-onboarding-completed', 'true')
       } finally {
         setOrganizationChecked(true)
       }

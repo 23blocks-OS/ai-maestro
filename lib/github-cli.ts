@@ -331,37 +331,75 @@ export function createProject(owner: string, title: string): { number: number; u
   return { number: result.number, url: result.url }
 }
 
-/** Get project details including fields */
+/** Get project details including fields via GraphQL (CLI --format json doesn't include field nodes) */
 export function getProject(owner: string, number: number): GhProjectDetail {
-  const result = ghJson<{
+  // Step 1: Basic info from CLI
+  const basic = ghJson<{
     number: number
     title: string
     url: string
     shortDescription: string | null
     closed: boolean
     id: string
-    fields: { nodes: Array<{
-      id: string
-      name: string
-      dataType: string
-      options?: Array<{ id: string; name: string }>
-    }> }
+    fields: { totalCount: number }
     items: { totalCount: number }
   }>(`project view ${number} --owner "${owner}" --format json`)
-  return {
-    number: result.number,
-    title: result.title,
-    url: result.url,
-    shortDescription: result.shortDescription ?? undefined,
-    closed: result.closed,
-    id: result.id,
-    fields: result.fields.nodes.map(f => ({
+
+  // Step 2: Field details via GraphQL (CLI doesn't expose field nodes)
+  const query = `query($owner: String!, $number: Int!) {
+    user(login: $owner) {
+      projectV2(number: $number) {
+        fields(first: 20) {
+          nodes {
+            ... on ProjectV2Field { id name dataType }
+            ... on ProjectV2SingleSelectField { id name dataType options { id name } }
+            ... on ProjectV2IterationField { id name dataType }
+          }
+        }
+      }
+    }
+    organization(login: $owner) {
+      projectV2(number: $number) {
+        fields(first: 20) {
+          nodes {
+            ... on ProjectV2Field { id name dataType }
+            ... on ProjectV2SingleSelectField { id name dataType options { id name } }
+            ... on ProjectV2IterationField { id name dataType }
+          }
+        }
+      }
+    }
+  }`
+
+  let fields: GhProjectField[] = []
+  try {
+    const data = ghGraphQL<{
+      user: { projectV2: { fields: { nodes: Array<{ id: string; name: string; dataType: string; options?: Array<{ id: string; name: string }> }> } } } | null
+      organization: { projectV2: { fields: { nodes: Array<{ id: string; name: string; dataType: string; options?: Array<{ id: string; name: string }> }> } } } | null
+    }>(query, { owner, number: String(number) })
+
+    // Use whichever resolved (user or org)
+    const fieldNodes = data.user?.projectV2?.fields?.nodes ?? data.organization?.projectV2?.fields?.nodes ?? []
+    fields = fieldNodes.map(f => ({
       id: f.id,
       name: f.name,
       type: f.dataType,
       options: f.options,
-    })),
-    items: result.items,
+    }))
+  } catch {
+    // GraphQL failed — return empty fields (non-fatal)
+    console.warn(`[github-cli] Failed to fetch field details for project ${owner}/${number} via GraphQL`)
+  }
+
+  return {
+    number: basic.number,
+    title: basic.title,
+    url: basic.url,
+    shortDescription: basic.shortDescription ?? undefined,
+    closed: basic.closed,
+    id: basic.id,
+    fields,
+    items: basic.items,
   }
 }
 

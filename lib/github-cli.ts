@@ -106,9 +106,12 @@ export interface KanbanFieldIds {
 // Helpers
 // ============================================================================
 
-/** Sanitize a value for safe shell interpolation — reject shell metacharacters */
+/** Sanitize a value for safe shell interpolation — reject shell metacharacters + length limit */
 function shellSafe(value: string): string {
-  if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r]/.test(value)) {
+  if (value.length > 2000) {
+    throw new Error(`Input too long (${value.length} chars, max 2000)`)
+  }
+  if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r~]/.test(value)) {
     throw new Error(`Unsafe shell characters in value: "${value.substring(0, 50)}"`)
   }
   return value
@@ -135,12 +138,16 @@ function ghJson<T>(args: string, cwd?: string): T {
 
 /** Run a gh API call via `gh api`. Returns parsed JSON. */
 function ghApi<T>(endpoint: string, method = 'GET', body?: Record<string, unknown>): T {
+  shellSafe(endpoint)
+  shellSafe(method)
   let cmd = `api "${endpoint}"`
   if (method !== 'GET') cmd += ` -X ${method}`
   if (body) {
     // Pass body fields as -f flags for simple values
     for (const [key, value] of Object.entries(body)) {
+      shellSafe(key)
       if (typeof value === 'string') {
+        shellSafe(value)
         cmd += ` -f ${key}="${value}"`
       } else if (typeof value === 'boolean' || typeof value === 'number') {
         cmd += ` -F ${key}=${value}`
@@ -154,9 +161,10 @@ function ghApi<T>(endpoint: string, method = 'GET', body?: Record<string, unknow
 function ghGraphQL<T>(query: string, variables: Record<string, unknown> = {}): T {
   // Build the JSON payload and pass via stdin to avoid shell injection
   const payload = JSON.stringify({ query, variables })
-  const raw = execSync(`echo '${payload.replace(/'/g, "'\\''")}' | gh api graphql --input -`, {
+  const raw = execSync('gh api graphql --input -', {
     encoding: 'utf-8',
     timeout: 30_000,
+    input: payload,
   }).trim()
   const parsed = JSON.parse(raw) as { data: T; errors?: Array<{ message: string }> }
   if (parsed.errors?.length) {
@@ -188,8 +196,8 @@ export function getAuthStatus(): GhAuthStatus[] {
         if (activeMatch) current.active = activeMatch[1] === 'true'
         const protocolMatch = line.match(/Git operations protocol:\s*(\S+)/)
         if (protocolMatch) current.protocol = protocolMatch[1]
-        const scopeMatch = line.match(/Token scopes:\s*'([^']*)'/)
-        if (scopeMatch) current.scopes = scopeMatch[1].split("', '").filter(Boolean)
+        const scopeMatch = line.match(/Token scopes:\s*'(.+)'/)
+        if (scopeMatch) current.scopes = scopeMatch[1].split(/'\s*,\s*'/).filter(Boolean)
       }
     }
     if (current?.username) accounts.push(current as GhAuthStatus)
@@ -314,12 +322,18 @@ export function setBranchProtection(owner: string, repo: string, branch: string)
   shellSafe(owner)
   shellSafe(repo)
   shellSafe(branch)
-  // Require PR reviews and status checks
-  ghApi(`/repos/${owner}/${repo}/branches/${branch}/protection`, 'PUT', {
-    required_pull_request_reviews: '{}',
-    enforce_admins: 'true',
-    required_status_checks: 'null',
-    restrictions: 'null',
+  // Require PR reviews and status checks — use JSON body via stdin
+  // because ghApi -f/-F flags cannot express nested objects or null values
+  const body = JSON.stringify({
+    required_pull_request_reviews: { required_approving_review_count: 1 },
+    enforce_admins: true,
+    required_status_checks: null,
+    restrictions: null,
+  })
+  execSync(`gh api /repos/${owner}/${repo}/branches/${branch}/protection -X PUT --input -`, {
+    encoding: 'utf-8',
+    timeout: 30_000,
+    input: body,
   })
 }
 
@@ -402,7 +416,7 @@ export function getProject(owner: string, number: number): GhProjectDetail {
     const data = ghGraphQL<{
       user: { projectV2: { fields: { nodes: Array<{ id: string; name: string; dataType: string; options?: Array<{ id: string; name: string }> }> } } } | null
       organization: { projectV2: { fields: { nodes: Array<{ id: string; name: string; dataType: string; options?: Array<{ id: string; name: string }> }> } } } | null
-    }>(query, { owner, number: String(number) })
+    }>(query, { owner, number })
 
     // Use whichever resolved (user or org)
     const fieldNodes = data.user?.projectV2?.fields?.nodes ?? data.organization?.projectV2?.fields?.nodes ?? []
@@ -718,6 +732,7 @@ export function createIssue(
   shellSafe(body)
   let cmd = `issue create -R "${owner}/${repo}" --title "${title}" --body "${body}"`
   if (labels?.length) {
+    for (const label of labels) shellSafe(label)
     cmd += ` --label "${labels.join(',')}"`
   }
   cmd += ' --json number,url,title'
@@ -744,7 +759,10 @@ export function createPR(
   shellSafe(title)
   shellSafe(body)
   let cmd = `pr create --title "${title}" --body "${body}"`
-  if (base) cmd += ` --base ${base}`
+  if (base) {
+    shellSafe(base)
+    cmd += ` --base "${base}"`
+  }
   cmd += ' --json number,url'
   return ghJson<{ number: number; url: string }>(cmd, repoDir)
 }
@@ -781,6 +799,7 @@ export function reviewPR(
 ): void {
   shellSafe(owner)
   shellSafe(repo)
+  shellSafe(action)
   if (body) shellSafe(body)
   let cmd = `pr review ${number} -R "${owner}/${repo}" --${action}`
   if (body) cmd += ` --body "${body}"`
@@ -796,6 +815,7 @@ export function mergePR(
 ): void {
   shellSafe(owner)
   shellSafe(repo)
+  shellSafe(method)
   gh(`pr merge ${number} -R "${owner}/${repo}" --${method}`)
 }
 

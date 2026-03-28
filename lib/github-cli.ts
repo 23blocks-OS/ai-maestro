@@ -106,13 +106,24 @@ export interface KanbanFieldIds {
 // Helpers
 // ============================================================================
 
+/** Sanitize a value for safe shell interpolation — reject shell metacharacters */
+function shellSafe(value: string): string {
+  if (/[;&|`$(){}!#\n\r]/.test(value)) {
+    throw new Error(`Unsafe shell characters in value: "${value.substring(0, 50)}"`)
+  }
+  return value
+}
+
 /** Run a gh CLI command and return stdout as string. Throws on non-zero exit. */
 function gh(args: string, cwd?: string): string {
   const opts: { encoding: 'utf-8'; cwd?: string; timeout: number } = {
     encoding: 'utf-8',
     timeout: 30_000, // 30s timeout for CLI commands
   }
-  if (cwd) opts.cwd = cwd
+  if (cwd) {
+    shellSafe(cwd) // Validate cwd has no shell metacharacters
+    opts.cwd = cwd
+  }
   return execSync(`gh ${args}`, opts).trim()
 }
 
@@ -249,6 +260,9 @@ export function listRepos(owner?: string): GhRepo[] {
 
 /** Create a new GitHub repository */
 export function createRepo(name: string, opts: CreateRepoOptions = {}): GhRepo {
+  shellSafe(name)
+  if (opts.org) shellSafe(opts.org)
+  if (opts.description) shellSafe(opts.description)
   const fullName = opts.org ? `${opts.org}/${name}` : name
   let cmd = `repo create ${fullName}`
   cmd += opts.isPrivate ? ' --private' : ' --public'
@@ -286,6 +300,8 @@ export function listOrgs(): string[] {
 
 /** Clone a repository to a target directory */
 export function cloneRepo(url: string, targetDir: string): string {
+  shellSafe(url)
+  shellSafe(targetDir)
   gh(`repo clone "${url}" "${targetDir}"`)
   return targetDir
 }
@@ -325,6 +341,8 @@ export function listProjects(owner: string): GhProject[] {
 
 /** Create a new GitHub Project */
 export function createProject(owner: string, title: string): { number: number; url: string } {
+  shellSafe(owner)
+  shellSafe(title)
   const result = ghJson<{ number: number; url: string }>(
     `project create --owner "${owner}" --title "${title}" --format json`
   )

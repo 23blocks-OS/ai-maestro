@@ -18,8 +18,17 @@ export async function GET(
     return NextResponse.json({ repos: [], message: 'No working directory set' })
   }
 
+  // Validate workDir: must be absolute, no shell metacharacters, must exist
+  const { existsSync, statSync } = await import('fs')
+  if (!workDir.startsWith('/') || /[;&|`$(){}]/.test(workDir)) {
+    return NextResponse.json({ error: 'Invalid working directory' }, { status: 400 })
+  }
+  if (!existsSync(workDir) || !statSync(workDir).isDirectory()) {
+    return NextResponse.json({ repos: [], message: 'Working directory does not exist' })
+  }
+
   try {
-    // Find .git directories up to 2 levels deep
+    // Find .git directories up to 3 levels deep
     const gitDirs = execSync(
       `find "${workDir}" -maxdepth 3 -name .git -type d 2>/dev/null`,
       { encoding: 'utf-8', timeout: 5000 }

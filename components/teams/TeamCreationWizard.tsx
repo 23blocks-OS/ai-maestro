@@ -460,6 +460,7 @@ export default function TeamCreationWizard({
                   <select
                     value={data.selectedOrg}
                     onChange={e => { update('selectedOrg', e.target.value); update('selectedRepos', []) }}
+                    aria-label="Select GitHub organization"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="">Select organization...</option>
@@ -621,6 +622,7 @@ export default function TeamCreationWizard({
                   <button
                     onClick={() => validateProjectUrl(data.linkedProjectUrl)}
                     disabled={!data.linkedProjectUrl.trim() || projectValidating}
+                    title="Validate GitHub project URL"
                     className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
                   >
                     {projectValidating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -691,6 +693,7 @@ export default function TeamCreationWizard({
                   <select
                     value={data.cosAgentId}
                     onChange={e => update('cosAgentId', e.target.value)}
+                    aria-label="Select Chief of Staff"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="">None</option>
@@ -714,6 +717,7 @@ export default function TeamCreationWizard({
                   <select
                     value={data.orchestratorAgentId}
                     onChange={e => update('orchestratorAgentId', e.target.value)}
+                    aria-label="Select Orchestrator"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="">None</option>
@@ -847,7 +851,7 @@ export default function TeamCreationWizard({
             <Users className="w-4 h-4 text-emerald-400" />
             Create Team
           </h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+          <button onClick={onClose} title="Close wizard" aria-label="Close wizard" className="text-gray-500 hover:text-white transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -902,6 +906,7 @@ export default function TeamCreationWizard({
               <button
                 onClick={() => setStep(s => s - 1)}
                 disabled={submitting}
+                title="Go to previous step"
                 className="flex items-center gap-1 text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors disabled:opacity-50"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -913,6 +918,7 @@ export default function TeamCreationWizard({
             <button
               onClick={onClose}
               disabled={submitting}
+              title="Cancel team creation"
               className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors disabled:opacity-50"
             >
               Cancel
@@ -921,6 +927,7 @@ export default function TeamCreationWizard({
               <button
                 onClick={() => setStep(s => s + 1)}
                 disabled={!isStepValid(step)}
+                title="Go to next step"
                 className="flex items-center gap-1 text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors disabled:opacity-50"
               >
                 Next
@@ -930,6 +937,7 @@ export default function TeamCreationWizard({
               <button
                 onClick={handleCreate}
                 disabled={submitting}
+                title="Create the team"
                 className="flex items-center gap-1 text-xs px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors disabled:opacity-50"
               >
                 {submitting ? (

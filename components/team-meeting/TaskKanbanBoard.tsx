@@ -223,6 +223,7 @@ export default function TaskKanbanBoard({
             <button
               onClick={() => setIssueBrowserOpen(true)}
               className="flex items-center gap-1.5 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+              title="Add issue from GitHub"
             >
               <GitBranch className="w-3 h-3" />
               Add Issue from GitHub
@@ -232,6 +233,7 @@ export default function TaskKanbanBoard({
             <button
               onClick={onClose}
               className="flex items-center gap-1.5 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+              title="Close kanban"
             >
               <X className="w-3 h-3" />
               Close
@@ -698,7 +700,7 @@ function IssueBrowserModal({ teamId, columns, onCreateTask, onClose }: IssueBrow
             <GitBranch className="w-4 h-4 text-gray-400" />
             <h4 className="text-sm font-medium text-white">Add Issue from GitHub</h4>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded transition-colors">
+          <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded transition-colors" title="Close issue browser">
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>

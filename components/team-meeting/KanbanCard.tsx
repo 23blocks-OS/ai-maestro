@@ -62,6 +62,9 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
       draggable={!task.isBlocked}
       onDragStart={handleDragStart}
       onClick={() => onSelect(task)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(task) }}
+      tabIndex={0}
+      role="button"
       className={`group px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800/80 border border-gray-700/50 hover:border-gray-600/80 hover:bg-gray-800 ${blockedStyle} ${selectedGlow} ${hoverGlow}`}
     >
       {/* Top row: priority dot + subject */}
@@ -89,14 +92,14 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
       {/* Footer row */}
       <div className="flex items-center gap-2 mt-2">
         {task.isBlocked ? (
-          <Lock className="w-3 h-3 text-amber-500 flex-shrink-0" />
+          <span title="Task is blocked"><Lock className="w-3 h-3 text-amber-500 flex-shrink-0" /></span>
         ) : (
           <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
         )}
 
         {/* Assignee avatar circle */}
         {task.assigneeName && (
-          <span className="flex items-center gap-1 text-[10px] text-gray-500 truncate">
+          <span className="flex items-center gap-1 text-[10px] text-gray-500 truncate" title={task.assigneeName || 'Unassigned'}>
             <span className="w-4 h-4 rounded-full bg-gray-700 flex items-center justify-center text-[9px] font-medium text-gray-300 flex-shrink-0 uppercase">
               {task.assigneeName.charAt(0)}
             </span>
@@ -112,7 +115,7 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
         )}
 
         {task.blockedBy.length > 0 && (
-          <span className="text-[10px] text-amber-500/70 flex-shrink-0">
+          <span className="text-[10px] text-amber-500/70 flex-shrink-0" title={`${task.blockedBy.length} dependencies`}>
             {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
           </span>
         )}

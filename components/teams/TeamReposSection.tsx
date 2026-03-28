@@ -129,6 +129,7 @@ export default function TeamReposSection({ teamId, githubProject }: TeamReposSec
                     href={repo.url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    title="Open in GitHub"
                     className="text-sm font-medium text-blue-400 hover:text-blue-300 truncate"
                   >
                     {repo.name}

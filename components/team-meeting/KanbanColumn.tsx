@@ -96,7 +96,7 @@ export default function KanbanColumn({ config, tasks, onDrop, onSelectTask, onQu
       {/* Column header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-800/50">
         {/* Collapse toggle */}
-        <button onClick={() => setCollapsed(c => !c)} className="text-gray-500 hover:text-gray-300 transition-colors">
+        <button onClick={() => setCollapsed(c => !c)} className="text-gray-500 hover:text-gray-300 transition-colors" title="Toggle collapse">
           {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
         <span className={`w-2 h-2 rounded-full ${config.dotColor}`} />
@@ -114,7 +114,7 @@ export default function KanbanColumn({ config, tasks, onDrop, onSelectTask, onQu
 
         {/* Column menu */}
         <div className="relative" ref={menuRef}>
-          <button onClick={() => setMenuOpen(o => !o)} className="p-0.5 rounded text-gray-600 hover:text-gray-400 transition-colors">
+          <button onClick={() => setMenuOpen(o => !o)} className="p-0.5 rounded text-gray-600 hover:text-gray-400 transition-colors" title="Column options">
             <MoreVertical className="w-3 h-3" />
           </button>
           {menuOpen && (
@@ -148,10 +148,11 @@ export default function KanbanColumn({ config, tasks, onDrop, onSelectTask, onQu
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 placeholder="Filter..."
+                aria-label={`Filter ${config.label} tasks`}
                 className="w-full pl-6 pr-6 py-1 text-sm bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-600"
               />
               {filter && (
-                <button onClick={() => setFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                <button onClick={() => setFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" title="Clear filter">
                   <X className="w-3 h-3" />
                 </button>
               )}

@@ -6,7 +6,7 @@
  * Access is restricted to the manager, chief-of-staff, and team members only.
  */
 
-import { isManager, isOrchestratorAnywhere } from './governance'
+import { isManager, isOrchestrator } from './governance'
 import { getTeam } from './team-registry'
 
 export interface TeamAccessInput {
@@ -55,8 +55,8 @@ export function checkTeamAccess(input: TeamAccessInput): TeamAccessResult {
     return { allowed: true }
   }
 
-  // 3b. ORCHESTRATOR has access to their team (kanban management)
-  if (isOrchestratorAnywhere(input.requestingAgentId)) {
+  // 3b. ORCHESTRATOR has access to THEIR OWN team only (not any team)
+  if (isOrchestrator(input.requestingAgentId, input.teamId)) {
     return { allowed: true }
   }
 

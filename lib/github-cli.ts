@@ -108,7 +108,7 @@ export interface KanbanFieldIds {
 
 /** Sanitize a value for safe shell interpolation — reject shell metacharacters */
 function shellSafe(value: string): string {
-  if (/[;&|`$(){}!#\n\r]/.test(value)) {
+  if (/[;&|`$(){}!#'"\\<>*?\[\]\n\r]/.test(value)) {
     throw new Error(`Unsafe shell characters in value: "${value.substring(0, 50)}"`)
   }
   return value
@@ -150,14 +150,14 @@ function ghApi<T>(endpoint: string, method = 'GET', body?: Record<string, unknow
   return ghJson<T>(cmd)
 }
 
-/** Run a GraphQL mutation via gh api graphql. Returns parsed data. */
+/** Run a GraphQL mutation via gh api graphql. Passes variables safely via --input stdin. */
 function ghGraphQL<T>(query: string, variables: Record<string, unknown> = {}): T {
-  // Build the -f variable flags
-  let varFlags = ''
-  for (const [key, value] of Object.entries(variables)) {
-    varFlags += ` -f ${key}="${String(value)}"`
-  }
-  const raw = gh(`api graphql -f query='${query}'${varFlags}`)
+  // Build the JSON payload and pass via stdin to avoid shell injection
+  const payload = JSON.stringify({ query, variables })
+  const raw = execSync(`echo '${payload.replace(/'/g, "'\\''")}' | gh api graphql --input -`, {
+    encoding: 'utf-8',
+    timeout: 30_000,
+  }).trim()
   const parsed = JSON.parse(raw) as { data: T; errors?: Array<{ message: string }> }
   if (parsed.errors?.length) {
     throw new Error(`GraphQL error: ${parsed.errors.map(e => e.message).join(', ')}`)

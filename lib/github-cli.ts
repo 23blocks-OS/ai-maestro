@@ -212,11 +212,13 @@ export function listIdentities(): string[] {
 
 /** Switch active GitHub identity */
 export function switchIdentity(username: string): void {
+  shellSafe(username)
   gh(`auth switch --user ${username}`)
 }
 
 /** Ensure a specific identity is active. Throws if not authenticated. */
 export function ensureIdentity(username: string): void {
+  shellSafe(username)
   const current = getActiveUsername()
   if (current === username) return
   const identities = listIdentities()
@@ -241,6 +243,7 @@ export function hasProjectScope(): boolean {
 
 /** List repositories for owner (user or org). Defaults to authenticated user. */
 export function listRepos(owner?: string): GhRepo[] {
+  if (owner) shellSafe(owner)
   const ownerArg = owner ? ` ${owner}` : ''
   const items = ghJson<Array<{
     name: string
@@ -308,6 +311,9 @@ export function cloneRepo(url: string, targetDir: string): string {
 
 /** Set branch protection rules on the default branch */
 export function setBranchProtection(owner: string, repo: string, branch: string): void {
+  shellSafe(owner)
+  shellSafe(repo)
+  shellSafe(branch)
   // Require PR reviews and status checks
   ghApi(`/repos/${owner}/${repo}/branches/${branch}/protection`, 'PUT', {
     required_pull_request_reviews: '{}',
@@ -323,6 +329,7 @@ export function setBranchProtection(owner: string, repo: string, branch: string)
 
 /** List GitHub Projects for an owner (user or org) */
 export function listProjects(owner: string): GhProject[] {
+  shellSafe(owner)
   const items = ghJson<Array<{
     number: number
     title: string
@@ -351,6 +358,7 @@ export function createProject(owner: string, title: string): { number: number; u
 
 /** Get project details including fields via GraphQL (CLI --format json doesn't include field nodes) */
 export function getProject(owner: string, number: number): GhProjectDetail {
+  shellSafe(owner)
   // Step 1: Basic info from CLI
   const basic = ghJson<{
     number: number
@@ -430,6 +438,7 @@ export function validateProjectUrl(url: string): GhProjectValidation {
     return { valid: false, owner: '', number: 0, error: 'Invalid project URL format' }
   }
   const owner = match[1]
+  shellSafe(owner)
   const number = parseInt(match[2], 10)
   try {
     const project = getProject(owner, number)
@@ -446,6 +455,7 @@ export function validateProjectUrl(url: string): GhProjectValidation {
 
 /** List all items in a GitHub Project */
 export function listProjectItems(owner: string, number: number): GhProjectItem[] {
+  shellSafe(owner)
   const items = ghJson<Array<{
     id: string
     title: string
@@ -497,7 +507,10 @@ export function createProjectField(
   name: string,
   dataType: string,
   options?: string[]
+
 ): string {
+  shellSafe(owner)
+  shellSafe(name)
   // gh project field-create doesn't support options directly — need GraphQL for SINGLE_SELECT
   if (dataType === 'SINGLE_SELECT' && options?.length) {
     // Create via GraphQL
@@ -535,12 +548,12 @@ export function createProjectField(
     return fieldId
   }
 
-  // Simple field via CLI
-  const result = gh(
-    `project field-create ${number} --owner "${owner}" --name "${name}" --data-type ${dataType}`
-  )
-  // Parse field ID from output (gh doesn't return JSON for field-create)
-  return result
+  // Simple field via CLI (TEXT, NUMBER, DATE, ITERATION)
+  gh(`project field-create ${number} --owner "${owner}" --name "${name}" --data-type ${dataType.toLowerCase()}`)
+  // Re-fetch project to get the field ID (CLI doesn't return it in parseable format)
+  const updatedProject = getProject(owner, number)
+  const newField = updatedProject.fields.find(f => f.name === name)
+  return newField?.id || ''
 }
 
 /**
@@ -552,6 +565,7 @@ export function configureProjectTemplate(
   owner: string,
   number: number
 ): KanbanFieldIds {
+  shellSafe(owner)
   const project = getProject(owner, number)
 
   // Find the Status field (built-in on every project)
@@ -637,6 +651,8 @@ export function configureProjectTemplate(
 
 /** Add an issue or PR to a GitHub Project. Returns the project item ID. */
 export function addProjectItem(owner: string, number: number, issueUrl: string): string {
+  shellSafe(owner)
+  shellSafe(issueUrl)
   const result = ghJson<{ id: string }>(
     `project item-add ${number} --owner "${owner}" --url "${issueUrl}" --format json`
   )
@@ -651,6 +667,7 @@ export function moveProjectItem(
   statusValue: string,
   fieldIds: KanbanFieldIds
 ): void {
+  shellSafe(owner)
   const optionId = fieldIds.statusOptions[statusValue]
   if (!optionId) {
     throw new Error(`Unknown status column: '${statusValue}'. Valid: ${Object.keys(fieldIds.statusOptions).join(', ')}`)
@@ -678,6 +695,8 @@ export function moveProjectItem(
 
 /** Archive a project item */
 export function archiveProjectItem(owner: string, number: number, itemId: string): void {
+  shellSafe(owner)
+  shellSafe(itemId)
   gh(`project item-archive ${number} --owner "${owner}" --id "${itemId}"`)
 }
 
@@ -693,6 +712,10 @@ export function createIssue(
   body: string,
   labels?: string[]
 ): GhIssue {
+  shellSafe(owner)
+  shellSafe(repo)
+  shellSafe(title)
+  shellSafe(body)
   let cmd = `issue create -R "${owner}/${repo}" --title "${title}" --body "${body}"`
   if (labels?.length) {
     cmd += ` --label "${labels.join(',')}"`
@@ -717,6 +740,9 @@ export function createPR(
   body: string,
   base?: string
 ): { number: number; url: string } {
+  shellSafe(repoDir)
+  shellSafe(title)
+  shellSafe(body)
   let cmd = `pr create --title "${title}" --body "${body}"`
   if (base) cmd += ` --base ${base}`
   cmd += ' --json number,url'
@@ -725,6 +751,8 @@ export function createPR(
 
 /** List pull requests for a repository */
 export function listPRs(owner: string, repo: string, state?: 'open' | 'closed' | 'merged'): GhPR[] {
+  shellSafe(owner)
+  shellSafe(repo)
   let cmd = `pr list -R "${owner}/${repo}" --json number,title,author,state,url`
   if (state) cmd += ` --state ${state}`
   const items = ghJson<Array<{
@@ -751,6 +779,9 @@ export function reviewPR(
   action: 'approve' | 'request-changes' | 'comment',
   body?: string
 ): void {
+  shellSafe(owner)
+  shellSafe(repo)
+  if (body) shellSafe(body)
   let cmd = `pr review ${number} -R "${owner}/${repo}" --${action}`
   if (body) cmd += ` --body "${body}"`
   gh(cmd)
@@ -763,6 +794,8 @@ export function mergePR(
   number: number,
   method: 'squash' | 'merge' | 'rebase' = 'squash'
 ): void {
+  shellSafe(owner)
+  shellSafe(repo)
   gh(`pr merge ${number} -R "${owner}/${repo}" --${method}`)
 }
 

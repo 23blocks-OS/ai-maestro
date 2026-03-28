@@ -74,7 +74,8 @@ PERSONA_NAME="<persona-name-from-step-1>"
 AVATAR_URL=$(cat ~/agents/haephestos/raw-materials-state.json 2>/dev/null | jq -r '.avatarUrl // empty')
 
 # Step 6a: Create persona folder + generate role-plugin + install it
-# The API does everything: generates plugin → saves to ~/agents/role-plugins/ → creates ~/agents/<name>/ → installs plugin locally
+# The API does everything: generates plugin → auto-injects AI Maestro compatibility skills
+# (aim-governance-rules + aim-agent-operations) → saves to ~/agents/role-plugins/ → creates ~/agents/<name>/ → installs plugin locally
 PERSONA_RESULT=$(curl -s -X POST http://localhost:23000/api/agents/create-persona \
   -H 'Content-Type: application/json' \
   -d "$(jq -n --arg pn "$PERSONA_NAME" --arg tc "$(cat $TOML_FILE)" '{personaName: $pn, tomlContent: $tc}')")
@@ -113,7 +114,7 @@ echo "Agent $PERSONA_NAME created successfully!"
 After the signal is written, the UI plays the celebration animation. When it finishes, the dashboard automatically switches to the new agent — which hibernates Haephestos.
 
 ### Step 7: Confirm to the user
-Tell the user: "Your agent **PERSONA_NAME** is being created! Watch the animation..."
+Tell the user: "Your agent **PERSONA_NAME** is being created! The plugin includes AI Maestro governance rules and multi-repo operation skills automatically. Watch the animation..."
 
 Do NOT run any more commands. The UI handles the rest (animation → switch → hibernate).
 

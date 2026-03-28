@@ -74,6 +74,142 @@ export const DEFAULT_ROLE_PLUGIN_NAMES = [
   'ai-maestro-assistant-manager-agent',
 ]
 
+// ── AI Maestro compatibility skill content (auto-injected into generated role-plugins) ──
+
+const AIM_GOVERNANCE_RULES_SKILL = `---
+name: aim-governance-rules
+description: AI Maestro governance rules — 4-title model, messaging matrix, kanban authority, team membership. Auto-injected into all AI Maestro role-plugins.
+license: Apache-2.0
+compatibility: Requires AI Maestro running on localhost:23000
+metadata:
+  author: AI Maestro
+  version: 1.0.0
+context: fork
+user-invocable: false
+---
+
+# AI Maestro Governance Rules
+
+## 4 Governance Titles
+
+| Title | Plugin | Kanban | Messaging |
+|-------|--------|--------|-----------|
+| MANAGER | ai-maestro-assistant-manager-agent | Secondary | Direct to all |
+| CHIEF-OF-STAFF | ai-maestro-chief-of-staff | Secondary | Direct to team + Manager |
+| ORCHESTRATOR | ai-maestro-orchestrator-agent | **Primary** | Direct to team + Manager |
+| MEMBER | (any role-plugin) | View only | Team + COS + Orchestrator |
+
+## Rules
+
+1. All teams are **closed** — external messages route through COS
+2. Each agent belongs to **at most one team**
+3. COS must have a team. MANAGER is usually teamless
+4. ORCHESTRATOR is the **primary kanban manager** for the team
+5. Team creation requires governance password and auto-creates COS
+6. Title changes require governance password
+
+## Messaging Matrix
+
+| From \\\\ To | MANAGER | COS | ORCHESTRATOR | MEMBER |
+|-----------|---------|-----|-------------|--------|
+| MANAGER | — | Direct | Direct | Via COS |
+| COS | Direct | — | Direct | Direct (own team) |
+| ORCHESTRATOR | Direct | Direct | — | Direct (own team) |
+| MEMBER | Via COS | Direct | Direct | Direct (teammates) |
+
+## Task Reporting
+
+- Report completion: \\\`amp-task-done.sh "message"\\\`
+- Report blocker: \\\`amp-task-blocked.sh "reason"\\\`
+- Both auto-route to the team's ORCHESTRATOR
+`
+
+const AIM_AGENT_OPERATIONS_SKILL = `---
+name: aim-agent-operations
+description: AI Maestro agent operations — multi-repo management, folder structure, AMP scripts, subagent rules, CI/CD. Auto-injected into all AI Maestro role-plugins.
+license: Apache-2.0
+compatibility: Requires AI Maestro running on localhost:23000 and gh CLI
+metadata:
+  author: AI Maestro
+  version: 1.0.0
+context: fork
+user-invocable: false
+---
+
+# AI Maestro Agent Operations
+
+## Folder Structure
+
+All repos cloned INSIDE your agent folder. NEVER write outside it.
+
+\\\`\\\`\\\`
+~/agents/<persona-name>/
+  repos/<repo-1>/        # cloned git repos
+  repos/<repo-2>/
+  reports/               # subagent reports
+  tmp/                   # temp files (NOT /tmp/)
+\\\`\\\`\\\`
+
+## Multi-Repo Rules
+
+- Every \\\`git\\\` command MUST use \\\`git -C "$REPO_PATH"\\\`
+- Every \\\`gh\\\` command MUST use \\\`--repo "$OWNER/$REPO"\\\`
+- NEVER write to /tmp/, ~/.aimaestro/, or outside agent folder
+- Determine target repo BEFORE any operation
+
+## AMP Scripts (installed at ~/.local/bin/)
+
+| Script | Purpose |
+|--------|---------|
+| \\\`amp-project-info.sh\\\` | Show team/project info |
+| \\\`amp-project-repos.sh\\\` | List project repositories |
+| \\\`amp-clone-repo.sh <url>\\\` | Clone repo to agent folder |
+| \\\`amp-list-local-repos.sh\\\` | List locally cloned repos |
+| \\\`amp-create-branch.sh <repo> <name>\\\` | Create and push branch |
+| \\\`amp-submit-pr.sh <repo> <title>\\\` | Create pull request |
+| \\\`amp-task-done.sh <message>\\\` | Report task completion |
+| \\\`amp-task-blocked.sh <reason>\\\` | Report blocker |
+| \\\`amp-kanban-create-task.sh <title>\\\` | Create kanban task |
+| \\\`amp-kanban-move.sh <id> <status>\\\` | Move kanban card |
+| \\\`amp-kanban-list.sh\\\` | List kanban items |
+
+## Task Workflow
+
+1. Receive task from Orchestrator (via AMP message)
+2. \\\`amp-project-repos.sh\\\` — identify target repo
+3. \\\`amp-clone-repo.sh <url>\\\` — clone if needed
+4. \\\`amp-create-branch.sh <repo> feature/<desc>\\\` — create branch
+5. Implement changes (NEVER on main branch)
+6. Run tests
+7. \\\`amp-submit-pr.sh <repo> "<title>"\\\` — submit PR
+8. \\\`amp-task-done.sh "PR #N submitted"\\\` — report to Orchestrator
+
+## Subagent Rules
+
+When delegating to subagents, ALWAYS include:
+- Target repo path: \\\`$AGENT_DIR/repos/<repo-name>\\\`
+- Report output: \\\`$AGENT_DIR/reports/<task>.md\\\`
+`
+
+/**
+ * Inject AI Maestro compatibility skills into a role-plugin.
+ * Creates skills/aim-governance-rules/SKILL.md and skills/aim-agent-operations/SKILL.md.
+ * Idempotent: overwrites if skills already exist.
+ */
+export async function injectAiMaestroSkills(pluginDir: string): Promise<string[]> {
+  const skillsDir = join(pluginDir, 'skills')
+
+  const govDir = join(skillsDir, 'aim-governance-rules')
+  await mkdir(govDir, { recursive: true })
+  await writeFile(join(govDir, 'SKILL.md'), AIM_GOVERNANCE_RULES_SKILL)
+
+  const opsDir = join(skillsDir, 'aim-agent-operations')
+  await mkdir(opsDir, { recursive: true })
+  await writeFile(join(opsDir, 'SKILL.md'), AIM_AGENT_OPERATIONS_SKILL)
+
+  return ['aim-governance-rules', 'aim-agent-operations']
+}
+
 // ── Types ──────────────────────────────────────────────────
 
 interface TomlAgent {
@@ -271,6 +407,9 @@ export async function generatePluginFromToml(
   if (!existsSync(mainAgentPath)) {
     throw new Error(`Plugin creation failed: ${mainAgentPath} does not exist after writing`)
   }
+
+  // 5b. Inject AI Maestro compatibility skills (governance rules + agent operations)
+  await injectAiMaestroSkills(pluginDir)
 
   // 6. NOW register in marketplace — only after plugin is fully created and verified
   await ensureMarketplace()

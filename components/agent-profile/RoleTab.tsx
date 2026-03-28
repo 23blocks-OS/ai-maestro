@@ -9,6 +9,7 @@ import { SectionLabel } from './shared'
 const TITLE_PLUGIN_MAP: Record<string, string> = {
   'manager': 'ai-maestro-assistant-manager-agent',
   'chief-of-staff': 'ai-maestro-chief-of-staff',
+  'orchestrator': 'ai-maestro-orchestrator-agent',
 }
 
 export default function RoleTab({
@@ -18,7 +19,7 @@ export default function RoleTab({
   onBrowse,
 }: {
   config: AgentLocalConfig
-  agentTitle?: 'manager' | 'chief-of-staff' | 'member'
+  agentTitle?: 'manager' | 'chief-of-staff' | 'orchestrator' | 'member'
   onEditInHaephestos?: (profilePath: string) => void
   onBrowse?: (path: string) => void
 }) {

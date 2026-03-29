@@ -100,7 +100,6 @@ user-invocable: false
 | ORCHESTRATOR | ai-maestro-orchestrator-agent | **Primary** | Direct to team + Manager |
 | ARCHITECT | ai-maestro-architect-agent | View only | Team + COS + Orchestrator |
 | INTEGRATOR | ai-maestro-integrator-agent | View only | Team + COS + Orchestrator |
-| PROGRAMMER | ai-maestro-programmer-agent | View only | Team + COS + Orchestrator |
 | MEMBER | (any role-plugin) | View only | Team + COS + Orchestrator |
 
 ## Rules
@@ -1032,7 +1031,6 @@ const TITLE_PLUGIN_MAP: Record<string, string> = {
   'architect': 'ai-maestro-architect-agent',
   'orchestrator': 'ai-maestro-orchestrator-agent',
   'integrator': 'ai-maestro-integrator-agent',
-  'programmer': 'ai-maestro-programmer-agent',
 }
 
 /**

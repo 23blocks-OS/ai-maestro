@@ -12,7 +12,6 @@ const TITLE_PLUGIN_MAP: Record<string, string> = {
   'architect': 'ai-maestro-architect-agent',
   'orchestrator': 'ai-maestro-orchestrator-agent',
   'integrator': 'ai-maestro-integrator-agent',
-  'programmer': 'ai-maestro-programmer-agent',
 }
 
 export default function RoleTab({
@@ -23,7 +22,7 @@ export default function RoleTab({
   onRefresh,
 }: {
   config: AgentLocalConfig
-  agentTitle?: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'programmer' | 'member'
+  agentTitle?: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member'
   onEditInHaephestos?: (profilePath: string) => void
   onBrowse?: (path: string) => void
   onRefresh?: () => void

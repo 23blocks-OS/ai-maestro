@@ -43,7 +43,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
   const [allTeams, setAllTeams] = useState<Team[]>([])
   const [pendingTransfers, setPendingTransfers] = useState<TransferRequest[]>([])
   const [pendingConfigRequests, setPendingConfigRequests] = useState<GovernanceRequest[]>([])
-  // Explicit governance title stored on the agent (e.g. 'architect', 'integrator', 'programmer')
+  // Explicit governance title stored on the agent (e.g. 'architect', 'integrator')
   const [agentStoredTitle, setAgentStoredTitle] = useState<string | null>(null)
 
   // SF-016: Guard against concurrent read-modify-write in addAgentToTeam / removeAgentFromTeam
@@ -71,8 +71,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
       (t) => t.orchestratorId === agentId
     )
     if (isOrchestrator) return 'orchestrator'
-    // Check explicit title stored on the agent (architect, integrator, programmer)
-    if (agentStoredTitle && ['architect', 'integrator', 'programmer'].includes(agentStoredTitle)) {
+    // Check explicit title stored on the agent (architect, integrator)
+    if (agentStoredTitle && ['architect', 'integrator'].includes(agentStoredTitle)) {
       return agentStoredTitle as GovernanceTitle
     }
     return 'member'
@@ -126,7 +126,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         console.error('[governance] config requests fetch error:', err)
         return { requests: [] }
       }),
-      // Fetch agent's explicit governanceTitle (e.g. architect, integrator, programmer)
+      // Fetch agent's explicit governanceTitle (e.g. architect, integrator)
       agentId
         ? fetch(`/api/agents/${agentId}`, { signal }).then((r) => {
             if (!r.ok) throw new Error('Request failed')

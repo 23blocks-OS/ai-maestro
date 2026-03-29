@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge, Code2 } from 'lucide-react'
+import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceTitle } from '@/hooks/useGovernance'
 
@@ -72,15 +72,6 @@ const TITLE_OPTIONS: {
     selectedBorder: 'border-cyan-500',
     selectedBg: 'bg-cyan-500/10',
     selectedText: 'text-cyan-300',
-  },
-  {
-    title: 'programmer',
-    label: 'PROGRAMMER',
-    icon: Code2,
-    description: 'General-purpose implementer, writes code',
-    selectedBorder: 'border-green-500',
-    selectedBg: 'bg-green-500/10',
-    selectedText: 'text-green-300',
   },
   {
     title: 'manager',
@@ -198,7 +189,7 @@ export default function TitleAssignmentDialog({
     setError(null)
 
     try {
-      // Helper: clear a simple governanceTitle (architect/integrator/programmer) via PATCH
+      // Helper: clear a simple governanceTitle (architect/integrator) via PATCH
       const clearGovernanceTitle = async () => {
         const res = await fetch(`/api/agents/${agentId}`, {
           method: 'PATCH',
@@ -208,7 +199,7 @@ export default function TitleAssignmentDialog({
         if (!res.ok) throw new Error('Failed to clear governance title')
       }
 
-      // Helper: set a simple governanceTitle (architect/integrator/programmer) via PATCH
+      // Helper: set a simple governanceTitle (architect/integrator) via PATCH
       const setGovernanceTitle = async (t: GovernanceTitle) => {
         const res = await fetch(`/api/agents/${agentId}`, {
           method: 'PATCH',
@@ -238,11 +229,11 @@ export default function TitleAssignmentDialog({
           if (failures.length > 0) {
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
-        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'programmer') {
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator') {
           // Clear simple governanceTitle field when demoting to member
           await clearGovernanceTitle()
         }
-      } else if (selectedTitle === 'architect' || selectedTitle === 'integrator' || selectedTitle === 'programmer') {
+      } else if (selectedTitle === 'architect' || selectedTitle === 'integrator') {
         // Transitioning TO a simple governance title
         if (currentTitle === 'manager') {
           // Remove manager first, then set new title
@@ -281,7 +272,7 @@ export default function TitleAssignmentDialog({
           if (failures.length > 0) {
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
-        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'programmer') {
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator') {
           // Clear old simple governance title before assigning manager
           await clearGovernanceTitle()
         }
@@ -292,7 +283,7 @@ export default function TitleAssignmentDialog({
         if (currentTitle === 'manager') {
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
-        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'programmer') {
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator') {
           // Clear old simple governance title before assigning COS
           await clearGovernanceTitle()
         }

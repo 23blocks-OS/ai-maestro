@@ -206,13 +206,6 @@ export function isIntegrator(agentId: string): boolean {
   return agent?.governanceTitle === 'integrator'
 }
 
-/** Check if agentId has the PROGRAMMER governance title (stored as explicit governanceTitle on agent) */
-export function isProgrammer(agentId: string): boolean {
-  if (!agentId) return false
-  const agent = getAgent(agentId)
-  return agent?.governanceTitle === 'programmer'
-}
-
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get the team where agentId is a member (agents belong to at most one team) */
 export function getClosedTeamForAgent(agentId: string): Team | null {

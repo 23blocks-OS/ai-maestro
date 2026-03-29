@@ -179,7 +179,7 @@ export async function receiveCrossHostRequest(
   }
 
   // Validate requestedByRole is a valid AgentRole
-  const VALID_ROLES: AgentRole[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'programmer', 'member']
+  const VALID_ROLES: AgentRole[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'member']
   if (!request.requestedByRole || !VALID_ROLES.includes(request.requestedByRole)) {
     return { error: `Invalid requestedByRole: '${request.requestedByRole}'`, status: 400 }
   }

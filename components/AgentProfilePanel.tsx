@@ -46,7 +46,6 @@ const TITLE_PLUGIN_MAP: Record<string, string> = {
   'architect': 'ai-maestro-architect-agent',
   'orchestrator': 'ai-maestro-orchestrator-agent',
   'integrator': 'ai-maestro-integrator-agent',
-  'programmer': 'ai-maestro-programmer-agent',
 }
 
 // ---------------------------------------------------------------------------

@@ -215,7 +215,7 @@ export interface Agent {
   // Ownership, Role & Team
   owner?: string                // Owner name or email
   role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'member' (default: 'member')
-  governanceTitle?: AgentRole   // Explicit governance title (used for architect/integrator/programmer — not derived from team state)
+  governanceTitle?: AgentRole   // Explicit governance title (used for architect/integrator — not derived from team state)
   team?: string                 // Team name (e.g., "Backend Team", "23blocks")
 
   // Documentation
@@ -454,9 +454,9 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  * Kept as "AgentRole" type name for backward compatibility with existing API/DB schema.
  * The semantic meaning is "title" — a future migration may rename this.
  */
-export type AgentRole = 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'programmer' | 'member'
+export type AgentRole = 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member'
 
-export const VALID_GOVERNANCE_TITLES: readonly AgentRole[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'programmer', 'member'] as const
+export const VALID_GOVERNANCE_TITLES: readonly AgentRole[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'member'] as const
 
 /**
  * Simplified agent for listings

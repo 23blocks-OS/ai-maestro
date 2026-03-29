@@ -44,7 +44,7 @@ Each **agent** has four distinct attributes. Understanding their differences is 
 |-----------|--------|---------|----------|
 | **AGENT-ID** | `<group>-<type>-<name>` kebab | Unique identifier across the system | `tooling-developer-bot1`, `backend-tester-tommy`, `graphics-2dartist-iconmaker`, `core-developer-reactui5` |
 | **PERSONA** | Capitalized kebab | The agent's personal name, tied to a specific Claude Code tmux session | `Sammy`, `Peter-Parker`, `Lucy-In-The-Sky`, `Jack-The-Bot`, `Frank-Potter` |
-| **TITLE** | ALL-CAPS kebab | Governance level — defines the scope of authority | `MANAGER`, `CHIEF-OF-STAFF`, `MEMBER` |
+| **TITLE** | ALL-CAPS kebab | Governance level — defines the scope of authority | `MANAGER`, `CHIEF-OF-STAFF`, `ARCHITECT`, `ORCHESTRATOR`, `INTEGRATOR`, `MEMBER` |
 | **ROLE** | lowercase kebab | The job specialization — associated with a Role Plugin containing all the skills needed | `chief-of-staff`, `architect-agent`, `orchestrator-agent`, `programmer-agent`, `assistant-manager-agent` |
 
 *(Examples above show display-format capitalization; internally stored as lowercase)*
@@ -59,10 +59,13 @@ The display name of the agent instance. Associated with a specific Claude Code t
 
 ### TITLE
 
-The governance title determines what an agent is authorized to do within the AI Maestro governance system. There are exactly three titles:
+The governance title determines what an agent is authorized to do within the AI Maestro governance system. There are exactly six titles:
 
 - **MANAGER** — Global singleton. Manages agents and approves GovernanceRequests. Cannot create/delete teams or assign COS (those are USER-only operations requiring governance password). Only one per host.
 - **CHIEF-OF-STAFF** — Leads ONE closed team. Scoped to own team only. All destructive operations require GovernanceRequest approval from MANAGER.
+- **ARCHITECT** — Senior technical authority within a team. Can propose and approve architecture decisions.
+- **ORCHESTRATOR** — Primary kanban manager for a team. Coordinates task assignment and pipeline flow.
+- **INTEGRATOR** — System integrator. Responsible for cross-service wiring and deployment coordination.
 - **MEMBER** — Default title. Standard agent with no special governance privileges.
 
 Changing a title requires the governance password.

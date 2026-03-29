@@ -214,7 +214,7 @@ export interface Agent {
 
   // Ownership, Role & Team
   owner?: string                // Owner name or email
-  role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'member' (default: 'member')
+  role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' (default: 'member')
   governanceTitle?: AgentRole   // Explicit governance title (used for architect/integrator — not derived from team state)
   team?: string                 // Team name (e.g., "Backend Team", "23blocks")
 
@@ -442,13 +442,15 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  * Agent governance title for messaging policy and team hierarchy.
  *
  * NOTE: This is the agent's TITLE (governance level), not their ROLE (specialization).
- * - TITLE = manager | chief-of-staff | member (controls permissions)
+ * - TITLE = manager | chief-of-staff | architect | orchestrator | integrator | member (controls permissions)
  * - ROLE = Role-Plugin name (e.g., "ai-maestro-architect") — stored separately
  *
  * Values:
  * - manager: Unrestricted messaging, one per host. Interface with the user.
  * - chief-of-staff: Gateway for a closed team. Routes messages in/out.
+ * - architect: Senior technical authority. Can propose and approve architecture decisions.
  * - orchestrator: Primary kanban manager for a team. Direct MANAGER communication.
+ * - integrator: System integrator. Responsible for cross-service wiring and deployment coordination.
  * - member: Default. In closed teams, can only message teammates + COS + manager.
  *
  * Kept as "AgentRole" type name for backward compatibility with existing API/DB schema.

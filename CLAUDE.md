@@ -733,6 +733,9 @@ Role-plugins define an agent's job specialization (persona). They are distinct f
 |-------|----------------|:---------------:|
 | MANAGER | `ai-maestro-assistant-manager-agent` | Yes (locked) |
 | CHIEF-OF-STAFF | `ai-maestro-chief-of-staff` | Yes (locked) |
+| ARCHITECT | `ai-maestro-architect-agent` | Yes (locked) |
+| ORCHESTRATOR | `ai-maestro-orchestrator-agent` | Yes (locked) |
+| INTEGRATOR | `ai-maestro-integrator-agent` | Yes (locked) |
 | MEMBER | Any | No (user choice) |
 
 **Auto-install triggers** (in `services/role-plugin-service.ts`):

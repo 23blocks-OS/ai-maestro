@@ -30,7 +30,7 @@ const VALID_GOVERNANCE_REQUEST_TYPES = new Set([
 ])
 
 /** Valid AgentRole values for requestedByRole validation (SF-001) */
-const VALID_REQUESTED_BY_ROLES = new Set(['manager', 'chief-of-staff', 'member'])
+const VALID_REQUESTED_BY_ROLES = new Set(['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'member'])
 
 /** Hostname format: alphanumeric start/end, allows dots/hyphens/underscores, 1-253 chars (NT-001, SF-002) */
 const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?$/

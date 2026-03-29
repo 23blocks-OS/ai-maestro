@@ -58,7 +58,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   // Derive governance title from current state
   // All teams are implicitly closed (governance simplification — open teams removed)
-  // Priority: manager > chief-of-staff > orchestrator > member
+  // Priority: manager > chief-of-staff > architect > orchestrator > integrator > member
   const agentTitle: GovernanceTitle = useMemo(() => {
     if (!agentId) return 'member'
     if (managerId === agentId) return 'manager'

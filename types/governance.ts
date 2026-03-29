@@ -12,7 +12,7 @@ import type { TeamType } from './team'
 export type { TeamType } from './team'
 
 /**
- * GovernanceTitle is the governance-level title: 'manager' | 'chief-of-staff' | 'orchestrator' | 'member'.
+ * GovernanceTitle is the governance-level title: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member'.
  * Canonical definition lives in types/agent.ts (AgentRole — the underlying type).
  * This alias provides governance-domain semantics. "Title" distinguishes governance
  * levels from "Role" which refers to role-plugins (specializations like ai-maestro-architect).

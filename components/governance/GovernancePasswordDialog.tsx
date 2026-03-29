@@ -215,6 +215,16 @@ export default function GovernancePasswordDialog({
           {error && (
             <p className="text-sm text-red-400">{error}</p>
           )}
+
+          {/* Forgot password hint — only in confirm mode */}
+          {mode === 'confirm' && (
+            <p className="text-xs text-gray-500">
+              Forgotten password? Reset it locally by running:{' '}
+              <code className="text-gray-400 bg-gray-800 px-1 py-0.5 rounded text-[10px]">
+                curl -X POST http://localhost:23000/api/governance/password -H &quot;Content-Type: application/json&quot; -d &apos;{'{'}&#34;password&#34;:&#34;new-password&#34;{'}'}&apos;
+              </code>
+            </p>
+          )}
         </div>
 
         {/* Footer */}

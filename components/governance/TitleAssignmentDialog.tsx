@@ -207,7 +207,9 @@ export default function TitleAssignmentDialog({
 
   // Execute the role change after password confirmation
   const handleRoleChange = async (password: string) => {
-    setPhase('submitting')
+    // Don't change phase here — let the password dialog stay mounted during the request.
+    // On success, handleRoleChange calls handleClose() which dismisses everything.
+    // On failure, the error propagates back to the password dialog for retry.
     setError(null)
 
     try {
@@ -393,7 +395,16 @@ export default function TitleAssignmentDialog({
         isOpen={true}
         mode={governance.hasPassword ? 'confirm' : 'setup'}
         onClose={() => setPhase('select')}
-        onPasswordConfirmed={(pw) => handleRoleChange(pw)}
+        onPasswordConfirmed={async (pw) => {
+          // Try the role change — if it fails (wrong password), re-throw so
+          // GovernancePasswordDialog shows the error and stays open for retry
+          try {
+            await handleRoleChange(pw)
+          } catch (err) {
+            // Re-throw with a user-friendly message so the password dialog shows it
+            throw err instanceof Error ? err : new Error('Authentication failed')
+          }
+        }}
       />
     )
   }

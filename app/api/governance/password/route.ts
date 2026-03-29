@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       const result = await setGovernancePassword({
         password: body.password,
         currentPassword: body.currentPassword,
+        userName: body.userName,
       })
 
       if (result.error) {

@@ -16,6 +16,7 @@ export async function GET() {
       hasManager: !!config.managerId,
       managerId: config.managerId,
       managerName,
+      userName: config.userName ?? null,
     })
   } catch (error) {
     console.error('[governance] GET error:', error)

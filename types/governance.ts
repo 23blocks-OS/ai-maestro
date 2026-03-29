@@ -28,6 +28,7 @@ export interface GovernanceConfig {
   passwordHash: string | null   // bcrypt hash of governance password, null = not set
   passwordSetAt: string | null  // ISO timestamp when password was last set
   managerId: string | null      // Agent UUID of the singleton MANAGER role
+  userName?: string             // Display name for the local user (auto-generated on first load if absent)
 }
 
 /** Default governance config for first-time initialization */

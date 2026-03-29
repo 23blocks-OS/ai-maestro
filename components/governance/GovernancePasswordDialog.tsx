@@ -9,6 +9,8 @@ interface GovernancePasswordDialogProps {
   onClose: () => void
   mode: 'setup' | 'confirm'
   onPasswordConfirmed: (password: string) => void | Promise<void>
+  /** Pre-fill the display name field in setup mode (auto-generated value from governance config) */
+  initialUserName?: string
 }
 
 export default function GovernancePasswordDialog({
@@ -16,9 +18,11 @@ export default function GovernancePasswordDialog({
   onClose,
   mode,
   onPasswordConfirmed,
+  initialUserName,
 }: GovernancePasswordDialogProps) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [userName, setUserName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -29,10 +33,12 @@ export default function GovernancePasswordDialog({
     if (isOpen) {
       setPassword('')
       setConfirmPassword('')
+      // Pre-fill userName from prop when dialog opens in setup mode
+      setUserName(mode === 'setup' ? (initialUserName ?? '') : '')
       setError(null)
       setSubmitting(false) // Reset submitting state so dialog is never stuck in a disabled state
     }
-  }, [isOpen])
+  }, [isOpen, mode, initialUserName])
 
   // Close handler wrapped in useCallback to avoid stale closures in the Escape key effect
   const handleClose = useCallback(() => {
@@ -41,6 +47,7 @@ export default function GovernancePasswordDialog({
     // Reset state on close
     setPassword('')
     setConfirmPassword('')
+    setUserName('')
     setError(null)
   }, [submitting, onClose, setPassword, setConfirmPassword, setError])
 
@@ -72,21 +79,24 @@ export default function GovernancePasswordDialog({
 
       setSubmitting(true)
       try {
-        // Set the governance password via API
+        // Set the governance password (and optional userName) via API
+        const body: Record<string, string> = { password }
+        if (userName.trim()) body.userName = userName.trim()
         const res = await fetch('/api/governance/password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password }),
+          body: JSON.stringify(body),
         })
         if (!res.ok) {
           // NT-011: Parse JSON safely and extract .error field for structured error messages
-          const body = await res.json().catch(() => null)
-          throw new Error(body?.error || `Failed to set password (${res.status})`)
+          const resBody = await res.json().catch(() => null)
+          throw new Error(resBody?.error || `Failed to set password (${res.status})`)
         }
         onPasswordConfirmed(password)
         // Reset state after successful submission
         setPassword('')
         setConfirmPassword('')
+        setUserName('')
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to set password')
       } finally {
@@ -159,6 +169,24 @@ export default function GovernancePasswordDialog({
             <p className="text-sm text-gray-400">
               A governance password protects sensitive operations like assigning the MANAGER title or Chief-of-Staff positions.
             </p>
+          )}
+
+          {/* Display Name field (setup mode only) */}
+          {mode === 'setup' && (
+            <div>
+              <label htmlFor="governance-username" className="block text-sm font-medium text-gray-300 mb-2">
+                Display Name
+              </label>
+              <input
+                id="governance-username"
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Your display name"
+                autoComplete="username"
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+              />
+            </div>
           )}
 
           {/* Password field */}

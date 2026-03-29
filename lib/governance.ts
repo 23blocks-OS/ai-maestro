@@ -29,13 +29,20 @@ function ensureAimaestroDir() {
   }
 }
 
+/** Generate an auto-assigned userName like user042 */
+function generateUserName(): string {
+  const n = Math.floor(Math.random() * 999) + 1
+  return `user${String(n).padStart(3, '0')}`
+}
+
 /** Load governance config from disk, creating with defaults if missing */
 export function loadGovernance(): GovernanceConfig {
   ensureAimaestroDir()
   if (!fs.existsSync(GOVERNANCE_FILE)) {
-    // First-time initialization: write defaults and return them
-    saveGovernance(DEFAULT_GOVERNANCE_CONFIG)
-    return { ...DEFAULT_GOVERNANCE_CONFIG }
+    // First-time initialization: write defaults + auto-generated userName and persist
+    const init: GovernanceConfig = { ...DEFAULT_GOVERNANCE_CONFIG, userName: generateUserName() }
+    saveGovernance(init)
+    return init
   }
   try {
     const data = fs.readFileSync(GOVERNANCE_FILE, 'utf-8')
@@ -47,6 +54,11 @@ export function loadGovernance(): GovernanceConfig {
     if (parsed.version !== 1) {
       console.error(`[governance] Unsupported config version: ${parsed.version} (expected 1). Returning defaults. File NOT overwritten -- manual migration required: ${GOVERNANCE_FILE}`)
       return { ...DEFAULT_GOVERNANCE_CONFIG }
+    }
+    // Auto-generate userName for existing configs that predate this field
+    if (!parsed.userName) {
+      parsed.userName = generateUserName()
+      saveGovernance(parsed)
     }
     return parsed
   } catch (error) {
@@ -243,4 +255,20 @@ export function getClosedTeamsForAgent(agentId: string): Team[] {
   return teams.filter(
     (team) => team.agentIds.includes(agentId)
   )
+}
+
+/** Get the userName from governance config (auto-generated if absent) */
+export function getUserName(): string {
+  const config = loadGovernance()
+  // loadGovernance guarantees userName is set — this fallback is belt-and-suspenders only
+  return config.userName ?? generateUserName()
+}
+
+/** Persist a new userName to governance config */
+export async function setUserName(name: string): Promise<void> {
+  return withLock('governance', async () => {
+    const config = loadGovernance()
+    config.userName = name.trim() || generateUserName()
+    saveGovernance(config)
+  })
 }

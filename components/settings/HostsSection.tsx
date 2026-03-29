@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2 } from 'lucide-react'
+import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2, User } from 'lucide-react'
 import type { Host } from '@/types/host'
 import localVersion from '@/version.json'
+import GovernancePasswordDialog from '@/components/governance/GovernancePasswordDialog'
 
 interface OrganizationInfo {
   organization: string | null
@@ -48,6 +49,12 @@ export default function HostsSection() {
   const [hostSessionCounts, setHostSessionCounts] = useState<Record<string, number>>({})
   const [organizationInfo, setOrganizationInfo] = useState<OrganizationInfo | null>(null)
 
+  // Governance state for local host user + password section
+  const [governanceUserName, setGovernanceUserName] = useState<string | null>(null)
+  const [governanceHasPassword, setGovernanceHasPassword] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [passwordDialogMode, setPasswordDialogMode] = useState<'setup' | 'confirm'>('setup')
+
   // Form state
   const [formData, setFormData] = useState<Partial<Host>>({
     id: '',
@@ -59,11 +66,25 @@ export default function HostsSection() {
     tailscale: false,
   })
 
-  // Load hosts and organization on mount
+  // Load hosts, organization, and governance on mount
   useEffect(() => {
     fetchHosts()
     fetchOrganization()
+    fetchGovernance()
   }, [])
+
+  const fetchGovernance = async () => {
+    try {
+      const response = await fetch('/api/governance')
+      if (response.ok) {
+        const data = await response.json()
+        setGovernanceUserName(data.userName ?? null)
+        setGovernanceHasPassword(!!data.hasPassword)
+      }
+    } catch (err) {
+      console.error('Failed to fetch governance:', err)
+    }
+  }
 
   const fetchOrganization = async () => {
     try {
@@ -528,6 +549,44 @@ export default function HostsSection() {
                       </>
                     )}
                   </div>
+
+                  {/* User sub-section — only for the local host */}
+                  {host.isSelf && (
+                    <div className="mt-3 p-3 bg-gray-900/60 border border-gray-700/60 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">User</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-gray-200 font-mono">
+                          {governanceUserName ?? '…'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {governanceHasPassword ? (
+                            <>
+                              <span className="text-xs text-gray-500">Password: ●●●●●●</span>
+                              <button
+                                onClick={() => { setPasswordDialogMode('confirm'); setShowPasswordDialog(true) }}
+                                className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                              >
+                                Change
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-xs text-gray-500">Password: Not set</span>
+                              <button
+                                onClick={() => { setPasswordDialogMode('setup'); setShowPasswordDialog(true) }}
+                                className="px-2 py-1 text-xs bg-emerald-700 hover:bg-emerald-600 text-white rounded transition-colors"
+                              >
+                                Set Password
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -585,6 +644,19 @@ export default function HostsSection() {
           }}
         />
       )}
+
+      {/* Governance password dialog — for local host user section */}
+      <GovernancePasswordDialog
+        isOpen={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
+        mode={passwordDialogMode}
+        initialUserName={governanceUserName ?? undefined}
+        onPasswordConfirmed={async () => {
+          setShowPasswordDialog(false)
+          // Re-fetch governance so the UI reflects the updated state (userName + hasPassword)
+          await fetchGovernance()
+        }}
+      />
     </div>
   )
 }

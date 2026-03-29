@@ -14,7 +14,7 @@
  *   POST   /api/governance/transfers/[id]/resolve   -> resolveTransferReq
  */
 
-import { loadGovernance, verifyPassword, setManager, removeManager, setPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
+import { loadGovernance, verifyPassword, setManager, removeManager, setPassword, setUserName, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
 import { addTrustedManager, removeTrustedManager, getTrustedManagers } from '@/lib/manager-trust'
 import type { ManagerTrust } from '@/lib/manager-trust'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
@@ -117,8 +117,9 @@ export async function setManagerRole(params: {
 export async function setGovernancePassword(params: {
   password?: string
   currentPassword?: string
+  userName?: string
 }): Promise<ServiceResult<{ success: boolean }>> {
-  const { password, currentPassword } = params
+  const { password, currentPassword, userName } = params
 
   // NT-022: split combined validation for readability
   if (!password || typeof password !== 'string') {
@@ -161,6 +162,11 @@ export async function setGovernancePassword(params: {
     console.log('[governance] Password changed at', new Date().toISOString())
   } else {
     console.log('[governance] Password set at', new Date().toISOString())
+  }
+
+  // Persist userName if provided alongside the password change
+  if (userName && typeof userName === 'string' && userName.trim()) {
+    await setUserName(userName.trim())
   }
 
   return { data: { success: true }, status: 200 }

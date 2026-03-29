@@ -389,18 +389,19 @@ export default function TitleAssignmentDialog({
       }
 
       // Success: notify parent and close
-      console.log('[TitleAssignment] handleRoleChange SUCCESS — calling onTitleChanged + handleClose')
       onTitleChanged()
       handleClose()
     } catch (err: unknown) {
-      console.error('[TitleAssignment] handleRoleChange FAILED:', err)
       governance.refresh()  // Reload actual state after partial failure
-      // Re-throw so the password dialog catches it and shows the error for retry
-      throw err instanceof Error ? err : new Error('Failed to update governance title')
+      // Re-throw with clear message — password dialog shows it inline so the user sees WHY it failed
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      throw new Error(`Title change failed: ${msg}`)
     }
   }
 
   // Password phase: render the password dialog directly (it has its own overlay)
+  // Errors (wrong password OR operation failure) are re-thrown so the password dialog
+  // displays them inline and stays open — the user sees exactly why it failed.
   if (isOpen && phase === 'password') {
     return (
       <GovernancePasswordDialog
@@ -408,8 +409,8 @@ export default function TitleAssignmentDialog({
         mode={governance.hasPassword ? 'confirm' : 'setup'}
         onClose={() => setPhase('select')}
         onPasswordConfirmed={async (pw) => {
-          // handleRoleChange re-throws on failure — GovernancePasswordDialog catches
-          // it and shows the error inline, staying open for retry
+          // handleRoleChange throws on any failure — the password dialog catches it
+          // and shows the error message inline, staying open for the user to read/retry
           await handleRoleChange(pw)
         }}
       />

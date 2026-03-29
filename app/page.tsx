@@ -22,7 +22,7 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
 import { agentToSession } from '@/lib/agent-utils'
-import type { Agent } from '@/types/agent'
+import type { Agent, AgentRole } from '@/types/agent'
 
 // Dynamic imports for heavy components that are conditionally rendered
 // This reduces initial bundle size by ~100KB+
@@ -1082,7 +1082,9 @@ export default function DashboardPage() {
                         agentName={agent.label || agent.name || agent.alias}
                         agentInfo={{
                           name: agent.label || agent.name || agent.alias,
-                          title: agent.role as 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | 'autonomous' | undefined,
+                          // Prefer explicit governanceTitle (architect/integrator/orchestrator) over raw role field
+                          // BUG: agent.role stays 'member' when governanceTitle is set — useGovernance derives the correct title
+                          title: (agent.governanceTitle || agent.role) as AgentRole | undefined,
                           program: agent.program,
                           tags: agent.tags,
                         }}

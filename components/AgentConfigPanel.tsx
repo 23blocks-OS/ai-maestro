@@ -22,7 +22,7 @@ export interface AgentConfigDraft {
   name?: string
   program?: string
   model?: string
-  role?: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member'
+  role?: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | 'autonomous'
   workingDirectory?: string
   skills: Array<{ name: string; description: string }>
   plugins: Array<{ name: string; description: string }>

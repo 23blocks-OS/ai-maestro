@@ -214,7 +214,7 @@ export interface Agent {
 
   // Ownership, Role & Team
   owner?: string                // Owner name or email
-  role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' (default: 'member')
+  role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | 'autonomous' (default: 'autonomous')
   governanceTitle?: AgentRole   // Explicit governance title (used for architect/integrator — not derived from team state)
   team?: string                 // Team name (e.g., "Backend Team", "23blocks")
 
@@ -451,14 +451,15 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  * - architect: Senior technical authority. Can propose and approve architecture decisions.
  * - orchestrator: Primary kanban manager for a team. Direct MANAGER communication.
  * - integrator: System integrator. Responsible for cross-service wiring and deployment coordination.
- * - member: Default. In closed teams, can only message teammates + COS + manager.
+ * - member: In closed teams, can only message teammates + COS + manager.
+ * - autonomous: Default. Agent operates independently, not assigned to any team.
  *
  * Kept as "AgentRole" type name for backward compatibility with existing API/DB schema.
  * The semantic meaning is "title" — a future migration may rename this.
  */
-export type AgentRole = 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member'
+export type AgentRole = 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | 'autonomous'
 
-export const VALID_GOVERNANCE_TITLES: readonly AgentRole[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'member'] as const
+export const VALID_GOVERNANCE_TITLES: readonly AgentRole[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'member', 'autonomous'] as const
 
 /**
  * Simplified agent for listings
@@ -503,7 +504,7 @@ export interface CreateAgentRequest {
   deploymentType?: DeploymentType // Where to deploy (local or cloud)
   hostId?: string               // Target host for agent creation (defaults to 'local')
   owner?: string
-  role?: AgentRole              // Messaging role (default: 'member')
+  role?: AgentRole              // Messaging role (default: 'autonomous')
   team?: string
   documentation?: AgentDocumentation
   metadata?: AgentMetadata

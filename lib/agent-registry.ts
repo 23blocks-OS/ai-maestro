@@ -471,7 +471,7 @@ export async function createAgent(request: CreateAgentRequest): Promise<Agent> {
     tags: normalizeTags(request.tags),
     capabilities: [],
     owner: request.owner,
-    role: request.role || 'member',
+    role: request.role || 'autonomous',
     team: request.team,
     documentation: request.documentation,
     metadata: request.metadata,

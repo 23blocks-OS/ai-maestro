@@ -1,6 +1,6 @@
 'use client'
 
-import { Crown, Megaphone, Shield, Plus, Compass, GitMerge } from 'lucide-react'
+import { Crown, Megaphone, Shield, Plus, Compass, GitMerge, Bot } from 'lucide-react'
 import type { GovernanceTitle } from '@/hooks/useGovernance'
 export type { GovernanceTitle }
 
@@ -64,6 +64,13 @@ export default function TitleBadge({ title, onClick, size = 'md' }: TitleBadgePr
             bg-cyan-500/15 text-cyan-400 border-cyan-500/30
             ${onClick ? 'hover:bg-cyan-500/25 cursor-pointer' : 'cursor-default'}`
       return renderBadge(classes, <><GitMerge className={iconSize} />INTEGRATOR</>)
+    }
+
+    case 'autonomous': {
+      const classes = `inline-flex items-center ${sizeClasses} rounded-full border font-bold tracking-wider transition-colors
+            bg-slate-500/15 text-slate-400 border-slate-500/30
+            ${onClick ? 'hover:bg-slate-500/25 cursor-pointer' : 'cursor-default'}`
+      return renderBadge(classes, <><Bot className={iconSize} />AUTONOMOUS</>)
     }
 
     case 'member': {

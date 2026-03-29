@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Shield, ChevronDown, FolderOpen, Sparkles, ExternalLink, Lock } from 'lucide-react'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
+import type { GovernanceTitle } from '@/hooks/useGovernance'
 import { SectionLabel } from './shared'
 
 // Governance titles that force a specific role-plugin (dropdown locked)
@@ -22,7 +23,7 @@ export default function RoleTab({
   onRefresh,
 }: {
   config: AgentLocalConfig
-  agentTitle?: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member'
+  agentTitle?: GovernanceTitle
   onEditInHaephestos?: (profilePath: string) => void
   onBrowse?: (path: string) => void
   onRefresh?: () => void

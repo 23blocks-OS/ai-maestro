@@ -10,15 +10,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   generatePluginFromToml,
   listRolePlugins,
+  getPluginsForTitle,
   deleteRolePlugin,
   PREDEFINED_ROLE_PLUGINS,
 } from '@/services/role-plugin-service'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const plugins = await listRolePlugins()
+    const title = req.nextUrl.searchParams.get('title')
+    const client = req.nextUrl.searchParams.get('client')
+    const plugins = title ? await getPluginsForTitle(title, client || undefined) : await listRolePlugins()
     return NextResponse.json({ plugins })
   } catch (error) {
     console.error('[role-plugins] List failed:', error)

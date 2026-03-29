@@ -190,9 +190,9 @@ export default function AgentProfilePanel({
     const currentPlugin = config.rolePlugin?.name
     if (currentPlugin === newPluginName) return
 
-    // Client-side title lock guard: all non-MEMBER titles have locked role-plugins
+    // Client-side title lock guard: only MEMBER and AUTONOMOUS can freely switch role-plugins
     const agentTitle = agentInfo?.title
-    if (agentTitle && agentTitle !== 'member') {
+    if (agentTitle && agentTitle !== 'member' && agentTitle !== 'autonomous') {
       return // Title-locked — the server enforces this too via autoAssignRolePluginForTitle
     }
 
@@ -335,10 +335,10 @@ export default function AgentProfilePanel({
       {/* Overview tab — Agent Profile + Role Plugin selector */}
       {topTab === 'overview' && (
         <div className="flex-1 overflow-y-auto" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
-          {/* Role Plugin display — locked for titled agents, changeable for MEMBER */}
+          {/* Role Plugin display — locked for title-locked agents, changeable for MEMBER/AUTONOMOUS */}
           <div className="px-4 pt-3 pb-2">
-            {agentInfo?.title && agentInfo.title !== 'member' ? (
-              // Non-MEMBER title: static locked display
+            {agentInfo?.title && agentInfo.title !== 'member' && agentInfo.title !== 'autonomous' ? (
+              // Title-locked (e.g. manager, chief-of-staff): static locked display
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
                 <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                 <span className="text-xs font-medium text-emerald-300 flex-1 truncate">
@@ -347,11 +347,15 @@ export default function AgentProfilePanel({
                 <Lock className="w-3 h-3 text-emerald-500/50 flex-shrink-0" />
               </div>
             ) : (
-              // MEMBER (or no title): shows current plugin + "Change" button
+              // MEMBER or AUTONOMOUS (or no title): shows current plugin + "Change" button
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700/40 bg-gray-800/30">
                 <Shield className="w-4 h-4 text-gray-500 flex-shrink-0" />
                 <span className="text-xs font-medium text-gray-400 flex-1 truncate">
-                  {switchingPlugin ? 'Switching…' : (config?.rolePlugin?.name || 'Default (Programmer)')}
+                  {switchingPlugin
+                    ? 'Switching…'
+                    : (config?.rolePlugin?.name ||
+                        (agentInfo?.title?.toLowerCase() === 'autonomous' ? 'No Role Plugin' : 'Default (Programmer)'))
+                  }
                   {!switchingPlugin && config?.rolePlugin?.name && config.rolePlugin.name !== 'ai-maestro-programmer-agent' && (
                     <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">custom</span>
                   )}
@@ -533,11 +537,12 @@ export default function AgentProfilePanel({
         </div>
       )}
 
-      {/* Role Plugin modal — only accessible for MEMBER (or no title) agents */}
+      {/* Role Plugin modal — accessible for MEMBER and AUTONOMOUS agents */}
       <RolePluginModal
         isOpen={showRolePluginModal}
         onClose={() => setShowRolePluginModal(false)}
         currentPluginName={config?.rolePlugin?.name}
+        agentTitle={agentInfo?.title || 'member'}
         onSelectPlugin={async (pluginName) => {
           await handleSwitchPlugin(pluginName)
           setShowRolePluginModal(false)

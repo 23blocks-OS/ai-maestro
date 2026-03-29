@@ -29,8 +29,8 @@ export default function TabContent({
   const handlePluginClick = onSwitchTab ? () => onSwitchTab('plugins') : undefined
   const rpName = config.rolePlugin?.name
   switch (tab) {
-    case 'role': return <RoleTab config={config} agentTitle={agentInfo?.title} onEditInHaephestos={onEditInHaephestos} onBrowse={onBrowse} />
-    case 'plugins': return <PluginsTab config={config} onSwitchTab={onSwitchTab} />
+    case 'role': return <RoleTab config={config} agentTitle={agentInfo?.title} onEditInHaephestos={onEditInHaephestos} onBrowse={onBrowse} onRefresh={onRefresh} />
+    case 'plugins': return <PluginsTab config={config} onSwitchTab={onSwitchTab} onRefresh={onRefresh} />
     case 'skills': return (
       <ListTab items={config.skills} emptyText="No skills installed" emptyHint="Add skills to .claude/skills/ or install a plugin that bundles them." renderItem={(s) => (
         <ExpandableElementCard key={s.name} name={s.name} elementType="skill" detail={s.description} sourcePlugin={s.sourcePlugin} path={s.path} agentId={agentId} onRemoved={onRefresh} onPluginClick={handlePluginClick} rolePluginName={rpName} />

@@ -1082,7 +1082,7 @@ export default function DashboardPage() {
                         agentName={agent.label || agent.name || agent.alias}
                         agentInfo={{
                           name: agent.label || agent.name || agent.alias,
-                          title: agent.role as 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | undefined,
+                          title: agent.role as 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | 'autonomous' | undefined,
                           program: agent.program,
                           tags: agent.tags,
                         }}

@@ -1413,10 +1413,6 @@ export default function AgentList({
         <AgentCreationWizard
           onClose={() => setShowWizardModal(false)}
           onComplete={handleCreateComplete}
-          onSwitchToAdvanced={() => {
-            setShowWizardModal(false)
-            router.push('/agent-creation')
-          }}
         />
       )}
 

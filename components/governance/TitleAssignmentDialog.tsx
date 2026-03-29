@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge } from 'lucide-react'
+import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge, Bot } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceTitle } from '@/hooks/useGovernance'
 
@@ -28,6 +28,15 @@ const TITLE_OPTIONS: {
   selectedBg: string
   selectedText: string
 }[] = [
+  {
+    title: 'autonomous',
+    label: 'AUTONOMOUS',
+    icon: Bot,
+    description: 'Independent agent, not assigned to any team',
+    selectedBorder: 'border-slate-500',
+    selectedBg: 'bg-slate-500/10',
+    selectedText: 'text-slate-300',
+  },
   {
     title: 'member',
     label: 'MEMBER',
@@ -160,6 +169,19 @@ export default function TitleAssignmentDialog({
   // Whether the MANAGER role is held by a different agent
   const managerHeldByOther = governance.managerId && governance.managerId !== agentId
 
+  // Whether this agent is currently a member of any team
+  const isInTeam = governance.memberTeam !== null
+
+  // Filter title options by team membership:
+  // - In a team: show team-scoped titles (member, chief-of-staff, orchestrator, architect, integrator)
+  // - Not in a team: show standalone titles only (autonomous, manager)
+  const visibleTitleOptions = TITLE_OPTIONS.filter((opt) => {
+    const teamTitles: GovernanceTitle[] = ['member', 'chief-of-staff', 'orchestrator', 'architect', 'integrator']
+    const standaloneTitles: GovernanceTitle[] = ['autonomous', 'manager']
+    if (isInTeam) return teamTitles.includes(opt.title)
+    return standaloneTitles.includes(opt.title)
+  })
+
   // Determine if confirm button should be disabled
   const isConfirmDisabled = (() => {
     // No change from current role and no team selection difference
@@ -210,7 +232,36 @@ export default function TitleAssignmentDialog({
       }
 
       // Transition logic based on currentTitle -> selectedTitle
-      if (selectedTitle === 'member') {
+      if (selectedTitle === 'autonomous') {
+        // Transitioning TO autonomous: clear any existing governance state via PATCH
+        if (currentTitle === 'manager') {
+          const result = await governance.assignManager(null, password)
+          if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
+        } else if (currentTitle === 'chief-of-staff') {
+          const removalResults = await Promise.allSettled(
+            governance.cosTeams.map(async (team) => {
+              const result = await governance.assignCOS(team.id, null, password)
+              if (!result.success) throw new Error(result.error || `Failed for ${team.name}`)
+            })
+          )
+          const failures = removalResults
+            .map((r, i) => r.status === 'rejected' ? governance.cosTeams[i].name : null)
+            .filter(Boolean)
+          if (failures.length > 0) {
+            throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
+          }
+        } else if (currentTitle !== 'member') {
+          // Clear simple governanceTitle (architect/integrator/autonomous) if set
+          await clearGovernanceTitle()
+        }
+        // Set autonomous title explicitly via PATCH
+        const res = await fetch(`/api/agents/${agentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ governanceTitle: null, role: 'autonomous' }),
+        })
+        if (!res.ok) throw new Error('Failed to set autonomous title')
+      } else if (selectedTitle === 'member') {
         // Demote to member: remove current governance role
         if (currentTitle === 'manager') {
           const result = await governance.assignManager(null, password)
@@ -384,7 +435,7 @@ export default function TitleAssignmentDialog({
 
             {/* Role cards */}
             <div className="p-6 space-y-3">
-              {TITLE_OPTIONS.map((option) => {
+              {visibleTitleOptions.map((option) => {
                 const Icon = option.icon
                 const isSelected = selectedTitle === option.title
 

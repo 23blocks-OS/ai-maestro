@@ -14,6 +14,7 @@ interface RolePluginModalProps {
   onClose: () => void
   currentPluginName?: string
   onSelectPlugin: (pluginName: string) => Promise<void>
+  agentTitle?: string  // 'member' | 'autonomous' — used to filter by compatible-titles
 }
 
 const DEFAULT_PROGRAMMER_PLUGIN = 'ai-maestro-programmer-agent'
@@ -34,7 +35,11 @@ export default function RolePluginModal({
   onClose,
   currentPluginName,
   onSelectPlugin,
+  agentTitle,
 }: RolePluginModalProps) {
+  // Normalise title to lowercase for comparisons
+  const normalizedTitle = agentTitle?.toLowerCase() ?? 'member'
+  const isAutonomous = normalizedTitle === 'autonomous'
   const [customPlugins, setCustomPlugins] = useState<RolePluginOption[]>([])
   const [loading, setLoading] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -44,13 +49,24 @@ export default function RolePluginModal({
     if (!isOpen) return
     let cancelled = false
     setLoading(true)
-    fetch('/api/agents/role-plugins')
+    // Pass title filter to API so the server can pre-filter; also apply client-side safety filter below
+    const titleParam = agentTitle ? `?title=${encodeURIComponent(agentTitle)}` : ''
+    fetch(`/api/agents/role-plugins${titleParam}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return
         const plugins: RolePluginOption[] = (data.plugins || [])
           // Only show local plugins that are NOT title-locked defaults
-          .filter((p: { name: string; source?: string }) => p.source === 'local' && !TITLE_LOCKED_PLUGINS.has(p.name))
+          .filter((p: { name: string; source?: string; compatibleTitles?: string[] }) => {
+            if (p.source !== 'local') return false
+            if (TITLE_LOCKED_PLUGINS.has(p.name)) return false
+            // Client-side safety: if plugin declares compatibleTitles, the agent's title must be included
+            if (p.compatibleTitles && p.compatibleTitles.length > 0) {
+              const agentTitleNorm = (agentTitle ?? 'member').toLowerCase()
+              return p.compatibleTitles.some((t: string) => t.toLowerCase() === agentTitleNorm)
+            }
+            return true
+          })
           .map((p: { name: string; description?: string; source: string }) => ({
             name: p.name,
             description: p.description || '',
@@ -61,7 +77,7 @@ export default function RolePluginModal({
       .catch((err) => { console.error('[RolePluginModal] Failed to load role plugins:', err) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [isOpen])
+  }, [isOpen, agentTitle])
 
   // Close on Escape key
   useEffect(() => {
@@ -121,34 +137,36 @@ export default function RolePluginModal({
             </div>
           ) : (
             <>
-              {/* Default (Programmer) — always first */}
-              <button
-                onClick={() => handleSelect(DEFAULT_PROGRAMMER_PLUGIN)}
-                disabled={isDefaultCurrent}
-                className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
-                  isDefaultCurrent
-                    ? 'bg-emerald-500/10 cursor-default'
-                    : 'hover:bg-gray-800/60 cursor-pointer'
-                }`}
-              >
-                <Puzzle className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isDefaultCurrent ? 'text-emerald-300' : 'text-emerald-400/50'}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-xs font-medium truncate ${isDefaultCurrent ? 'text-emerald-200' : 'text-gray-300'}`}>
-                      Default (Programmer)
-                    </span>
+              {/* Default (Programmer) — shown only for MEMBER agents, not AUTONOMOUS */}
+              {!isAutonomous && (
+                <button
+                  onClick={() => handleSelect(DEFAULT_PROGRAMMER_PLUGIN)}
+                  disabled={isDefaultCurrent}
+                  className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
+                    isDefaultCurrent
+                      ? 'bg-emerald-500/10 cursor-default'
+                      : 'hover:bg-gray-800/60 cursor-pointer'
+                  }`}
+                >
+                  <Puzzle className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isDefaultCurrent ? 'text-emerald-300' : 'text-emerald-400/50'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs font-medium truncate ${isDefaultCurrent ? 'text-emerald-200' : 'text-gray-300'}`}>
+                        Default (Programmer)
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-snug mt-0.5">
+                      {DEFAULT_PROGRAMMER_DESCRIPTION}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-gray-500 leading-snug mt-0.5">
-                    {DEFAULT_PROGRAMMER_DESCRIPTION}
-                  </p>
-                </div>
-                {isDefaultCurrent && (
-                  <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                )}
-              </button>
+                  {isDefaultCurrent && (
+                    <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  )}
+                </button>
+              )}
 
-              {/* Divider */}
-              <div className="mx-4 my-1 border-t border-gray-700/40" />
+              {/* Divider — only shown when Default (Programmer) is visible */}
+              {!isAutonomous && <div className="mx-4 my-1 border-t border-gray-700/40" />}
 
               {/* Custom plugins */}
               {loading ? (
@@ -158,7 +176,11 @@ export default function RolePluginModal({
                 </div>
               ) : customPlugins.length === 0 ? (
                 <div className="px-4 py-4 text-center">
-                  <p className="text-xs text-gray-500 italic">No custom plugins. Create one with Haephestos.</p>
+                  <p className="text-xs text-gray-500 italic">
+                    {isAutonomous
+                      ? 'No compatible plugins available.'
+                      : 'No custom plugins. Create one with Haephestos.'}
+                  </p>
                 </div>
               ) : (
                 customPlugins.map(p => {

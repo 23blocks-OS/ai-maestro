@@ -101,6 +101,7 @@ user-invocable: false
 | ARCHITECT | ai-maestro-architect-agent | View only | Team + COS + Orchestrator |
 | INTEGRATOR | ai-maestro-integrator-agent | View only | Team + COS + Orchestrator |
 | MEMBER | (any role-plugin) | View only | Team + COS + Orchestrator |
+| AUTONOMOUS | None (default) | View only | N/A (no team) |
 
 ## Rules
 
@@ -222,6 +223,8 @@ interface TomlAgent {
   workingDirectory?: string
   description?: string
   teamId?: string
+  compatibleTitles?: string[]  // Which governance titles can use this plugin
+  compatibleClients?: string[]  // Which AI clients can use this plugin (e.g. claude-code, codex)
 }
 
 interface TomlSkills {
@@ -276,6 +279,8 @@ export interface RolePlugin {
   pluginDir: string
   source?: 'marketplace' | 'local'
   marketplace?: string
+  compatibleTitles?: string[]  // Which governance titles can use this plugin
+  compatibleClients?: string[]  // Which AI clients can use this plugin (e.g. claude-code, codex)
 }
 
 // ── JSON helpers ───────────────────────────────────────────
@@ -306,6 +311,38 @@ function parseAgentToml(tomlContent: string): ParsedToml {
     throw new Error('TOML must have [agent] section with a name field')
   }
 
+  // Parse compatible-titles (array or comma-separated string)
+  let compatibleTitles: string[] | undefined
+  const rawCompatibleTitles = agentSection['compatible-titles']
+  if (rawCompatibleTitles !== undefined) {
+    if (Array.isArray(rawCompatibleTitles)) {
+      compatibleTitles = (rawCompatibleTitles as unknown[])
+        .map(s => String(s).trim().toUpperCase())
+        .filter(Boolean)
+    } else if (typeof rawCompatibleTitles === 'string') {
+      compatibleTitles = rawCompatibleTitles
+        .split(',')
+        .map(s => s.trim().toUpperCase())
+        .filter(Boolean)
+    }
+  }
+
+  // Parse compatible-clients (array or comma-separated string)
+  let compatibleClients: string[] | undefined
+  const rawCompatibleClients = agentSection['compatible-clients']
+  if (rawCompatibleClients !== undefined) {
+    if (Array.isArray(rawCompatibleClients)) {
+      compatibleClients = (rawCompatibleClients as unknown[])
+        .map(s => String(s).trim().toLowerCase())
+        .filter(Boolean)
+    } else if (typeof rawCompatibleClients === 'string') {
+      compatibleClients = rawCompatibleClients
+        .split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean)
+    }
+  }
+
   return {
     agent: {
       name: agentSection.name as string,
@@ -314,6 +351,8 @@ function parseAgentToml(tomlContent: string): ParsedToml {
       workingDirectory: agentSection.workingDirectory as string | undefined,
       description: agentSection.description as string | undefined,
       teamId: agentSection.teamId as string | undefined,
+      compatibleTitles,
+      compatibleClients,
     },
     skills: parsed.skills as TomlSkills | undefined,
     dependencies: parsed.dependencies as TomlDependencies | undefined,
@@ -345,6 +384,15 @@ export async function generatePluginFromToml(
   // Validate plugin name to prevent path traversal
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(pluginName)) {
     throw new Error(`Invalid agent name "${pluginName}": must be alphanumeric with hyphens/underscores, no path separators`)
+  }
+
+  // Ensure compatible-titles is always set — plugins without it are invalid
+  if (!agent.compatibleTitles || agent.compatibleTitles.length === 0) {
+    agent.compatibleTitles = ['MEMBER', 'AUTONOMOUS']
+  }
+  // Ensure compatible-clients defaults to claude-code if not set
+  if (!agent.compatibleClients || agent.compatibleClients.length === 0) {
+    agent.compatibleClients = ['claude-code']
   }
 
   const pluginDir = join(PLUGINS_DIR, pluginName)
@@ -780,6 +828,16 @@ export async function uninstallPluginLocally(
  * NOTE: ai-maestro is NOT a role-plugin despite having the ai-maestro- prefix.
  * Role-plugin identification requires the full quad-match (see CLAUDE.md).
  */
+// Governance titles compatible with each predefined role-plugin
+const PREDEFINED_COMPATIBLE_TITLES: Record<string, string[]> = {
+  'ai-maestro-assistant-manager-agent': ['MANAGER'],
+  'ai-maestro-chief-of-staff': ['CHIEF-OF-STAFF'],
+  'ai-maestro-architect-agent': ['ARCHITECT'],
+  'ai-maestro-orchestrator-agent': ['ORCHESTRATOR'],
+  'ai-maestro-integrator-agent': ['INTEGRATOR'],
+  'ai-maestro-programmer-agent': ['MEMBER'],
+}
+
 export async function listRolePlugins(): Promise<RolePlugin[]> {
   const pluginsByName = new Map<string, RolePlugin>()
 
@@ -804,6 +862,8 @@ export async function listRolePlugins(): Promise<RolePlugin[]> {
       pluginDir: join(GITHUB_MARKETPLACE_DIR, 'plugins', name),
       source: 'marketplace',
       marketplace: info.marketplace,
+      compatibleTitles: PREDEFINED_COMPATIBLE_TITLES[name],
+      compatibleClients: ['claude-code'], // All 6 predefined role-plugins are Claude Code exclusive
     })
   }
 
@@ -827,12 +887,16 @@ export async function listRolePlugins(): Promise<RolePlugin[]> {
         let model: string | undefined
         let program: string | undefined
 
+        let compatibleTitles: string[] | undefined
+        let compatibleClients: string[] | undefined
         if (existsSync(tomlPath)) {
           try {
             const tomlContent = await readFile(tomlPath, 'utf-8')
             const parsed = parseAgentToml(tomlContent)
             model = parsed.agent.model
             program = parsed.agent.program
+            compatibleTitles = parsed.agent.compatibleTitles
+            compatibleClients = parsed.agent.compatibleClients
           } catch { /* ignore parse errors */ }
         }
 
@@ -845,12 +909,33 @@ export async function listRolePlugins(): Promise<RolePlugin[]> {
           pluginDir,
           source: 'local',
           marketplace: MARKETPLACE_NAME,
+          compatibleTitles,
+          compatibleClients,
         })
       } catch { /* skip malformed plugins */ }
     }
   }
 
   return Array.from(pluginsByName.values())
+}
+
+/**
+ * Return role-plugins filtered by compatible-titles and optionally compatible-clients.
+ * Both comparisons are case-insensitive.
+ */
+export async function getPluginsForTitle(title: string, clientType?: string): Promise<RolePlugin[]> {
+  const all = await listRolePlugins()
+  const upperTitle = title.toUpperCase()
+  const lowerClient = clientType?.toLowerCase()
+  return all.filter(p => {
+    // Must match compatible-titles
+    if (!p.compatibleTitles?.includes(upperTitle)) return false
+    // If client filter specified, must also match compatible-clients (or have none = any client)
+    if (lowerClient && p.compatibleClients && p.compatibleClients.length > 0) {
+      if (!p.compatibleClients.includes(lowerClient)) return false
+    }
+    return true
+  })
 }
 
 /**

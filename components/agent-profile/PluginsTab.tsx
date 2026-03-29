@@ -49,9 +49,11 @@ interface PluginsTabProps {
   config: AgentLocalConfig
   /** Callback to switch accordion section in parent (cross-section navigation) */
   onSwitchTab?: (tab: TabId) => void
+  /** Callback to notify parent that plugin state changed (triggers config refetch) */
+  onRefresh?: () => void
 }
 
-export default function PluginsTab({ config, onSwitchTab }: PluginsTabProps) {
+export default function PluginsTab({ config, onSwitchTab, onRefresh }: PluginsTabProps) {
   const router = useRouter()
   const [confirmUninstall, setConfirmUninstall] = useState<LocalPlugin | null>(null)
   const [uninstalling, setUninstalling] = useState(false)
@@ -74,12 +76,20 @@ export default function PluginsTab({ config, onSwitchTab }: PluginsTabProps) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Uninstall failed' }))
         console.error('[PluginsTab] Uninstall failed:', err.error)
+        // MF-027: do not call onRefresh on failure — avoid false "config refreshed" signal
+        setUninstalling(false)
+        setConfirmUninstall(null)
+        return
       }
     } catch (err) {
       console.error('[PluginsTab] Uninstall request failed:', err)
+      setUninstalling(false)
+      setConfirmUninstall(null)
+      return
     }
     setUninstalling(false)
     setConfirmUninstall(null)
+    onRefresh?.()
   }
 
   if (config.plugins.length === 0) {

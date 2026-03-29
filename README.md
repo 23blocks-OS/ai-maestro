@@ -59,14 +59,15 @@ The display name of the agent instance. Associated with a specific Claude Code t
 
 ### TITLE
 
-The governance title determines what an agent is authorized to do within the AI Maestro governance system. There are exactly six titles:
+The governance title determines what an agent is authorized to do within the AI Maestro governance system. There are exactly seven titles:
 
+- **AUTONOMOUS** — Default title. Agent operates independently, not assigned to any team.
 - **MANAGER** — Global singleton. Manages agents and approves GovernanceRequests. Cannot create/delete teams or assign COS (those are USER-only operations requiring governance password). Only one per host.
 - **CHIEF-OF-STAFF** — Leads ONE closed team. Scoped to own team only. All destructive operations require GovernanceRequest approval from MANAGER.
 - **ARCHITECT** — Senior technical authority within a team. Can propose and approve architecture decisions.
 - **ORCHESTRATOR** — Primary kanban manager for a team. Coordinates task assignment and pipeline flow.
 - **INTEGRATOR** — System integrator. Responsible for cross-service wiring and deployment coordination.
-- **MEMBER** — Default title. Standard agent with no special governance privileges.
+- **MEMBER** — Standard team member with no special governance privileges.
 
 Changing a title requires the governance password.
 

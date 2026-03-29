@@ -58,9 +58,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   // Derive governance title from current state
   // All teams are implicitly closed (governance simplification — open teams removed)
-  // Priority: manager > chief-of-staff > architect > orchestrator > integrator > member
+  // Priority: manager > chief-of-staff > architect > orchestrator > integrator > member > autonomous
+  // 'autonomous' is the default for agents not assigned to any team
   const agentTitle: GovernanceTitle = useMemo(() => {
-    if (!agentId) return 'member'
+    if (!agentId) return 'autonomous'
     if (managerId === agentId) return 'manager'
     const isCOS = allTeams.some(
       (t) => t.chiefOfStaffId === agentId
@@ -75,7 +76,13 @@ export function useGovernance(agentId: string | null): GovernanceState {
     if (agentStoredTitle && ['architect', 'integrator'].includes(agentStoredTitle)) {
       return agentStoredTitle as GovernanceTitle
     }
-    return 'member'
+    // 'member' applies to agents in a team without a specific elevated title
+    const isInAnyTeam = allTeams.some(
+      (t) => t.agentIds?.includes(agentId)
+    )
+    if (isInAnyTeam) return 'member'
+    // Default: agent is not part of any team — operates autonomously
+    return 'autonomous'
   }, [agentId, managerId, allTeams, agentStoredTitle])
 
   // Derive cosTeams: teams where this agent is chief-of-staff
@@ -300,6 +307,25 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to add agent to team' }
         }
+        // Phase 3: Auto-assign MEMBER role + default programmer plugin when agent joins a team
+        await fetch(`/api/agents/${targetAgentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'member', governanceTitle: null }),
+        })
+        // Auto-install default programmer plugin for MEMBER title
+        const agentRes = await fetch(`/api/agents/${targetAgentId}`)
+        if (agentRes.ok) {
+          const agentData = await agentRes.json()
+          const workDir = agentData.agent?.workingDirectory
+          if (workDir) {
+            await fetch('/api/agents/role-plugins/install', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pluginName: 'ai-maestro-programmer-agent', agentDir: workDir }),
+            }).catch(() => {}) // Best-effort — don't fail the join if plugin install fails
+          }
+        }
         // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
         mutationAbortRef.current?.abort()
         mutationAbortRef.current = new AbortController()
@@ -348,6 +374,28 @@ export function useGovernance(agentId: string | null): GovernanceState {
         if (!res.ok) {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to remove agent from team' }
+        }
+        // Phase 3: Revert to AUTONOMOUS role + uninstall team plugin when agent leaves
+        await fetch(`/api/agents/${targetAgentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'autonomous', governanceTitle: null }),
+        })
+        // Uninstall current role-plugin (MEMBER plugins are not valid for AUTONOMOUS)
+        const agentRes = await fetch(`/api/agents/${targetAgentId}`)
+        if (agentRes.ok) {
+          const agentData = await agentRes.json()
+          const workDir = agentData.agent?.workingDirectory
+          const currentPlugin = agentData.agent?.programArgs?.match(/--agent\s+(\S+)/)?.[1]
+          if (workDir && currentPlugin) {
+            // Extract plugin name from main-agent name (e.g. "ai-maestro-programmer-agent-main-agent" → "ai-maestro-programmer-agent")
+            const pluginName = currentPlugin.replace(/-main-agent$/, '')
+            await fetch('/api/agents/role-plugins/install', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pluginName, agentDir: workDir }),
+            }).catch(() => {}) // Best-effort uninstall
+          }
         }
         // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
         mutationAbortRef.current?.abort()

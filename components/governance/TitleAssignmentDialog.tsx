@@ -172,14 +172,24 @@ export default function TitleAssignmentDialog({
   // Whether this agent is currently a member of any team
   const isInTeam = governance.memberTeam !== null
 
-  // Filter title options by team membership:
-  // - In a team: show team-scoped titles (member, chief-of-staff, orchestrator, architect, integrator)
-  // - Not in a team: show standalone titles only (autonomous, manager)
+  // Filter title options by team membership AND slot availability:
+  // - In a team: show team-scoped titles, but hide COS/Orchestrator if already taken by another agent
+  // - Not in a team: show standalone titles only (autonomous, manager if not taken)
   const visibleTitleOptions = TITLE_OPTIONS.filter((opt) => {
     const teamTitles: GovernanceTitle[] = ['member', 'chief-of-staff', 'orchestrator', 'architect', 'integrator']
     const standaloneTitles: GovernanceTitle[] = ['autonomous', 'manager']
-    if (isInTeam) return teamTitles.includes(opt.title)
-    return standaloneTitles.includes(opt.title)
+    if (!isInTeam) {
+      if (!standaloneTitles.includes(opt.title)) return false
+      // Hide MANAGER if already taken by another agent
+      if (opt.title === 'manager' && managerHeldByOther) return false
+      return true
+    }
+    if (!teamTitles.includes(opt.title)) return false
+    // Hide COS if team already has a COS that isn't this agent
+    if (opt.title === 'chief-of-staff' && governance.memberTeam?.chiefOfStaffId && governance.memberTeam.chiefOfStaffId !== agentId) return false
+    // Hide ORCHESTRATOR if team already has one that isn't this agent
+    if (opt.title === 'orchestrator' && governance.memberTeam?.orchestratorId && governance.memberTeam.orchestratorId !== agentId) return false
+    return true
   })
 
   // Determine if confirm button should be disabled

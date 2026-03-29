@@ -172,25 +172,31 @@ export default function TitleAssignmentDialog({
   // Whether this agent is currently a member of any team
   const isInTeam = governance.memberTeam !== null
 
-  // Filter title options by team membership AND slot availability:
-  // - In a team: show team-scoped titles, but hide COS/Orchestrator if already taken by another agent
-  // - Not in a team: show standalone titles only (autonomous, manager if not taken)
-  const visibleTitleOptions = TITLE_OPTIONS.filter((opt) => {
-    const teamTitles: GovernanceTitle[] = ['member', 'chief-of-staff', 'orchestrator', 'architect', 'integrator']
-    const standaloneTitles: GovernanceTitle[] = ['autonomous', 'manager']
-    if (!isInTeam) {
-      if (!standaloneTitles.includes(opt.title)) return false
-      // Hide MANAGER if already taken by another agent
-      if (opt.title === 'manager' && managerHeldByOther) return false
-      return true
+  // Filter title options by team membership. Unavailable titles shown as disabled with explanation.
+  const teamTitles: GovernanceTitle[] = ['member', 'chief-of-staff', 'orchestrator', 'architect', 'integrator']
+  const standaloneTitles: GovernanceTitle[] = ['autonomous', 'manager']
+
+  // Compute which titles are disabled and why
+  const titleDisabledReason: Record<string, string | null> = {}
+  for (const opt of TITLE_OPTIONS) {
+    titleDisabledReason[opt.title] = null // enabled by default
+    if (!isInTeam && !standaloneTitles.includes(opt.title)) {
+      titleDisabledReason[opt.title] = 'hidden' // wrong context — fully hidden
+    } else if (isInTeam && !teamTitles.includes(opt.title)) {
+      titleDisabledReason[opt.title] = 'hidden' // wrong context — fully hidden
+    } else if (opt.title === 'manager' && managerHeldByOther) {
+      const managerName = resolveAgentName(governance.managerId!)
+      titleDisabledReason[opt.title] = `Only one Manager is allowed. "${managerName}" already holds this title.`
+    } else if (opt.title === 'chief-of-staff' && governance.memberTeam?.chiefOfStaffId && governance.memberTeam.chiefOfStaffId !== agentId) {
+      const cosName = resolveAgentName(governance.memberTeam.chiefOfStaffId)
+      titleDisabledReason[opt.title] = `Only one Chief-of-Staff is allowed per team. "${cosName}" already holds this title. Remove them first or select another title.`
+    } else if (opt.title === 'orchestrator' && governance.memberTeam?.orchestratorId && governance.memberTeam.orchestratorId !== agentId) {
+      const orchName = resolveAgentName(governance.memberTeam.orchestratorId)
+      titleDisabledReason[opt.title] = `Only one Orchestrator is allowed per team. "${orchName}" already holds this title. Remove them first or select another title.`
     }
-    if (!teamTitles.includes(opt.title)) return false
-    // Hide COS if team already has a COS that isn't this agent
-    if (opt.title === 'chief-of-staff' && governance.memberTeam?.chiefOfStaffId && governance.memberTeam.chiefOfStaffId !== agentId) return false
-    // Hide ORCHESTRATOR if team already has one that isn't this agent
-    if (opt.title === 'orchestrator' && governance.memberTeam?.orchestratorId && governance.memberTeam.orchestratorId !== agentId) return false
-    return true
-  })
+  }
+
+  const visibleTitleOptions = TITLE_OPTIONS.filter((opt) => titleDisabledReason[opt.title] !== 'hidden')
 
   // Determine if confirm button should be disabled
   const isConfirmDisabled = (() => {
@@ -213,6 +219,34 @@ export default function TitleAssignmentDialog({
     setSelectedTeamIds((prev) =>
       prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]
     )
+  }
+
+  // Title → role-plugin mapping for auto-install after title change
+  const TITLE_PLUGIN_MAP: Record<string, string> = {
+    'manager': 'ai-maestro-assistant-manager-agent',
+    'chief-of-staff': 'ai-maestro-chief-of-staff',
+    'architect': 'ai-maestro-architect-agent',
+    'orchestrator': 'ai-maestro-orchestrator-agent',
+    'integrator': 'ai-maestro-integrator-agent',
+  }
+
+  // Auto-install the role-plugin for the given title (best-effort — don't fail the title change if plugin install fails)
+  const autoInstallPluginForTitle = async (title: string) => {
+    const pluginName = TITLE_PLUGIN_MAP[title]
+    if (!pluginName) return // MEMBER/AUTONOMOUS — no auto-install
+    // Need agent's workingDirectory for plugin install
+    try {
+      const agentRes = await fetch(`/api/agents/${agentId}`)
+      if (!agentRes.ok) return
+      const agentData = await agentRes.json()
+      const workDir = agentData.agent?.workingDirectory
+      if (!workDir) return
+      await fetch('/api/agents/role-plugins/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pluginName, agentDir: workDir, scope: 'local' }),
+      })
+    } catch { /* best-effort */ }
   }
 
   // Execute the role change after password confirmation
@@ -317,8 +351,9 @@ export default function TitleAssignmentDialog({
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
         }
-        // Set the new simple governance title
+        // Set the new simple governance title + auto-install its role-plugin
         await setGovernanceTitle(selectedTitle)
+        await autoInstallPluginForTitle(selectedTitle)
       } else if (selectedTitle === 'manager') {
         // Promote to manager: first remove COS or simple title if needed, then assign manager
         if (currentTitle === 'chief-of-staff') {
@@ -341,6 +376,7 @@ export default function TitleAssignmentDialog({
         }
         const result = await governance.assignManager(agentId, password)
         if (!result.success) throw new Error(result.error || 'Failed to assign manager role')
+        await autoInstallPluginForTitle('manager')
       } else if (selectedTitle === 'chief-of-staff') {
         // Assign COS: first remove manager or simple title if needed, then remove old COS assignments, then assign COS to selected teams
         if (currentTitle === 'manager') {
@@ -386,6 +422,7 @@ export default function TitleAssignmentDialog({
             throw new Error(`Failed to assign COS to ${failures.length} team(s)`)
           }
         }
+        await autoInstallPluginForTitle('chief-of-staff')
       }
 
       // Success: notify parent and close
@@ -457,39 +494,49 @@ export default function TitleAssignmentDialog({
               {visibleTitleOptions.map((option) => {
                 const Icon = option.icon
                 const isSelected = selectedTitle === option.title
+                const disabledReason = titleDisabledReason[option.title]
+                const isDisabled = disabledReason !== null && disabledReason !== 'hidden'
 
                 return (
-                  <button
-                    key={option.title}
-                    onClick={() => setSelectedTitle(option.title)}
-                    className={`w-full flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
-                      isSelected
-                        ? `${option.selectedBorder} ${option.selectedBg} ${option.selectedText}`
-                        : 'border-gray-700 bg-gray-800/60 text-gray-400 hover:border-gray-600'
-                    }`}
-                  >
-                    <div
-                      className={`p-2 rounded-lg ${
-                        isSelected ? `${option.selectedBg}` : 'bg-gray-700'
+                  <div key={option.title}>
+                    <button
+                      onClick={() => { if (!isDisabled) setSelectedTitle(option.title) }}
+                      disabled={isDisabled}
+                      className={`w-full flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
+                        isDisabled
+                          ? 'border-gray-800 bg-gray-900/40 text-gray-600 cursor-not-allowed opacity-60'
+                          : isSelected
+                            ? `${option.selectedBorder} ${option.selectedBg} ${option.selectedText}`
+                            : 'border-gray-700 bg-gray-800/60 text-gray-400 hover:border-gray-600'
                       }`}
                     >
-                      <Icon className={`w-5 h-5 ${isSelected ? option.selectedText : 'text-gray-400'}`} />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className={`font-medium ${isSelected ? option.selectedText : 'text-gray-200'}`}>
-                        {option.label}
+                      <div
+                        className={`p-2 rounded-lg ${
+                          isDisabled ? 'bg-gray-800' : isSelected ? `${option.selectedBg}` : 'bg-gray-700'
+                        }`}
+                      >
+                        <Icon className={`w-5 h-5 ${isDisabled ? 'text-gray-600' : isSelected ? option.selectedText : 'text-gray-400'}`} />
                       </div>
-                      <div className="text-xs text-gray-500">{option.description}</div>
-                    </div>
-                    {/* Radio indicator */}
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        isSelected ? `${option.selectedBorder} ${option.selectedBg}` : 'border-gray-600'
-                      }`}
-                    >
-                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                    </div>
-                  </button>
+                      <div className="flex-1 text-left">
+                        <div className={`font-medium ${isDisabled ? 'text-gray-600' : isSelected ? option.selectedText : 'text-gray-200'}`}>
+                          {option.label}
+                        </div>
+                        <div className="text-xs text-gray-500">{option.description}</div>
+                      </div>
+                      {/* Radio indicator */}
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          isDisabled ? 'border-gray-700' : isSelected ? `${option.selectedBorder} ${option.selectedBg}` : 'border-gray-600'
+                        }`}
+                      >
+                        {isSelected && !isDisabled && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                    {/* Validation message — shown for disabled options explaining WHY */}
+                    {isDisabled && (
+                      <p className="text-[11px] text-amber-400/80 mt-1 ml-14 leading-snug">{disabledReason}</p>
+                    )}
+                  </div>
                 )
               })}
 

@@ -115,9 +115,11 @@ describe('loadGovernance', () => {
     /** Verifies that a fresh system with no governance.json returns the default config */
     const config = loadGovernance()
 
-    expect(config).toEqual(DEFAULT_GOVERNANCE_CONFIG)
+    // userName is auto-generated on first load (not in DEFAULT_GOVERNANCE_CONFIG)
+    expect(config).toMatchObject(DEFAULT_GOVERNANCE_CONFIG)
     expect(config.passwordHash).toBeNull()
     expect(config.managerId).toBeNull()
+    expect(config.userName).toMatch(/^user\d{3}$/)
     // CC-003: Verify first-run initialization writes defaults to disk (saveGovernance is called for first-time init)
     const fsMock = (await import('fs')).default
     expect(fsMock.writeFileSync).toHaveBeenCalled()

@@ -828,6 +828,22 @@ These are deferred to Phase 2+ if remote access is needed.
 
 ## Common Gotchas
 
+### 0. Agent API Response Nesting — ALWAYS use `.agent.field`
+
+**CRITICAL:** `GET /api/agents/{id}` returns `{ agent: { id, name, role, governanceTitle, ... } }` — the data is nested under `.agent`. NEVER read fields directly from the response object.
+
+```typescript
+// ✅ CORRECT
+const data = await res.json()
+const title = data.agent?.governanceTitle
+const workDir = data.agent?.workingDirectory
+
+// ❌ WRONG — silently returns undefined, causes fallback to defaults
+const title = data?.governanceTitle  // ALWAYS undefined!
+```
+
+This caused a critical bug where `governanceTitle` was always null, making title changes appear to fail silently (the server saved the title correctly, but the UI never read it back).
+
 ### 1. Terminal Not Fitting Container
 
 ```typescript

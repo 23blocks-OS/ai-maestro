@@ -109,11 +109,14 @@ export default function GovernancePasswordDialog({
       if (password.length === 0) { setError('Password is required'); return }
       setSubmitting(true)
       try {
+        console.log('[PasswordDialog] confirm mode — calling onPasswordConfirmed...')
         await onPasswordConfirmed?.(password)
+        console.log('[PasswordDialog] confirm mode — SUCCESS, closing')
         // Success: reset and close — the caller has completed the operation
         setPassword('')
         onClose()
       } catch (e) {
+        console.error('[PasswordDialog] confirm mode — FAILED:', e)
         // Wrong password or operation failed — show error, stay open for retry
         setError(e instanceof Error ? e.message : 'Authentication failed')
       } finally {

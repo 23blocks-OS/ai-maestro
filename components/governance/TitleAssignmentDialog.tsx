@@ -282,12 +282,12 @@ export default function TitleAssignmentDialog({
           if (failures.length > 0) {
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
-        } else if (currentTitle === 'architect' || currentTitle === 'integrator') {
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'orchestrator') {
           // Clear simple governanceTitle field when demoting to member
           await clearGovernanceTitle()
         }
-      } else if (selectedTitle === 'architect' || selectedTitle === 'integrator') {
-        // Transitioning TO a simple governance title
+      } else if (selectedTitle === 'architect' || selectedTitle === 'integrator' || selectedTitle === 'orchestrator') {
+        // Transitioning TO a simple governance title (including orchestrator)
         if (currentTitle === 'manager') {
           // Remove manager first, then set new title
           const result = await governance.assignManager(null, password)
@@ -325,7 +325,7 @@ export default function TitleAssignmentDialog({
           if (failures.length > 0) {
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
-        } else if (currentTitle === 'architect' || currentTitle === 'integrator') {
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'orchestrator') {
           // Clear old simple governance title before assigning manager
           await clearGovernanceTitle()
         }
@@ -336,7 +336,7 @@ export default function TitleAssignmentDialog({
         if (currentTitle === 'manager') {
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
-        } else if (currentTitle === 'architect' || currentTitle === 'integrator') {
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'orchestrator') {
           // Clear old simple governance title before assigning COS
           await clearGovernanceTitle()
         }
@@ -379,9 +379,11 @@ export default function TitleAssignmentDialog({
       }
 
       // Success: notify parent and close
+      console.log('[TitleAssignment] handleRoleChange SUCCESS — calling onTitleChanged + handleClose')
       onTitleChanged()
       handleClose()
     } catch (err: unknown) {
+      console.error('[TitleAssignment] handleRoleChange FAILED:', err)
       governance.refresh()  // Reload actual state after partial failure
       // Re-throw so the password dialog catches it and shows the error for retry
       throw err instanceof Error ? err : new Error('Failed to update governance title')

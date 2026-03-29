@@ -72,8 +72,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
       (t) => t.orchestratorId === agentId
     )
     if (isOrchestrator) return 'orchestrator'
-    // Check explicit title stored on the agent (architect, integrator)
-    if (agentStoredTitle && ['architect', 'integrator'].includes(agentStoredTitle)) {
+    // Check explicit title stored on the agent (architect, integrator, orchestrator)
+    // Note: orchestrator is ALSO checked via team.orchestratorId above — this fallback
+    // catches cases where governanceTitle was set but team.orchestratorId wasn't updated yet
+    if (agentStoredTitle && ['architect', 'integrator', 'orchestrator'].includes(agentStoredTitle)) {
       return agentStoredTitle as GovernanceTitle
     }
     // 'member' applies to agents in a team without a specific elevated title
@@ -160,7 +162,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setPendingTransfers(transfersData.requests ?? [])
         setPendingConfigRequests(configReqData.requests ?? [])
         // Store explicit governance title from agent record (may be null if not set)
-        setAgentStoredTitle(agentData?.governanceTitle ?? null)
+        // BUG FIX: GET /api/agents/{id} returns { agent: { governanceTitle: ... } } — NOT { governanceTitle: ... }
+        // The response is ALWAYS nested under .agent — forgetting this nesting causes the title to silently be null
+        // and fall through to 'autonomous'/'member' default. ALWAYS use agentData.agent.field, never agentData.field.
+        setAgentStoredTitle(agentData?.agent?.governanceTitle ?? null)
       })
       .catch(() => {
         if (!isMountedRef.current) return // SF-023: Don't update state after unmount

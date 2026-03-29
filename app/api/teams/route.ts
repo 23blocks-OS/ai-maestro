@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import path from 'path'
+import os from 'os'
 import { listAllTeams, createNewTeam } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
+
+const TEAMS_JSON_PATH = path.join(os.homedir(), '.aimaestro', 'teams', 'teams.json')
 
 // NT-009: Force dynamic -- reads runtime filesystem state (team registry)
 export const dynamic = 'force-dynamic'
@@ -37,10 +41,24 @@ export async function POST(request: NextRequest) {
 
   // Whitelist expected fields instead of spreading raw body
   const { name, description, agentIds, type, chiefOfStaffId } = body
-  const result = await createNewTeam({ name, description, agentIds, type, chiefOfStaffId, requestingAgentId })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+  const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
+  const txId = await beginTransaction({
+    description: `Create team ${name}`,
+    operation: 'team:create',
+    scope: 'global',
+    configFiles: { teams_json: TEAMS_JSON_PATH },
+  })
+  try {
+    const result = await createNewTeam({ name, description, agentIds, type, chiefOfStaffId, requestingAgentId })
+    if (result.error) {
+      discardTransaction(txId)
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    commitTransaction(txId)
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (error) {
+    discardTransaction(txId)
+    throw error
   }
-  return NextResponse.json(result.data, { status: result.status })
 }

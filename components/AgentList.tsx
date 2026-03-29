@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { UnifiedAgent } from '@/types/agent'
 import { formatDistanceToNow } from '@/lib/utils'
@@ -229,13 +229,14 @@ export default function AgentList({
   // Session activity tracking (for waiting/active/idle status)
   const { getSessionActivity } = useSessionActivity()
 
-  // Teams data for team-based grouping (all teams — open team type removed)
+  // Teams data for team-based grouping — re-fetched when agents change (team membership may have changed)
   const [teams, setTeams] = useState<Array<{ id: string; name: string; agentIds: string[] }>>([])
-  useEffect(() => {
+  const fetchTeams = useCallback(() => {
     fetch('/api/teams').then(r => r.ok ? r.json() : { teams: [] }).then(data => {
       setTeams(data.teams || [])
     }).catch(() => {})
   }, [])
+  useEffect(() => { fetchTeams() }, [agents, fetchTeams])
 
   // State for team accordion panels — all collapsed by default
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())

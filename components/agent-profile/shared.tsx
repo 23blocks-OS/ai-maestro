@@ -126,7 +126,7 @@ export function ExpandableElementCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ elementType, elementName: name, elementPath: elPath, workDir }),
       })
-      if (res.ok) onRemoved?.()
+      if (res.ok) await onRemoved?.()
     } catch { /* ignore */ }
     setRemoving(false)
     setConfirmRemove(false)

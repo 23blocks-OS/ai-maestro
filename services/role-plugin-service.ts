@@ -780,38 +780,28 @@ export async function uninstallPluginLocally(
 export async function listRolePlugins(): Promise<RolePlugin[]> {
   const pluginsByName = new Map<string, RolePlugin>()
 
-  // Source 1: GitHub marketplace manifest — discover available role-plugins
-  // Reads the marketplace.json and filters plugins with category === 'role-plugin'.
-  // The 6 default role-plugins are listed in the manifest with source.repo pointing
-  // to their individual GitHub repos (e.g., Emasoft/ai-maestro-programmer-agent).
-  if (existsSync(GITHUB_MARKETPLACE_MANIFEST)) {
-    try {
-      const manifest = JSON.parse(await readFile(GITHUB_MARKETPLACE_MANIFEST, 'utf-8')) as {
-        plugins?: Array<{ name: string; description?: string; version?: string; category?: string; source?: string | { repo?: string } }>
-      }
-      const plugins = manifest.plugins || []
-      for (const entry of plugins) {
-        // Only include role-plugins, not utility plugins like 'ai-maestro'
-        if (entry.category !== 'role-plugin') continue
-        if (pluginsByName.has(entry.name)) continue
-
-        // source can be a string path ("./plugins/name") or object ({ repo: "owner/name" })
-        const sourceStr = typeof entry.source === 'string' ? entry.source : `./plugins/${entry.name}`
-        pluginsByName.set(entry.name, {
-          name: entry.name,
-          version: entry.version || '1.0.0',
-          description: entry.description || '',
-          model: undefined,
-          program: undefined,
-          pluginDir: join(GITHUB_MARKETPLACE_DIR, sourceStr),
-          source: 'marketplace',
-          marketplace: GITHUB_MARKETPLACE_NAME,
-        })
-      }
-    } catch {
-      // Marketplace manifest not readable — not fatal, fall through to local
-      console.warn('[role-plugins] Could not read GitHub marketplace manifest')
-    }
+  // Source 1: Predefined role-plugins — always included as the authoritative defaults.
+  // These are installed on-demand via `claude install <name>@ai-maestro-plugins --scope local`.
+  // PREDEFINED_ROLE_PLUGINS is the source of truth, not the marketplace manifest category field.
+  const predefinedDescriptions: Record<string, string> = {
+    'ai-maestro-assistant-manager-agent': 'MANAGER — user interlocutor, directs other roles',
+    'ai-maestro-chief-of-staff': 'CHIEF-OF-STAFF — per-team agent management, staff planning',
+    'ai-maestro-architect-agent': 'ARCHITECT — design documents, requirements, architecture',
+    'ai-maestro-orchestrator-agent': 'ORCHESTRATOR — task distribution, kanban, coordination',
+    'ai-maestro-integrator-agent': 'INTEGRATOR — quality gates, PR review, merging, releases',
+    'ai-maestro-programmer-agent': 'PROGRAMMER — general-purpose implementer, writes code',
+  }
+  for (const [name, info] of Object.entries(PREDEFINED_ROLE_PLUGINS)) {
+    pluginsByName.set(name, {
+      name,
+      version: '1.0.0',
+      description: predefinedDescriptions[name] || '',
+      model: undefined,
+      program: undefined,
+      pluginDir: join(GITHUB_MARKETPLACE_DIR, 'plugins', name),
+      source: 'marketplace',
+      marketplace: info.marketplace,
+    })
   }
 
   // Source 2: Local marketplace — custom Haephestos-generated plugins at ~/agents/role-plugins/plugins/

@@ -172,6 +172,13 @@ export function useGovernance(agentId: string | null): GovernanceState {
     }
   }, [agentId, refresh])
 
+  // Re-fetch governance data when undo/redo restores config (teams.json, governance.json may have changed)
+  useEffect(() => {
+    const handler = () => refresh()
+    window.addEventListener('config-undo-redo', handler)
+    return () => window.removeEventListener('config-undo-redo', handler)
+  }, [refresh])
+
   const setPassword = useCallback(
     async (pw: string, currentPw?: string): Promise<{ success: boolean; error?: string }> => {
       try {

@@ -49,7 +49,15 @@ export function useAgentLocalConfig(agentId: string | null) {
     fetchConfig().finally(() => setLoading(false))
 
     const interval = setInterval(fetchConfig, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
+
+    // Re-fetch when undo/redo restores config (plugins, settings may have changed)
+    const undoHandler = () => fetchConfig()
+    window.addEventListener('config-undo-redo', undoHandler)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('config-undo-redo', undoHandler)
+    }
   }, [agentId, fetchConfig])
 
   return { config, error, loading, refetch: fetchConfig }

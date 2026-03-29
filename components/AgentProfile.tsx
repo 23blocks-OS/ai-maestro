@@ -41,6 +41,7 @@ interface AgentProfileProps {
   renderAfterHeader?: () => React.ReactNode  // Content injected between header and body
   renderAfterGovernanceTitle?: () => React.ReactNode  // Content injected after the Governance Title row (used for Role Plugin selector)
   undoRedo?: UseConfigUndoRedoReturn   // Shared undo/redo hook — when provided, replaces local undo/redo logic
+  onDataChanged?: () => void           // Notify parent to refresh sidebar agent list after governance changes
 }
 
 /** Inline toggle for local plugin enable/disable */
@@ -65,9 +66,12 @@ function PluginToggle({ agentId, pluginKey, enabled, onToggled }: { agentId: str
   )
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle, undoRedo }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle, undoRedo, onDataChanged }: AgentProfileProps) {
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
+  // Stable ref for onDataChanged to avoid recreating autoSave on every parent re-render
+  const onDataChangedRef = useRef(onDataChanged)
+  onDataChangedRef.current = onDataChanged
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -148,6 +152,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
               return next
             })
           }, 600)
+          // Refresh sidebar agent list after successful save
+          onDataChangedRef.current?.()
         } else {
           console.error(`Auto-save failed for ${field}:`, response.statusText)
         }
@@ -215,6 +221,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
 
     fetchAgent()
+
+    // Re-fetch agent when undo/redo restores registry.json (field values may have reverted)
+    const undoHandler = () => fetchAgent()
+    window.addEventListener('config-undo-redo', undoHandler)
+    return () => window.removeEventListener('config-undo-redo', undoHandler)
   }, [isOpen, agentId, baseUrl])
 
   // Fetch repositories lazily - only when section is expanded
@@ -659,6 +670,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       pendingTransfers={governance.pendingTransfers}
                       onRequestTransfer={(aid, from, to) => governance.requestTransfer(aid, from, to)}
                       onResolveTransfer={(tid, action) => governance.resolveTransfer(tid, action)}
+                      onDataChanged={onDataChanged}
                     />
                   </div>
                 )}
@@ -1039,7 +1051,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                             <span className="text-[9px] text-amber-400/70 bg-amber-500/10 rounded px-1.5 py-0.5 flex-shrink-0">conflict</span>
                           )}
                           {plugin.key && (
-                            <PluginToggle agentId={agent.id} pluginKey={plugin.key} enabled={plugin.enabled} onToggled={refetchLocalConfig} />
+                            <PluginToggle agentId={agent.id} pluginKey={plugin.key} enabled={plugin.enabled} onToggled={() => { refetchLocalConfig(); onDataChangedRef.current?.() }} />
                           )}
                         </div>
                       ))}
@@ -1436,7 +1448,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentName={agent.label || agent.name || ''}
           currentTitle={governance.agentTitle}
           governance={governance}
-          onTitleChanged={() => { governance.refresh(); undoRedo?.refreshStatus() }}
+          onTitleChanged={() => { governance.refresh(); undoRedo?.refreshStatus(); onDataChangedRef.current?.() }}
         />
       )}
 

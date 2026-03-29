@@ -64,6 +64,7 @@ interface AgentProfilePanelProps {
   agentInfo?: AgentInfo
   onEditInHaephestos?: (profilePath: string) => void
   onClose?: () => void
+  onAgentDataChanged?: () => void // Notify parent to refresh sidebar agent list
   // Props forwarded to embedded AgentProfile (Overview tab)
   sessionStatus?: import('@/types/agent').AgentSessionStatus
   onStartSession?: () => void
@@ -84,15 +85,27 @@ export default function AgentProfilePanel({
   agentInfo,
   onEditInHaephestos,
   onClose,
+  onAgentDataChanged,
   sessionStatus,
   onStartSession,
   onDeleteAgent,
   scrollToDangerZone,
   hostUrl,
 }: AgentProfilePanelProps) {
-  const { config, error, loading, refetch } = useAgentLocalConfig(agentId)
+  const { config, error, loading, refetch: rawRefetch } = useAgentLocalConfig(agentId)
   // Shared undo/redo hook — visible in ALL tabs via panel header buttons
   const undoRedo = useConfigUndoRedo()
+  // Stable ref so refetch callback doesn't depend on undoRedo object identity
+  const undoRedoRef = useRef(undoRedo)
+  undoRedoRef.current = undoRedo
+  const onAgentDataChangedRef = useRef(onAgentDataChanged)
+  onAgentDataChangedRef.current = onAgentDataChanged
+  // Wrap refetch: await config reload FIRST, then undo status, then sidebar refresh
+  const refetch = useCallback(async () => {
+    await rawRefetch() // Wait for config to fully reload
+    await undoRedoRef.current.refreshStatus() // Update undo/redo button counts
+    onAgentDataChangedRef.current?.() // Sidebar refresh last
+  }, [rawRefetch])
   const [topTab, setTopTab] = useState<TopTab>('overview')
   const [activeTab, setActiveTab] = useState<TabId>('role')
   const [browsePath, setBrowsePath] = useState<string | null>(null)
@@ -145,7 +158,11 @@ export default function AgentProfilePanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preferences: { autoContinue: newValue } })
       })
-      if (res.ok) setAutoContinue(newValue)
+      if (res.ok) {
+        setAutoContinue(newValue)
+        await undoRedoRef.current.refreshStatus()
+        onAgentDataChangedRef.current?.()
+      }
     } catch (err) {
       console.error('[AgentProfilePanel] Failed to toggle autoContinue:', err)
     } finally {
@@ -250,6 +267,8 @@ export default function AgentProfilePanel({
       }
       // Role-plugin switch invalidates all prior undo entries (programArgs changed, plugin swapped)
       undoRedo.clearStacks()
+      // Notify parent and refresh config — role plugin change should update sidebar + panel
+      await refetch()
     } catch (err) {
       console.error('[RolePluginSelector] Switch failed:', err)
     } finally {
@@ -276,7 +295,7 @@ export default function AgentProfilePanel({
         </div>
         {/* Undo Button — shared across all tabs */}
         <div
-          onClick={undoRedo.canUndo ? undoRedo.undo : undefined}
+          onClick={undoRedo.canUndo ? async () => { await undoRedo.undo(); await refetch() } : undefined}
           className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
             undoRedo.canUndo
               ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
@@ -288,7 +307,7 @@ export default function AgentProfilePanel({
         </div>
         {/* Redo Button — shared across all tabs */}
         <div
-          onClick={undoRedo.canRedo ? undoRedo.redo : undefined}
+          onClick={undoRedo.canRedo ? async () => { await undoRedo.redo(); await refetch() } : undefined}
           className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
             undoRedo.canRedo
               ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
@@ -403,6 +422,7 @@ export default function AgentProfilePanel({
             onDeleteAgent={onDeleteAgent}
             hostUrl={hostUrl}
             undoRedo={undoRedo}
+            onDataChanged={refetch}
           />
         </div>
       )}
@@ -551,6 +571,7 @@ export default function AgentProfilePanel({
             scrollToDangerZone={scrollToDangerZone}
             hostUrl={hostUrl}
             undoRedo={undoRedo}
+            onDataChanged={refetch}
           />
         </div>
       )}

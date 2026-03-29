@@ -16,6 +16,7 @@ interface TeamMembershipSectionProps {
   pendingTransfers?: TransferRequest[]
   onRequestTransfer?: (agentId: string, fromTeamId: string, toTeamId: string) => Promise<{ success: boolean; error?: string }>
   onResolveTransfer?: (transferId: string, action: 'approve' | 'reject') => Promise<{ success: boolean; error?: string }>
+  onDataChanged?: () => void // Notify parent that team membership changed
 }
 
 export default function TeamMembershipSection({
@@ -28,6 +29,7 @@ export default function TeamMembershipSection({
   pendingTransfers,
   onRequestTransfer,
   onResolveTransfer,
+  onDataChanged,
 }: TeamMembershipSectionProps) {
   const [showAssignDropdown, setShowAssignDropdown] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -86,6 +88,7 @@ export default function TeamMembershipSection({
         const result = await onJoinTeam(teamId)
         if (result.success) {
           setShowAssignDropdown(false)
+          onDataChanged?.()
         } else {
           setError(result.error || 'Failed to assign to team')
         }
@@ -100,6 +103,7 @@ export default function TeamMembershipSection({
           setError(null)
           const targetTeam = allTeams.find(t => t.id === teamId)
           setInfoMessage(`Transfer request sent. Awaiting approval from ${targetTeam?.name || 'target team'}'s Chief-of-Staff.`)
+          onDataChanged?.()
         } else {
           setError(result.error || 'Failed to request transfer')
         }
@@ -108,6 +112,7 @@ export default function TeamMembershipSection({
         const result = await onJoinTeam(teamId)
         if (result.success) {
           setShowAssignDropdown(false)
+          onDataChanged?.()
         } else {
           setError(result.error || 'Failed to assign to team')
         }
@@ -129,6 +134,7 @@ export default function TeamMembershipSection({
         setError(result.error || 'Failed to leave team')
       } else {
         setInfoMessage('Successfully left team')
+        onDataChanged?.()
       }
     } catch {
       setError('Failed to leave team')
@@ -231,6 +237,8 @@ export default function TeamMembershipSection({
                           const result = await onResolveTransfer(transfer.id, 'approve')
                           if (!result.success) {
                             setError(result.error || 'Failed to approve transfer')
+                          } else {
+                            onDataChanged?.()
                           }
                         } catch {
                           setError('Failed to approve transfer')
@@ -252,6 +260,8 @@ export default function TeamMembershipSection({
                           const result = await onResolveTransfer(transfer.id, 'reject')
                           if (!result.success) {
                             setError(result.error || 'Failed to reject transfer')
+                          } else {
+                            onDataChanged?.()
                           }
                         } catch {
                           setError('Failed to reject transfer')

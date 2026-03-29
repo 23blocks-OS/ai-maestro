@@ -725,22 +725,71 @@ export async function installPluginLocally(
     throw new Error('agentDir must not contain ".."')
   }
 
-  // For marketplace role-plugins, use `claude plugin install` for on-demand installation.
-  // This downloads the plugin from the marketplace and installs it with --scope local.
-  if (marketplaceName === GITHUB_MARKETPLACE_NAME) {
+  // For predefined marketplace role-plugins: clone from their GitHub repo into the global cache.
+  // These are separate repos (e.g. Emasoft/ai-maestro-architect-agent), NOT published inside
+  // the ai-maestro-plugins marketplace. The scanner reads from ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+  if (marketplaceName === GITHUB_MARKETPLACE_NAME && PREDEFINED_ROLE_PLUGINS[pluginName]) {
+    const predefined = PREDEFINED_ROLE_PLUGINS[pluginName]
+    // Read version from the plugin's .claude-plugin/plugin.json if already cached, else use 'latest'
+    const globalCacheBase = join(CLAUDE_DIR, 'plugins', 'cache', GITHUB_MARKETPLACE_NAME, pluginName)
+    let version = 'latest'
+    // Check if already installed with a version
+    if (existsSync(globalCacheBase)) {
+      const existingVersions = await readdir(globalCacheBase).catch(() => [])
+      if (existingVersions.length > 0) {
+        console.log(`[role-plugins] Plugin ${pluginName} already cached (${existingVersions.join(', ')})`)
+        // Just update settings.local.json to enable it
+        const pluginKey = `${pluginName}@${GITHUB_MARKETPLACE_NAME}`
+        const claudeDir = join(resolvedDir, '.claude')
+        const localSettings = join(claudeDir, 'settings.local.json')
+        await mkdir(claudeDir, { recursive: true })
+        const settings = await loadJsonSafe(localSettings) as Record<string, Record<string, unknown>>
+        const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+        ep[pluginKey] = true
+        settings.enabledPlugins = ep
+        await saveJsonSafe(localSettings, settings)
+        return
+      }
+    }
+    // Clone the repo from GitHub into global cache with version subdirectory
     try {
-      await execFileAsync('claude', [
-        'plugin', 'install', pluginName, '--scope', 'local',
-      ], {
-        timeout: 120000,
-        cwd: resolvedDir,  // --scope local installs relative to the working directory
-      })
-      console.log(`[role-plugins] On-demand installed marketplace plugin: ${pluginName} into ${resolvedDir}`)
-      return
+      const repoUrl = `https://github.com/Emasoft/${pluginName}.git`
+      const destDir = join(globalCacheBase, version)
+      await mkdir(destDir, { recursive: true })
+      const { execSync: execSyncLocal } = await import('child_process')
+      execSyncLocal(`git clone --depth 1 ${repoUrl} "${destDir}"`, { timeout: 120000, stdio: 'pipe' })
+      // Read actual version from plugin.json if available
+      const pluginJsonPath = join(destDir, '.claude-plugin', 'plugin.json')
+      if (existsSync(pluginJsonPath)) {
+        try {
+          const meta = JSON.parse(await readFile(pluginJsonPath, 'utf-8'))
+          if (meta.version && meta.version !== version) {
+            // Rename 'latest' dir to actual version
+            const versionedDir = join(globalCacheBase, meta.version)
+            if (!existsSync(versionedDir)) {
+              const { renameSync } = await import('fs')
+              renameSync(destDir, versionedDir)
+              version = meta.version
+            }
+          }
+        } catch { /* keep 'latest' dir name */ }
+      }
+      console.log(`[role-plugins] Cloned ${pluginName} v${version} from GitHub into global cache`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`Failed to install marketplace plugin "${pluginName}": ${msg}`)
+      throw new Error(`Failed to clone role-plugin "${pluginName}" from GitHub: ${msg}`)
     }
+    // Enable in agent's settings.local.json
+    const pluginKey = `${pluginName}@${GITHUB_MARKETPLACE_NAME}`
+    const claudeDir = join(resolvedDir, '.claude')
+    const localSettings = join(claudeDir, 'settings.local.json')
+    await mkdir(claudeDir, { recursive: true })
+    const settings = await loadJsonSafe(localSettings) as Record<string, Record<string, unknown>>
+    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+    ep[pluginKey] = true
+    settings.enabledPlugins = ep
+    await saveJsonSafe(localSettings, settings)
+    return
   }
 
   // For local/custom plugins (Haephestos-generated), write settings.local.json directly

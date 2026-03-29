@@ -383,8 +383,8 @@ export default function TitleAssignmentDialog({
       handleClose()
     } catch (err: unknown) {
       governance.refresh()  // Reload actual state after partial failure
-      setError(err instanceof Error ? err.message : 'Failed to update governance title')
-      setPhase('error')
+      // Re-throw so the password dialog catches it and shows the error for retry
+      throw err instanceof Error ? err : new Error('Failed to update governance title')
     }
   }
 
@@ -396,14 +396,9 @@ export default function TitleAssignmentDialog({
         mode={governance.hasPassword ? 'confirm' : 'setup'}
         onClose={() => setPhase('select')}
         onPasswordConfirmed={async (pw) => {
-          // Try the role change — if it fails (wrong password), re-throw so
-          // GovernancePasswordDialog shows the error and stays open for retry
-          try {
-            await handleRoleChange(pw)
-          } catch (err) {
-            // Re-throw with a user-friendly message so the password dialog shows it
-            throw err instanceof Error ? err : new Error('Authentication failed')
-          }
+          // handleRoleChange re-throws on failure — GovernancePasswordDialog catches
+          // it and shows the error inline, staying open for retry
+          await handleRoleChange(pw)
         }}
       />
     )

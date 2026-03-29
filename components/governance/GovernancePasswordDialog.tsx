@@ -92,11 +92,12 @@ export default function GovernancePasswordDialog({
           const resBody = await res.json().catch(() => null)
           throw new Error(resBody?.error || `Failed to set password (${res.status})`)
         }
-        onPasswordConfirmed(password)
-        // Reset state after successful submission
+        await onPasswordConfirmed(password)
+        // Success: reset state and close — the caller has completed the operation
         setPassword('')
         setConfirmPassword('')
         setUserName('')
+        onClose()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to set password')
       } finally {
@@ -104,17 +105,17 @@ export default function GovernancePasswordDialog({
       }
     } else {
       // Confirm mode: pass the password back to the caller for server-side validation
-      // Wrapped in try/catch with submitting state to match setup mode's error handling pattern (CC-002)
       // CC-P1-705: Guard against empty password even if button state is bypassed programmatically
       if (password.length === 0) { setError('Password is required'); return }
       setSubmitting(true)
       try {
         await onPasswordConfirmed?.(password)
+        // Success: reset and close — the caller has completed the operation
         setPassword('')
-        // Close the dialog after successful confirmation so it does not stay open
         onClose()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Confirmation failed')
+        // Wrong password or operation failed — show error, stay open for retry
+        setError(e instanceof Error ? e.message : 'Authentication failed')
       } finally {
         setSubmitting(false)
       }

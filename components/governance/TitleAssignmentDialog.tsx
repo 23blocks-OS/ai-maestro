@@ -230,17 +230,27 @@ export default function TitleAssignmentDialog({
     'integrator': 'ai-maestro-integrator-agent',
   }
 
-  // Auto-install the role-plugin for the given title (best-effort — don't fail the title change if plugin install fails)
+  // Auto-install the role-plugin for the given title — uninstalls the OLD plugin first to avoid conflicts
   const autoInstallPluginForTitle = async (title: string) => {
     const pluginName = TITLE_PLUGIN_MAP[title]
     if (!pluginName) return // MEMBER/AUTONOMOUS — no auto-install
-    // Need agent's workingDirectory for plugin install
     try {
       const agentRes = await fetch(`/api/agents/${agentId}`)
       if (!agentRes.ok) return
       const agentData = await agentRes.json()
       const workDir = agentData.agent?.workingDirectory
       if (!workDir) return
+      // Uninstall ALL other title-locked plugins first (only one should be active at a time)
+      for (const [, otherPlugin] of Object.entries(TITLE_PLUGIN_MAP)) {
+        if (otherPlugin !== pluginName) {
+          await fetch('/api/agents/role-plugins/install', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pluginName: otherPlugin, agentDir: workDir }),
+          }).catch(() => {}) // Ignore errors — plugin may not be installed
+        }
+      }
+      // Install the new plugin
       await fetch('/api/agents/role-plugins/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

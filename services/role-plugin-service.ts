@@ -35,6 +35,7 @@
  */
 
 import { parse as parseToml } from 'smol-toml'
+import type { AgentRole } from '@/types/agent'
 import { join } from 'path'
 import { homedir } from 'os'
 import { mkdir, writeFile, readFile, readdir, rm, stat } from 'fs/promises'
@@ -78,7 +79,7 @@ export const DEFAULT_ROLE_PLUGIN_NAMES = [
 
 const AIM_GOVERNANCE_RULES_SKILL = `---
 name: aim-governance-rules
-description: AI Maestro governance rules — 4-title model, messaging matrix, kanban authority, team membership. Auto-injected into all AI Maestro role-plugins.
+description: AI Maestro governance rules — 7-title model, messaging matrix, kanban authority, team membership. Auto-injected into all AI Maestro role-plugins.
 license: Apache-2.0
 compatibility: Requires AI Maestro running on localhost:23000
 metadata:
@@ -90,13 +91,16 @@ user-invocable: false
 
 # AI Maestro Governance Rules
 
-## 4 Governance Titles
+## 7 Governance Titles
 
 | Title | Plugin | Kanban | Messaging |
 |-------|--------|--------|-----------|
 | MANAGER | ai-maestro-assistant-manager-agent | Secondary | Direct to all |
 | CHIEF-OF-STAFF | ai-maestro-chief-of-staff | Secondary | Direct to team + Manager |
 | ORCHESTRATOR | ai-maestro-orchestrator-agent | **Primary** | Direct to team + Manager |
+| ARCHITECT | ai-maestro-architect-agent | View only | Team + COS + Orchestrator |
+| INTEGRATOR | ai-maestro-integrator-agent | View only | Team + COS + Orchestrator |
+| PROGRAMMER | ai-maestro-programmer-agent | View only | Team + COS + Orchestrator |
 | MEMBER | (any role-plugin) | View only | Team + COS + Orchestrator |
 
 ## Rules
@@ -1025,7 +1029,10 @@ async function migrateDefaultPluginSettings(): Promise<void> {
 const TITLE_PLUGIN_MAP: Record<string, string> = {
   'manager': 'ai-maestro-assistant-manager-agent',
   'chief-of-staff': 'ai-maestro-chief-of-staff',
+  'architect': 'ai-maestro-architect-agent',
   'orchestrator': 'ai-maestro-orchestrator-agent',
+  'integrator': 'ai-maestro-integrator-agent',
+  'programmer': 'ai-maestro-programmer-agent',
 }
 
 /**
@@ -1045,7 +1052,7 @@ export function getRequiredPluginForTitle(title: string): string | null {
  * Returns the installed plugin name, or null if no auto-assignment needed (MEMBER).
  */
 export async function autoAssignRolePluginForTitle(
-  title: 'manager' | 'chief-of-staff' | 'orchestrator' | 'member',
+  title: AgentRole,
   agentId: string
 ): Promise<string | null> {
   const requiredPlugin = TITLE_PLUGIN_MAP[title]
@@ -1056,14 +1063,14 @@ export async function autoAssignRolePluginForTitle(
   const agent = getAgent(agentId)
   if (!agent) throw new Error(`Agent ${agentId} not found`)
 
-  // MANAGER and COS require role-plugins which are Claude-only.
-  // Non-Claude agents cannot hold these titles.
+  // All title-locked roles require role-plugins which are Claude-only.
+  // Non-Claude agents cannot hold titles that auto-assign a role-plugin.
   const { detectClientType } = await import('@/lib/client-capabilities')
   const clientType = detectClientType(agent.program || '')
   if (clientType !== 'claude') {
     throw new Error(
       `Cannot assign ${title.toUpperCase()} title to ${clientType} agent "${agent.name || agentId}". ` +
-      `MANAGER and CHIEF-OF-STAFF require Claude Code (role-plugins are Claude-only).`
+      `Governance titles with auto-assigned role-plugins require Claude Code (role-plugins are Claude-only).`
     )
   }
 

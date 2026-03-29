@@ -99,7 +99,7 @@ export function serializeAttestation(attestation: HostAttestation): string {
  * Returns null if the string is invalid.
  */
 // CC-P4-007: Allowlist of valid AgentRole values for attestation deserialization
-const VALID_AGENT_ROLES: readonly string[] = ['manager', 'chief-of-staff', 'member'] as const
+const VALID_AGENT_ROLES: readonly string[] = ['manager', 'chief-of-staff', 'architect', 'orchestrator', 'integrator', 'programmer', 'member'] as const
 
 export function deserializeAttestation(base64Json: string): HostAttestation | null {
   try {

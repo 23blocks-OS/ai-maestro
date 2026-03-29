@@ -9,7 +9,10 @@ import { SectionLabel } from './shared'
 const TITLE_PLUGIN_MAP: Record<string, string> = {
   'manager': 'ai-maestro-assistant-manager-agent',
   'chief-of-staff': 'ai-maestro-chief-of-staff',
+  'architect': 'ai-maestro-architect-agent',
   'orchestrator': 'ai-maestro-orchestrator-agent',
+  'integrator': 'ai-maestro-integrator-agent',
+  'programmer': 'ai-maestro-programmer-agent',
 }
 
 export default function RoleTab({
@@ -17,11 +20,13 @@ export default function RoleTab({
   agentTitle,
   onEditInHaephestos,
   onBrowse,
+  onRefresh,
 }: {
   config: AgentLocalConfig
-  agentTitle?: 'manager' | 'chief-of-staff' | 'orchestrator' | 'member'
+  agentTitle?: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'programmer' | 'member'
   onEditInHaephestos?: (profilePath: string) => void
   onBrowse?: (path: string) => void
+  onRefresh?: () => void
 }) {
   // If the agent's governance title requires a specific plugin, lock the selector
   const requiredPlugin = agentTitle ? TITLE_PLUGIN_MAP[agentTitle] || null : null
@@ -94,7 +99,7 @@ export default function RoleTab({
       }
       // Install the selected role plugin, passing its marketplace origin (explicit scope: 'local' for defense-in-depth)
       const newPlugin = availablePlugins.find(p => p.name === pluginName)
-      await fetch('/api/agents/role-plugins/install', {
+      const installRes = await fetch('/api/agents/role-plugins/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,11 +109,20 @@ export default function RoleTab({
           scope: 'local',
         }),
       })
+      // MF-026: only refresh on install success — avoids false "config refreshed" signal on failure
+      if (!installRes.ok) {
+        const err = await installRes.json().catch(() => ({ error: 'Install failed' }))
+        console.error('[RoleTab] Install failed, aborting switch:', err.error)
+        return
+      }
     } catch (err) {
       console.error('[RoleTab] Failed to switch role plugin:', err)
+      return
+    } finally {
+      setSwitching(false)
+      setShowDropdown(false)
     }
-    setSwitching(false)
-    setShowDropdown(false)
+    onRefresh?.()
   }
 
   // Role Plugin selector (always shown at top)

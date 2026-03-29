@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Shield, Crown, Megaphone, X, AlertTriangle } from 'lucide-react'
+import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge, Code2 } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceTitle } from '@/hooks/useGovernance'
 
@@ -54,6 +54,33 @@ const TITLE_OPTIONS: {
     selectedBorder: 'border-blue-500',
     selectedBg: 'bg-blue-500/10',
     selectedText: 'text-blue-300',
+  },
+  {
+    title: 'architect',
+    label: 'ARCHITECT',
+    icon: Compass,
+    description: 'Design documents, requirements, architecture',
+    selectedBorder: 'border-purple-500',
+    selectedBg: 'bg-purple-500/10',
+    selectedText: 'text-purple-300',
+  },
+  {
+    title: 'integrator',
+    label: 'INTEGRATOR',
+    icon: GitMerge,
+    description: 'Quality gates, PR review, merging, releases',
+    selectedBorder: 'border-cyan-500',
+    selectedBg: 'bg-cyan-500/10',
+    selectedText: 'text-cyan-300',
+  },
+  {
+    title: 'programmer',
+    label: 'PROGRAMMER',
+    icon: Code2,
+    description: 'General-purpose implementer, writes code',
+    selectedBorder: 'border-green-500',
+    selectedBg: 'bg-green-500/10',
+    selectedText: 'text-green-300',
   },
   {
     title: 'manager',
@@ -171,6 +198,26 @@ export default function TitleAssignmentDialog({
     setError(null)
 
     try {
+      // Helper: clear a simple governanceTitle (architect/integrator/programmer) via PATCH
+      const clearGovernanceTitle = async () => {
+        const res = await fetch(`/api/agents/${agentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ governanceTitle: null }),
+        })
+        if (!res.ok) throw new Error('Failed to clear governance title')
+      }
+
+      // Helper: set a simple governanceTitle (architect/integrator/programmer) via PATCH
+      const setGovernanceTitle = async (t: GovernanceTitle) => {
+        const res = await fetch(`/api/agents/${agentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ governanceTitle: t }),
+        })
+        if (!res.ok) throw new Error(`Failed to assign ${t} title`)
+      }
+
       // Transition logic based on currentTitle -> selectedTitle
       if (selectedTitle === 'member') {
         // Demote to member: remove current governance role
@@ -191,9 +238,35 @@ export default function TitleAssignmentDialog({
           if (failures.length > 0) {
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'programmer') {
+          // Clear simple governanceTitle field when demoting to member
+          await clearGovernanceTitle()
         }
+      } else if (selectedTitle === 'architect' || selectedTitle === 'integrator' || selectedTitle === 'programmer') {
+        // Transitioning TO a simple governance title
+        if (currentTitle === 'manager') {
+          // Remove manager first, then set new title
+          const result = await governance.assignManager(null, password)
+          if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
+        } else if (currentTitle === 'chief-of-staff') {
+          // Remove all COS assignments first, then set new title
+          const removalResults = await Promise.allSettled(
+            governance.cosTeams.map(async (team) => {
+              const result = await governance.assignCOS(team.id, null, password)
+              if (!result.success) throw new Error(result.error || `Failed for ${team.name}`)
+            })
+          )
+          const failures = removalResults
+            .map((r, i) => r.status === 'rejected' ? governance.cosTeams[i].name : null)
+            .filter(Boolean)
+          if (failures.length > 0) {
+            throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
+          }
+        }
+        // Set the new simple governance title
+        await setGovernanceTitle(selectedTitle)
       } else if (selectedTitle === 'manager') {
-        // Promote to manager: first remove COS if needed, then assign manager
+        // Promote to manager: first remove COS or simple title if needed, then assign manager
         if (currentTitle === 'chief-of-staff') {
           // CC-003: Use Promise.allSettled for parallel COS removal — reports partial failures clearly
           const removalResults = await Promise.allSettled(
@@ -208,14 +281,20 @@ export default function TitleAssignmentDialog({
           if (failures.length > 0) {
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'programmer') {
+          // Clear old simple governance title before assigning manager
+          await clearGovernanceTitle()
         }
         const result = await governance.assignManager(agentId, password)
         if (!result.success) throw new Error(result.error || 'Failed to assign manager role')
       } else if (selectedTitle === 'chief-of-staff') {
-        // Assign COS: first remove manager if needed, then remove old COS assignments, then assign COS to selected teams
+        // Assign COS: first remove manager or simple title if needed, then remove old COS assignments, then assign COS to selected teams
         if (currentTitle === 'manager') {
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
+        } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'programmer') {
+          // Clear old simple governance title before assigning COS
+          await clearGovernanceTitle()
         }
         // CC-003: Remove COS from teams no longer selected — parallel with partial failure reporting
         if (currentTitle === 'chief-of-staff') {

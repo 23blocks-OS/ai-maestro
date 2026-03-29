@@ -43,6 +43,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
   const [allTeams, setAllTeams] = useState<Team[]>([])
   const [pendingTransfers, setPendingTransfers] = useState<TransferRequest[]>([])
   const [pendingConfigRequests, setPendingConfigRequests] = useState<GovernanceRequest[]>([])
+  // Explicit governance title stored on the agent (e.g. 'architect', 'integrator', 'programmer')
+  const [agentStoredTitle, setAgentStoredTitle] = useState<string | null>(null)
 
   // SF-016: Guard against concurrent read-modify-write in addAgentToTeam / removeAgentFromTeam
   const isMutatingRef = useRef(false)
@@ -69,8 +71,12 @@ export function useGovernance(agentId: string | null): GovernanceState {
       (t) => t.orchestratorId === agentId
     )
     if (isOrchestrator) return 'orchestrator'
+    // Check explicit title stored on the agent (architect, integrator, programmer)
+    if (agentStoredTitle && ['architect', 'integrator', 'programmer'].includes(agentStoredTitle)) {
+      return agentStoredTitle as GovernanceTitle
+    }
     return 'member'
-  }, [agentId, managerId, allTeams])
+  }, [agentId, managerId, allTeams, agentStoredTitle])
 
   // Derive cosTeams: teams where this agent is chief-of-staff
   // All teams are implicitly closed (governance simplification — open teams removed)
@@ -120,14 +126,25 @@ export function useGovernance(agentId: string | null): GovernanceState {
         console.error('[governance] config requests fetch error:', err)
         return { requests: [] }
       }),
+      // Fetch agent's explicit governanceTitle (e.g. architect, integrator, programmer)
+      agentId
+        ? fetch(`/api/agents/${agentId}`, { signal }).then((r) => {
+            if (!r.ok) throw new Error('Request failed')
+            return r.json()
+          }).catch((err) => {
+            if (err?.name === 'AbortError') return // Component unmounted
+            console.error('[governance] agent fetch error:', err)
+            return null
+          })
+        : Promise.resolve(null),
     ])
-      .then(([govData, teamsData, transfersData, configReqData]) => {
+      .then(([govData, teamsData, transfersData, configReqData, agentData]) => {
         if (signal?.aborted) return  // Stale response guard
         // CC-003: Guard against undefined data (AbortError catch returns undefined)
         if (!govData || !teamsData || !transfersData || !configReqData) return
         // SF-023: Don't update state after unmount
         if (!isMountedRef.current) return
-        // React 18+ batches these 6 setters into a single re-render automatically
+        // React 18+ batches these setters into a single re-render automatically
         setHasPassword(govData.hasPassword ?? false)
         setHasManager(govData.hasManager ?? false)
         setManagerId(govData.managerId ?? null)
@@ -135,6 +152,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setAllTeams(teamsData.teams ?? [])
         setPendingTransfers(transfersData.requests ?? [])
         setPendingConfigRequests(configReqData.requests ?? [])
+        // Store explicit governance title from agent record (may be null if not set)
+        setAgentStoredTitle(agentData?.governanceTitle ?? null)
       })
       .catch(() => {
         if (!isMountedRef.current) return // SF-023: Don't update state after unmount
@@ -146,6 +165,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setAllTeams([])
         setPendingTransfers([])
         setPendingConfigRequests([])
+        setAgentStoredTitle(null)
       })
       .finally(() => {
         // CC-001: Prevent setting state on aborted/stale requests (e.g. unmount or rapid agentId change)

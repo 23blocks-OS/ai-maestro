@@ -20,18 +20,34 @@ import {
   RefreshCw,
   Undo2,
   Redo2,
+  Lock,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useConfigUndoRedo } from '@/hooks/useConfigUndoRedo'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
-import { type TabId, type TabDef, type AgentInfo, type AvailableRolePlugin } from './agent-profile/shared'
+import { type TabId, type TabDef, type AgentInfo } from './agent-profile/shared'
 import TabContent from './agent-profile/TabContent'
 import FolderBrowser from './agent-profile/FolderBrowser'
+import RolePluginModal from './agent-profile/RolePluginModal'
 import { detectClientType, getClientCapabilities, isTabSupported, clientTypeLabel } from '@/lib/client-capabilities'
 
 // Lazy-load AgentProfile — only mounted when Overview tab is active
 const AgentProfile = dynamic(() => import('@/components/AgentProfile'), { ssr: false })
+
+// ---------------------------------------------------------------------------
+// Title → Role-Plugin map (mirrors services/role-plugin-service.ts TITLE_PLUGIN_MAP)
+// Used to show the locked plugin name for non-MEMBER titles.
+// ---------------------------------------------------------------------------
+
+const TITLE_PLUGIN_MAP: Record<string, string> = {
+  'manager': 'ai-maestro-assistant-manager-agent',
+  'chief-of-staff': 'ai-maestro-chief-of-staff',
+  'architect': 'ai-maestro-architect-agent',
+  'orchestrator': 'ai-maestro-orchestrator-agent',
+  'integrator': 'ai-maestro-integrator-agent',
+  'programmer': 'ai-maestro-programmer-agent',
+}
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -111,9 +127,8 @@ export default function AgentProfilePanel({
   const [browsePath, setBrowsePath] = useState<string | null>(null)
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
-  // Role Plugin selector state
-  const [availablePlugins, setAvailablePlugins] = useState<AvailableRolePlugin[]>([])
-  const [pluginDropdownOpen, setPluginDropdownOpen] = useState(false)
+  // Role Plugin modal state
+  const [showRolePluginModal, setShowRolePluginModal] = useState(false)
   const [switchingPlugin, setSwitchingPlugin] = useState(false)
 
   // Auto-continue state
@@ -135,8 +150,8 @@ export default function AgentProfilePanel({
     })
   }, [])
 
-  // Reset browse mode and close dropdown when agent changes
-  useEffect(() => { setBrowsePath(null); setPluginDropdownOpen(false) }, [agentId])
+  // Reset browse mode when agent changes
+  useEffect(() => { setBrowsePath(null); setShowRolePluginModal(false) }, [agentId])
 
   // Fetch agent's autoContinue preference
   useEffect(() => {
@@ -170,46 +185,19 @@ export default function AgentProfilePanel({
     }
   }, [agentId, autoContinue, autoContinueLoading])
 
-  // Close dropdown on outside click
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!pluginDropdownOpen) return
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setPluginDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [pluginDropdownOpen])
-
-  // Fetch available role plugins when dropdown opens
-  useEffect(() => {
-    if (!pluginDropdownOpen) return
-    let cancelled = false
-    fetch('/api/agents/role-plugins')
-      .then(r => r.json())
-      .then(data => {
-        if (!cancelled && data.plugins) setAvailablePlugins(data.plugins)
-      })
-      .catch((err) => { console.error('[AgentProfilePanel] Failed to load role plugins:', err) })
-    return () => { cancelled = true }
-  }, [pluginDropdownOpen])
-
   // Switch role plugin: uninstall old → install new → restart agent session
   const handleSwitchPlugin = useCallback(async (newPluginName: string) => {
     if (!config?.workingDirectory || !agentId || switchingPlugin) return
     const currentPlugin = config.rolePlugin?.name
-    if (currentPlugin === newPluginName) { setPluginDropdownOpen(false); return }
+    if (currentPlugin === newPluginName) return
 
-    // Client-side title lock guard: MANAGER and COS have locked role-plugins
+    // Client-side title lock guard: all non-MEMBER titles have locked role-plugins
     const agentTitle = agentInfo?.title
-    if (agentTitle === 'manager' || agentTitle === 'chief-of-staff') {
+    if (agentTitle && agentTitle !== 'member') {
       return // Title-locked — the server enforces this too via autoAssignRolePluginForTitle
     }
 
     setSwitchingPlugin(true)
-    setPluginDropdownOpen(false)
     try {
       const agentDir = config.workingDirectory
 
@@ -348,64 +336,34 @@ export default function AgentProfilePanel({
       {/* Overview tab — Agent Profile + Role Plugin selector */}
       {topTab === 'overview' && (
         <div className="flex-1 overflow-y-auto" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
-          {/* Role Plugin quick-selector */}
-          <div className="px-4 pt-3 pb-2" ref={dropdownRef}>
-            <div
-              onClick={() => setPluginDropdownOpen(!pluginDropdownOpen)}
-              className={`
-                flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors
-                border ${config?.rolePlugin ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-gray-700/40 bg-gray-800/30'}
-                hover:bg-emerald-500/10
-              `}
-            >
-              <Shield className={`w-4 h-4 flex-shrink-0 ${config?.rolePlugin ? 'text-emerald-400' : 'text-gray-600'}`} />
-              <span className={`text-xs font-medium flex-1 truncate ${config?.rolePlugin ? 'text-emerald-300' : 'text-gray-500 italic'}`}>
-                {switchingPlugin ? 'Switching…' : (config?.rolePlugin?.name || 'No Role Plugin')}
-              </span>
-              <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${pluginDropdownOpen ? 'rotate-180' : ''}`} />
-            </div>
-
-            {pluginDropdownOpen && (
-              <div
-                className="absolute z-30 left-4 right-4 mt-1 max-h-52 overflow-y-auto rounded-lg border shadow-xl"
-                style={{
-                  backgroundColor: '#0c1a14',
-                  borderColor: 'rgba(16,185,129,0.3)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5), 0 0 12px rgba(16,185,129,0.15)',
-                }}
-              >
-                {availablePlugins.length === 0 ? (
-                  <div className="px-4 py-3 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 text-emerald-400/50 animate-spin" />
-                    <span className="text-xs text-emerald-400/50">Loading plugins…</span>
-                  </div>
-                ) : (
-                  availablePlugins.map(p => {
-                    const isCurrent = config?.rolePlugin?.name === p.name
-                    return (
-                      <button
-                        key={p.name}
-                        onClick={() => handleSwitchPlugin(p.name)}
-                        className={`w-full flex items-start gap-2.5 px-4 py-2.5 text-left transition-colors ${
-                          isCurrent
-                            ? 'bg-emerald-500/15 cursor-default'
-                            : 'hover:bg-emerald-500/10 cursor-pointer'
-                        }`}
-                      >
-                        <Puzzle className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isCurrent ? 'text-emerald-300' : 'text-emerald-400/50'}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-xs font-medium truncate ${isCurrent ? 'text-emerald-200' : 'text-gray-300'}`}>
-                            {p.name}
-                            {isCurrent && <span className="ml-1.5 text-[9px] text-emerald-400/70">(current)</span>}
-                          </div>
-                          {p.description && (
-                            <p className="text-[10px] text-gray-500 leading-snug mt-0.5 line-clamp-2">{p.description}</p>
-                          )}
-                        </div>
-                      </button>
-                    )
-                  })
-                )}
+          {/* Role Plugin display — locked for titled agents, changeable for MEMBER */}
+          <div className="px-4 pt-3 pb-2">
+            {agentInfo?.title && agentInfo.title !== 'member' ? (
+              // Non-MEMBER title: static locked display
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+                <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-xs font-medium text-emerald-300 flex-1 truncate">
+                  {switchingPlugin ? 'Switching…' : (TITLE_PLUGIN_MAP[agentInfo.title] || config?.rolePlugin?.name || 'No Role Plugin')}
+                </span>
+                <Lock className="w-3 h-3 text-emerald-500/50 flex-shrink-0" />
+              </div>
+            ) : (
+              // MEMBER (or no title): shows current plugin + "Change" button
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700/40 bg-gray-800/30">
+                <Shield className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                <span className="text-xs font-medium text-gray-400 flex-1 truncate">
+                  {switchingPlugin ? 'Switching…' : (config?.rolePlugin?.name || 'Default (Programmer)')}
+                  {!switchingPlugin && config?.rolePlugin?.name && config.rolePlugin.name !== 'ai-maestro-programmer-agent' && (
+                    <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">custom</span>
+                  )}
+                </span>
+                <button
+                  onClick={() => setShowRolePluginModal(true)}
+                  disabled={switchingPlugin}
+                  className="text-[10px] px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Change
+                </button>
               </div>
             )}
           </div>
@@ -575,6 +533,17 @@ export default function AgentProfilePanel({
           />
         </div>
       )}
+
+      {/* Role Plugin modal — only accessible for MEMBER (or no title) agents */}
+      <RolePluginModal
+        isOpen={showRolePluginModal}
+        onClose={() => setShowRolePluginModal(false)}
+        currentPluginName={config?.rolePlugin?.name}
+        onSelectPlugin={async (pluginName) => {
+          await handleSwitchPlugin(pluginName)
+          setShowRolePluginModal(false)
+        }}
+      />
     </div>
   )
 }

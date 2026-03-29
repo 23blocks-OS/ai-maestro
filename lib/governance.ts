@@ -15,6 +15,7 @@ import type { GovernanceConfig } from '@/types/governance'
 import { DEFAULT_GOVERNANCE_CONFIG } from '@/types/governance'
 import { broadcastGovernanceSync } from '@/lib/governance-sync'
 import type { Team } from '@/types/team'
+import { getAgent } from '@/lib/agent-registry'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const GOVERNANCE_FILE = path.join(AIMAESTRO_DIR, 'governance.json')
@@ -189,6 +190,27 @@ export function isOrchestratorAnywhere(agentId: string): boolean {
   return teams.some(
     (team) => team.orchestratorId === agentId
   )
+}
+
+/** Check if agentId has the ARCHITECT governance title (stored as explicit governanceTitle on agent) */
+export function isArchitect(agentId: string): boolean {
+  if (!agentId) return false
+  const agent = getAgent(agentId)
+  return agent?.governanceTitle === 'architect'
+}
+
+/** Check if agentId has the INTEGRATOR governance title (stored as explicit governanceTitle on agent) */
+export function isIntegrator(agentId: string): boolean {
+  if (!agentId) return false
+  const agent = getAgent(agentId)
+  return agent?.governanceTitle === 'integrator'
+}
+
+/** Check if agentId has the PROGRAMMER governance title (stored as explicit governanceTitle on agent) */
+export function isProgrammer(agentId: string): boolean {
+  if (!agentId) return false
+  const agent = getAgent(agentId)
+  return agent?.governanceTitle === 'programmer'
 }
 
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.

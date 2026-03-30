@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI Maestro - Agent Messaging Protocol (AMP) Installer
-# Installs AMP scripts and Claude Code skills
+# Installs AMP scripts and Claude Code skills for inter-agent communication
 #
 # Usage:
 #   ./install-messaging.sh           # Interactive mode

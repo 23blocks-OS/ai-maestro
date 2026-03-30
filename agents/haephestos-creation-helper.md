@@ -67,37 +67,53 @@ Show the user what was selected and why. Let them adjust. After each change, wri
 
 Verify the TOML has `compatible-titles` in the `[agent]` section before proceeding.
 
-### Step 5: Create the role-plugin
-When the user approves, run ALL of this in a single bash block. Do NOT inspect or parse intermediate results — the API handles everything:
+### Step 5: Create the role-plugin with PSS
+When the user approves, use the PSS command to build the complete plugin. This copies ALL referenced skills, agents, commands, and rules into the plugin:
 
 ```bash
-# Read inputs
 TOML_FILE=$(ls ~/agents/haephestos/toml/*.agent.toml | head -1)
+PLUGIN_NAME=$(grep '^name' "$TOML_FILE" | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+OUTPUT_DIR="$HOME/agents/role-plugins/$PLUGIN_NAME"
 
-# Create role-plugin: generates plugin → auto-injects AI Maestro compatibility skills
-# (aim-governance-rules + aim-agent-operations) → saves to ~/agents/role-plugins/
-PLUGIN_RESULT=$(curl -s -X POST http://localhost:23000/api/agents/role-plugins/generate \
+# Use PSS to build the complete plugin (copies all skills, agents, commands, rules)
+/pss-make-plugin-from-profile "$TOML_FILE" --output "$OUTPUT_DIR"
+```
+
+If `/pss-make-plugin-from-profile` is not available as a slash command, run the Python script directly:
+
+```bash
+TOML_FILE=$(ls ~/agents/haephestos/toml/*.agent.toml | head -1)
+PLUGIN_NAME=$(grep '^name' "$TOML_FILE" | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+OUTPUT_DIR="$HOME/agents/role-plugins/$PLUGIN_NAME"
+
+# Find the PSS plugin root
+PSS_ROOT=$(find ~/.claude/plugins/cache/emasoft-plugins/perfect-skill-suggester/ -maxdepth 1 -type d | sort -V | tail -1)
+uv run "$PSS_ROOT/scripts/pss_make_plugin.py" "$TOML_FILE" --output "$OUTPUT_DIR"
+```
+
+After the plugin is built, verify it:
+```bash
+echo "=== Plugin structure ==="
+find "$OUTPUT_DIR" -type f | head -30
+echo "=== Skills count ==="
+ls "$OUTPUT_DIR/skills/" 2>/dev/null | wc -l
+```
+
+Then register it with AI Maestro so it appears in the local marketplace:
+```bash
+curl -s -X POST http://localhost:23000/api/agents/role-plugins/generate \
   -H 'Content-Type: application/json' \
-  -d "$(jq -n --arg tc "$(cat $TOML_FILE)" '{tomlContent: $tc}')")
-
-# Check for error
-if echo "$PLUGIN_RESULT" | jq -e '.error' > /dev/null 2>&1; then
-  echo "ERROR creating role-plugin: $(echo $PLUGIN_RESULT | jq -r '.error')"
-  exit 1
-fi
-
-PLUGIN_NAME=$(echo "$PLUGIN_RESULT" | jq -r '.pluginName')
-PLUGIN_DIR=$(echo "$PLUGIN_RESULT" | jq -r '.pluginDir')
+  -d "$(jq -n --arg tc "$(cat $TOML_FILE)" '{tomlContent: $tc}')" > /dev/null 2>&1
 
 # Write completion signal
-jq -n --arg pn "$PLUGIN_NAME" --arg pd "$PLUGIN_DIR" \
+jq -n --arg pn "$PLUGIN_NAME" --arg pd "$OUTPUT_DIR" \
   '{status: "complete", pluginName: $pn, pluginDir: $pd}' \
   > ~/agents/haephestos/creation-signal.json
 
-echo "Role-plugin $PLUGIN_NAME created at $PLUGIN_DIR"
+echo "Role-plugin $PLUGIN_NAME created at $OUTPUT_DIR"
 ```
 
-After the signal is written, tell the user the role-plugin is ready. The plugin can now be assigned to any agent persona via the agent creation wizard.
+Tell the user the role-plugin is ready and how many skills/agents/commands were included. The plugin can now be assigned to any agent persona via the agent creation wizard.
 
 ## Important
 

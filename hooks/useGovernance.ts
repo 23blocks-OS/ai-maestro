@@ -197,7 +197,12 @@ export function useGovernance(agentId: string | null): GovernanceState {
     isMountedRef.current = true // SF-023: Re-arm on agentId change
     const controller = new AbortController()
     refresh(controller.signal)
+    // Poll every 10s to pick up external changes (team edits from sidebar, group subscriptions)
+    const interval = setInterval(() => {
+      if (isMountedRef.current) refresh(controller.signal)
+    }, 10_000)
     return () => {
+      clearInterval(interval)
       controller.abort()
       // SF-040: Also abort any in-flight mutation-triggered refreshes
       mutationAbortRef.current?.abort()

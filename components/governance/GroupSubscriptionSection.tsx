@@ -26,6 +26,9 @@ export default function GroupSubscriptionSection({
   // Fetch all groups on mount and when agentId changes (component may not remount on agent switch)
   useEffect(() => {
     fetchGroups()
+    // Poll every 10s to pick up group changes from sidebar
+    const interval = setInterval(fetchGroups, 10_000)
+    return () => clearInterval(interval)
   }, [agentId])
 
   // Close dropdown when clicking outside

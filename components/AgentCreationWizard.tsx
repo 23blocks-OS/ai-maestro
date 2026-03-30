@@ -351,6 +351,20 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
         }
       }
 
+      // Step 4: Explicitly set governanceTitle if not the default 'member'
+      // The team-add in Step 2 auto-sets 'member', so we override with the wizard-selected title
+      if (selectedTitle && selectedTitle !== 'member' && selectedTitle !== 'autonomous') {
+        try {
+          await fetch(`/api/agents/${agentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ governanceTitle: selectedTitle }),
+          })
+        } catch {
+          // Non-fatal: title set failure shouldn't block agent creation
+        }
+      }
+
       setCreationSuccess(true)
     } catch (err) {
       setCreationError(err instanceof Error ? err.message : 'Failed to create agent')

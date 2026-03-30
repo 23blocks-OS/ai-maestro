@@ -1295,7 +1295,7 @@ describe('config notifications', () => {
 
   it('approved configure-agent triggers notification with approved outcome', async () => {
     /** Verifies that an approved configure-agent request sends an approved notification */
-    const executedRequest = makeGovernanceRequest({ status: 'executed', approvals: { sourceManager: { agentId: 'manager-agent', approvedAt: '2026-02-20T10:01:00.000Z' } } })
+    const executedRequest = makeGovernanceRequest({ status: 'executed', approvals: { sourceManager: { agentId: 'manager-agent', approved: true, at: '2026-02-20T10:01:00.000Z' } } })
     mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
     mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
     mockWithLock.mockImplementation(async (_name: string, fn: () => unknown) => fn())

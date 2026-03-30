@@ -29,8 +29,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Install dependencies
         run: |
@@ -88,12 +86,9 @@ jobs:
             echo "✓ $script installed"
           done
 
-          # Verify skill was installed
-          if [ ! -f ~/.claude/skills/memory-search/SKILL.md ]; then
-            echo "ERROR: memory-search skill not installed"
-            exit 1
-          fi
-          echo "✓ memory-search skill installed"
+          # Note: memory-search skill is now bundled in the ai-maestro plugin,
+          # not installed by this standalone installer
+          echo "✓ memory-search skill bundled in plugin (not tested here)"
 
       - name: Test install-graph-tools.sh
         run: |
@@ -110,12 +105,9 @@ jobs:
             echo "✓ $script installed"
           done
 
-          # Verify skill was installed
-          if [ ! -f ~/.claude/skills/graph-query/SKILL.md ]; then
-            echo "ERROR: graph-query skill not installed"
-            exit 1
-          fi
-          echo "✓ graph-query skill installed"
+          # Note: graph-query skill is now bundled in the ai-maestro plugin,
+          # not installed by this standalone installer
+          echo "✓ graph-query skill bundled in plugin (not tested here)"
 
       - name: Test install-doc-tools.sh
         run: |
@@ -139,12 +131,9 @@ jobs:
             echo "✓ $script installed"
           done
 
-          # Verify skill was installed
-          if [ ! -f ~/.claude/skills/docs-search/SKILL.md ]; then
-            echo "ERROR: docs-search skill not installed"
-            exit 1
-          fi
-          echo "✓ docs-search skill installed"
+          # Note: docs-search skill is now bundled in the ai-maestro plugin,
+          # not installed by this standalone installer
+          echo "✓ docs-search skill bundled in plugin (not tested here)"
 
       - name: Test install-agent-cli.sh
         run: |

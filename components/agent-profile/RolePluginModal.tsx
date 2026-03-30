@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { X, Puzzle, Check, Loader2 } from 'lucide-react'
+import { ROLE_PLUGIN_PROGRAMMER, PREDEFINED_ROLE_PLUGIN_NAMES } from '@/lib/ecosystem-constants'
 
 interface RolePluginOption {
   name: string
@@ -17,18 +18,13 @@ interface RolePluginModalProps {
   agentTitle?: string  // 'member' | 'autonomous' — used to filter by compatible-titles
 }
 
-const DEFAULT_PROGRAMMER_PLUGIN = 'ai-maestro-programmer-agent'
+// Default programmer plugin — shown separately as "Default (Programmer)" in the picker
+const DEFAULT_PROGRAMMER_PLUGIN = ROLE_PLUGIN_PROGRAMMER
 const DEFAULT_PROGRAMMER_DESCRIPTION = 'General-purpose implementer — writes code, runs tests, creates PRs'
 
-// Predefined (title-locked) plugins that MEMBER agents should not see in the picker
-const TITLE_LOCKED_PLUGINS = new Set([
-  'ai-maestro-assistant-manager-agent',
-  'ai-maestro-chief-of-staff',
-  'ai-maestro-architect-agent',
-  'ai-maestro-orchestrator-agent',
-  'ai-maestro-integrator-agent',
-  DEFAULT_PROGRAMMER_PLUGIN, // shown separately as "Default (Programmer)"
-])
+// Predefined (title-locked) plugins that MEMBER agents should not see in the picker.
+// Derived from ecosystem-constants PREDEFINED_ROLE_PLUGIN_NAMES.
+const TITLE_LOCKED_PLUGINS = new Set<string>(PREDEFINED_ROLE_PLUGIN_NAMES)
 
 export default function RolePluginModal({
   isOpen,

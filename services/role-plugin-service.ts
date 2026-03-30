@@ -27,8 +27,9 @@
  * 2. POST /api/teams/{id}/chief-of-staff — assigns COS → installs plugin
  * 3. POST /api/teams (type=closed, chiefOfStaffId) — creates team + COS → installs plugin
  *
- * Role-plugins from marketplace: installed via `claude plugin install <name> --scope local`
- * Custom role-plugins: installed from ~/agents/role-plugins/ local marketplace
+ * Role-plugins from marketplace: installed via `claude plugin install <name>@ai-maestro-plugins --scope local`
+ *   Claude CLI handles cloning, caching (~/.claude/plugins/cache/), and settings.local.json
+ * Custom role-plugins: installed from ~/agents/role-plugins/ local marketplace via settings.local.json
  *
  * Agents (MANAGER, COS) can create MEMBER agents and assign role-plugins via:
  *   aimaestro-agent.sh plugin install <agent> <plugin>@<marketplace> --scope local
@@ -42,12 +43,22 @@ import { mkdir, writeFile, readFile, readdir, rm, stat } from 'fs/promises'
 import { existsSync } from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import {
+  MARKETPLACE_NAME as GITHUB_MARKETPLACE_NAME_IMPORT,
+  MARKETPLACE_REPO,
+  LOCAL_MARKETPLACE_NAME,
+  LOCAL_MARKETPLACE_DIR_NAME,
+  PREDEFINED_ROLE_PLUGIN_NAMES,
+  ROLE_PLUGIN_MAIN_AGENTS,
+  PLUGIN_COMPATIBLE_TITLES,
+  TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_PLUGIN_MAP,
+} from '@/lib/ecosystem-constants'
 
 const execFileAsync = promisify(execFile)
 
-// ── Paths ──────────────────────────────────────────────────
+// ── Paths (derived from ecosystem-constants) ────────────────
 const HOME = homedir()
-const ROLE_PLUGINS_DIR = join(HOME, 'agents', 'role-plugins')
+const ROLE_PLUGINS_DIR = join(HOME, 'agents', LOCAL_MARKETPLACE_DIR_NAME)
 const MARKETPLACE_META_DIR = join(ROLE_PLUGINS_DIR, '.claude-plugin')
 const MARKETPLACE_JSON = join(MARKETPLACE_META_DIR, 'marketplace.json')
 const PLUGINS_DIR = join(ROLE_PLUGINS_DIR, 'plugins')
@@ -55,25 +66,19 @@ const CLAUDE_DIR = join(HOME, '.claude')
 const SETTINGS_LOCAL = join(CLAUDE_DIR, 'settings.local.json')
 const INSTALLED_FILE = join(CLAUDE_DIR, 'plugins', 'installed_plugins.json')
 
-const MARKETPLACE_NAME = 'ai-maestro-local-roles-marketplace'
+// Local marketplace name — for custom Haephestos-generated role-plugins (from ecosystem-constants)
+const MARKETPLACE_NAME = LOCAL_MARKETPLACE_NAME
 
-// GitHub marketplace for predefined role plugins (Emasoft/ai-maestro-plugins)
+// GitHub marketplace for predefined role plugins (from ecosystem-constants)
 // Role-plugins are NOT auto-installed. They are installed ON-DEMAND when a user selects one
 // from the dropdown. syncDefaultRolePlugins() only ensures the marketplace is registered.
-export const GITHUB_MARKETPLACE_NAME = 'ai-maestro-plugins'
+export const GITHUB_MARKETPLACE_NAME = GITHUB_MARKETPLACE_NAME_IMPORT
 const GITHUB_MARKETPLACE_DIR = join(HOME, '.claude', 'plugins', 'marketplaces', GITHUB_MARKETPLACE_NAME)
 const GITHUB_MARKETPLACE_MANIFEST = join(GITHUB_MARKETPLACE_DIR, '.claude-plugin', 'marketplace.json')
 
-// The names of the 6 predefined role plugins. Used for migration and guard checks.
+// The names of the 6 predefined role plugins. Re-exported from ecosystem-constants.
 // These are NOT installed at user scope — they are installed on-demand with --scope local.
-export const DEFAULT_ROLE_PLUGIN_NAMES = [
-  'ai-maestro-programmer-agent',
-  'ai-maestro-orchestrator-agent',
-  'ai-maestro-integrator-agent',
-  'ai-maestro-architect-agent',
-  'ai-maestro-chief-of-staff',
-  'ai-maestro-assistant-manager-agent',
-]
+export const DEFAULT_ROLE_PLUGIN_NAMES: string[] = [...PREDEFINED_ROLE_PLUGIN_NAMES]
 
 // ── AI Maestro compatibility skill content (auto-injected into generated role-plugins) ──
 
@@ -388,7 +393,7 @@ export async function generatePluginFromToml(
 
   // Ensure compatible-titles is always set — plugins without it are invalid
   if (!agent.compatibleTitles || agent.compatibleTitles.length === 0) {
-    agent.compatibleTitles = ['MEMBER', 'AUTONOMOUS']
+    agent.compatibleTitles = ['AUTONOMOUS']
   }
   // Ensure compatible-clients defaults to claude-code if not set
   if (!agent.compatibleClients || agent.compatibleClients.length === 0) {
@@ -725,70 +730,22 @@ export async function installPluginLocally(
     throw new Error('agentDir must not contain ".."')
   }
 
-  // For predefined marketplace role-plugins: clone from their GitHub repo into the global cache.
-  // These are separate repos (e.g. Emasoft/ai-maestro-architect-agent), NOT published inside
-  // the ai-maestro-plugins marketplace. The scanner reads from ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+  // For predefined marketplace role-plugins: use `claude plugin install` CLI.
+  // The ai-maestro-plugins marketplace has these 6 plugins with git source URLs.
+  // Claude CLI handles cloning, caching, and settings.local.json automatically.
   if (marketplaceName === GITHUB_MARKETPLACE_NAME && PREDEFINED_ROLE_PLUGINS[pluginName]) {
-    const predefined = PREDEFINED_ROLE_PLUGINS[pluginName]
-    // Read version from the plugin's .claude-plugin/plugin.json if already cached, else use 'latest'
-    const globalCacheBase = join(CLAUDE_DIR, 'plugins', 'cache', GITHUB_MARKETPLACE_NAME, pluginName)
-    let version = 'latest'
-    // Check if already installed with a version
-    if (existsSync(globalCacheBase)) {
-      const existingVersions = await readdir(globalCacheBase).catch(() => [])
-      if (existingVersions.length > 0) {
-        console.log(`[role-plugins] Plugin ${pluginName} already cached (${existingVersions.join(', ')})`)
-        // Just update settings.local.json to enable it
-        const pluginKey = `${pluginName}@${GITHUB_MARKETPLACE_NAME}`
-        const claudeDir = join(resolvedDir, '.claude')
-        const localSettings = join(claudeDir, 'settings.local.json')
-        await mkdir(claudeDir, { recursive: true })
-        const settings = await loadJsonSafe(localSettings) as Record<string, Record<string, unknown>>
-        const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-        ep[pluginKey] = true
-        settings.enabledPlugins = ep
-        await saveJsonSafe(localSettings, settings)
-        return
-      }
-    }
-    // Clone the repo from GitHub into global cache with version subdirectory
     try {
-      const repoUrl = `https://github.com/Emasoft/${pluginName}.git`
-      const destDir = join(globalCacheBase, version)
-      await mkdir(destDir, { recursive: true })
-      const { execSync: execSyncLocal } = await import('child_process')
-      execSyncLocal(`git clone --depth 1 ${repoUrl} "${destDir}"`, { timeout: 120000, stdio: 'pipe' })
-      // Read actual version from plugin.json if available
-      const pluginJsonPath = join(destDir, '.claude-plugin', 'plugin.json')
-      if (existsSync(pluginJsonPath)) {
-        try {
-          const meta = JSON.parse(await readFile(pluginJsonPath, 'utf-8'))
-          if (meta.version && meta.version !== version) {
-            // Rename 'latest' dir to actual version
-            const versionedDir = join(globalCacheBase, meta.version)
-            if (!existsSync(versionedDir)) {
-              const { renameSync } = await import('fs')
-              renameSync(destDir, versionedDir)
-              version = meta.version
-            }
-          }
-        } catch { /* keep 'latest' dir name */ }
-      }
-      console.log(`[role-plugins] Cloned ${pluginName} v${version} from GitHub into global cache`)
+      // claude plugin install <name> <marketplace> --scope local
+      // Marketplace is a separate argument, not joined with @
+      // Must run with cwd=agentDir so --scope local writes to <agentDir>/.claude/settings.local.json
+      await execFileAsync('claude', [
+        'plugin', 'install', pluginName, GITHUB_MARKETPLACE_NAME, '--scope', 'local',
+      ], { timeout: 120000, cwd: resolvedDir })
+      console.log(`[role-plugins] Installed ${pluginName} from ${GITHUB_MARKETPLACE_NAME} via Claude CLI (scope: local, cwd: ${resolvedDir})`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`Failed to clone role-plugin "${pluginName}" from GitHub: ${msg}`)
+      throw new Error(`Failed to install role-plugin "${pluginName}" from ${GITHUB_MARKETPLACE_NAME}: ${msg}`)
     }
-    // Enable in agent's settings.local.json
-    const pluginKey = `${pluginName}@${GITHUB_MARKETPLACE_NAME}`
-    const claudeDir = join(resolvedDir, '.claude')
-    const localSettings = join(claudeDir, 'settings.local.json')
-    await mkdir(claudeDir, { recursive: true })
-    const settings = await loadJsonSafe(localSettings) as Record<string, Record<string, unknown>>
-    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-    ep[pluginKey] = true
-    settings.enabledPlugins = ep
-    await saveJsonSafe(localSettings, settings)
     return
   }
 
@@ -845,6 +802,27 @@ export async function uninstallPluginLocally(
   }
 
   const pluginKey = `${pluginName}@${marketplaceName}`
+
+  // For predefined marketplace plugins: use `claude plugin uninstall` CLI
+  if (marketplaceName === GITHUB_MARKETPLACE_NAME && PREDEFINED_ROLE_PLUGINS[pluginName]) {
+    try {
+      // claude plugin uninstall <name> <marketplace> --scope local
+      await execFileAsync('claude', [
+        'plugin', 'uninstall', pluginName, GITHUB_MARKETPLACE_NAME, '--scope', 'local',
+      ], { timeout: 30000, cwd: resolvedDir })
+      console.log(`[role-plugins] Uninstalled ${pluginName} from ${GITHUB_MARKETPLACE_NAME} via Claude CLI (scope: local, cwd: ${resolvedDir})`)
+    } catch (err) {
+      // If plugin wasn't installed, that's OK — treat as success
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes('not found') && !msg.includes('not installed')) {
+        throw new Error(`Failed to uninstall role-plugin "${pluginName}": ${msg}`)
+      }
+      console.log(`[role-plugins] Plugin ${pluginName} was not installed, skipping`)
+    }
+    return
+  }
+
+  // For local/custom plugins: manipulate settings.local.json directly
   const localSettings = join(resolvedDir, '.claude', 'settings.local.json')
 
   if (existsSync(localSettings)) {
@@ -877,15 +855,8 @@ export async function uninstallPluginLocally(
  * NOTE: ai-maestro is NOT a role-plugin despite having the ai-maestro- prefix.
  * Role-plugin identification requires the full quad-match (see CLAUDE.md).
  */
-// Governance titles compatible with each predefined role-plugin
-const PREDEFINED_COMPATIBLE_TITLES: Record<string, string[]> = {
-  'ai-maestro-assistant-manager-agent': ['MANAGER'],
-  'ai-maestro-chief-of-staff': ['CHIEF-OF-STAFF'],
-  'ai-maestro-architect-agent': ['ARCHITECT'],
-  'ai-maestro-orchestrator-agent': ['ORCHESTRATOR'],
-  'ai-maestro-integrator-agent': ['INTEGRATOR'],
-  'ai-maestro-programmer-agent': ['MEMBER'],
-}
+// Governance titles compatible with each predefined role-plugin (from ecosystem-constants)
+const PREDEFINED_COMPATIBLE_TITLES = PLUGIN_COMPATIBLE_TITLES
 
 export async function listRolePlugins(): Promise<RolePlugin[]> {
   const pluginsByName = new Map<string, RolePlugin>()
@@ -1029,17 +1000,17 @@ export async function deleteRolePlugin(pluginName: string): Promise<void> {
 
 /**
  * The 6 predefined AI Maestro role plugins.
- * These are available in the Emasoft/ai-maestro-plugins marketplace but are NOT auto-installed.
+ * Built from ecosystem-constants (ROLE_PLUGIN_MAIN_AGENTS + GITHUB_MARKETPLACE_NAME).
+ * These are available in the marketplace but are NOT auto-installed.
  * They are installed ON-DEMAND when a user selects one from the dropdown via installPluginLocally().
  */
-export const PREDEFINED_ROLE_PLUGINS: Record<string, { marketplace: string; mainAgent: string }> = {
-  'ai-maestro-assistant-manager-agent': { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: 'amama-assistant-manager-main-agent' },
-  'ai-maestro-chief-of-staff':         { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: 'ai-maestro-chief-of-staff-main-agent' },
-  'ai-maestro-architect-agent':        { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: 'ai-maestro-architect-agent-main-agent' },
-  'ai-maestro-integrator-agent':       { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: 'ai-maestro-integrator-agent-main-agent' },
-  'ai-maestro-orchestrator-agent':     { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: 'ai-maestro-orchestrator-agent-main-agent' },
-  'ai-maestro-programmer-agent':       { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: 'ai-maestro-programmer-agent-main-agent' },
-}
+export const PREDEFINED_ROLE_PLUGINS: Record<string, { marketplace: string; mainAgent: string }> =
+  Object.fromEntries(
+    PREDEFINED_ROLE_PLUGIN_NAMES.map(name => [
+      name,
+      { marketplace: GITHUB_MARKETPLACE_NAME, mainAgent: ROLE_PLUGIN_MAIN_AGENTS[name] },
+    ])
+  )
 
 // ── Default role plugin sync ──────────────────────────────
 
@@ -1070,9 +1041,9 @@ export async function syncDefaultRolePlugins(_force = false): Promise<SyncDefaul
 
   // Step 1: Ensure the GitHub marketplace is registered (does not install any plugins)
   try {
-    await execFileAsync('claude', ['plugin', 'marketplace', 'add', 'Emasoft/ai-maestro-plugins'], { timeout: 60000 })
+    await execFileAsync('claude', ['plugin', 'marketplace', 'add', MARKETPLACE_REPO], { timeout: 60000 })
     synced.push('marketplace-registered')
-    console.log('[role-plugins] GitHub marketplace Emasoft/ai-maestro-plugins registered')
+    console.log(`[role-plugins] GitHub marketplace ${MARKETPLACE_REPO} registered`)
   } catch (err) {
     // Marketplace may already be registered — not a fatal error
     const msg = err instanceof Error ? err.message : String(err)
@@ -1084,19 +1055,32 @@ export async function syncDefaultRolePlugins(_force = false): Promise<SyncDefaul
     console.warn('[role-plugins] Marketplace add note:', msg)
   }
 
-  // Step 2: Read the marketplace manifest to discover available role-plugins
-  // The plugins won't be in cache until a user selects one — we read the manifest instead.
+  // Step 2: Read the marketplace manifest, fix source format if needed, discover role-plugins.
+  // Claude CLI requires source format: { "source": "url", "url": "<git_url>" }
+  // but the upstream repo may use { "type": "git", "repo": "<git_url>" } which doesn't work.
   if (existsSync(GITHUB_MARKETPLACE_MANIFEST)) {
     try {
       const manifest = JSON.parse(await readFile(GITHUB_MARKETPLACE_MANIFEST, 'utf-8')) as {
-        plugins?: Array<{ name: string; category?: string }>
+        plugins?: Array<{ name: string; category?: string; source?: unknown }>
       }
       const plugins = manifest.plugins || []
+      let manifestFixed = false
       for (const entry of plugins) {
-        // Only include role-plugins, not utility plugins like 'ai-maestro'
+        // Fix source format: { type: "git", repo: "..." } → { source: "url", url: "..." }
+        const src = entry.source as Record<string, string> | string | undefined
+        if (src && typeof src === 'object' && (src as Record<string, string>).type === 'git' && (src as Record<string, string>).repo) {
+          ;(entry as Record<string, unknown>).source = { source: 'url', url: (src as Record<string, string>).repo }
+          manifestFixed = true
+        }
+        // Collect available role-plugins
         if (entry.category === 'role-plugin') {
           available.push(entry.name)
         }
+      }
+      // Write back the fixed manifest so `claude plugin install` works
+      if (manifestFixed) {
+        await writeFile(GITHUB_MARKETPLACE_MANIFEST, JSON.stringify(manifest, null, 4) + '\n')
+        console.log('[role-plugins] Fixed marketplace manifest source format for Claude CLI compatibility')
       }
     } catch {
       console.warn('[role-plugins] Could not read marketplace manifest for available plugins')
@@ -1117,7 +1101,7 @@ export async function syncDefaultRolePlugins(_force = false): Promise<SyncDefaul
 }
 
 /**
- * Migrate agent settings: change @ai-maestro-local-roles-marketplace to @ai-maestro-plugins
+ * Migrate agent settings: change @ai-maestro-local-agents-marketplace to @ai-maestro-plugins
  * for all default role plugins. Scans ~/agents/ for .claude/settings.local.json files.
  */
 async function migrateDefaultPluginSettings(): Promise<void> {
@@ -1159,13 +1143,10 @@ async function migrateDefaultPluginSettings(): Promise<void> {
 
 // Map of governance titles that REQUIRE a specific role-plugin.
 // MEMBER (default) has no forced plugin — agents can use any.
-const TITLE_PLUGIN_MAP: Record<string, string> = {
-  'manager': 'ai-maestro-assistant-manager-agent',
-  'chief-of-staff': 'ai-maestro-chief-of-staff',
-  'architect': 'ai-maestro-architect-agent',
-  'orchestrator': 'ai-maestro-orchestrator-agent',
-  'integrator': 'ai-maestro-integrator-agent',
-}
+// Derived from ecosystem-constants TITLE_PLUGIN_MAP (UPPER-CASE keys) → lower-case keys for API compat.
+const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(ECOSYSTEM_TITLE_PLUGIN_MAP).map(([k, v]) => [k.toLowerCase(), v])
+)
 
 /**
  * Get the required role-plugin name for a governance title, or null if any is allowed.

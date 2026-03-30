@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTeamById, updateTeamById, deleteTeamById } from '@/services/teams-service'
+import { updateAgentById } from '@/services/agents-core-service'
+import { getTeam } from '@/lib/team-registry'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { isValidUuid } from '@/lib/validation'
 
@@ -31,7 +33,7 @@ export async function GET(
 // PUT /api/teams/[id] - Update a team
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
   if (!isValidUuid(id)) {
@@ -57,11 +59,45 @@ export async function PUT(
   // SF-015: Intentional defense-in-depth — updateTeamById() in teams-service.ts also strips these fields.
   // Both layers strip independently so neither can be bypassed if the other is refactored.
   const { type: _type, chiefOfStaffId: _cos, ...safeBody } = body
-  const result = await updateTeamById(id, { ...safeBody, requestingAgentId })
 
+  // Phase 3: Snapshot agentIds before update to detect membership changes for auto-title transitions
+  // Use getTeam (no ACL check) — ACL is checked inside updateTeamById
+  const oldAgentIds: string[] = (() => {
+    try { return getTeam(id)?.agentIds ?? [] } catch { return [] }
+  })()
+
+  const result = await updateTeamById(id, { ...safeBody, requestingAgentId })
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
+
+  // Auto-title transitions: when team membership changes, update agent roles
+  if (safeBody.agentIds !== undefined) {
+    const newAgentIds: string[] = result.data?.team?.agentIds ?? []
+    const oldSet = new Set<string>(oldAgentIds)
+    const newSet = new Set<string>(newAgentIds)
+    // Agents added to the team → auto-assign MEMBER role
+    for (const agentId of newAgentIds) {
+      if (!oldSet.has(agentId)) {
+        try {
+          await updateAgentById(agentId, { role: 'member' })
+        } catch (err: unknown) {
+          console.error(`[team PUT] Failed to set MEMBER role for agent ${agentId}:`, err)
+        }
+      }
+    }
+    // Agents removed from the team → revert to AUTONOMOUS role
+    for (const agentId of oldAgentIds) {
+      if (!newSet.has(agentId)) {
+        try {
+          await updateAgentById(agentId, { role: 'autonomous' })
+        } catch (err: unknown) {
+          console.error(`[team PUT] Failed to revert AUTONOMOUS role for agent ${agentId}:`, err)
+        }
+      }
+    }
+  }
+
   return NextResponse.json(result.data)
 }
 
@@ -94,7 +130,6 @@ export async function DELETE(
   }
 
   const result = await deleteTeamById(id, requestingAgentId, password)
-
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

@@ -35,7 +35,7 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
     },
     {
       id: 'global-elements' as const,
-      label: 'Claude Plugins',
+      label: 'Plugins Explorer',
       icon: Puzzle,
       description: 'Plugins, elements & marketplaces',
     },

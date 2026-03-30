@@ -387,6 +387,11 @@ const getCategoryColor = (category: string) => {
 - Create new agents with optional working directory
 - All actions update UI optimistically with error handling
 
+**Settings Page (`/settings`):**
+- Sidebar labels: Hosts, Domains, Webhooks, Skills Explorer, Plugins Explorer, Experiments, Onboarding, Help, About
+- "Skills Explorer" (`marketplace` tab) — marketplace skill browser for agent installation
+- "Plugins Explorer" (`global-elements` tab) — plugin toggles, element listing, marketplace management
+
 **UI Best Practices:**
 - Avoid nested buttons (causes React hydration errors)
 - Use `<div>` with `cursor-pointer` for clickable containers
@@ -471,6 +476,7 @@ hooks/
   useWebSocket.ts       - WebSocket connection (reconnection, heartbeat)
   useTerminal.ts        - xterm.js lifecycle (init, fit, dispose)
   useSessions.ts        - Session list fetching + auto-refresh
+  useGovernance.ts      - Governance state (agentTitle, team membership, permissions)
   useTasks.ts           - Task CRUD with tasksByStatus, optimistic updates, 5s polling
   useMeetingMessages.ts - Meeting chat messages via AMP with 7s polling
 
@@ -479,11 +485,15 @@ lib/
   websocket.ts          - WebSocket message creators
   terminal.ts           - Terminal utility functions
   utils.ts              - Shared utilities (date formatting, etc.)
+  group-registry.ts     - File-based CRUD for groups (~/.aimaestro/teams/groups.json)
+  ecosystem-constants.ts - Single source of truth for marketplace repos, plugin names, ecosystem IDs (TS)
 
 types/
   session.ts            - Session metadata, status enums, hierarchical structure
   terminal.ts           - xterm.js configuration, dimensions
   websocket.ts          - Message protocol, connection states
+  group.ts              - Group types (Group, GroupsFile)
+  governance.ts         - GovernanceTitle, GovernanceConfig, transfer types
 
 docs/
   images/               - Screenshots for README documentation
@@ -493,10 +503,17 @@ docs/
 scripts/            - CLI scripts installed to ~/.local/bin/ (AMP, graph, docs, memory, agent management)
 
 scripts/
+  ecosystem-config.sh             - Single source of truth for marketplace repos, plugin names (shell)
   generate-social-logos.js        - Generate social media logos from SVG
   init-all-agents.mjs             - Initialize memory for all agents
   register-agent-from-session.mjs - Register agent(s) from tmux session(s)
   setup-tmux.sh                   - Setup tmux configuration
+
+services/
+  groups-service.ts             - Groups business logic (CRUD, subscribe, notify)
+  role-plugin-service.ts        - Role-plugin install/uninstall via Claude CLI
+  governance-service.ts         - Team governance (manager, COS, transfers)
+  headless-router.ts            - Standalone HTTP router for headless mode
 
 install-messaging.sh    - Installer for messaging system to user's environment
 
@@ -516,7 +533,7 @@ CLAUDE.md               - This file - guidance for Claude Code
 
 ### Installation
 
-The AI Maestro plugins are installed from the marketplace `23blocks-OS/ai-maestro-plugins`.
+The AI Maestro plugins are installed from the marketplace `Emasoft/ai-maestro-plugins`.
 
 ```bash
 # Install AMP scripts and skills
@@ -531,7 +548,7 @@ The AI Maestro plugins are installed from the marketplace `23blocks-OS/ai-maestr
 
 **What gets installed:**
 - AMP scripts (`amp-*.sh`) → `~/.local/bin/` (CLI tools on PATH)
-- `ai-maestro` plugin → from marketplace `23blocks-OS/ai-maestro-plugins` (`--scope user`)
+- `ai-maestro` plugin → from marketplace `Emasoft/ai-maestro-plugins` (`--scope user`)
   - 11 skills: agent-messaging, agent-identity, ai-maestro-agents-management, graph-query, memory-search, docs-search, planning, team-governance, team-kanban, debug-hooks, mcp-discovery
   - 12 AMP slash commands: `/amp-send`, `/amp-inbox`, `/amp-read`, etc.
   - Hooks: session tracking + message notifications
@@ -560,7 +577,7 @@ amp-read.sh <message-id>
 **Two Components:**
 
 1. **AMP Plugin (Client)** - Installed on each agent machine
-   - Location: marketplace `23blocks-OS/ai-maestro-plugins` → installed to `~/.claude/plugins/cache/`
+   - Location: marketplace `Emasoft/ai-maestro-plugins` → installed to `~/.claude/plugins/cache/`
    - Storage: `~/.agent-messaging/`
    - Commands: `amp-init`, `amp-send`, `amp-inbox`, `amp-read`, etc.
    - Handles: Key generation, message signing, local storage
@@ -661,7 +678,7 @@ The AMP skill (from `agent-messaging` plugin in the marketplace) provides natura
 
 ### Development Notes
 
-- **Marketplace**: `23blocks-OS/ai-maestro-plugins` — update with `claude plugin marketplace update ai-maestro-plugins`
+- **Marketplace**: `Emasoft/ai-maestro-plugins` — update with `claude plugin marketplace update ai-maestro-plugins`
 - **Protocol spec**: https://agentmessaging.org
 - **Security**: Messages are signed with Ed25519; AI Maestro verifies signatures
 - **Relay queue**: Offline agents get messages via polling (`/api/v1/messages/pending`)
@@ -672,7 +689,7 @@ All AI Maestro functionality is exposed through two abstraction layers. External
 
 ### Layer 1: Skills (for agents)
 
-All AI Maestro skills are bundled in the `ai-maestro` plugin (marketplace: `23blocks-OS/ai-maestro-plugins`). Key skills:
+All AI Maestro skills are bundled in the `ai-maestro` plugin (marketplace: `Emasoft/ai-maestro-plugins`). Key skills:
 
 | Skill | Covers |
 |-------|--------|
@@ -713,7 +730,7 @@ Role-plugins define an agent's job specialization (persona). They are distinct f
 
 ### Two Sources
 
-1. **GitHub marketplace** (`Emasoft/ai-maestro-plugins`) — 6 predefined role-plugins. Installed on-demand via `claude plugin install <name> --scope local`. NOT pre-installed.
+1. **GitHub marketplace** (`Emasoft/ai-maestro-plugins`) — 6 predefined role-plugins. Installed on-demand via `claude plugin install <name> ai-maestro-plugins --scope local`. NOT pre-installed.
 2. **Local marketplace** (`~/agents/role-plugins/`) — Custom role-plugins generated by Haephestos from `.agent.toml` profiles.
 
 ### Predefined Role-Plugins
@@ -744,11 +761,73 @@ Role-plugins define an agent's job specialization (persona). They are distinct f
 - `POST /api/teams/{id}/chief-of-staff` → installs COS plugin
 - `POST /api/teams` with `chiefOfStaffId` → auto-COS chain (installs COS plugin)
 
+**Install mechanism:** Predefined role-plugins from the GitHub marketplace are installed via the Claude CLI:
+```
+claude plugin install <name> ai-maestro-plugins --scope local
+```
+Local/custom plugins (Haephestos-generated) are installed by writing directly to `.claude/settings.local.json`.
+
 ### Key Files
 
 - `services/role-plugin-service.ts` — Core service, `autoAssignRolePluginForTitle()`, `PREDEFINED_ROLE_PLUGINS`
 - `app/api/agents/role-plugins/` — List/install/uninstall/required API
 - `components/agent-profile/RoleTab.tsx` — Dropdown with marketplace + local sources, locked when title mandates
+
+## Groups Feature (v0.25+)
+
+Groups are lightweight agent collections for broadcast messaging — replacing the removed "open teams" concept. Unlike teams, groups have no governance, no COS, no kanban — just a subscriber list.
+
+### Types
+
+- `types/group.ts` — `Group` interface (id, name, description, subscriberIds, timestamps)
+- `types/group.ts` — `GroupsFile` (version + groups array)
+
+### Storage
+
+Groups persist in `~/.aimaestro/teams/groups.json` via `lib/group-registry.ts`.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/groups` | List all groups |
+| POST | `/api/groups` | Create a group |
+| GET | `/api/groups/{id}` | Get group by ID |
+| PUT | `/api/groups/{id}` | Update group |
+| DELETE | `/api/groups/{id}` | Delete group |
+| POST | `/api/groups/{id}/subscribe` | Subscribe agent to group |
+| POST | `/api/groups/{id}/unsubscribe` | Unsubscribe agent from group |
+| POST | `/api/groups/{id}/notify` | Broadcast message to all subscribers |
+
+### Key Files
+
+- `types/group.ts` — Group type definitions
+- `lib/group-registry.ts` — File-based CRUD with validation
+- `services/groups-service.ts` — Business logic layer
+- `services/headless-router.ts` — Groups routes for headless mode
+- `app/api/groups/` — Next.js API routes
+
+### Migration from Open Teams
+
+Open teams were removed in the governance simplification (2026-03-27). All teams are now closed (isolated messaging with COS gateway). Groups replace the "open, unstructured collection of agents" use case that open teams served, but without governance overhead.
+
+## Ecosystem Constants (Single Source of Truth)
+
+All marketplace repos, plugin names, and ecosystem identifiers are centralized in two mirrored files:
+
+- **TypeScript**: `lib/ecosystem-constants.ts` — used by all server-side services and API routes
+- **Shell**: `scripts/ecosystem-config.sh` — sourced by all installer/updater shell scripts
+
+When the project owner changes repos or orgs, only these two files need updating. All shell scripts use `${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}` (with fallback) after sourcing the config. All TypeScript code imports constants from `lib/ecosystem-constants.ts`.
+
+**Key constants defined:**
+- `MARKETPLACE_REPO` / `MARKETPLACE_NAME` — GitHub marketplace org/repo
+- `MAIN_PLUGIN_NAME` — Main AI Maestro plugin
+- `ROLE_PLUGIN_*` — All 6 predefined role-plugin names
+- `TITLE_PLUGIN_MAP` — Governance title to required role-plugin mapping
+- `AI_MAESTRO_REPO` / `MARKETPLACE_REPO_URL` — Repo URLs
+
+**Note:** The `Emasoft/ai-maestro-plugins` references in this CLAUDE.md are documentation values. The actual runtime values come from ecosystem-constants.
 
 ## Critical Implementation Details
 
@@ -1017,8 +1096,10 @@ Refer to these when users ask about setup or usage.
 ## Roadmap Context
 
 **Phase 1 (Current):** Auto-discovery, localhost-only, read-only agent interaction
-**Phase 2 (Planned):** Agent creation from UI, grouping, search
+**Phase 2 (Planned):** Agent creation from UI, search, enhanced grouping
 **Phase 3 (Future):** Remote SSH sessions, authentication, collaboration
+
+**Already implemented beyond Phase 1:** Team governance, Groups (lightweight agent collections), role-plugin marketplace, AMP messaging, kanban boards, agent profile panel, settings page.
 
 When implementing features:
 - Check if they belong in current phase
@@ -1061,6 +1142,11 @@ When implementing features:
 14. `types/task.ts` - Task types with 5 statuses: backlog, pending, in_progress, review, completed
 15. `lib/task-registry.ts` - File-based CRUD for team task persistence
 16. `hooks/useTasks.ts` - Task hook with tasksByStatus, optimistic updates, polling
+
+**Groups (v0.25+):**
+17. `types/group.ts` - Group type definitions (lightweight agent collections)
+18. `lib/group-registry.ts` - File-based CRUD for groups
+19. `services/groups-service.ts` - Groups business logic
 
 **Read these in order** to understand agents and data flow.
 

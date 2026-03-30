@@ -7,9 +7,9 @@ import type { KanbanColumnConfig } from '@/types/team'
 // GET /api/teams/[id]/kanban-config - Get team's kanban column configuration
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params
+  const { id } = await params
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
   }
@@ -31,9 +31,9 @@ export async function GET(
 // PUT /api/teams/[id]/kanban-config - Set team's kanban column configuration
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params
+  const { id } = await params
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
   }

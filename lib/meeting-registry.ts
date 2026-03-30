@@ -73,6 +73,7 @@ export function createMeeting(data: {
   name: string
   agentIds: string[]
   teamId: string | null
+  groupId?: string | null  // Link to group when meeting started from a group
   sidebarMode?: SidebarMode
 }): Meeting {
   const meetings = loadMeetings()
@@ -81,6 +82,8 @@ export function createMeeting(data: {
   const meeting: Meeting = {
     id: uuidv4(),
     teamId: data.teamId,
+    // Persist groupId on the meeting record so restored meetings know their origin
+    ...(data.groupId ? { groupId: data.groupId } : {}),
     name: data.name,
     agentIds: data.agentIds,
     status: 'active',

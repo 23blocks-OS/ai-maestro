@@ -190,9 +190,10 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
 interface MeetingRoomProps {
   meetingId: string
   teamParam?: string | null
+  groupParam?: string | null
 }
 
-export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) {
+export default function MeetingRoom({ meetingId, teamParam, groupParam }: MeetingRoomProps) {
   const router = useRouter()
   const { agents, loading: agentsLoading } = useAgents()
   const [state, dispatch] = useReducer(meetingReducer, initialState)
@@ -200,6 +201,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showAgentPickerInMeeting, setShowAgentPickerInMeeting] = useState(false)
   const [teamId, setTeamId] = useState<string | null>(null)
+  // Track groupId when meeting started from ?group= param so it persists on the record
+  const [groupId, setGroupId] = useState<string | null>(null)
   const isNewMeeting = meetingId === 'new'
   const [restoring, setRestoring] = useState(!isNewMeeting)
   const [notFound, setNotFound] = useState(false)
@@ -230,6 +233,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
 
         persistedMeetingIdRef.current = meeting.id
         setTeamId(meeting.teamId)
+        // Restore groupId so group-originated meetings don't spawn spurious teams
+        if (meeting.groupId) setGroupId(meeting.groupId)
         // NT-016: teamId removed -- meeting.teamId is the source of truth
         dispatch({ type: 'RESTORE_MEETING', meeting })
       } catch {
@@ -263,6 +268,31 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
     return () => { cancelled = true }
   }, [isNewMeeting, teamParam])
 
+  // Auto-load group from ?group= query param (for "Start Meeting from Group Card" flow)
+  // Maps group.subscriberIds to the agent list used by the meeting state machine.
+  useEffect(() => {
+    if (!isNewMeeting || !groupParam || teamParam) return // teamParam takes precedence
+    let cancelled = false
+    async function loadGroupFromParam() {
+      try {
+        const res = await fetch(`/api/groups/${groupParam}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const group = data.group
+        if (cancelled || !group) return
+        // Map group subscriberIds to the meeting's agent list
+        dispatch({ type: 'LOAD_TEAM', agentIds: group.subscriberIds || [], teamName: group.name })
+        // Track groupId so it persists on the meeting record
+        setGroupId(group.id)
+        // Groups don't have a backing team — teamId stays null, meeting is ephemeral
+      } catch {
+        // silent — user can still pick agents manually
+      }
+    }
+    loadGroupFromParam()
+    return () => { cancelled = true }
+  }, [isNewMeeting, groupParam, teamParam])
+
   // When meeting becomes active and there's no persisted meeting record yet (new meeting flow),
   // create one
   useEffect(() => {
@@ -272,9 +302,10 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
 
     async function createMeetingRecord() {
       creatingMeetingRef.current = true
-      // Ensure we have a teamId first
+      // Ensure we have a teamId first — but skip team creation for group-originated meetings
+      // Groups are lightweight collections; they should NOT spawn governance teams as a side effect
       let resolvedTeamId = teamId
-      if (!resolvedTeamId && state.teamName.trim()) {
+      if (!resolvedTeamId && !groupId && state.teamName.trim()) {
         // MF-012: Prevent concurrent team creation from multiple useEffects
         if (creatingTeamRef.current) return
         creatingTeamRef.current = true
@@ -312,6 +343,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
             name: state.teamName,
             agentIds: state.selectedAgentIds,
             teamId: resolvedTeamId,
+            // Persist groupId on the meeting record when meeting originated from a group
+            ...(groupId ? { groupId } : {}),
             sidebarMode: state.sidebarMode,
           }),
         })
@@ -329,7 +362,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
       }
     }
     createMeetingRecord()
-  }, [state.phase, state.teamName, state.selectedAgentIds, state.sidebarMode, teamId])
+  }, [state.phase, state.teamName, state.selectedAgentIds, state.sidebarMode, teamId, groupId])
 
   // Persist activeAgentId changes
   useEffect(() => {
@@ -379,7 +412,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   // and teamId is null). The creatingTeamRef guard (MF-012) prevents duplicate team creation —
   // whichever fires first acquires the lock, the other returns early.
   useEffect(() => {
-    if (state.phase === 'active' && !teamId && state.teamName.trim()) {
+    // Skip team creation for group-originated meetings — groups are not teams
+    if (state.phase === 'active' && !teamId && !groupId && state.teamName.trim()) {
       // MF-012: Prevent concurrent team creation from multiple useEffects
       if (creatingTeamRef.current) return
       creatingTeamRef.current = true

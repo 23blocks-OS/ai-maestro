@@ -14,11 +14,12 @@ import os from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import type { ClientType } from '@/lib/client-capabilities'
+import { SKILL_PLUGIN_REPO } from '@/lib/ecosystem-constants'
 
 const execFileAsync = promisify(execFile)
 
-// Canonical GitHub repo containing the ai-maestro skills
-const SKILL_REPO = 'https://github.com/Emasoft/ai-maestro-plugin.git'
+// Canonical GitHub repo containing the ai-maestro skills (from ecosystem-constants)
+const SKILL_REPO = SKILL_PLUGIN_REPO
 
 // Skills that rely on Claude-specific APIs (hooks, scoped tool permissions)
 const CLAUDE_ONLY_SKILLS = ['debug-hooks']

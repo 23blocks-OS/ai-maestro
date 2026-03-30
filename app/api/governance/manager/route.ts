@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import os from 'os'
 import { verifyPassword, setManager, removeManager, loadGovernance } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
 // SF-029 (P8): Use atomic checkAndRecordAttempt to match cross-host-governance-service pattern
@@ -8,8 +6,6 @@ import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 
 // NT-023 (P8): Ensure Next.js does not cache this route
 export const dynamic = 'force-dynamic'
-
-const GOVERNANCE_JSON_PATH = path.join(os.homedir(), '.aimaestro', 'governance.json')
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,21 +41,8 @@ export async function POST(request: NextRequest) {
 
     // agentId === null removes the manager role; undefined/missing is invalid
     if (agentId === null) {
-      const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-      const txId = await beginTransaction({
-        description: 'Remove manager role',
-        operation: 'governance:update',
-        scope: 'global',
-        configFiles: { governance_json: GOVERNANCE_JSON_PATH },
-      })
-      try {
-        await removeManager()
-        commitTransaction(txId)
-        return NextResponse.json({ success: true, managerId: null })
-      } catch (err) {
-        discardTransaction(txId)
-        throw err
-      }
+      await removeManager()
+      return NextResponse.json({ success: true, managerId: null })
     }
 
     if (typeof agentId !== 'string' || !agentId.trim()) {
@@ -73,32 +56,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Agent ${agentId} not found` }, { status: 404 })
     }
 
-    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-    const txId = await beginTransaction({
-      description: `Assign manager ${agentId}`,
-      operation: 'governance:update',
-      scope: 'global',
-      configFiles: { governance_json: GOVERNANCE_JSON_PATH },
-    })
+    await setManager(agentId)
+
+    // Auto-assign required role-plugin for MANAGER title
     try {
-      await setManager(agentId)
-
-      // Auto-assign required role-plugin for MANAGER title
-      try {
-        const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
-        await autoAssignRolePluginForTitle('manager', agentId)
-      } catch (err) {
-        console.warn('[governance] Failed to auto-assign role-plugin for MANAGER:', err instanceof Error ? err.message : err)
-        // Non-blocking — title assignment succeeds even if plugin assignment fails
-      }
-
-      commitTransaction(txId)
-      // NT-028: Use nullish coalescing to preserve empty-string agent names
-      return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name ?? agent.alias })
+      const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
+      await autoAssignRolePluginForTitle('manager', agentId)
     } catch (err) {
-      discardTransaction(txId)
-      throw err
+      console.warn('[governance] Failed to auto-assign role-plugin for MANAGER:', err instanceof Error ? err.message : err)
+      // Non-blocking — title assignment succeeds even if plugin assignment fails
     }
+
+    // NT-028: Use nullish coalescing to preserve empty-string agent names
+    return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name ?? agent.alias })
   } catch (error) {
     console.error('[governance] manager POST error:', error)
     return NextResponse.json(

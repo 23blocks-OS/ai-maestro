@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { execSync } from 'child_process'
 import { existsSync } from 'fs'
 import { rm } from 'fs/promises'
+import os from 'os'
 import { join, resolve, basename } from 'path'
 import { isValidUuid } from '@/lib/validation'
 import { getAgent } from '@/lib/agent-registry'
@@ -94,54 +95,27 @@ export async function POST(
         return NextResponse.json({ error: `Unknown element type: ${elementType}` }, { status: 400 })
     }
 
-    // Map elementType to ManifestEntry type
-    type MType = 'cache_dir' | 'skill_dir' | 'script' | 'rule_file' | 'command_file' | 'agent_file' | 'output_style' | 'plugin'
-    const manifestTypeMap: Record<string, MType> = {
-      skill: 'skill_dir', agent: 'agent_file', rule: 'rule_file',
-      command: 'command_file', outputStyle: 'output_style',
+    switch (elementType) {
+      case 'skill':
+        await rm(targetPath!, { recursive: true, force: true })
+        break
+      case 'agent':
+      case 'rule':
+      case 'command':
+      case 'outputStyle':
+        await rm(targetPath!)
+        break
+      case 'mcp':
+        try {
+          execSync(`claude mcp remove "${safeName}" 2>&1`, { timeout: 15000, cwd: agentWorkDir })
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          return NextResponse.json({ error: `MCP removal failed: ${msg}` }, { status: 500 })
+        }
+        break
     }
 
-    // Snapshot BEFORE state for transactional undo
-    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-    const mType: MType = manifestTypeMap[elementType] || 'plugin'
-    const txId = await beginTransaction({
-      description: `Remove ${elementType} ${safeName}`,
-      operation: 'element:remove',
-      scope: 'local',
-      ...(targetPath ? {
-        elements: [{ fsPath: targetPath, archiveMember: safeName }],
-        elementManifest: [{ type: mType, path: targetPath, tar_member: safeName, existed_before: true }],
-      } : {}),
-    })
-
-    try {
-      switch (elementType) {
-        case 'skill':
-          await rm(targetPath!, { recursive: true, force: true })
-          break
-        case 'agent':
-        case 'rule':
-        case 'command':
-        case 'outputStyle':
-          await rm(targetPath!)
-          break
-        case 'mcp':
-          try {
-            execSync(`claude mcp remove "${safeName}" 2>&1`, { timeout: 15000, cwd: agentWorkDir })
-          } catch (err) {
-            discardTransaction(txId)
-            const msg = err instanceof Error ? err.message : String(err)
-            return NextResponse.json({ error: `MCP removal failed: ${msg}` }, { status: 500 })
-          }
-          break
-      }
-
-      commitTransaction(txId)
-      return NextResponse.json({ ok: true, removed: safeName })
-    } catch (innerError) {
-      discardTransaction(txId)
-      throw innerError
-    }
+    return NextResponse.json({ ok: true, removed: safeName })
   } catch (error) {
     console.error('[remove-element] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

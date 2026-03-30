@@ -78,6 +78,7 @@ export type MeetingStatus = 'active' | 'ended'
 export interface Meeting {
   id: string                    // UUID
   teamId: string | null         // Link to team for task persistence
+  groupId?: string | null       // Link to group for meeting integration (groups feature)
   name: string                  // Display name
   agentIds: string[]            // Participating agent UUIDs
   status: MeetingStatus

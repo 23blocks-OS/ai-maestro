@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import os from 'os'
 import { verifyPassword } from '@/lib/governance'
 import { createTeam, getTeam, loadTeams } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
@@ -8,8 +6,6 @@ import { getManagerId } from '@/lib/governance'
 import { autoAssignRolePluginForTitle } from '@/services/role-plugin-service'
 
 export const dynamic = 'force-dynamic'
-
-const TEAMS_JSON_PATH = path.join(os.homedir(), '.aimaestro', 'teams', 'teams.json')
 
 interface CreateWithProjectRequest {
   name: string
@@ -67,93 +63,78 @@ export async function POST(request: NextRequest) {
       agentIds.push(body.orchestratorId)
     }
 
-    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-    const txId = await beginTransaction({
-      description: `Create team with project: ${body.name.trim()}`,
-      operation: 'team:create',
-      scope: 'global',
-      configFiles: { teams_json: TEAMS_JSON_PATH },
-    })
+    // Create team via registry (handles validation, UUID, file persistence)
+    const managerId = getManagerId()
+    const existingNames = loadTeams().map(t => t.name)
+    const team = await createTeam(
+      {
+        name: body.name.trim(),
+        description: body.description?.trim(),
+        agentIds,
+        chiefOfStaffId: body.chiefOfStaffId,
+      },
+      managerId,
+      existingNames
+    )
 
-    try {
-      // Create team via registry (handles validation, UUID, file persistence)
-      const managerId = getManagerId()
-      const existingNames = loadTeams().map(t => t.name)
-      const team = await createTeam(
-        {
-          name: body.name.trim(),
-          description: body.description?.trim(),
-          agentIds,
-          chiefOfStaffId: body.chiefOfStaffId,
-        },
-        managerId,
-        existingNames
-      )
-
-      // Set orchestrator (createTeam doesn't support it natively yet)
-      if (body.orchestratorId) {
-        const { updateTeam } = await import('@/lib/team-registry')
-        await updateTeam(team.id, { orchestratorId: body.orchestratorId })
-      }
-
-      // Set GitHub project link if provided
-      if (body.githubProject) {
-        // Validate githubProject fields to prevent shell injection via gh CLI
-        const safeOwnerRepo = /^[a-zA-Z0-9_.-]+$/
-        if (
-          typeof body.githubProject.owner !== 'string' ||
-          !safeOwnerRepo.test(body.githubProject.owner) ||
-          typeof body.githubProject.repo !== 'string' ||
-          !safeOwnerRepo.test(body.githubProject.repo) ||
-          typeof body.githubProject.number !== 'number' ||
-          !Number.isInteger(body.githubProject.number) ||
-          body.githubProject.number < 1
-        ) {
-          discardTransaction(txId)
-          return NextResponse.json(
-            { error: 'githubProject.owner and repo must be alphanumeric, number must be a positive integer' },
-            { status: 400 }
-          )
-        }
-        const { updateTeam } = await import('@/lib/team-registry')
-        await updateTeam(team.id, { githubProject: body.githubProject })
-      }
-
-      // Auto-assign role-plugins for COS and Orchestrator
-      if (body.chiefOfStaffId) {
-        try { await autoAssignRolePluginForTitle('chief-of-staff', body.chiefOfStaffId) }
-        catch (err) { console.warn('[create-with-project] COS plugin failed:', err) }
-      }
-      if (body.orchestratorId) {
-        try { await autoAssignRolePluginForTitle('orchestrator', body.orchestratorId) }
-        catch (err) { console.warn('[create-with-project] Orchestrator plugin failed:', err) }
-      }
-
-      // Configure GitHub project template if project linked
-      if (body.githubProject) {
-        try {
-          const { configureProjectTemplate } = await import('@/lib/github-cli')
-          const fieldIds = configureProjectTemplate(
-            body.githubProject.owner,
-            body.githubProject.number
-          )
-          // Store field IDs in team kanban config (for future use)
-          console.log('[create-with-project] Project template configured with field IDs:', Object.keys(fieldIds))
-        } catch (err) {
-          // Non-fatal — project template can be configured later
-          console.warn('[create-with-project] Failed to configure project template:', err)
-        }
-      }
-
-      commitTransaction(txId)
-      return NextResponse.json({
-        team,
-        message: `Team "${team.name}" created successfully`
-      }, { status: 201 })
-    } catch (innerError) {
-      discardTransaction(txId)
-      throw innerError
+    // Set orchestrator (createTeam doesn't support it natively yet)
+    if (body.orchestratorId) {
+      const { updateTeam } = await import('@/lib/team-registry')
+      await updateTeam(team.id, { orchestratorId: body.orchestratorId })
     }
+
+    // Set GitHub project link if provided
+    if (body.githubProject) {
+      // Validate githubProject fields to prevent shell injection via gh CLI
+      const safeOwnerRepo = /^[a-zA-Z0-9_.-]+$/
+      if (
+        typeof body.githubProject.owner !== 'string' ||
+        !safeOwnerRepo.test(body.githubProject.owner) ||
+        typeof body.githubProject.repo !== 'string' ||
+        !safeOwnerRepo.test(body.githubProject.repo) ||
+        typeof body.githubProject.number !== 'number' ||
+        !Number.isInteger(body.githubProject.number) ||
+        body.githubProject.number < 1
+      ) {
+        return NextResponse.json(
+          { error: 'githubProject.owner and repo must be alphanumeric, number must be a positive integer' },
+          { status: 400 }
+        )
+      }
+      const { updateTeam } = await import('@/lib/team-registry')
+      await updateTeam(team.id, { githubProject: body.githubProject })
+    }
+
+    // Auto-assign role-plugins for COS and Orchestrator
+    if (body.chiefOfStaffId) {
+      try { await autoAssignRolePluginForTitle('chief-of-staff', body.chiefOfStaffId) }
+      catch (err) { console.warn('[create-with-project] COS plugin failed:', err) }
+    }
+    if (body.orchestratorId) {
+      try { await autoAssignRolePluginForTitle('orchestrator', body.orchestratorId) }
+      catch (err) { console.warn('[create-with-project] Orchestrator plugin failed:', err) }
+    }
+
+    // Configure GitHub project template if project linked
+    if (body.githubProject) {
+      try {
+        const { configureProjectTemplate } = await import('@/lib/github-cli')
+        const fieldIds = configureProjectTemplate(
+          body.githubProject.owner,
+          body.githubProject.number
+        )
+        // Store field IDs in team kanban config (for future use)
+        console.log('[create-with-project] Project template configured with field IDs:', Object.keys(fieldIds))
+      } catch (err) {
+        // Non-fatal — project template can be configured later
+        console.warn('[create-with-project] Failed to configure project template:', err)
+      }
+    }
+
+    return NextResponse.json({
+      team,
+      message: `Team "${team.name}" created successfully`
+    }, { status: 201 })
 
   } catch (error) {
     console.error('[create-with-project] Error:', error)

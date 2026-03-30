@@ -14,9 +14,7 @@ import MarketplaceSection from '@/components/settings/MarketplaceSection'
 import GlobalElementsSection from '@/components/settings/GlobalElementsSection'
 import { VersionChecker } from '@/components/VersionChecker'
 import Link from 'next/link'
-import { ArrowLeft, Undo2, Redo2 } from 'lucide-react'
-import { useConfigUndoRedo } from '@/hooks/useConfigUndoRedo'
-import { SettingsUndoRedoContext } from '@/hooks/SettingsUndoRedoContext'
+import { ArrowLeft } from 'lucide-react'
 
 export default function SettingsPage() {
   return (
@@ -30,8 +28,6 @@ function SettingsPageInner() {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
   const [activeSection, setActiveSection] = useState<'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements'>('hosts')
-  const undoRedo = useConfigUndoRedo()
-
   // Navigate to section from URL params (e.g. /settings?tab=global-elements)
   useEffect(() => {
     const validTabs = ['hosts', 'domains', 'webhooks', 'help', 'about', 'onboarding', 'experiments', 'marketplace', 'global-elements'] as const
@@ -41,7 +37,6 @@ function SettingsPageInner() {
   }, [tabParam])
 
   return (
-    <SettingsUndoRedoContext.Provider value={undoRedo}>
       <div className="flex flex-col h-screen bg-gray-950 text-white">
         {/* Header Navigation */}
         <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur flex-shrink-0">
@@ -53,33 +48,6 @@ function SettingsPageInner() {
               <ArrowLeft className="w-4 h-4" />
               Back to Dashboard
             </Link>
-            {/* Undo/Redo Buttons — top-right, consistent with AgentProfilePanel */}
-            <div className="flex items-center gap-1.5">
-              {/* Undo Button */}
-              <div
-                onClick={undoRedo.canUndo ? undoRedo.undo : undefined}
-                className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
-                  undoRedo.canUndo
-                    ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
-                    : 'text-gray-700 cursor-not-allowed'
-                }`}
-                title="Undo"
-              >
-                <Undo2 className="w-4 h-4" />
-              </div>
-              {/* Redo Button */}
-              <div
-                onClick={undoRedo.canRedo ? undoRedo.redo : undefined}
-                className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
-                  undoRedo.canRedo
-                    ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
-                    : 'text-gray-700 cursor-not-allowed'
-                }`}
-                title="Redo"
-              >
-                <Redo2 className="w-4 h-4" />
-              </div>
-            </div>
           </div>
         </div>
 
@@ -132,6 +100,5 @@ function SettingsPageInner() {
           </div>
         </footer>
       </div>
-    </SettingsUndoRedoContext.Provider>
   )
 }

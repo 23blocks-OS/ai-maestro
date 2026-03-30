@@ -18,12 +18,9 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  Undo2,
-  Redo2,
   Lock,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { useConfigUndoRedo } from '@/hooks/useConfigUndoRedo'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
 import { type TabId, type TabDef, type AgentInfo } from './agent-profile/shared'
@@ -31,22 +28,19 @@ import TabContent from './agent-profile/TabContent'
 import FolderBrowser from './agent-profile/FolderBrowser'
 import RolePluginModal from './agent-profile/RolePluginModal'
 import { detectClientType, getClientCapabilities, isTabSupported, clientTypeLabel } from '@/lib/client-capabilities'
+import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP, ROLE_PLUGIN_PROGRAMMER } from '@/lib/ecosystem-constants'
 
 // Lazy-load AgentProfile — only mounted when Overview tab is active
 const AgentProfile = dynamic(() => import('@/components/AgentProfile'), { ssr: false })
 
 // ---------------------------------------------------------------------------
-// Title → Role-Plugin map (mirrors services/role-plugin-service.ts TITLE_PLUGIN_MAP)
+// Title → Role-Plugin map — derived from ecosystem-constants (lower-cased keys for UI matching).
 // Used to show the locked plugin name for non-MEMBER titles.
 // ---------------------------------------------------------------------------
 
-const TITLE_PLUGIN_MAP: Record<string, string> = {
-  'manager': 'ai-maestro-assistant-manager-agent',
-  'chief-of-staff': 'ai-maestro-chief-of-staff',
-  'architect': 'ai-maestro-architect-agent',
-  'orchestrator': 'ai-maestro-orchestrator-agent',
-  'integrator': 'ai-maestro-integrator-agent',
-}
+const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
+)
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -108,17 +102,11 @@ export default function AgentProfilePanel({
   hostUrl,
 }: AgentProfilePanelProps) {
   const { config, error, loading, refetch: rawRefetch } = useAgentLocalConfig(agentId)
-  // Shared undo/redo hook — visible in ALL tabs via panel header buttons
-  const undoRedo = useConfigUndoRedo()
-  // Stable ref so refetch callback doesn't depend on undoRedo object identity
-  const undoRedoRef = useRef(undoRedo)
-  undoRedoRef.current = undoRedo
   const onAgentDataChangedRef = useRef(onAgentDataChanged)
   onAgentDataChangedRef.current = onAgentDataChanged
-  // Wrap refetch: await config reload FIRST, then undo status, then sidebar refresh
+  // Wrap refetch: await config reload FIRST, then sidebar refresh
   const refetch = useCallback(async () => {
     await rawRefetch() // Wait for config to fully reload
-    await undoRedoRef.current.refreshStatus() // Update undo/redo button counts
     onAgentDataChangedRef.current?.() // Sidebar refresh last
   }, [rawRefetch])
   const [topTab, setTopTab] = useState<TopTab>('overview')
@@ -174,7 +162,6 @@ export default function AgentProfilePanel({
       })
       if (res.ok) {
         setAutoContinue(newValue)
-        await undoRedoRef.current.refreshStatus()
         onAgentDataChangedRef.current?.()
       }
     } catch (err) {
@@ -252,8 +239,6 @@ export default function AgentProfilePanel({
           body: JSON.stringify({ command: startCmd, requireIdle: false }),
         }).catch((err) => { console.error('[RolePluginSelector] Failed to send start command:', err) })
       }
-      // Role-plugin switch invalidates all prior undo entries (programArgs changed, plugin swapped)
-      undoRedo.clearStacks()
       // Notify parent and refresh config — role plugin change should update sidebar + panel
       await refetch()
     } catch (err) {
@@ -261,7 +246,7 @@ export default function AgentProfilePanel({
     } finally {
       setSwitchingPlugin(false)
     }
-  }, [config, agentId, agentName, switchingPlugin, sessionStatus, undoRedo])
+  }, [config, agentId, agentName, switchingPlugin, sessionStatus])
 
   if (!agentId) {
     return (
@@ -273,36 +258,12 @@ export default function AgentProfilePanel({
 
   return (
     <div className="flex flex-col w-[420px] flex-shrink-0 bg-gray-900 border-l border-gray-800 overflow-hidden" style={{ overscrollBehavior: 'contain' }}>
-      {/* Header — includes shared Undo/Redo so they are visible across ALL tabs */}
+      {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-800">
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-gray-200 truncate">
             {agentName || 'Profile'}
           </h2>
-        </div>
-        {/* Undo Button — shared across all tabs */}
-        <div
-          onClick={undoRedo.canUndo ? async () => { await undoRedo.undo(); await refetch() } : undefined}
-          className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
-            undoRedo.canUndo
-              ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
-              : 'text-gray-700 cursor-not-allowed'
-          }`}
-          title="Undo"
-        >
-          <Undo2 className="w-4 h-4" />
-        </div>
-        {/* Redo Button — shared across all tabs */}
-        <div
-          onClick={undoRedo.canRedo ? async () => { await undoRedo.redo(); await refetch() } : undefined}
-          className={`relative p-1 rounded-md flex-shrink-0 transition-colors ${
-            undoRedo.canRedo
-              ? 'cursor-pointer hover:bg-gray-700/60 text-gray-400 hover:text-blue-400'
-              : 'text-gray-700 cursor-not-allowed'
-          }`}
-          title="Redo"
-        >
-          <Redo2 className="w-4 h-4" />
         </div>
         {onClose && (
           <div
@@ -356,7 +317,7 @@ export default function AgentProfilePanel({
                     : (config?.rolePlugin?.name ||
                         (agentInfo?.title?.toLowerCase() === 'autonomous' ? 'No Role Plugin' : 'Default (Programmer)'))
                   }
-                  {!switchingPlugin && config?.rolePlugin?.name && config.rolePlugin.name !== 'ai-maestro-programmer-agent' && (
+                  {!switchingPlugin && config?.rolePlugin?.name && config.rolePlugin.name !== ROLE_PLUGIN_PROGRAMMER && (
                     <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">custom</span>
                   )}
                 </span>
@@ -382,7 +343,6 @@ export default function AgentProfilePanel({
             onStartSession={onStartSession}
             onDeleteAgent={onDeleteAgent}
             hostUrl={hostUrl}
-            undoRedo={undoRedo}
             onDataChanged={refetch}
           />
         </div>
@@ -531,7 +491,6 @@ export default function AgentProfilePanel({
             onDeleteAgent={onDeleteAgent}
             scrollToDangerZone={scrollToDangerZone}
             hostUrl={hostUrl}
-            undoRedo={undoRedo}
             onDataChanged={refetch}
           />
         </div>

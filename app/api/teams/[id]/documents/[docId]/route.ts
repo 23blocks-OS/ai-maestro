@@ -32,7 +32,7 @@ export async function GET(
 // PUT /api/teams/[id]/documents/[docId] - Update a document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; docId: string } }
+  { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const { id, docId } = await params
   // MF-005: Validate UUID format for both path parameters to prevent path traversal
@@ -55,8 +55,8 @@ export async function PUT(
   }
   // Whitelist only expected fields instead of spreading raw body
   const { title, content, pinned, tags } = body
-  const result = await updateTeamDocument(id, docId, { title, content, pinned, tags, requestingAgentId })
 
+  const result = await updateTeamDocument(id, docId, { title, content, pinned, tags, requestingAgentId })
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
@@ -81,8 +81,8 @@ export async function DELETE(
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
   }
   const requestingAgentId = auth.agentId
-  const result = await deleteTeamDocument(id, docId, requestingAgentId)
 
+  const result = await deleteTeamDocument(id, docId, requestingAgentId)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

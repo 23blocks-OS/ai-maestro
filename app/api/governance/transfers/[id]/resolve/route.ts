@@ -182,6 +182,7 @@ export async function POST(
           return NextResponse.json({ error: 'Failed to save team changes after transfer approval — transfer reverted to pending' }, { status: 500 })
         }
       }
+
     } finally {
       releaseLock()
     }

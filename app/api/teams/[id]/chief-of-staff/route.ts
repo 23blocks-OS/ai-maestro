@@ -59,6 +59,7 @@ export async function POST(
     if (cosAgentId === null) {
       // Capture old COS id before updateTeam clears it
       const oldCosId = team.chiefOfStaffId
+
       // Remove COS — team stays closed (governance simplification: all teams are closed)
       const updated = await updateTeam(id, { chiefOfStaffId: null }, managerId)
 

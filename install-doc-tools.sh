@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI Maestro Doc Tools Installer
-# Note: docs-search skill is now bundled in the ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
+# Note: docs-search skill is now bundled in the ai-maestro plugin (marketplace: see scripts/ecosystem-config.sh)
 
 set -e
 

@@ -101,7 +101,7 @@ export interface RolePlugin {
   profilePath: string
   mainAgentName: string
   mainAgentPath: string
-  marketplace?: string  // 'ai-maestro-plugins' for defaults, 'ai-maestro-local-roles-marketplace' for custom
+  marketplace?: string  // MARKETPLACE_NAME for defaults, LOCAL_MARKETPLACE_NAME for custom (see lib/ecosystem-constants.ts)
 }
 
 export interface GlobalDependencies {

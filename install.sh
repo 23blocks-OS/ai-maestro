@@ -4,6 +4,14 @@
 
 set -e
 
+# Source ecosystem constants (single source of truth for marketplace/plugin names)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/scripts/ecosystem-config.sh"
+elif [ -f "$SCRIPT_DIR/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/ecosystem-config.sh"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1005,8 +1013,8 @@ if [ -n "$INSTALL_DIR" ] && [ "$CLAUDE_INSTALLED" = true ]; then
     print_step "Installing Claude Code plugins..."
 
     # Core AI Maestro plugins (user-scope)
-    claude plugin marketplace add Emasoft/ai-maestro-plugins 2>/dev/null || true
-    claude plugin install ai-maestro --scope user 2>/dev/null || print_warning "Could not install ai-maestro plugin"
+    claude plugin marketplace add "${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}" 2>/dev/null || true
+    claude plugin install "${MAIN_PLUGIN_NAME:-ai-maestro}" --scope user 2>/dev/null || print_warning "Could not install ai-maestro plugin"
 
     # External dependency plugins from emasoft-plugins marketplace
     claude plugin marketplace add Emasoft/emasoft-plugins 2>/dev/null || true

@@ -12,6 +12,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
 import semver from 'semver'
+import { LOCAL_MARKETPLACE_NAME } from '@/lib/ecosystem-constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +35,9 @@ const SETTINGS_LOCAL_PATH = join(HOME, '.claude', 'settings.local.json')
 const CACHE_DIR = join(HOME, '.claude', 'plugins', 'cache')
 const MARKETPLACES_DIR = join(HOME, '.claude', 'plugins', 'marketplaces')
 
-// Exclude this fake marketplace from listing
-const EXCLUDED_MARKETPLACES = ['ai-maestro-local-roles-marketplace']
+// Exclude local role-plugin marketplaces from listing (current name + legacy name).
+// These are internal-only marketplaces used by Haephestos-generated plugins.
+const EXCLUDED_MARKETPLACES = [LOCAL_MARKETPLACE_NAME, 'ai-maestro-local-roles-marketplace']
 
 interface PluginStatus {
   name: string
@@ -587,25 +589,6 @@ export async function POST(req: NextRequest) {
       }
 
       // Map elementType to ManifestEntry type
-      type MType = 'cache_dir' | 'skill_dir' | 'script' | 'rule_file' | 'command_file' | 'agent_file' | 'output_style' | 'plugin'
-      const manifestTypeMap: Record<string, MType> = {
-        skill: 'skill_dir', agent: 'agent_file', rule: 'rule_file',
-        command: 'command_file', outputStyle: 'output_style', mcp: 'plugin',
-      }
-
-      // Snapshot BEFORE state for transactional undo
-      const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-      const mType: MType = manifestTypeMap[elementType!] || 'plugin'
-      const txId = await beginTransaction({
-        description: `Remove ${elementType} ${safeName}`,
-        operation: 'element:remove',
-        scope: 'global',
-        ...(rmTargetPath && existsSync(rmTargetPath) ? {
-          elements: [{ fsPath: rmTargetPath, archiveMember: safeName }],
-          elementManifest: [{ type: mType, path: rmTargetPath, tar_member: safeName, existed_before: true }],
-        } : {}),
-      })
-
       try {
         switch (elementType) {
           case 'mcp': {
@@ -649,10 +632,8 @@ export async function POST(req: NextRequest) {
             break
           }
         }
-        commitTransaction(txId)
         return NextResponse.json({ success: true, action: 'remove-element', elementName, elementType })
       } catch (err) {
-        discardTransaction(txId)
         return NextResponse.json({ error: `Remove failed: ${String(err).substring(0, 500)}` }, { status: 500 })
       }
     }
@@ -787,74 +768,51 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
   const cliMkt = await resolveCliMarketplaceName(marketplaceName)
   const installKey = `${shellSafe(pluginName)}@${shellSafe(cliMkt)}`
 
-  // Snapshot BEFORE state for transactional undo
-  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-  const txId = await beginTransaction({
-    description: `Install plugin ${pluginKey}`,
-    operation: 'plugin:install',
-    scope: 'global',
-    configFiles: { settings_json: SETTINGS_PATH },
-    elements: [{ fsPath: pluginCacheDir, archiveMember: pluginName }],
-    elementManifest: [{ type: 'cache_dir', path: pluginCacheDir, tar_member: pluginName, existed_before: existsSync(pluginCacheDir) }],
-  })
-
   try {
-    try {
-      execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
-      commitTransaction(txId)
-      return NextResponse.json({ success: true, action: 'install', pluginKey })
-    } catch (firstErr) {
-      const errStr = String(firstErr)
+    execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
+    return NextResponse.json({ success: true, action: 'install', pluginKey })
+  } catch (firstErr) {
+    const errStr = String(firstErr)
 
-      // Distinguish remote errors (marketplace/plugin not found on GitHub) from local stale state
-      const isRemoteError = errStr.includes('not found in marketplace') ||
-        errStr.includes('404') ||
-        errStr.includes('Could not resolve') ||
-        errStr.includes('fatal: repository') ||
-        errStr.includes('network') ||
-        errStr.includes('timeout')
+    // Distinguish remote errors (marketplace/plugin not found on GitHub) from local stale state
+    const isRemoteError = errStr.includes('not found in marketplace') ||
+      errStr.includes('404') ||
+      errStr.includes('Could not resolve') ||
+      errStr.includes('fatal: repository') ||
+      errStr.includes('network') ||
+      errStr.includes('timeout')
 
-      if (isRemoteError) {
-        // Remote error — nothing to clean up locally, the marketplace or plugin doesn't exist upstream
-        discardTransaction(txId)
-        return NextResponse.json({ error: `Install failed (remote): plugin "${pluginName}" not found in marketplace "${cliMkt}". Check the marketplace URL and plugin name.`, errorType: 'remote' }, { status: 404 })
-      }
-
-      // Local error — likely stale state from a previous file-copy install. Clean up and retry.
-      const staleKeys = [`${pluginName}@${cliMkt}`, `${pluginName}@${marketplaceName}`, pluginKey]
-      const settings = await readJsonSafe(SETTINGS_PATH) || {}
-      const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-      let cleaned = false
-      for (const key of new Set(staleKeys)) {
-        if (ep[key] !== undefined) { delete ep[key]; cleaned = true }
-      }
-      for (const mktName of [marketplaceName, cliMkt]) {
-        const cacheDir = join(CACHE_DIR, mktName, pluginName)
-        if (existsSync(cacheDir)) {
-          await rm(cacheDir, { recursive: true, force: true })
-          cleaned = true
-        }
-      }
-      if (cleaned) {
-        settings.enabledPlugins = ep
-        await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
-        // Retry after cleanup
-        try {
-          execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
-          commitTransaction(txId)
-          return NextResponse.json({ success: true, action: 'install', pluginKey, staleCleanup: true })
-        } catch (retryErr) {
-          discardTransaction(txId)
-          return NextResponse.json({ error: `Install failed after stale cleanup: ${String(retryErr).substring(0, 500)}`, errorType: 'local' }, { status: 500 })
-        }
-      }
-      discardTransaction(txId)
-      return NextResponse.json({ error: `Install failed: ${errStr.substring(0, 500)}`, errorType: 'unknown' }, { status: 500 })
+    if (isRemoteError) {
+      return NextResponse.json({ error: `Install failed (remote): plugin "${pluginName}" not found in marketplace "${cliMkt}". Check the marketplace URL and plugin name.`, errorType: 'remote' }, { status: 404 })
     }
-  } catch (outerError) {
-    discardTransaction(txId)
-    throw outerError
+
+    // Local error — likely stale state from a previous file-copy install. Clean up and retry.
+    const staleKeys = [`${pluginName}@${cliMkt}`, `${pluginName}@${marketplaceName}`, pluginKey]
+    const settings = await readJsonSafe(SETTINGS_PATH) || {}
+    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+    let cleaned = false
+    for (const key of new Set(staleKeys)) {
+      if (ep[key] !== undefined) { delete ep[key]; cleaned = true }
+    }
+    for (const mktName of [marketplaceName, cliMkt]) {
+      const cacheDir = join(CACHE_DIR, mktName, pluginName)
+      if (existsSync(cacheDir)) {
+        await rm(cacheDir, { recursive: true, force: true })
+        cleaned = true
+      }
+    }
+    if (cleaned) {
+      settings.enabledPlugins = ep
+      await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+      // Retry after cleanup
+      try {
+        execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
+        return NextResponse.json({ success: true, action: 'install', pluginKey, staleCleanup: true })
+      } catch (retryErr) {
+        return NextResponse.json({ error: `Install failed after stale cleanup: ${String(retryErr).substring(0, 500)}`, errorType: 'local' }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ error: `Install failed: ${errStr.substring(0, 500)}`, errorType: 'unknown' }, { status: 500 })
   }
 }
 
@@ -862,64 +820,46 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
 async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
   const { execSync } = await import('child_process')
 
-  // Snapshot BEFORE state for transactional undo
-  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-  const txId = await beginTransaction({
-    description: `Uninstall plugin ${pluginKey}`,
-    operation: 'plugin:uninstall',
-    scope: 'global',
-    configFiles: { settings_json: SETTINGS_PATH },
-    elements: [{ fsPath: pluginCacheDir, archiveMember: pluginName }],
-    elementManifest: [{ type: 'cache_dir', path: pluginCacheDir, tar_member: pluginName, existed_before: existsSync(pluginCacheDir) }],
-  })
+  let cliSucceeded = false
 
-  try {
-    let cliSucceeded = false
-
-    // Try CLI uninstall with all possible key formats
-    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    const keysToTry = [
-      `${pluginName}@${cliMkt}`,
-      `${pluginName}@${marketplaceName}`,
-      pluginKey,
-    ]
-    // Deduplicate
-    const uniqueKeys = [...new Set(keysToTry)]
-    for (const key of uniqueKeys) {
-      try {
-        execSync(`claude plugin uninstall "${shellSafe(key)}" --scope user 2>&1`, { timeout: 15000 })
-        cliSucceeded = true
-        break
-      } catch { /* try next key format */ }
-    }
-
-    // If CLI couldn't uninstall, this is a stale installation (installed via file copy, not CLI).
-    // Clean up manually: remove cache, remove from settings.
-    if (!cliSucceeded) {
-      // Remove all cache entries for this plugin across all marketplace name variants
-      for (const mktName of [marketplaceName, cliMkt]) {
-        const cacheDir = join(CACHE_DIR, mktName, pluginName)
-        if (existsSync(cacheDir)) {
-          await rm(cacheDir, { recursive: true, force: true })
-        }
-      }
-      // Remove all settings entries for this plugin (both key formats)
-      const settings = await readJsonSafe(SETTINGS_PATH) || {}
-      const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-      for (const key of uniqueKeys) {
-        delete ep[key]
-      }
-      settings.enabledPlugins = ep
-      await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
-    }
-
-    commitTransaction(txId)
-    return NextResponse.json({ success: true, action: 'uninstall', pluginKey, staleCleanup: !cliSucceeded })
-  } catch (outerError) {
-    discardTransaction(txId)
-    throw outerError
+  // Try CLI uninstall with all possible key formats
+  const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+  const keysToTry = [
+    `${pluginName}@${cliMkt}`,
+    `${pluginName}@${marketplaceName}`,
+    pluginKey,
+  ]
+  // Deduplicate
+  const uniqueKeys = [...new Set(keysToTry)]
+  for (const key of uniqueKeys) {
+    try {
+      execSync(`claude plugin uninstall "${shellSafe(key)}" --scope user 2>&1`, { timeout: 15000 })
+      cliSucceeded = true
+      break
+    } catch { /* try next key format */ }
   }
+
+  // If CLI couldn't uninstall, this is a stale installation (installed via file copy, not CLI).
+  // Clean up manually: remove cache, remove from settings.
+  if (!cliSucceeded) {
+    // Remove all cache entries for this plugin across all marketplace name variants
+    for (const mktName of [marketplaceName, cliMkt]) {
+      const cacheDir = join(CACHE_DIR, mktName, pluginName)
+      if (existsSync(cacheDir)) {
+        await rm(cacheDir, { recursive: true, force: true })
+      }
+    }
+    // Remove all settings entries for this plugin (both key formats)
+    const settings = await readJsonSafe(SETTINGS_PATH) || {}
+    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+    for (const key of uniqueKeys) {
+      delete ep[key]
+    }
+    settings.enabledPlugins = ep
+    await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+  }
+
+  return NextResponse.json({ success: true, action: 'uninstall', pluginKey, staleCleanup: !cliSucceeded })
 }
 
 /** Remove marketplace: delete clone dir + remove from settings + clean cached plugins */
@@ -928,70 +868,45 @@ async function handleDeleteMarketplace(marketplaceName?: string) {
     return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
   }
 
-  // Snapshot BEFORE state for transactional undo — capture settings + clone dir + cache dir
   const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
   const mktCacheDir = join(CACHE_DIR, marketplaceName)
-  const elements: Array<{ fsPath: string; archiveMember: string }> = []
-  const manifest: Array<{ type: 'cache_dir' | 'skill_dir' | 'script' | 'rule_file' | 'command_file' | 'agent_file' | 'output_style' | 'plugin'; path: string; tar_member: string; existed_before: boolean }> = []
-  if (existsSync(cloneDir)) {
-    elements.push({ fsPath: cloneDir, archiveMember: `clone-${marketplaceName}` })
-    manifest.push({ type: 'cache_dir', path: cloneDir, tar_member: `clone-${marketplaceName}`, existed_before: true })
-  }
-  if (existsSync(mktCacheDir)) {
-    elements.push({ fsPath: mktCacheDir, archiveMember: `cache-${marketplaceName}` })
-    manifest.push({ type: 'cache_dir', path: mktCacheDir, tar_member: `cache-${marketplaceName}`, existed_before: true })
-  }
-  const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-  const txId = await beginTransaction({
-    description: `Delete marketplace ${marketplaceName}`,
-    operation: 'marketplace:delete',
-    scope: 'global',
-    configFiles: { settings_json: SETTINGS_PATH },
-    ...(elements.length > 0 ? { elements, elementManifest: manifest } : {}),
-  })
 
+  // Remove via Claude CLI first
   try {
-    // Remove via Claude CLI first
-    try {
-      const { execSync } = await import('child_process')
-      const cliName = await resolveCliMarketplaceName(marketplaceName)
-      execSync(`claude plugin marketplace remove "${shellSafe(cliName)}" 2>&1`, { timeout: 15000 })
-    } catch {
-      // CLI removal may fail if not registered — continue with file cleanup
-    }
-
-    // Remove clone dir
-    if (existsSync(cloneDir)) {
-      await rm(cloneDir, { recursive: true, force: true })
-    }
-
-    // Remove cached plugins for this marketplace
-    if (existsSync(mktCacheDir)) {
-      await rm(mktCacheDir, { recursive: true, force: true })
-    }
-
-    // Remove from extraKnownMarketplaces in settings
-    const settings = await readJsonSafe(SETTINGS_PATH) || {}
-    const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
-    delete ekm[marketplaceName]
-    settings.extraKnownMarketplaces = ekm
-
-    // Remove any enabledPlugins entries for this marketplace
-    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-    for (const key of Object.keys(ep)) {
-      if (key.endsWith(`@${marketplaceName}`)) {
-        delete ep[key]
-      }
-    }
-    settings.enabledPlugins = ep
-    await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
-
-    commitTransaction(txId)
-    return NextResponse.json({ success: true, action: 'delete-marketplace', marketplaceName })
-  } catch (outerError) {
-    discardTransaction(txId)
-    throw outerError
+    const { execSync } = await import('child_process')
+    const cliName = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin marketplace remove "${shellSafe(cliName)}" 2>&1`, { timeout: 15000 })
+  } catch {
+    // CLI removal may fail if not registered — continue with file cleanup
   }
+
+  // Remove clone dir
+  if (existsSync(cloneDir)) {
+    await rm(cloneDir, { recursive: true, force: true })
+  }
+
+  // Remove cached plugins for this marketplace
+  if (existsSync(mktCacheDir)) {
+    await rm(mktCacheDir, { recursive: true, force: true })
+  }
+
+  // Remove from extraKnownMarketplaces in settings
+  const settings = await readJsonSafe(SETTINGS_PATH) || {}
+  const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+  delete ekm[marketplaceName]
+  settings.extraKnownMarketplaces = ekm
+
+  // Remove any enabledPlugins entries for this marketplace
+  const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+  for (const key of Object.keys(ep)) {
+    if (key.endsWith(`@${marketplaceName}`)) {
+      delete ep[key]
+    }
+  }
+  settings.enabledPlugins = ep
+  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+
+  return NextResponse.json({ success: true, action: 'delete-marketplace', marketplaceName })
 }
 
 /** Update marketplace by pulling latest from git remote */
@@ -1198,49 +1113,32 @@ async function handleAddMarketplace(url?: string) {
   const repo = match[1].replace(/\.git$/, '')
   const marketplaceName = repo.split('/')[1] // Use repo name as marketplace name
 
-  // Snapshot BEFORE state for transactional undo
-  const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-  const txId = await beginTransaction({
-    description: `Add marketplace ${marketplaceName}`,
-    operation: 'marketplace:add',
-    scope: 'global',
-    configFiles: { settings_json: SETTINGS_PATH },
-  })
-
+  // Let Claude CLI handle the cloning and registration — it manages its own clone directory
+  const { execSync } = await import('child_process')
   try {
-    // Let Claude CLI handle the cloning and registration — it manages its own clone directory
-    const { execSync } = await import('child_process')
-    try {
-      const output = execSync(`claude plugin marketplace add "${shellSafe(repo)}" --scope user 2>&1`, {
-        timeout: 120000,
-        stdio: 'pipe',
-      }).toString()
-      // CLI outputs the registered name, e.g. "Successfully added marketplace: kriscard"
-      console.log(`Marketplace add output: ${output}`)
-    } catch (err) {
-      const errStr = String(err)
-      // If the marketplace already exists, that's fine
-      if (errStr.includes('already') || errStr.includes('exists')) {
-        discardTransaction(txId)
-        return NextResponse.json({ error: `Marketplace "${marketplaceName}" already exists` }, { status: 409 })
-      }
-      discardTransaction(txId)
-      return NextResponse.json({ error: `Failed to add marketplace: ${errStr.substring(0, 500)}` }, { status: 500 })
+    const output = execSync(`claude plugin marketplace add "${shellSafe(repo)}" --scope user 2>&1`, {
+      timeout: 120000,
+      stdio: 'pipe',
+    }).toString()
+    // CLI outputs the registered name, e.g. "Successfully added marketplace: kriscard"
+    console.log(`Marketplace add output: ${output}`)
+  } catch (err) {
+    const errStr = String(err)
+    // If the marketplace already exists, that's fine
+    if (errStr.includes('already') || errStr.includes('exists')) {
+      return NextResponse.json({ error: `Marketplace "${marketplaceName}" already exists` }, { status: 409 })
     }
-
-    // Add to extraKnownMarketplaces
-    const settings = await readJsonSafe(SETTINGS_PATH) || {}
-    const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
-    ekm[marketplaceName] = { source: { source: 'github', repo } }
-    settings.extraKnownMarketplaces = ekm
-    await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
-
-    commitTransaction(txId)
-    return NextResponse.json({ success: true, action: 'add-marketplace', marketplaceName, repo })
-  } catch (outerError) {
-    discardTransaction(txId)
-    throw outerError
+    return NextResponse.json({ error: `Failed to add marketplace: ${errStr.substring(0, 500)}` }, { status: 500 })
   }
+
+  // Add to extraKnownMarketplaces
+  const settings = await readJsonSafe(SETTINGS_PATH) || {}
+  const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+  ekm[marketplaceName] = { source: { source: 'github', repo } }
+  settings.extraKnownMarketplaces = ekm
+  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+
+  return NextResponse.json({ success: true, action: 'add-marketplace', marketplaceName, repo })
 }
 
 /** Run CPV security check on a plugin */

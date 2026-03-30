@@ -5,10 +5,9 @@ import {
   Puzzle, Loader2, ChevronDown, ChevronRight, Store, Search, ExternalLink, X, Copy, Trash2,
   ToggleLeft, ToggleRight,
   Wand2, Bot, Terminal, Webhook, Server, FileCode,
-  ScrollText, Palette,
+  ScrollText, Palette, Construction,
 } from 'lucide-react'
 import MarketplaceManager from './MarketplaceManager'
-import { useSettingsUndoRedoContext } from '@/hooks/SettingsUndoRedoContext'
 
 interface PluginInfo {
   name: string
@@ -96,12 +95,10 @@ const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof 
 ]
 
 /**
- * Claude Plugins Section — manages user-level plugins, elements, and marketplaces.
+ * Plugins Explorer — manages user-level plugins, elements, and marketplaces.
  * Three tabs: Plugins (toggle + info), Elements (active elements), Marketplaces (full management).
  */
 export default function GlobalElementsSection({ initialSubtab, initialMarketplace }: { initialSubtab?: 'plugins' | 'elements' | 'marketplaces' | null; initialMarketplace?: string | null } = {}) {
-  // Shared undo/redo from Settings page — may be null if rendered outside settings context
-  const settingsUndoRedo = useSettingsUndoRedoContext()
   const [activeTab, setActiveTab] = useState<'plugins' | 'elements' | 'marketplaces'>(initialSubtab || 'elements')
   // Scroll position per tab — restore when switching back
   const scrollPositions = useRef<Record<string, number>>({ plugins: 0, elements: 0, marketplaces: 0 })
@@ -273,21 +270,6 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
 
   useEffect(() => { fetchPlugins() }, [fetchPlugins])
   useEffect(() => { fetchElements() }, [fetchElements])
-  // Re-fetch plugin and element state after an undo/redo operation changes the counts
-  const prevUndoCount = useRef(settingsUndoRedo?.undoCount ?? 0)
-  const prevRedoCount = useRef(settingsUndoRedo?.redoCount ?? 0)
-  useEffect(() => {
-    const uc = settingsUndoRedo?.undoCount ?? 0
-    const rc = settingsUndoRedo?.redoCount ?? 0
-    // Detect if counts changed in a way that indicates an undo/redo operation occurred
-    if ((uc < prevUndoCount.current && rc > prevRedoCount.current) ||
-        (rc < prevRedoCount.current && uc > prevUndoCount.current)) {
-      fetchPlugins()
-      fetchElements()
-    }
-    prevUndoCount.current = uc
-    prevRedoCount.current = rc
-  }, [settingsUndoRedo?.undoCount, settingsUndoRedo?.redoCount, fetchPlugins, fetchElements])
 
   // Auto-expand marketplaces that have enabled plugins
   useEffect(() => {
@@ -329,8 +311,6 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
         fetchElements()
-        // Refresh server-side undo/redo counts
-        settingsUndoRedo?.refreshStatus()
       } else {
         fetchPlugins()
       }
@@ -411,6 +391,9 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
     return items
   }, [flatElements, elementTypeFilter, elementSearch, activeOnly])
 
+  // Client-level tab: Claude vs Codex (higher-level tab bar)
+  const [clientTab, setClientTab] = useState<'claude' | 'codex'>('claude')
+
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-3">
@@ -422,10 +405,45 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
 
   return (
     <div ref={containerRef} className="p-4 sm:p-6 max-w-4xl">
-      <h2 className="text-xl font-bold text-white mb-2">Claude Plugins</h2>
-      <p className="text-sm text-gray-400 mb-4">
-        This section is only relevant to agents using Claude Code as CLI client.
-      </p>
+      <h2 className="text-xl font-bold text-white mb-2">Plugins Explorer</h2>
+
+      {/* Higher-level client tab bar: Claude | Codex */}
+      <div className="flex items-center gap-2 mb-4 border-b border-gray-700/50 pb-0">
+        <button
+          onClick={() => setClientTab('claude')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all border-b-2 -mb-px ${
+            clientTab === 'claude'
+              ? 'text-orange-300 border-orange-400'
+              : 'text-gray-500 border-transparent hover:text-gray-400 hover:border-gray-600'
+          }`}
+        >
+          <Terminal className="w-4 h-4" />
+          Claude Code
+        </button>
+        <button
+          onClick={() => setClientTab('codex')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all border-b-2 -mb-px ${
+            clientTab === 'codex'
+              ? 'text-green-300 border-green-400'
+              : 'text-gray-500 border-transparent hover:text-gray-400 hover:border-gray-600'
+          }`}
+        >
+          <Bot className="w-4 h-4" />
+          Codex
+        </button>
+      </div>
+
+      {/* Codex tab — work in progress placeholder */}
+      {clientTab === 'codex' && (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+          <Construction className="w-12 h-12 mb-4 text-gray-600" />
+          <p className="text-lg font-semibold text-gray-400">Work in Progress</p>
+          <p className="text-sm mt-2">Codex plugin support coming in a future update.</p>
+        </div>
+      )}
+
+      {/* Claude tab — existing content */}
+      {clientTab === 'claude' && (<>
 
       {/* Tab bar: Elements | Plugins | Marketplaces */}
       <div className="flex items-center gap-1 mb-4 sm:mb-6 bg-gray-800/30 rounded-lg p-1">
@@ -1026,6 +1044,8 @@ export default function GlobalElementsSection({ initialSubtab, initialMarketplac
           </div>
         </div>
       )}
+
+      </>)}
     </div>
   )
 }

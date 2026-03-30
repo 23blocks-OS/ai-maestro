@@ -13,6 +13,10 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import semver from 'semver'
+import {
+  LOCAL_MARKETPLACE_NAME,
+  LOCAL_MARKETPLACE_DIR_NAME,
+} from '@/lib/ecosystem-constants'
 import { getAgent } from '@/lib/agent-registry'
 import type { ServiceResult } from '@/types/service'
 import type {
@@ -437,7 +441,7 @@ function scanPlugins(
           // Extract marketplace from plugin key (part after @), default to local roles marketplace
           const roleMarketplace = pluginKey?.includes('@')
             ? pluginKey.split('@').slice(1).join('@')
-            : 'ai-maestro-local-roles-marketplace'
+            : LOCAL_MARKETPLACE_NAME
           rolePlugin = {
             name: pluginName,
             profilePath: agentTomlPath,
@@ -518,7 +522,7 @@ function collectPluginPaths(claudeDir: string, settingsData: Record<string, unkn
 /**
  * Handle the `enabledPlugins` format used by Haephestos / role-plugin-service.
  * Keys are `<pluginName>@<marketplaceName>`, values are boolean.
- * Resolves `ai-maestro-local-roles-marketplace` to `~/agents/role-plugins/plugins/<name>/`.
+ * Resolves the local marketplace name to `~/agents/role-plugins/plugins/<name>/`.
  */
 function extractEnabledPluginPaths(settings: Record<string, unknown>, paths: Set<string>) {
   const ep = settings.enabledPlugins as Record<string, boolean> | undefined
@@ -553,10 +557,10 @@ function resolvePluginKeyToPath(key: string): string | null {
   const marketplaceName = key.substring(atIdx + 1)
 
   const homeDir = os.homedir()
-  const LOCAL_MARKETPLACE_NAME = 'ai-maestro-local-roles-marketplace'
 
+  // Local marketplace for custom Haephestos-generated role-plugins (from ecosystem-constants)
   if (marketplaceName === LOCAL_MARKETPLACE_NAME) {
-    return path.join(homeDir, 'agents', 'role-plugins', 'plugins', pluginName)
+    return path.join(homeDir, 'agents', LOCAL_MARKETPLACE_DIR_NAME, 'plugins', pluginName)
   }
 
   // Try the global cache directory

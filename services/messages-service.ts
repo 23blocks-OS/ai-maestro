@@ -482,13 +482,14 @@ export interface CreateMeetingParams {
   name: string
   agentIds: string[]
   teamId?: string | null
+  groupId?: string | null  // Link to group when meeting started from a group
   sidebarMode?: SidebarMode
 }
 
 export function createNewMeeting(
   params: CreateMeetingParams,
 ): ServiceResult<{ meeting: any }> {
-  const { name, agentIds, teamId, sidebarMode } = params
+  const { name, agentIds, teamId, groupId, sidebarMode } = params
 
   if (!name || typeof name !== 'string') {
     return { error: 'Meeting name is required', status: 400 }
@@ -503,6 +504,8 @@ export function createNewMeeting(
       name,
       agentIds,
       teamId: teamId || null,
+      // Persist groupId so the meeting can be linked back to its source group
+      groupId: groupId || null,
       sidebarMode,
     })
     return { data: { meeting }, status: 201 }

@@ -8,6 +8,7 @@ import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimatio
 import type { Team } from '@/types/team'
 import type { AgentRole } from '@/types/agent'
 import type { RolePlugin } from '@/services/role-plugin-service'
+import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP } from '@/lib/ecosystem-constants'
 
 // --- Types ---
 
@@ -50,14 +51,11 @@ const TITLE_COLORS: Record<AgentRole, string> = {
   autonomous: 'border-gray-500/60 bg-gray-500/10 text-gray-400',
 }
 
-// Titles that automatically lock to their predefined role-plugin (not user-selectable)
-const LOCKED_TITLE_PLUGINS: Partial<Record<AgentRole, string>> = {
-  manager: 'ai-maestro-assistant-manager-agent',
-  'chief-of-staff': 'ai-maestro-chief-of-staff',
-  architect: 'ai-maestro-architect-agent',
-  orchestrator: 'ai-maestro-orchestrator-agent',
-  integrator: 'ai-maestro-integrator-agent',
-}
+// Titles that automatically lock to their predefined role-plugin (not user-selectable).
+// Derived from ecosystem-constants — lower-cased keys for UI matching.
+const LOCKED_TITLE_PLUGINS: Partial<Record<AgentRole, string>> = Object.fromEntries(
+  Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
+) as Partial<Record<AgentRole, string>>
 
 // Titles for which the user can freely choose a role-plugin
 const SELECTABLE_PLUGIN_TITLES: AgentRole[] = ['member', 'autonomous']

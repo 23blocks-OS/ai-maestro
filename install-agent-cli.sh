@@ -363,7 +363,7 @@ cmd_install() {
     echo ""
 
     # Standalone skill installation removed — skills are now bundled in the
-    # ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins).
+    # ai-maestro plugin (marketplace: see scripts/ecosystem-config.sh MARKETPLACE_REPO).
     # Use install-messaging.sh to install the plugin.
     local skill_dir=""
     local skill_installed="false"

@@ -2,7 +2,7 @@
  * Sync Default Role Plugins API
  *
  * POST /api/agents/role-plugins/sync-defaults
- *   Ensures the Emasoft/ai-maestro-plugins marketplace is registered
+ *   Ensures the role-plugins marketplace (see lib/ecosystem-constants.ts MARKETPLACE_REPO) is registered
  *   and returns the list of available role-plugins from the marketplace metadata.
  *   Does NOT auto-install any role-plugins — they are installed on-demand
  *   when a user selects one from the dropdown.

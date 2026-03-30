@@ -9,6 +9,14 @@
 
 set -e
 
+# Source ecosystem constants (single source of truth for marketplace/plugin names)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/scripts/ecosystem-config.sh"
+elif [ -f "$SCRIPT_DIR/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/ecosystem-config.sh"
+fi
+
 # Parse command line arguments
 NON_INTERACTIVE=false
 MIGRATE_ONLY=false
@@ -687,8 +695,8 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     print_info "Installing AI Maestro plugin from marketplace..."
 
-    MARKETPLACE_REPO="23blocks-OS/ai-maestro-plugins"
-    PLUGIN_NAME="ai-maestro"
+    MARKETPLACE_REPO="${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
+    PLUGIN_NAME="${MAIN_PLUGIN_NAME:-ai-maestro}"
 
     # Step 1: Register the marketplace from GitHub (enables future updates via claude CLI)
     # Always use the GitHub source — local submodule copies become stale and prevent
@@ -770,7 +778,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     print_info "Checking AI Maestro plugin..."
 
     # Check if the plugin appears in claude plugin list
-    if claude plugin list 2>/dev/null | grep -q "ai-maestro@ai-maestro-plugins"; then
+    if claude plugin list 2>/dev/null | grep -q "${MAIN_PLUGIN_NAME:-ai-maestro}@${MARKETPLACE_NAME:-ai-maestro-plugins}"; then
         print_success "ai-maestro plugin installed and enabled"
     else
         print_warning "ai-maestro plugin not found in plugin list (may need /reload-plugins)"

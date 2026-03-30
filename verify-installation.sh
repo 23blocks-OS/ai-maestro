@@ -8,6 +8,14 @@
 
 # Don't use set -e - we want to continue on failures
 
+# Source ecosystem constants (single source of truth for marketplace/plugin names)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/scripts/ecosystem-config.sh"
+elif [ -f "$SCRIPT_DIR/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/ecosystem-config.sh"
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -162,7 +170,7 @@ echo "7. Checking AI Maestro plugin..."
 if claude plugin list 2>/dev/null | grep -q "ai-maestro"; then
     pass "ai-maestro plugin installed"
 else
-    warn "ai-maestro plugin not installed — install from marketplace 23blocks-OS/ai-maestro-plugins"
+    warn "ai-maestro plugin not installed — install from marketplace ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
 fi
 
 # Also check for legacy standalone skills that should have been cleaned up

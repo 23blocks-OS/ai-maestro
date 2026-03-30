@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Team } from '@/types/team'
 import type { TransferRequest, GovernanceTitle } from '@/types/governance'
 import type { GovernanceRequest } from '@/types/governance-request'
+import { ROLE_PLUGIN_PROGRAMMER } from '@/lib/ecosystem-constants'
 
 // Re-export so downstream consumers still work
 export type { GovernanceTitle } from '@/types/governance'
@@ -204,13 +205,6 @@ export function useGovernance(agentId: string | null): GovernanceState {
     }
   }, [agentId, refresh])
 
-  // Re-fetch governance data when undo/redo restores config (teams.json, governance.json may have changed)
-  useEffect(() => {
-    const handler = () => refresh()
-    window.addEventListener('config-undo-redo', handler)
-    return () => window.removeEventListener('config-undo-redo', handler)
-  }, [refresh])
-
   const setPassword = useCallback(
     async (pw: string, currentPw?: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -327,7 +321,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
             await fetch('/api/agents/role-plugins/install', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pluginName: 'ai-maestro-programmer-agent', agentDir: workDir }),
+              body: JSON.stringify({ pluginName: ROLE_PLUGIN_PROGRAMMER, agentDir: workDir }),
             }).catch(() => {}) // Best-effort — don't fail the join if plugin install fails
           }
         }

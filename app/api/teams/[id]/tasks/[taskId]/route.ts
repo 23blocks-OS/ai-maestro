@@ -6,7 +6,7 @@ import { isValidUuid } from '@/lib/validation'
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; taskId: string } }
+  { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
   if (!isValidUuid(id)) {
@@ -89,8 +89,8 @@ export async function PUT(
     ...(body.reviewResult !== undefined && { reviewResult: String(body.reviewResult) }),
     requestingAgentId,
   }
-  const result = await updateTeamTask(id, taskId, safeParams)
 
+  const result = await updateTeamTask(id, taskId, safeParams)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
@@ -120,7 +120,6 @@ export async function DELETE(
   const requestingAgentId = auth.agentId
 
   const result = await deleteTeamTask(id, taskId, requestingAgentId)
-
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

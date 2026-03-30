@@ -52,8 +52,20 @@ export async function POST(
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
   }
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
 
-  const { url, name } = await request.json()
+  let body: { url?: unknown; name?: unknown }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
+  }
+
+  const { url, name } = body
   if (!url) return NextResponse.json({ error: 'url is required' }, { status: 400 })
 
   return NextResponse.json({ registered: true, url, name })

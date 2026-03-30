@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI Maestro Graph Tools Installer
 # Installs graph query shell scripts to ~/.local/bin
-# Note: graph-query skill is now bundled in the ai-maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
+# Note: graph-query skill is now bundled in the ai-maestro plugin (marketplace: see scripts/ecosystem-config.sh)
 
 set -e
 

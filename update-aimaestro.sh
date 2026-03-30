@@ -4,6 +4,14 @@
 
 set -e
 
+# Source ecosystem constants (single source of truth for marketplace/plugin names)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/scripts/ecosystem-config.sh"
+elif [ -f "$SCRIPT_DIR/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/ecosystem-config.sh"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -241,15 +249,15 @@ echo ""
 print_step "$ROCKET" "Updating AI Maestro plugin and reinstalling scripts..."
 
 # ── v0.26.0: Skills are now bundled in the ai-maestro plugin ────────────
-# The plugin is installed from the 23blocks-OS/ai-maestro-plugins marketplace.
+# The plugin is installed from the ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins} marketplace.
 # No standalone skills in ~/.claude/skills/ anymore.
 # Component installers still handle CLI scripts (amp-*.sh, etc.) in ~/.local/bin/.
 # ─────────────────────────────────────────────────────────────────────────
 
-# 0. Update the AI Maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)
+# 0. Update the AI Maestro plugin (marketplace: see scripts/ecosystem-config.sh)
 print_info "Updating AI Maestro plugin from marketplace..."
-claude plugin marketplace update ai-maestro-plugins 2>/dev/null || true
-claude plugin update ai-maestro 2>/dev/null || true
+claude plugin marketplace update "${MARKETPLACE_NAME:-ai-maestro-plugins}" 2>/dev/null || true
+claude plugin update "${MAIN_PLUGIN_NAME:-ai-maestro}" 2>/dev/null || true
 print_success "AI Maestro plugin updated"
 
 # 1. AMP messaging scripts + all plugin/scripts/* tools
@@ -378,7 +386,7 @@ fi
 echo ""
 print_info "What's updated:"
 echo "   • Application code and dependencies (git pull + yarn build)"
-echo "   • AI Maestro plugin (skills bundled from 23blocks-OS/ai-maestro-plugins)"
+echo "   • AI Maestro plugin (skills bundled from ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins})"
 echo "   • AMP messaging scripts (amp-*.sh)"
 echo "   • Agent CLI (aimaestro-agent.sh, agent-helper.sh)"
 echo "   • Memory, graph, and docs CLI tools"

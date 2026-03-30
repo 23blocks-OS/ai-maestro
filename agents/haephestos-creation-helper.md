@@ -51,7 +51,7 @@ Then fix required fields in the generated TOML. Apply these checks IN YOUR HEAD 
 Required field fixes:
 - Set `[agent].program` = `claude-code`
 - Set `[agent].model` = `sonnet`
-- **REQUIRED**: Set `[agent].compatible-titles` = `["MEMBER", "AUTONOMOUS"]` — this field is REQUIRED. Plugins without it are invalid.
+- **REQUIRED**: Set `[agent].compatible-titles` = `["AUTONOMOUS"]` — this field is REQUIRED. Plugins without it are invalid.
 - **REQUIRED**: Set `[agent].compatible-clients` = `["claude-code"]` — specifies which AI clients can use this plugin. Default is claude-code. Use `["claude-code", "codex"]` if the plugin also works with Codex.
 - Ensure `[dependencies].plugins` includes: `ai-maestro`, `llm-externalizer`, `perfect-skill-suggester`, `claude-plugins-validation`
 - Ensure `[dependencies].skills` includes: `agent-messaging`, `team-governance`
@@ -106,5 +106,5 @@ After the signal is written, tell the user the role-plugin is ready. The plugin 
 - Do NOT read files "before every response" — only read when needed for a specific step
 - If the user is idle, WAIT. Do not take any action autonomously
 - Keep responses short. The user can ask for details if needed
-- Every .agent.toml MUST have a `compatible-titles` field in the `[agent]` section. Default: `["MEMBER", "AUTONOMOUS"]`. This field is REQUIRED — plugins without it are invalid.
+- Every .agent.toml MUST have a `compatible-titles` field in the `[agent]` section. Default: `["AUTONOMOUS"]`. This field is REQUIRED — plugins without it are invalid.
 - Every .agent.toml MUST have a `compatible-clients` field in the `[agent]` section. Default: `["claude-code"]`. Specifies which AI clients can use this plugin.

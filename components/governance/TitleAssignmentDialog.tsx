@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge, Bot } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceTitle } from '@/hooks/useGovernance'
+import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP } from '@/lib/ecosystem-constants'
 
 interface TitleAssignmentDialogProps {
   isOpen: boolean
@@ -221,14 +222,11 @@ export default function TitleAssignmentDialog({
     )
   }
 
-  // Title → role-plugin mapping for auto-install after title change
-  const TITLE_PLUGIN_MAP: Record<string, string> = {
-    'manager': 'ai-maestro-assistant-manager-agent',
-    'chief-of-staff': 'ai-maestro-chief-of-staff',
-    'architect': 'ai-maestro-architect-agent',
-    'orchestrator': 'ai-maestro-orchestrator-agent',
-    'integrator': 'ai-maestro-integrator-agent',
-  }
+  // Title → role-plugin mapping for auto-install after title change.
+  // Derived from ecosystem-constants — lower-cased keys for API matching.
+  const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
+    Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
+  )
 
   // Auto-install the role-plugin for the given title — uninstalls the OLD plugin first to avoid conflicts
   const autoInstallPluginForTitle = async (title: string) => {

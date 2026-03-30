@@ -230,6 +230,16 @@ import {
   getKanbanConfig,
   setKanbanConfig,
 } from '@/services/teams-service'
+import {
+  listAllGroups,
+  createNewGroup,
+  getGroupById,
+  updateGroupById,
+  deleteGroupById,
+  subscribeAgent,
+  unsubscribeAgent,
+  notifyGroupSubscribers,
+} from '@/services/groups-service'
 import type { KanbanColumnConfig } from '@/types/team'
 
 import {
@@ -580,46 +590,6 @@ const routes: Route[] = [
     }
     const updated = updateSystemSettings(patch)
     sendServiceResult(res, { status: 200, data: { success: true, settings: updated } })
-  }},
-  // Config undo/redo — transactional config management
-  { method: 'POST', pattern: /^\/api\/config\/undo$/, paramNames: [], handler: async (_req, res) => {
-    try {
-      const { undo, getStatus } = await import('@/lib/config-transaction')
-      const result = await undo()
-      if (!result.success) {
-        sendJson(res, 404, { error: result.error })
-        return
-      }
-      const status = getStatus()
-      sendJson(res, 200, { success: true, description: result.description, ...status })
-    } catch (error) {
-      console.error('[config/undo] Failed:', error)
-      sendJson(res, 500, { error: 'Undo failed' })
-    }
-  }},
-  { method: 'POST', pattern: /^\/api\/config\/redo$/, paramNames: [], handler: async (_req, res) => {
-    try {
-      const { redo, getStatus } = await import('@/lib/config-transaction')
-      const result = await redo()
-      if (!result.success) {
-        sendJson(res, 404, { error: result.error })
-        return
-      }
-      const status = getStatus()
-      sendJson(res, 200, { success: true, description: result.description, ...status })
-    } catch (error) {
-      console.error('[config/redo] Failed:', error)
-      sendJson(res, 500, { error: 'Redo failed' })
-    }
-  }},
-  { method: 'GET', pattern: /^\/api\/config\/undo-status$/, paramNames: [], handler: async (_req, res) => {
-    try {
-      const { getStatus } = await import('@/lib/config-transaction')
-      sendJson(res, 200, getStatus())
-    } catch (error) {
-      console.error('[config/undo-status] Failed:', error)
-      sendJson(res, 200, { undoCount: 0, redoCount: 0 })
-    }
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getOrganization())
@@ -2208,6 +2178,44 @@ const routes: Route[] = [
     }
     const requestingAgentId = auth.agentId
     sendServiceResult(res, await createNewTeam({ ...body, requestingAgentId }))
+  }},
+
+  // =========================================================================
+  // Groups  -- mirrors app/api/groups/ routes
+  // =========================================================================
+  // Parameterized routes first so /api/groups/[id]/* matches before /api/groups
+  { method: 'POST', pattern: /^\/api\/groups\/([^/]+)\/notify$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    if (!body?.message || typeof body.message !== 'string') {
+      sendJson(res, 400, { error: 'message is required' })
+      return
+    }
+    sendServiceResult(res, await notifyGroupSubscribers(params.id, body.message, body.priority))
+  }},
+  { method: 'POST', pattern: /^\/api\/groups\/([^/]+)\/subscribe$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await subscribeAgent(params.id, body?.agentId))
+  }},
+  { method: 'POST', pattern: /^\/api\/groups\/([^/]+)\/unsubscribe$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await unsubscribeAgent(params.id, body?.agentId))
+  }},
+  { method: 'GET', pattern: /^\/api\/groups\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getGroupById(params.id))
+  }},
+  { method: 'PUT', pattern: /^\/api\/groups\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req) ?? {}
+    sendServiceResult(res, await updateGroupById(params.id, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/groups\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await deleteGroupById(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/groups$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listAllGroups())
+  }},
+  { method: 'POST', pattern: /^\/api\/groups$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req) ?? {}
+    sendServiceResult(res, await createNewGroup(body))
   }},
 
   // =========================================================================

@@ -6,6 +6,14 @@
 
 set -e
 
+# Source ecosystem constants (single source of truth for marketplace/plugin names)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/scripts/ecosystem-config.sh"
+elif [ -f "$SCRIPT_DIR/ecosystem-config.sh" ]; then
+    source "$SCRIPT_DIR/ecosystem-config.sh"
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -53,9 +61,9 @@ fi
 
 # Update AI Maestro plugin (skills are bundled in the plugin, not standalone)
 echo ""
-echo -e "${BLUE}ℹ️  Updating AI Maestro plugin (marketplace: 23blocks-OS/ai-maestro-plugins)...${NC}"
-claude plugin marketplace update ai-maestro-plugins 2>/dev/null || true
-claude plugin update ai-maestro 2>/dev/null || true
+echo -e "${BLUE}ℹ️  Updating AI Maestro plugin (marketplace: ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins})...${NC}"
+claude plugin marketplace update "${MARKETPLACE_NAME:-ai-maestro-plugins}" 2>/dev/null || true
+claude plugin update "${MAIN_PLUGIN_NAME:-ai-maestro}" 2>/dev/null || true
 echo -e "${GREEN}✅ AI Maestro plugin updated${NC}"
 
 # Update AMP scripts (copy from plugin submodule to ~/.local/bin/)

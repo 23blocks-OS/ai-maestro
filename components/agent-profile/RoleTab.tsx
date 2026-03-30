@@ -6,15 +6,13 @@ import type { AgentLocalConfig } from '@/types/agent-local-config'
 import type { GovernanceTitle } from '@/hooks/useGovernance'
 import { SectionLabel } from './shared'
 import RolePluginModal from './RolePluginModal'
+import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP, LOCAL_MARKETPLACE_NAME } from '@/lib/ecosystem-constants'
 
 // Governance titles that force a specific role-plugin (no change allowed)
-const TITLE_PLUGIN_MAP: Record<string, string> = {
-  'manager': 'ai-maestro-assistant-manager-agent',
-  'chief-of-staff': 'ai-maestro-chief-of-staff',
-  'architect': 'ai-maestro-architect-agent',
-  'orchestrator': 'ai-maestro-orchestrator-agent',
-  'integrator': 'ai-maestro-integrator-agent',
-}
+// Derived from ecosystem-constants — lower-cased keys for UI matching.
+const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
+)
 
 export default function RoleTab({
   config,
@@ -89,7 +87,7 @@ export default function RoleTab({
           <Shield className={`w-4 h-4 flex-shrink-0 ${config.rolePlugin ? 'text-amber-400' : 'text-gray-600'}`} />
           <span className="text-xs font-medium text-gray-400 flex-1 truncate">
             {switching ? 'Switching…' : (config.rolePlugin?.name || (agentTitle === 'member' ? 'Default (Programmer)' : 'No Role Plugin'))}
-            {!switching && config.rolePlugin?.name && config.rolePlugin.marketplace === 'ai-maestro-local-roles-marketplace' && (
+            {!switching && config.rolePlugin?.name && config.rolePlugin.marketplace === LOCAL_MARKETPLACE_NAME && (
               <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">custom</span>
             )}
           </span>

@@ -46,30 +46,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    // Snapshot registry BEFORE for transactional undo
-    const { beginTransaction, commitTransaction, discardTransaction } = await import('@/lib/config-transaction')
-    const registryPath = require('path').join(require('os').homedir(), '.aimaestro', 'agents', 'registry.json')
-    const fieldNames = Object.keys(body).filter(k => body[k as keyof UpdateAgentRequest] !== undefined).join(', ')
-    const txId = await beginTransaction({
-      description: `Edit agent ${id.substring(0, 8)}: ${fieldNames}`,
-      operation: 'field:edit',
-      scope: 'global',
-      agentId: id,
-      configFiles: { registry_json: registryPath },
-    })
-
-    try {
-      const result = await updateAgentById(id, body)
-      if (result.error) {
-        discardTransaction(txId)
-        return NextResponse.json({ error: result.error }, { status: result.status })
-      }
-      commitTransaction(txId)
-      return NextResponse.json(result.data)
-    } catch (innerError) {
-      discardTransaction(txId)
-      throw innerError
+    const result = await updateAgentById(id, body)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
     }
+    return NextResponse.json(result.data)
   } catch (error) {
     console.error('[Agents PATCH] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

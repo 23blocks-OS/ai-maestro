@@ -4,14 +4,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, User, Building2, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
-  DollarSign, Database, BookOpen, Link2, Edit2, Undo2, Redo2,
+  DollarSign, Database, BookOpen, Link2, Edit2,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send, RotateCcw,
   GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
   FolderTree, Terminal, Crown, Shield, Webhook, ScrollText, Users, Puzzle, Palette,
   ToggleLeft, ToggleRight, Loader2
 } from 'lucide-react'
-import type { UseConfigUndoRedoReturn } from '@/hooks/useConfigUndoRedo'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
 import ExportAgentDialog from './ExportAgentDialog'
@@ -26,6 +25,7 @@ import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
 import TitleBadge from '@/components/governance/TitleBadge'
 import TitleAssignmentDialog from '@/components/governance/TitleAssignmentDialog'
 import TeamMembershipSection from '@/components/governance/TeamMembershipSection'
+import GroupSubscriptionSection from '@/components/governance/GroupSubscriptionSection'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -40,7 +40,6 @@ interface AgentProfileProps {
   renderMode?: 'full' | 'overview' | 'advanced'  // Which sections to render (default: 'full')
   renderAfterHeader?: () => React.ReactNode  // Content injected between header and body
   renderAfterGovernanceTitle?: () => React.ReactNode  // Content injected after the Governance Title row (used for Role Plugin selector)
-  undoRedo?: UseConfigUndoRedoReturn   // Shared undo/redo hook — when provided, replaces local undo/redo logic
   onDataChanged?: () => void           // Notify parent to refresh sidebar agent list after governance changes
 }
 
@@ -66,7 +65,7 @@ function PluginToggle({ agentId, pluginKey, enabled, onToggled }: { agentId: str
   )
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle, undoRedo, onDataChanged }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl, embedded, renderMode = 'full', renderAfterHeader, renderAfterGovernanceTitle, onDataChanged }: AgentProfileProps) {
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
   // Stable ref for onDataChanged to avoid recreating autoSave on every parent re-render
@@ -76,9 +75,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [loading, setLoading] = useState(true)
   const [editingField, setEditingField] = useState<string | null>(null)
 
-  // Undo/redo — delegate to shared hook when provided, fall back to local stacks for standalone use
-  const undoCount = undoRedo?.undoCount ?? 0
-  const redoCount = undoRedo?.redoCount ?? 0
   // Per-field debounce timers for auto-save — typing in one field doesn't cancel another field's save
   const debounceTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   // Track which field labels should flash green on successful auto-save
@@ -171,20 +167,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
   }, [])
 
-  // Undo/Redo — delegate to the shared hook (API persistence is handled there)
-  const handleUndo = useCallback(() => {
-    if (!undoRedo || !undoRedo.canUndo) return
-    undoRedo.undo()
-    // Note: local React state for the agent is NOT reverted here because the shared
-    // hook handles API persistence. The next fetch cycle will sync the UI. For instant
-    // local feedback, the caller can listen to undoCount changes and re-fetch.
-  }, [undoRedo])
-
-  const handleRedo = useCallback(() => {
-    if (!undoRedo || !undoRedo.canRedo) return
-    undoRedo.redo()
-  }, [undoRedo])
-
   // Auto-scroll to danger zone when requested
   useEffect(() => {
     if (scrollToDangerZone && isOpen && !loading && dangerZoneRef.current) {
@@ -222,10 +204,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
     fetchAgent()
 
-    // Re-fetch agent when undo/redo restores registry.json (field values may have reverted)
-    const undoHandler = () => fetchAgent()
-    window.addEventListener('config-undo-redo', undoHandler)
-    return () => window.removeEventListener('config-undo-redo', undoHandler)
   }, [isOpen, agentId, baseUrl])
 
   // Fetch repositories lazily - only when section is expanded
@@ -348,15 +326,13 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   }
 
   // CC-P1-701: Restrict value type to the actual union of types used by callers
-  // Auto-saves on change, refreshes server-side undo/redo status afterward
+  // Auto-saves on change
   const updateField = (field: string, value: string | string[] | undefined) => {
     if (!agent) return
     // Update local React state immediately for responsive UI
     setAgent({ ...agent, [field]: value })
     // Debounced auto-save to API (per-field, 300ms)
     autoSave(field, value)
-    // Server handles undo snapshots — just refresh the status counts
-    undoRedo?.refreshStatus()
   }
 
   const updateDocField = (field: keyof AgentDocumentation, value: string) => {
@@ -365,8 +341,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     setAgent({ ...agent, documentation: newDoc })
     // Auto-save the entire documentation object since the API expects it as one field
     autoSave('documentation', newDoc)
-    // Server handles undo snapshots — just refresh the status counts
-    undoRedo?.refreshStatus()
   }
 
   const addTag = (tag: string) => {
@@ -446,49 +420,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 >
                   <Send className="w-5 h-5" />
                 </button>
-                {/* Undo/Redo buttons — hidden when parent panel provides shared undo/redo in its header */}
-                {!undoRedo && (
-                  <>
-                    {/* Divider */}
-                    <div className="w-px h-6 bg-gray-700 mx-1" />
-                    {/* Undo Button */}
-                    <button
-                      onClick={handleUndo}
-                      disabled={undoCount === 0}
-                      className={`relative p-2 rounded-lg transition-all ${
-                        undoCount > 0
-                          ? 'hover:bg-gray-800 text-gray-300 hover:text-blue-400'
-                          : 'text-gray-600 cursor-not-allowed'
-                      }`}
-                      title={`Undo (${undoCount})`}
-                    >
-                      <Undo2 className="w-5 h-5" />
-                      {undoCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                          {undoCount > 99 ? '99' : undoCount}
-                        </span>
-                      )}
-                    </button>
-                    {/* Redo Button */}
-                    <button
-                      onClick={handleRedo}
-                      disabled={redoCount === 0}
-                      className={`relative p-2 rounded-lg transition-all ${
-                        redoCount > 0
-                          ? 'hover:bg-gray-800 text-gray-300 hover:text-blue-400'
-                          : 'text-gray-600 cursor-not-allowed'
-                      }`}
-                      title={`Redo (${redoCount})`}
-                    >
-                      <Redo2 className="w-5 h-5" />
-                      {redoCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                          {redoCount > 99 ? '99' : redoCount}
-                        </span>
-                      )}
-                    </button>
-                  </>
-                )}
                 {/* Close button — only in overlay mode, parent handles closing in embedded */}
                 {!embedded && (
                   <button
@@ -670,6 +601,12 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       pendingTransfers={governance.pendingTransfers}
                       onRequestTransfer={(aid, from, to) => governance.requestTransfer(aid, from, to)}
                       onResolveTransfer={(tid, action) => governance.resolveTransfer(tid, action)}
+                      onDataChanged={onDataChanged}
+                    />
+
+                    {/* Group Subscriptions (broadcast messaging groups) */}
+                    <GroupSubscriptionSection
+                      agentId={agent.id}
                       onDataChanged={onDataChanged}
                     />
                   </div>
@@ -1448,7 +1385,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentName={agent.label || agent.name || ''}
           currentTitle={governance.agentTitle}
           governance={governance}
-          onTitleChanged={() => { governance.refresh(); undoRedo?.refreshStatus(); onDataChangedRef.current?.() }}
+          onTitleChanged={() => { governance.refresh(); onDataChangedRef.current?.() }}
         />
       )}
 

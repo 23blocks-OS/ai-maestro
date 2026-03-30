@@ -32,14 +32,15 @@ import type {
   PluginPushConfig,
   PluginPushResult,
 } from '@/types/plugin-builder'
+import { MARKETPLACE_NAME as ECOSYSTEM_MARKETPLACE_NAME } from '@/lib/ecosystem-constants'
 
 // ============================================================================
 // Constants
 // ============================================================================
 
 // Plugin marketplace content is now in Claude's cache (no local submodule)
-// The build script and src/ are fetched from the marketplace when installed
-const MARKETPLACE_NAME = 'ai-maestro-plugins'
+// The build script and src/ are fetched from the marketplace when installed (from ecosystem-constants)
+const MARKETPLACE_NAME = ECOSYSTEM_MARKETPLACE_NAME
 const MARKETPLACE_CACHE = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', MARKETPLACE_NAME)
 const BUILD_SCRIPT = path.join(MARKETPLACE_CACHE, 'build-plugin.sh')
 const BUILDS_DIR = path.join(os.tmpdir(), 'ai-maestro-plugin-builds')

@@ -331,14 +331,13 @@ export async function deleteTeamById(id: string, requestingAgentId?: string, pas
     resetRateLimit(rateLimitKey)
   }
 
-  // Governance: team deletion requires MANAGER or Chief-of-Staff authority
-  // All teams are closed after governance simplification — always enforce this check
-  if (!requestingAgentId) {
-    return { error: 'Team deletion requires agent identity (X-Agent-Id header)', status: 400 }
-  }
-  const managerId2 = getManagerId()
-  if (requestingAgentId !== managerId2 && team.chiefOfStaffId !== requestingAgentId) {
-    return { error: 'Only MANAGER or the team Chief-of-Staff can delete a team', status: 403 }
+  // Governance: team deletion requires MANAGER, Chief-of-Staff, or system owner (web UI)
+  // System owner (requestingAgentId === undefined) is allowed — they already provided the password above
+  if (requestingAgentId) {
+    const managerId2 = getManagerId()
+    if (requestingAgentId !== managerId2 && team.chiefOfStaffId !== requestingAgentId) {
+      return { error: 'Only MANAGER or the team Chief-of-Staff can delete a team', status: 403 }
+    }
   }
 
   const deleted = await deleteTeam(id)

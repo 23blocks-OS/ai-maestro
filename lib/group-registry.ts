@@ -172,11 +172,11 @@ export function loadGroups(): Group[] {
   try {
     ensureTeamsDir()
 
-    // Lazy one-time migration: convert legacy open teams to groups
+    // Lazy one-time migration: convert legacy open teams to groups (locked to prevent races)
     if (!migrationChecked) {
       migrationChecked = true
       try {
-        migrateOpenTeamsToGroups()
+        withLock('groups-migration', () => { migrateOpenTeamsToGroups() })
       } catch (err) {
         // Migration failure must not block normal group loading
         console.error('[group-registry] Migration failed (non-fatal):', err)

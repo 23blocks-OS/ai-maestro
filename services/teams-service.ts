@@ -66,6 +66,7 @@ export interface UpdateTeamParams {
   lastActivityAt?: string
   type?: TeamType
   chiefOfStaffId?: string | null
+  orchestratorId?: string | null
   githubProject?: { owner: string; repo: string; number: number } | null
   requestingAgentId?: string
 }

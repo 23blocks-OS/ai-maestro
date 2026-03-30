@@ -76,23 +76,30 @@ export async function PUT(
     const newAgentIds: string[] = result.data?.team?.agentIds ?? []
     const oldSet = new Set<string>(oldAgentIds)
     const newSet = new Set<string>(newAgentIds)
-    // Agents added to the team → auto-assign MEMBER role
+    // Agents added to the team → auto-assign MEMBER title (only if currently autonomous)
     for (const agentId of newAgentIds) {
       if (!oldSet.has(agentId)) {
         try {
-          await updateAgentById(agentId, { role: 'member' })
+          await updateAgentById(agentId, { role: 'member', governanceTitle: 'member' })
         } catch (err: unknown) {
-          console.error(`[team PUT] Failed to set MEMBER role for agent ${agentId}:`, err)
+          console.error(`[team PUT] Failed to set MEMBER title for agent ${agentId}:`, err)
         }
       }
     }
-    // Agents removed from the team → revert to AUTONOMOUS role
+    // Agents removed from the team → revert to AUTONOMOUS title and clear singleton slots
     for (const agentId of oldAgentIds) {
       if (!newSet.has(agentId)) {
         try {
-          await updateAgentById(agentId, { role: 'autonomous' })
+          await updateAgentById(agentId, { role: 'autonomous', governanceTitle: 'autonomous' })
         } catch (err: unknown) {
-          console.error(`[team PUT] Failed to revert AUTONOMOUS role for agent ${agentId}:`, err)
+          console.error(`[team PUT] Failed to revert AUTONOMOUS title for agent ${agentId}:`, err)
+        }
+        // Clear singleton slots if the removed agent held them
+        const team = result.data?.team
+        if (team) {
+          if (team.orchestratorId === agentId) {
+            await updateTeamById(id, { orchestratorId: null, requestingAgentId })
+          }
         }
       }
     }

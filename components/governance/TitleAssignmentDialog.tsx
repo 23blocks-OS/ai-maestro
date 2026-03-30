@@ -305,8 +305,16 @@ export default function TitleAssignmentDialog({
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
         } else if (currentTitle !== 'member') {
-          // Clear simple governanceTitle (architect/integrator/autonomous) if set
+          // Clear simple governanceTitle (architect/integrator/orchestrator) if set
           await clearGovernanceTitle()
+          // Clear orchestratorId on team if leaving orchestrator role
+          if (currentTitle === 'orchestrator' && governance.memberTeam) {
+            await fetch(`/api/teams/${governance.memberTeam.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orchestratorId: null }),
+            })
+          }
         }
         // Set autonomous title explicitly via PATCH
         const res = await fetch(`/api/agents/${agentId}`, {
@@ -337,6 +345,14 @@ export default function TitleAssignmentDialog({
         } else if (currentTitle === 'architect' || currentTitle === 'integrator' || currentTitle === 'orchestrator') {
           // Clear simple governanceTitle field when demoting to member
           await clearGovernanceTitle()
+          // Clear orchestratorId on team if leaving orchestrator role
+          if (currentTitle === 'orchestrator' && governance.memberTeam) {
+            await fetch(`/api/teams/${governance.memberTeam.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orchestratorId: null }),
+            })
+          }
         }
       } else if (selectedTitle === 'architect' || selectedTitle === 'integrator' || selectedTitle === 'orchestrator') {
         // Transitioning TO a simple governance title (including orchestrator)
@@ -359,9 +375,25 @@ export default function TitleAssignmentDialog({
             throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
         }
+        // If previous title was orchestrator, clear orchestratorId on the team
+        if (currentTitle === 'orchestrator' && governance.memberTeam) {
+          await fetch(`/api/teams/${governance.memberTeam.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orchestratorId: null }),
+          })
+        }
         // Set the new simple governance title + auto-install its role-plugin
         await setGovernanceTitle(selectedTitle)
         await autoInstallPluginForTitle(selectedTitle)
+        // If new title is orchestrator, set orchestratorId on the team
+        if (selectedTitle === 'orchestrator' && governance.memberTeam) {
+          await fetch(`/api/teams/${governance.memberTeam.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orchestratorId: agentId }),
+          })
+        }
       } else if (selectedTitle === 'manager') {
         // Promote to manager: first remove COS or simple title if needed, then assign manager
         if (currentTitle === 'chief-of-staff') {

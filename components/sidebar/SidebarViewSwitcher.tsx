@@ -1,8 +1,8 @@
 'use client'
 
-import { Users, UsersRound, Video } from 'lucide-react'
+import { Users, UsersRound, Video, CircleDot } from 'lucide-react'
 
-export type SidebarView = 'agents' | 'teams' | 'meetings'
+export type SidebarView = 'agents' | 'teams' | 'groups' | 'meetings'
 
 interface SidebarViewSwitcherProps {
   activeView: SidebarView
@@ -12,6 +12,7 @@ interface SidebarViewSwitcherProps {
 const views: { key: SidebarView; label: string; Icon: typeof Users }[] = [
   { key: 'agents', label: 'Agents', Icon: Users },
   { key: 'teams', label: 'Teams', Icon: UsersRound },
+  { key: 'groups', label: 'Groups', Icon: CircleDot },
   { key: 'meetings', label: 'Meetings', Icon: Video },
 ]
 

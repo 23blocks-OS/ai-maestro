@@ -160,3 +160,6 @@ public/avatars/*_enhanced.png
 .tldrignore
 # TLDR artifacts (added by rechecker)
 .tldr_session_*
+
+# Nested plugin repos (not submodules — standalone clones for dev)
+plugins/amp-messaging

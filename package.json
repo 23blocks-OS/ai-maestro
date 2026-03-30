@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.27.0",
+  "version": "0.27.1",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -38,7 +38,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:services": "vitest run tests/services/",
-    "test:lib": "vitest run --exclude 'tests/services/**'"
+    "test:lib": "vitest run --exclude 'tests/services/**'",
+    "test:e2e": "npx playwright test --config=tests/e2e/playwright.config.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
@@ -77,6 +78,7 @@
     "yauzl": "^3.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/better-sqlite3": "^7.6.13",

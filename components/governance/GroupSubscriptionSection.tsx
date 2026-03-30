@@ -15,14 +15,18 @@ export default function GroupSubscriptionSection({
 }: GroupSubscriptionSectionProps) {
   const [groups, setGroups] = useState<Group[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [createName, setCreateName] = useState('')
+  const [createDesc, setCreateDesc] = useState('')
+  const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null) // tracks groupId being acted on
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Fetch all groups on mount
+  // Fetch all groups on mount and when agentId changes (component may not remount on agent switch)
   useEffect(() => {
     fetchGroups()
-  }, [])
+  }, [agentId])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -99,8 +103,37 @@ export default function GroupSubscriptionSection({
     }
   }
 
-  // If no groups exist at all, show nothing (feature not in use)
-  if (groups.length === 0) return null
+  async function handleCreateGroup(e: React.FormEvent) {
+    e.preventDefault()
+    if (!createName.trim()) return
+    setCreating(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: createName.trim(),
+          description: createDesc.trim(),
+          subscriberIds: [agentId], // auto-subscribe the current agent
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || 'Failed to create group')
+        return
+      }
+      await fetchGroups()
+      setShowCreateForm(false)
+      setCreateName('')
+      setCreateDesc('')
+      onDataChanged?.()
+    } catch {
+      setError('Failed to create group')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <>
@@ -108,36 +141,84 @@ export default function GroupSubscriptionSection({
       <div className="flex items-center gap-2 mb-1 mt-3">
         <UsersRound className="w-4 h-4 text-gray-500" />
         <span className="text-sm text-gray-400 font-medium">Groups</span>
-        <div className="ml-auto relative" ref={dropdownRef}>
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* Subscribe dropdown — only when there are groups to subscribe to */}
           {availableGroups.length > 0 && (
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="text-xs px-2 py-1 rounded border border-dashed border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              Subscribe
-              <ChevronDown className={`w-3 h-3 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
-            </button>
-          )}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="text-xs px-2 py-1 rounded border border-dashed border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Subscribe
+                <ChevronDown className={`w-3 h-3 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+              </button>
 
-          {/* Subscribe dropdown */}
-          {showDropdown && (
-            <div className="absolute right-0 z-20 bg-gray-800 border border-gray-700 rounded-lg p-1 max-h-48 overflow-y-auto mt-1 min-w-[180px]">
-              {availableGroups.map(group => (
-                <button
-                  key={group.id}
-                  onClick={() => handleSubscribe(group.id)}
-                  disabled={loading === group.id}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
-                >
-                  <UsersRound className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                  <span className="truncate">{group.name}</span>
-                </button>
-              ))}
+              {showDropdown && (
+                <div className="absolute right-0 z-20 bg-gray-800 border border-gray-700 rounded-lg p-1 max-h-48 overflow-y-auto mt-1 min-w-[180px]">
+                  {availableGroups.map(group => (
+                    <button
+                      key={group.id}
+                      onClick={() => handleSubscribe(group.id)}
+                      disabled={loading === group.id}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      <UsersRound className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                      <span className="truncate">{group.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Create Group button — always visible */}
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="text-xs px-2 py-1 rounded border border-dashed border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Create
+          </button>
         </div>
       </div>
+
+      {/* Inline create form */}
+      {showCreateForm && (
+        <form onSubmit={handleCreateGroup} className="mt-2 mb-1 bg-gray-800/60 rounded-lg border border-gray-700/50 p-2.5 space-y-2">
+          <input
+            type="text"
+            value={createName}
+            onChange={e => setCreateName(e.target.value)}
+            placeholder="Group name"
+            autoFocus
+            className="w-full bg-gray-900 border border-gray-700 rounded-md px-2.5 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+          />
+          <input
+            type="text"
+            value={createDesc}
+            onChange={e => setCreateDesc(e.target.value)}
+            placeholder="Description (optional)"
+            className="w-full bg-gray-900 border border-gray-700 rounded-md px-2.5 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+          />
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => { setShowCreateForm(false); setCreateName(''); setCreateDesc('') }}
+              className="text-xs px-2.5 py-1 rounded text-gray-400 hover:text-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!createName.trim() || creating}
+              className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {creating ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Subscribed groups list */}
       {subscribedGroups.length === 0 ? (

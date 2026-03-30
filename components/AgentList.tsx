@@ -51,6 +51,7 @@ import { SubconsciousStatus } from './SubconsciousStatus'
 import AgentBadge from './AgentBadge'
 import SidebarViewSwitcher, { type SidebarView } from './sidebar/SidebarViewSwitcher'
 import TeamListView from './sidebar/TeamListView'
+import GroupListView from './sidebar/GroupListView'
 import MeetingListView from './sidebar/MeetingListView'
 
 interface AgentListProps {
@@ -862,6 +863,13 @@ export default function AgentList({
       {sidebarView === 'teams' && (
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <TeamListView agents={agents} searchQuery={searchQuery} />
+        </div>
+      )}
+
+      {/* Groups View */}
+      {sidebarView === 'groups' && (
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <GroupListView agents={agents} searchQuery={searchQuery} />
         </div>
       )}
 

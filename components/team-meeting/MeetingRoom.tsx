@@ -440,7 +440,8 @@ export default function MeetingRoom({ meetingId, teamParam, groupParam }: Meetin
         .catch(() => {})
         .finally(() => { creatingTeamRef.current = false })
     }
-  }, [state.phase, state.teamName, state.selectedAgentIds, teamId])
+  // groupId must be in deps: the condition checks !groupId to skip team creation for group meetings
+  }, [state.phase, state.teamName, state.selectedAgentIds, teamId, groupId])
 
   // Trigger terminal resize when right panel toggles
   useEffect(() => {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, User, Building2, Briefcase, Code2, Cpu, Tag,
-  Activity, MessageSquare, CheckCircle, Clock, Zap,
+  Activity, MessageSquare, CheckCircle, Clock, Zap, Square,
   DollarSign, Database, BookOpen, Link2, Edit2,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send, RotateCcw,
@@ -21,6 +21,7 @@ import SkillsSection from './SkillsSection'
 import AvatarPicker from './AvatarPicker'
 import EmailAddressesSection from './EmailAddressesSection'
 import { useGovernance } from '@/hooks/useGovernance'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
 import TitleBadge from '@/components/governance/TitleBadge'
 import TitleAssignmentDialog from '@/components/governance/TitleAssignmentDialog'
@@ -297,6 +298,16 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   // When tmux is alive but showing a shell prompt (Claude exited), buttons are enabled.
   const isProgramRunning = sessionStatus?.status === 'online' && sessionStatus?.programRunning !== false
 
+  // Session activity: detect idle prompt vs permission prompt for Stop/Restart/Approve buttons
+  const { getSessionActivity } = useSessionActivity()
+  const sessionName = sessionStatus?.tmuxSessionName || agent?.name
+  const activityInfo = sessionName ? getSessionActivity(sessionName) : null
+  const notificationType = activityInfo?.notificationType
+  const isIdlePrompt = isProgramRunning && notificationType === 'idle_prompt'
+  const isPermissionPrompt = isProgramRunning && notificationType === 'permission_prompt'
+  const isSafeToCommand = isIdlePrompt
+  const [restarting, setRestarting] = useState(false)
+
   // Resolve display program name (e.g. "claude-code", "Claude Code") to CLI binary name
   const resolveProgram = (program: string): string => {
     const p = program.toLowerCase()
@@ -323,6 +334,39 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     const args = agent?.programArgs || ''
     const cmd = `${program} --continue ${args}`.trim()
     await sendCommandToSession(cmd)
+  }
+
+  // Stop Claude: send /exit when in safe idle state
+  const handleStop = async () => {
+    if (!isSafeToCommand || !sessionName) return
+    await sendCommandToSession('/exit')
+  }
+
+  // Approve permission request: send 'y'
+  const handleApprove = async () => {
+    if (!isPermissionPrompt || !sessionName) return
+    await sendCommandToSession('y')
+  }
+
+  // Restart Claude: exit + wait + relaunch
+  const handleRestart = async () => {
+    if (!isSafeToCommand || restarting || !sessionName) return
+    setRestarting(true)
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionName)}/restart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          program: agent?.program || 'claude',
+          programArgs: agent?.programArgs || '',
+        }),
+      })
+      if (!res.ok) console.error('Restart failed:', await res.text())
+    } catch (err) {
+      console.error('Restart failed:', err)
+    } finally {
+      setRestarting(false)
+    }
   }
 
   // CC-P1-701: Restrict value type to the actual union of types used by callers
@@ -657,7 +701,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                     />
 
                     {/* Session action buttons — inject command into terminal, wait 500ms, send Enter */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <button
                         onClick={handleNewSession}
                         disabled={isProgramRunning}
@@ -674,6 +718,44 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         <Play className="w-4 h-4" />
                         Resume Session
                       </button>
+
+                      {/* Stop button — red, only when Claude is in safe idle state */}
+                      {isProgramRunning && (
+                        <button
+                          onClick={handleStop}
+                          disabled={!isSafeToCommand}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all"
+                          title={isSafeToCommand ? 'Send /exit to Claude' : 'Wait until Claude is idle'}
+                        >
+                          <Square className="w-4 h-4" />
+                          Stop
+                        </button>
+                      )}
+
+                      {/* Restart button — orange, only when Claude is in safe idle state */}
+                      {isProgramRunning && (
+                        <button
+                          onClick={handleRestart}
+                          disabled={!isSafeToCommand || restarting}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all"
+                          title={isSafeToCommand ? 'Exit and relaunch Claude' : 'Wait until Claude is idle'}
+                        >
+                          {restarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                          {restarting ? 'Restarting...' : 'Restart'}
+                        </button>
+                      )}
+
+                      {/* Approve permission — green, only when permission prompt active */}
+                      {isPermissionPrompt && (
+                        <button
+                          onClick={handleApprove}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-all"
+                          title="Approve the permission request (sends 'y')"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Approve
+                        </button>
+                      )}
                     </div>
 
                     <EditableField

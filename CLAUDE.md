@@ -829,6 +829,49 @@ When the project owner changes repos or orgs, only these two files need updating
 
 **Note:** The `Emasoft/ai-maestro-plugins` references in this CLAUDE.md are documentation values. The actual runtime values come from ecosystem-constants.
 
+## GitHub Repos Architecture (3-Repo Split)
+
+The AI Maestro ecosystem is split across three separate GitHub repos under the `Emasoft` org. Each has a distinct role:
+
+### 1. `Emasoft/ai-maestro` — Main App (this repo)
+
+The Next.js dashboard + server. Also the **canonical source** for all AMP and AID scripts:
+- `scripts/amp-*.sh` (28 scripts) — Agent Messaging Protocol CLI
+- `scripts/aid-*.sh` (5 scripts) — Agent Identity CLI
+- `scripts/agent-*.sh`, `scripts/docs-*.sh`, `scripts/graph-*.sh`, `scripts/memory-*.sh` — Other CLI tools
+- `install-messaging.sh` copies these scripts to `~/.local/bin/`
+
+This repo's scripts are **more up to date** than the upstream marketplace — they include extra security fixes (e.g., MF-023 path traversal validation in `amp-send.sh`).
+
+### 2. `Emasoft/ai-maestro-plugin` — Core Plugin (NOT a fork)
+
+The main AI Maestro Claude Code plugin (v2.2.0+). Contains **only** skills, commands, hooks — **zero scripts** except the hook handler:
+- **1 hook script**: `scripts/ai-maestro-hook.cjs` (session tracking + message notifications)
+- **11 skills** (auto-discovered from `skills/*/SKILL.md`): agent-management, agent-messaging, agent-identity, debug-hooks, docs-search, graph-query, mcp-discovery, memory-search, planning, team-governance, team-kanban
+- **12 AMP commands** (`commands/*.md`): `/amp-init`, `/amp-send`, `/amp-inbox`, etc. — reference scripts at `~/.local/bin/` (installed by main repo)
+- **No regular scripts** — all scripts live in the main repo and are installed system-wide by the installers
+
+### 3. `Emasoft/ai-maestro-plugins` — Marketplace (fork of 23blocks-OS)
+
+Fork of `23blocks-OS/ai-maestro-plugins`. Lists the 6 predefined role-plugins in `.claude-plugin/marketplace.json`. The fork is 13 commits behind upstream (as of 2026-03-31) but this is a **non-issue** — the upstream additions (AID v0.2.0, AMP v0.1.3 fixes, case normalization) are already present in the main repo with equivalent or improved versions.
+
+**Do NOT merge upstream into this fork** — the main repo is the canonical source for AMP/AID scripts.
+
+### 4. Role-Plugin Repos (6 repos, NOT forks)
+
+Each is an independent Emasoft-owned repo (not forked from 23blocks-OS):
+
+| Repo | compatible-titles | Last updated |
+|------|------------------|-------------|
+| `Emasoft/ai-maestro-architect-agent` | `["ARCHITECT"]` | 2026-03-29 |
+| `Emasoft/ai-maestro-assistant-manager-agent` | `["MANAGER"]` | 2026-03-29 |
+| `Emasoft/ai-maestro-chief-of-staff` | `["CHIEF-OF-STAFF"]` | 2026-03-29 |
+| `Emasoft/ai-maestro-integrator-agent` | `["INTEGRATOR"]` | 2026-03-29 |
+| `Emasoft/ai-maestro-orchestrator-agent` | `["ORCHESTRATOR"]` | 2026-03-29 |
+| `Emasoft/ai-maestro-programmer-agent` | `["MEMBER"]` | 2026-03-29 |
+
+All have `compatible-titles` and `compatible-clients` fields in their `.agent.toml`. No upstream sync needed.
+
 ## Critical Implementation Details
 
 ### Terminal Rendering Performance

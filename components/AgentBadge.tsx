@@ -13,6 +13,7 @@ import {
   Copy,
   Mail,
   Box,
+  Lock,
 } from 'lucide-react'
 import { Agent } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -21,6 +22,8 @@ interface AgentBadgeProps {
   agent: Agent
   isSelected: boolean
   activityStatus?: SessionActivityStatus
+  notificationType?: string
+  programRunning?: boolean
   unreadCount?: number
   onSelect: (agent: Agent) => void
   onRename?: (agent: Agent) => void
@@ -95,22 +98,39 @@ function isEmoji(str: string): boolean {
   return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
 
-// Status info — matches compact view AgentStatusIndicator exactly.
-// pulse = animate-pulse (opacity throb), matching compact view behavior:
-//   waiting = amber + pulse, active = green + pulse, idle = green (no anim)
+// Status info — 5-state indicator based on notificationType and programRunning.
+// States (checked in priority order):
+//   1. Exited: programRunning===false while session online → gray, no pulse
+//   2. Permission: notificationType==='permission_prompt' → orange, pulse
+//   3. Waiting: notificationType==='idle_prompt' or activityStatus==='waiting' → amber, pulse
+//   4. Active: activityStatus==='active' → green, pulse
+//   5. Idle: online but none of the above → green, no pulse
 function getStatusInfo(
   isOnline: boolean,
   isHibernated: boolean,
-  activityStatus?: SessionActivityStatus
+  activityStatus?: SessionActivityStatus,
+  notificationType?: string,
+  programRunning?: boolean,
 ): { color: string; ringColor: string; label: string; pulse: boolean } {
 
   if (isOnline) {
-    if (activityStatus === 'waiting') {
+    // 1. Program exited — session alive but AI program stopped
+    if (programRunning === false) {
+      return { color: 'bg-gray-400', ringColor: 'ring-gray-400/30', label: 'Exited', pulse: false }
+    }
+    // 2. Permission prompt — agent blocked waiting for user permission
+    if (notificationType === 'permission_prompt') {
+      return { color: 'bg-orange-500', ringColor: 'ring-orange-500/30', label: 'Permission', pulse: true }
+    }
+    // 3. Waiting — idle prompt or generic waiting state
+    if (notificationType === 'idle_prompt' || activityStatus === 'waiting') {
       return { color: 'bg-amber-500', ringColor: 'ring-amber-500/30', label: 'Waiting', pulse: true }
     }
+    // 4. Active — agent is processing
     if (activityStatus === 'active') {
       return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Active', pulse: true }
     }
+    // 5. Idle — online but not doing anything
     return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Idle', pulse: false }
   }
 
@@ -125,6 +145,8 @@ export default function AgentBadge({
   agent,
   isSelected,
   activityStatus,
+  notificationType,
+  programRunning,
   unreadCount,
   onSelect,
   onRename,
@@ -145,7 +167,7 @@ export default function AgentBadge({
   const isOnline = agent.session?.status === 'online' || agent.sessions?.[0]?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const statusInfo = getStatusInfo(isOnline, isHibernated, activityStatus)
+  const statusInfo = getStatusInfo(isOnline, isHibernated, activityStatus, notificationType, programRunning)
   const ringColor = stringToRingColor(agent.name)
 
   // Avatar priority: stored URL > stored emoji > computed from ID
@@ -205,8 +227,12 @@ export default function AgentBadge({
         )}
 
         {/* Status LED — exact same style as compact view, scaled up */}
-        <div className="flex items-center justify-center" title={statusInfo.label}>
+        <div className="flex items-center justify-center gap-1" title={statusInfo.label}>
           <div className={`w-3 h-3 rounded-full ${statusInfo.color} ring-[3px] ${statusInfo.ringColor} ${statusInfo.pulse ? 'animate-pulse' : ''}`} />
+          {/* Lock icon shown when agent is blocked on a permission prompt */}
+          {statusInfo.label === 'Permission' && (
+            <Lock className="w-3 h-3 text-orange-500" />
+          )}
         </div>
       </div>
 

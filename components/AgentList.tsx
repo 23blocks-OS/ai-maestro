@@ -41,6 +41,7 @@ import {
   AlertTriangle,
   XCircle,
   Users,
+  Lock,
 } from 'lucide-react'
 import Link from 'next/link'
 import AgentCreationWizard from './AgentCreationWizard'
@@ -1040,6 +1041,8 @@ export default function AgentList({
                                             variant="normal"
                                             isSelected={activeAgentId === agent.id}
                                             activityStatus={activityInfo?.status}
+                                            notificationType={activityInfo?.notificationType}
+                                            programRunning={agent.session?.programRunning}
                                             unreadCount={unreadCounts[agent.id]}
                                             onSelect={handleAgentClick}
                                             onRename={() => onShowAgentProfile(agent)}
@@ -1243,6 +1246,8 @@ export default function AgentList({
                                                   isOnline={isOnline}
                                                   isHibernated={isHibernated}
                                                   activityStatus={activityStatus}
+                                                  notificationType={activityInfo?.notificationType}
+                                                  programRunning={agent.session?.programRunning}
                                                 />
                                               </div>
 
@@ -1486,15 +1491,40 @@ export default function AgentList({
 function AgentStatusIndicator({
   isOnline,
   isHibernated,
-  activityStatus
+  activityStatus,
+  notificationType,
+  programRunning,
 }: {
   isOnline: boolean
   isHibernated?: boolean
   activityStatus?: SessionActivityStatus
+  notificationType?: string
+  programRunning?: boolean
 }) {
   if (isOnline) {
-    // Online states: waiting, active, or idle
-    if (activityStatus === 'waiting') {
+    // 1. Exited — session alive but AI program stopped
+    if (programRunning === false) {
+      return (
+        <div className="flex items-center gap-1.5 flex-shrink-0" title="Program exited">
+          <div className="w-2 h-2 rounded-full bg-gray-400 ring-2 ring-gray-400/30" />
+          <span className="text-xs text-gray-400 hidden lg:inline">Exited</span>
+        </div>
+      )
+    }
+
+    // 2. Permission — agent blocked waiting for user permission
+    if (notificationType === 'permission_prompt') {
+      return (
+        <div className="flex items-center gap-1.5 flex-shrink-0" title="Waiting for permission">
+          <div className="w-2 h-2 rounded-full bg-orange-500 ring-2 ring-orange-500/30 animate-pulse" />
+          <Lock className="w-3 h-3 text-orange-500" />
+          <span className="text-xs text-orange-400 hidden lg:inline">Permission</span>
+        </div>
+      )
+    }
+
+    // 3. Waiting — idle prompt or generic waiting state
+    if (notificationType === 'idle_prompt' || activityStatus === 'waiting') {
       return (
         <div className="flex items-center gap-1.5 flex-shrink-0" title="Waiting for input">
           <div className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30 animate-pulse" />
@@ -1503,6 +1533,7 @@ function AgentStatusIndicator({
       )
     }
 
+    // 4. Active — agent is processing
     if (activityStatus === 'active') {
       return (
         <div className="flex items-center gap-1.5 flex-shrink-0" title="Processing">
@@ -1512,7 +1543,7 @@ function AgentStatusIndicator({
       )
     }
 
-    // Idle or unknown activity status - show as online/idle
+    // 5. Idle — online but not doing anything
     return (
       <div className="flex items-center gap-1.5 flex-shrink-0" title="Online - Idle">
         <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30" />

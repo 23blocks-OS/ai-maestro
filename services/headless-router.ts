@@ -261,7 +261,8 @@ import { verifyHostAttestation } from '@/lib/host-keys'
 // Imports for chief-of-staff endpoint (mirrors app/api/teams/[id]/chief-of-staff/route.ts)
 import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
-import { getAgent } from '@/lib/agent-registry'
+import { getAgent, getAgentBySession } from '@/lib/agent-registry'
+import { execSync } from 'child_process'
 // Atomic rate limiting for auth endpoints
 import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { isValidUuid } from '@/lib/validation'
@@ -691,6 +692,79 @@ const routes: Route[] = [
   { method: 'PATCH', pattern: /^\/api\/sessions\/([^/]+)\/rename$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     await sendServiceResult(res, await renameSession(params.id, body.name))
+  }},
+  // Stop session — sends /exit to the tmux pane
+  { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/stop$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    const sessionName = decodeURIComponent(params.id)
+    try {
+      execSync(`tmux send-keys -t "${sessionName}" '/exit' Enter`, { timeout: 5000 })
+      sendJson(res, 200, { success: true, sessionName })
+    } catch (error: unknown) {
+      sendJson(res, 500, { error: (error as Error).message })
+    }
+  }},
+  // Restart session — /exit, poll for shell prompt, relaunch
+  { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/restart$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const sessionName = decodeURIComponent(params.id)
+    const agent = getAgentBySession(sessionName)
+
+    let body: { program?: string; programArgs?: string } = {}
+    try { body = await readJsonBody(req) } catch { /* optional body */ }
+
+    const program = body.program || agent?.program || 'claude'
+    const programArgs = body.programArgs || agent?.programArgs || ''
+
+    const resolveBin = (p: string): string => {
+      const lower = p.toLowerCase()
+      if (lower.includes('claude')) return 'claude'
+      if (lower.includes('codex')) return 'codex'
+      if (lower.includes('aider')) return 'aider'
+      if (lower.includes('gemini')) return 'gemini'
+      return 'claude'
+    }
+
+    const SHELL_COMMANDS = new Set(['zsh', 'bash', 'sh', 'fish', '-zsh', '-bash'])
+
+    try {
+      // 1. Send /exit
+      execSync(`tmux send-keys -t "${sessionName}" '/exit' Enter`, { timeout: 5000 })
+
+      // 2. Poll until the program exits (shell prompt visible)
+      const maxWait = 15000
+      const pollInterval = 500
+      let elapsed = 0
+      let exited = false
+
+      while (elapsed < maxWait) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval))
+        elapsed += pollInterval
+        let paneCmd: string | null = null
+        try {
+          paneCmd = execSync(`tmux display-message -p -t "${sessionName}" '#{pane_current_command}'`, { timeout: 5000, encoding: 'utf8' }).trim() || null
+        } catch { paneCmd = null }
+        if (!paneCmd || SHELL_COMMANDS.has(paneCmd)) {
+          exited = true
+          break
+        }
+      }
+
+      if (!exited) {
+        sendJson(res, 504, { error: 'Timeout: program did not exit within 15s' })
+        return
+      }
+
+      // 3. Brief pause for shell readiness
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // 4. Build and send relaunch command
+      const bin = resolveBin(program)
+      const cmd = `${bin} ${programArgs}`.trim()
+      execSync(`tmux send-keys -t "${sessionName}" '${cmd.replace(/'/g, "'\\''")}' Enter`, { timeout: 5000 })
+
+      sendJson(res, 200, { success: true, sessionName, command: cmd })
+    } catch (error: unknown) {
+      sendJson(res, 500, { error: (error as Error).message })
+    }
   }},
 
   // =========================================================================

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTeamById, updateTeamById, deleteTeamById } from '@/services/teams-service'
 import { updateAgentById } from '@/services/agents-core-service'
-import { getTeam } from '@/lib/team-registry'
+import { getTeam, updateTeam } from '@/lib/team-registry'
+import { getManagerId } from '@/lib/governance'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { isValidUuid } from '@/lib/validation'
 
@@ -99,6 +100,12 @@ export async function PUT(
         if (team) {
           if (team.orchestratorId === agentId) {
             await updateTeamById(id, { orchestratorId: null, requestingAgentId })
+          }
+          // chiefOfStaffId is stripped by both route + service defense-in-depth guards,
+          // so use the low-level updateTeam from team-registry directly
+          if (team.chiefOfStaffId === agentId) {
+            const managerId = getManagerId()
+            await updateTeam(id, { chiefOfStaffId: null }, managerId)
           }
         }
       }

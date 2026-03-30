@@ -187,10 +187,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         if (signal?.aborted) return
         setLoading(false)
       })
-  // CC-009: Empty deps is intentional — refresh only uses fetch (global) + setState (stable),
-  // signal is passed as a parameter. refresh never changes identity, which is the desired behavior.
+  // CC-009: agentId is needed to fetch the correct agent's governanceTitle.
+  // Other deps (fetch, setState) are stable and don't need to be listed.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [agentId])
 
   // Fetch on mount and when agentId changes; abort stale requests on re-render
   useEffect(() => {

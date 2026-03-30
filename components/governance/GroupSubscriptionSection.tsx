@@ -25,10 +25,14 @@ export default function GroupSubscriptionSection({
 
   // Fetch all groups on mount and when agentId changes (component may not remount on agent switch)
   useEffect(() => {
-    fetchGroups()
+    const controller = new AbortController()
+    fetchGroups(controller.signal)
     // Poll every 10s to pick up group changes from sidebar
-    const interval = setInterval(fetchGroups, 10_000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => fetchGroups(controller.signal), 10_000)
+    return () => {
+      clearInterval(interval)
+      controller.abort()
+    }
   }, [agentId])
 
   // Close dropdown when clicking outside
@@ -43,9 +47,9 @@ export default function GroupSubscriptionSection({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showDropdown])
 
-  async function fetchGroups() {
+  async function fetchGroups(signal?: AbortSignal) {
     try {
-      const res = await fetch('/api/groups')
+      const res = await fetch('/api/groups', { signal })
       if (!res.ok) return
       const data = await res.json()
       setGroups(data.groups || [])

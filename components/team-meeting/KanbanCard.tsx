@@ -193,7 +193,12 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
                 >
                   <GitBranch className="w-4 h-4 flex-shrink-0" />
                   {isLikelyPrivate && <Lock className="w-2.5 h-2.5 flex-shrink-0 text-gray-500" />}
-                  <span className="truncate max-w-[110px]">github.com/{repoFull}</span>
+                  <span className="max-w-[110px]">{(() => {
+                    const full = `github.com/${repoFull}`
+                    if (full.length <= 28) return full
+                    // Middle truncation: keep start (github.com/) + end (/repoName)
+                    return `github.com/…/${repoName}`
+                  })()}</span>
                 </a>
               )
             })() : (

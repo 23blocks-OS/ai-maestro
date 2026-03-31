@@ -150,100 +150,93 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
         </div>
       )}
 
-      {/* Footer: task status icon (left) + assignee avatar with status dot (right) */}
-      <div className="flex items-center gap-2 mt-3">
-        {/* Task status icon — left side */}
-        {task.isBlocked ? (
-          <span title="Task is blocked"><Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /></span>
-        ) : (
-          <Icon className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-        )}
-
-        <div className="flex-1" />
-
-        {/* Assignee — right side: avatar with status dot + name */}
-        {task.assigneeName ? (
-          <span
-            className="flex items-center gap-1.5 text-[11px] text-gray-300"
-            title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
-          >
-            <span className="truncate max-w-[70px] font-medium text-right">{task.assigneeName}</span>
-            {/* Avatar with status indicator dot — overflow-visible so the dot isn't clipped */}
-            <span className="relative flex-shrink-0 w-7 h-7 overflow-visible">
-              {task.assigneeAvatar ? (
-                <img
-                  src={task.assigneeAvatar}
-                  alt={task.assigneeName}
-                  className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-600"
-                />
-              ) : (
-                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium text-white uppercase ring-1 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
-                  {task.assigneeName.charAt(0)}
-                </span>
-              )}
-              {/* Agent status dot — top-right corner, tangent to the avatar circle */}
-              {agentStatus && (
-                <span
-                  className={`absolute top-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
-                  title={agentStatus.label}
-                />
-              )}
+      {/* Bottom section: 3 columns — left icons | center avatar (right-aligned) | right icons */}
+      <div className="flex items-end gap-1.5 mt-3">
+        {/* LEFT column: task status icon + type + deps */}
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          {task.isBlocked ? (
+            <span title="Task is blocked"><Lock className="w-3.5 h-3.5 text-amber-500" /></span>
+          ) : (
+            <Icon className="w-3.5 h-3.5 text-gray-500" />
+          )}
+          {task.taskType && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/60 text-gray-500">
+              {task.taskType}
             </span>
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 text-[11px] text-gray-600 italic">
-            Unassigned
-            <span className="w-7 h-7 rounded-full bg-gray-700/50 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700">
-              <User className="w-3.5 h-3.5 text-gray-600" />
+          )}
+          {task.blockedBy.length > 0 && (
+            <span className="text-[10px] text-amber-500/70" title={`${task.blockedBy.length} dependencies`}>
+              {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
             </span>
-          </span>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Issue/PR link row — right-aligned below footer */}
-      <div className="flex items-center mt-1">
-        <div className="flex-1" />
-
-        {/* GitHub issue/PR type indicator with colored icon */}
-        {task.externalRef && (() => {
-          const isPR = task.externalRef.includes('/pull/')
-          const issueMatch = task.externalRef.match(/(?:issues|pull)\/(\d+)/)
-          if (!issueMatch) return null
-          const TypeIcon = isPR ? GitPullRequest : CircleDot
-          const isCompleted = task.status === 'done' || task.status === 'completed'
-          return (
-            <a
-              href={task.externalRef}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              className={`flex items-center gap-0.5 text-[10px] font-mono hover:underline ${
-                isCompleted ? 'text-purple-400' : 'text-green-400'
-              }`}
-              title={`Open ${isPR ? 'PR' : 'issue'} #${issueMatch[1]} on GitHub`}
+        {/* CENTER column: large avatar (right-aligned, fills the vertical gap) */}
+        <div className="flex-1 flex justify-end">
+          {task.assigneeName ? (
+            <div
+              className="flex flex-col items-center gap-0.5"
+              title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
             >
-              <TypeIcon className="w-3 h-3" />
-              #{issueMatch[1]}
-            </a>
-          )
-        })()}
+              <span className="relative overflow-visible">
+                {task.assigneeAvatar ? (
+                  <img
+                    src={task.assigneeAvatar}
+                    alt={task.assigneeName}
+                    className="w-11 h-11 rounded-full object-cover ring-2 ring-gray-600"
+                  />
+                ) : (
+                  <span className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
+                    {task.assigneeName.charAt(0)}
+                  </span>
+                )}
+                {agentStatus && (
+                  <span
+                    className={`absolute top-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
+                    title={agentStatus.label}
+                  />
+                )}
+              </span>
+              <span className="text-[9px] text-gray-400 truncate max-w-[56px] text-center">{task.assigneeName}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="w-11 h-11 rounded-full bg-gray-700/30 flex items-center justify-center ring-1 ring-gray-700/50">
+                <User className="w-5 h-5 text-gray-600" />
+              </span>
+              <span className="text-[9px] text-gray-600 italic">Unassigned</span>
+            </div>
+          )}
+        </div>
 
-        {/* PR link icon (separate from externalRef, for tasks with a linked PR) */}
-        {task.prUrl && (
-          <span title="Has PR"><GitPullRequest className="w-3 h-3 text-purple-400/70 flex-shrink-0" /></span>
-        )}
-
-        {task.blockedBy.length > 0 && (
-          <span className="text-[10px] text-amber-500/70 flex-shrink-0" title={`${task.blockedBy.length} dependencies`}>
-            {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
-          </span>
-        )}
-
-        {task.taskType && (
-          <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/60 text-gray-500 flex-shrink-0">
-            {task.taskType}
-          </span>
-        )}
+        {/* RIGHT column: issue/PR link */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {task.externalRef && (() => {
+            const isPR = task.externalRef.includes('/pull/')
+            const issueMatch = task.externalRef.match(/(?:issues|pull)\/(\d+)/)
+            if (!issueMatch) return null
+            const TypeIcon = isPR ? GitPullRequest : CircleDot
+            const isCompleted = task.status === 'done' || task.status === 'completed'
+            return (
+              <a
+                href={task.externalRef}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className={`flex items-center gap-0.5 text-[10px] font-mono hover:underline ${
+                  isCompleted ? 'text-purple-400' : 'text-green-400'
+                }`}
+                title={`Open ${isPR ? 'PR' : 'issue'} #${issueMatch[1]} on GitHub`}
+              >
+                <TypeIcon className="w-3 h-3" />
+                #{issueMatch[1]}
+              </a>
+            )
+          })()}
+          {task.prUrl && !task.externalRef?.includes('/pull/') && (
+            <span title="Has PR"><GitPullRequest className="w-3 h-3 text-purple-400/70" /></span>
+          )}
+        </div>
       </div>
     </div>
   )

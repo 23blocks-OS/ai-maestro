@@ -213,40 +213,54 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
           </div>
         </div>
 
-        {/* RIGHT: avatar-only frame — fixed size, flush with card bottom-right */}
+        {/* RIGHT: avatar frame — square image clipped to frame shape, flush with card bottom-right.
+             Top-left corner has inset shadow giving depth (image appears below card surface).
+             Shadow only on top+left inner edges, not bottom+right (those merge with card border). */}
         {task.assigneeName ? (
           <div
-            className="flex items-center justify-center flex-shrink-0 w-14 rounded-br-lg rounded-tl-lg border-t border-l border-gray-600/40 bg-gray-900/40 py-0.5 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.3)]"
+            className="relative flex-shrink-0 w-16 h-16 rounded-br-lg rounded-tl-lg overflow-hidden border-t border-l border-gray-600/50"
             title={`${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
           >
-            <span className="relative overflow-visible flex-shrink-0">
-              {task.assigneeAvatar ? (
-                <img
-                  src={task.assigneeAvatar}
-                  alt={task.assigneeName}
-                  className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-600"
-                />
-              ) : (
-                <span className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
-                  {task.assigneeName.charAt(0)}
-                </span>
-              )}
-              {agentStatus && (
-                <span
-                  className={`absolute top-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
-                  title={agentStatus.label}
-                />
-              )}
-            </span>
+            {/* Square avatar image fills the entire frame */}
+            {task.assigneeAvatar ? (
+              <img
+                src={task.assigneeAvatar}
+                alt={task.assigneeName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className={`w-full h-full flex items-center justify-center text-lg font-semibold text-white uppercase ${assigneeColor(task.assigneeName)}`}>
+                {task.assigneeName.charAt(0)}
+              </div>
+            )}
+            {/* Inset shadow overlay — only from top and left edges, fading inward.
+                 Uses a gradient overlay so shadow doesn't appear on bottom/right sides. */}
+            <div className="absolute inset-0 pointer-events-none rounded-br-lg rounded-tl-lg"
+              style={{
+                background: 'linear-gradient(135deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 30%, transparent 60%)',
+              }}
+            />
+            {/* Agent status dot — top-right corner */}
+            {agentStatus && (
+              <span
+                className={`absolute top-1 right-1 w-3 h-3 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
+                title={agentStatus.label}
+              />
+            )}
           </div>
         ) : (
           <div
-            className="flex items-center justify-center flex-shrink-0 w-14 rounded-br-lg rounded-tl-lg border-t border-l border-gray-700/30 bg-gray-900/20 py-0.5"
+            className="relative flex-shrink-0 w-16 h-16 rounded-br-lg rounded-tl-lg overflow-hidden border-t border-l border-gray-700/30 bg-gray-800/50"
             title="Unassigned"
           >
-            <span className="w-12 h-12 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
-              <User className="w-5 h-5 text-gray-600" />
-            </span>
+            <div className="w-full h-full flex items-center justify-center">
+              <User className="w-6 h-6 text-gray-600" />
+            </div>
+            <div className="absolute inset-0 pointer-events-none rounded-br-lg rounded-tl-lg"
+              style={{
+                background: 'linear-gradient(135deg, rgba(0,0,0,0.3) 0%, transparent 40%)',
+              }}
+            />
           </div>
         )}
       </div>

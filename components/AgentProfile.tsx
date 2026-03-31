@@ -326,10 +326,15 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
    */
   const isIdlePrompt = isProgramRunning && notificationType === 'idle_prompt'
   const isPermissionPrompt = isProgramRunning && notificationType === 'permission_prompt'
-  // Safe to send commands when: hook reported idle_prompt, OR hook state is stale
-  // (status 'idle' without notificationType — happens after server restart or hook gap)
-  const isIdleNoHook = isProgramRunning && activityInfo?.status === 'idle' && !notificationType
-  const isSafeToCommand = isIdlePrompt || isIdleNoHook
+  // Safe to send commands when: hook reported idle_prompt, OR hook state is stale/missing.
+  // After fresh startup, Claude sits at prompt but idle_prompt hasn't fired yet (only fires
+  // after first turn completes). We treat idle/active with no notificationType as safe when
+  // the program is running — the worst case is the user clicks Stop while Claude is processing,
+  // and Ctrl+C/Ctrl+D will cleanly interrupt it.
+  // hookStatus carries the raw status from the hook (including 'subagents_running')
+  const isIdleNoHook = isProgramRunning && !notificationType && activityInfo?.hookStatus !== 'subagents_running'
+  const isNoActivityData = isProgramRunning && !activityInfo
+  const isSafeToCommand = isIdlePrompt || isIdleNoHook || isNoActivityData
   const [restarting, setRestarting] = useState(false)
 
   // Resolve display program name (e.g. "claude-code", "Claude Code") to CLI binary name

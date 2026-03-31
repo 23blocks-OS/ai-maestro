@@ -78,8 +78,9 @@ export async function POST(
   }
 
   try {
-    // Step 1: Send /exit to gracefully stop the running AI program
-    execCommand(`tmux send-keys -t "${sessionName}" '/exit' Enter`)
+    // Step 1: Ctrl+C clears partial input, Ctrl+D sends EOF to exit Claude Code
+    execCommand(`tmux send-keys -t "${sessionName}" C-c`)
+    execCommand(`tmux send-keys -t "${sessionName}" C-d`)
 
     // Step 2: Poll tmux pane command every 500ms until it becomes a shell
     // (meaning the AI program exited and the shell prompt is back)

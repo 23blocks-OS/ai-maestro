@@ -1,20 +1,17 @@
 /**
  * POST /api/sessions/[id]/stop
  *
- * Gracefully stop the AI program (Claude Code, Codex, etc.) running inside
- * a tmux session by sending Ctrl+C (clear input) then Ctrl+D (EOF/exit).
+ * Gracefully stop the AI program running inside a tmux session.
  *
- * Uses keyboard shortcuts instead of typing "/exit" because:
- * - Ctrl+C reliably clears any partial input on the prompt line
- * - Ctrl+D is the standard EOF signal that exits Claude Code cleanly
- * - Typed text like "/exit" can be misinterpreted as a prompt or skill lookup
+ * Sends Ctrl+C (clear any partial input) then `/exit` as literal text.
+ * Chrome testing confirmed: Ctrl+D does NOT exit Claude Code — only /exit works.
+ * The `-l` flag on tmux send-keys sends literal characters, avoiding key-name
+ * interpretation that could corrupt the command.
+ *
+ * Fires the `SessionEnd` hook on exit.
  *
  * After this call, the tmux session remains alive (showing a shell prompt)
  * but the AI program is no longer running.
- *
- * The profile panel's Stop button calls this endpoint. It is gated by the
- * `isSafeToCommand` check — the button is only enabled when the agent is
- * at its idle input prompt, ensuring we never interrupt Claude mid-operation.
  *
  * **Response:** `{ success: true, sessionName }` on success, or HTTP 500 if
  * the tmux send-keys command fails (e.g. session not found).

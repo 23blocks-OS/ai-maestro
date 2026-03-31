@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate status is one of the known activity statuses
-    const VALID_STATUSES = ['active', 'idle', 'busy', 'offline', 'error', 'waiting', 'stopped']
+    // All status values the hook can send (8-state model + legacy values)
+    const VALID_STATUSES = ['active', 'idle', 'busy', 'offline', 'error', 'waiting', 'stopped', 'waiting_for_input', 'permission_request', 'subagents_running', 'compacting', 'elicitation', 'exited']
     if (status && !VALID_STATUSES.includes(status)) {
       return NextResponse.json(
         { success: false, error: `Invalid status '${status}'. Must be one of: ${VALID_STATUSES.join(', ')}` },

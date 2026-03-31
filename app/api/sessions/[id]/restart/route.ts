@@ -1,3 +1,30 @@
+/**
+ * POST /api/sessions/[id]/restart
+ *
+ * Orchestrates a full graceful restart of a Claude Code (or other AI program)
+ * session running inside tmux. The restart is a 4-step sequence:
+ *
+ *   Step 1: Send `/exit` to the tmux pane — Claude interprets this as a
+ *           clean shutdown request and exits gracefully.
+ *   Step 2: Poll the tmux pane's current command every 500ms for up to 15s.
+ *           When the pane command becomes a shell (zsh, bash, etc.), the AI
+ *           program has exited and the shell prompt is visible.
+ *   Step 3: Wait 1s for the shell to fully initialize (prompt rendering,
+ *           rc file sourcing, etc.).
+ *   Step 4: Send the relaunch command (e.g. `claude --agent my-plugin-main-agent`)
+ *           to restart the AI program with the same arguments.
+ *
+ * **Callers:** The profile panel's Restart button, and the useRestartQueue hook
+ * (which defers the call until the agent reaches idle_prompt safe state).
+ *
+ * **Timeout:** Returns HTTP 504 if the program doesn't exit within 15 seconds.
+ *
+ * **Request body (optional):**
+ *   - `program`: display name of the AI program (resolved to CLI binary)
+ *   - `programArgs`: CLI arguments to pass on relaunch
+ *
+ * Falls back to the agent registry's stored program/programArgs, then to 'claude'.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getAgentBySession } from '@/lib/agent-registry'
 
@@ -12,6 +39,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+/** Query tmux for the process currently running in the session's pane. */
 function getPaneCommand(sessionName: string): string | null {
   try {
     return execCommand(`tmux display-message -p -t "${sessionName}" '#{pane_current_command}'`) || null
@@ -20,19 +48,17 @@ function getPaneCommand(sessionName: string): string | null {
   }
 }
 
+/** Shell process names that indicate the AI program has exited and the pane
+ *  is back at a shell prompt (ready to accept a new launch command). */
 const SHELL_COMMANDS = new Set(['zsh', 'bash', 'sh', 'fish', '-zsh', '-bash'])
 
-/**
- * POST /api/sessions/[id]/restart
- * Orchestrates a full restart: sends /exit, waits for shell prompt, relaunches the program.
- */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: sessionName } = await params
 
-  // Get agent info for relaunch command
+  // Look up the agent's stored program and args from the registry
   const agent = getAgentBySession(sessionName)
 
   let body: { program?: string; programArgs?: string } = {}
@@ -41,7 +67,7 @@ export async function POST(
   const program = body.program || agent?.program || 'claude'
   const programArgs = body.programArgs || agent?.programArgs || ''
 
-  // Resolve program name to CLI binary
+  // Resolve display program name (e.g. "Claude Code") to the actual CLI binary name
   const resolveBin = (p: string): string => {
     const lower = p.toLowerCase()
     if (lower.includes('claude')) return 'claude'
@@ -52,11 +78,12 @@ export async function POST(
   }
 
   try {
-    // 1. Send /exit
+    // Step 1: Send /exit to gracefully stop the running AI program
     execCommand(`tmux send-keys -t "${sessionName}" '/exit' Enter`)
 
-    // 2. Poll until the program exits (shell prompt visible)
-    const maxWait = 15000
+    // Step 2: Poll tmux pane command every 500ms until it becomes a shell
+    // (meaning the AI program exited and the shell prompt is back)
+    const maxWait = 15000  // 15 second timeout
     const pollInterval = 500
     let elapsed = 0
     let exited = false
@@ -65,6 +92,7 @@ export async function POST(
       await sleep(pollInterval)
       elapsed += pollInterval
       const paneCmd = getPaneCommand(sessionName)
+      // If pane command is null (session gone) or a shell, the program exited
       if (!paneCmd || SHELL_COMMANDS.has(paneCmd)) {
         exited = true
         break
@@ -75,10 +103,10 @@ export async function POST(
       return NextResponse.json({ error: 'Timeout: program did not exit within 15s' }, { status: 504 })
     }
 
-    // 3. Brief pause for shell readiness
+    // Step 3: Brief pause for shell readiness (rc files, prompt rendering)
     await sleep(1000)
 
-    // 4. Build and send relaunch command
+    // Step 4: Build and send the relaunch command into the tmux pane
     const bin = resolveBin(program)
     const cmd = `${bin} ${programArgs}`.trim()
     execCommand(`tmux send-keys -t "${sessionName}" '${cmd.replace(/'/g, "'\\''")}' Enter`)

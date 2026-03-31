@@ -437,6 +437,33 @@ types/websocket.ts  - Message protocol, connection states
 
 All WebSocket messages are JSON. Raw terminal output (ANSI codes) is wrapped in `{ type: 'output', data: ... }`.
 
+### 9. Session Control Architecture (v0.27.1+)
+
+**5-state agent status model** based on hook notifications and tmux pane detection:
+
+| State | Color | Pulse | Source | Meaning |
+|-------|-------|-------|--------|---------|
+| Exited | gray-400 | no | `programRunning === false` | Claude process ended, shell prompt visible |
+| Permission | orange-500 | yes | `notificationType === 'permission_prompt'` | Claude is blocked waiting for tool approval |
+| Waiting | amber-500 | yes | `notificationType === 'idle_prompt'` | Claude finished, waiting for user input (safe state) |
+| Active | green-500 | yes | `activityStatus === 'active'` | Claude is processing/generating |
+| Idle | green-500 | no | Default when online | Between turns, no recent activity |
+
+**Safe-state gate:** All control operations (Stop, Restart, Approve) require `idle_prompt` state. This is the only state where Claude has no subagents running, no permission prompts pending, and is genuinely waiting for input.
+
+**Session control buttons (AgentProfile.tsx):**
+- **Stop** (red): sends `/exit`. Enabled only at `idle_prompt`.
+- **Restart** (orange): calls `POST /api/sessions/{name}/restart` — sends `/exit`, polls `tmux display-message` until shell detected (max 15s), waits 1s, relaunches with same program args.
+- **Approve** (green): sends `y` to terminal. Visible only during `permission_prompt`.
+
+**Auto-restart queue (`useRestartQueue` hook):** After plugin/skill changes, agents are queued for restart. The queue watches `useSessionActivity` — when a queued agent reaches `idle_prompt`, it fires the restart API automatically.
+
+**API endpoints:**
+- `POST /api/sessions/{name}/stop` — sends `/exit` to tmux session
+- `POST /api/sessions/{name}/restart` — full restart cycle (exit → poll → wait → relaunch)
+
+**Data flow:** Hook (`ai-maestro-hook.cjs`) → state file (`~/.aimaestro/chat-state/`) → WebSocket broadcast → `useSessionActivity` → `AgentBadge`/`AgentProfile`
+
 ## File Structure Conventions
 
 **DO NOT create these directories** (they don't exist yet in Phase 1):
@@ -479,6 +506,8 @@ hooks/
   useGovernance.ts      - Governance state (agentTitle, team membership, permissions)
   useTasks.ts           - Task CRUD with tasksByStatus, optimistic updates, 5s polling
   useMeetingMessages.ts - Meeting chat messages via AMP with 7s polling
+  useSessionActivity.ts - Agent activity status via WebSocket (5-state model)
+  useRestartQueue.ts    - Auto-restart queue triggered by element changes
 
 lib/
   api.ts                - Fetch wrappers for /api/sessions
@@ -1190,6 +1219,12 @@ When implementing features:
 17. `types/group.ts` - Group type definitions (lightweight agent collections)
 18. `lib/group-registry.ts` - File-based CRUD for groups
 19. `services/groups-service.ts` - Groups business logic
+
+**Session Control (v0.27.1+):**
+20. `hooks/useSessionActivity.ts` - WebSocket-based activity status with notificationType
+21. `hooks/useRestartQueue.ts` - Queue-based auto-restart after element changes
+22. `app/api/sessions/[id]/restart/route.ts` - Restart API (exit → poll → relaunch)
+23. `app/api/sessions/[id]/stop/route.ts` - Graceful stop API
 
 **Read these in order** to understand agents and data flow.
 

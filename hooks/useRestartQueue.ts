@@ -11,11 +11,31 @@ interface RestartRequest {
 }
 
 /**
- * Hook that manages a queue of agents needing restart.
- * Watches session activity — when a queued agent reaches idle_prompt
- * (safe state), fires the restart API automatically.
+ * Hook that manages a deferred-restart queue for Claude Code agents.
  *
- * Usage:
+ * **Problem solved:** After a plugin install or configuration change, agents
+ * need to restart so Claude reloads its environment. But we cannot send /exit
+ * while Claude is actively processing — that would corrupt output or lose work.
+ *
+ * **Mechanism:**
+ * 1. Callers enqueue agents via `queueRestart(sessionName, program, args)`.
+ * 2. A `useEffect` watches the `useSessionActivity` hook for each queued agent.
+ * 3. When a queued agent's `notificationType` reaches `'idle_prompt'` (safe state),
+ *    the hook automatically fires `POST /api/sessions/{id}/restart`.
+ * 4. The agent is removed from the queue once the restart request completes.
+ *
+ * **Concurrency guard:** `activeRestartsRef` prevents duplicate restart calls
+ * for the same session if the effect re-runs before the fetch resolves.
+ *
+ * **Exported API:**
+ * - `queueRestart(sessionName, program, programArgs)` — enqueue a single agent
+ * - `queueRestartAll(agents[])` — enqueue multiple agents at once
+ * - `cancelRestart(sessionName)` — remove an agent from the queue
+ * - `cancelAll()` — clear the entire queue
+ * - `pendingCount` — number of agents still waiting for safe state
+ * - `pendingSessions` — array of session names in the queue
+ *
+ * @example
  *   const { queueRestart, queueRestartAll, pendingCount, pendingSessions } = useRestartQueue()
  *   // After a plugin install:
  *   queueRestart('my-agent', 'claude', '--agent my-plugin-main-agent')
@@ -25,7 +45,8 @@ export function useRestartQueue() {
   const { getSessionActivity } = useSessionActivity()
   const activeRestartsRef = useRef<Set<string>>(new Set())
 
-  // Enqueue a single agent restart
+  /** Enqueue a single agent for deferred restart. The restart fires automatically
+   *  once the agent's session reaches idle_prompt (safe state). */
   const queueRestart = useCallback((sessionName: string, program: string, programArgs: string) => {
     setQueue(prev => {
       const next = new Map(prev)
@@ -34,7 +55,8 @@ export function useRestartQueue() {
     })
   }, [])
 
-  // Enqueue all provided agents for restart
+  /** Enqueue multiple agents for deferred restart in a single state update.
+   *  Each agent restarts independently when it reaches its own safe state. */
   const queueRestartAll = useCallback((agents: Array<{ name: string; program?: string; programArgs?: string }>) => {
     setQueue(prev => {
       const next = new Map(prev)
@@ -50,7 +72,7 @@ export function useRestartQueue() {
     })
   }, [])
 
-  // Cancel a pending restart
+  /** Remove a single agent from the restart queue (e.g. if the user cancelled the operation). */
   const cancelRestart = useCallback((sessionName: string) => {
     setQueue(prev => {
       const next = new Map(prev)
@@ -59,12 +81,13 @@ export function useRestartQueue() {
     })
   }, [])
 
-  // Cancel all pending restarts
+  /** Clear the entire restart queue — no pending agents will be restarted. */
   const cancelAll = useCallback(() => {
     setQueue(new Map())
   }, [])
 
-  // Watch activity: when queued agent hits idle_prompt, fire restart
+  // Core polling effect: on every activity map update, check each queued agent.
+  // When a queued agent's notificationType becomes 'idle_prompt', fire the restart API.
   useEffect(() => {
     if (queue.size === 0) return
 

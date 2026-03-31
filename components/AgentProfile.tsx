@@ -303,6 +303,23 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const sessionName = sessionStatus?.tmuxSessionName || agent?.name
   const activityInfo = sessionName ? getSessionActivity(sessionName) : null
   const notificationType = activityInfo?.notificationType
+
+  /**
+   * Safe-state concept for session control buttons:
+   *
+   * Claude Code sessions cycle through states detected via WebSocket activity hooks:
+   *   - 'idle_prompt': Claude finished processing and displays its input prompt.
+   *     This is the ONLY state where Stop and Restart are safe because sending
+   *     /exit won't interrupt a running tool or corrupt output.
+   *   - 'permission_prompt': Claude is blocked asking the user to approve a tool
+   *     use (e.g. file write, bash command). The Approve button becomes active.
+   *   - 'active' / undefined: Claude is processing — buttons must stay disabled
+   *     to prevent data loss from mid-operation interruption.
+   *
+   * `isSafeToCommand` gates Stop and Restart.
+   * `isPermissionPrompt` gates Approve.
+   * Both require `isProgramRunning` to be true (the AI program is still alive).
+   */
   const isIdlePrompt = isProgramRunning && notificationType === 'idle_prompt'
   const isPermissionPrompt = isProgramRunning && notificationType === 'permission_prompt'
   const isSafeToCommand = isIdlePrompt
@@ -336,19 +353,52 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     await sendCommandToSession(cmd)
   }
 
-  // Stop Claude: send /exit when in safe idle state
+  /**
+   * Gracefully stop the running Claude Code session.
+   *
+   * Sends the `/exit` command to the terminal, which Claude Code interprets
+   * as a clean shutdown request. This is only enabled when `isSafeToCommand`
+   * is true (i.e. Claude is at its idle input prompt, not mid-processing).
+   * Sending /exit while Claude is actively running a tool could corrupt
+   * output or leave partial file writes.
+   *
+   * After /exit, the tmux pane drops back to a shell prompt and the
+   * session transitions to the "Exited" state (programRunning=false).
+   */
   const handleStop = async () => {
     if (!isSafeToCommand || !sessionName) return
     await sendCommandToSession('/exit')
   }
 
-  // Approve permission request: send 'y'
+  /**
+   * Accept a pending permission request by sending 'y' to the terminal.
+   *
+   * When Claude Code asks the user to approve a tool use (file write, bash
+   * command, etc.), it enters the 'permission_prompt' state and waits for
+   * input. This handler sends 'y' (yes/approve) to unblock Claude and let
+   * it proceed with the requested tool invocation.
+   *
+   * Only enabled when `isPermissionPrompt` is true — i.e. the WebSocket
+   * activity hook detected a permission_prompt notification from Claude.
+   */
   const handleApprove = async () => {
     if (!isPermissionPrompt || !sessionName) return
     await sendCommandToSession('y')
   }
 
-  // Restart Claude: exit + wait + relaunch
+  /**
+   * Restart the Claude Code session: exit, wait for shell prompt, relaunch.
+   *
+   * This calls POST /api/sessions/{id}/restart which orchestrates a 3-step
+   * sequence: (1) send /exit, (2) poll until the tmux pane shows a shell
+   * command (zsh/bash), (3) relaunch the program with the same arguments.
+   * The full cycle takes approximately 15 seconds.
+   *
+   * Only enabled when `isSafeToCommand` is true (Claude at idle prompt)
+   * and no restart is already in progress (`restarting` state guard).
+   * Useful after plugin installs or configuration changes that require
+   * Claude to reload its environment.
+   */
   const handleRestart = async () => {
     if (!isSafeToCommand || restarting || !sessionName) return
     setRestarting(true)
@@ -706,6 +756,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         onClick={handleNewSession}
                         disabled={isProgramRunning}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-emerald-500/25"
+                        title="Launch a new Claude Code session (previous conversation not resumed)"
                       >
                         <Plus className="w-4 h-4" />
                         New Session
@@ -714,6 +765,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         onClick={handleResumeSession}
                         disabled={isProgramRunning}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-blue-500/25"
+                        title="Resume the last Claude Code conversation with --continue"
                       >
                         <Play className="w-4 h-4" />
                         Resume Session
@@ -725,7 +777,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                           onClick={handleStop}
                           disabled={!isSafeToCommand}
                           className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all"
-                          title={isSafeToCommand ? 'Send /exit to Claude' : 'Wait until Claude is idle'}
+                          title={isSafeToCommand ? 'Send /exit to gracefully stop Claude Code' : 'Stop is available when Claude finishes processing and waits for input (idle_prompt state)'}
                         >
                           <Square className="w-4 h-4" />
                           Stop
@@ -738,7 +790,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                           onClick={handleRestart}
                           disabled={!isSafeToCommand || restarting}
                           className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all"
-                          title={isSafeToCommand ? 'Exit and relaunch Claude' : 'Wait until Claude is idle'}
+                          title={isSafeToCommand ? 'Exit Claude and relaunch with the same arguments. Takes ~15s.' : 'Restart is available when Claude finishes processing and waits for input (idle_prompt state)'}
                         >
                           {restarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                           {restarting ? 'Restarting...' : 'Restart'}
@@ -750,7 +802,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         <button
                           onClick={handleApprove}
                           className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-all"
-                          title="Approve the permission request (sends 'y')"
+                          title="Accept the current permission request by sending 'y'. This approves the tool use Claude is asking about."
                         >
                           <CheckCircle className="w-4 h-4" />
                           Approve

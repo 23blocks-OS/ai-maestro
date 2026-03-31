@@ -8,6 +8,20 @@ export interface SessionActivityInfo {
   lastActivity: string
   status: SessionActivityStatus
   hookStatus?: string
+  /**
+   * The type of prompt Claude Code is currently displaying, reported by
+   * the session-tracking hook running inside each tmux session.
+   *
+   * Values:
+   *   - 'idle_prompt': Claude finished processing and shows its input prompt
+   *     (the ">" or similar). This is the safe state where Stop/Restart can
+   *     be sent without interrupting work. The agent badge shows "Waiting" (amber).
+   *   - 'permission_prompt': Claude is blocked asking the user to approve a
+   *     tool use (file write, bash command, etc.). The Approve button becomes
+   *     active. The agent badge shows "Permission" (orange).
+   *   - undefined: No prompt detected yet — Claude is either actively processing
+   *     or the hook hasn't reported. The badge falls through to 'Active' or 'Idle'.
+   */
   notificationType?: string
 }
 

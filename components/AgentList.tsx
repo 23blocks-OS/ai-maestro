@@ -228,7 +228,12 @@ export default function AgentList({
     return (localStorage.getItem('agent-sidebar-view') as SidebarView) || 'agents'
   })
 
-  // Session activity tracking (for waiting/active/idle status)
+  // Session activity tracking (for waiting/active/idle status).
+  // `getSessionActivity(sessionName)` returns a SessionActivityInfo with:
+  //   - status: 'active' | 'idle' | 'waiting' — terminal output level
+  //   - notificationType: 'idle_prompt' | 'permission_prompt' | undefined — hook-detected prompt state
+  // These are forwarded to AgentBadge and AgentStatusIndicator to drive
+  // the colored dot indicator and label shown next to each agent.
   const { getSessionActivity } = useSessionActivity()
 
   // Teams data for team-based grouping — re-fetched when agents change (team membership may have changed)
@@ -1032,6 +1037,11 @@ export default function AgentList({
                                         const isOnline = session?.status === 'online'
                                         const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
                                         const sessionName = agent.name
+                                        // Retrieve real-time activity from the WebSocket-backed useSessionActivity hook.
+                                        // activityInfo.status drives the badge color (active/idle/waiting).
+                                        // activityInfo.notificationType ('idle_prompt'/'permission_prompt') drives
+                                        // higher-priority badge states and the Approve/Stop/Restart button enablement
+                                        // in AgentProfile. programRunning comes from the session API (tmux pane check).
                                         const activityInfo = sessionName ? getSessionActivity(sessionName) : null
 
                                         return (
@@ -1147,7 +1157,12 @@ export default function AgentList({
                                   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
                                   const indentClass = 'pl-10'
 
-                                  // Get activity status for online agents
+                                  // Get activity status for online agents.
+                                  // Data flow: useSessionActivity hook → WebSocket /status endpoint → server
+                                  // monitors tmux hooks → returns SessionActivityInfo per session.
+                                  // activityInfo.notificationType and .status are passed through to
+                                  // AgentStatusIndicator which renders the colored dot + label.
+                                  // agent.session.programRunning is from the sessions API (tmux pane command check).
                                   const sessionName = agent.name
                                   const activityInfo = sessionName ? getSessionActivity(sessionName) : null
                                   const activityStatus = activityInfo?.status

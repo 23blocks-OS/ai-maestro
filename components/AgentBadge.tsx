@@ -98,13 +98,34 @@ function isEmoji(str: string): boolean {
   return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
 
-// Status info — 5-state indicator based on notificationType and programRunning.
-// States (checked in priority order):
-//   1. Exited: programRunning===false while session online → gray, no pulse
-//   2. Permission: notificationType==='permission_prompt' → orange, pulse
-//   3. Waiting: notificationType==='idle_prompt' or activityStatus==='waiting' → amber, pulse
-//   4. Active: activityStatus==='active' → green, pulse
-//   5. Idle: online but none of the above → green, no pulse
+/**
+ * Resolve the visual status indicator for an agent badge.
+ *
+ * Returns a color, ring highlight, label, and pulse flag used by both
+ * AgentBadge and AgentStatusIndicator to render the colored dot next to
+ * each agent in the sidebar.
+ *
+ * The 5 online sub-states are checked in strict priority order so that
+ * higher-priority states always win when multiple conditions overlap:
+ *
+ * | Priority | State        | Color   | Pulse | When it occurs                                         |
+ * |----------|------------- |---------|-------|--------------------------------------------------------|
+ * | 1        | Exited       | gray    | no    | tmux session alive but the AI program (Claude) stopped |
+ * | 2        | Permission   | orange  | yes   | Claude is blocked asking the user to approve a tool    |
+ * | 3        | Waiting      | amber   | yes   | Claude finished processing, shows its input prompt     |
+ * | 4        | Active       | green   | yes   | Claude is running a tool or generating output          |
+ * | 5        | Idle         | green   | no    | Session online but no recent terminal activity         |
+ *
+ * Two additional states apply when the session is NOT online:
+ *   - Hibernated (slate, no pulse): tmux session suspended
+ *   - Offline (gray, no pulse): no tmux session found
+ *
+ * @param isOnline       Whether the tmux session exists and is running
+ * @param isHibernated   Whether the agent has a suspended tmux session
+ * @param activityStatus Terminal activity level from useSessionActivity hook
+ * @param notificationType Hook-reported prompt type: 'idle_prompt' | 'permission_prompt'
+ * @param programRunning Whether the AI program is running inside tmux (false = shell prompt)
+ */
 function getStatusInfo(
   isOnline: boolean,
   isHibernated: boolean,
@@ -114,23 +135,28 @@ function getStatusInfo(
 ): { color: string; ringColor: string; label: string; pulse: boolean } {
 
   if (isOnline) {
-    // 1. Program exited — session alive but AI program stopped
+    // Priority 1: Program exited — tmux session alive but the AI program (Claude/Codex/etc.) stopped.
+    // The user sees a shell prompt. New Session / Resume buttons become active in the profile panel.
     if (programRunning === false) {
       return { color: 'bg-gray-400', ringColor: 'ring-gray-400/30', label: 'Exited', pulse: false }
     }
-    // 2. Permission prompt — agent blocked waiting for user permission
+    // Priority 2: Permission prompt — Claude is blocked asking the user to approve a tool use
+    // (e.g. file write, bash command). The Approve button lights up in the profile panel.
     if (notificationType === 'permission_prompt') {
       return { color: 'bg-orange-500', ringColor: 'ring-orange-500/30', label: 'Permission', pulse: true }
     }
-    // 3. Waiting — idle prompt or generic waiting state
+    // Priority 3: Waiting — Claude finished its response and shows its input prompt (idle_prompt),
+    // or the generic 'waiting' status from terminal inactivity. Stop/Restart become safe.
     if (notificationType === 'idle_prompt' || activityStatus === 'waiting') {
       return { color: 'bg-amber-500', ringColor: 'ring-amber-500/30', label: 'Waiting', pulse: true }
     }
-    // 4. Active — agent is processing
+    // Priority 4: Active — Claude is currently processing (tool execution, LLM streaming, etc.)
+    // Do NOT send /exit or commands in this state — it would interrupt mid-operation.
     if (activityStatus === 'active') {
       return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Active', pulse: true }
     }
-    // 5. Idle — online but not doing anything
+    // Priority 5: Idle — session is online but we have no specific activity signal.
+    // This is the default fallback for online sessions before the first activity event arrives.
     return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Idle', pulse: false }
   }
 

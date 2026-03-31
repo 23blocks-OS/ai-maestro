@@ -233,11 +233,16 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
                 {task.assigneeName.charAt(0)}
               </div>
             )}
-            {/* Inset shadow overlay — only from top and left edges, fading inward.
-                 Uses a gradient overlay so shadow doesn't appear on bottom/right sides. */}
+            {/* Inset shadow — two thin strips along top and left edges only,
+                 simulating the image being tucked under a ledge. Each strip
+                 fades from dark at the edge to transparent ~8px inward.
+                 No shadow on bottom or right sides. */}
             <div className="absolute inset-0 pointer-events-none rounded-br-lg rounded-tl-lg"
               style={{
-                background: 'linear-gradient(135deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 30%, transparent 60%)',
+                background: [
+                  'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.2) 4px, transparent 8px)',
+                  'linear-gradient(to right, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.2) 4px, transparent 8px)',
+                ].join(', '),
               }}
             />
             {/* Agent status dot — top-right corner */}
@@ -258,7 +263,10 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
             </div>
             <div className="absolute inset-0 pointer-events-none rounded-br-lg rounded-tl-lg"
               style={{
-                background: 'linear-gradient(135deg, rgba(0,0,0,0.3) 0%, transparent 40%)',
+                background: [
+                  'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, transparent 6px)',
+                  'linear-gradient(to right, rgba(0,0,0,0.35) 0%, transparent 6px)',
+                ].join(', '),
               }}
             />
           </div>

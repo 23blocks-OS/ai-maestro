@@ -42,13 +42,13 @@ else
     EXISTING_SETTINGS='{}'
 fi
 
-# Create the hooks configuration
+# Create the hooks configuration — all events AI Maestro monitors for the 8-state model
 HOOKS_CONFIG=$(cat << EOF
 {
   "hooks": {
     "Notification": [
       {
-        "matcher": "idle_prompt|permission_prompt",
+        "matcher": "idle_prompt|permission_prompt|elicitation_dialog",
         "hooks": [
           {
             "type": "command",
@@ -69,7 +69,73 @@ HOOKS_CONFIG=$(cat << EOF
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
       {
         "hooks": [
           {

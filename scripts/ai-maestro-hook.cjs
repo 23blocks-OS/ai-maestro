@@ -7,8 +7,17 @@
  *
  * Supported events:
  * - Notification (idle_prompt): When Claude is waiting for user input
+ * - Notification (permission_prompt): When Claude is waiting for permission approval
+ * - Notification (elicitation_dialog): When MCP server requests user input
+ * - PermissionRequest: When Claude asks for tool permission
  * - Stop: When Claude finishes responding
+ * - StopFailure: When a turn ends due to API error
  * - SessionStart: When a session starts/resumes
+ * - SessionEnd: When a session terminates
+ * - SubagentStart: When a background subagent is spawned
+ * - SubagentStop: When a background subagent completes
+ * - PreCompact: Before context compaction
+ * - PostCompact: After context compaction completes
  *
  * State is written to: ~/.aimaestro/chat-state/<cwd-hash>.json
  */
@@ -65,7 +74,7 @@ async function broadcastStatusUpdate(cwd, state) {
         const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
         if (!sessionName) return;
 
-        // Broadcast the status update
+        // Broadcast the status update with all state fields for the 8-state model
         await fetch('http://localhost:23000/api/sessions/activity/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -73,7 +82,10 @@ async function broadcastStatusUpdate(cwd, state) {
                 sessionName,
                 status: state.status,
                 hookStatus: state.status,
-                notificationType: state.notificationType
+                notificationType: state.notificationType,
+                subagentCount: state.subagentCount,
+                errorType: state.errorType,
+                endReason: state.endReason
             })
         });
 
@@ -235,6 +247,19 @@ async function checkUnreadMessages(cwd) {
     }
 }
 
+// Read current subagent count from state file (for SubagentStart/Stop tracking)
+function getSubagentCount(cwd) {
+    try {
+        const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');
+        const cwdHash = hashCwd(cwd);
+        const stateFile = path.join(stateDir, `${cwdHash}.json`);
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+        return state.subagentCount || 0;
+    } catch (e) {
+        return 0;
+    }
+}
+
 // Main
 async function main() {
     const input = await readStdin();
@@ -368,31 +393,55 @@ async function main() {
                     options: existingState.options,
                     description: existingState.description || input.message
                 });
+            } else if (notificationType === 'elicitation_dialog') {
+                // MCP server is requesting user input — special blocking state
+                writeState(cwd, {
+                    status: 'elicitation',
+                    message: input.message || 'MCP server requesting input…',
+                    notificationType,
+                    sessionId,
+                    transcriptPath
+                });
             }
             break;
 
         case 'Stop':
-            // Claude finished responding - clear the waiting state
+            // Claude finished responding — clear the waiting state but preserve subagent count
+            {
+                const currentSubagents = getSubagentCount(cwd);
+                writeState(cwd, {
+                    status: currentSubagents > 0 ? 'subagents_running' : 'idle',
+                    message: null,
+                    subagentCount: currentSubagents,
+                    sessionId,
+                    transcriptPath
+                });
+            }
+            break;
+
+        case 'StopFailure':
+            // Turn ended due to API error (rate limit, auth failure, billing, etc.)
             writeState(cwd, {
-                status: 'idle',
-                message: null,
+                status: 'error',
+                message: input.error || input.message || 'API error',
+                errorType: input.error_type || input.stop_reason || 'unknown',
                 sessionId,
                 transcriptPath
             });
             break;
 
         case 'SessionStart':
-            // Session started - record the session info
+            // Session started — reset subagent count and record session info
             writeState(cwd, {
                 status: 'active',
                 message: null,
+                subagentCount: 0,
                 sessionId,
                 transcriptPath,
                 source: input.source
             });
 
             // Check for unread messages after a short delay to let session initialize
-            // The delay ensures Claude Code is ready to receive the notification
             setTimeout(async () => {
                 const messagePrompt = await checkUnreadMessages(cwd);
                 if (messagePrompt) {
@@ -400,6 +449,74 @@ async function main() {
                     await sendMessageNotification(cwd, messagePrompt);
                 }
             }, 3000);  // 3 second delay for session initialization
+            break;
+
+        case 'SessionEnd':
+            // Session terminated — mark as exited with reason
+            writeState(cwd, {
+                status: 'exited',
+                message: null,
+                subagentCount: 0,
+                endReason: input.end_reason || 'unknown',
+                sessionId,
+                transcriptPath
+            });
+            break;
+
+        case 'SubagentStart':
+            // Background subagent spawned — increment counter, block restart/autoContinue
+            {
+                const count = getSubagentCount(cwd) + 1;
+                writeState(cwd, {
+                    status: 'subagents_running',
+                    message: `${count} subagent${count > 1 ? 's' : ''} running`,
+                    subagentCount: count,
+                    lastSubagentId: input.agent_id,
+                    lastSubagentType: input.agent_type,
+                    sessionId,
+                    transcriptPath
+                });
+                debugLog({ event: 'subagent_start', agentId: input.agent_id, type: input.agent_type, count });
+            }
+            break;
+
+        case 'SubagentStop':
+            // Background subagent completed — decrement counter
+            {
+                const count = Math.max(0, getSubagentCount(cwd) - 1);
+                writeState(cwd, {
+                    status: count > 0 ? 'subagents_running' : 'active',
+                    message: count > 0 ? `${count} subagent${count > 1 ? 's' : ''} running` : null,
+                    subagentCount: count,
+                    lastSubagentId: input.agent_id,
+                    lastSubagentType: input.agent_type,
+                    sessionId,
+                    transcriptPath
+                });
+                debugLog({ event: 'subagent_stop', agentId: input.agent_id, type: input.agent_type, count });
+            }
+            break;
+
+        case 'PreCompact':
+            // Context compaction starting — agent temporarily unavailable
+            writeState(cwd, {
+                status: 'compacting',
+                message: 'Context compaction in progress…',
+                subagentCount: getSubagentCount(cwd),
+                sessionId,
+                transcriptPath
+            });
+            break;
+
+        case 'PostCompact':
+            // Context compaction completed — resume active state
+            writeState(cwd, {
+                status: 'active',
+                message: null,
+                subagentCount: getSubagentCount(cwd),
+                sessionId,
+                transcriptPath
+            });
             break;
 
         default:

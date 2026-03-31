@@ -158,27 +158,11 @@ async function getProjectMeta(cfg: GitHubProjectConfig): Promise<CachedProjectMe
     return cached
   }
 
-  const query = `
+  // Try organization first, then user — GitHub GraphQL errors (not null) if the
+  // owner type doesn't match, so we can't combine both in one query.
+  const projectQuery = (ownerType: 'organization' | 'user') => `
     query($owner: String!, $number: Int!) {
-      user(login: $owner) {
-        projectV2(number: $number) {
-          id
-          fields(first: 30) {
-            nodes {
-              ... on ProjectV2SingleSelectField {
-                id
-                name
-                options { id name }
-              }
-              ... on ProjectV2Field {
-                id
-                name
-              }
-            }
-          }
-        }
-      }
-      organization(login: $owner) {
+      ${ownerType}(login: $owner) {
         projectV2(number: $number) {
           id
           fields(first: 30) {
@@ -199,15 +183,22 @@ async function getProjectMeta(cfg: GitHubProjectConfig): Promise<CachedProjectMe
     }
   `
 
-  const result = ghGraphQL(query, { owner: cfg.owner, number: cfg.number }) as {
-    data: {
-      user?: { projectV2: { id: string; fields: { nodes: ProjectField[] } } | null }
-      organization?: { projectV2: { id: string; fields: { nodes: ProjectField[] } } | null }
-    }
+  type ProjectQueryResult = {
+    data: Record<string, { projectV2: { id: string; fields: { nodes: ProjectField[] } } | null } | undefined>
   }
 
-  // Project can be under user or organization
-  const project = result.data?.user?.projectV2 || result.data?.organization?.projectV2
+  let project: { id: string; fields: { nodes: ProjectField[] } } | null = null
+
+  // Try organization first (most common for Projects V2)
+  for (const ownerType of ['organization', 'user'] as const) {
+    try {
+      const result = ghGraphQL(projectQuery(ownerType), { owner: cfg.owner, number: cfg.number }) as ProjectQueryResult
+      project = result.data?.[ownerType]?.projectV2 ?? null
+      if (project) break
+    } catch {
+      // Owner type mismatch — try the other one
+    }
+  }
   if (!project) {
     throw new Error(`Project #${cfg.number} not found for ${cfg.owner}`)
   }

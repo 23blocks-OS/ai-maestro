@@ -27,7 +27,7 @@ export default function TeamDashboardPage() {
 
   const { team, loading, updateTeam } = useTeam(teamId)
   const { documents } = useDocuments(teamId)
-  const { tasks } = useTasks(teamId)
+  const { tasks, tasksByStatus, createTask, updateTask, deleteTask } = useTasks(teamId)
   const { agents, loading: agentsLoading, error: agentsError, refreshAgents } = useAgents()
 
   if (loading) {
@@ -135,6 +135,11 @@ export default function TeamDashboardPage() {
               teamName={team.name}
               agents={agents}
               teamAgentIds={team.agentIds}
+              tasks={tasks}
+              tasksByStatus={tasksByStatus}
+              createTask={createTask}
+              updateTask={updateTask}
+              deleteTask={deleteTask}
             />
           )}
           {activeTab === 'repos' && (

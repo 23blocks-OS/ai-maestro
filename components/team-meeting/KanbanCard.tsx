@@ -139,10 +139,10 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
         </div>
       )}
 
-      {/* Bottom section: left metadata (stacked) | right avatar frame flush with card edges */}
+      {/* Bottom section: left metadata (stacked, shrinkable) | right avatar frame (fixed size) */}
       <div className="flex items-end gap-2 mt-3 -mb-3 -mr-3">
-        {/* LEFT: two rows stacked, vertically aligned — issue on top, status below */}
-        <div className="flex flex-col gap-1.5 flex-shrink-0 mb-3">
+        {/* LEFT: two rows stacked — shrinks if needed so avatar frame stays in place */}
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1 mb-3 overflow-hidden">
           {/* Row 1: issue/PR icon + number */}
           {task.externalRef ? (() => {
             const isPR = task.externalRef.includes('/pull/')
@@ -186,14 +186,14 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={e => e.stopPropagation()}
-                  className={`flex items-center gap-1.5 text-[9px] hover:text-gray-300 hover:underline transition-colors truncate ${
+                  className={`flex items-center gap-1.5 text-[9px] hover:text-gray-300 hover:underline transition-colors min-w-0 ${
                     isLikelyPrivate ? 'text-gray-400' : 'text-gray-500'
                   }`}
                   title={`${repoFull}${isLikelyPrivate ? ' (private)' : ''}`}
                 >
                   <GitBranch className="w-4 h-4 flex-shrink-0" />
                   {isLikelyPrivate && <Lock className="w-2.5 h-2.5 flex-shrink-0 text-gray-500" />}
-                  <span className="max-w-[110px]">{(() => {
+                  <span className="truncate">{(() => {
                     const full = `github.com/${repoFull}`
                     if (full.length <= 28) return full
                     // Middle truncation: keep start (github.com/) + end (/repoName)
@@ -213,12 +213,10 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
           </div>
         </div>
 
-        <div className="flex-1" />
-
-        {/* RIGHT: avatar-only frame — flush with card bottom-right, name in tooltip */}
+        {/* RIGHT: avatar-only frame — fixed size, flush with card bottom-right */}
         {task.assigneeName ? (
           <div
-            className="flex items-center flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-600/40 bg-gray-900/40 pl-1 pr-0.5 py-0.5 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.3)]"
+            className="flex items-center justify-center flex-shrink-0 w-14 rounded-br-lg rounded-tl-lg border-t border-l border-gray-600/40 bg-gray-900/40 py-0.5 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.3)]"
             title={`${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
           >
             <span className="relative overflow-visible flex-shrink-0">
@@ -243,7 +241,7 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
           </div>
         ) : (
           <div
-            className="flex items-center flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-700/30 bg-gray-900/20 pl-1 pr-0.5 py-0.5"
+            className="flex items-center justify-center flex-shrink-0 w-14 rounded-br-lg rounded-tl-lg border-t border-l border-gray-700/30 bg-gray-900/20 py-0.5"
             title="Unassigned"
           >
             <span className="w-12 h-12 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">

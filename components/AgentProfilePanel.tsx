@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
+import { useRestartQueue } from '@/hooks/useRestartQueue'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
 import { type TabId, type TabDef, type AgentInfo } from './agent-profile/shared'
 import TabContent from './agent-profile/TabContent'
@@ -121,6 +122,9 @@ export default function AgentProfilePanel({
   // Auto-continue state
   const [autoContinue, setAutoContinue] = useState(false)
   const [autoContinueLoading, setAutoContinueLoading] = useState(false)
+
+  // Restart queue: deferred restart after element changes (plugin install/uninstall/switch)
+  const { queueRestart, pendingCount, pendingSessions } = useRestartQueue()
 
   // Client capability detection — filter config tabs based on AI client type
   const clientType = detectClientType(agentInfo?.program || '')
@@ -222,22 +226,10 @@ export default function AgentProfilePanel({
         throw new Error(err.error || 'Failed to update agent registry')
       }
 
-      // 4. Gracefully restart Claude Code inside the SAME tmux session
+      // 4. Queue deferred restart — fires automatically when agent reaches idle_prompt safe state
       if (sessionName) {
-        await fetch(`/api/sessions/${encodeURIComponent(sessionName)}/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command: '/exit', requireIdle: false }),
-        }).catch((err) => { console.error('[RolePluginSelector] Failed to send /exit command:', err) })
-
-        await new Promise(r => setTimeout(r, 3000))
-
-        const startCmd = `claude --agent ${mainAgentName} --name ${effectiveAgentName}`
-        await fetch(`/api/sessions/${encodeURIComponent(sessionName)}/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command: startCmd, requireIdle: false }),
-        }).catch((err) => { console.error('[RolePluginSelector] Failed to send start command:', err) })
+        const program = agentInfo?.program || 'claude'
+        queueRestart(sessionName, program, newArgs)
       }
       // Notify parent and refresh config — role plugin change should update sidebar + panel
       await refetch()
@@ -246,7 +238,19 @@ export default function AgentProfilePanel({
     } finally {
       setSwitchingPlugin(false)
     }
-  }, [config, agentId, agentName, switchingPlugin, sessionStatus])
+  }, [config, agentId, agentName, switchingPlugin, sessionStatus, queueRestart, agentInfo, refetch])
+
+  // Callback for child components (RoleTab, PluginsTab) to enqueue restart after element changes
+  const handleElementChanged = useCallback(async () => {
+    await refetch() // Reload config first
+    // Enqueue restart if agent has an active session
+    const sessionName = sessionStatus?.tmuxSessionName
+    if (sessionName) {
+      const program = agentInfo?.program || 'claude'
+      const args = agentInfo?.programArgs || ''
+      queueRestart(sessionName, program, args)
+    }
+  }, [refetch, sessionStatus, agentInfo, queueRestart])
 
   if (!agentId) {
     return (
@@ -425,6 +429,16 @@ export default function AgentProfilePanel({
                 </div>
               )}
 
+              {/* Restart queue indicator */}
+              {pendingCount > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                  <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                  <span className="text-[10px] text-amber-300">
+                    {pendingCount} agent{pendingCount > 1 ? 's' : ''} waiting to restart…
+                  </span>
+                </div>
+              )}
+
               {!config && !error && (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
@@ -466,7 +480,7 @@ export default function AgentProfilePanel({
                     {/* Section content */}
                     {isActive && (
                       <div className="px-4 py-3 border-b border-gray-800/30">
-                        <TabContent tab={tab.id} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={refetch} onSwitchTab={handleSwitchSection} />
+                        <TabContent tab={tab.id} config={config} agentId={agentId} agentInfo={agentInfo} onEditInHaephestos={onEditInHaephestos} onBrowse={setBrowsePath} onRefresh={handleElementChanged} onSwitchTab={handleSwitchSection} />
                       </div>
                     )}
                   </div>

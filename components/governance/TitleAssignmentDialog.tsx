@@ -15,6 +15,7 @@ interface TitleAssignmentDialogProps {
   currentTitle: GovernanceTitle
   governance: GovernanceState
   onTitleChanged: () => void
+  onRestartNeeded?: () => void
 }
 
 type Phase = 'select' | 'password' | 'submitting' | 'error' | 'done'
@@ -102,6 +103,7 @@ export default function TitleAssignmentDialog({
   currentTitle,
   governance,
   onTitleChanged,
+  onRestartNeeded,
 }: TitleAssignmentDialogProps) {
   const [selectedTitle, setSelectedTitle] = useState<GovernanceTitle>(currentTitle)
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
@@ -466,6 +468,7 @@ export default function TitleAssignmentDialog({
 
       // Success: notify parent and close
       onTitleChanged()
+      onRestartNeeded?.()
       handleClose()
     } catch (err: unknown) {
       governance.refresh()  // Reload actual state after partial failure

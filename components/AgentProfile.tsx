@@ -22,6 +22,7 @@ import AvatarPicker from './AvatarPicker'
 import EmailAddressesSection from './EmailAddressesSection'
 import { useGovernance } from '@/hooks/useGovernance'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { useRestartQueue } from '@/hooks/useRestartQueue'
 import { useAgentLocalConfig } from '@/hooks/useAgentLocalConfig'
 import TitleBadge from '@/components/governance/TitleBadge'
 import TitleAssignmentDialog from '@/components/governance/TitleAssignmentDialog'
@@ -75,6 +76,9 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingField, setEditingField] = useState<string | null>(null)
+
+  // Restart queue: deferred restart after title changes that install/uninstall plugins
+  const { queueRestart } = useRestartQueue()
 
   // Per-field debounce timers for auto-save — typing in one field doesn't cancel another field's save
   const debounceTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -1520,6 +1524,15 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           currentTitle={governance.agentTitle}
           governance={governance}
           onTitleChanged={() => { governance.refresh(); onDataChangedRef.current?.() }}
+          onRestartNeeded={() => {
+            // Enqueue deferred restart after title change installs/uninstalls plugins
+            const sn = sessionStatus?.tmuxSessionName || agent?.name
+            if (sn) {
+              const program = agent?.program || 'claude'
+              const args = agent?.programArgs || ''
+              queueRestart(sn, program, args)
+            }
+          }}
         />
       )}
 

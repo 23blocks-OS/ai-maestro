@@ -43,6 +43,7 @@ export interface TaskWithDeps extends Task {
   blocks: string[]               // Derived: task IDs this blocks (computed on read)
   isBlocked: boolean             // true if any blockedBy task not completed
   assigneeName?: string          // Resolved agent display name
+  assigneeAvatar?: string        // Agent avatar URL (e.g., "/avatars/men_01.jpg")
 }
 
 export interface TasksFile {

@@ -406,6 +406,25 @@ export async function listTeamTasks(teamId: string, requestingAgentId?: string, 
     return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
   }
 
+  // Enrich tasks with agent display names and avatars from the registry.
+  // assigneeAgentId may be a UUID, an agent name, or a GitHub login (from assign: label).
+  const allAgents = loadAgents()
+  for (const task of resolved) {
+    if (task.assigneeAgentId && !task.assigneeAvatar) {
+      const agentId = task.assigneeAgentId
+      const agent = allAgents.find(a =>
+        a.id === agentId ||
+        a.name === agentId ||
+        a.alias === agentId ||
+        (a.label && a.label.toLowerCase() === agentId.toLowerCase())
+      )
+      if (agent) {
+        task.assigneeName = agent.label || agent.name || agent.alias || agent.id.slice(0, 8)
+        task.assigneeAvatar = agent.avatar
+      }
+    }
+  }
+
   let filtered = resolved
   if (filters) {
     if (filters.assignee) filtered = filtered.filter(t => t.assigneeAgentId === filters.assignee)

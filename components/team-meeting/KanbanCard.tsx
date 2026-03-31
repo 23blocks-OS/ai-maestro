@@ -53,8 +53,8 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
   const Icon = STATUS_ICON_MAP[task.status] || Circle
   const priorityDot = task.priority != null ? (PRIORITY_COLORS[task.priority] || 'bg-gray-500') : null
 
-  // Filter out Title: pseudo-labels added by GitHub sync artifacts
-  const displayLabels = (task.labels || []).filter(l => !l.startsWith('Title:'))
+  // Filter out Title: pseudo-labels and assign: labels (shown as assignee instead)
+  const displayLabels = (task.labels || []).filter(l => !l.startsWith('Title:') && !l.startsWith('assign:'))
 
   const handleDragStart = (e: React.DragEvent) => {
     if (task.isBlocked) {
@@ -149,19 +149,24 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
           <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
         )}
 
-        {/* Assignee avatar circle with color coding, or dim "Unassigned" */}
+        {/* Assignee: show avatar image if available, else colored initial, else "Unassigned" */}
         {task.assigneeName ? (
           <span className="flex items-center gap-1 text-[10px] text-gray-400 truncate" title={task.assigneeName}>
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium text-white flex-shrink-0 uppercase ${assigneeColor(task.assigneeName)}`}>
-              {task.assigneeName.charAt(0)}
-            </span>
-            {task.assigneeName}
+            {task.assigneeAvatar ? (
+              <img
+                src={task.assigneeAvatar}
+                alt={task.assigneeName}
+                className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium text-white flex-shrink-0 uppercase ${assigneeColor(task.assigneeName)}`}>
+                {task.assigneeName.charAt(0)}
+              </span>
+            )}
+            <span className="truncate max-w-[60px]">{task.assigneeName}</span>
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[10px] text-gray-600 italic truncate" title="Unassigned">
-            <User className="w-3 h-3 text-gray-600 flex-shrink-0" />
-            Unassigned
-          </span>
+          <span className="text-[10px] text-gray-600 italic">Unassigned</span>
         )}
 
         <div className="flex-1" />

@@ -78,12 +78,23 @@ export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
       return dep && dep.status !== 'completed'
     })
 
-    // Resolve assignee name
+    // Resolve assignee: try by ID, then by name/alias/label (for assign: labels from GitHub)
     let assigneeName: string | undefined
+    let assigneeAvatar: string | undefined
     if (task.assigneeAgentId) {
-      const agent = agents.find(a => a.id === task.assigneeAgentId)
+      const agentId = task.assigneeAgentId
+      const agent = agents.find(a =>
+        a.id === agentId ||
+        a.name === agentId ||
+        a.alias === agentId ||
+        (a.label && a.label.toLowerCase() === agentId.toLowerCase())
+      )
       if (agent) {
         assigneeName = agent.label || agent.name || agent.alias || agent.id.slice(0, 8)
+        assigneeAvatar = agent.avatar
+      } else {
+        // No matching agent found — use the raw ID/name as display name
+        assigneeName = agentId
       }
     }
 
@@ -92,6 +103,7 @@ export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
       blocks,
       isBlocked,
       assigneeName,
+      assigneeAvatar,
     }
   })
 }

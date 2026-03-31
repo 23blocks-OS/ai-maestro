@@ -109,7 +109,19 @@ export async function POST(
 
     // Step 4: Build and send the relaunch command into the tmux pane
     const bin = resolveBin(program)
-    const cmd = `${bin} ${programArgs}`.trim()
+    // Ensure --name <persona> is always present in the args
+    const personaName = agent?.label || agent?.name || sessionName
+    let finalArgs = programArgs
+    if (!finalArgs.includes('--name ')) {
+      // Insert --name before any -- divider (raw prompt passthrough), or at the end
+      const dividerIdx = finalArgs.indexOf(' -- ')
+      if (dividerIdx !== -1) {
+        finalArgs = finalArgs.slice(0, dividerIdx) + ` --name ${personaName}` + finalArgs.slice(dividerIdx)
+      } else {
+        finalArgs = `${finalArgs} --name ${personaName}`.trim()
+      }
+    }
+    const cmd = `${bin} ${finalArgs}`.trim()
     execCommand(`tmux send-keys -t "${sessionName}" '${cmd.replace(/'/g, "'\\''")}' Enter`)
 
     return NextResponse.json({ success: true, sessionName, command: cmd })

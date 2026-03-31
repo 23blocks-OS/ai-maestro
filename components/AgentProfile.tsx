@@ -348,10 +348,21 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     return 'claude'
   }
 
+  // Ensure --name <persona> is always in args; insert before any -- divider
+  const ensureNameArg = (args: string, personaName: string): string => {
+    if (args.includes('--name ')) return args
+    const dividerIdx = args.indexOf(' -- ')
+    if (dividerIdx !== -1) {
+      return args.slice(0, dividerIdx) + ` --name ${personaName}` + args.slice(dividerIdx)
+    }
+    return `${args} --name ${personaName}`.trim()
+  }
+
   const handleNewSession = async () => {
     if (isProgramRunning) return
     const program = resolveProgram(agent?.program || 'claude')
-    const args = agent?.programArgs || ''
+    const personaName = agent?.label || agent?.name || sessionName || 'agent'
+    const args = ensureNameArg(agent?.programArgs || '', personaName)
     const cmd = `${program} ${args}`.trim()
     await sendCommandToSession(cmd)
   }
@@ -360,7 +371,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const handleResumeSession = async () => {
     if (isProgramRunning) return
     const program = resolveProgram(agent?.program || 'claude')
-    const args = agent?.programArgs || ''
+    const personaName = agent?.label || agent?.name || sessionName || 'agent'
+    const args = ensureNameArg(agent?.programArgs || '', personaName)
     const cmd = `${program} --continue ${args}`.trim()
     await sendCommandToSession(cmd)
   }
@@ -368,18 +380,19 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   /**
    * Gracefully stop the running Claude Code session.
    *
-   * Sends the `/exit` command to the terminal, which Claude Code interprets
-   * as a clean shutdown request. This is only enabled when `isSafeToCommand`
-   * is true (i.e. Claude is at its idle input prompt, not mid-processing).
-   * Sending /exit while Claude is actively running a tool could corrupt
-   * output or leave partial file writes.
-   *
-   * After /exit, the tmux pane drops back to a shell prompt and the
-   * session transitions to the "Exited" state (programRunning=false).
+   * Calls the Stop API which sends Ctrl+C (clear input) + Ctrl+D (EOF exit)
+   * to the tmux pane. This is more reliable than typing "/exit" which can be
+   * misinterpreted as a skill lookup. After exit, the tmux pane drops back
+   * to a shell prompt and the session transitions to "Exited" state.
    */
   const handleStop = async () => {
     if (!isSafeToCommand || !sessionName) return
-    await sendCommandToSession('/exit')
+    // Use the Stop API (Ctrl+C + Ctrl+D) instead of sending /exit as text
+    try {
+      await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(sessionName)}/stop`, { method: 'POST' })
+    } catch (error) {
+      console.error('Failed to stop session:', error)
+    }
   }
 
   /**

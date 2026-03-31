@@ -150,54 +150,58 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
         </div>
       )}
 
-      {/* Assignee row — avatar with agent status dot at top-right corner */}
-      <div className="flex items-center gap-2 mt-2.5 mb-1">
+      {/* Footer: task status icon (left) + assignee avatar with status dot (right) */}
+      <div className="flex items-center gap-2 mt-3">
+        {/* Task status icon — left side */}
+        {task.isBlocked ? (
+          <span title="Task is blocked"><Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /></span>
+        ) : (
+          <Icon className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+        )}
+
+        <div className="flex-1" />
+
+        {/* Assignee — right side: avatar with status dot + name */}
         {task.assigneeName ? (
           <span
-            className="flex items-center gap-1.5 text-[11px] text-gray-300 truncate"
+            className="flex items-center gap-1.5 text-[11px] text-gray-300"
             title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
           >
-            {/* Avatar with status indicator dot */}
-            <span className="relative flex-shrink-0 w-6 h-6">
+            <span className="truncate max-w-[70px] font-medium text-right">{task.assigneeName}</span>
+            {/* Avatar with status indicator dot — overflow-visible so the dot isn't clipped */}
+            <span className="relative flex-shrink-0 w-7 h-7 overflow-visible">
               {task.assigneeAvatar ? (
                 <img
                   src={task.assigneeAvatar}
                   alt={task.assigneeName}
-                  className="w-6 h-6 rounded-full object-cover ring-1 ring-gray-600"
+                  className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-600"
                 />
               ) : (
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium text-white uppercase ring-1 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium text-white uppercase ring-1 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
                   {task.assigneeName.charAt(0)}
                 </span>
               )}
-              {/* Agent status dot — positioned top-right, tangent to the avatar circle */}
+              {/* Agent status dot — top-right corner, tangent to the avatar circle */}
               {agentStatus && (
                 <span
-                  className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
+                  className={`absolute top-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
                   title={agentStatus.label}
                 />
               )}
             </span>
-            <span className="truncate max-w-[80px] font-medium">{task.assigneeName}</span>
           </span>
         ) : (
           <span className="flex items-center gap-1.5 text-[11px] text-gray-600 italic">
-            <span className="w-6 h-6 rounded-full bg-gray-700/50 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700">
-              <User className="w-3 h-3 text-gray-600" />
-            </span>
             Unassigned
+            <span className="w-7 h-7 rounded-full bg-gray-700/50 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700">
+              <User className="w-3.5 h-3.5 text-gray-600" />
+            </span>
           </span>
         )}
       </div>
 
-      {/* Footer row — status icon + issue link */}
-      <div className="flex items-center gap-2 mt-1">
-        {task.isBlocked ? (
-          <span title="Task is blocked"><Lock className="w-3 h-3 text-amber-500 flex-shrink-0" /></span>
-        ) : (
-          <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
-        )}
-
+      {/* Issue/PR link row — right-aligned below footer */}
+      <div className="flex items-center mt-1">
         <div className="flex-1" />
 
         {/* GitHub issue/PR type indicator with colored icon */}

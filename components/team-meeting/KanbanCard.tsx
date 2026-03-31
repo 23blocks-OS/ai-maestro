@@ -150,9 +150,9 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
         </div>
       )}
 
-      {/* Bottom section: 3 columns — left icons | center avatar (right-aligned) | right icons */}
-      <div className="flex items-end gap-1.5 mt-3">
-        {/* LEFT column: task status icon + type + deps */}
+      {/* Bottom section: 2 columns — left (all icons stacked) | right (name + large avatar) */}
+      <div className="flex items-end gap-2 mt-3">
+        {/* LEFT column: all icons stacked vertically */}
         <div className="flex flex-col gap-1 flex-shrink-0">
           {task.isBlocked ? (
             <span title="Task is blocked"><Lock className="w-3.5 h-3.5 text-amber-500" /></span>
@@ -169,48 +169,6 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
               {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
             </span>
           )}
-        </div>
-
-        {/* CENTER column: large avatar (right-aligned, fills the vertical gap) */}
-        <div className="flex-1 flex justify-end">
-          {task.assigneeName ? (
-            <div
-              className="flex flex-col items-center gap-0.5"
-              title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
-            >
-              <span className="relative overflow-visible">
-                {task.assigneeAvatar ? (
-                  <img
-                    src={task.assigneeAvatar}
-                    alt={task.assigneeName}
-                    className="w-11 h-11 rounded-full object-cover ring-2 ring-gray-600"
-                  />
-                ) : (
-                  <span className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
-                    {task.assigneeName.charAt(0)}
-                  </span>
-                )}
-                {agentStatus && (
-                  <span
-                    className={`absolute top-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
-                    title={agentStatus.label}
-                  />
-                )}
-              </span>
-              <span className="text-[9px] text-gray-400 truncate max-w-[56px] text-center">{task.assigneeName}</span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="w-11 h-11 rounded-full bg-gray-700/30 flex items-center justify-center ring-1 ring-gray-700/50">
-                <User className="w-5 h-5 text-gray-600" />
-              </span>
-              <span className="text-[9px] text-gray-600 italic">Unassigned</span>
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT column: issue/PR link */}
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
           {task.externalRef && (() => {
             const isPR = task.externalRef.includes('/pull/')
             const issueMatch = task.externalRef.match(/(?:issues|pull)\/(\d+)/)
@@ -237,6 +195,45 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
             <span title="Has PR"><GitPullRequest className="w-3 h-3 text-purple-400/70" /></span>
           )}
         </div>
+
+        {/* Spacer pushes avatar to the right */}
+        <div className="flex-1" />
+
+        {/* RIGHT: agent name (vertically centered to avatar) + large avatar */}
+        {task.assigneeName ? (
+          <div
+            className="flex items-center gap-1.5 flex-shrink-0"
+            title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
+          >
+            <span className="text-[10px] text-gray-400 truncate max-w-[60px] text-right font-medium">{task.assigneeName}</span>
+            <span className="relative overflow-visible flex-shrink-0">
+              {task.assigneeAvatar ? (
+                <img
+                  src={task.assigneeAvatar}
+                  alt={task.assigneeName}
+                  className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-600"
+                />
+              ) : (
+                <span className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
+                  {task.assigneeName.charAt(0)}
+                </span>
+              )}
+              {agentStatus && (
+                <span
+                  className={`absolute top-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
+                  title={agentStatus.label}
+                />
+              )}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-[10px] text-gray-600 italic">Unassigned</span>
+            <span className="w-12 h-12 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
+              <User className="w-5 h-5 text-gray-600" />
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

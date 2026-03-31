@@ -380,10 +380,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   /**
    * Gracefully stop the running Claude Code session.
    *
-   * Calls the Stop API which sends Ctrl+C (clear input) + Ctrl+D (EOF exit)
-   * to the tmux pane. This is more reliable than typing "/exit" which can be
-   * misinterpreted as a skill lookup. After exit, the tmux pane drops back
-   * to a shell prompt and the session transitions to "Exited" state.
+   * Calls the Stop API which sends Ctrl+C (clear input) then /exit as literal
+   * text via tmux send-keys -l. Ctrl+D does NOT exit Claude Code — only /exit
+   * works. Fires the SessionEnd hook on exit. After exit, the tmux pane drops
+   * back to a shell prompt and the session transitions to "Exited" state.
    */
   const handleStop = async () => {
     if (!isSafeToCommand || !sessionName) return

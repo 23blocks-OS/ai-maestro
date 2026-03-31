@@ -78,9 +78,11 @@ export async function POST(
   }
 
   try {
-    // Step 1: Ctrl+C clears partial input, Ctrl+D sends EOF to exit Claude Code
+    // Step 1: Ctrl+C clears partial input, /exit as literal text exits Claude Code
+    // Note: Ctrl+D does NOT exit Claude Code. Only /exit works.
     execCommand(`tmux send-keys -t "${sessionName}" C-c`)
-    execCommand(`tmux send-keys -t "${sessionName}" C-d`)
+    execCommand(`tmux send-keys -t "${sessionName}" -l '/exit'`)
+    execCommand(`tmux send-keys -t "${sessionName}" Enter`)
 
     // Step 2: Poll tmux pane command every 500ms until it becomes a shell
     // (meaning the AI program exited and the shell prompt is back)

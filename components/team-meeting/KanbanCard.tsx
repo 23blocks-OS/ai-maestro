@@ -86,7 +86,7 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
       tabIndex={0}
       role="button"
       title={task.description ? task.description.slice(0, 200) + (task.description.length > 200 ? '...' : '') : undefined}
-      className={`group px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800/80 border border-gray-700/50 hover:border-gray-600/80 hover:bg-gray-800 ${blockedStyle} ${selectedGlow} ${hoverGlow}`}
+      className={`group px-3 py-3 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800/80 border border-gray-700/50 hover:border-gray-600/80 hover:bg-gray-800 ${blockedStyle} ${selectedGlow} ${hoverGlow}`}
     >
       {/* Repository badge — extracted from externalRef URL */}
       {task.externalRef && (() => {
@@ -141,32 +141,39 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
         </div>
       )}
 
-      {/* Footer row */}
-      <div className="flex items-center gap-2 mt-2">
-        {task.isBlocked ? (
-          <span title="Task is blocked"><Lock className="w-3 h-3 text-amber-500 flex-shrink-0" /></span>
-        ) : (
-          <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
-        )}
-
-        {/* Assignee: show avatar image if available, else colored initial, else "Unassigned" */}
+      {/* Assignee row — prominent display with larger avatar */}
+      <div className="flex items-center gap-2 mt-2.5 mb-1">
         {task.assigneeName ? (
-          <span className="flex items-center gap-1 text-[10px] text-gray-400 truncate" title={task.assigneeName}>
+          <span className="flex items-center gap-1.5 text-[11px] text-gray-300 truncate" title={`Assigned to ${task.assigneeName}`}>
             {task.assigneeAvatar ? (
               <img
                 src={task.assigneeAvatar}
                 alt={task.assigneeName}
-                className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                className="w-6 h-6 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-600"
               />
             ) : (
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium text-white flex-shrink-0 uppercase ${assigneeColor(task.assigneeName)}`}>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium text-white flex-shrink-0 uppercase ring-1 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
                 {task.assigneeName.charAt(0)}
               </span>
             )}
-            <span className="truncate max-w-[60px]">{task.assigneeName}</span>
+            <span className="truncate max-w-[80px] font-medium">{task.assigneeName}</span>
           </span>
         ) : (
-          <span className="text-[10px] text-gray-600 italic">Unassigned</span>
+          <span className="flex items-center gap-1.5 text-[11px] text-gray-600 italic">
+            <span className="w-6 h-6 rounded-full bg-gray-700/50 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700">
+              <User className="w-3 h-3 text-gray-600" />
+            </span>
+            Unassigned
+          </span>
+        )}
+      </div>
+
+      {/* Footer row — status icon + issue link */}
+      <div className="flex items-center gap-2 mt-1">
+        {task.isBlocked ? (
+          <span title="Task is blocked"><Lock className="w-3 h-3 text-amber-500 flex-shrink-0" /></span>
+        ) : (
+          <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
         )}
 
         <div className="flex-1" />

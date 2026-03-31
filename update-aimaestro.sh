@@ -257,7 +257,7 @@ print_step "$ROCKET" "Updating AI Maestro plugin and reinstalling scripts..."
 # 0. Update the AI Maestro plugin (marketplace: see scripts/ecosystem-config.sh)
 print_info "Updating AI Maestro plugin from marketplace..."
 claude plugin marketplace update "${MARKETPLACE_NAME:-ai-maestro-plugins}" 2>/dev/null || true
-claude plugin update "${MAIN_PLUGIN_NAME:-ai-maestro}" 2>/dev/null || true
+claude plugin update "${MAIN_PLUGIN_NAME:-ai-maestro-plugin}" 2>/dev/null || true
 print_success "AI Maestro plugin updated"
 
 # 1. AMP messaging scripts + all plugin/scripts/* tools

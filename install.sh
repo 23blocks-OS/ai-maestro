@@ -1014,7 +1014,7 @@ if [ -n "$INSTALL_DIR" ] && [ "$CLAUDE_INSTALLED" = true ]; then
 
     # Core AI Maestro plugins (user-scope)
     claude plugin marketplace add "${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}" 2>/dev/null || true
-    claude plugin install "${MAIN_PLUGIN_NAME:-ai-maestro}" --scope user 2>/dev/null || print_warning "Could not install ai-maestro plugin"
+    claude plugin install "${MAIN_PLUGIN_NAME:-ai-maestro-plugin}" --scope user 2>/dev/null || print_warning "Could not install ai-maestro-plugin"
 
     # External dependency plugins from emasoft-plugins marketplace
     claude plugin marketplace add Emasoft/emasoft-plugins 2>/dev/null || true

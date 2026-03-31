@@ -17,7 +17,7 @@ set -e
 # Canonical source: scripts/ecosystem-config.sh (or lib/ecosystem-constants.ts)
 MARKETPLACE_REPO="${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
 MARKETPLACE_NAME="${MARKETPLACE_NAME:-ai-maestro-plugins}"
-MAIN_PLUGIN_NAME="${MAIN_PLUGIN_NAME:-ai-maestro}"
+MAIN_PLUGIN_NAME="${MAIN_PLUGIN_NAME:-ai-maestro-plugin}"
 
 # =============================================================================
 # MAESTRO UI FUNCTIONS (embedded — runs before repo is cloned)
@@ -442,7 +442,7 @@ uninstall() {
     maestro_info "Removed agent tool scripts"
 
     # Uninstall AI Maestro plugin (skills are bundled in the plugin, not standalone)
-    claude plugin uninstall "${MAIN_PLUGIN_NAME:-ai-maestro}" 2>/dev/null || true
+    claude plugin uninstall "${MAIN_PLUGIN_NAME:-ai-maestro-plugin}" 2>/dev/null || true
     claude plugin marketplace remove "${MARKETPLACE_NAME:-ai-maestro-plugins}" 2>/dev/null || true
     # Also clean up any legacy standalone skills
     for skill in agent-messaging memory-search graph-query docs-search planning ai-maestro-agents-management team-governance; do

@@ -696,7 +696,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     print_info "Installing AI Maestro plugin from marketplace..."
 
     MARKETPLACE_REPO="${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
-    PLUGIN_NAME="${MAIN_PLUGIN_NAME:-ai-maestro}"
+    PLUGIN_NAME="${MAIN_PLUGIN_NAME:-ai-maestro-plugin}"
 
     # Step 1: Register the marketplace from GitHub (enables future updates via claude CLI)
     # Always use the GitHub source — local submodule copies become stale and prevent
@@ -778,10 +778,10 @@ if [ "$INSTALL_SKILL" = true ]; then
     print_info "Checking AI Maestro plugin..."
 
     # Check if the plugin appears in claude plugin list
-    if claude plugin list 2>/dev/null | grep -q "${MAIN_PLUGIN_NAME:-ai-maestro}@${MARKETPLACE_NAME:-ai-maestro-plugins}"; then
-        print_success "ai-maestro plugin installed and enabled"
+    if claude plugin list 2>/dev/null | grep -q "${MAIN_PLUGIN_NAME:-ai-maestro-plugin}@${MARKETPLACE_NAME:-ai-maestro-plugins}"; then
+        print_success "ai-maestro-plugin installed and enabled"
     else
-        print_warning "ai-maestro plugin not found in plugin list (may need /reload-plugins)"
+        print_warning "ai-maestro-plugin not found in plugin list (may need /reload-plugins)"
     fi
 
     # Verify no standalone skills remain (they should have been migrated)

@@ -167,10 +167,10 @@ fi
 # 7. Check AI Maestro plugin (skills are bundled in the plugin, not standalone)
 echo ""
 echo "7. Checking AI Maestro plugin..."
-if claude plugin list 2>/dev/null | grep -q "ai-maestro"; then
-    pass "ai-maestro plugin installed"
+if claude plugin list 2>/dev/null | grep -q "ai-maestro-plugin"; then
+    pass "ai-maestro-plugin installed"
 else
-    warn "ai-maestro plugin not installed — install from marketplace ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
+    warn "ai-maestro-plugin not installed — install from marketplace ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
 fi
 
 # Also check for legacy standalone skills that should have been cleaned up

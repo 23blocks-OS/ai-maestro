@@ -63,7 +63,7 @@ fi
 echo ""
 echo -e "${BLUE}ℹ️  Updating AI Maestro plugin (marketplace: ${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins})...${NC}"
 claude plugin marketplace update "${MARKETPLACE_NAME:-ai-maestro-plugins}" 2>/dev/null || true
-claude plugin update "${MAIN_PLUGIN_NAME:-ai-maestro}" 2>/dev/null || true
+claude plugin update "${MAIN_PLUGIN_NAME:-ai-maestro-plugin}" 2>/dev/null || true
 echo -e "${GREEN}✅ AI Maestro plugin updated${NC}"
 
 # Update AMP scripts (copy from plugin submodule to ~/.local/bin/)

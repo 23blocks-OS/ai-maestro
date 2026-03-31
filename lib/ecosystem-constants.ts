@@ -23,7 +23,7 @@ export const LOCAL_MARKETPLACE_DIR_NAME = 'role-plugins'
 // ── User-Scope Plugins (from ai-maestro marketplace) ────────
 
 /** Main AI Maestro plugin (skills, hooks, commands) */
-export const MAIN_PLUGIN_NAME = 'ai-maestro'
+export const MAIN_PLUGIN_NAME = 'ai-maestro-plugin'
 
 /** AMP messaging plugin */
 export const AMP_PLUGIN_NAME = 'claude-plugin'

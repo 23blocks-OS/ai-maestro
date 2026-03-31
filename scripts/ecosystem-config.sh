@@ -16,7 +16,7 @@ LOCAL_MARKETPLACE_NAME="ai-maestro-local-agents-marketplace"
 LOCAL_MARKETPLACE_DIR_NAME="role-plugins"
 
 # ── User-Scope Plugins ──────────────────────────────────────
-MAIN_PLUGIN_NAME="ai-maestro"
+MAIN_PLUGIN_NAME="ai-maestro-plugin"
 AMP_PLUGIN_NAME="claude-plugin"
 AMP_PLUGIN_REPO="https://github.com/Emasoft/claude-plugin.git"
 AID_PLUGIN_NAME="agent-identity"

@@ -215,13 +215,12 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
 
         <div className="flex-1" />
 
-        {/* RIGHT: avatar frame — flush with card bottom-right, inset shadow for depth */}
+        {/* RIGHT: avatar-only frame — flush with card bottom-right, name in tooltip */}
         {task.assigneeName ? (
           <div
-            className="flex items-center gap-2 flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-600/40 bg-gray-900/40 pl-2.5 pr-1 py-1 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.3)]"
-            title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
+            className="flex items-center flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-600/40 bg-gray-900/40 pl-1 pr-0.5 py-0.5 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.3)]"
+            title={`${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
           >
-            <span className="text-[10px] text-gray-400 truncate max-w-[60px] font-medium">{task.assigneeName}</span>
             <span className="relative overflow-visible flex-shrink-0">
               {task.assigneeAvatar ? (
                 <img
@@ -243,8 +242,10 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-700/30 bg-gray-900/20 pl-2.5 pr-1 py-1">
-            <span className="text-[10px] text-gray-600 italic">Unassigned</span>
+          <div
+            className="flex items-center flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-700/30 bg-gray-900/20 pl-1 pr-0.5 py-0.5"
+            title="Unassigned"
+          >
             <span className="w-12 h-12 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
               <User className="w-5 h-5 text-gray-600" />
             </span>

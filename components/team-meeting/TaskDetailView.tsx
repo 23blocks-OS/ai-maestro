@@ -13,7 +13,7 @@ interface TaskDetailViewProps {
   agents: Agent[]
   allTasks: TaskWithDeps[]
   kanbanColumns?: KanbanColumnConfig[]
-  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[] }) => Promise<void>
+  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number; labels?: string[] }) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onClose: () => void
 }
@@ -23,6 +23,8 @@ export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, 
   const [description, setDescription] = useState(task.description || '')
   const [assigneeAgentId, setAssigneeAgentId] = useState(task.assigneeAgentId || '')
   const [blockedBy, setBlockedBy] = useState<string[]>(task.blockedBy)
+  const [priority, setPriority] = useState<number | undefined>(task.priority)
+  const [labels, setLabels] = useState<string[]>(task.labels || [])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -34,7 +36,9 @@ export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, 
     setDescription(task.description || '')
     setAssigneeAgentId(task.assigneeAgentId || '')
     setBlockedBy(task.blockedBy)
-  }, [task.id, task.subject, task.description, task.assigneeAgentId, task.blockedBy])
+    setPriority(task.priority)
+    setLabels(task.labels || [])
+  }, [task.id, task.subject, task.description, task.assigneeAgentId, task.blockedBy, task.priority, task.labels])
 
   const handleSave = async () => {
     setSaving(true)
@@ -44,6 +48,8 @@ export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, 
         description: description.trim() || undefined,
         assigneeAgentId: assigneeAgentId || null,
         blockedBy,
+        priority,
+        labels,
       })
     } finally {
       setSaving(false)
@@ -68,6 +74,8 @@ export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, 
     || description !== (task.description || '')
     || assigneeAgentId !== (task.assigneeAgentId || '')
     || JSON.stringify(blockedBy) !== JSON.stringify(task.blockedBy)
+    || priority !== task.priority
+    || JSON.stringify(labels) !== JSON.stringify(task.labels || [])
 
   return (
     <div className="flex flex-col h-full">
@@ -143,6 +151,22 @@ export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, 
           </select>
         </div>
 
+        {/* Priority */}
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Priority</label>
+          <select
+            value={priority ?? ''}
+            onChange={e => setPriority(e.target.value === '' ? undefined : Number(e.target.value))}
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-gray-500"
+          >
+            <option value="">None</option>
+            <option value="0">P0 — Critical</option>
+            <option value="1">P1 — High</option>
+            <option value="2">P2 — Medium</option>
+            <option value="3">P3 — Low</option>
+          </select>
+        </div>
+
         {/* Dependencies */}
         <DependencyPicker
           tasks={allTasks}
@@ -185,17 +209,17 @@ export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, 
           </div>
         )}
 
-        {/* Labels */}
-        {task.labels && task.labels.length > 0 && (
-          <div className="space-y-1">
-            <label className="text-[11px] text-gray-500 font-medium">Labels</label>
-            <div className="flex flex-wrap gap-1">
-              {task.labels.map(label => (
-                <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">{label}</span>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Labels (editable) */}
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Labels</label>
+          <input
+            type="text"
+            value={labels.join(', ')}
+            onChange={e => setLabels(e.target.value.split(',').map(l => l.trim()).filter(Boolean))}
+            placeholder="Add labels (comma-separated)"
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-gray-500"
+          />
+        </div>
 
         {/* Acceptance Criteria */}
         {task.acceptanceCriteria && task.acceptanceCriteria.length > 0 && (

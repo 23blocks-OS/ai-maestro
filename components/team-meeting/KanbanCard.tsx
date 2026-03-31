@@ -69,7 +69,18 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
     >
       {/* Top row: priority dot + subject */}
       <div className="flex items-start gap-1.5">
-        {priorityDot && <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${priorityDot}`} />}
+        {task.priority != null && (
+          <span className="flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${priorityDot}`} />
+            <span className={`text-[10px] font-medium ${
+              task.priority === 0 ? 'text-red-400' :
+              task.priority === 1 ? 'text-amber-400' :
+              task.priority === 2 ? 'text-blue-400' : 'text-gray-400'
+            }`}>
+              P{task.priority}
+            </span>
+          </span>
+        )}
         <p className={`text-xs leading-snug line-clamp-2 ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
           {task.subject}
         </p>
@@ -108,6 +119,14 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
         )}
 
         <div className="flex-1" />
+
+        {/* GitHub issue number badge */}
+        {task.externalRef && (() => {
+          const issueMatch = task.externalRef.match(/issues\/(\d+)/)
+          return issueMatch ? (
+            <span className="text-[10px] text-gray-400 font-mono">#{issueMatch[1]}</span>
+          ) : null
+        })()}
 
         {/* PR link icon */}
         {task.prUrl && (

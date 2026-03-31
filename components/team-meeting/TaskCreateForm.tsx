@@ -9,7 +9,7 @@ import DependencyPicker from './DependencyPicker'
 interface TaskCreateFormProps {
   agents: Agent[]
   existingTasks: TaskWithDeps[]
-  onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
+  onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number; labels?: string[] }) => Promise<void>
 }
 
 export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: TaskCreateFormProps) {
@@ -19,6 +19,7 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
   const [assigneeAgentId, setAssigneeAgentId] = useState('')
   const [blockedBy, setBlockedBy] = useState<string[]>([])
   const [priority, setPriority] = useState<number>(0)
+  const [labels, setLabels] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   // Core submission logic extracted so it can be called from both the form
@@ -33,12 +34,14 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
         assigneeAgentId: assigneeAgentId || undefined,
         blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
         priority: priority > 0 ? priority : undefined,
+        labels: labels.trim() ? labels.split(',').map(l => l.trim()).filter(Boolean) : undefined,
       })
       setSubject('')
       setDescription('')
       setAssigneeAgentId('')
       setBlockedBy([])
       setPriority(0)
+      setLabels('')
       setExpanded(false)
     } finally {
       setSubmitting(false)
@@ -126,6 +129,17 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
               <option value={3}>P3 — Medium</option>
               <option value={4}>P4 — Low</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Labels</label>
+            <input
+              type="text"
+              value={labels}
+              onChange={e => setLabels(e.target.value)}
+              placeholder="bug, priority:high, frontend (comma-separated)"
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-gray-500"
+            />
           </div>
 
           <DependencyPicker

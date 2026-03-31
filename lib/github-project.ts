@@ -37,7 +37,8 @@ interface CachedProjectMeta {
   projectId: string
   statusField: ProjectField
   priorityField: ProjectField | null
-  extraFields: ProjectField[] // All other single-select/text fields (Agent, Platform, etc.)
+  agentField: ProjectField | null // TEXT field named "Agent" for agent assignment
+  extraFields: ProjectField[] // All other single-select/text fields (Platform, etc.)
   cachedAt: number // Date.now()
 }
 
@@ -214,8 +215,13 @@ async function getProjectMeta(cfg: GitHubProjectConfig): Promise<CachedProjectMe
     f => f.name === 'Priority' && f.options
   ) || null
 
-  // Collect all other fields (Agent, Platform, Effort, etc.)
-  const reservedNames = new Set(['Status', 'Priority'])
+  // Agent TEXT field — no options means it's a plain text field, not single-select
+  const agentField = project.fields.nodes.find(
+    f => f.name === 'Agent' && !f.options
+  ) || null
+
+  // Collect all other fields (Platform, Effort, etc.) excluding Status, Priority, Agent
+  const reservedNames = new Set(['Status', 'Priority', 'Agent'])
   const extraFields = project.fields.nodes.filter(
     f => f.name && !reservedNames.has(f.name)
   )
@@ -224,6 +230,7 @@ async function getProjectMeta(cfg: GitHubProjectConfig): Promise<CachedProjectMe
     projectId: project.id,
     statusField,
     priorityField,
+    agentField,
     extraFields,
     cachedAt: Date.now(),
   }
@@ -247,7 +254,8 @@ function mapProjectItemToTask(
   // ── Extract project field values (Status, Priority, custom text fields) ──
   let status = 'backlog'
   let priority: number | undefined
-  const customFields: Record<string, string> = {} // e.g. Platform, Agent
+  const customFields: Record<string, string> = {} // e.g. Platform
+  let assigneeFromAgentField: string | null = null // Agent TEXT field on GitHub Project
   const fieldValues = item.fieldValues?.nodes || []
 
   for (const fv of fieldValues) {
@@ -266,6 +274,9 @@ function mapProjectItemToTask(
         'high': 1, 'medium': 2, 'low': 3,
       }
       priority = pMap[fv.name.toLowerCase()] ?? 2
+    } else if (fieldName === 'Agent' && fv.text) {
+      // Agent TEXT field — used as fallback for assigneeAgentId
+      assigneeFromAgentField = fv.text.trim() || null
     } else if (fv.name) {
       // Any other single-select field → store in customFields
       customFields[fieldName] = fv.name
@@ -315,9 +326,9 @@ function mapProjectItemToTask(
     }
   }
 
-  // ── Extract assignee: prefer assign: label, fallback to GitHub assignee ──
+  // ── Extract assignee: prefer assign: label > Agent text field > GitHub assignee ──
   const githubAssignee = item.content.assignees?.nodes?.[0]?.login || null
-  const assigneeAgentId = assigneeFromLabel || githubAssignee
+  const assigneeAgentId = assigneeFromLabel || assigneeFromAgentField || githubAssignee
 
   // ── Extract PR URL from linked PRs (timeline events) ──
   let prUrl: string | undefined
@@ -631,6 +642,15 @@ export async function createTask(
     }
   }
 
+  // 5. Set Agent TEXT field if assignee is specified and field exists on the project
+  if (meta.agentField && data.assigneeLogin) {
+    try {
+      await setTextFieldValue(meta.projectId, itemId, meta.agentField.id, data.assigneeLogin)
+    } catch (e) {
+      console.error('[ghProject] Failed to set Agent field:', e)
+    }
+  }
+
   invalidateTaskCache(cfg)
 
   const now = new Date().toISOString()
@@ -701,6 +721,19 @@ export async function updateTask(
     )
     if (option) {
       await setFieldValue(meta.projectId, itemId, meta.priorityField.id, option.id)
+    }
+  }
+
+  // Update Agent TEXT field when assignee changes
+  if (updates.assigneeLogin !== undefined && meta.agentField) {
+    try {
+      // Clear the field if assignee is null, otherwise set the agent name
+      await setTextFieldValue(
+        meta.projectId, itemId, meta.agentField.id,
+        updates.assigneeLogin || '',
+      )
+    } catch (e) {
+      console.error('[ghProject] Failed to update Agent field:', e)
     }
   }
 
@@ -977,6 +1010,28 @@ async function setFieldValue(
     }
   `
   ghGraphQL(query, { projectId, itemId, fieldId, optionId })
+}
+
+/** Set a TEXT field value on a GitHub Project V2 item (e.g. the Agent field). */
+async function setTextFieldValue(
+  projectId: string,
+  itemId: string,
+  fieldId: string,
+  text: string,
+): Promise<void> {
+  const query = `
+    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $text: String!) {
+      updateProjectV2ItemFieldValue(input: {
+        projectId: $projectId
+        itemId: $itemId
+        fieldId: $fieldId
+        value: { text: $text }
+      }) {
+        projectV2Item { id }
+      }
+    }
+  `
+  ghGraphQL(query, { projectId, itemId, fieldId, text })
 }
 
 async function getIssueNumberForItem(

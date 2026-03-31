@@ -150,16 +150,12 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
         </div>
       )}
 
-      {/* Bottom section: left icons (single row) | spacer | right framed avatar */}
-      <div className="flex items-end gap-2 mt-3">
-        {/* LEFT: icons on one row, same size, spaced by one icon diameter */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {task.isBlocked ? (
-            <span title="Task is blocked"><Lock className="w-4 h-4 text-amber-500" /></span>
-          ) : (
-            <Icon className="w-4 h-4 text-gray-500" />
-          )}
-          {task.externalRef && (() => {
+      {/* Bottom section: left metadata (stacked) | right avatar frame flush with card edges */}
+      <div className="flex items-end gap-2 mt-3 -mb-3 -mr-3">
+        {/* LEFT: two rows stacked, vertically aligned — issue on top, status below */}
+        <div className="flex flex-col gap-1.5 flex-shrink-0 mb-3">
+          {/* Row 1: issue/PR icon + number */}
+          {task.externalRef ? (() => {
             const isPR = task.externalRef.includes('/pull/')
             const issueMatch = task.externalRef.match(/(?:issues|pull)\/(\d+)/)
             if (!issueMatch) return null
@@ -171,37 +167,40 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                className={`flex items-center gap-0.5 text-[10px] font-mono hover:underline ${
+                className={`flex items-center gap-1.5 text-[10px] font-mono hover:underline ${
                   isCompleted ? 'text-purple-400' : 'text-green-400'
                 }`}
                 title={`Open ${isPR ? 'PR' : 'issue'} #${issueMatch[1]} on GitHub`}
               >
-                <TypeIcon className="w-4 h-4" />
-                #{issueMatch[1]}
+                <TypeIcon className="w-4 h-4 flex-shrink-0" />
+                <span>#{issueMatch[1]}</span>
               </a>
             )
-          })()}
-          {task.prUrl && !task.externalRef?.includes('/pull/') && (
-            <span title="Has PR"><GitPullRequest className="w-4 h-4 text-purple-400/70" /></span>
-          )}
-          {task.taskType && (
-            <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/60 text-gray-500">
-              {task.taskType}
-            </span>
-          )}
-          {task.blockedBy.length > 0 && (
-            <span className="text-[10px] text-amber-500/70" title={`${task.blockedBy.length} dependencies`}>
-              {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
-            </span>
-          )}
+          })() : <div className="h-4" />}
+
+          {/* Row 2: task status icon + metadata text, aligned under the issue icon */}
+          <div className="flex items-center gap-1.5">
+            {task.isBlocked ? (
+              <span title="Task is blocked"><Lock className="w-4 h-4 text-amber-500 flex-shrink-0" /></span>
+            ) : (
+              <Icon className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            )}
+            {task.taskType ? (
+              <span className="text-[9px] text-gray-500">{task.taskType}</span>
+            ) : task.blockedBy.length > 0 ? (
+              <span className="text-[9px] text-amber-500/70">{task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}</span>
+            ) : (
+              <span className="text-[9px] text-gray-600">{task.status}</span>
+            )}
+          </div>
         </div>
 
         <div className="flex-1" />
 
-        {/* RIGHT: framed box with name + avatar */}
+        {/* RIGHT: avatar frame — flush with card bottom-right, inset shadow for depth */}
         {task.assigneeName ? (
           <div
-            className="flex items-center gap-2 flex-shrink-0 rounded-lg border border-gray-700/60 pl-2 pr-0.5 py-0.5"
+            className="flex items-center gap-2 flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-600/40 bg-gray-900/40 pl-2.5 pr-1 py-1 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.3)]"
             title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
           >
             <span className="text-[10px] text-gray-400 truncate max-w-[60px] font-medium">{task.assigneeName}</span>
@@ -210,10 +209,10 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
                 <img
                   src={task.assigneeAvatar}
                   alt={task.assigneeName}
-                  className="w-11 h-11 rounded-full object-cover ring-2 ring-gray-600"
+                  className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-600"
                 />
               ) : (
-                <span className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
+                <span className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
                   {task.assigneeName.charAt(0)}
                 </span>
               )}
@@ -226,9 +225,9 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 flex-shrink-0 rounded-lg border border-gray-700/40 pl-2 pr-0.5 py-0.5">
+          <div className="flex items-center gap-2 flex-shrink-0 rounded-br-lg rounded-tl-lg border-t border-l border-gray-700/30 bg-gray-900/20 pl-2.5 pr-1 py-1">
             <span className="text-[10px] text-gray-600 italic">Unassigned</span>
-            <span className="w-11 h-11 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
+            <span className="w-12 h-12 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
               <User className="w-5 h-5 text-gray-600" />
             </span>
           </div>

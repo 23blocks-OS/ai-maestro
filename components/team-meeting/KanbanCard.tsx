@@ -150,24 +150,14 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
         </div>
       )}
 
-      {/* Bottom section: 2 columns — left (all icons stacked) | right (name + large avatar) */}
+      {/* Bottom section: left icons (single row) | spacer | right framed avatar */}
       <div className="flex items-end gap-2 mt-3">
-        {/* LEFT column: all icons stacked vertically */}
-        <div className="flex flex-col gap-1 flex-shrink-0">
+        {/* LEFT: icons on one row, same size, spaced by one icon diameter */}
+        <div className="flex items-center gap-3 flex-shrink-0">
           {task.isBlocked ? (
-            <span title="Task is blocked"><Lock className="w-3.5 h-3.5 text-amber-500" /></span>
+            <span title="Task is blocked"><Lock className="w-4 h-4 text-amber-500" /></span>
           ) : (
-            <Icon className="w-3.5 h-3.5 text-gray-500" />
-          )}
-          {task.taskType && (
-            <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/60 text-gray-500">
-              {task.taskType}
-            </span>
-          )}
-          {task.blockedBy.length > 0 && (
-            <span className="text-[10px] text-amber-500/70" title={`${task.blockedBy.length} dependencies`}>
-              {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
-            </span>
+            <Icon className="w-4 h-4 text-gray-500" />
           )}
           {task.externalRef && (() => {
             const isPR = task.externalRef.includes('/pull/')
@@ -186,35 +176,44 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
                 }`}
                 title={`Open ${isPR ? 'PR' : 'issue'} #${issueMatch[1]} on GitHub`}
               >
-                <TypeIcon className="w-3 h-3" />
+                <TypeIcon className="w-4 h-4" />
                 #{issueMatch[1]}
               </a>
             )
           })()}
           {task.prUrl && !task.externalRef?.includes('/pull/') && (
-            <span title="Has PR"><GitPullRequest className="w-3 h-3 text-purple-400/70" /></span>
+            <span title="Has PR"><GitPullRequest className="w-4 h-4 text-purple-400/70" /></span>
+          )}
+          {task.taskType && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/60 text-gray-500">
+              {task.taskType}
+            </span>
+          )}
+          {task.blockedBy.length > 0 && (
+            <span className="text-[10px] text-amber-500/70" title={`${task.blockedBy.length} dependencies`}>
+              {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
+            </span>
           )}
         </div>
 
-        {/* Spacer pushes avatar to the right */}
         <div className="flex-1" />
 
-        {/* RIGHT: agent name (vertically centered to avatar) + large avatar */}
+        {/* RIGHT: framed box with name + avatar */}
         {task.assigneeName ? (
           <div
-            className="flex items-center gap-1.5 flex-shrink-0"
+            className="flex items-center gap-2 flex-shrink-0 rounded-lg border border-gray-700/60 pl-2 pr-0.5 py-0.5"
             title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
           >
-            <span className="text-[10px] text-gray-400 truncate max-w-[60px] text-right font-medium">{task.assigneeName}</span>
+            <span className="text-[10px] text-gray-400 truncate max-w-[60px] font-medium">{task.assigneeName}</span>
             <span className="relative overflow-visible flex-shrink-0">
               {task.assigneeAvatar ? (
                 <img
                   src={task.assigneeAvatar}
                   alt={task.assigneeName}
-                  className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-600"
+                  className="w-11 h-11 rounded-full object-cover ring-2 ring-gray-600"
                 />
               ) : (
-                <span className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
+                <span className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white uppercase ring-2 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
                   {task.assigneeName.charAt(0)}
                 </span>
               )}
@@ -227,9 +226,9 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 rounded-lg border border-gray-700/40 pl-2 pr-0.5 py-0.5">
             <span className="text-[10px] text-gray-600 italic">Unassigned</span>
-            <span className="w-12 h-12 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
+            <span className="w-11 h-11 rounded-full bg-gray-700/30 flex items-center justify-center flex-shrink-0 ring-1 ring-gray-700/50">
               <User className="w-5 h-5 text-gray-600" />
             </span>
           </div>

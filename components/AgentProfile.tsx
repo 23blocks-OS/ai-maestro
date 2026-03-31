@@ -326,7 +326,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
    */
   const isIdlePrompt = isProgramRunning && notificationType === 'idle_prompt'
   const isPermissionPrompt = isProgramRunning && notificationType === 'permission_prompt'
-  const isSafeToCommand = isIdlePrompt
+  // Safe to send commands when: hook reported idle_prompt, OR hook state is stale
+  // (status 'idle' without notificationType — happens after server restart or hook gap)
+  const isIdleNoHook = isProgramRunning && activityInfo?.status === 'idle' && !notificationType
+  const isSafeToCommand = isIdlePrompt || isIdleNoHook
   const [restarting, setRestarting] = useState(false)
 
   // Resolve display program name (e.g. "claude-code", "Claude Code") to CLI binary name

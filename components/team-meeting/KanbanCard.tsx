@@ -97,17 +97,6 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
       title={task.description ? task.description.slice(0, 200) + (task.description.length > 200 ? '...' : '') : undefined}
       className={`group px-3 py-3 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800/80 border border-gray-700/50 hover:border-gray-600/80 hover:bg-gray-800 ${blockedStyle} ${selectedGlow} ${hoverGlow}`}
     >
-      {/* Repository badge — extracted from externalRef URL */}
-      {task.externalRef && (() => {
-        const repoMatch = task.externalRef.match(/github\.com\/[^/]+\/([^/]+)/)
-        return repoMatch ? (
-          <div className="flex items-center gap-1 mb-0.5">
-            <GitBranch className="w-2.5 h-2.5 text-gray-500" />
-            <span className="text-[9px] text-gray-500 truncate">{repoMatch[1]}</span>
-          </div>
-        ) : null
-      })()}
-
       {/* Top row: priority dot + subject (clickable if external) */}
       <div className="flex items-start gap-1.5">
         {task.priority != null && (
@@ -178,19 +167,43 @@ export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: 
             )
           })() : <div className="h-4" />}
 
-          {/* Row 2: task status icon + metadata text, aligned under the issue icon */}
+          {/* Row 2: repo icon + repo name (linked), or blocked/deps/type fallback */}
           <div className="flex items-center gap-1.5">
             {task.isBlocked ? (
               <span title="Task is blocked"><Lock className="w-4 h-4 text-amber-500 flex-shrink-0" /></span>
-            ) : (
+            ) : task.externalRef ? (() => {
+              const repoMatch = task.externalRef.match(/github\.com\/([^/]+)\/([^/]+)/)
+              if (!repoMatch) return <GitBranch className="w-4 h-4 text-gray-500 flex-shrink-0" />
+              const repoOwner = repoMatch[1]
+              const repoName = repoMatch[2]
+              const repoFull = `${repoOwner}/${repoName}`
+              // Private repo heuristic: personal account owners (not well-known orgs)
+              // show a lock icon and warmer color as a visual hint
+              const isLikelyPrivate = repoOwner === repoOwner.toLowerCase() && !repoOwner.includes('-')
+              return (
+                <a
+                  href={`https://github.com/${repoFull}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className={`flex items-center gap-1.5 text-[9px] hover:text-gray-300 hover:underline transition-colors truncate ${
+                    isLikelyPrivate ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                  title={`${repoFull}${isLikelyPrivate ? ' (private)' : ''}`}
+                >
+                  <GitBranch className="w-4 h-4 flex-shrink-0" />
+                  {isLikelyPrivate && <Lock className="w-2.5 h-2.5 flex-shrink-0 text-gray-500" />}
+                  <span className="truncate max-w-[110px]">github.com/{repoFull}</span>
+                </a>
+              )
+            })() : (
               <Icon className="w-4 h-4 text-gray-500 flex-shrink-0" />
             )}
-            {task.taskType ? (
+            {!task.externalRef && task.taskType && (
               <span className="text-[9px] text-gray-500">{task.taskType}</span>
-            ) : task.blockedBy.length > 0 ? (
-              <span className="text-[9px] text-amber-500/70">{task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}</span>
-            ) : (
-              <span className="text-[9px] text-gray-600">{task.status}</span>
+            )}
+            {task.blockedBy.length > 0 && (
+              <span className="text-[9px] text-amber-500/70 ml-1">{task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}</span>
             )}
           </div>
         </div>

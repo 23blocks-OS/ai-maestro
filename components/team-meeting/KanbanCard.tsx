@@ -33,10 +33,19 @@ function labelColor(label: string): string {
   return LABEL_COLORS[Math.abs(hash) % LABEL_COLORS.length]
 }
 
+/** Agent status info passed from the board — mirrors the 5-state model from AgentBadge */
+interface AgentStatusOnCard {
+  color: string   // Tailwind bg class: 'bg-green-500', 'bg-amber-500', 'bg-orange-500', 'bg-gray-400'
+  pulse: boolean  // true = animate-pulse (permission, waiting, active)
+  label: string   // 'Active', 'Idle', 'Waiting', 'Permission', 'Exited', 'Offline'
+}
+
 interface KanbanCardProps {
   task: TaskWithDeps
   onSelect: (task: TaskWithDeps) => void
   isSelected?: boolean
+  /** Optional agent status indicator — shown as a small dot on the avatar */
+  agentStatus?: AgentStatusOnCard
 }
 
 // Stable color palette for assignee avatar circles — hash-based assignment
@@ -49,7 +58,7 @@ function assigneeColor(name: string): string {
   return ASSIGNEE_COLORS[Math.abs(hash) % ASSIGNEE_COLORS.length]
 }
 
-export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardProps) {
+export default function KanbanCard({ task, onSelect, isSelected, agentStatus }: KanbanCardProps) {
   const Icon = STATUS_ICON_MAP[task.status] || Circle
   const priorityDot = task.priority != null ? (PRIORITY_COLORS[task.priority] || 'bg-gray-500') : null
 
@@ -141,21 +150,34 @@ export default function KanbanCard({ task, onSelect, isSelected }: KanbanCardPro
         </div>
       )}
 
-      {/* Assignee row — prominent display with larger avatar */}
+      {/* Assignee row — avatar with agent status dot at top-right corner */}
       <div className="flex items-center gap-2 mt-2.5 mb-1">
         {task.assigneeName ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-gray-300 truncate" title={`Assigned to ${task.assigneeName}`}>
-            {task.assigneeAvatar ? (
-              <img
-                src={task.assigneeAvatar}
-                alt={task.assigneeName}
-                className="w-6 h-6 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-600"
-              />
-            ) : (
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium text-white flex-shrink-0 uppercase ring-1 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
-                {task.assigneeName.charAt(0)}
-              </span>
-            )}
+          <span
+            className="flex items-center gap-1.5 text-[11px] text-gray-300 truncate"
+            title={`Assigned to ${task.assigneeName}${agentStatus ? ` — ${agentStatus.label}` : ''}`}
+          >
+            {/* Avatar with status indicator dot */}
+            <span className="relative flex-shrink-0 w-6 h-6">
+              {task.assigneeAvatar ? (
+                <img
+                  src={task.assigneeAvatar}
+                  alt={task.assigneeName}
+                  className="w-6 h-6 rounded-full object-cover ring-1 ring-gray-600"
+                />
+              ) : (
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium text-white uppercase ring-1 ring-gray-600 ${assigneeColor(task.assigneeName)}`}>
+                  {task.assigneeName.charAt(0)}
+                </span>
+              )}
+              {/* Agent status dot — positioned top-right, tangent to the avatar circle */}
+              {agentStatus && (
+                <span
+                  className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-gray-800 ${agentStatus.color} ${agentStatus.pulse ? 'animate-pulse' : ''}`}
+                  title={agentStatus.label}
+                />
+              )}
+            </span>
             <span className="truncate max-w-[80px] font-medium">{task.assigneeName}</span>
           </span>
         ) : (

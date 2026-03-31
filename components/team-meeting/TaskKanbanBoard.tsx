@@ -12,6 +12,7 @@ import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import type { KanbanColumnConfig } from '@/types/team'
 import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import KanbanCard from './KanbanCard'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 import TaskDetailView from './TaskDetailView'
 import TaskCreateForm from './TaskCreateForm'
 
@@ -73,6 +74,31 @@ export default function TaskKanbanBoard({
   teamId,
 }: TaskKanbanBoardProps) {
   const cols = kanbanColumns || DEFAULT_KANBAN_COLUMNS
+
+  // Agent activity status — used to show status dots on kanban card avatars
+  const { getSessionActivity } = useSessionActivity()
+
+  // Resolve agent status for a task's assignee: match by ID/name/alias/label → get session → get activity.
+  // Uses the same 5-state priority model as AgentBadge.getStatusInfo().
+  const getAgentStatusForTask = useCallback((task: TaskWithDeps): { color: string; pulse: boolean; label: string } | undefined => {
+    if (!task.assigneeAgentId) return undefined
+    const agentId = task.assigneeAgentId
+    const agent = agents.find(a =>
+      a.id === agentId || a.name === agentId || a.alias === agentId ||
+      (a.label && a.label.toLowerCase() === agentId.toLowerCase())
+    )
+    if (!agent) return undefined
+    const sessionName = agent.name || agent.alias
+    if (!sessionName) return undefined
+    const activity = getSessionActivity(sessionName)
+    const isOnline = agent.sessions?.some(s => s.status === 'online') ?? false
+    if (!isOnline) return { color: 'bg-gray-500', pulse: false, label: 'Offline' }
+    // Use activity hook for program state — the sessions array doesn't have programRunning
+    if (activity?.notificationType === 'permission_prompt') return { color: 'bg-orange-500', pulse: true, label: 'Permission' }
+    if (activity?.notificationType === 'idle_prompt' || activity?.status === 'waiting') return { color: 'bg-amber-500', pulse: true, label: 'Waiting' }
+    if (activity?.status === 'active') return { color: 'bg-green-500', pulse: true, label: 'Active' }
+    return { color: 'bg-green-500', pulse: false, label: 'Idle' }
+  }, [agents, getSessionActivity])
 
   const [selectedTask, setSelectedTask] = useState<TaskWithDeps | null>(null)
   const [quickAddStatus, setQuickAddStatus] = useState<string | null>(null)
@@ -286,6 +312,7 @@ export default function TaskKanbanBoard({
                 onClearFilter={() => setColState(col.id, { filter: '' })}
                 onSortAsc={() => setColState(col.id, { sort: 'asc' })}
                 onSortDesc={() => setColState(col.id, { sort: 'desc' })}
+                getAgentStatus={getAgentStatusForTask}
               />
             )
           })}
@@ -378,6 +405,7 @@ interface EnhancedColumnProps {
   onClearFilter: () => void
   onSortAsc: () => void
   onSortDesc: () => void
+  getAgentStatus: (task: TaskWithDeps) => { color: string; pulse: boolean; label: string } | undefined
 }
 
 function EnhancedColumn({
@@ -385,7 +413,7 @@ function EnhancedColumn({
   isBlocked, selectedCardId, menuOpen, colorPickerOpen,
   onDrop, onSelectTask, onQuickAdd, onFilterChange, onCycleSort,
   onToggleCollapse, onMenuToggle, onColorPickerToggle, onColorChange,
-  onClearFilter, onSortAsc, onSortDesc,
+  onClearFilter, onSortAsc, onSortDesc, getAgentStatus,
 }: EnhancedColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -574,7 +602,7 @@ function EnhancedColumn({
                 : ''
             }`}
           >
-            <KanbanCard task={task} onSelect={onSelectTask} />
+            <KanbanCard task={task} onSelect={onSelectTask} agentStatus={getAgentStatus(task)} />
           </div>
         ))}
 

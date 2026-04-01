@@ -90,10 +90,11 @@ const geminiEmitter: Emitter = {
       })
     }
 
-    // Commands → .gemini/commands/ (Gemini uses TOML format for commands)
+    // Commands → .gemini/commands/ (Gemini uses TOML format per spec)
     for (const cmd of project.commands) {
-      // Convert markdown command to TOML format per Gemini spec
-      const tomlContent = `# Command: ${cmd.name}\n[command]\nname = "${cmd.name}"\ndescription = "Converted command"\n\n[command.prompt]\ncontent = """\n${cmd.content.replace(/"""/g, '\\"\\"\\"')}\n"""\n`
+      // Gemini command TOML: top-level prompt field, not nested under [command]
+      const escapedContent = cmd.content.replace(/"""/g, "'''")
+      const tomlContent = `name = "${cmd.name}"\ndescription = "Converted command"\nprompt = """\n${escapedContent}\n"""\n`
       files.push({ path: `.gemini/commands/${cmd.name}.toml`, content: tomlContent, type: 'commands', warnings: [] })
     }
 

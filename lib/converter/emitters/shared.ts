@@ -24,9 +24,13 @@ export function emitSkill(
 ): ConvertedFile {
   const warnings: string[] = []
 
+  // Guard: required fields must be non-empty
+  if (!skill.name) warnings.push(`Skill has empty name — using dirName "${skill.dirName}"`)
+  if (!skill.description) warnings.push(`Skill "${skill.name || skill.dirName}" has empty description`)
+
   let fm: Record<string, unknown> = {
-    name: skill.name,
-    description: skill.description,
+    name: skill.name || skill.dirName,
+    description: skill.description || `Skill: ${skill.name || skill.dirName}`,
   }
 
   // Add optional fields if present
@@ -97,9 +101,14 @@ export function emitMarkdownAgent(
   } = {}
 ): ConvertedFile {
   const warnings: string[] = []
+
+  // Guard: required fields must be non-empty
+  if (!agent.name) warnings.push(`Agent has empty name — using fileName "${agent.fileName}"`)
+  if (!agent.description) warnings.push(`Agent "${agent.name || agent.fileName}" has empty description`)
+
   const fm: Record<string, unknown> = {
-    name: agent.name,
-    description: agent.description,
+    name: agent.name || agent.fileName,
+    description: agent.description || `Agent: ${agent.name || agent.fileName}`,
   }
 
   // Standard agent fields

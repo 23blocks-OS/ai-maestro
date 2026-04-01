@@ -117,6 +117,25 @@ async function scanCommands(rootDir: string): Promise<CommandIR[]> {
   return commands
 }
 
+/** Scan commands/ at plugin root (flat layout) */
+async function scanCommandsFlat(rootDir: string): Promise<CommandIR[]> {
+  const commandsDir = path.join(rootDir, 'commands')
+  const commands: CommandIR[] = []
+  try {
+    const { readdir } = await import('fs/promises')
+    const entries = await readdir(commandsDir)
+    for (const entry of entries) {
+      if (!entry.endsWith('.md')) continue
+      const filePath = path.join(commandsDir, entry)
+      const content = await readFileOr(filePath)
+      if (content) {
+        commands.push({ name: entry.replace(/\.md$/, ''), content, sourcePath: filePath })
+      }
+    }
+  } catch { /* commands dir doesn't exist */ }
+  return commands
+}
+
 /** Scan hooks from .claude/settings.json */
 async function scanHooks(rootDir: string): Promise<HookIR[]> {
   const hooks: HookIR[] = []
@@ -155,15 +174,24 @@ const claudeParser: Parser = {
   providerId: 'claude-code',
 
   async parse(dir: string): Promise<ProjectIR> {
-    const skillsDir = path.join(dir, '.claude', 'skills')
-    const agentsDir = path.join(dir, '.claude', 'agents')
+    // Detect layout: project (.claude/skills/) vs plugin (skills/ at root)
+    const { fileExists } = await import('../utils/fs')
+    const isPluginLayout = await fileExists(path.join(dir, 'skills'))
+      && !await fileExists(path.join(dir, '.claude', 'skills'))
+
+    const skillsDir = isPluginLayout
+      ? path.join(dir, 'skills')
+      : path.join(dir, '.claude', 'skills')
+    const agentsDir = isPluginLayout
+      ? path.join(dir, 'agents')
+      : path.join(dir, '.claude', 'agents')
 
     const [skills, agents, instructions, mcp, commands, hooks] = await Promise.all([
       parseSkillsDir(skillsDir, mapSkillToIR),
       parseMarkdownAgentsDir(agentsDir),
       scanInstructions(dir),
       scanMCP(dir),
-      scanCommands(dir),
+      isPluginLayout ? scanCommandsFlat(dir) : scanCommands(dir),
       scanHooks(dir),
     ])
 

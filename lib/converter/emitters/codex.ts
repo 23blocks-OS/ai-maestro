@@ -13,6 +13,7 @@
 
 import type { Emitter, ProjectIR, ConvertedFile, ConversionProvenance, SkillIR } from '../types'
 import { emitSkill, emitSkillAuxFiles, buildArgumentHint } from './shared'
+import { parseFrontmatter as parseFrontmatterUtil } from '../utils/frontmatter'
 import { stringifyToml } from '../utils/toml'
 import { WarningCollector } from '../utils/warnings'
 
@@ -159,9 +160,13 @@ const codexEmitter: Emitter = {
     // ═══ Commands → Skills (Codex has no commands, convert to skills) ═══
     for (const cmd of project.commands) {
       warnings.lossyElement('commands', cmd.name, 'Codex does not support slash commands — converted to skill')
+      // Strip original frontmatter from command content to avoid double frontmatter
+      const parsed = parseFrontmatterUtil(cmd.content)
+      const desc = String(parsed.data.description || `Converted from command /${cmd.name}`)
+      const body = parsed.body || cmd.content
       files.push({
         path: `.agents/skills/${cmd.name}/SKILL.md`,
-        content: `---\nname: ${cmd.name}\ndescription: "Converted from Claude Code command /${cmd.name}"\n---\n\n${cmd.content}`,
+        content: `---\nname: ${cmd.name}\ndescription: "${desc.replace(/"/g, '\\"')}"\n---\n\n${body}`,
         type: 'commands',
         warnings: [`Command "/${cmd.name}" converted to skill (Codex has no native commands)`],
       })

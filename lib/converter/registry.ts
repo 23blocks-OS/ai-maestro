@@ -34,8 +34,8 @@ const PROVIDERS: Provider[] = [
     id: 'codex',
     displayName: 'Codex CLI',
     configDir: '.codex',
-    skillsPath: '.codex/skills',
-    userSkillsPath: '~/.codex/skills',
+    skillsPath: '.agents/skills',
+    userSkillsPath: '~/.agents/skills',
     agentsPath: '.codex/agents',
     agentsFormat: 'toml',
     agentsExtension: '.toml',
@@ -53,8 +53,8 @@ const PROVIDERS: Provider[] = [
     id: 'gemini',
     displayName: 'Gemini CLI',
     configDir: '.gemini',
-    skillsPath: '.gemini/skills',
-    userSkillsPath: '~/.gemini/skills',
+    skillsPath: '.gemini/skills',  // Also reads .agents/skills/ as alias (higher precedence)
+    userSkillsPath: '~/.gemini/skills',  // Also reads ~/.agents/skills/ as alias
     agentsPath: '.gemini/agents',
     agentsFormat: 'markdown-yaml',
     agentsExtension: '.md',
@@ -102,7 +102,7 @@ const PROVIDERS: Provider[] = [
     argSyntax: 'none',
     mcpConfigPath: '.kiro/settings/mcp.json',
     commandsPath: null,
-    hooksPath: '.kiro/settings/hooks.json',
+    hooksPath: '.kiro/hooks',  // Per-hook .kiro.hook JSON files
     supportsPlugins: false,
     userConfigDir: '~/.kiro',
   },

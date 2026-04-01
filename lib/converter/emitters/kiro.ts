@@ -120,18 +120,27 @@ const kiroEmitter: Emitter = {
       })
     }
 
-    // Hooks → .kiro/settings/hooks.json
-    if (project.hooks.length > 0) {
-      const hooksConfig: Record<string, Array<{ matcher?: string; hooks: Array<{ type: string; command?: string }> }>> = {}
-      for (const hook of project.hooks) {
-        if (!hooksConfig[hook.event]) hooksConfig[hook.event] = []
-        let group = hooksConfig[hook.event].find(g => g.matcher === hook.matcher)
-        if (!group) { group = { matcher: hook.matcher, hooks: [] }; hooksConfig[hook.event].push(group) }
-        group.hooks.push({ type: hook.type, command: hook.command })
+    // Hooks → .kiro/hooks/<name>.kiro.hook (per-hook JSON files per Kiro spec)
+    // Schema: { name, description, version, when: { event, matcher? }, then: { type, command? } }
+    for (const hook of project.hooks) {
+      const hookName = `${hook.event}${hook.matcher ? `-${hook.matcher.replace(/[^a-zA-Z0-9]/g, '-')}` : ''}`
+      const hookJson: Record<string, unknown> = {
+        name: hookName,
+        description: `Hook for ${hook.event}${hook.matcher ? ` (${hook.matcher})` : ''}`,
+        version: '1.0',
+        when: {
+          event: hook.event,
+          ...(hook.matcher ? { matcher: hook.matcher } : {}),
+        },
+        then: {
+          type: hook.type === 'command' ? 'shell' : hook.type,
+          ...(hook.command ? { command: hook.command } : {}),
+        },
       }
+
       files.push({
-        path: '.kiro/settings/hooks.json',
-        content: JSON.stringify({ hooks: hooksConfig }, null, 2),
+        path: `.kiro/hooks/${hookName}.kiro.hook`,
+        content: JSON.stringify(hookJson, null, 2),
         type: 'hooks',
         warnings: [],
       })

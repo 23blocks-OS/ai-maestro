@@ -70,13 +70,13 @@ const codexEmitter: Emitter = {
         body: skill.userInvokable ? transformBodyToCodex(skill.body) : skill.body,
       }
 
-      const skillPath = `.codex/skills/${skill.dirName}/SKILL.md`
+      const skillPath = `.agents/skills/${skill.dirName}/SKILL.md`
       files.push(emitSkill(transformedSkill, skillPath, {
         fieldsToStrip: CODEX_STRIP_FIELDS,
         extraFrontmatter: extraFm,
         provenance,
       }))
-      files.push(...emitSkillAuxFiles(skill, `.codex/skills/${skill.dirName}`))
+      files.push(...emitSkillAuxFiles(skill, `.agents/skills/${skill.dirName}`))
     }
 
     // ═══ Agents (TOML) ═══
@@ -160,7 +160,7 @@ const codexEmitter: Emitter = {
     for (const cmd of project.commands) {
       warnings.lossyElement('commands', cmd.name, 'Codex does not support slash commands — converted to skill')
       files.push({
-        path: `.codex/skills/${cmd.name}/SKILL.md`,
+        path: `.agents/skills/${cmd.name}/SKILL.md`,
         content: `---\nname: ${cmd.name}\ndescription: "Converted from Claude Code command /${cmd.name}"\n---\n\n${cmd.content}`,
         type: 'commands',
         warnings: [`Command "/${cmd.name}" converted to skill (Codex has no native commands)`],

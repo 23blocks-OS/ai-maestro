@@ -170,10 +170,11 @@ export async function scan(dir: string, sourceProvider?: ProviderId): Promise<Pr
 }
 
 /** Determine output root directory based on scope */
-function getOutputRoot(options: ConvertOptions, targetProvider: { userConfigDir: string }): string {
+function getOutputRoot(options: ConvertOptions, _targetProvider: { userConfigDir: string }): string {
   if (options.scope === 'user') {
-    // User scope: write to ~/.client/ parent dir
-    return resolveHomePath(targetProvider.userConfigDir).replace(/\/\.[^/]+$/, '')
+    // User scope: emitter paths are relative (e.g., '.claude/skills/foo/SKILL.md')
+    // so the root is HOME — the emitter's path includes the client dir prefix
+    return process.env.HOME || '/root'
   }
   // Project scope: write relative to project dir
   return options.projectDir || process.cwd()

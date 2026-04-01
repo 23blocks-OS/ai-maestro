@@ -80,11 +80,13 @@ const geminiEmitter: Emitter = {
         if (s.url) def.url = s.url
         mcpServers[s.name] = def
       }
+      // Gemini settings.json nests MCP under top-level structure
+      const settingsJson = { mcpServers }
       files.push({
         path: '.gemini/settings.json',
-        content: JSON.stringify({ mcpServers }, null, 2),
+        content: JSON.stringify(settingsJson, null, 2),
         type: 'mcp',
-        warnings: ['MCP written to .gemini/settings.json — merge manually with existing settings'],
+        warnings: ['MCP written to .gemini/settings.json — merge mcpServers key into existing settings manually'],
       })
     }
 

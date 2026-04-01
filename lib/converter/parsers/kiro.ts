@@ -149,26 +149,34 @@ async function scanMCP(rootDir: string): Promise<MCPIR | null> {
   return null
 }
 
-/** Scan .kiro/settings/hooks.json */
+/** Scan .kiro/hooks/*.kiro.hook (per-hook JSON files per Kiro spec) */
 async function scanHooks(rootDir: string): Promise<HookIR[]> {
   const hooks: HookIR[] = []
-  const hooksPath = path.join(rootDir, '.kiro', 'settings', 'hooks.json')
-  const content = await readFileOr(hooksPath)
-  if (!content) return hooks
-  try {
-    const data = JSON.parse(content)
-    if (data.hooks && typeof data.hooks === 'object') {
-      for (const [event, matchers] of Object.entries(data.hooks)) {
-        if (!Array.isArray(matchers)) continue
-        for (const m of matchers as Array<{ matcher?: string; hooks?: Array<{ type: string; command?: string }> }>) {
-          if (!m.hooks) continue
-          for (const h of m.hooks) {
-            hooks.push({ event, matcher: m.matcher, type: h.type || 'command', command: h.command })
-          }
-        }
-      }
-    }
-  } catch { /* */ }
+  const hooksDir = path.join(rootDir, '.kiro', 'hooks')
+  const files = await listFiles(hooksDir)
+
+  for (const fileName of files) {
+    if (!fileName.endsWith('.kiro.hook')) continue
+    const filePath = path.join(hooksDir, fileName)
+    const content = await readFileOr(filePath)
+    if (!content) continue
+
+    try {
+      const data = JSON.parse(content) as Record<string, unknown>
+      // Kiro hook schema: { name, description, version, when: { event, ... }, then: { type, command, ... } }
+      const when = data.when as Record<string, unknown> | undefined
+      const then = data.then as Record<string, unknown> | undefined
+      if (!when || !then) continue
+
+      hooks.push({
+        event: String(when.event ?? data.name ?? fileName.replace('.kiro.hook', '')),
+        matcher: when.matcher as string | undefined,
+        type: String(then.type ?? 'shell'),
+        command: then.command as string | undefined,
+      })
+    } catch { /* invalid JSON */ }
+  }
+
   return hooks
 }
 

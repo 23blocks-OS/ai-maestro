@@ -452,14 +452,14 @@ All WebSocket messages are JSON. Raw terminal output (ANSI codes) is wrapped in 
 **Safe-state gate:** All control operations (Stop, Restart, Approve) require `idle_prompt` state. This is the only state where Claude has no subagents running, no permission prompts pending, and is genuinely waiting for input.
 
 **Session control buttons (AgentProfile.tsx):**
-- **Stop** (red): sends `/exit`. Enabled only at `idle_prompt`.
-- **Restart** (orange): calls `POST /api/sessions/{name}/restart` — sends `/exit`, polls `tmux display-message` until shell detected (max 15s), waits 1s, relaunches with same program args.
+- **Stop** (red): sends 3-command sequence: `C-c` (clear partial input) → `-l '/exit'` (literal text) → `Enter`. Enabled only at `idle_prompt`.
+- **Restart** (orange): calls `POST /api/sessions/{name}/restart` — sends same 3-command stop sequence, polls `tmux display-message` until shell detected (max 15s), waits 1s, relaunches with same program args + `--name` persona injection.
 - **Approve** (green): sends `y` to terminal. Visible only during `permission_prompt`.
 
-**Auto-restart queue (`useRestartQueue` hook):** After plugin/skill changes, agents are queued for restart. The queue watches `useSessionActivity` — when a queued agent reaches `idle_prompt`, it fires the restart API automatically.
+**Auto-restart queue (`useRestartQueue` hook):** After plugin/skill changes, agents are queued for restart. The queue polls agent activity every 1s (polling chosen over reactive deps to avoid effect churn from `getSessionActivity` identity changes — SF-044). When a queued agent reaches `idle_prompt`, it fires the restart API automatically.
 
 **API endpoints:**
-- `POST /api/sessions/{name}/stop` — sends `/exit` to tmux session
+- `POST /api/sessions/{name}/stop` — sends `C-c` + `/exit` + `Enter` to tmux session
 - `POST /api/sessions/{name}/restart` — full restart cycle (exit → poll → wait → relaunch)
 
 **Data flow:** Hook (`ai-maestro-hook.cjs`) → state file (`~/.aimaestro/chat-state/`) → WebSocket broadcast → `useSessionActivity` → `AgentBadge`/`AgentProfile`
@@ -958,9 +958,9 @@ After 5 failed reconnection attempts, show error to user. Do NOT retry indefinit
 
 ### Session Naming Constraints
 
-tmux session names are limited to: `^[a-zA-Z0-9_-]+$`
+tmux session names are limited to: `^[a-zA-Z0-9_@.-]+$`
 
-**Enforce this** in any UI that creates sessions (Phase 2+). Invalid characters will cause `tmux attach` to fail silently.
+The extended character set (`@` and `.`) supports `agentId@hostId` format used for multi-host agent addressing. **Enforce this** in any UI that creates sessions (Phase 2+). Invalid characters will cause `tmux attach` to fail silently.
 
 ### Localhost-Only Security Model
 
@@ -1058,7 +1058,7 @@ Parsing must handle:
 - Timestamps in various formats (locale-dependent)
 - Multiple windows (number can be > 9)
 
-Use robust regex: `/^([a-zA-Z0-9_-]+):/`
+Use robust regex: `/^([a-zA-Z0-9_@.-]+):/`
 
 ### 5. xterm.js Addon Loading Order
 

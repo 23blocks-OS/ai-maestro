@@ -303,8 +303,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       return true
     })
 
-    // Auto-copy selection to clipboard (Linux-style "select to copy" behavior).
-    // Minimum length threshold prevents accidental clipboard overwrites from stray clicks.
+    // Auto-copy selection to clipboard (X11-style "select to copy" behavior).
+    // Threshold set to 10 chars (was 3) to reduce accidental clipboard overwrites —
+    // short selections from click-drag or double-click won't replace clipboard contents.
     // Users can opt out by setting localStorage key 'terminal-auto-copy' to 'false'.
     const MIN_AUTO_COPY_LENGTH = 10
     terminal.onSelectionChange(() => {

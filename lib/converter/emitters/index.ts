@@ -6,7 +6,8 @@ import type { Emitter, ProviderId } from '../types'
 
 const emitters: Record<string, () => Promise<Emitter>> = {
   'claude-code': () => import('./claude').then(m => m.default),
-  // Phase 3+: 'codex', 'gemini', 'opencode', 'kiro', 'copilot'
+  'codex': () => import('./codex').then(m => m.default),
+  // Phase 4+: 'gemini', 'opencode', 'kiro', 'copilot'
 }
 
 /** Get an emitter for a given provider ID */

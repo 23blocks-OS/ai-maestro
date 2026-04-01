@@ -7,7 +7,8 @@ import type { Parser, ProviderId } from '../types'
 // Lazy imports to avoid circular dependencies
 const parsers: Record<string, () => Promise<Parser>> = {
   'claude-code': () => import('./claude').then(m => m.default),
-  // Phase 3+: 'codex', 'gemini', 'opencode', 'kiro', 'copilot'
+  'codex': () => import('./codex').then(m => m.default),
+  // Phase 4+: 'gemini', 'opencode', 'kiro', 'copilot'
 }
 
 /** Get a parser for a given provider ID */

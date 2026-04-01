@@ -29,8 +29,6 @@ const DIR_PATTERNS: Array<{ pattern: RegExp; provider: ProviderId }> = [
   { pattern: /[/\\]\.gemini[/\\]/, provider: 'gemini' },
   { pattern: /[/\\]\.opencode[/\\]/, provider: 'opencode' },
   { pattern: /[/\\]\.kiro[/\\]/, provider: 'kiro' },
-  { pattern: /[/\\]\.github[/\\]agents[/\\]/, provider: 'copilot' },
-  { pattern: /[/\\]\.agents[/\\]skills[/\\]/, provider: 'copilot' },
   // Plugin cache is always Claude
   { pattern: /[/\\]\.claude[/\\]plugins[/\\]cache[/\\]/, provider: 'claude-code' },
 ]
@@ -92,11 +90,6 @@ async function detectFromProjectRoot(dir: string): Promise<DetectResult> {
     }
   }
 
-  // Also check .agents/ (Copilot) which shares with Codex
-  try {
-    await fs.access(path.join(dir, '.agents', 'skills'))
-    if (!detected.includes('copilot')) detected.push('copilot')
-  } catch { /* */ }
 
   if (detected.length === 1) {
     const elements = await detectElements(dir, detected[0])
@@ -125,11 +118,6 @@ async function detectFromProjectRoot(dir: string): Promise<DetectResult> {
 async function detectFromFile(filePath: string): Promise<DetectResult> {
   const ext = path.extname(filePath)
   const base = path.basename(filePath)
-
-  // .agent.md → Copilot
-  if (base.endsWith('.agent.md')) {
-    return { provider: 'copilot', elements: ['agents'], confidence: 'high' }
-  }
 
   // .toml agent → Codex
   if (ext === '.toml') {

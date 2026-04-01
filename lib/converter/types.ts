@@ -20,7 +20,6 @@ export type ProviderId =
   | 'gemini'
   | 'opencode'
   | 'kiro'
-  | 'copilot'
 
 /** Argument syntax category for body rewriting */
 export type ArgSyntax = 'mustache' | 'dollar' | 'collapsed' | 'none'

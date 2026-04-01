@@ -106,25 +106,6 @@ const PROVIDERS: Provider[] = [
     supportsPlugins: false,
     userConfigDir: '~/.kiro',
   },
-  {
-    id: 'copilot',
-    displayName: 'GitHub Copilot',
-    configDir: '.agents',
-    skillsPath: '.agents/skills',
-    userSkillsPath: '~/.agents/skills',
-    agentsPath: '.github/agents',
-    agentsFormat: 'markdown-yaml',
-    agentsExtension: '.agent.md',
-    modelName: 'the model',
-    configFile: '.github/copilot-instructions.md',
-    askInstruction: 'ask the user directly to clarify what you cannot infer.',
-    argSyntax: 'none',
-    mcpConfigPath: null,
-    commandsPath: null,
-    hooksPath: null,
-    supportsPlugins: false,
-    userConfigDir: '~/.agents',
-  },
 ]
 
 /** All supported provider IDs */

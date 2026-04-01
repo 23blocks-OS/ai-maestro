@@ -10,7 +10,7 @@ const parsers: Record<string, () => Promise<Parser>> = {
   'codex': () => import('./codex').then(m => m.default),
   'gemini': () => import('./gemini').then(m => m.default),
   'opencode': () => import('./opencode').then(m => m.default),
-  // Phase 5: 'kiro', 'copilot'
+  'kiro': () => import('./kiro').then(m => m.default),
 }
 
 /** Get a parser for a given provider ID */

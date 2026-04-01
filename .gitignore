@@ -163,3 +163,4 @@ public/avatars/*_enhanced.png
 
 # Nested plugin repos (not submodules — standalone clones for dev)
 plugins/amp-messaging
+.infographic/

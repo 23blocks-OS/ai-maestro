@@ -1165,6 +1165,15 @@ Two test scripts exist for validating the Agent Messaging Protocol:
 
 Refer to these when users ask about setup or usage.
 
+## Cross-Client Conversion Reference Repos
+
+The skill/plugin conversion feature is based on code from these two open-source repos:
+
+- **https://github.com/TokenRollAI/acplugin** — Converts Claude Code plugins to Codex, OpenCode, and Cursor formats. Handles skills, agents, commands, hooks, MCP, instructions. TypeScript, MIT license.
+- **https://github.com/sustinbebustin/crucible** — Bidirectional converter for 7 AI coding harnesses (Claude, Codex, OpenCode, Cursor, Gemini, GitHub Copilot, Kiro). Handles skills and agent configs with format-specific output (TOML for Codex, JSON for Kiro, markdown-yaml for the rest). TypeScript, MIT license.
+
+The best features from both should be combined into `services/cross-client-skill-service.ts`. Prior analysis: `docs_dev/2026-03-31-crucible-integration-analysis.md`.
+
 ## Roadmap Context
 
 **Phase 1 (Current):** Auto-discovery, localhost-only, read-only agent interaction

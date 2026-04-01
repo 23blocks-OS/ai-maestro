@@ -90,9 +90,11 @@ const geminiEmitter: Emitter = {
       })
     }
 
-    // Commands → .gemini/commands/ (keep as-is, Gemini supports TOML commands)
+    // Commands → .gemini/commands/ (Gemini uses TOML format for commands)
     for (const cmd of project.commands) {
-      files.push({ path: `.gemini/commands/${cmd.name}.md`, content: cmd.content, type: 'commands', warnings: [] })
+      // Convert markdown command to TOML format per Gemini spec
+      const tomlContent = `# Command: ${cmd.name}\n[command]\nname = "${cmd.name}"\ndescription = "Converted command"\n\n[command.prompt]\ncontent = """\n${cmd.content.replace(/"""/g, '\\"\\"\\"')}\n"""\n`
+      files.push({ path: `.gemini/commands/${cmd.name}.toml`, content: tomlContent, type: 'commands', warnings: [] })
     }
 
     if (warnings.hasWarnings() && files.length > 0) files[0].warnings.push(...warnings.getWarnings())

@@ -8,7 +8,9 @@ import type { Parser, ProviderId } from '../types'
 const parsers: Record<string, () => Promise<Parser>> = {
   'claude-code': () => import('./claude').then(m => m.default),
   'codex': () => import('./codex').then(m => m.default),
-  // Phase 4+: 'gemini', 'opencode', 'kiro', 'copilot'
+  'gemini': () => import('./gemini').then(m => m.default),
+  'opencode': () => import('./opencode').then(m => m.default),
+  // Phase 5: 'kiro', 'copilot'
 }
 
 /** Get a parser for a given provider ID */

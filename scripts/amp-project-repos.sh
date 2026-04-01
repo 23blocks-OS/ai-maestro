@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # AMP Project Repos - List Project Repositories
 # =============================================================================
@@ -14,7 +14,7 @@
 #
 # =============================================================================
 
-set -e
+set -eo pipefail
 
 # Pre-source: extract --id to set agent identity before helper resolves it
 _amp_prev=""

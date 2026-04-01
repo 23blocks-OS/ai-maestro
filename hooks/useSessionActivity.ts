@@ -1,6 +1,11 @@
+// TODO Phase 2: Wrap in a React Context at app level so all consumers share one WebSocket connection
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+
+// Exponential backoff delays for WebSocket reconnection (matches useWebSocket pattern)
+const RECONNECT_BACKOFF_MS = [2000, 4000, 8000, 16000, 30000]
+const MAX_RECONNECT_RETRIES = 5
 
 export type SessionActivityStatus = 'active' | 'idle' | 'waiting'
 
@@ -46,6 +51,8 @@ export function useSessionActivity() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // Track reconnect attempt count for exponential backoff (reset on successful connect)
+  const reconnectAttemptRef = useRef(0)
 
   // Polling control via refs (avoids circular deps with connect)
   const startPollingRef = useRef<() => void>(() => {})
@@ -93,6 +100,8 @@ export function useSessionActivity() {
         console.log('[useSessionActivity] WebSocket connected')
         setConnected(true)
         setError(null)
+        // Reset retry counter on successful connection
+        reconnectAttemptRef.current = 0
         // Stop aggressive polling — WebSocket handles real-time updates
         stopPollingRef.current()
       }
@@ -128,11 +137,16 @@ export function useSessionActivity() {
         // Resume polling as fallback
         startPollingRef.current()
 
-        // Reconnect after 2 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('[useSessionActivity] Reconnecting...')
-          connect()
-        }, 2000)
+        // Exponential backoff reconnect — give up after MAX_RECONNECT_RETRIES and rely on polling permanently
+        const attempt = reconnectAttemptRef.current
+        if (attempt < MAX_RECONNECT_RETRIES) {
+          const delay = RECONNECT_BACKOFF_MS[Math.min(attempt, RECONNECT_BACKOFF_MS.length - 1)]
+          reconnectAttemptRef.current = attempt + 1
+          console.log(`[useSessionActivity] Reconnecting in ${delay}ms (attempt ${attempt + 1}/${MAX_RECONNECT_RETRIES})...`)
+          reconnectTimeoutRef.current = setTimeout(() => connect(), delay)
+        } else {
+          console.log('[useSessionActivity] Max reconnect retries reached — falling back to polling permanently')
+        }
       }
 
       ws.onerror = (err) => {

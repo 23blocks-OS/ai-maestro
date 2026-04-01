@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # AI Maestro - Agent Messaging Protocol (AMP) Installer
 # Installs AMP scripts and Claude Code skills for inter-agent communication
 #

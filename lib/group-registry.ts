@@ -172,7 +172,10 @@ export function loadGroups(): Group[] {
   try {
     ensureTeamsDir()
 
-    // Lazy one-time migration: convert legacy open teams to groups (locked to prevent races)
+    // Lazy one-time migration: convert legacy open teams to groups (locked to prevent races).
+    // withLock is async but intentionally not awaited here: loadGroups() is sync,
+    // and migration runs fire-and-forget on first call — subsequent calls see
+    // migrationChecked=true and skip. The lock still serializes concurrent callers.
     if (!migrationChecked) {
       migrationChecked = true
       try {

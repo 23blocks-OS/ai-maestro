@@ -84,7 +84,7 @@ function loadKeyPairFromDisk(): { publicKeyHex: string; privateKeyHex: string } 
   // PKCS8 private DER = 48 bytes = 96 hex chars
   // SPKI public DER = 44 bytes = 88 hex chars
   if (privateKeyHex.length !== 96 || publicKeyHex.length !== 88) {
-    console.error('[host-keys] Key files exist but appear corrupt (unexpected length), regenerating')
+    console.error('[SECURITY] Host key files exist but appear corrupt (unexpected length), regenerating — this changes the host cryptographic identity and invalidates existing trust relationships')
     return null
   }
 

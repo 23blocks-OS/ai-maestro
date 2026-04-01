@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # AMP Send - Send a Message
 # =============================================================================
@@ -15,7 +15,7 @@
 #
 # =============================================================================
 
-set -e
+set -eo pipefail
 
 # Pre-source: extract --id to set agent identity before helper resolves it
 _amp_prev=""
@@ -80,30 +80,37 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case $1 in
         --priority|-p)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             PRIORITY="$2"
             shift 2
             ;;
         --type|-t)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             TYPE="$2"
             shift 2
             ;;
         --reply-to|-r)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             REPLY_TO="$2"
             shift 2
             ;;
         --thread-id)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             THREAD_ID="$2"
             shift 2
             ;;
         --context|-c)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             CONTEXT="$2"
             shift 2
             ;;
         --attach|-a)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             ATTACH_FILES+=("$2")
             shift 2
             ;;
         --id)
+            [[ $# -lt 2 ]] && { echo "Error: $1 requires a value" >&2; exit 1; }
             shift 2  # Already handled in pre-source parsing
             ;;
         --help|-h)

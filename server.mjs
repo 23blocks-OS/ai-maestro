@@ -394,6 +394,8 @@ function startAutoContinueTimer(sessionName, delayMs) {
   const timer = setTimeout(async () => {
     autoContinueTimers.delete(sessionName)
     try {
+      // Defense-in-depth: re-validate sessionName before execSync (original validation was at WS connect time)
+      if (!/^[a-zA-Z0-9_@.-]+$/.test(sessionName)) return
       const { getAgentBySession } = await import('./lib/agent-registry.ts')
       const agent = getAgentBySession(sessionName)
       if (!agent?.preferences?.autoContinue) return // preference was toggled off

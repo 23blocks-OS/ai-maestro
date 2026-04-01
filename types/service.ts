@@ -11,8 +11,14 @@
  * Callers MUST use the `if (result.error)` guard pattern (not `result.data ??`)
  * to avoid silently discarding errors.
  *
- * Phase 2: Refactor to discriminated union (e.g., `ServiceSuccess<T> | ServiceError`)
- * to enforce mutual exclusivity of `data` and `error` at the type level.
+ * Correct usage:
+ * - Success: { data: T, status: 200 }
+ * - Error: { error: 'message', status: 4xx/5xx }
+ * - NEVER set both data and error simultaneously
+ * - NEVER put error objects in `data` without setting `error` — this bypasses guard patterns
+ *
+ * Phase 2 TODO: Refactor to discriminated union (ServiceSuccess<T> | ServiceError)
+ * to make incorrect usage a compile-time error.
  */
 export interface ServiceResult<T> {
   data?: T

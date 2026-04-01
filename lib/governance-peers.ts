@@ -151,15 +151,15 @@ export function isManagerOnAnyHost(agentId: string): boolean {
 export function isChiefOfStaffOnAnyHost(agentId: string): boolean {
   if (!agentId) return false
 
-  // Check local teams first — only closed teams can have a COS (aligned with governance.ts:148-151)
+  // All teams are closed after governance simplification — no type filter needed
   const localTeams = loadTeams()
-  if (localTeams.some(t => t.type === 'closed' && t.chiefOfStaffId === agentId)) {
+  if (localTeams.some(t => t.chiefOfStaffId === agentId)) {
     return true
   }
 
-  // Check peer teams — same closed-team filter for consistency
+  // Check peer teams — all teams are closed, no type filter needed
   const peers = getAllPeerGovernance()
-  return peers.some(p => p.teams.some(t => t.type === 'closed' && t.chiefOfStaffId === agentId))
+  return peers.some(p => p.teams.some(t => t.chiefOfStaffId === agentId))
 }
 
 /**

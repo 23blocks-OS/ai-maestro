@@ -274,18 +274,18 @@ describe('addTrustedManager', () => {
     expect(loaded.trustedManagers[0].managerId).toBe('new-mgr')
   })
 
-  it('defaults autoApprove to true', async () => {
-    /** Verifies that omitting autoApprove results in it being set to true */
+  it('defaults autoApprove to false for safety', async () => {
+    /** Verifies that omitting autoApprove results in false (safer default — explicit opt-in required) */
     seedTrustFile(makeTrustFile([]))
 
     const result = await addTrustedManager({
       hostId: 'host-default',
       managerId: 'mgr-default',
       managerName: 'Default Manager',
-      // autoApprove intentionally omitted
+      // autoApprove intentionally omitted — should default to false
     })
 
-    expect(result.autoApprove).toBe(true)
+    expect(result.autoApprove).toBe(false)
   })
 })
 

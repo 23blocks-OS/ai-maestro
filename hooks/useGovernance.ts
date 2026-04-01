@@ -197,13 +197,20 @@ export function useGovernance(agentId: string | null): GovernanceState {
     isMountedRef.current = true // SF-023: Re-arm on agentId change
     const controller = new AbortController()
     refresh(controller.signal)
+    // SF-042: Track per-tick AbortControllers so cleanup aborts any in-flight poll fetch
+    let pollController: AbortController | null = null
     // Poll every 10s to pick up external changes (team edits from sidebar, group subscriptions)
+    // Each tick gets its own AbortController so aborting mount controller doesn't leak into polls
     const interval = setInterval(() => {
-      if (isMountedRef.current) refresh(controller.signal)
+      if (isMountedRef.current) {
+        pollController = new AbortController()
+        refresh(pollController.signal)
+      }
     }, 10_000)
     return () => {
       clearInterval(interval)
       controller.abort()
+      pollController?.abort() // Abort any in-flight poll fetch
       // SF-040: Also abort any in-flight mutation-triggered refreshes
       mutationAbortRef.current?.abort()
       isMountedRef.current = false // SF-023: Prevent state updates after unmount

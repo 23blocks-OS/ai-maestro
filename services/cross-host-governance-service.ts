@@ -407,7 +407,7 @@ export async function rejectCrossHostRequest(
 
 // NOTE: Execution failures are logged but do not propagate to callers.
 // The request status is already 'executed' before this runs.
-// A proper fix would add a 'failed' status to GovernanceRequestStatus (Phase 2).
+// Phase 2: Add 'failed' terminal status to GovernanceRequestStatus
 async function performRequestExecution(request: GovernanceRequest): Promise<void> {
   console.log(`${LOG_PREFIX} Executing request ${request.id} (type=${request.type})`)
 

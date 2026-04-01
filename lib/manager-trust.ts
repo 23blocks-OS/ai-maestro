@@ -129,7 +129,7 @@ export async function addTrustedManager(params: {
       managerId: params.managerId,
       managerName: params.managerName,
       trustedAt: now,
-      autoApprove: params.autoApprove ?? true,
+      autoApprove: params.autoApprove ?? false, // Safer default — require explicit opt-in for auto-approve
     }
 
     if (existingIndex >= 0) {

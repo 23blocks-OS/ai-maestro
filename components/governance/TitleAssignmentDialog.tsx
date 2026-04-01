@@ -110,6 +110,10 @@ export default function TitleAssignmentDialog({
   const [phase, setPhase] = useState<Phase>('select')
   const [error, setError] = useState<string | null>(null)
 
+  // Stable representation of COS team IDs — avoids re-running the effect when the cosTeams
+  // array reference changes but contains the same teams (NIT-3: unstable object in deps)
+  const cosTeamIds = JSON.stringify(governance.cosTeams?.map(t => t.id))
+
   // Reset all state when dialog opens; pre-select current COS teams so the checkbox state
   // reflects the agent's existing team assignments and the confirm button correctly detects changes
   useEffect(() => {
@@ -124,7 +128,8 @@ export default function TitleAssignmentDialog({
       setPhase('select')
       setError(null)
     }
-  }, [isOpen, currentTitle, governance.cosTeams])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentTitle, cosTeamIds])
 
   // CC-009: Defensive close handler — resets internal state before calling parent onClose,
   // so stale state never persists even if parent does not toggle isOpen immediately.

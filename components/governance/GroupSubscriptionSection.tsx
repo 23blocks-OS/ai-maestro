@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { UsersRound, Plus, X, ChevronDown } from 'lucide-react'
 import type { Group } from '@/types/group'
 
@@ -23,6 +23,18 @@ export default function GroupSubscriptionSection({
   const [loading, setLoading] = useState<string | null>(null) // tracks groupId being acted on
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  // NIT-2: Wrap fetchGroups in useCallback so the useEffect dependency is stable across re-renders
+  const fetchGroups = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch('/api/groups', { signal })
+      if (!res.ok) return
+      const data = await res.json()
+      setGroups(data.groups || [])
+    } catch {
+      // Silently fail — groups feature may not be available
+    }
+  }, [])
+
   // Fetch all groups on mount and when agentId changes (component may not remount on agent switch)
   useEffect(() => {
     const controller = new AbortController()
@@ -33,7 +45,7 @@ export default function GroupSubscriptionSection({
       clearInterval(interval)
       controller.abort()
     }
-  }, [agentId])
+  }, [agentId, fetchGroups])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -46,17 +58,6 @@ export default function GroupSubscriptionSection({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showDropdown])
-
-  async function fetchGroups(signal?: AbortSignal) {
-    try {
-      const res = await fetch('/api/groups', { signal })
-      if (!res.ok) return
-      const data = await res.json()
-      setGroups(data.groups || [])
-    } catch {
-      // Silently fail — groups feature may not be available
-    }
-  }
 
   // Groups the agent is subscribed to
   const subscribedGroups = groups.filter(g => g.subscriberIds.includes(agentId))

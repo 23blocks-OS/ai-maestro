@@ -10,6 +10,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Meeting, MeetingsFile, SidebarMode } from '@/types/team'
+import { withLock } from '@/lib/file-lock'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const TEAMS_DIR = path.join(AIMAESTRO_DIR, 'teams')
@@ -56,7 +57,10 @@ export function saveMeetings(meetings: Meeting[]): boolean {
   try {
     ensureTeamsDir()
     const file: MeetingsFile = { version: 1, meetings }
-    fs.writeFileSync(MEETINGS_FILE, JSON.stringify(file, null, 2), 'utf-8')
+    // Atomic write: write to tmp then rename to avoid partial reads
+    const tmpPath = MEETINGS_FILE + '.tmp.' + process.pid
+    fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
+    fs.renameSync(tmpPath, MEETINGS_FILE)
     return true
   } catch (error) {
     console.error('Failed to save meetings:', error)
@@ -69,13 +73,14 @@ export function getMeeting(id: string): Meeting | null {
   return meetings.find(m => m.id === id) || null
 }
 
-export function createMeeting(data: {
+export async function createMeeting(data: {
   name: string
   agentIds: string[]
   teamId: string | null
   groupId?: string | null  // Link to group when meeting started from a group
   sidebarMode?: SidebarMode
-}): Meeting {
+}): Promise<Meeting> {
+  return withLock('meetings', () => {
   const meetings = loadMeetings()
   const now = new Date().toISOString()
 
@@ -96,12 +101,14 @@ export function createMeeting(data: {
   meetings.push(meeting)
   saveMeetings(meetings)
   return meeting
+  }) // end withLock('meetings')
 }
 
-export function updateMeeting(
+export async function updateMeeting(
   id: string,
   updates: Partial<Pick<Meeting, 'name' | 'agentIds' | 'status' | 'activeAgentId' | 'sidebarMode' | 'lastActiveAt' | 'endedAt' | 'teamId'>>
-): Meeting | null {
+): Promise<Meeting | null> {
+  return withLock('meetings', () => {
   const meetings = loadMeetings()
   const index = meetings.findIndex(m => m.id === id)
   if (index === -1) return null
@@ -118,12 +125,15 @@ export function updateMeeting(
 
   saveMeetings(meetings)
   return meetings[index]
+  }) // end withLock('meetings')
 }
 
-export function deleteMeeting(id: string): boolean {
+export async function deleteMeeting(id: string): Promise<boolean> {
+  return withLock('meetings', () => {
   const meetings = loadMeetings()
   const filtered = meetings.filter(m => m.id !== id)
   if (filtered.length === meetings.length) return false
   saveMeetings(filtered)
   return true
+  }) // end withLock('meetings')
 }

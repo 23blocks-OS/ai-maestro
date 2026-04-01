@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # AMP Kanban Archive - Archive (delete) a kanban card
 # =============================================================================
@@ -15,7 +15,7 @@
 #
 # =============================================================================
 
-set -e
+set -eo pipefail
 
 # Pre-source: extract --id to set agent identity before helper resolves it
 _amp_prev=""

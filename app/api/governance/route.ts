@@ -4,7 +4,8 @@ import { getAgent } from '@/lib/agent-registry'
 
 export const dynamic = 'force-dynamic'
 
-// Phase 1: Intentionally exposes managerId for localhost-only usage. TODO Phase 2: Add auth for remote access.
+// Phase 1: No auth required for governance state read (localhost-only).
+// Phase 2 TODO (SF-058): Require session token. Consider redacting managerId to truncated form.
 // SF-029: Wrapped in try/catch to prevent unhandled errors from leaking stack traces
 export async function GET() {
   try {

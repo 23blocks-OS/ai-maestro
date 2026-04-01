@@ -13,6 +13,7 @@ import type { KanbanColumnConfig } from '@/types/team'
 import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import KanbanCard from './KanbanCard'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { resolveAgentStatus } from '@/lib/agent-status'
 import TaskDetailView from './TaskDetailView'
 import TaskCreateForm from './TaskCreateForm'
 
@@ -79,7 +80,7 @@ export default function TaskKanbanBoard({
   const { getSessionActivity } = useSessionActivity()
 
   // Resolve agent status for a task's assignee: match by ID/name/alias/label → get session → get activity.
-  // Uses the same 5-state priority model as AgentBadge.getStatusInfo().
+  // Delegates to the shared resolveAgentStatus() to avoid duplicating priority logic with AgentBadge.
   const getAgentStatusForTask = useCallback((task: TaskWithDeps): { color: string; pulse: boolean; label: string } | undefined => {
     if (!task.assigneeAgentId) return undefined
     const agentId = task.assigneeAgentId
@@ -92,12 +93,10 @@ export default function TaskKanbanBoard({
     if (!sessionName) return undefined
     const activity = getSessionActivity(sessionName)
     const isOnline = agent.sessions?.some(s => s.status === 'online') ?? false
-    if (!isOnline) return { color: 'bg-gray-500', pulse: false, label: 'Offline' }
-    // Use activity hook for program state — the sessions array doesn't have programRunning
-    if (activity?.notificationType === 'permission_prompt') return { color: 'bg-orange-500', pulse: true, label: 'Permission' }
-    if (activity?.notificationType === 'idle_prompt' || activity?.status === 'waiting') return { color: 'bg-amber-500', pulse: true, label: 'Waiting' }
-    if (activity?.status === 'active') return { color: 'bg-green-500', pulse: true, label: 'Active' }
-    return { color: 'bg-green-500', pulse: false, label: 'Idle' }
+    const resolved = resolveAgentStatus(
+      isOnline, false, activity?.status, activity?.notificationType, undefined
+    )
+    return { color: resolved.color, pulse: resolved.pulse, label: resolved.label }
   }, [agents, getSessionActivity])
 
   const [selectedTask, setSelectedTask] = useState<TaskWithDeps | null>(null)

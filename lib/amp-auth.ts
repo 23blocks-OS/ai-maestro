@@ -114,9 +114,9 @@ function saveApiKeys(keys: AMPApiKeyRecord[]): void {
 /**
  * Hash an API key for secure storage
  * Uses SHA-256 with a prefix to identify the hash type.
- * SF-054/SF-065: Unsalted SHA-256 acceptable for high-entropy API keys (256-bit).
- * Salting would require per-key salt storage and prevent O(1) hash lookup.
- * Phase 2: Consider HMAC-SHA256 with per-record salt for defense-in-depth.
+ * WARNING: Unsalted SHA-256 is acceptable for high-entropy API keys (256-bit random).
+ * Do NOT reuse this function for lower-entropy secrets (passwords, PINs, etc.).
+ * Phase 2: Migrate to HMAC-SHA256 with per-record salt (SF-054/SF-065).
  */
 export function hashApiKey(apiKey: string): string {
   return 'sha256:' + createHash('sha256').update(apiKey).digest('hex')

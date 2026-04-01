@@ -304,6 +304,11 @@ export async function deleteTeamById(id: string, requestingAgentId?: string, pas
     return { error: 'Team not found', status: 404 }
   }
 
+  // Governance: a closed team with a COS requires agent identity for deletion
+  if (team.type === 'closed' && team.chiefOfStaffId && !requestingAgentId) {
+    return { error: 'Agent identity required to delete a governed team', status: 400 }
+  }
+
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
   // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
   const access = checkTeamAccess({ teamId: id, requestingAgentId })

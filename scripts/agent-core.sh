@@ -421,6 +421,9 @@ restart_agent() {
         -d "$payload" >/dev/null 2>&1
 
     # 2. Wait for Claude Code to exit
+    # NOTE: sleep-based wait is a race condition — if Claude takes longer than
+    # wait_secs to exit, the restart may send to a still-running instance.
+    # Prefer POST /api/sessions/{name}/restart for production use (polls for shell prompt).
     sleep "$wait_secs"
 
     # 3. Start Claude Code again in the same tmux session
@@ -487,7 +490,7 @@ safe_json_edit() {
 
     # Ensure cleanup on any exit from this function
     local cleanup_done=false
-    cleanup_tmp() {
+    _safe_json_edit_cleanup() {
         if [[ "$cleanup_done" == false ]]; then
             rm -rf "$tmp_dir" 2>/dev/null || true
             cleanup_done=true
@@ -519,12 +522,12 @@ safe_json_edit() {
     local original_copy="$tmp_dir/original.json"
     if ! cp "$file" "$original_copy"; then
         print_error "Failed to copy original file"
-        cleanup_tmp
+        _safe_json_edit_cleanup
         return 1
     fi
     if ! cp "$file" "$tmp_file"; then
         print_error "Failed to create working copy"
-        cleanup_tmp
+        _safe_json_edit_cleanup
         return 1
     fi
 
@@ -532,21 +535,21 @@ safe_json_edit() {
     local result_file="$tmp_dir/result.json"
     if ! jq "${jq_args[@]}" "$jq_filter" "$tmp_file" > "$result_file" 2>/dev/null; then
         print_error "JSON transformation failed"
-        cleanup_tmp
+        _safe_json_edit_cleanup
         return 1
     fi
 
     # Validate result is valid JSON
     if ! jq empty "$result_file" 2>/dev/null; then
         print_error "Result is not valid JSON"
-        cleanup_tmp
+        _safe_json_edit_cleanup
         return 1
     fi
 
     # Verify file is not empty (basic sanity check)
     if [[ ! -s "$result_file" ]]; then
         print_error "Result file is empty"
-        cleanup_tmp
+        _safe_json_edit_cleanup
         return 1
     fi
 
@@ -605,7 +608,7 @@ safe_json_edit() {
 
                 if [[ "$orig_val" != "$result_val" ]]; then
                     print_error "JSON edit aborted: key '$key' was modified (expected only '$target_path' to change)"
-                    cleanup_tmp
+                    _safe_json_edit_cleanup
                     return 1
                 fi
             done <<< "$all_keys"
@@ -622,7 +625,7 @@ safe_json_edit() {
                 existed=$(jq -r --arg k "$key" 'has($k)' "$original_copy" 2>/dev/null)
                 if [[ "$existed" != "true" ]]; then
                     print_error "JSON edit aborted: unexpected new key '$key' added (expected only '$target_path' to change)"
-                    cleanup_tmp
+                    _safe_json_edit_cleanup
                     return 1
                 fi
             done <<< "$result_keys"
@@ -635,7 +638,7 @@ safe_json_edit() {
 
                 if [[ "$orig_had" == "true" && "$result_has" == "true" ]]; then
                     print_error "JSON edit aborted: del() did not remove '$target_path'"
-                    cleanup_tmp
+                    _safe_json_edit_cleanup
                     return 1
                 fi
             fi
@@ -650,7 +653,7 @@ safe_json_edit() {
         result_type=$(jq -r 'type' "$result_file" 2>/dev/null)
         if [[ "$result_type" != "object" ]]; then
             print_error "settings.json must be an object, got: $result_type"
-            cleanup_tmp
+            _safe_json_edit_cleanup
             return 1
         fi
     fi
@@ -662,7 +665,7 @@ safe_json_edit() {
         # Different filesystem, use cp
         if ! cp "$result_file" "$final_tmp"; then
             print_error "Failed to stage final file"
-            cleanup_tmp
+            _safe_json_edit_cleanup
             return 1
         fi
     fi
@@ -673,11 +676,11 @@ safe_json_edit() {
         # Try to restore from temp
         mv "$original_copy" "$file" 2>/dev/null || true
         rm -f "$final_tmp" 2>/dev/null || true
-        cleanup_tmp
+        _safe_json_edit_cleanup
         return 1
     fi
 
-    cleanup_tmp
+    _safe_json_edit_cleanup
     return 0
 }
 

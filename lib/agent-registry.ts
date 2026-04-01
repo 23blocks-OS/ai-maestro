@@ -155,6 +155,9 @@ function ensureAgentsDir() {
 
 /**
  * Load all agents from registry
+ *
+ * Reads are safe without locks due to atomic writes (temp + renameSync).
+ * renameSync is atomic on POSIX — reads always see either old or new complete file, never partial.
  */
 // mtime-based cache to avoid redundant disk reads within the same tick
 let _cachedAgents: Agent[] | null = null
@@ -653,8 +656,11 @@ export async function incrementAgentMetric(
   }
 
   // Type-safe assignment for numeric metrics only
-  const currentValue = (agents[index].metrics![metric] as number) || 0
-  ;(agents[index].metrics! as any)[metric] = currentValue + amount
+  const metrics = agents[index].metrics!
+  const currentValue = (metrics[metric] as number) || 0
+  if (typeof (metrics as Record<string, unknown>)[metric] === 'number' || currentValue === 0) {
+    ;(metrics as Record<string, number>)[metric] = currentValue + amount
+  }
   agents[index].metrics!.lastCostUpdate = new Date().toISOString()
   agents[index].lastActive = new Date().toISOString()
 

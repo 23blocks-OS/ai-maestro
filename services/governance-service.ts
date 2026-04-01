@@ -129,6 +129,9 @@ export async function setGovernancePassword(params: {
     return { error: 'Password must be at least 6 characters', status: 400 }
   }
   if (password.length > 72) {
+    // NOTE: bcrypt truncates at 72 BYTES, not characters. For ASCII passwords this is equivalent.
+    // Multi-byte UTF-8 characters could exceed the byte limit before reaching 72 characters.
+    // This is acceptable for Phase 1 where passwords are typically ASCII.
     return { error: 'Password must not exceed 72 characters (bcrypt limit)', status: 400 }
   }
 

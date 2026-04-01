@@ -31,5 +31,5 @@ ROLE_PLUGIN_ORCHESTRATOR="ai-maestro-orchestrator-agent"
 ROLE_PLUGIN_PROGRAMMER="ai-maestro-programmer-agent"
 
 # ── Repo URLs ────────────────────────────────────────────────
-AI_MAESTRO_REPO="https://github.com/23blocks-OS/ai-maestro"
+AI_MAESTRO_REPO="https://github.com/Emasoft/ai-maestro"
 MARKETPLACE_REPO_URL="https://github.com/${MARKETPLACE_REPO}"

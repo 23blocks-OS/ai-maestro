@@ -305,12 +305,12 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     // Auto-copy selection to clipboard (Linux-style "select to copy" behavior).
     // Minimum length threshold prevents accidental clipboard overwrites from stray clicks.
-    // NOTE: This overwrites the system clipboard without Cmd+C. Users who find this
-    // surprising can disable it by setting terminal preferences (future enhancement).
-    const MIN_AUTO_COPY_LENGTH = 3
+    // Users can opt out by setting localStorage key 'terminal-auto-copy' to 'false'.
+    const MIN_AUTO_COPY_LENGTH = 10
     terminal.onSelectionChange(() => {
+      const autoCopyEnabled = localStorage.getItem('terminal-auto-copy') !== 'false'
       const sel = terminal.getSelection()
-      if (sel && sel.length >= MIN_AUTO_COPY_LENGTH) {
+      if (autoCopyEnabled && sel && sel.length >= MIN_AUTO_COPY_LENGTH) {
         navigator.clipboard.writeText(sel).catch(() => {
           // Clipboard API may be blocked in non-secure contexts; silently ignore
         })

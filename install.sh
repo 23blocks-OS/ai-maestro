@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # AI Maestro - Complete Installation Script
 # Installs all prerequisites and sets up AI Maestro from scratch
 

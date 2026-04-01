@@ -44,6 +44,10 @@ export function useRestartQueue() {
   const [queue, setQueue] = useState<Map<string, RestartRequest>>(new Map())
   const { getSessionActivity } = useSessionActivity()
   const activeRestartsRef = useRef<Set<string>>(new Set())
+  // SF-044: Store getSessionActivity in a ref so the queue-processing effect doesn't re-run
+  // on every WebSocket event (getSessionActivity changes identity whenever the activity map updates)
+  const getSessionActivityRef = useRef(getSessionActivity)
+  useEffect(() => { getSessionActivityRef.current = getSessionActivity }, [getSessionActivity])
 
   /** Enqueue a single agent for deferred restart. The restart fires automatically
    *  once the agent's session reaches idle_prompt (safe state). */
@@ -86,40 +90,48 @@ export function useRestartQueue() {
     setQueue(new Map())
   }, [])
 
-  // Core polling effect: on every activity map update, check each queued agent.
+  // Core polling effect: when the queue changes, check each queued agent via the ref.
+  // Uses a 1s interval to poll the ref (avoids re-running on every WebSocket activity event).
   // When a queued agent's notificationType becomes 'idle_prompt', fire the restart API.
   useEffect(() => {
     if (queue.size === 0) return
 
-    for (const [sessionName, req] of queue) {
-      // Skip if already restarting
-      if (activeRestartsRef.current.has(sessionName)) continue
+    const checkQueue = () => {
+      for (const [sessionName, req] of queue) {
+        // Skip if already restarting
+        if (activeRestartsRef.current.has(sessionName)) continue
 
-      const info = getSessionActivity(sessionName)
-      if (info?.notificationType === 'idle_prompt') {
-        // Safe state reached — fire restart
-        activeRestartsRef.current.add(sessionName)
+        const info = getSessionActivityRef.current(sessionName)
+        if (info?.notificationType === 'idle_prompt') {
+          // Safe state reached — fire restart
+          activeRestartsRef.current.add(sessionName)
 
-        fetch(`/api/sessions/${encodeURIComponent(sessionName)}/restart`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ program: req.program, programArgs: req.programArgs }),
-        })
-          .then(res => {
-            if (!res.ok) console.error(`[useRestartQueue] Restart failed for ${sessionName}:`, res.status)
+          fetch(`/api/sessions/${encodeURIComponent(sessionName)}/restart`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ program: req.program, programArgs: req.programArgs }),
           })
-          .catch(err => console.error(`[useRestartQueue] Restart error for ${sessionName}:`, err))
-          .finally(() => {
-            activeRestartsRef.current.delete(sessionName)
-            setQueue(prev => {
-              const next = new Map(prev)
-              next.delete(sessionName)
-              return next
+            .then(res => {
+              if (!res.ok) console.error(`[useRestartQueue] Restart failed for ${sessionName}:`, res.status)
             })
-          })
+            .catch(err => console.error(`[useRestartQueue] Restart error for ${sessionName}:`, err))
+            .finally(() => {
+              activeRestartsRef.current.delete(sessionName)
+              setQueue(prev => {
+                const next = new Map(prev)
+                next.delete(sessionName)
+                return next
+              })
+            })
+        }
       }
     }
-  }, [queue, getSessionActivity])
+
+    // Check immediately, then poll every 1s (avoids depending on getSessionActivity identity)
+    checkQueue()
+    const interval = setInterval(checkQueue, 1000)
+    return () => clearInterval(interval)
+  }, [queue])
 
   return {
     queueRestart,

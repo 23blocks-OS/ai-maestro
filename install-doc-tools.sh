@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # AI Maestro Doc Tools Installer
 # Note: docs-search skill is now bundled in the ai-maestro plugin (marketplace: see scripts/ecosystem-config.sh)
 

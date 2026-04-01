@@ -1,74 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, setManager, removeManager, loadGovernance } from '@/lib/governance'
-import { getAgent } from '@/lib/agent-registry'
-// SF-029 (P8): Use atomic checkAndRecordAttempt to match cross-host-governance-service pattern
-import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
+import { setManagerRole } from '@/services/governance-service'
 
 // NT-023 (P8): Ensure Next.js does not cache this route
 export const dynamic = 'force-dynamic'
 
+// SF-001: Delegate to governance-service.setManagerRole() instead of duplicating
+// lib/governance + lib/rate-limit logic. The service handles password verification,
+// rate limiting, agent lookup, role-plugin auto-assignment, and manager set/remove.
 export async function POST(request: NextRequest) {
   try {
     let body
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const { agentId, password } = body
 
-    if (!password || typeof password !== 'string') {
-      return NextResponse.json({ error: 'Governance password is required' }, { status: 400 })
+    const result = await setManagerRole({ agentId: body.agentId, password: body.password })
+
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status || 500 })
     }
 
-    const config = loadGovernance()
-    if (!config.passwordHash) {
-      return NextResponse.json({ error: 'Governance password not set. Set a password first via POST /api/governance/password' }, { status: 400 })
-    }
-
-    // SF-029 (P8): Atomic check-and-record to eliminate TOCTOU window (matches cross-host-governance-service)
-    const rateCheck = checkAndRecordAttempt('governance-manager-auth')
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
-        { status: 429 }
-      )
-    }
-
-    if (!(await verifyPassword(password))) {
-      return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
-    }
-    // Password verified successfully -- reset rate limit counter
-    resetRateLimit('governance-manager-auth')
-
-    // agentId === null removes the manager role; undefined/missing is invalid
-    if (agentId === null) {
-      await removeManager()
-      return NextResponse.json({ success: true, managerId: null })
-    }
-
-    if (typeof agentId !== 'string' || !agentId.trim()) {
-      return NextResponse.json({ error: 'agentId must be a non-empty string or null' }, { status: 400 })
-    }
-
-    // Verify agent exists
-    const agent = getAgent(agentId)
-    if (!agent) {
-      // NT-014: Do not quote agentId in error message (already validated as non-empty string above)
-      return NextResponse.json({ error: `Agent ${agentId} not found` }, { status: 404 })
-    }
-
-    await setManager(agentId)
-
-    // Auto-assign required role-plugin for MANAGER title
-    try {
-      const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
-      await autoAssignRolePluginForTitle('manager', agentId)
-    } catch (err) {
-      console.warn('[governance] Failed to auto-assign role-plugin for MANAGER:', err instanceof Error ? err.message : err)
-      // Non-blocking — title assignment succeeds even if plugin assignment fails
-    }
-
-    // NT-028: Use nullish coalescing to preserve empty-string agent names
-    return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name ?? agent.alias })
+    return NextResponse.json(result.data)
   } catch (error) {
     console.error('[governance] manager POST error:', error)
     return NextResponse.json(

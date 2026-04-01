@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # AMP Helper Functions
 # Agent Messaging Protocol - Core utilities for all AMP scripts
@@ -13,7 +13,7 @@
 # Storage: ~/.agent-messaging/
 # =============================================================================
 
-set -e
+set -eo pipefail
 
 # Source security module
 SCRIPT_DIR_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

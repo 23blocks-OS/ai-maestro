@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # AI Maestro - Version Bump Script
 # Centralizes version management across all files
 #
@@ -219,6 +219,7 @@ echo ""
 
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Review changes: git diff"
-echo "  2. Commit: git add -A && git commit -m \"chore: bump version to $NEW_VERSION\""
-echo "  3. Push: git push"
+echo "  2. Stage: git add version.json package.json scripts/remote-install.sh README.md docs/index.html docs/ai-index.html docs/BACKLOG.md"
+echo "  3. Commit: git commit -m \"chore: bump version to $NEW_VERSION\""
+echo "  4. Push: git push"
 echo ""

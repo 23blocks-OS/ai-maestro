@@ -49,6 +49,9 @@ export function updateSystemSettings(patch: Partial<SystemSettings>): SystemSett
   ensureDir()
   const current = getSystemSettings()
   const updated = { ...current, ...patch }
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(updated, null, 2), 'utf-8')
+  // Atomic write: write to tmp then rename to avoid partial reads
+  const tmpPath = SETTINGS_FILE + '.tmp.' + process.pid
+  fs.writeFileSync(tmpPath, JSON.stringify(updated, null, 2), 'utf-8')
+  fs.renameSync(tmpPath, SETTINGS_FILE)
   return updated
 }

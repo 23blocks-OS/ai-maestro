@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { Agent } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
+import { resolveAgentStatus } from '@/lib/agent-status'
 
 interface AgentBadgeProps {
   agent: Agent
@@ -126,6 +127,10 @@ function isEmoji(str: string): boolean {
  * @param notificationType Hook-reported prompt type: 'idle_prompt' | 'permission_prompt'
  * @param programRunning Whether the AI program is running inside tmux (false = shell prompt)
  */
+/**
+ * Thin wrapper around the shared resolveAgentStatus() utility.
+ * Kept as a local function so callers inside this file don't change.
+ */
 function getStatusInfo(
   isOnline: boolean,
   isHibernated: boolean,
@@ -133,38 +138,7 @@ function getStatusInfo(
   notificationType?: string,
   programRunning?: boolean,
 ): { color: string; ringColor: string; label: string; pulse: boolean } {
-
-  if (isOnline) {
-    // Priority 1: Program exited — tmux session alive but the AI program (Claude/Codex/etc.) stopped.
-    // The user sees a shell prompt. New Session / Resume buttons become active in the profile panel.
-    if (programRunning === false) {
-      return { color: 'bg-gray-400', ringColor: 'ring-gray-400/30', label: 'Exited', pulse: false }
-    }
-    // Priority 2: Permission prompt — Claude is blocked asking the user to approve a tool use
-    // (e.g. file write, bash command). The Approve button lights up in the profile panel.
-    if (notificationType === 'permission_prompt') {
-      return { color: 'bg-orange-500', ringColor: 'ring-orange-500/30', label: 'Permission', pulse: true }
-    }
-    // Priority 3: Waiting — Claude finished its response and shows its input prompt (idle_prompt),
-    // or the generic 'waiting' status from terminal inactivity. Stop/Restart become safe.
-    if (notificationType === 'idle_prompt' || activityStatus === 'waiting') {
-      return { color: 'bg-amber-500', ringColor: 'ring-amber-500/30', label: 'Waiting', pulse: true }
-    }
-    // Priority 4: Active — Claude is currently processing (tool execution, LLM streaming, etc.)
-    // Do NOT send /exit or commands in this state — it would interrupt mid-operation.
-    if (activityStatus === 'active') {
-      return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Active', pulse: true }
-    }
-    // Priority 5: Idle — session is online but we have no specific activity signal.
-    // This is the default fallback for online sessions before the first activity event arrives.
-    return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Idle', pulse: false }
-  }
-
-  if (isHibernated) {
-    return { color: 'bg-slate-500', ringColor: 'ring-slate-500/30', label: 'Hibernated', pulse: false }
-  }
-
-  return { color: 'bg-gray-500', ringColor: 'ring-gray-500/30', label: 'Offline', pulse: false }
+  return resolveAgentStatus(isOnline, isHibernated, activityStatus, notificationType, programRunning)
 }
 
 export default function AgentBadge({

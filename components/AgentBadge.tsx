@@ -121,15 +121,14 @@ function isEmoji(str: string): boolean {
  *   - Hibernated (slate, no pulse): tmux session suspended
  *   - Offline (gray, no pulse): no tmux session found
  *
+ * Thin wrapper around the shared resolveAgentStatus() utility.
+ * Kept as a local function so callers inside this file don't change.
+ *
  * @param isOnline       Whether the tmux session exists and is running
  * @param isHibernated   Whether the agent has a suspended tmux session
  * @param activityStatus Terminal activity level from useSessionActivity hook
  * @param notificationType Hook-reported prompt type: 'idle_prompt' | 'permission_prompt'
  * @param programRunning Whether the AI program is running inside tmux (false = shell prompt)
- */
-/**
- * Thin wrapper around the shared resolveAgentStatus() utility.
- * Kept as a local function so callers inside this file don't change.
  */
 function getStatusInfo(
   isOnline: boolean,

@@ -486,9 +486,9 @@ export interface CreateMeetingParams {
   sidebarMode?: SidebarMode
 }
 
-export function createNewMeeting(
+export async function createNewMeeting(
   params: CreateMeetingParams,
-): ServiceResult<{ meeting: any }> {
+): Promise<ServiceResult<{ meeting: any }>> {
   const { name, agentIds, teamId, groupId, sidebarMode } = params
 
   if (!name || typeof name !== 'string') {
@@ -500,7 +500,7 @@ export function createNewMeeting(
   }
 
   try {
-    const meeting = createMeeting({
+    const meeting = await createMeeting({
       name,
       agentIds,
       teamId: teamId || null,
@@ -548,17 +548,17 @@ export interface UpdateMeetingParams {
 // Allowed meeting status values for runtime validation
 const VALID_MEETING_STATUSES = ['active', 'ended'] as const
 
-export function updateExistingMeeting(
+export async function updateExistingMeeting(
   id: string,
   updates: UpdateMeetingParams,
-): ServiceResult<{ meeting: any }> {
+): Promise<ServiceResult<{ meeting: any }>> {
   try {
     // Validate status at runtime instead of casting to any
     if (updates.status !== undefined && !VALID_MEETING_STATUSES.includes(updates.status as any)) {
       return { error: `Invalid meeting status: "${updates.status}". Must be one of: ${VALID_MEETING_STATUSES.join(', ')}`, status: 400 }
     }
 
-    const meeting = updateMeeting(id, {
+    const meeting = await updateMeeting(id, {
       name: updates.name,
       agentIds: updates.agentIds,
       status: updates.status as typeof VALID_MEETING_STATUSES[number],
@@ -586,8 +586,8 @@ export function updateExistingMeeting(
 // Meetings: DELETE /api/meetings/[id]
 // ---------------------------------------------------------------------------
 
-export function deleteExistingMeeting(id: string): ServiceResult<{ success: boolean }> {
-  const deleted = deleteMeeting(id)
+export async function deleteExistingMeeting(id: string): Promise<ServiceResult<{ success: boolean }>> {
+  const deleted = await deleteMeeting(id)
   if (!deleted) {
     return { error: 'Meeting not found', status: 404 }
   }

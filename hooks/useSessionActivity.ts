@@ -1,5 +1,6 @@
-// TODO Phase 2: Wrap in a React Context at app level so all consumers share one WebSocket connection
 'use client'
+
+// TODO Phase 2: Wrap in a React Context at app level so all consumers share one WebSocket connection
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 

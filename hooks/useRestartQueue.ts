@@ -91,7 +91,10 @@ export function useRestartQueue() {
   }, [])
 
   // Core polling effect: when the queue changes, check each queued agent via the ref.
-  // Uses a 1s interval to poll the ref (avoids re-running on every WebSocket activity event).
+  // WHY POLLING instead of reactive deps: getSessionActivity changes identity on every
+  // WebSocket activity event (~100s/sec), which would cause this effect to re-run constantly.
+  // A 1s polling interval via a stable ref (SF-044) avoids that churn while still detecting
+  // idle_prompt within 1s — an acceptable latency for deferred restarts.
   // When a queued agent's notificationType becomes 'idle_prompt', fire the restart API.
   useEffect(() => {
     if (queue.size === 0) return

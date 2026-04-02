@@ -1,10 +1,12 @@
 'use client'
 
-import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Puzzle } from 'lucide-react'
+import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Puzzle, Bot, TerminalSquare } from 'lucide-react'
+
+type SectionId = 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements' | 'agents' | 'commands'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements'
-  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements') => void
+  activeSection: SectionId
+  onSectionChange: (section: SectionId) => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -29,15 +31,27 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
     },
     {
       id: 'marketplace' as const,
-      label: 'Skills Explorer',
+      label: 'Skills',
       icon: Store,
-      description: 'Install skills into agents',
+      description: 'Browse & convert skills per client',
+    },
+    {
+      id: 'agents' as const,
+      label: 'Agents',
+      icon: Bot,
+      description: 'Browse agents per client',
+    },
+    {
+      id: 'commands' as const,
+      label: 'Commands',
+      icon: TerminalSquare,
+      description: 'Slash commands per client',
     },
     {
       id: 'global-elements' as const,
-      label: 'Plugins Explorer',
+      label: 'Plugins',
       icon: Puzzle,
-      description: 'Plugins, elements & marketplaces',
+      description: 'Plugins & marketplaces',
     },
     {
       id: 'experiments' as const,

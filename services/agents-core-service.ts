@@ -651,20 +651,39 @@ export async function createNewAgent(body: CreateAgentRequest, requestingAgentId
   try {
     const agent = await createAgent(body)
 
-    // Auto-install ai-maestro skills for non-Claude clients (Codex, Gemini, Cursor).
+    // Auto-install ai-maestro skills for non-Claude clients (Codex, Gemini, OpenCode, Kiro).
+    // Uses the converter library for proper format transformation.
     // Non-fatal: agent creation succeeds even if skill installation fails.
     const { detectClientType } = await import('@/lib/client-capabilities')
     const clientType = detectClientType(agent.program || 'claude')
-    if (clientType !== 'claude' && clientType !== 'aider' && clientType !== 'unknown') {
-      const workDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
-      if (workDir) {
-        try {
-          const { installSkillsForClient } = await import('@/services/cross-client-skill-service')
-          const result = await installSkillsForClient(clientType, workDir)
-          console.log(`[agents] Installed ${result.installed.length} skills for ${clientType} agent "${agent.name}"`)
-        } catch (err) {
-          console.warn(`[agents] Failed to install skills for ${clientType}:`, err instanceof Error ? err.message : err)
+    if (clientType !== 'claude' && clientType !== 'unknown') {
+      try {
+        const { convertElements } = await import('@/services/cross-client-conversion-service')
+        // Map old ClientType to converter ProviderId
+        const providerMap: Record<string, string> = { codex: 'codex', gemini: 'gemini', opencode: 'opencode', kiro: 'kiro' }
+        const targetProvider = providerMap[clientType]
+        if (targetProvider) {
+          // Find Claude plugin with skills to convert from
+          const { scanPluginCache } = await import('@/lib/converter/utils/plugin')
+          const plugins = await scanPluginCache()
+          let totalInstalled = 0
+          for (const plugin of plugins) {
+            const result = await convertElements({
+              source: plugin.pluginDir,
+              targetClient: targetProvider as import('@/lib/converter/types').ProviderId,
+              elements: ['skills'],
+              scope: 'user',
+              dryRun: false,
+              force: false,  // P2 fix: never overwrite existing skills
+            })
+            if (result.ok) totalInstalled += result.elements.skills
+          }
+          if (totalInstalled > 0) {
+            console.log(`[agents] Converted ${totalInstalled} skills from Claude to ${clientType} agent "${agent.name}"`)
+          }
         }
+      } catch (err) {
+        console.warn(`[agents] Failed to convert skills for ${clientType}:`, err instanceof Error ? err.message : err)
       }
     }
 

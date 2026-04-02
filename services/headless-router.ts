@@ -951,20 +951,36 @@ const routes: Route[] = [
     res.end(JSON.stringify(data))
   }},
 
-  // Cross-client skill installation
+  // Cross-client skill installation (uses converter library)
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/install-skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const { getAgent } = await import('@/lib/agent-registry')
     const { detectClientType } = await import('@/lib/client-capabilities')
-    const { installSkillsForClient } = await import('@/services/cross-client-skill-service')
+    const { convertElements } = await import('@/services/cross-client-conversion-service')
+    const { scanPluginCache } = await import('@/lib/converter/utils/plugin')
     const agent = getAgent(params.id)
     if (!agent) { sendJson(res, 404, { error: 'Agent not found' }); return }
     const clientType = detectClientType(agent.program || 'claude')
     if (clientType === 'claude') { sendJson(res, 400, { error: 'Claude agents use the plugin system' }); return }
-    if (clientType === 'aider') { sendJson(res, 400, { error: 'Aider does not support skills' }); return }
-    const workDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
-    if (!workDir) { sendJson(res, 400, { error: 'Agent has no working directory' }); return }
-    const result = await installSkillsForClient(clientType, workDir)
-    sendJson(res, 200, result)
+    const providerMap: Record<string, string> = { codex: 'codex', gemini: 'gemini', opencode: 'opencode', kiro: 'kiro' }
+    const targetProvider = providerMap[clientType]
+    if (!targetProvider) { sendJson(res, 400, { error: `Unsupported client: ${clientType}` }); return }
+    const plugins = await scanPluginCache()
+    const results = { installed: [] as string[], skipped: [] as string[], errors: [] as Array<{ skill: string; error: string }> }
+    for (const plugin of plugins) {
+      const r = await convertElements({
+        source: plugin.pluginDir,
+        targetClient: targetProvider as import('@/lib/converter/types').ProviderId,
+        elements: ['skills'],
+        scope: 'user',
+        force: false,  // Never overwrite existing skills
+      })
+      if (r.ok) {
+        for (const f of r.files) { if (f.type === 'skills' && f.path.endsWith('SKILL.md')) results.installed.push(f.path) }
+      } else {
+        results.errors.push({ skill: plugin.meta.name, error: r.error || 'Unknown' })
+      }
+    }
+    sendJson(res, 200, results)
   }},
 
   // Chat

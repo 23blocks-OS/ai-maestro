@@ -196,11 +196,31 @@ export async function findSkillSource(
 
 /**
  * List skills for a client (backward compat).
+ * For Claude: also scans plugin cache (most skills live there, not in ~/.claude/skills/).
  */
 export async function listClientSkills(clientType: 'claude' | 'codex' | 'gemini'): Promise<string[]> {
   const providerMap: Record<string, ProviderId> = { claude: 'claude-code', codex: 'codex', gemini: 'gemini' }
   const result = await listClientElements(providerMap[clientType] || 'claude-code', 'user')
-  return result.skills
+  const skills = new Set(result.skills)
+
+  // For Claude: also enumerate skills from plugin cache
+  if (clientType === 'claude') {
+    try {
+      const { scanPluginCache } = await import('@/lib/converter/utils/plugin')
+      const plugins = await scanPluginCache()
+      for (const plugin of plugins) {
+        const skillsDirPath = path.join(plugin.pluginDir, 'skills')
+        const dirs = await listDirs(skillsDirPath)
+        for (const dir of dirs) {
+          if (await fileExists(path.join(skillsDirPath, dir, 'SKILL.md'))) {
+            skills.add(dir)
+          }
+        }
+      }
+    } catch { /* plugin cache not accessible */ }
+  }
+
+  return [...skills].sort()
 }
 
 /**

@@ -121,18 +121,38 @@ export async function convert(options: ConvertOptions): Promise<ConvertResult> {
 
   const files = emitter.emit(project, { scope: options.scope, projectDir: options.projectDir })
 
+  // 6b. Check for intra-plugin duplicates (names within the generated output)
+  const { checkIntraPluginConflicts, checkStandaloneConflicts } = await import('./conflicts')
+  const intraConflicts = checkIntraPluginConflicts(files)
+  if (intraConflicts.hasConflicts) {
+    return {
+      ok: false,
+      error: intraConflicts.errorMessage || 'Duplicate element names in generated output',
+      files, warnings: warnings.getWarnings(), elements: emptyElements(),
+      sourceProvider: fromId, targetProvider: options.to,
+    }
+  }
+
+  // 6c. Check for standalone conflicts at the target scope (unless force)
+  if (!options.force && !options.dryRun) {
+    const standaloneConflicts = await checkStandaloneConflicts(
+      files, options.to, options.scope || 'project', options.projectDir
+    )
+    if (standaloneConflicts.hasConflicts) {
+      return {
+        ok: false,
+        error: standaloneConflicts.errorMessage || 'Name conflicts with existing standalone elements',
+        files, warnings: warnings.getWarnings(), elements: emptyElements(),
+        sourceProvider: fromId, targetProvider: options.to,
+      }
+    }
+  }
+
   // 7. Write to disk (unless dry run)
   if (!options.dryRun) {
     const outputRoot = getOutputRoot(options, targetProvider)
     for (const file of files) {
       const fullPath = path.join(outputRoot, file.path)
-      if (!options.force) {
-        const { fileExists } = await import('./utils/fs')
-        if (await fileExists(fullPath)) {
-          file.warnings.push(`Skipped (exists): ${file.path}`)
-          continue
-        }
-      }
       await writeFile(fullPath, file.content)
     }
   }

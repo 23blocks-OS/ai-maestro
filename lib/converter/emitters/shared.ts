@@ -119,6 +119,7 @@ export function emitMarkdownAgent(
   if (agent.disallowedTools) fm.disallowedTools = agent.disallowedTools
   if (agent.permissionMode) fm.permissionMode = agent.permissionMode
   if (agent.maxTurns !== null) fm.maxTurns = agent.maxTurns
+  if (agent.timeoutMins !== null) fm.timeoutMins = agent.timeoutMins
   if (agent.background) fm.background = agent.background
   if (agent.isolation) fm.isolation = agent.isolation
   if (agent.mcpServers) fm.mcpServers = agent.mcpServers

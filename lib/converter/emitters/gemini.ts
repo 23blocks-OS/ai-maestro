@@ -15,16 +15,15 @@ function getProvenance(sourceProvider: string): ConversionProvenance {
   return { from: sourceProvider as ConversionProvenance['from'], date: new Date().toISOString() }
 }
 
-/** Collapse all {{argname}} placeholders to {{args}} */
+/** Collapse all {{argname}} placeholders to {{args}}, then deduplicate consecutive occurrences */
 function collapseArgsToGemini(body: string): string {
-  const seen = new Set<string>()
-  return body.replace(/\{\{([^}]+)\}\}/g, (match, argName: string) => {
+  const result = body.replace(/\{\{([^}]+)\}\}/g, (match, argName: string) => {
     const trimmed = argName.trim().toLowerCase()
     if (trimmed === 'args') return match // Already collapsed
-    if (seen.has('collapsed')) return '' // Remove subsequent named args
-    seen.add('collapsed')
     return '{{args}}'
   })
+  // Deduplicate consecutive {{args}} (with optional whitespace between)
+  return result.replace(/(\{\{args\}\})(\s*\{\{args\}\})+/g, '{{args}}')
 }
 
 const geminiEmitter: Emitter = {

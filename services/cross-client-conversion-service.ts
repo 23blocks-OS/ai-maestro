@@ -78,7 +78,9 @@ export async function listClientElements(
 
   let rootDir: string
   if (scope === 'user') {
-    rootDir = resolveHomePath(provider.userConfigDir).replace(/\/\.[^/]+$/, '')
+    // Use HOME directly — userConfigDir varies across clients (e.g., ~/.config/opencode)
+    // and the regex strip was wrong for non-dot-prefixed final segments like "opencode"
+    rootDir = process.env.HOME || '/root'
   } else {
     rootDir = projectDir || process.cwd()
   }

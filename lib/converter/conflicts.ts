@@ -65,7 +65,7 @@ export async function checkStandaloneConflicts(
     const isSkillFile = file.path.endsWith('/SKILL.md')
     const isAgentFile = file.type === 'agents' && (
       file.path.endsWith('.md') || file.path.endsWith('.toml') || file.path.endsWith('.json')
-    ) && !file.path.includes('/')  // Top-level agent files only, not prompt files
+    ) && !file.path.endsWith('-prompt.md')  // Exclude Kiro prompt files, not all paths with slashes
 
     if (!isSkillFile && !isAgentFile) continue
 
@@ -154,7 +154,7 @@ export function checkIntraPluginConflicts(files: ConvertedFile[]): ConflictCheck
     if (file.path.endsWith('/SKILL.md')) {
       name = path.basename(path.dirname(file.path))
     } else if (file.type === 'agents') {
-      name = path.basename(file.path).replace(/\.(md|toml|json|agent\.md)$/, '')
+      name = path.basename(file.path).replace(/\.(agent\.md|md|toml|json)$/, '')
     } else if (file.type === 'commands') {
       name = path.basename(file.path).replace(/\.(md|toml)$/, '')
     }

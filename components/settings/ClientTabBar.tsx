@@ -5,8 +5,7 @@
 
 'use client'
 
-import { Terminal } from 'lucide-react'
-import { PROVIDER_IDS, getAllProviders } from '@/lib/converter/registry'
+import { getAllProviders } from '@/lib/converter/registry'
 import type { ProviderId } from '@/lib/converter/types'
 
 interface ClientTabBarProps {
@@ -35,7 +34,7 @@ export default function ClientTabBar({
   const providers = getAllProviders()
 
   return (
-    <div className="flex gap-1 p-1 bg-gray-900/50 rounded-lg border border-gray-800 mb-4">
+    <div role="tablist" className="flex gap-1 p-1 bg-gray-900/50 rounded-lg border border-gray-800 mb-4">
       {providers.map(provider => {
         const isActive = provider.id === activeClient
         const isDisabled = disabledClients.includes(provider.id)
@@ -44,11 +43,14 @@ export default function ClientTabBar({
         return (
           <button
             key={provider.id}
+            role="tab"
+            aria-selected={isActive}
+            aria-label={provider.displayName}
             onClick={() => !isDisabled && onClientChange(provider.id)}
             disabled={isDisabled}
             title={isDisabled ? `${provider.displayName} does not support this element type` : provider.displayName}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium
+              flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-md text-sm font-medium
               transition-all duration-150 flex-1 justify-center
               ${isActive
                 ? 'bg-blue-600 text-white shadow-sm'

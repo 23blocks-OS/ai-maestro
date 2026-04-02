@@ -11,7 +11,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Zap, Info, RefreshCw } from 'lucide-react'
 import ClientTabBar from './ClientTabBar'
 import ConvertButton from './ConvertButton'
@@ -52,11 +52,31 @@ export default function SkillsSection({
   const [conflictDialog, setConflictDialog] = useState<{ name: string; existingPath: string; sourcePath: string } | null>(null)
   const [errorDialog, setErrorDialog] = useState<{ name: string; error: string; sourcePath: string } | null>(null)
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const showNotification = (text: string, type: 'success' | 'error') => {
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current)
     setNotification({ text, type })
-    setTimeout(() => setNotification(null), 5000)
+    notificationTimeoutRef.current = setTimeout(() => setNotification(null), 5000)
   }
+
+  // Cleanup notification timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current)
+    }
+  }, [])
+
+  // Auto-clear highlight after 2 seconds
+  useEffect(() => {
+    if (!highlight) return
+    const timer = setTimeout(() => {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('highlight')
+      window.history.replaceState({}, '', url.toString())
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [highlight])
 
   // Fetch skills for active client
   const fetchSkills = useCallback(async (client: ProviderId) => {
@@ -98,6 +118,10 @@ export default function SkillsSection({
   const handleClientChange = (client: ProviderId) => {
     setActiveClient(client)
     onClientChange?.(client)
+    // Update URL without navigation
+    const url = new URL(window.location.href)
+    url.searchParams.set('client', client)
+    window.history.replaceState({}, '', url.toString())
   }
 
   const handleConvert = (targetClient: ProviderId, elementName: string) => {

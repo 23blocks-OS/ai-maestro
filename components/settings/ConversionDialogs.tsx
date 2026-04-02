@@ -5,15 +5,80 @@
 
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { X, AlertTriangle, XCircle, CheckCircle, ArrowRight } from 'lucide-react'
 import type { ProviderId } from '@/lib/converter/types'
 import { getProvider } from '@/lib/converter/registry'
 
-/** Overlay backdrop + centered card */
-function DialogOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+/**
+ * Overlay backdrop + centered card with Escape key, focus trap, scroll lock,
+ * and proper ARIA dialog semantics.
+ */
+function DialogOverlay({ children, onClose, titleId }: { children: React.ReactNode; onClose: () => void; titleId?: string }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousOverflow = useRef<string>('')
+
+  // Escape key handler + scroll lock
+  useEffect(() => {
+    previousOverflow.current = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow.current
+    }
+  }, [onClose])
+
+  // Focus trap: auto-focus dialog on mount, cycle Tab within dialog
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    const focusables = dialog.querySelectorAll<HTMLElement>(focusableSelector)
+    if (focusables.length > 0) focusables[0].focus()
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const currentFocusables = dialog.querySelectorAll<HTMLElement>(focusableSelector)
+      if (currentFocusables.length === 0) return
+
+      const first = currentFocusables[0]
+      const last = currentFocusables[currentFocusables.length - 1]
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', handleTab)
+    return () => document.removeEventListener('keydown', handleTab)
+  }, [])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6"
+        onClick={e => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>
@@ -48,10 +113,10 @@ interface InstallConfirmProps {
 
 export function InstallConfirmDialog({ name, sourcePath, destPath, client, scope, onConfirm, onCancel }: InstallConfirmProps) {
   return (
-    <DialogOverlay onClose={onCancel}>
+    <DialogOverlay onClose={onCancel} titleId="install-dialog-title">
       <div className="flex items-center gap-3 mb-4">
         <CheckCircle className="w-6 h-6 text-blue-400" />
-        <h3 className="text-lg font-semibold text-white">Install Skill</h3>
+        <h3 id="install-dialog-title" className="text-lg font-semibold text-white">Install Skill</h3>
       </div>
       <div className="space-y-3 mb-5">
         <div className="text-sm text-gray-300">
@@ -65,8 +130,8 @@ export function InstallConfirmDialog({ name, sourcePath, destPath, client, scope
         </div>
       </div>
       <div className="flex justify-end gap-3">
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
-        <button onClick={onConfirm} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">Install</button>
+        <button onClick={onCancel} className="min-h-[44px] px-4 py-2 text-sm text-gray-400 hover:text-gray-200 rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
+        <button onClick={onConfirm} className="min-h-[44px] px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">Install</button>
       </div>
     </DialogOverlay>
   )
@@ -93,10 +158,10 @@ export function ConvertConfirmDialog({ name, sourceClient, targetClient, sourceP
   const tgtProvider = getProvider(targetClient)
 
   return (
-    <DialogOverlay onClose={onCancel}>
+    <DialogOverlay onClose={onCancel} titleId="convert-dialog-title">
       <div className="flex items-center gap-3 mb-4">
         <ArrowRight className="w-6 h-6 text-blue-400" />
-        <h3 className="text-lg font-semibold text-white">Convert: {name}</h3>
+        <h3 id="convert-dialog-title" className="text-lg font-semibold text-white">Convert: {name}</h3>
       </div>
       <div className="space-y-3 mb-5">
         <div className="flex items-center gap-2 text-sm text-gray-300">
@@ -122,8 +187,8 @@ export function ConvertConfirmDialog({ name, sourceClient, targetClient, sourceP
         )}
       </div>
       <div className="flex justify-end gap-3">
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
-        <button onClick={onConfirm} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">Convert</button>
+        <button onClick={onCancel} className="min-h-[44px] px-4 py-2 text-sm text-gray-400 hover:text-gray-200 rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
+        <button onClick={onConfirm} className="min-h-[44px] px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">Convert</button>
       </div>
     </DialogOverlay>
   )
@@ -142,10 +207,10 @@ interface ConflictErrorProps {
 
 export function ConflictErrorDialog({ name, existingPath, sourcePath, onClose }: ConflictErrorProps) {
   return (
-    <DialogOverlay onClose={onClose}>
+    <DialogOverlay onClose={onClose} titleId="conflict-dialog-title">
       <div className="flex items-center gap-3 mb-4">
         <AlertTriangle className="w-6 h-6 text-amber-400" />
-        <h3 className="text-lg font-semibold text-white">Name Conflict</h3>
+        <h3 id="conflict-dialog-title" className="text-lg font-semibold text-white">Name Conflict</h3>
       </div>
       <div className="space-y-3 mb-5">
         <p className="text-sm text-gray-300">
@@ -163,7 +228,7 @@ export function ConflictErrorDialog({ name, existingPath, sourcePath, onClose }:
         </div>
       </div>
       <div className="flex justify-end">
-        <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors">Close</button>
+        <button onClick={onClose} className="min-h-[44px] px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors">Close</button>
       </div>
     </DialogOverlay>
   )
@@ -182,10 +247,10 @@ interface ConversionErrorProps {
 
 export function ConversionErrorDialog({ name, error, sourcePath, onClose }: ConversionErrorProps) {
   return (
-    <DialogOverlay onClose={onClose}>
+    <DialogOverlay onClose={onClose} titleId="error-dialog-title">
       <div className="flex items-center gap-3 mb-4">
         <XCircle className="w-6 h-6 text-red-400" />
-        <h3 className="text-lg font-semibold text-white">Conversion Failed</h3>
+        <h3 id="error-dialog-title" className="text-lg font-semibold text-white">Conversion Failed</h3>
       </div>
       <div className="space-y-3 mb-5">
         <p className="text-sm text-gray-300">
@@ -198,7 +263,7 @@ export function ConversionErrorDialog({ name, error, sourcePath, onClose }: Conv
         <PathDisplay label="Source" path={sourcePath} />
       </div>
       <div className="flex justify-end">
-        <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors">Close</button>
+        <button onClick={onClose} className="min-h-[44px] px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors">Close</button>
       </div>
     </DialogOverlay>
   )

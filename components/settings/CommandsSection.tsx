@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { TerminalSquare, RefreshCw } from 'lucide-react'
 import ClientTabBar from './ClientTabBar'
 import ConvertButton from './ConvertButton'
@@ -39,11 +39,31 @@ export default function CommandsSection({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const showNotification = (text: string, type: 'success' | 'error') => {
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current)
     setNotification({ text, type })
-    setTimeout(() => setNotification(null), 5000)
+    notificationTimeoutRef.current = setTimeout(() => setNotification(null), 5000)
   }
+
+  // Cleanup notification timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current)
+    }
+  }, [])
+
+  // Auto-clear highlight after 2 seconds
+  useEffect(() => {
+    if (!highlight) return
+    const timer = setTimeout(() => {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('highlight')
+      window.history.replaceState({}, '', url.toString())
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [highlight])
 
   const fetchCommands = useCallback(async (client: ProviderId) => {
     if (NO_COMMANDS_CLIENTS.includes(client)) {
@@ -90,6 +110,10 @@ export default function CommandsSection({
   const handleClientChange = (client: ProviderId) => {
     setActiveClient(client)
     onClientChange?.(client)
+    // Update URL without navigation
+    const url = new URL(window.location.href)
+    url.searchParams.set('client', client)
+    window.history.replaceState({}, '', url.toString())
   }
 
   const handleConvert = (targetClient: ProviderId, elementName: string) => {

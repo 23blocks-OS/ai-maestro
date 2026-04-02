@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
 
-  const { source, targetClient, elements, dryRun } = body
+  const { source, targetClient, elements, dryRun, scope, projectDir, force } = body
 
   if (!source || typeof source !== 'string') {
     return NextResponse.json({ error: 'source is required (path, URL, or scope path)' }, { status: 400 })
@@ -31,19 +31,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `targetClient must be one of: ${PROVIDER_IDS.join(', ')}` }, { status: 400 })
   }
 
-  const result = await convertElements({
-    source,
-    targetClient: targetClient as ProviderId,
-    elements: elements as ElementType[] | undefined,
-    scope: 'user',
-    dryRun: Boolean(dryRun),
-  })
+  try {
+    const result = await convertElements({
+      source,
+      targetClient: targetClient as ProviderId,
+      elements: elements as ElementType[] | undefined,
+      scope: scope === 'project' ? 'project' : 'user',
+      projectDir: typeof projectDir === 'string' ? projectDir : undefined,
+      dryRun: Boolean(dryRun),
+      force: Boolean(force),
+    })
 
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
+
+    return NextResponse.json(result)
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Conversion failed' },
+      { status: 500 }
+    )
   }
-
-  return NextResponse.json(result)
 }
 
 export async function GET(request: NextRequest) {

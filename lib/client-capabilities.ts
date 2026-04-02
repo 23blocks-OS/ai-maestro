@@ -4,7 +4,7 @@
  * The profile panel adapts its visible sections based on client capabilities.
  */
 
-export type ClientType = 'claude' | 'codex' | 'gemini' | 'aider' | 'unknown'
+export type ClientType = 'claude' | 'codex' | 'gemini' | 'aider' | 'opencode' | 'unknown'
 
 export interface ClientCapabilities {
   skills: boolean
@@ -47,6 +47,12 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     configFile: '.aider.conf.yml',
     skillPaths: { project: 'skills', user: '' },  // Aider reads via `aider-skills` package (pip install aider-skills) — project-local skills/ dir
   },
+  opencode: {
+    skills: true, plugins: false, agents: false, hooks: false,
+    rules: false, commands: false, mcpServers: true, lspServers: false, rolePlugins: false,
+    configFile: 'AGENTS.md',
+    skillPaths: { project: '.opencode/skills', user: '~/.opencode/skills' },
+  },
   unknown: {
     skills: true, plugins: false, agents: false, hooks: false,
     rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
@@ -63,6 +69,7 @@ export function detectClientType(program: string): ClientType {
   if (p.includes('codex')) return 'codex'
   if (p.includes('gemini')) return 'gemini'
   if (p.includes('aider')) return 'aider'
+  if (p.includes('opencode')) return 'opencode'
   return 'unknown'
 }
 
@@ -101,6 +108,7 @@ export function clientTypeLabel(clientType: ClientType): string {
     codex: 'Codex CLI',
     gemini: 'Gemini CLI',
     aider: 'Aider',
+    opencode: 'OpenCode',
     unknown: 'Unknown',
   }
   return labels[clientType]

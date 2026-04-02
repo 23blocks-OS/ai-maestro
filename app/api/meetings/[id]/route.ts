@@ -50,7 +50,7 @@ export async function PATCH(
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const result = updateExistingMeeting(id, body)
+  const result = await updateExistingMeeting(id, body)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
@@ -75,7 +75,7 @@ export async function DELETE(
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
   }
-  const result = deleteExistingMeeting(id)
+  const result = await deleteExistingMeeting(id)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

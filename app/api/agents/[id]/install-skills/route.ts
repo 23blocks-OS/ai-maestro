@@ -1,14 +1,15 @@
 /**
  * POST /api/agents/{id}/install-skills
  *
- * Manually trigger ai-maestro skill installation for a non-Claude agent.
- * Downloads skills from GitHub and copies them to the client-specific skill directory.
+ * Install all ai-maestro skills from Claude into a non-Claude agent's skill directory.
+ * Uses the cross-client skill conversion service to copy skills from Claude's
+ * plugin cache to the target client's skill path.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getAgent } from '@/lib/agent-registry'
 import { detectClientType } from '@/lib/client-capabilities'
-import { installSkillsForClient } from '@/services/cross-client-skill-service'
+import { convertSkill, listClientSkills } from '@/services/cross-client-skill-service'
 import { isValidUuid } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,6 @@ export async function POST(
 ) {
   const { id } = await params
 
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
   }
@@ -31,7 +31,6 @@ export async function POST(
 
   const clientType = detectClientType(agent.program || 'claude')
 
-  // Claude agents use the plugin system -- direct skill copy is not applicable
   if (clientType === 'claude') {
     return NextResponse.json(
       { error: 'Claude agents use the plugin system — use claude plugin install ai-maestro' },
@@ -39,29 +38,20 @@ export async function POST(
     )
   }
 
-  // Aider has no skill support at all
-  if (clientType === 'aider') {
-    return NextResponse.json(
-      { error: 'Aider does not support skills' },
-      { status: 400 }
-    )
+  // Get all Claude skills and convert each to the target client
+  const claudeSkills = await listClientSkills('claude')
+  const results = { installed: [] as string[], skipped: [] as string[], errors: [] as Array<{ skill: string; error: string }> }
+
+  for (const skillName of claudeSkills) {
+    const result = await convertSkill(skillName, 'claude', clientType)
+    if (result.success) {
+      results.installed.push(skillName)
+    } else if (result.error?.includes('not found')) {
+      results.skipped.push(skillName)
+    } else {
+      results.errors.push({ skill: skillName, error: result.error || 'Unknown error' })
+    }
   }
 
-  const workDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
-  if (!workDir) {
-    return NextResponse.json(
-      { error: 'Agent has no working directory — cannot determine skill target path' },
-      { status: 400 }
-    )
-  }
-
-  try {
-    const result = await installSkillsForClient(clientType, workDir)
-    return NextResponse.json(result)
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to install skills' },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json(results)
 }

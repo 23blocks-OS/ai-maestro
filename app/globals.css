@@ -301,3 +301,19 @@ html.is-touch .overflow-auto {
   overflow: scroll !important;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Notification toast entrance animation (used by SkillsSection, AgentsSection, CommandsSection) */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-in.slide-in-from-right {
+  animation: slideInFromRight 0.3s ease-out;
+}

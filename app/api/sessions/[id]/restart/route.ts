@@ -118,9 +118,9 @@ export async function POST(
       // Insert --name before any -- divider (raw prompt passthrough), or at the end
       const dividerIdx = finalArgs.indexOf(' -- ')
       if (dividerIdx !== -1) {
-        finalArgs = finalArgs.slice(0, dividerIdx) + ` --name ${personaName}` + finalArgs.slice(dividerIdx)
+        finalArgs = finalArgs.slice(0, dividerIdx) + ` --name "${personaName}"` + finalArgs.slice(dividerIdx)
       } else {
-        finalArgs = `${finalArgs} --name ${personaName}`.trim()
+        finalArgs = `${finalArgs} --name "${personaName}"`.trim()
       }
     }
     const cmd = `${bin} ${finalArgs}`.trim()

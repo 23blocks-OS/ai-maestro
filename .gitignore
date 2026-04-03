@@ -106,6 +106,24 @@ task_plan.md
 findings.md
 progress.md
 
+# Rechecker reports and pending merge files
+.rechecker/
+rck-*.md
+reports_dev/
+
+# Dev folders (local only, not published)
+docs_dev/
+scripts_dev/
+samples_dev/
+examples_dev/
+tests_dev/
+downloads_dev/
+libs_dev/
+builds_dev/
+
+# SERENA MCP state
+.serena/
+
 # Benchmark and competitive analysis (internal use only)
 docs/benchmark/
 
@@ -122,6 +140,10 @@ agent-container/.env.local
 agent-container/.env.*.local
 *.token
 secrets/
+
+# Maestro credentials (NEVER commit — contains plaintext passwords)
+maestro-credentials.yaml
+maestro-credentials.yml
 # But allow .env.example files
 !agent-container/.env.example
 

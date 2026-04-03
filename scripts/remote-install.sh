@@ -879,21 +879,56 @@ act2_install_prerequisites() {
         esac
     fi
 
-    # Tailscale (optional)
+    # Tailscale (optional — enables remote access from iPad/phone/other machines)
     if [ "$NEED_TAILSCALE" = true ]; then
         echo ""
-        maestro_ask_yn "Tailscale lets agents work across multiple machines. Install?" "n"
+        maestro_info "Tailscale enables secure remote access to AI Maestro from any device."
+        echo "  Encrypted VPN mesh — no port forwarding, no public IP needed."
+        echo "  Install links: https://tailscale.com/download"
+        echo ""
+        maestro_ask_yn "Install Tailscale now?" "n"
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
             maestro_info "Installing Tailscale"
             if [ "$OS" = "macos" ]; then
-                brew install --cask tailscale
+                if command -v brew &>/dev/null; then
+                    maestro_info "Installing via Homebrew (may take a few minutes if brew updates itself)..."
+                    brew install --cask tailscale && maestro_ok "Tailscale installed" || maestro_warn "Install failed — visit https://tailscale.com/download/mac"
+                else
+                    maestro_info "Homebrew not found — downloading Tailscale installer..."
+                    PKG_URL="https://pkgs.tailscale.com/stable/Tailscale-latest-macos.pkg"
+                    PKG_PATH="/tmp/Tailscale-latest.pkg"
+                    if curl -fsSL -o "$PKG_PATH" "$PKG_URL" && sudo installer -pkg "$PKG_PATH" -target / 2>/dev/null; then
+                        maestro_ok "Tailscale installed"
+                        rm -f "$PKG_PATH"
+                    else
+                        rm -f "$PKG_PATH" 2>/dev/null
+                        maestro_warn "Install failed — visit https://tailscale.com/download/mac"
+                    fi
+                fi
+            elif [ "$OS" = "wsl" ]; then
+                maestro_warn "On WSL, install Tailscale on the WINDOWS host instead (not inside WSL)."
+                echo "  WSL2 shares the Windows network stack — the host's Tailscale covers WSL too."
+                echo "  Download: https://tailscale.com/download/windows"
+                if [ "${WSL_VERSION:-2}" = "1" ]; then
+                    maestro_warn "WSL1 detected — upgrade to WSL2 for Tailscale support."
+                fi
             else
-                curl -fsSL https://tailscale.com/install.sh | sh
+                echo "  Note: requires sudo for the system service."
+                if ! command -v systemctl &>/dev/null && ! [ -d /run/systemd/system ]; then
+                    maestro_warn "systemd not detected — tailscaled service may not auto-start."
+                    echo "  On systems without systemd, run: tailscaled --tun=userspace-networking &"
+                fi
+                if curl -fsSL https://tailscale.com/install.sh | sh; then
+                    maestro_ok "Tailscale installed"
+                else
+                    maestro_warn "Install failed — visit https://tailscale.com/kb/1031/install-linux"
+                fi
             fi
-            maestro_ok "Tailscale installed"
-            maestro_info "To activate: tailscale up"
+            if command -v tailscale &>/dev/null; then
+                maestro_info "To activate: tailscale up (then sign in with your account)"
+            fi
         else
-            maestro_info "Skipping Tailscale — you can add it later"
+            maestro_info "Skipping Tailscale — install later for remote access"
         fi
     fi
 }

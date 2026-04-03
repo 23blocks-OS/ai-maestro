@@ -10,16 +10,21 @@
 
 set -e
 
-# Parse arguments (accept -y for non-interactive consistency with other installers)
+# Parse arguments
+FORCE=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         -y|--yes|--non-interactive) shift ;;
+        --force) FORCE=true; shift ;;
         *) shift ;;
     esac
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK_SCRIPT="$SCRIPT_DIR/ai-maestro-hook.cjs"
+# Use the comprehensive 8-state hook from parent scripts/ directory
+HOOK_SCRIPT="$(cd "$SCRIPT_DIR/.." && pwd)/ai-maestro-hook.cjs"
+# Escape for JSON embedding (backslash-escape quotes and backslashes)
+HOOK_SCRIPT_JSON=$(printf '%s' "$HOOK_SCRIPT" | sed 's/\\/\\\\/g; s/"/\\"/g')
 CLAUDE_SETTINGS_DIR="$HOME/.claude"
 CLAUDE_SETTINGS_FILE="$CLAUDE_SETTINGS_DIR/settings.json"
 STATE_DIR="$HOME/.aimaestro/chat-state"
@@ -52,7 +57,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -63,7 +68,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -74,7 +79,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -85,7 +90,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -96,7 +101,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -107,7 +112,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -118,7 +123,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -129,7 +134,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -140,7 +145,7 @@ HOOKS_CONFIG=$(cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOOK_SCRIPT",
+            "command": "node $HOOK_SCRIPT_JSON",
             "timeout": 5
           }
         ]
@@ -161,26 +166,51 @@ if (!existing.hooks) {
     existing.hooks = {};
 }
 
+const force = process.argv[3] === 'true';
+const conflicts = [];
+
 for (const [event, configs] of Object.entries(hooks.hooks)) {
     if (!existing.hooks[event]) {
         existing.hooks[event] = [];
     }
 
-    // Check if our hook already exists
-    const hasOurHook = existing.hooks[event].some(cfg =>
-        cfg.hooks?.some(h => h.command?.includes('ai-maestro-hook'))
-    );
+    for (const newCfg of configs) {
+        const newMatcher = newCfg.matcher || '';
+        const newCmd = newCfg.hooks?.[0]?.command || '';
 
-    if (!hasOurHook) {
-        existing.hooks[event].push(...configs);
+        // Find entry with same matcher AND command containing ai-maestro-hook
+        const idx = existing.hooks[event].findIndex(cfg => {
+            const m = cfg.matcher || '';
+            const c = cfg.hooks?.[0]?.command || '';
+            return m === newMatcher && c.includes('ai-maestro-hook');
+        });
+
+        if (idx !== -1) {
+            // Exact duplicate (same event + same matcher + our hook command)
+            if (force) {
+                existing.hooks[event][idx] = newCfg;
+            } else {
+                conflicts.push(event + (newMatcher ? ':' + newMatcher : ''));
+            }
+        } else {
+            // New entry (different event, different matcher, or not our hook)
+            existing.hooks[event].push(newCfg);
+        }
     }
 }
 
+if (conflicts.length > 0) {
+    process.stderr.write('ERROR: ai-maestro hooks already exist for: ' + conflicts.join(', ') + '\\n');
+    process.stderr.write('Use --force to overwrite existing hooks.\\n');
+    process.exit(1);
+}
+
 console.log(JSON.stringify(existing, null, 2));
-" "$EXISTING_SETTINGS" "$HOOKS_CONFIG")
+" "$EXISTING_SETTINGS" "$HOOKS_CONFIG" "$FORCE")
 
 # Write merged settings atomically: write to temp file, validate JSON, then move
 TEMP_SETTINGS=$(mktemp "${CLAUDE_SETTINGS_FILE}.XXXXXX")
+trap 'rm -f "$TEMP_SETTINGS"' EXIT INT TERM
 echo "$MERGED_SETTINGS" > "$TEMP_SETTINGS"
 # Validate JSON before replacing (uses process.argv to avoid shell injection)
 if node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$TEMP_SETTINGS" 2>/dev/null; then

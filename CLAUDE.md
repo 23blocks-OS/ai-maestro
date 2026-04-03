@@ -559,6 +559,32 @@ CLAUDE.md               - This file - guidance for Claude Code
 - **Cryptographic signing**: Ed25519 signatures for message authenticity
 - **Federation**: Connect to external providers (CrabMail, etc.) for global messaging
 - **Provider-agnostic**: Same CLI works with any AMP provider
+- **Title-based communication graph**: Directed graph enforcing which governance titles can message which (see below)
+
+### Communication Rules
+
+AMP messaging is governed by a title-based directed communication graph. Each governance title defines which other titles the agent can message. Missing connections are blocked with HTTP 403 and a routing suggestion.
+
+**Adjacency matrix** (Y = allowed, empty = forbidden):
+
+| Sender \ Recipient | MANAGER | COS | ORCHESTRATOR | ARCHITECT | INTEGRATOR | MEMBER | AUTONOMOUS |
+|---------------------|:-------:|:---:|:------------:|:---------:|:----------:|:------:|:----------:|
+| **MANAGER**         |    Y    |  Y  |      Y       |     Y     |     Y      |   Y    |     Y      |
+| **CHIEF-OF-STAFF**  |    Y    |  Y  |      Y       |     Y     |     Y      |   Y    |     Y      |
+| **ORCHESTRATOR**    |         |  Y  |              |     Y     |     Y      |   Y    |            |
+| **ARCHITECT**       |         |  Y  |      Y       |           |            |        |            |
+| **INTEGRATOR**      |         |  Y  |      Y       |           |            |        |            |
+| **MEMBER**          |         |  Y  |      Y       |           |            |        |            |
+| **AUTONOMOUS**      |    Y    |  Y  |              |           |            |        |     Y      |
+
+**Three layers of enforcement:**
+1. **API (server-side)**: `lib/communication-graph.ts` → `validateMessageRoute()` checks sender/recipient titles before delivery. Returns `403 title_communication_forbidden` with routing suggestion.
+2. **Agent prompts (client-side)**: Each role-plugin's main-agent .md file lists allowed/forbidden recipients. Skills (`agent-messaging`, `team-governance`) include the full graph.
+3. **Subagents**: Sub-agent .md files explicitly forbid AMP messaging. Subagents have no AMP identity and cannot authenticate.
+
+**The user** is exempt from the graph — can message any agent and receive responses from all. Agents are discouraged from initiating messages to the user (only respond when contacted). The user must still be authenticated to prevent agents from sending messages on the user's behalf.
+
+See `docs_dev/2026-04-03-communication-graph.md` for the full spec with graph definition, routing suggestions, and design rationale.
 
 ### Installation
 
@@ -962,20 +988,38 @@ tmux session names are limited to: `^[a-zA-Z0-9_@.-]+$`
 
 The extended character set (`@` and `.`) supports `agentId@hostId` format used for multi-host agent addressing. **Enforce this** in any UI that creates sessions (Phase 2+). Invalid characters will cause `tmux attach` to fail silently.
 
-### Localhost-Only Security Model
+### Network Security Model
 
-**Phase 1 security assumptions:**
-- Application binds to `localhost` (127.0.0.1) ONLY
-- No authentication required (OS-level user security)
-- No CORS, no origin validation
-- WebSocket connections accepted from any localhost origin
+**Dual-bind with IP filter (v0.27.2+):**
 
-**DO NOT implement:**
-- User authentication (not needed for localhost)
-- Agent-level permissions (all agents accessible to local user)
-- HTTPS/TLS (overkill for localhost)
+The server binds to `::` (all interfaces, dual-stack IPv4+IPv6) when Tailscale is detected, but a TCP-level connection filter (`server.mjs:isAllowedSource()`) drops connections from non-allowed IPs before any HTTP/WebSocket processing:
 
-These are deferred to Phase 2+ if remote access is needed.
+| Source | Allowed | Why |
+|--------|---------|-----|
+| `127.0.0.1`, `::1` | Yes | Localhost |
+| `100.64.0.0/10` (Tailscale CGNAT) | Yes | Tailscale VPN IPv4 |
+| `fd7a:115c:a1e0:*` (Tailscale ULA) | Yes | Tailscale VPN IPv6 |
+| `192.168.x.x` (LAN) | **No** | Dropped at TCP level |
+| Any other IP | **No** | Dropped at TCP level |
+
+Without Tailscale installed, the server falls back to `127.0.0.1`-only binding (pure localhost).
+
+**Tailscale is required for any remote access.** The `isAllowedSource()` function in `server.mjs` is the security gate. When modifying it, only allow Tailscale CGNAT (`100.64.0.0/10`) and Tailscale ULA (`fd7a:115c:a1e0::/48`) ranges — never allow LAN or public IPs.
+
+**Known limitations (deferred to Phase 2):**
+- **No human user authentication** — no login page, no session cookies (see `docs_dev/2026-04-02-maestro-auth-design.md`)
+- **No CORS/CSRF protection** — all same-origin by design
+- **MagicDNS does not work on iOS** — iPad/iPhone must use raw Tailscale IPv4 (e.g., `http://<tailscale-ip>:23000`), not `*.ts.net` hostnames. Run `tailscale ip -4` on the host to find the IP.
+- **Tailscale IPv6 not routable from same host** — macOS Tailscale app doesn't loopback IPv6; works from remote devices but untested on iPad
+- **`tailscale serve` is NOT used** — it breaks Next.js static file serving; direct bind with IP filter is used instead
+- **SF-058 bypass** — requests without auth headers get full system-owner access (`lib/agent-auth.ts:35-41`); Phase 2 will add mandatory auth
+
+**Key files:**
+- `server.mjs:89-104` — Tailscale IP detection + `isAllowedSource()` filter
+- `server.mjs:1316-1323` — TCP connection filter on `::` bind
+- `lib/agent-auth.ts` — Agent auth bridge (Phase 1 bypass at line 35)
+- `docs_dev/2026-04-02-maestro-auth-design.md` — Full maestro auth design for Phase 2
+- `docs_dev/2026-04-02-remote-host-deep-audit.md` — Deep security audit of all remote access paths
 
 ## Common Gotchas
 

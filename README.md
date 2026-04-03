@@ -8,10 +8,10 @@
 
 **Orchestrate your AI coding agents from one dashboard — with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.27.2-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+[![Version](https://img.shields.io/badge/version-0.27.2-blue)](https://github.com/Emasoft/ai-maestro/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/Emasoft/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
+[![GitHub Stars](https://img.shields.io/github/stars/Emasoft/ai-maestro?style=social)](https://github.com/Emasoft/ai-maestro)
 
 ![AI Maestro Dashboard](./docs/images/aiteam-web.png)
 
@@ -90,7 +90,7 @@ An agent can change its Role Plugin at any time through the Profile panel — th
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Emasoft/ai-maestro/main/scripts/remote-install.sh | sh
 ```
 
 This installs everything you need:
@@ -118,7 +118,7 @@ wsl --install
 <summary>Manual install</summary>
 
 ```bash
-git clone https://github.com/23blocks-OS/ai-maestro.git
+git clone https://github.com/Emasoft/ai-maestro.git
 cd ai-maestro
 yarn install
 yarn dev
@@ -133,6 +133,40 @@ Then initialize your agent messaging identity (first time only):
 ```bash
 amp-init.sh --auto
 ```
+
+### Remote Access (iPad, Phone, Laptop)
+
+AI Maestro is accessible from any device on your [Tailscale](https://tailscale.com/) VPN. Tailscale is free for personal use and takes 2 minutes to set up.
+
+**1. Install [Tailscale](https://tailscale.com/) on the machine running AI Maestro:**
+
+| Platform | Install |
+|----------|---------|
+| macOS | [Download](https://tailscale.com/download/mac) or `brew install --cask tailscale` |
+| Linux | `curl -fsSL https://tailscale.com/install.sh \| sh && sudo tailscale up` |
+| Windows | [Download](https://tailscale.com/download/windows) |
+
+**2. Install Tailscale on your mobile device and activate the VPN:**
+
+Mobile devices access AI Maestro via the browser (Safari, Chrome) — there is no native app. But the Tailscale VPN app **must** be installed and connected on the device for the browser to reach the AI Maestro host.
+
+[<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" height="40">](https://apps.apple.com/app/tailscale/id1470499037)&nbsp;&nbsp;[<img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" height="40">](https://play.google.com/store/apps/details?id=com.tailscale.ipn)
+
+**3. Sign in with the same account** on all devices. Then open a browser on your mobile device:
+
+```
+http://<your-tailscale-ip>:23000
+```
+
+Find your host's Tailscale IP: run `tailscale ip -4` on the host machine (e.g., `100.x.x.x`).
+
+**4. Verify the setup:**
+
+```bash
+./scripts/test-tailscale-access.sh
+```
+
+> AI Maestro auto-detects Tailscale at startup and only accepts connections from localhost and Tailscale VPN IPs. LAN and internet connections are blocked at the TCP level. See the [network-security](https://github.com/Emasoft/ai-maestro-plugin) skill for details.
 
 ---
 
@@ -165,7 +199,7 @@ The [Agent Messaging Protocol (AMP)](https://agentmessaging.org) gives your agen
 
 *A friend in Singapore wanted his agents to talk to mine. But I didn't want to give him access to my network.*
 
-Connect your AI agents to [Slack](https://github.com/23blocks-OS/aimaestro-gateways), Discord, Email, and WhatsApp through organizational gateways. Smart routing (`@AIM:agent-name`), thread-aware responses, and content security with 34 prompt injection patterns detected at the gateway — before any agent sees the message.
+Connect your AI agents to [Slack](https://github.com/Emasoft/aimaestro-gateways), Discord, Email, and WhatsApp through organizational gateways. Smart routing (`@AIM:agent-name`), thread-aware responses, and content security with 34 prompt injection patterns detected at the gateway — before any agent sees the message.
 
 ### Persistent Memory
 
@@ -355,7 +389,7 @@ Run `aimaestro-agent.sh help` for the full command list.
 - Agent playback — time-travel through agent sessions
 - Performance analytics dashboard
 
-See the full [roadmap](https://github.com/23blocks-OS/ai-maestro/issues) and [join the discussion](https://github.com/23blocks-OS/ai-maestro/discussions).
+See the full [roadmap](https://github.com/Emasoft/ai-maestro/issues) and [join the discussion](https://github.com/Emasoft/ai-maestro/discussions).
 
 ---
 
@@ -363,8 +397,8 @@ See the full [roadmap](https://github.com/23blocks-OS/ai-maestro/issues) and [jo
 
 We love contributions. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
-- [Report a bug](https://github.com/23blocks-OS/ai-maestro/issues)
-- [Request a feature](https://github.com/23blocks-OS/ai-maestro/issues/new?labels=enhancement)
+- [Report a bug](https://github.com/Emasoft/ai-maestro/issues)
+- [Request a feature](https://github.com/Emasoft/ai-maestro/issues/new?labels=enhancement)
 
 <details>
 <summary><b>Acknowledgments</b></summary>
@@ -389,6 +423,6 @@ MIT — see [LICENSE](./LICENSE). Free for any purpose, including commercial.
 
 *Built by AI Agents with Humans in the driver seat — for AI-first organizations, AI-enabled humans, and autonomous agents*
 
-[Star us on GitHub](https://github.com/23blocks-OS/ai-maestro)
+[Star us on GitHub](https://github.com/Emasoft/ai-maestro)
 
 </div>

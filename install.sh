@@ -571,32 +571,100 @@ if [ "$MISSING_COUNT" -gt 0 ]; then
         fi
     fi
 
-    # Install Tailscale (recommended for multi-machine)
+    # Install Tailscale (optional — always ask, even in non-interactive mode)
+    # Tailscale requires sudo on Linux, so we let the user decide to avoid unnecessary privilege escalation
     if [ "$NEED_TAILSCALE" = true ]; then
         echo ""
-        print_info "Tailscale enables secure multi-machine mesh networking"
-        echo "  Connect agents across laptops, desktops, and servers with zero port forwarding."
+        print_info "Tailscale enables secure remote access to AI Maestro from any device (iPad, phone, laptop)."
+        echo "  It creates an encrypted VPN mesh — no port forwarding, no public IP needed."
+        echo "  AI Maestro auto-detects Tailscale and only accepts connections from VPN devices."
+        echo ""
+        echo "  Install links:"
+        echo "    macOS:     brew install --cask tailscale"
+        echo "    Linux:     curl -fsSL https://tailscale.com/install.sh | sh"
+        echo "    Windows:   https://tailscale.com/download/windows"
+        echo "    iOS/iPad:  https://apps.apple.com/app/tailscale/id1470499037"
+        echo "    Android:   https://play.google.com/store/apps/details?id=com.tailscale.ipn"
         echo ""
         if [ "$NON_INTERACTIVE" = true ]; then
             INSTALL_TS="y"
         else
-            read -p "Install Tailscale? (y/n): " INSTALL_TS
+            read -p "Install Tailscale now? (y/N): " INSTALL_TS
         fi
 
         if [[ "$INSTALL_TS" =~ ^[Yy]$ ]]; then
             print_step "Installing Tailscale..."
+            TS_INSTALL_OK=false
             if [ "$OS" = "macos" ]; then
-                brew install --cask tailscale
-            elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-                curl -fsSL https://tailscale.com/install.sh | sh
+                if command -v brew &>/dev/null; then
+                    print_info "Installing via Homebrew (this may take a few minutes if Homebrew needs to update itself)..."
+                    brew install --cask tailscale && TS_INSTALL_OK=true
+                else
+                    # Fallback: download the .pkg installer directly
+                    print_info "Homebrew not found — downloading Tailscale installer..."
+                    PKG_URL="https://pkgs.tailscale.com/stable/Tailscale-latest-macos.pkg"
+                    PKG_PATH="/tmp/Tailscale-latest.pkg"
+                    if curl -fsSL -o "$PKG_PATH" "$PKG_URL"; then
+                        print_info "Installing Tailscale.pkg (may require password)..."
+                        if sudo installer -pkg "$PKG_PATH" -target / 2>/dev/null; then
+                            TS_INSTALL_OK=true
+                        else
+                            print_warning "Installer failed. Install from Mac App Store or:"
+                            echo "  https://tailscale.com/download/mac"
+                        fi
+                        rm -f "$PKG_PATH"
+                    else
+                        print_warning "Download failed. Install from Mac App Store or:"
+                        echo "  https://tailscale.com/download/mac"
+                    fi
+                fi
+            elif [ "$OS" = "wsl" ]; then
+                # WSL: recommend installing Tailscale on the Windows HOST instead
+                # WSL2 shares the Windows network stack, so installing inside WSL
+                # is unnecessary and can conflict with the Windows Tailscale app.
+                print_warning "On WSL, install Tailscale on the WINDOWS host instead (not inside WSL)."
+                echo "  WSL2 shares the Windows network stack — the host's Tailscale covers WSL too."
+                echo ""
+                echo "  Download for Windows: https://tailscale.com/download/windows"
+                echo ""
+                echo "  After installing on Windows, WSL2 can reach Tailscale IPs automatically."
+                if [ "${WSL_VERSION:-2}" = "1" ]; then
+                    print_warning "WSL1 detected — upgrade to WSL2 for Tailscale support."
+                    echo "  Run in PowerShell: wsl --set-version <distro> 2"
+                fi
+            elif [ "$OS" = "linux" ]; then
+                echo "  Note: the Tailscale installer requires sudo for the system service."
+                # Check if systemd is available (required for tailscaled service)
+                if ! command -v systemctl &>/dev/null && ! [ -d /run/systemd/system ]; then
+                    print_warning "systemd not detected. Tailscale requires systemd for its background service."
+                    echo "  On systems without systemd (Alpine, some containers), use userspace mode:"
+                    echo "  tailscaled --tun=userspace-networking &"
+                    echo "  See: https://tailscale.com/kb/1112/userspace-networking"
+                    echo ""
+                fi
+                if curl -fsSL https://tailscale.com/install.sh | sh; then
+                    TS_INSTALL_OK=true
+                else
+                    print_warning "Tailscale install script failed. Install manually:"
+                    echo "  https://tailscale.com/kb/1031/install-linux"
+                fi
+            else
+                print_warning "Unsupported platform for auto-install. Install manually:"
+                echo "  https://tailscale.com/download"
             fi
-            print_success "Tailscale installed"
-            echo ""
-            print_info "To activate: tailscale up"
-            print_info "Then install Tailscale on your other machines and sign in with the same account."
+            if [ "$TS_INSTALL_OK" = true ]; then
+                print_success "Tailscale installed"
+                echo ""
+                print_info "To activate: tailscale up (then sign in with your Tailscale account)"
+                print_info "Install Tailscale on your other devices and sign in with the same account."
+                # Verify it's actually working
+                if command -v tailscale &>/dev/null; then
+                    TS_VER=$(tailscale version 2>/dev/null | head -1)
+                    print_success "Verified: tailscale $TS_VER"
+                fi
+            fi
         else
-            print_info "Skipping Tailscale — you can install later for multi-machine support"
-            echo "  https://tailscale.com/download"
+            print_info "Skipping Tailscale — install later for remote access from mobile/other machines"
         fi
     fi
 fi

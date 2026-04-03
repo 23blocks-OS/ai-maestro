@@ -83,8 +83,27 @@ process.on('SIGPIPE', () => {
 // =============================================================================
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = process.env.HOSTNAME || '127.0.0.1' // Localhost-only by default; set HOSTNAME=0.0.0.0 to allow network access
+const hostname = process.env.HOSTNAME || '127.0.0.1' // Primary bind address (localhost-only by default)
 const port = parseInt(process.env.PORT || '23000', 10)
+
+// Auto-detect Tailscale IP for VPN access (iPad, mobile, remote hosts)
+let tailscaleIp = null
+try {
+  const { execSync: execSyncBind } = await import('child_process')
+  tailscaleIp = execSyncBind('tailscale ip -4', { encoding: 'utf8', timeout: 3000 }).trim()
+  if (!/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(tailscaleIp)) tailscaleIp = null // Only Tailscale CGNAT (100.64.0.0/10)
+} catch { /* tailscale not installed or not running */ }
+
+// IP filter: when bound to 0.0.0.0, only allow localhost + Tailscale IPs
+// This prevents LAN exposure while allowing VPN access
+function isAllowedSource(remoteAddress) {
+  if (!remoteAddress) return false
+  const ip = remoteAddress.replace(/^::ffff:/, '') // Strip IPv4-mapped IPv6 prefix
+  if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(ip)) return true // Tailscale CGNAT (100.64.0.0/10)
+  if (/^fd7a:115c:a1e0:/.test(ip)) return true // Tailscale IPv6 range
+  return false
+}
 
 // Server mode: 'full' (default) = Next.js + UI, 'headless' = API-only (no Next.js)
 const MAESTRO_MODE = process.env.MAESTRO_MODE || 'full'
@@ -1290,8 +1309,29 @@ async function startServer(handleRequest) {
   server.keepAliveTimeout = 15 * 60 * 1000
   server.headersTimeout = 15 * 60 * 1000 + 1000
 
-  server.listen(port, hostname, async () => {
+  // Determine bind address: if Tailscale is available, bind to :: (dual-stack IPv4+IPv6)
+  // so both Tailscale IPv4 (100.x) and IPv6 (fd7a:...) addresses work.
+  // Non-allowed IPs are rejected at the TCP level by the connection filter.
+  const isLocalOnly = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1'
+  const bindAddress = (tailscaleIp && isLocalOnly) ? '::' : hostname
+  const needsIpFilter = tailscaleIp && (bindAddress === '::' || bindAddress === '0.0.0.0')
+
+  // IP filter: drop LAN/internet connections at the TCP level (before any HTTP processing)
+  // Activates for ANY non-localhost bind when Tailscale is detected — prevents HOSTNAME env bypass
+  if (needsIpFilter) {
+    server.on('connection', (socket) => {
+      if (!isAllowedSource(socket.remoteAddress)) {
+        socket.destroy()
+      }
+    })
+  }
+
+  server.listen(port, bindAddress, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)
+    if (needsIpFilter && tailscaleIp) {
+      console.log(`> Tailscale VPN access on http://${tailscaleIp}:${port}`)
+      console.log(`> IP filter active: only localhost + Tailscale (100.64.0.0/10) allowed`)
+    }
 
     // Sync agent databases on startup
     try {
@@ -1389,6 +1429,10 @@ async function startServer(handleRequest) {
         console.error('[Host Sync] Startup peer sync failed:', error.message)
       }
     }, 5000) // Wait 5 seconds for server to fully initialize
+
+    // NOTE: tailscale serve is NOT used. The server binds directly to 0.0.0.0
+    // with an IP filter that only allows localhost + Tailscale IPs (100.x.x.x).
+    // This is simpler and avoids the static file serving bugs in tailscale serve's HTTP proxy.
 
     // Agent initialization on startup is DISABLED to avoid CPU spike
     // Agents will be initialized on-demand when accessed via API

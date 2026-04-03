@@ -5,6 +5,7 @@ const nextConfig = {
 
   // Optimize barrel imports for better bundle size
   // This prevents loading all 1,500+ lucide icons when only ~50-100 are used
+  // Note: optimizePackageImports is stable since Next.js 14.2 but still under experimental key
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
@@ -24,13 +25,24 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply to all API routes
+        // Security headers for all routes
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+      {
+        // CORS headers for API routes (cross-host mesh + agent auth)
+        // SECURITY NOTE: Allow-Origin: * is required for cross-host mesh (browser on Host A calls Host B API).
+        // The TCP IP filter (isAllowedSource) blocks non-Tailscale clients at the network level.
+        // Phase 2 (maestro auth) will add Origin validation + session tokens.
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, PATCH, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-Agent-Id, X-Host-Id, X-Host-Signature, X-Host-Timestamp' },
         ],
       },
     ]

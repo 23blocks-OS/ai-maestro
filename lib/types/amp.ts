@@ -455,6 +455,7 @@ export type AMPErrorCode =
   | 'payload_too_large'     // Message payload exceeds size limit
   | 'missing_header'        // Required HTTP header is missing
   | 'duplicate_message'     // Message ID has already been delivered (replay protection)
+  | 'title_communication_forbidden'  // Sender's governance title cannot message recipient's title
 
 /**
  * AMP error response

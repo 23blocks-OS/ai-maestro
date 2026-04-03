@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2, User } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2, User, Smartphone, Copy, Check } from 'lucide-react'
 import type { Host } from '@/types/host'
 import localVersion from '@/version.json'
 import GovernancePasswordDialog from '@/components/governance/GovernancePasswordDialog'
+import HostToolsSection from './HostToolsSection'
 
 interface OrganizationInfo {
   organization: string | null
@@ -48,6 +49,9 @@ export default function HostsSection() {
   const [hostVersions, setHostVersions] = useState<Record<string, string>>({})
   const [hostSessionCounts, setHostSessionCounts] = useState<Record<string, number>>({})
   const [organizationInfo, setOrganizationInfo] = useState<OrganizationInfo | null>(null)
+
+  // Mobile access URL copy feedback
+  const [copiedHostId, setCopiedHostId] = useState<string | null>(null)
 
   // Governance state for local host user + password section
   const [governanceUserName, setGovernanceUserName] = useState<string | null>(null)
@@ -159,12 +163,14 @@ export default function HostsSection() {
     }
   }
 
-  // Auto-check health for all hosts on mount to get versions
+  // Auto-check health for all hosts once after first load
+  const healthCheckedRef = useRef(false)
   useEffect(() => {
-    if (hosts.length > 0) {
+    if (hosts.length > 0 && !healthCheckedRef.current) {
+      healthCheckedRef.current = true
       refreshAllHosts()
     }
-  }, [hosts]) // Run when hosts change (not just length)
+  }, [hosts])
 
   const fetchHosts = async () => {
     try {
@@ -587,6 +593,54 @@ export default function HostsSection() {
                       </div>
                     </div>
                   )}
+
+                  {/* Mobile Access URL — shown for all hosts with a Tailscale URL */}
+                  {host.url && /\/\/100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host.url) && (
+                    <div className="mt-3 p-3 bg-gray-900/60 border border-gray-700/60 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Smartphone className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                          Mobile / Remote Access
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-sm text-blue-300 bg-gray-800 px-3 py-1.5 rounded font-mono truncate select-all">
+                          {host.url}
+                        </code>
+                        <button
+                          onClick={async () => {
+                            try {
+                              if (navigator.clipboard) {
+                                await navigator.clipboard.writeText(host.url)
+                              } else {
+                                // Fallback for non-secure contexts (HTTP over Tailscale)
+                                const textarea = document.createElement('textarea')
+                                textarea.value = host.url
+                                textarea.style.position = 'fixed'
+                                textarea.style.opacity = '0'
+                                document.body.appendChild(textarea)
+                                textarea.select()
+                                document.execCommand('copy')
+                                document.body.removeChild(textarea)
+                              }
+                              setCopiedHostId(host.id)
+                              setTimeout(() => setCopiedHostId(null), 2000)
+                            } catch { /* copy failed silently */ }
+                          }}
+                          className="p-1.5 text-gray-500 hover:text-white bg-gray-800 hover:bg-gray-700 rounded transition-colors flex-shrink-0"
+                          title="Copy URL"
+                        >
+                          {copiedHostId === host.id
+                            ? <Check className="w-3.5 h-3.5 text-green-400" />
+                            : <Copy className="w-3.5 h-3.5" />
+                          }
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1.5">
+                        Open in Safari or Chrome on any device with Tailscale VPN connected
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -633,6 +687,11 @@ export default function HostsSection() {
           <p className="text-sm text-gray-500 mt-2">Add a remote host to get started</p>
         </div>
       )}
+
+      {/* Host Tools — install/update scripts for this machine */}
+      <div className="mt-2 pt-6 border-t border-gray-700/50">
+        <HostToolsSection />
+      </div>
 
       {/* Add Host Wizard */}
       {showWizard && (

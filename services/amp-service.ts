@@ -36,6 +36,7 @@ import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, genera
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
 import { checkMessageAllowed } from '@/lib/message-filter'
+import { validateMessageRoute, getAllowedRecipients } from '@/lib/communication-graph'
 import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { createRoleAttestation, serializeAttestation, deserializeAttestation, verifyRoleAttestation } from '@/lib/role-attestation'
 import { getHostPublicKeyHex } from '@/lib/host-keys'
@@ -1014,6 +1015,21 @@ export async function routeMessage(
       }
     }
 
+    // ── Pre-check: sender title graph for remote delivery ────────────
+    // We don't know the remote recipient's title, but we CAN check if the sender
+    // has any allowed recipients at all (e.g., subagents with no title are blocked).
+    // The full graph check happens on the receiving host.
+    if (senderAgent?.governanceTitle) {
+      const senderAllowed = getAllowedRecipients(senderAgent.governanceTitle)
+      if (senderAllowed.length === 0) {
+        return {
+          data: { error: 'title_communication_forbidden', message: `${senderAgent.governanceTitle} has no allowed message recipients` } as AMPError,
+          status: 403,
+          headers: rateLimitHeaders,
+        }
+      }
+    }
+
     // ── Remote Delivery ────────────────────────────────────────────────
     if (resolvedHostId && !isSelf(resolvedHostId)) {
       const remoteHost = getHostById(resolvedHostId)
@@ -1098,6 +1114,23 @@ export async function routeMessage(
     }
 
     const recipientAgentName = localAgent.name || localAgent.alias || recipientName
+
+    // Title-based communication graph — enforces directed messaging rules between governance titles
+    // NOTE: In Phase 1, the user (web UI) sends messages via /api/teams/{id}/notify, NOT /v1/route.
+    // The isUserMessage flag exists for Phase 2 (maestro auth) when the user may send via /v1/route.
+    // Currently isUserSender is always false here because auth + agent resolution precede this point.
+    const isUserSender = !senderAgent && !isMeshForwarded
+    const senderTitle = isMeshForwarded ? (verifiedSenderRole || null) : (senderAgent?.governanceTitle || null)
+    const recipientTitle = localAgent.governanceTitle || null
+    const graphCheck = validateMessageRoute(senderTitle, recipientTitle, { isUserMessage: isUserSender })
+    if (!graphCheck.allowed) {
+      const suggestion = graphCheck.suggestion ? ` ${graphCheck.suggestion}.` : ''
+      return {
+        data: { error: 'title_communication_forbidden', message: `${graphCheck.reason}${suggestion}` } as AMPError,
+        status: 403,
+        headers: rateLimitHeaders,
+      }
+    }
 
     // Layer 2: Governance message filter — enforces closed-team isolation
     // For mesh-forwarded messages, pass attested role so the filter can allow privileged senders

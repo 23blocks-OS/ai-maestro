@@ -2768,6 +2768,38 @@ const routes: Route[] = [
       res.end(JSON.stringify({ error: 'Failed to handle mcp-discover POST' }))
     }
   }},
+
+  // --- Host Tools ---
+  { method: 'GET', pattern: /^\/api\/settings\/host-tools$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const mod = await import('@/app/api/settings/host-tools/route')
+      const result = await mod.GET()
+      res.writeHead(result.status, { 'Content-Type': 'application/json' })
+      res.end(await result.text())
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle host-tools GET' }))
+    }
+  }},
+  { method: 'POST', pattern: /^\/api\/settings\/host-tools$/, paramNames: [], handler: async (req, res) => {
+    try {
+      const body = await readJsonBody(req)
+      const { NextRequest } = await import('next/server')
+      const mod = await import('@/app/api/settings/host-tools/route')
+      const fakeReq = new NextRequest('http://localhost/api/settings/host-tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const result = await mod.POST(fakeReq)
+      const data = await result.json()
+      res.writeHead(result.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle host-tools POST' }))
+    }
+  }},
 ]
 
 // ---------------------------------------------------------------------------

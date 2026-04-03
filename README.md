@@ -15,6 +15,10 @@
 
 ![AI Maestro Dashboard](./docs/images/aiteam-web.png)
 
+### Governance & Communication Rules
+
+<img src="./docs/images/ai-maestro-governance-infographic.jpg" alt="AI Maestro Governance — Communication Hierarchy & Rules" width="100%"/>
+
 [Quick Start](#-quick-start) · [Features](#-features) · [Documentation](#-documentation) · [Contributing](./CONTRIBUTING.md)
 
 </div>

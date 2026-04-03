@@ -10,6 +10,32 @@ import { listDirs, listFilesRecursive, readFileOr } from '../utils/fs'
 import type { SkillIR, SkillArg, SkillReference, AuxFile, AgentIR } from '../types'
 
 // ═══════════════════════════════════════════════════════════════
+// Safe type coercion helpers (frontmatter values can be any type)
+// ═══════════════════════════════════════════════════════════════
+
+/** Coerce frontmatter value to string or null. Converts numbers/booleans via String(). */
+export function asStringOrNull(val: unknown): string | null {
+  if (val == null) return null
+  if (typeof val === 'string') return val
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val)
+  return null
+}
+
+/** Coerce frontmatter value to Record<string, string> or null. */
+export function asRecordOrNull(val: unknown): Record<string, string> | null {
+  if (val == null) return null
+  if (typeof val === 'object' && !Array.isArray(val)) return val as Record<string, string>
+  return null
+}
+
+/** Coerce frontmatter paths field to string[] or null. Accepts string or string[]. */
+export function asPathsOrNull(val: unknown): string[] | null {
+  if (Array.isArray(val)) return val.filter(v => typeof v === 'string')
+  if (typeof val === 'string') return [val]
+  return null
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Skill Parsing
 // ═══════════════════════════════════════════════════════════════
 

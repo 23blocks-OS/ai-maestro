@@ -41,10 +41,11 @@ const USER_SKILL_DIRS: Partial<Record<ClientType, string>> = {
   claude: path.join(os.homedir(), '.claude', 'skills'),
   codex: path.join(os.homedir(), '.codex', 'skills'),
   gemini: path.join(os.homedir(), '.gemini', 'skills'),
+  opencode: path.join(os.homedir(), '.opencode', 'skills'),
 }
 
 /** Supported target clients for conversion */
-const SUPPORTED_TARGETS: ClientType[] = ['claude', 'codex', 'gemini']
+const SUPPORTED_TARGETS: ClientType[] = ['claude', 'codex', 'gemini', 'opencode']
 
 /**
  * Find a skill on disk by name, searching all known locations for a given client.
@@ -55,6 +56,11 @@ export async function findSkillSource(
   sourceClient: ClientType,
   projectDir?: string
 ): Promise<SkillLocation | null> {
+  // Validate skill name: alphanumeric, hyphens, underscores only (no path separators, no traversal)
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(skillName)) {
+    return null
+  }
+
   const locations: Array<{ path: string; scope: SkillLocation['scope'] }> = []
 
   // 1. Plugin cache (Claude only — other clients don't use plugins)
@@ -105,7 +111,8 @@ export async function findSkillSource(
 
   // 3. Project-scope skills dir
   if (projectDir) {
-    const clientPrefix = sourceClient === 'claude' ? '.claude' : sourceClient === 'codex' ? '.codex' : '.gemini'
+    const CLIENT_PREFIXES: Record<string, string> = { claude: '.claude', codex: '.codex', gemini: '.gemini', opencode: '.opencode', kiro: '.kiro' }
+    const clientPrefix = CLIENT_PREFIXES[sourceClient] || `.${sourceClient}`
     const projSkillDir = path.join(projectDir, clientPrefix, 'skills', skillName)
     try {
       await fs.access(path.join(projSkillDir, 'SKILL.md'))
@@ -131,14 +138,16 @@ export async function findSkillSource(
 /**
  * Recursively copy a directory tree.
  */
-async function copyDir(src: string, dest: string): Promise<void> {
+async function copyDir(src: string, dest: string, depth = 0): Promise<void> {
+  if (depth > 10) throw new Error(`copyDir: max depth exceeded (possible recursive symlinks)`)
   await fs.mkdir(dest, { recursive: true })
   const entries = await fs.readdir(src, { withFileTypes: true })
   for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue // Skip symlinks — prevent recursive loops and path escapes
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
     if (entry.isDirectory()) {
-      await copyDir(srcPath, destPath)
+      await copyDir(srcPath, destPath, depth + 1)
     } else {
       await fs.copyFile(srcPath, destPath)
     }
@@ -148,12 +157,14 @@ async function copyDir(src: string, dest: string): Promise<void> {
 /**
  * Convert a skill from one client to another.
  * Finds the skill in the source client's directories, copies it to the target client's user-scope dir.
+ * Returns error if skill already exists at target unless force=true.
  */
 export async function convertSkill(
   skillName: string,
   sourceClient: ClientType,
   targetClient: ClientType,
-  projectDir?: string
+  projectDir?: string,
+  force = false
 ): Promise<SkillConvertResult> {
   // Validate target
   if (!SUPPORTED_TARGETS.includes(targetClient)) {
@@ -194,6 +205,18 @@ export async function convertSkill(
   }
 
   const targetSkillDir = path.join(targetDir, skillName)
+
+  // Check if target already exists (skip overwrite unless forced)
+  if (!force) {
+    try {
+      await fs.access(path.join(targetSkillDir, 'SKILL.md'))
+      return {
+        success: false, skillName, sourceClient, targetClient,
+        sourcePath: source.skillPath, targetPath: targetSkillDir,
+        error: `Skill "${skillName}" already exists at ${targetSkillDir}. Use force=true to overwrite.`,
+      }
+    } catch { /* doesn't exist — safe to proceed */ }
+  }
 
   try {
     // Ensure target parent dir exists

@@ -18,7 +18,7 @@ import { stringifyToml } from '../utils/toml'
 import { WarningCollector } from '../utils/warnings'
 
 /** Claude-specific frontmatter fields not supported by Codex */
-const CODEX_STRIP_FIELDS = ['allowed-tools', 'compatibility', 'metadata', 'context', 'agent', 'effort', 'model', 'hooks', 'user-invocable', 'args']
+const CODEX_STRIP_FIELDS = ['allowed-tools', 'compatibility', 'metadata', 'context', 'agent', 'effort', 'model', 'hooks', 'user-invocable', 'args', 'paths']
 
 /** Permission mode mapping: Claude → Codex */
 const PERMISSION_TO_SANDBOX: Record<string, string> = {
@@ -43,6 +43,7 @@ function warnLossySkill(skill: SkillIR, warnings: WarningCollector): void {
   if (skill.allowedTools) warnings.lossyField(skill.name, 'allowed-tools', 'Codex does not support tool whitelists')
   if (skill.compatibility) warnings.lossyField(skill.name, 'compatibility', 'Codex does not support compatibility field')
   if (skill.metadata) warnings.lossyField(skill.name, 'metadata', 'Codex does not support metadata field')
+  if (skill.paths) warnings.lossyField(skill.name, 'paths', 'Codex does not support paths globs')
 }
 
 const codexEmitter: Emitter = {

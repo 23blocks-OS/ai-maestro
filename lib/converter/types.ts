@@ -98,6 +98,8 @@ export interface SkillIR {
   compatibility: string | null
   metadata: Record<string, string> | null
   allowedTools: string | null
+  /** Glob patterns restricting when this skill is active (v2.1.86+) */
+  paths: string[] | null
   body: string
   references: SkillReference[]
   auxFiles: AuxFile[]

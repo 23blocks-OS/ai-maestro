@@ -27,6 +27,9 @@ export function emitSkill(
   // Guard: required fields must be non-empty
   if (!skill.name) warnings.push(`Skill has empty name — using dirName "${skill.dirName}"`)
   if (!skill.description) warnings.push(`Skill "${skill.name || skill.dirName}" has empty description`)
+  if (skill.description && skill.description.length > 250) {
+    warnings.push(`Skill "${skill.name}" description is ${skill.description.length} chars (Claude Code caps /skills listing at 250)`)
+  }
 
   let fm: Record<string, unknown> = {
     name: skill.name || skill.dirName,
@@ -40,6 +43,7 @@ export function emitSkill(
   if (skill.compatibility) fm.compatibility = skill.compatibility
   if (skill.metadata) fm.metadata = skill.metadata
   if (skill.allowedTools) fm['allowed-tools'] = skill.allowedTools
+  if (skill.paths) fm.paths = skill.paths
 
   // Apply extra frontmatter
   if (options.extraFrontmatter) {

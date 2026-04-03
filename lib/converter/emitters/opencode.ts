@@ -20,10 +20,11 @@ const opencodeEmitter: Emitter = {
     const warnings = new WarningCollector()
     const provenance = project.sourceProvider !== 'opencode' ? getProvenance(project.sourceProvider) : undefined
 
-    // Skills — near-full parity, same fields as Claude
+    // Skills — near-full parity, same fields as Claude (except paths)
     for (const skill of project.skills) {
+      if (skill.paths) warnings.lossyField(skill.name, 'paths', 'OpenCode does not support paths globs')
       const skillPath = `.opencode/skills/${skill.dirName}/SKILL.md`
-      files.push(emitSkill(skill, skillPath, { provenance }))
+      files.push(emitSkill(skill, skillPath, { fieldsToStrip: ['paths'], provenance }))
       files.push(...emitSkillAuxFiles(skill, `.opencode/skills/${skill.dirName}`))
     }
 

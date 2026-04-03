@@ -9,7 +9,7 @@ import type { Emitter, ProjectIR, ConvertedFile, ConversionProvenance, SkillIR }
 import { emitSkill, emitSkillAuxFiles, emitMarkdownAgent } from './shared'
 import { WarningCollector } from '../utils/warnings'
 
-const GEMINI_STRIP_FIELDS = ['allowed-tools', 'compatibility', 'metadata', 'license', 'context', 'agent', 'effort', 'model', 'hooks', 'user-invocable', 'args']
+const GEMINI_STRIP_FIELDS = ['allowed-tools', 'compatibility', 'metadata', 'license', 'context', 'agent', 'effort', 'model', 'hooks', 'user-invocable', 'args', 'paths']
 
 function getProvenance(sourceProvider: string): ConversionProvenance {
   return { from: sourceProvider as ConversionProvenance['from'], date: new Date().toISOString() }
@@ -39,6 +39,7 @@ const geminiEmitter: Emitter = {
       if (skill.allowedTools) warnings.lossyField(skill.name, 'allowed-tools', 'Gemini does not support tool whitelists')
       if (skill.license) warnings.lossyField(skill.name, 'license', 'Gemini does not support license field')
       if (skill.metadata) warnings.lossyField(skill.name, 'metadata', 'Gemini does not support metadata')
+      if (skill.paths) warnings.lossyField(skill.name, 'paths', 'Gemini does not support paths globs')
 
       const transformed: SkillIR = {
         ...skill,

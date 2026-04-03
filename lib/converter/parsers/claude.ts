@@ -10,7 +10,7 @@ import type {
   Parser, ProjectIR, SkillIR, AgentIR, InstructionIR,
   MCPIR, MCPServerDef, CommandIR, HookIR
 } from '../types'
-import { parseSkillsDir, normalizeArgs, parseMarkdownAgentsDir } from './shared'
+import { parseSkillsDir, normalizeArgs, parseMarkdownAgentsDir, asStringOrNull, asRecordOrNull, asPathsOrNull } from './shared'
 import { readFileOr } from '../utils/fs'
 
 /** Map Claude frontmatter + body into SkillIR */
@@ -27,10 +27,11 @@ function mapSkillToIR(
     description: String(fm.description ?? ''),
     userInvokable: Boolean(fm['user-invocable'] ?? false),
     args: normalizeArgs(fm.args),
-    license: fm.license as string ?? null,
-    compatibility: fm.compatibility as string ?? null,
-    metadata: fm.metadata as Record<string, string> ?? null,
-    allowedTools: fm['allowed-tools'] as string ?? null,
+    license: asStringOrNull(fm.license),
+    compatibility: asStringOrNull(fm.compatibility),
+    metadata: asRecordOrNull(fm.metadata),
+    allowedTools: asStringOrNull(fm['allowed-tools']),
+    paths: asPathsOrNull(fm.paths),
     body,
     references: refs,
     auxFiles,

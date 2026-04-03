@@ -25,7 +25,7 @@ function mapSkillToIR(
     description: String(fm.description ?? ''),
     userInvokable: hasMustacheArgs,
     args: [], // Gemini collapses to {{args}} — individual names unrecoverable
-    license: null, compatibility: null, metadata: null, allowedTools: null,
+    license: null, compatibility: null, metadata: null, allowedTools: null, paths: null,
     body, references: refs, auxFiles, dirName, sourcePath,
   }
 }

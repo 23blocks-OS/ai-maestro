@@ -26,9 +26,10 @@ const kiroEmitter: Emitter = {
     for (const skill of project.skills) {
       if (skill.args.length > 0) warnings.lossyField(skill.name, 'args', 'Kiro does not support named args')
       if (skill.allowedTools) warnings.lossyField(skill.name, 'allowed-tools', 'Kiro does not support tool whitelists')
+      if (skill.paths) warnings.lossyField(skill.name, 'paths', 'Kiro does not support paths globs')
       const skillPath = `.kiro/skills/${skill.dirName}/SKILL.md`
       files.push(emitSkill(skill, skillPath, {
-        fieldsToStrip: ['allowed-tools', 'args', 'user-invocable', 'context', 'agent', 'effort', 'model', 'hooks'],
+        fieldsToStrip: ['allowed-tools', 'args', 'user-invocable', 'context', 'agent', 'effort', 'model', 'hooks', 'paths'],
         provenance,
       }))
       files.push(...emitSkillAuxFiles(skill, `.kiro/skills/${skill.dirName}`))

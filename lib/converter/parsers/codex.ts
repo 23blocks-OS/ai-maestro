@@ -14,7 +14,7 @@
 
 import path from 'path'
 import type { Parser, ProjectIR, SkillIR, AgentIR, InstructionIR, MCPIR, MCPServerDef, CommandIR, HookIR } from '../types'
-import { parseSkillsDir, parseArgumentHint, recoverDollarArgs } from './shared'
+import { parseSkillsDir, parseArgumentHint, recoverDollarArgs, asStringOrNull } from './shared'
 import { readFileOr, listDirs, listFiles } from '../utils/fs'
 import { parseToml } from '../utils/toml'
 import { parseFrontmatter } from '../utils/frontmatter'
@@ -57,10 +57,11 @@ function mapSkillToIR(
     description: String(fm.description ?? ''),
     userInvokable,
     args,
-    license: fm.license as string ?? null,
+    license: asStringOrNull(fm.license),
     compatibility: null,
     metadata: null,
     allowedTools: null,
+    paths: null,
     body,
     references: refs,
     auxFiles,

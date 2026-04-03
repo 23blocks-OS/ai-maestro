@@ -14,7 +14,7 @@
 import path from 'path'
 import fs from 'fs/promises'
 import type { Parser, ProjectIR, SkillIR, AgentIR, InstructionIR, MCPIR, MCPServerDef, HookIR } from '../types'
-import { parseSkillsDir } from './shared'
+import { parseSkillsDir, asStringOrNull, asRecordOrNull } from './shared'
 import { readFileOr, listFiles } from '../utils/fs'
 
 /** Kiro-specific agent fields that go into extras.kiro */
@@ -35,10 +35,11 @@ function mapSkillToIR(
     description: String(fm.description ?? ''),
     userInvokable: false,
     args: [],
-    license: fm.license as string ?? null,
-    compatibility: fm.compatibility as string ?? null,
-    metadata: fm.metadata as Record<string, string> ?? null,
+    license: asStringOrNull(fm.license),
+    compatibility: asStringOrNull(fm.compatibility),
+    metadata: asRecordOrNull(fm.metadata),
     allowedTools: null,
+    paths: null,
     body, references: refs, auxFiles, dirName, sourcePath,
   }
 }

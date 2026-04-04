@@ -259,9 +259,9 @@ import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib
 import { getHosts, getSelfHostId } from '@/lib/hosts-config'
 import { verifyHostAttestation } from '@/lib/host-keys'
 // Imports for chief-of-staff endpoint (mirrors app/api/teams/[id]/chief-of-staff/route.ts)
-import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
+import { verifyPassword, loadGovernance, getManagerId, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
-import { getAgent, getAgentBySession } from '@/lib/agent-registry'
+import { getAgent, getAgentBySession, updateAgent } from '@/lib/agent-registry'
 import { execSync } from 'child_process'
 // Atomic rate limiting for auth endpoints
 import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
@@ -320,14 +320,17 @@ import {
 
 import {
   generatePluginFromToml,
-  installPluginLocally,
-  uninstallPluginLocally,
   listRolePlugins,
   deleteRolePlugin,
   createPersona,
   syncDefaultRolePlugins,
-  PREDEFINED_ROLE_PLUGINS,
 } from '@/services/role-plugin-service'
+
+import {
+  installPluginLocally,
+  uninstallPluginLocally,
+  PREDEFINED_ROLE_PLUGINS,
+} from '@/services/element-management-service'
 
 import {
   getSystemConfig,
@@ -2201,6 +2204,16 @@ const routes: Route[] = [
           }
         }
 
+        // ChangeTitle handles: registry + role-plugin cleanup (only if no longer COS anywhere)
+        if (oldCosId && !isChiefOfStaffAnywhere(oldCosId)) {
+          try {
+            const { ChangeTitle } = await import('@/services/element-management-service')
+            await ChangeTitle(oldCosId, null)
+          } catch (err) {
+            console.warn('[governance] Failed ChangeTitle on COS removal:', err instanceof Error ? err.message : err)
+          }
+        }
+
         sendJson(res, 200, { success: true, team: updated })
         return
       }
@@ -2225,13 +2238,12 @@ const routes: Route[] = [
       // Assign COS -- auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
       const updated = await updateTeam(teamId, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
 
-      // Auto-assign required role-plugin for CHIEF-OF-STAFF title
+      // ChangeTitle handles: registry write + role-plugin sync
       try {
-        const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
-        await autoAssignRolePluginForTitle('chief-of-staff', cosAgentId)
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        await ChangeTitle(cosAgentId, 'chief-of-staff')
       } catch (err) {
-        console.warn('[governance] Failed to auto-assign role-plugin for COS:', err instanceof Error ? err.message : err)
-        // Non-blocking — title assignment succeeds even if plugin assignment fails
+        console.warn('[governance] Failed ChangeTitle for COS:', err instanceof Error ? err.message : err)
       }
 
       sendJson(res, 200, { success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })

@@ -195,11 +195,11 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
     // All teams are closed, so always attempt COS plugin assignment when chiefOfStaffId is provided.
     if (params.chiefOfStaffId) {
       try {
-        const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
-        await autoAssignRolePluginForTitle('chief-of-staff', params.chiefOfStaffId)
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        await ChangeTitle(params.chiefOfStaffId, 'chief-of-staff')
       } catch (err) {
         // Non-blocking — team creation succeeds even if plugin install fails
-        console.warn('[teams] Failed to auto-assign COS role-plugin:', err instanceof Error ? err.message : err)
+        console.warn('[teams] Failed ChangeTitle for COS:', err instanceof Error ? err.message : err)
       }
     }
 

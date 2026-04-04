@@ -239,14 +239,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'enabled must be a boolean' }, { status: 400 })
     }
 
-    const settings = await readSettings()
-    // Explicitly reject arrays: JSON allows arrays where an object is expected,
-    // and `|| {}` would not catch that case since `[] || {}` evaluates to `[]`.
-    const epRaw = settings.enabledPlugins
-    const ep: Record<string, boolean> = (epRaw && typeof epRaw === 'object' && !Array.isArray(epRaw)) ? epRaw as Record<string, boolean> : {}
-    ep[key] = enabled
-    settings.enabledPlugins = ep
-    await writeSettings(settings)
+    // Parse plugin key into name and marketplace
+    const atIdx = key.lastIndexOf('@')
+    const pluginName = atIdx > 0 ? key.substring(0, atIdx) : key
+    const marketplace = atIdx > 0 ? key.substring(atIdx + 1) : 'unknown'
+
+    const { ChangePlugin } = await import('@/services/element-management-service')
+    const result = await ChangePlugin(null, {
+      name: pluginName,
+      marketplace,
+      action: enabled ? 'enable' : 'disable',
+      scope: 'user',
+    })
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
 
     return NextResponse.json({ success: true, key, enabled })
   } catch (error) {

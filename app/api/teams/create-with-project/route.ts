@@ -3,7 +3,7 @@ import { verifyPassword } from '@/lib/governance'
 import { createTeam, getTeam, loadTeams } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
 import { getManagerId } from '@/lib/governance'
-import { autoAssignRolePluginForTitle } from '@/services/role-plugin-service'
+import { ChangeTitle } from '@/services/element-management-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,12 +107,12 @@ export async function POST(request: NextRequest) {
 
     // Auto-assign role-plugins for COS and Orchestrator
     if (body.chiefOfStaffId) {
-      try { await autoAssignRolePluginForTitle('chief-of-staff', body.chiefOfStaffId) }
-      catch (err) { console.warn('[create-with-project] COS plugin failed:', err) }
+      try { await ChangeTitle(body.chiefOfStaffId, 'chief-of-staff') }
+      catch (err) { console.warn('[create-with-project] ChangeTitle COS failed:', err) }
     }
     if (body.orchestratorId) {
-      try { await autoAssignRolePluginForTitle('orchestrator', body.orchestratorId) }
-      catch (err) { console.warn('[create-with-project] Orchestrator plugin failed:', err) }
+      try { await ChangeTitle(body.orchestratorId, 'orchestrator') }
+      catch (err) { console.warn('[create-with-project] ChangeTitle Orchestrator failed:', err) }
     }
 
     // Configure GitHub project template if project linked

@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { execSync } from 'child_process'
-import { existsSync } from 'fs'
-import { rm } from 'fs/promises'
-import os from 'os'
-import { join, resolve, basename } from 'path'
 import { isValidUuid } from '@/lib/validation'
 import { getAgent } from '@/lib/agent-registry'
+import {
+  ChangeSkill,
+  ChangeAgentDef,
+  ChangeRule,
+  ChangeCommand,
+  ChangeOutputStyle,
+  ChangeMCP,
+} from '@/services/element-management-service'
 
 /**
  * POST /api/agents/[id]/remove-element
  *
  * Remove a locally-installed standalone element from an agent's project.
- * - Skills: delete folder from .claude/skills/
- * - Agents: delete .md from .claude/agents/
- * - Rules: delete .md from .claude/rules/
- * - Commands: delete .md from .claude/commands/
- * - MCP: `claude mcp remove <name>` (never edit ~/.claude.json directly)
- * - Output Styles: delete file from .claude/output-styles/
+ * Delegates to centralized Change* functions in element-management-service.
+ * - Skills: ChangeSkill (remove)
+ * - Agents: ChangeAgentDef (remove)
+ * - Rules: ChangeRule (remove)
+ * - Commands: ChangeCommand (remove)
+ * - MCP: ChangeMCP (remove)
+ * - Output Styles: ChangeOutputStyle (remove)
  * - Hooks: NOT supported (too fragile)
  * - LSP: NOT supported (plugin-only)
  */
@@ -36,7 +40,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { elementType, elementName, elementPath, workDir } = body
+    const { elementType, elementName } = body
 
     if (!elementType || !elementName) {
       return NextResponse.json({ error: 'elementType and elementName are required' }, { status: 400 })
@@ -52,67 +56,45 @@ export async function POST(
     if (!agentWorkDir) {
       return NextResponse.json({ error: 'Agent has no working directory' }, { status: 422 })
     }
-    const claudeDir = join(resolve(agentWorkDir), '.claude')
 
-    // Resolve the element path BEFORE snapshotting so we can capture the right file/dir
-    let targetPath: string | null = null
+    // Delegate to centralized Change* functions
     switch (elementType) {
-      case 'skill':
-        targetPath = join(claudeDir, 'skills', basename(safeName))
-        if (!targetPath.startsWith(join(claudeDir, 'skills'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
+      case 'skill': {
+        const r = await ChangeSkill(id, { name: safeName, action: 'remove', scope: 'local', agentDir: agentWorkDir })
+        if (!r.success) return NextResponse.json({ error: r.error || 'Skill removal failed' }, { status: r.error?.includes('not found') ? 404 : 500 })
         break
-      case 'agent':
-        targetPath = join(claudeDir, 'agents', `${basename(safeName)}.md`)
-        if (!targetPath.startsWith(join(claudeDir, 'agents'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Agent file not found' }, { status: 404 })
+      }
+      case 'agent': {
+        const r = await ChangeAgentDef(id, { name: safeName, action: 'remove', scope: 'local', agentDir: agentWorkDir })
+        if (!r.success) return NextResponse.json({ error: r.error || 'Agent definition removal failed' }, { status: r.error?.includes('not found') ? 404 : 500 })
         break
-      case 'rule':
-        targetPath = join(claudeDir, 'rules', `${basename(safeName)}.md`)
-        if (!targetPath.startsWith(join(claudeDir, 'rules'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Rule file not found' }, { status: 404 })
+      }
+      case 'rule': {
+        const r = await ChangeRule(id, { name: safeName, action: 'remove', scope: 'local', agentDir: agentWorkDir })
+        if (!r.success) return NextResponse.json({ error: r.error || 'Rule removal failed' }, { status: r.error?.includes('not found') ? 404 : 500 })
         break
-      case 'command':
-        targetPath = join(claudeDir, 'commands', `${basename(safeName)}.md`)
-        if (!targetPath.startsWith(join(claudeDir, 'commands'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        if (!existsSync(targetPath)) return NextResponse.json({ error: 'Command file not found' }, { status: 404 })
+      }
+      case 'command': {
+        const r = await ChangeCommand(id, { name: safeName, action: 'remove', scope: 'local', agentDir: agentWorkDir })
+        if (!r.success) return NextResponse.json({ error: r.error || 'Command removal failed' }, { status: r.error?.includes('not found') ? 404 : 500 })
         break
-      case 'mcp':
-        // MCP uses CLI, no filesystem path to snapshot — handled separately below
-        targetPath = null
+      }
+      case 'outputStyle': {
+        const r = await ChangeOutputStyle(id, { name: safeName, action: 'remove', scope: 'local', agentDir: agentWorkDir })
+        if (!r.success) return NextResponse.json({ error: r.error || 'Output style removal failed' }, { status: r.error?.includes('not found') ? 404 : 500 })
         break
-      case 'outputStyle':
-        if (!elementPath) return NextResponse.json({ error: 'elementPath required for outputStyle' }, { status: 400 })
-        targetPath = resolve(elementPath)
-        if (!targetPath.startsWith(join(claudeDir, 'output-styles'))) return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        if (!existsSync(targetPath)) return NextResponse.json({ error: 'File not found' }, { status: 404 })
+      }
+      case 'mcp': {
+        const r = await ChangeMCP(id, { name: safeName, action: 'remove', scope: 'local', agentDir: agentWorkDir })
+        if (!r.success) return NextResponse.json({ error: r.error || 'MCP removal failed' }, { status: 500 })
         break
+      }
       case 'hook':
         return NextResponse.json({ error: 'Hook removal not supported — use /hooks menu or edit settings directly' }, { status: 400 })
       case 'lsp':
         return NextResponse.json({ error: 'LSP servers can only be managed through their parent plugin' }, { status: 400 })
       default:
         return NextResponse.json({ error: `Unknown element type: ${elementType}` }, { status: 400 })
-    }
-
-    switch (elementType) {
-      case 'skill':
-        await rm(targetPath!, { recursive: true, force: true })
-        break
-      case 'agent':
-      case 'rule':
-      case 'command':
-      case 'outputStyle':
-        await rm(targetPath!)
-        break
-      case 'mcp':
-        try {
-          execSync(`claude mcp remove "${safeName}" 2>&1`, { timeout: 15000, cwd: agentWorkDir })
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          return NextResponse.json({ error: `MCP removal failed: ${msg}` }, { status: 500 })
-        }
-        break
     }
 
     return NextResponse.json({ ok: true, removed: safeName })

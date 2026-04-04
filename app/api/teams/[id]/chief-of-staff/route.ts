@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
-import { getAgent } from '@/lib/agent-registry'
+import { getAgent, updateAgent } from '@/lib/agent-registry'
+import { isChiefOfStaffAnywhere } from '@/lib/governance'
 // NT-007: Use recordAttempt (the canonical name) instead of deprecated recordFailure alias
 import { checkRateLimit, recordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { isValidUuid } from '@/lib/validation'
@@ -82,6 +83,16 @@ export async function POST(
         }
       }
 
+      // ChangeTitle handles: registry + role-plugin cleanup (only if no longer COS anywhere)
+      if (oldCosId && !isChiefOfStaffAnywhere(oldCosId)) {
+        try {
+          const { ChangeTitle } = await import('@/services/element-management-service')
+          await ChangeTitle(oldCosId, null)
+        } catch (err) {
+          console.warn('[governance] Failed ChangeTitle on COS removal:', err instanceof Error ? err.message : err)
+        }
+      }
+
       return NextResponse.json({ success: true, team: updated })
     }
 
@@ -101,13 +112,13 @@ export async function POST(
     // Assign COS — auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
     const updated = await updateTeam(id, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
 
-    // Auto-assign required role-plugin for CHIEF-OF-STAFF title
+    // ChangeTitle handles: registry write + role-plugin sync
+    // (COS team assignment was already done by updateTeam above)
     try {
-      const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
-      await autoAssignRolePluginForTitle('chief-of-staff', cosAgentId)
+      const { ChangeTitle } = await import('@/services/element-management-service')
+      await ChangeTitle(cosAgentId, 'chief-of-staff')
     } catch (err) {
-      console.warn('[governance] Failed to auto-assign role-plugin for COS:', err instanceof Error ? err.message : err)
-      // Non-blocking — title assignment succeeds even if plugin assignment fails
+      console.warn('[governance] Failed ChangeTitle for COS:', err instanceof Error ? err.message : err)
     }
 
     return NextResponse.json({ success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })

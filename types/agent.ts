@@ -215,7 +215,7 @@ export interface Agent {
   // Ownership, Role & Team
   owner?: string                // Owner name or email
   role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'architect' | 'orchestrator' | 'integrator' | 'member' | 'autonomous' (default: 'autonomous')
-  governanceTitle?: AgentRole   // Explicit governance title (used for architect/integrator — not derived from team state)
+  governanceTitle?: AgentRole | null   // Explicit governance title (null = cleared/unset)
   team?: string                 // Team name (e.g., "Backend Team", "23blocks")
 
   // Documentation
@@ -528,7 +528,7 @@ export interface UpdateAgentRequest {
   tags?: string[]
   owner?: string
   role?: AgentRole              // Update messaging role
-  governanceTitle?: AgentRole   // Explicit governance title (undefined = no change; omit field to not update)
+  governanceTitle?: AgentRole | null   // Explicit governance title (undefined = no change; null = clear)
   team?: string
   workingDirectory?: string     // Update default working directory
   documentation?: Partial<AgentDocumentation>

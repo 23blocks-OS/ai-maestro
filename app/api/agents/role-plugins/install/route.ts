@@ -7,10 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  installPluginLocally,
-  uninstallPluginLocally,
   PREDEFINED_ROLE_PLUGINS,
 } from '@/services/role-plugin-service'
+import { ChangePlugin } from '@/services/element-management-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,9 +37,18 @@ export async function POST(req: NextRequest) {
 
     // Auto-detect marketplace: use explicit body param, or look up predefined defaults
     const predefined = PREDEFINED_ROLE_PLUGINS[body.pluginName]
-    const marketplace = body.marketplaceName || predefined?.marketplace || undefined
+    const marketplace = body.marketplaceName || predefined?.marketplace || 'ai-maestro-local-agents-marketplace'
 
-    await installPluginLocally(body.pluginName, body.agentDir, marketplace)
+    const result = await ChangePlugin(null, {
+      name: body.pluginName,
+      marketplace,
+      action: 'install',
+      scope: 'local',
+      agentDir: body.agentDir,
+    })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[role-plugins/install] Install failed:', error)
@@ -72,7 +80,18 @@ export async function DELETE(req: NextRequest) {
     }
 
     // marketplaceName is optional — defaults to the local role-plugins marketplace
-    await uninstallPluginLocally(body.pluginName, body.agentDir, body.marketplaceName)
+    const marketplace = body.marketplaceName || 'ai-maestro-local-agents-marketplace'
+
+    const result = await ChangePlugin(null, {
+      name: body.pluginName,
+      marketplace,
+      action: 'uninstall',
+      scope: 'local',
+      agentDir: body.agentDir,
+    })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[role-plugins/install] Uninstall failed:', error)

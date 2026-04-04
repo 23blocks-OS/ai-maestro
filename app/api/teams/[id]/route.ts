@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTeamById, updateTeamById, deleteTeamById } from '@/services/teams-service'
-import { updateAgentById } from '@/services/agents-core-service'
-import { getTeam, updateTeam } from '@/lib/team-registry'
-import { getManagerId } from '@/lib/governance'
+import { getTeam } from '@/lib/team-registry'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { isValidUuid } from '@/lib/validation'
 
@@ -72,41 +70,29 @@ export async function PUT(
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
-  // Auto-title transitions: when team membership changes, update agent roles
+  // Auto-title transitions: delegate to ChangeTeam for membership changes
   if (safeBody.agentIds !== undefined) {
+    const { ChangeTeam } = await import('@/services/element-management-service')
     const newAgentIds: string[] = result.data?.team?.agentIds ?? []
     const oldSet = new Set<string>(oldAgentIds)
     const newSet = new Set<string>(newAgentIds)
-    // Agents added to the team → auto-assign MEMBER title (only if currently autonomous)
+    // Agents added to the team → delegate to ChangeTeam (handles title + team add)
     for (const agentId of newAgentIds) {
       if (!oldSet.has(agentId)) {
         try {
-          await updateAgentById(agentId, { role: 'member', governanceTitle: 'member' })
+          await ChangeTeam(agentId, { teamId: id, role: 'member' })
         } catch (err: unknown) {
-          console.error(`[team PUT] Failed to set MEMBER title for agent ${agentId}:`, err)
+          console.error(`[team PUT] ChangeTeam(add) failed for agent ${agentId}:`, err)
         }
       }
     }
-    // Agents removed from the team → revert to AUTONOMOUS title and clear singleton slots
+    // Agents removed from the team → delegate to ChangeTeam (handles title revert + slot cleanup)
     for (const agentId of oldAgentIds) {
       if (!newSet.has(agentId)) {
         try {
-          await updateAgentById(agentId, { role: 'autonomous', governanceTitle: 'autonomous' })
+          await ChangeTeam(agentId, { teamId: null })
         } catch (err: unknown) {
-          console.error(`[team PUT] Failed to revert AUTONOMOUS title for agent ${agentId}:`, err)
-        }
-        // Clear singleton slots if the removed agent held them
-        const team = result.data?.team
-        if (team) {
-          if (team.orchestratorId === agentId) {
-            await updateTeamById(id, { orchestratorId: null, requestingAgentId })
-          }
-          // chiefOfStaffId is stripped by both route + service defense-in-depth guards,
-          // so use the low-level updateTeam from team-registry directly
-          if (team.chiefOfStaffId === agentId) {
-            const managerId = getManagerId()
-            await updateTeam(id, { chiefOfStaffId: null }, managerId)
-          }
+          console.error(`[team PUT] ChangeTeam(remove) failed for agent ${agentId}:`, err)
         }
       }
     }

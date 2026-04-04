@@ -36,7 +36,10 @@
  */
 
 import { parse as parseToml } from 'smol-toml'
-import type { AgentRole } from '@/types/agent'
+// Internal import for functions used by createPersona() — also re-exported below for callers
+import {
+  installPluginLocally as _installPluginLocally,
+} from '@/services/element-management-service'
 import { join } from 'path'
 import { homedir } from 'os'
 import { mkdir, writeFile, readFile, readdir, rm, stat } from 'fs/promises'
@@ -51,7 +54,6 @@ import {
   PREDEFINED_ROLE_PLUGIN_NAMES,
   ROLE_PLUGIN_MAIN_AGENTS,
   PLUGIN_COMPATIBLE_TITLES,
-  TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_PLUGIN_MAP,
 } from '@/lib/ecosystem-constants'
 
 const execFileAsync = promisify(execFile)
@@ -694,154 +696,9 @@ async function updateMarketplaceManifest(
   await writeFile(MARKETPLACE_JSON, JSON.stringify(manifest, null, 2) + '\n')
 }
 
-// ── Local installation ─────────────────────────────────────
+// ── Local installation (re-exported from element-management-service) ──────
 
-/**
- * Install a role-plugin into an agent's working directory with local scope.
- *
- * For marketplace role-plugins (from Emasoft/ai-maestro-plugins), this calls
- * `claude plugin install <name> --scope local` to trigger on-demand installation.
- * For local/custom plugins (Haephestos-generated), this creates the
- * <agentDir>/.claude/settings.local.json entry directly.
- *
- * @param pluginName - The plugin to install
- * @param agentDir - The agent's working directory (persona folder)
- * @param marketplaceName - Which marketplace the plugin comes from.
- *   Defaults to the local marketplace for Haephestos-generated plugins.
- *   For predefined role plugins, pass the official marketplace name (GITHUB_MARKETPLACE_NAME).
- */
-export async function installPluginLocally(
-  pluginName: string,
-  agentDir: string,
-  marketplaceName: string = MARKETPLACE_NAME,
-): Promise<void> {
-  // Validate plugin name
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(pluginName)) {
-    throw new Error(`Invalid plugin name "${pluginName}"`)
-  }
-
-  // Resolve ~ in agentDir
-  const resolvedDir = agentDir.startsWith('~')
-    ? agentDir.replace('~', HOME)
-    : agentDir
-
-  // Reject path traversal in agentDir
-  if (resolvedDir.includes('..')) {
-    throw new Error('agentDir must not contain ".."')
-  }
-
-  // For predefined marketplace role-plugins: use `claude plugin install` CLI.
-  // The ai-maestro-plugins marketplace has these 6 plugins with git source URLs.
-  // Claude CLI handles cloning, caching, and settings.local.json automatically.
-  if (marketplaceName === GITHUB_MARKETPLACE_NAME && PREDEFINED_ROLE_PLUGINS[pluginName]) {
-    try {
-      // claude plugin install <name> <marketplace> --scope local
-      // Marketplace is a separate argument, not joined with @
-      // Must run with cwd=agentDir so --scope local writes to <agentDir>/.claude/settings.local.json
-      await execFileAsync('claude', [
-        'plugin', 'install', pluginName, GITHUB_MARKETPLACE_NAME, '--scope', 'local',
-      ], { timeout: 120000, cwd: resolvedDir })
-      console.log(`[role-plugins] Installed ${pluginName} from ${GITHUB_MARKETPLACE_NAME} via Claude CLI (scope: local, cwd: ${resolvedDir})`)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`Failed to install role-plugin "${pluginName}" from ${GITHUB_MARKETPLACE_NAME}: ${msg}`)
-    }
-    return
-  }
-
-  // For local/custom plugins (Haephestos-generated), write settings.local.json directly
-  const pluginKey = `${pluginName}@${marketplaceName}`
-  const claudeDir = join(resolvedDir, '.claude')
-  const localSettings = join(claudeDir, 'settings.local.json')
-
-  // Create .claude directory in agent's project
-  await mkdir(claudeDir, { recursive: true })
-
-  // Read or create settings.local.json
-  const settings = await loadJsonSafe(localSettings) as Record<string, Record<string, unknown>>
-  const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-  ep[pluginKey] = true
-  settings.enabledPlugins = ep
-  await saveJsonSafe(localSettings, settings)
-
-  // Track in global installed_plugins.json
-  await mkdir(join(CLAUDE_DIR, 'plugins'), { recursive: true })
-  const installed = await loadJsonSafe(INSTALLED_FILE) as Record<string, unknown>
-  const pluginsMap = (installed.plugins || {}) as Record<string, unknown>
-  const now = new Date().toISOString().replace('+00:00', 'Z')
-  pluginsMap[pluginKey] = [{
-    scope: 'local',
-    version: '1.0.0',
-    installedAt: now,
-    lastUpdated: now,
-    installPath: join(PLUGINS_DIR, pluginName),
-    projectPath: resolvedDir,
-  }]
-  installed.plugins = pluginsMap
-  await saveJsonSafe(INSTALLED_FILE, installed)
-}
-
-/**
- * Uninstall a role-plugin from an agent's working directory.
- */
-export async function uninstallPluginLocally(
-  pluginName: string,
-  agentDir: string,
-  marketplaceName: string = MARKETPLACE_NAME,
-): Promise<void> {
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(pluginName)) {
-    throw new Error(`Invalid plugin name "${pluginName}"`)
-  }
-
-  const resolvedDir = agentDir.startsWith('~')
-    ? agentDir.replace('~', HOME)
-    : agentDir
-
-  if (resolvedDir.includes('..')) {
-    throw new Error('agentDir must not contain ".."')
-  }
-
-  const pluginKey = `${pluginName}@${marketplaceName}`
-
-  // For predefined marketplace plugins: use `claude plugin uninstall` CLI
-  if (marketplaceName === GITHUB_MARKETPLACE_NAME && PREDEFINED_ROLE_PLUGINS[pluginName]) {
-    try {
-      // claude plugin uninstall <name> <marketplace> --scope local
-      await execFileAsync('claude', [
-        'plugin', 'uninstall', pluginName, GITHUB_MARKETPLACE_NAME, '--scope', 'local',
-      ], { timeout: 30000, cwd: resolvedDir })
-      console.log(`[role-plugins] Uninstalled ${pluginName} from ${GITHUB_MARKETPLACE_NAME} via Claude CLI (scope: local, cwd: ${resolvedDir})`)
-    } catch (err) {
-      // If plugin wasn't installed, that's OK — treat as success
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!msg.includes('not found') && !msg.includes('not installed')) {
-        throw new Error(`Failed to uninstall role-plugin "${pluginName}": ${msg}`)
-      }
-      console.log(`[role-plugins] Plugin ${pluginName} was not installed, skipping`)
-    }
-    return
-  }
-
-  // For local/custom plugins: manipulate settings.local.json directly
-  const localSettings = join(resolvedDir, '.claude', 'settings.local.json')
-
-  if (existsSync(localSettings)) {
-    const settings = await loadJsonSafe(localSettings) as Record<string, Record<string, unknown>>
-    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
-    delete ep[pluginKey]
-    settings.enabledPlugins = ep
-    await saveJsonSafe(localSettings, settings)
-  }
-
-  // Remove from installed_plugins.json
-  if (existsSync(INSTALLED_FILE)) {
-    const installed = await loadJsonSafe(INSTALLED_FILE) as Record<string, unknown>
-    const pluginsMap = (installed.plugins || {}) as Record<string, unknown>
-    delete pluginsMap[pluginKey]
-    installed.plugins = pluginsMap
-    await saveJsonSafe(INSTALLED_FILE, installed)
-  }
-}
+export { installPluginLocally, uninstallPluginLocally } from '@/services/element-management-service'
 
 // ── Listing ────────────────────────────────────────────────
 
@@ -1139,64 +996,15 @@ async function migrateDefaultPluginSettings(): Promise<void> {
   } catch { /* skip if agents dir can't be read */ }
 }
 
-// ── Governance title → role-plugin mapping ───────────────
+// ── Governance title → role-plugin mapping (re-exported from element-management-service) ───
 
-// Map of governance titles that REQUIRE a specific role-plugin.
-// MEMBER (default) has no forced plugin — agents can use any.
-// Derived from ecosystem-constants TITLE_PLUGIN_MAP (UPPER-CASE keys) → lower-case keys for API compat.
-const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(ECOSYSTEM_TITLE_PLUGIN_MAP).map(([k, v]) => [k.toLowerCase(), v])
-)
-
-/**
- * Get the required role-plugin name for a governance title, or null if any is allowed.
- * MANAGER → ai-maestro-assistant-manager-agent
- * CHIEF-OF-STAFF → ai-maestro-chief-of-staff
- * MEMBER → null (no forced plugin)
- */
-export function getRequiredPluginForTitle(title: string): string | null {
-  return TITLE_PLUGIN_MAP[title] || null
-}
-
-/**
- * Auto-assign the required role-plugin when a governance title is set.
- * MANAGER → ai-maestro-assistant-manager-agent
- * CHIEF-OF-STAFF → ai-maestro-chief-of-staff
- * Returns the installed plugin name, or null if no auto-assignment needed (MEMBER).
- */
-export async function autoAssignRolePluginForTitle(
-  title: AgentRole,
-  agentId: string
-): Promise<string | null> {
-  const requiredPlugin = TITLE_PLUGIN_MAP[title]
-  if (!requiredPlugin) return null // MEMBER — no forced plugin
-
-  // Look up the agent from the registry
-  const { getAgent } = await import('@/lib/agent-registry')
-  const agent = getAgent(agentId)
-  if (!agent) throw new Error(`Agent ${agentId} not found`)
-
-  // All title-locked roles require role-plugins which are Claude-only.
-  // Non-Claude agents cannot hold titles that auto-assign a role-plugin.
-  const { detectClientType } = await import('@/lib/client-capabilities')
-  const clientType = detectClientType(agent.program || '')
-  if (clientType !== 'claude') {
-    throw new Error(
-      `Cannot assign ${title.toUpperCase()} title to ${clientType} agent "${agent.name || agentId}". ` +
-      `Governance titles with auto-assigned role-plugins require Claude Code (role-plugins are Claude-only).`
-    )
-  }
-
-  const agentDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
-  if (!agentDir) throw new Error(`Agent ${agentId} has no working directory`)
-
-  // Install the required role-plugin from the GitHub marketplace (--scope local)
-  const marketplace = GITHUB_MARKETPLACE_NAME
-  await installPluginLocally(requiredPlugin, agentDir, marketplace)
-
-  console.log(`[governance] Auto-assigned role-plugin ${requiredPlugin} to agent ${agentId} (title: ${title})`)
-  return requiredPlugin
-}
+export {
+  getRequiredPluginForTitle,
+  autoAssignRolePluginForTitle,
+  uninstallAllRolePlugins,
+  syncRolePlugin as syncRolePluginForTitle,
+  syncRolePlugin,
+} from '@/services/element-management-service'
 
 export interface CreatePersonaResult {
   personaName: string
@@ -1268,7 +1076,7 @@ export async function createPersona(opts: {
   await mkdir(agentDir, { recursive: true })
 
   // Install the plugin locally into the persona folder
-  await installPluginLocally(pluginName, agentDir, marketplaceName)
+  await _installPluginLocally(pluginName, agentDir, marketplaceName)
 
   return {
     personaName,

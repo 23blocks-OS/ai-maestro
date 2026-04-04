@@ -17,7 +17,7 @@
 import { loadGovernance, verifyPassword, setManager, removeManager, setPassword, setUserName, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
 import { addTrustedManager, removeTrustedManager, getTrustedManagers } from '@/lib/manager-trust'
 import type { ManagerTrust } from '@/lib/manager-trust'
-import { getAgent, loadAgents } from '@/lib/agent-registry'
+import { getAgent, loadAgents, updateAgent } from '@/lib/agent-registry'
 // SF-029 (P8): Use atomic checkAndRecordAttempt to match cross-host-governance-service pattern
 import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { checkMessageAllowed } from '@/lib/message-filter'
@@ -83,7 +83,16 @@ export async function setManagerRole(params: {
 
   // agentId === null means "remove manager"
   if (agentId === null) {
-    await removeManager()
+    const oldManagerId = config.managerId
+    if (oldManagerId) {
+      const { ChangeTitle } = await import('@/services/element-management-service')
+      const titleResult = await ChangeTitle(oldManagerId, null)
+      if (!titleResult.success) {
+        console.warn('[governance] ChangeTitle failed on manager removal:', titleResult.error)
+      }
+    } else {
+      await removeManager()
+    }
     return { data: { success: true, managerId: null }, status: 200 }
   }
 
@@ -93,19 +102,14 @@ export async function setManagerRole(params: {
 
   const agent = getAgent(agentId)
   if (!agent) {
-    // NT-024 (P8): Consistent error format without quotes (agentId already validated as non-empty string)
     return { error: `Agent ${agentId} not found`, status: 404 }
   }
 
-  await setManager(agentId)
-
-  // Auto-assign required role-plugin for MANAGER title
-  try {
-    const { autoAssignRolePluginForTitle } = await import('@/services/role-plugin-service')
-    await autoAssignRolePluginForTitle('manager', agentId)
-  } catch (err) {
-    console.warn('[governance] Failed to auto-assign role-plugin for MANAGER:', err instanceof Error ? err.message : err)
-    // Non-blocking — title assignment succeeds even if plugin assignment fails
+  // ChangeTitle handles: governance.json, agent registry, role-plugin sync
+  const { ChangeTitle } = await import('@/services/element-management-service')
+  const titleResult = await ChangeTitle(agentId, 'manager')
+  if (!titleResult.success) {
+    return { error: titleResult.error || 'Failed to assign manager title', status: 500 }
   }
 
   return { data: { success: true, managerId: agentId, managerName: agent.name || agent.alias }, status: 200 }

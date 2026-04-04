@@ -746,9 +746,101 @@ export async function updateAgentById(id: string, body: UpdateAgentRequest, requ
       }
     }
 
-    const agent = await updateAgent(id, body)
+    // Fields handled by Change* functions — strip from body, call Change* separately
+    const changeableFields = {
+      governanceTitle: body.governanceTitle,
+      name: body.name || body.alias,
+      workingDirectory: body.workingDirectory,
+      avatar: body.avatar,
+      programArgs: body.programArgs,
+    }
+
+    // Strip changeable fields from body so updateAgent only handles simple fields
+    const cleanBody = { ...body }
+    delete cleanBody.governanceTitle
+    delete cleanBody.name
+    delete cleanBody.alias
+    delete cleanBody.workingDirectory
+    delete cleanBody.avatar
+    delete cleanBody.programArgs
+
+    // Execute simple updateAgent for remaining fields (tags, label, model, etc.)
+    const agent = await updateAgent(id, cleanBody)
     if (!agent) {
       return { error: 'Agent not found', status: 404 }
+    }
+
+    // Execute Change* functions for fields that need gated validation
+    let anyChangeExecuted = false
+
+    // ChangeTitle — governance title transitions
+    const oldTitle = existing.governanceTitle || null
+    const newTitle = changeableFields.governanceTitle !== undefined
+      ? (changeableFields.governanceTitle || null)
+      : oldTitle
+    if (oldTitle !== newTitle) {
+      try {
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        const titleResult = await ChangeTitle(id, newTitle)
+        if (!titleResult.success) console.warn('[agents] ChangeTitle failed:', titleResult.error)
+        anyChangeExecuted = true
+      } catch (err) {
+        console.warn('[agents] Failed ChangeTitle on PATCH:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // ChangeName — agent name with uniqueness + tmux rename
+    if (changeableFields.name && changeableFields.name !== existing.name) {
+      try {
+        const { ChangeName } = await import('@/services/element-management-service')
+        const nameResult = await ChangeName(id, changeableFields.name)
+        if (!nameResult.success) console.warn('[agents] ChangeName failed:', nameResult.error)
+        anyChangeExecuted = true
+      } catch (err) {
+        console.warn('[agents] Failed ChangeName on PATCH:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // ChangeFolder — working directory with path validation
+    if (changeableFields.workingDirectory && changeableFields.workingDirectory !== existing.workingDirectory) {
+      try {
+        const { ChangeFolder } = await import('@/services/element-management-service')
+        const folderResult = await ChangeFolder(id, changeableFields.workingDirectory)
+        if (!folderResult.success) console.warn('[agents] ChangeFolder failed:', folderResult.error)
+        anyChangeExecuted = true
+      } catch (err) {
+        console.warn('[agents] Failed ChangeFolder on PATCH:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // ChangeAvatar — avatar path validation
+    if (changeableFields.avatar && changeableFields.avatar !== existing.avatar) {
+      try {
+        const { ChangeAvatar } = await import('@/services/element-management-service')
+        const avatarResult = await ChangeAvatar(id, changeableFields.avatar)
+        if (!avatarResult.success) console.warn('[agents] ChangeAvatar failed:', avatarResult.error)
+        anyChangeExecuted = true
+      } catch (err) {
+        console.warn('[agents] Failed ChangeAvatar on PATCH:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // ChangeCLIArgs — CLI argument sanitization
+    if (changeableFields.programArgs !== undefined && changeableFields.programArgs !== existing.programArgs) {
+      try {
+        const { ChangeCLIArgs } = await import('@/services/element-management-service')
+        const argsResult = await ChangeCLIArgs(id, changeableFields.programArgs)
+        if (!argsResult.success) console.warn('[agents] ChangeCLIArgs failed:', argsResult.error)
+        anyChangeExecuted = true
+      } catch (err) {
+        console.warn('[agents] Failed ChangeCLIArgs on PATCH:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // Re-read agent after all Change* calls to include updated fields in response
+    if (anyChangeExecuted) {
+      const freshAgent = getAgent(id)
+      if (freshAgent) return { data: { agent: freshAgent }, status: 200 }
     }
 
     return { data: { agent }, status: 200 }

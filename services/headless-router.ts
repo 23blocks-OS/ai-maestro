@@ -897,7 +897,30 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    sendServiceResult(res, await createNewAgent(body, auth.agentId))
+    // Use all-in-one CreateAgent pipeline
+    const { CreateAgent } = await import('@/services/element-management-service')
+    const createResult = await CreateAgent({
+      name: body.name as string,
+      label: body.label as string | undefined,
+      client: body.client as string | undefined,
+      program: body.program as string | undefined,
+      workingDirectory: body.workingDirectory as string | undefined,
+      governanceTitle: body.governanceTitle as string | undefined,
+      teamId: body.teamId as string | undefined,
+      avatar: body.avatar as string | undefined,
+      programArgs: body.programArgs as string | undefined,
+      owner: body.owner as string | undefined,
+      tags: body.tags as string[] | undefined,
+      model: body.model as string | undefined,
+      taskDescription: body.taskDescription as string | undefined,
+    })
+    if (!createResult.success) {
+      sendJson(res, 400, { error: createResult.error })
+      return
+    }
+    const { getAgent } = await import('@/lib/agent-registry')
+    const created = createResult.agentId ? getAgent(createResult.agentId) : null
+    sendJson(res, 201, { agent: created })
   }},
 
   // =========================================================================

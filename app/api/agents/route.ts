@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { listAgents, searchAgentsByQuery, createNewAgent } from '@/services/agents-core-service'
-import type { CreateAgentRequest } from '@/types/agent'
+import { listAgents, searchAgentsByQuery } from '@/services/agents-core-service'
+import { CreateAgent } from '@/services/element-management-service'
 
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
@@ -46,17 +46,36 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    let body: CreateAgentRequest
+    let body: Record<string, unknown>
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    // CC-P3-002: Wrap service call in try-catch for unexpected throws
-    const result = await createNewAgent(body)
 
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+    // Delegate to all-in-one CreateAgent pipeline
+    const result = await CreateAgent({
+      name: body.name as string,
+      label: body.label as string | undefined,
+      client: body.client as string | undefined,
+      program: body.program as string | undefined,
+      workingDirectory: body.workingDirectory as string | undefined,
+      governanceTitle: body.governanceTitle as string | undefined,
+      teamId: body.teamId as string | undefined,
+      avatar: body.avatar as string | undefined,
+      programArgs: body.programArgs as string | undefined,
+      owner: body.owner as string | undefined,
+      tags: body.tags as string[] | undefined,
+      model: body.model as string | undefined,
+      taskDescription: body.taskDescription as string | undefined,
+    })
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
-    return NextResponse.json(result.data, { status: result.status })
+
+    // Return the created agent (match old response format)
+    const { getAgent } = await import('@/lib/agent-registry')
+    const agent = result.agentId ? getAgent(result.agentId) : null
+    return NextResponse.json({ agent }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }

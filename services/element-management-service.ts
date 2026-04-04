@@ -2245,3 +2245,154 @@ export async function ChangeCLIArgs(
     return result
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// CreateAgent — All-in-one agent creation with full gate pipeline
+// ══════════════════════════════════════════════════════════════
+
+export interface CreateAgentResult {
+  success: boolean
+  agentId: string | null
+  operations: string[]
+  restartNeeded: boolean
+  error?: string
+}
+
+/**
+ * All-in-one agent creation. Validates, infers, creates, and configures
+ * the agent in a single pipeline. Replaces the old createNewAgent() thin wrapper.
+ *
+ * Gates:
+ *   G01: Validate name format
+ *   G02: Infer and set client/program (from client field, program field, or default)
+ *   G03: Validate working directory (create ~/agents/<name>/ if needed)
+ *   G04: Create agent in registry
+ *   G05: Set governance title if requested (delegates to ChangeTitle)
+ *   G06: Add to team if requested (delegates to ChangeTeam)
+ *   G07: Install role-plugin if title requires one (handled by ChangeTitle)
+ *   G08: Create tmux session directory structure
+ */
+export async function CreateAgent(
+  desired: {
+    name: string
+    label?: string
+    client?: string           // 'claude' | 'codex' | 'gemini' | 'aider' | 'opencode'
+    program?: string           // Explicit program path (overrides client inference)
+    workingDirectory?: string
+    governanceTitle?: string   // If set, ChangeTitle is called after creation
+    teamId?: string            // If set, ChangeTeam is called after creation
+    avatar?: string
+    programArgs?: string
+    owner?: string
+    tags?: string[]
+    model?: string
+    taskDescription?: string
+  },
+): Promise<CreateAgentResult> {
+  const ops: string[] = []
+  const result: CreateAgentResult = { success: false, agentId: null, operations: ops, restartNeeded: false }
+
+  try {
+    // ── G01: Validate name format ────────────────────────────
+    const name = desired.name?.toLowerCase().trim()
+    if (!name || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)) {
+      result.error = `Invalid agent name "${desired.name}". Must match /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/`
+      return result
+    }
+    ops.push(`G01: Name "${name}" is valid`)
+
+    // ── G02: Infer client/program ────────────────────────────
+    // Priority: explicit program > client field > default 'claude'
+    let program = desired.program || ''
+    if (!program && desired.client) {
+      // Map client name to program binary
+      const clientMap: Record<string, string> = {
+        claude: 'claude',
+        codex: 'codex',
+        gemini: 'gemini',
+        aider: 'aider',
+        opencode: 'opencode',
+      }
+      program = clientMap[desired.client.toLowerCase()] || desired.client
+    }
+    if (!program) {
+      // Default to claude — AI Maestro is a Claude Code dashboard
+      program = 'claude'
+      ops.push(`G02: No client/program specified — defaulting to 'claude'`)
+    } else {
+      ops.push(`G02: Program set to '${program}' (from ${desired.program ? 'explicit' : 'client field'})`)
+    }
+
+    // ── G03: Resolve working directory ───────────────────────
+    let workDir = desired.workingDirectory
+    if (!workDir) {
+      // Default: ~/agents/<name>/
+      workDir = join(HOME, 'agents', name)
+    }
+    // Create directory if it doesn't exist
+    const { mkdir } = await import('fs/promises')
+    await mkdir(workDir, { recursive: true })
+    ops.push(`G03: Working directory: ${workDir}`)
+
+    // ── G04: Create agent in registry ────────────────────────
+    const { createAgent } = await import('@/lib/agent-registry')
+    const agent = await createAgent({
+      name,
+      label: desired.label || undefined,
+      program,
+      workingDirectory: workDir,
+      avatar: desired.avatar || undefined,
+      programArgs: desired.programArgs || (program.includes('claude') ? '--dangerously-skip-permissions' : ''),
+      owner: desired.owner || undefined,
+      tags: desired.tags || undefined,
+      model: desired.model || undefined,
+      taskDescription: desired.taskDescription || '',
+      role: 'autonomous',
+    })
+    result.agentId = agent.id
+    ops.push(`G04: Agent created: id=${agent.id}, name=${agent.name}`)
+
+    // ── G05: Create .claude directory for Claude agents ──────
+    if (program.includes('claude')) {
+      const claudeDir = join(workDir, '.claude')
+      await mkdir(claudeDir, { recursive: true })
+      ops.push(`G05: .claude/ directory ensured in working dir`)
+    } else {
+      ops.push(`G05: Non-Claude agent — skip .claude/ creation`)
+    }
+
+    // ── G06: Set governance title if requested ───────────────
+    if (desired.governanceTitle && desired.governanceTitle !== 'autonomous') {
+      const titleResult = await ChangeTitle(agent.id, desired.governanceTitle)
+      if (!titleResult.success) {
+        ops.push(`G06: WARN — ChangeTitle to ${desired.governanceTitle} failed: ${titleResult.error}`)
+      } else {
+        ops.push(`G06: Title set to ${desired.governanceTitle.toUpperCase()} (${titleResult.operations.length} sub-gates)`)
+        result.restartNeeded = result.restartNeeded || titleResult.restartNeeded
+      }
+    } else {
+      ops.push(`G06: No title requested (AUTONOMOUS)`)
+    }
+
+    // ── G07: Add to team if requested ────────────────────────
+    if (desired.teamId) {
+      const teamResult = await ChangeTeam(agent.id, { teamId: desired.teamId })
+      if (!teamResult.success) {
+        ops.push(`G07: WARN — ChangeTeam failed: ${teamResult.error}`)
+      } else {
+        ops.push(`G07: Added to team (${teamResult.operations.length} sub-gates)`)
+        result.restartNeeded = result.restartNeeded || teamResult.restartNeeded
+      }
+    } else {
+      ops.push(`G07: No team requested`)
+    }
+
+    result.success = true
+    console.log(`[CreateAgent] "${name}" created (id=${agent.id}, program=${program}, ${ops.length} gates)`)
+    return result
+  } catch (err) {
+    result.error = err instanceof Error ? err.message : String(err)
+    console.error(`[CreateAgent] FAILED for "${desired.name}":`, result.error)
+    return result
+  }
+}

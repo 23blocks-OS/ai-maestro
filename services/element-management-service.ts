@@ -700,8 +700,22 @@ export async function ChangeTitle(
       ops.push(`G10: Old title not MANAGER — governance.json unchanged`)
     }
 
-    // ── GATE 11: Clear old COS — reject pending requests ─────
+    // ── GATE 11: Clear old COS — clear team + reject pending requests ─
     if (oldTitle === 'chief-of-staff' && newTitle !== 'chief-of-staff') {
+      // Clear chiefOfStaffId from all teams where this agent is COS
+      try {
+        const { loadTeams, updateTeam } = await import('@/lib/team-registry')
+        const teams = loadTeams()
+        for (const team of teams) {
+          if (team.chiefOfStaffId === agentId) {
+            const managerId = getManagerId()
+            await updateTeam(team.id, { chiefOfStaffId: null }, managerId)
+            ops.push(`G11: Cleared chiefOfStaffId on team "${team.name}"`)
+          }
+        }
+      } catch (err) {
+        ops.push(`G11: WARN — Failed to clear chiefOfStaffId: ${err instanceof Error ? err.message : err}`)
+      }
       // Auto-reject pending configure-agent requests from this COS
       try {
         const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
@@ -722,12 +736,27 @@ export async function ChangeTitle(
         ops.push(`G11: Pending request rejection skipped (registry unavailable)`)
       }
     } else {
-      ops.push(`G11: Old title not COS — pending request check skipped`)
+      ops.push(`G11: Old title not COS — skipped`)
     }
 
     // ── GATE 12: Clear old ORCHESTRATOR from team ────────────
     if (oldTitle === 'orchestrator' && newTitle !== 'orchestrator') {
-      ops.push(`G12: Old ORCHESTRATOR — caller must clear team.orchestratorId`)
+      try {
+        const { loadTeams, updateTeam } = await import('@/lib/team-registry')
+        const teams = loadTeams()
+        for (const team of teams) {
+          if (team.orchestratorId === agentId) {
+            const managerId = getManagerId()
+            await updateTeam(team.id, { orchestratorId: null }, managerId)
+            ops.push(`G12: Cleared orchestratorId on team "${team.name}"`)
+          }
+        }
+        if (!teams.some(t => t.orchestratorId === agentId)) {
+          ops.push(`G12: No team had this agent as orchestrator`)
+        }
+      } catch (err) {
+        ops.push(`G12: WARN — Failed to clear orchestratorId: ${err instanceof Error ? err.message : err}`)
+      }
     } else {
       ops.push(`G12: Old title not ORCHESTRATOR — team.orchestratorId unchanged`)
     }

@@ -6,7 +6,9 @@ All UI scenario tests in AI Maestro MUST follow these rules. No exceptions.
 
 ## Rule 1: CLEAN-AFTER-YOURSELF
 
-The **last phase** of every scenario MUST revert the system to the exact state it was in before the test started. Every team created, title changed, plugin installed, agent created, group added, or setting modified during the test MUST be undone in reverse order.
+The **last phase** of every scenario MUST revert the system to the exact state it was in before the test started. Every team created, title changed, plugin installed, agent created, group added, or setting modified during the test MUST be undone.
+
+**Undo efficiently, not step-by-step.** If you created a plugin in 30 steps (selecting skills, subagents, MCP, rules, hooks, etc.), you undo it in ONE step: delete the plugin. The goal is to reach the original state, not to reverse-replay every action. Find the shortest path to cleanup.
 
 The cleanup phase steps are numbered and verified just like test steps — they are NOT optional. If a cleanup step fails, it MUST be fixed before the scenario is considered complete.
 

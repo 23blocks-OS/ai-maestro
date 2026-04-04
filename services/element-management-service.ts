@@ -2304,14 +2304,16 @@ export async function CreateAgent(
     ops.push(`G01: Name "${name}" is valid`)
 
     // ── G02: Infer client/program (smart, with deprecated client handling) ──
-    // Supported clients and their program binaries
+    // Supported clients ranked by capability (used as tiebreaker when counts are equal)
+    // 1=most capable. Order: plugin support, tool use, context window, ecosystem maturity
+    const CLIENT_POWER_RANK: string[] = ['claude', 'codex', 'gemini', 'opencode']
     const SUPPORTED_CLIENTS: Record<string, string> = {
       claude: 'claude',
       codex: 'codex',
       gemini: 'gemini',
       opencode: 'opencode',
     }
-    // Deprecated clients — auto-fallback to most popular client on this host
+    // Deprecated clients — auto-fallback to most popular (or most powerful) client
     const DEPRECATED_CLIENTS = new Set(['aider', 'kiro'])
 
     let program = desired.program || ''
@@ -2330,8 +2332,11 @@ export async function CreateAgent(
             clientCounts[ct] = (clientCounts[ct] || 0) + 1
           }
         }
-        // Pick the most popular supported client, or default to 'claude'
-        const sorted = Object.entries(clientCounts).sort((a, b) => b[1] - a[1])
+        // Pick the most popular supported client; tiebreak by power rank (claude > codex > gemini > opencode)
+        const sorted = Object.entries(clientCounts).sort((a, b) => {
+          if (b[1] !== a[1]) return b[1] - a[1]  // most used first
+          return CLIENT_POWER_RANK.indexOf(a[0]) - CLIENT_POWER_RANK.indexOf(b[0])  // most powerful first on tie
+        })
         const fallback = sorted.length > 0 ? sorted[0][0] : 'claude'
         program = SUPPORTED_CLIENTS[fallback] || 'claude'
         ops.push(`G02: Client "${requestedClient}" is deprecated — fallback to '${program}' (most used: ${sorted.map(([k, v]) => `${k}=${v}`).join(', ') || 'none'})`)

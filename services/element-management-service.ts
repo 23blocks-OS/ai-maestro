@@ -2303,26 +2303,61 @@ export async function CreateAgent(
     }
     ops.push(`G01: Name "${name}" is valid`)
 
-    // ── G02: Infer client/program ────────────────────────────
-    // Priority: explicit program > client field > default 'claude'
-    let program = desired.program || ''
-    if (!program && desired.client) {
-      // Map client name to program binary
-      const clientMap: Record<string, string> = {
-        claude: 'claude',
-        codex: 'codex',
-        gemini: 'gemini',
-        aider: 'aider',
-        opencode: 'opencode',
-      }
-      program = clientMap[desired.client.toLowerCase()] || desired.client
+    // ── G02: Infer client/program (smart, with deprecated client handling) ──
+    // Supported clients and their program binaries
+    const SUPPORTED_CLIENTS: Record<string, string> = {
+      claude: 'claude',
+      codex: 'codex',
+      gemini: 'gemini',
+      opencode: 'opencode',
     }
-    if (!program) {
-      // Default to claude — AI Maestro is a Claude Code dashboard
+    // Deprecated clients — auto-fallback to most popular client on this host
+    const DEPRECATED_CLIENTS = new Set(['aider', 'kiro'])
+
+    let program = desired.program || ''
+    const requestedClient = (desired.client || '').toLowerCase()
+
+    if (!program && requestedClient) {
+      if (DEPRECATED_CLIENTS.has(requestedClient)) {
+        // Deprecated client: fallback to the most-used client on this host
+        const { loadAgents } = await import('@/lib/agent-registry')
+        const { detectClientType } = await import('@/lib/client-capabilities')
+        const agents = loadAgents()
+        const clientCounts: Record<string, number> = {}
+        for (const a of agents) {
+          const ct = detectClientType(a.program || '')
+          if (ct !== 'unknown' && !DEPRECATED_CLIENTS.has(ct)) {
+            clientCounts[ct] = (clientCounts[ct] || 0) + 1
+          }
+        }
+        // Pick the most popular supported client, or default to 'claude'
+        const sorted = Object.entries(clientCounts).sort((a, b) => b[1] - a[1])
+        const fallback = sorted.length > 0 ? sorted[0][0] : 'claude'
+        program = SUPPORTED_CLIENTS[fallback] || 'claude'
+        ops.push(`G02: Client "${requestedClient}" is deprecated — fallback to '${program}' (most used: ${sorted.map(([k, v]) => `${k}=${v}`).join(', ') || 'none'})`)
+      } else if (SUPPORTED_CLIENTS[requestedClient]) {
+        program = SUPPORTED_CLIENTS[requestedClient]
+        ops.push(`G02: Program set to '${program}' (from client field)`)
+      } else {
+        // Unknown client name — treat as direct program path
+        program = requestedClient
+        ops.push(`G02: Unknown client "${requestedClient}" — using as direct program name`)
+      }
+    } else if (program) {
+      // Explicit program provided — validate it's not a deprecated client
+      const { detectClientType } = await import('@/lib/client-capabilities')
+      const ct = detectClientType(program)
+      if (DEPRECATED_CLIENTS.has(ct)) {
+        const oldProgram = program
+        program = 'claude'
+        ops.push(`G02: Program "${oldProgram}" maps to deprecated client "${ct}" — overridden to 'claude'`)
+      } else {
+        ops.push(`G02: Program set to '${program}' (explicit)`)
+      }
+    } else {
+      // No client, no program — default to claude
       program = 'claude'
       ops.push(`G02: No client/program specified — defaulting to 'claude'`)
-    } else {
-      ops.push(`G02: Program set to '${program}' (from ${desired.program ? 'explicit' : 'client field'})`)
     }
 
     // ── G03: Resolve working directory ───────────────────────

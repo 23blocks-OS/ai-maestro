@@ -26,13 +26,16 @@ export interface ClientCapabilities {
   /** CLI launch/session commands — used by tmux session management */
   cli: {
     binary: string                    // e.g. 'claude', 'kiro-cli', 'codex'
-    resume: string                    // flag to resume last conversation
+    resume: string                    // flag/subcommand to resume last conversation
     skipPermissions: string           // flag to bypass tool confirmations
     useAgent: string                  // flag to load an agent persona (use %s for agent name)
     exit: string                      // command typed inside client to exit
     compact: string                   // command typed inside client to compact context
-    clearLine: string                 // key combo to clear input line before sending commands
-    cancel: string                    // key combo to cancel current operation
+    clearLine: string                 // tmux key to clear input line before sending commands
+    cancel: string                    // tmux key to cancel current operation
+    update: string                    // command to update the client binary
+    envVars: Record<string, string>   // environment variables to prepend to launch command
+    noAltScreen: string               // flag to disable alternate screen (for tmux scrollback)
   }
 }
 
@@ -42,15 +45,19 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     rules: true, commands: true, mcpServers: true, lspServers: true, rolePlugins: true,
     configFile: 'CLAUDE.md',
     skillPaths: { project: '.claude/skills', user: '~/.claude/skills' },
+    // Verified from: claude --help, CLAUDE.md
     cli: {
       binary: 'claude',
       resume: '--continue',
       skipPermissions: '--dangerously-skip-permissions',
-      useAgent: '--agent %s',
+      useAgent: '--agent %s',         // supports plugin:agent namespace
       exit: '/exit',
       compact: '/compact',
-      clearLine: 'C-u',      // tmux send-keys notation
+      clearLine: 'C-u',              // tmux send-keys notation
       cancel: 'C-c',
+      update: 'claude update',
+      envVars: { CLAUDE_CODE_NO_FLICKER: '1' },
+      noAltScreen: '',                // not needed — claude handles tmux well
     },
   },
   codex: {
@@ -58,31 +65,39 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     rules: false, commands: false, mcpServers: true, lspServers: false, rolePlugins: false,
     configFile: 'config.toml',
     skillPaths: { project: '.codex/skills', user: '~/.codex/skills' },
+    // Verified from: codex --help
     cli: {
       binary: 'codex',
-      resume: '--continue',
-      skipPermissions: '--full-auto',
-      useAgent: '--agent %s',
+      resume: 'resume --last',        // subcommand: codex resume --last
+      skipPermissions: '--full-auto',  // convenience alias for sandbox + auto-approve
+      useAgent: '-p %s',              // uses --profile for config profiles
       exit: '/exit',
       compact: '/compact',
       clearLine: 'C-u',
       cancel: 'C-c',
+      update: 'npm update -g @openai/codex',
+      envVars: {},
+      noAltScreen: '--no-alt-screen', // for tmux scrollback
     },
   },
   gemini: {
-    skills: true, plugins: false, agents: false, hooks: false,
-    rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
+    skills: true, plugins: false, agents: false, hooks: true,
+    rules: false, commands: true, mcpServers: true, lspServers: false, rolePlugins: false,
     configFile: 'GEMINI.md',
     skillPaths: { project: '.gemini/skills', user: '~/.gemini/skills' },
+    // Verified from: gemini --help
     cli: {
       binary: 'gemini',
-      resume: '--continue',
-      skipPermissions: '--sandbox=none',
-      useAgent: '',             // gemini doesn't support --agent yet
+      resume: '-r latest',            // --resume latest
+      skipPermissions: '-y',          // --yolo mode (auto-approve all)
+      useAgent: '',                   // no --agent flag — uses extensions instead
       exit: '/exit',
       compact: '/compact',
       clearLine: 'C-u',
       cancel: 'C-c',
+      update: 'npm update -g @anthropic-ai/gemini-cli',
+      envVars: {},
+      noAltScreen: '',
     },
   },
   opencode: {
@@ -90,15 +105,19 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     rules: false, commands: false, mcpServers: true, lspServers: false, rolePlugins: false,
     configFile: 'AGENTS.md',
     skillPaths: { project: '.opencode/skills', user: '~/.opencode/skills' },
+    // Verified from: opencode --help (not installed on this host)
     cli: {
       binary: 'opencode',
-      resume: '--continue',
-      skipPermissions: '--auto-approve',
-      useAgent: '--agent %s',
+      resume: '',                     // no resume flag documented
+      skipPermissions: '',            // no auto-approve flag documented
+      useAgent: '',                   // no agent flag documented
       exit: '/exit',
-      compact: '/compact',
+      compact: '',
       clearLine: 'C-u',
       cancel: 'C-c',
+      update: 'go install github.com/opencode-ai/opencode@latest',
+      envVars: {},
+      noAltScreen: '',
     },
   },
   kiro: {
@@ -106,15 +125,19 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     rules: false, commands: false, mcpServers: true, lspServers: false, rolePlugins: false,
     configFile: '.kiro/settings.json',
     skillPaths: { project: '.kiro/skills', user: '~/.kiro/skills' },
+    // Verified from: kiro-cli chat --help
     cli: {
       binary: 'kiro-cli',
-      resume: 'chat --resume',
+      resume: 'chat --resume',                // subcommand-first: kiro-cli chat --resume
       skipPermissions: 'chat --trust-all-tools',
       useAgent: 'chat --agent %s',
       exit: '/exit',
       compact: '/compact',
       clearLine: 'C-u',
       cancel: 'C-c',
+      update: 'kiro-cli update --non-interactive --relaunch-dashboard false',
+      envVars: {},
+      noAltScreen: '',
     },
   },
   aider: {
@@ -122,15 +145,19 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
     configFile: '.aider.conf.yml',
     skillPaths: { project: 'skills', user: '' },
+    // DEPRECATED — kept for backward compat
     cli: {
       binary: 'aider',
-      resume: '',               // aider doesn't have resume
+      resume: '',
       skipPermissions: '--yes',
-      useAgent: '',             // no agent support
+      useAgent: '',
       exit: '/exit',
       compact: '',
       clearLine: 'C-u',
       cancel: 'C-c',
+      update: 'pip install --upgrade aider-chat',
+      envVars: {},
+      noAltScreen: '',
     },
   },
   unknown: {
@@ -147,6 +174,9 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
       compact: '',
       clearLine: 'C-u',
       cancel: 'C-c',
+      update: '',
+      envVars: {},
+      noAltScreen: '',
     },
   },
 }

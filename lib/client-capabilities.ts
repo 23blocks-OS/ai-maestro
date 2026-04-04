@@ -78,7 +78,7 @@ export function detectClientType(program: string): ClientType {
   if (p.includes('codex')) return 'codex'
   if (p.includes('gemini')) return 'gemini'
   if (p.includes('opencode')) return 'opencode'
-  if (p.includes('kiro')) return 'kiro'
+  if (p.includes('kiro')) return 'kiro'  // binary is 'kiro-cli' on all platforms
   if (p.includes('aider')) return 'aider'  // deprecated — kept for backward compat
   return 'unknown'
 }

@@ -2308,11 +2308,12 @@ export async function CreateAgent(
     // Order: plugin support, tool use, context window, ecosystem maturity
     // Power rank: plugin support, tool use, context window, ecosystem maturity
     const CLIENT_POWER_RANK: string[] = ['claude', 'codex', 'gemini', 'kiro', 'opencode']
+    // Maps client type → CLI binary name (what gets stored as agent.program and launched in tmux)
     const SUPPORTED_CLIENTS: Record<string, string> = {
       claude: 'claude',
       codex: 'codex',
       gemini: 'gemini',
-      kiro: 'kiro',
+      kiro: 'kiro-cli',     // binary is 'kiro-cli' on all platforms (macOS, Linux, Windows)
       opencode: 'opencode',
     }
     const DEPRECATED_CLIENTS = new Set(['aider'])

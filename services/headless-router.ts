@@ -909,6 +909,8 @@ const routes: Route[] = [
       teamId: body.teamId as string | undefined,
       avatar: body.avatar as string | undefined,
       programArgs: body.programArgs as string | undefined,
+      pluginName: body.pluginName as string | undefined,
+      createSession: body.createSession as boolean | undefined,
       owner: body.owner as string | undefined,
       tags: body.tags as string[] | undefined,
       model: body.model as string | undefined,

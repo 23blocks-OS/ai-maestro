@@ -2283,6 +2283,8 @@ export async function CreateAgent(
     teamId?: string            // If set, ChangeTeam is called after creation
     avatar?: string
     programArgs?: string
+    pluginName?: string          // Role-plugin to install (auto-converts for non-Claude clients)
+    createSession?: boolean       // If true, creates tmux session after registration
     owner?: string
     tags?: string[]
     model?: string
@@ -2385,6 +2387,85 @@ export async function CreateAgent(
       }
     } else {
       ops.push(`G07: No team requested`)
+    }
+
+    // ── G08: Install role-plugin if specified ─────────────────
+    // This handles the case where a specific plugin was chosen in the wizard
+    // (independent of title — title auto-installs via ChangeTitle G17)
+    if (desired.pluginName) {
+      try {
+        const { detectClientType } = await import('@/lib/client-capabilities')
+        const clientType = detectClientType(program)
+
+        if (clientType === 'claude') {
+          // Direct install for Claude clients
+          const { createPersona } = await import('@/services/role-plugin-service')
+          await createPersona({
+            personaName: desired.label || name,
+            pluginName: desired.pluginName,
+          })
+          ops.push(`G08: Role-plugin "${desired.pluginName}" installed (Claude)`)
+        } else {
+          // Non-Claude client: convert the plugin using the cross-client converter
+          try {
+            const { convertElements } = await import('@/services/cross-client-conversion-service')
+            const providerMap: Record<string, string> = { codex: 'codex', gemini: 'gemini', opencode: 'opencode', kiro: 'kiro' }
+            const targetProvider = providerMap[clientType]
+            if (targetProvider) {
+              // Find the plugin in the cache to get its path
+              const { scanPluginCache } = await import('@/lib/converter/utils/plugin')
+              const plugins = await scanPluginCache()
+              const sourcePlugin = plugins.find(p => p.meta?.name === desired.pluginName)
+              if (sourcePlugin) {
+                const convResult = await convertElements({
+                  source: sourcePlugin.pluginDir,
+                  targetClient: targetProvider as import('@/lib/converter/types').ProviderId,
+                  elements: ['skills', 'agents', 'commands'],
+                  scope: 'user',
+                  dryRun: false,
+                  force: false,
+                })
+                ops.push(`G08: Role-plugin "${desired.pluginName}" converted to ${clientType} format (${convResult.ok ? 'ok' : 'failed'})`)
+              } else {
+                ops.push(`G08: WARN — Plugin "${desired.pluginName}" not found in cache for conversion`)
+              }
+            } else {
+              ops.push(`G08: WARN — No converter for client type "${clientType}"`)
+            }
+          } catch (convErr) {
+            ops.push(`G08: WARN — Cross-client conversion failed: ${convErr instanceof Error ? convErr.message : convErr}`)
+          }
+        }
+      } catch (err) {
+        ops.push(`G08: WARN — Plugin install failed: ${err instanceof Error ? err.message : err}`)
+      }
+    } else {
+      ops.push(`G08: No explicit plugin requested`)
+    }
+
+    // ── G09: Create tmux session if requested ────────────────
+    if (desired.createSession) {
+      try {
+        const { createSession } = await import('@/services/sessions-service')
+        const sessResult = await createSession({
+          name,
+          workingDirectory: workDir,
+          agentId: agent.id,
+          label: desired.label || undefined,
+          avatar: desired.avatar || undefined,
+          program,
+          programArgs: desired.programArgs || (program.includes('claude') ? '--dangerously-skip-permissions' : ''),
+        })
+        if (sessResult.error) {
+          ops.push(`G09: WARN — Session creation failed: ${sessResult.error}`)
+        } else {
+          ops.push(`G09: tmux session created`)
+        }
+      } catch (err) {
+        ops.push(`G09: WARN — Session creation failed: ${err instanceof Error ? err.message : err}`)
+      }
+    } else {
+      ops.push(`G09: No session requested (agent created hibernated)`)
     }
 
     result.success = true

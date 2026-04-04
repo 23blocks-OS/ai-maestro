@@ -641,15 +641,73 @@ export async function ChangeTitle(
     }
     ops.push(`G02: Agent "${agent.name}" found`)
 
-    // ── GATE 3: Check agent client type ──────────────────────
-    // Some titles (those with required role-plugins) only work with Claude
+    // ── GATE 3: Check agent client type (self-healing) ────────
+    // Some titles (those with required role-plugins) only work with Claude.
+    // If program is empty but other signals indicate Claude, auto-fix.
     const titleRequiresPlugin = newTitle ? !!getRequiredPluginForTitle(newTitle) : false
     if (titleRequiresPlugin) {
       try {
         const { detectClientType } = await import('@/lib/client-capabilities')
-        const clientType = detectClientType(agent.program || '')
+        let clientType = detectClientType(agent.program || '')
+
+        // Self-healing: if program is empty/unknown, examine the full agent state
+        // to determine the correct client type before rejecting.
+        if (clientType === 'unknown') {
+          let inferredClient: string | null = null
+          const evidence: string[] = []
+
+          // Signal 1: explicit client field (set by wizard step 1)
+          const clientField = (agent as unknown as Record<string, unknown>).client as string | undefined
+          if (clientField?.toLowerCase().includes('claude')) {
+            evidence.push(`client='${clientField}'`)
+            inferredClient = 'claude'
+          }
+
+          // Signal 2: programArgs contains --agent (Claude-only flag)
+          const args = agent.programArgs || ''
+          if (args.includes('--agent') || args.includes('--chrome') || args.includes('--continue')) {
+            evidence.push(`programArgs contains Claude-only flags`)
+            inferredClient = 'claude'
+          }
+
+          // Signal 3: working directory has .claude/ folder (Claude Code project)
+          const wDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
+          if (wDir) {
+            const { existsSync } = await import('fs')
+            if (existsSync(join(wDir, '.claude'))) {
+              evidence.push(`.claude/ dir exists in workDir`)
+              inferredClient = 'claude'
+            }
+          }
+
+          // Signal 4: agent has Claude-specific plugins already installed
+          if (wDir) {
+            const { existsSync } = await import('fs')
+            const localSettings = join(wDir, '.claude', 'settings.local.json')
+            if (existsSync(localSettings)) {
+              evidence.push(`settings.local.json exists`)
+              inferredClient = 'claude'
+            }
+          }
+
+          // Signal 5: tmux session is running (all AI Maestro agents use tmux + Claude)
+          if (agent.sessions && agent.sessions.length > 0 && agent.sessions[0].status === 'online') {
+            evidence.push(`has active tmux session`)
+            inferredClient = 'claude'
+          }
+
+          if (inferredClient === 'claude') {
+            // Auto-fix: set program in registry so future checks don't need inference
+            await updateAgent(agentId, { program: 'claude' } as Record<string, unknown>)
+            clientType = 'claude'
+            ops.push(`G03: program was empty — auto-fixed to 'claude' (evidence: ${evidence.join(', ')})`)
+          } else {
+            ops.push(`G03: program empty, no Claude evidence found`)
+          }
+        }
+
         if (clientType !== 'claude') {
-          result.error = `Cannot assign ${(newTitle || '').toUpperCase()} to ${clientType} agent "${agent.name}". Title requires a role-plugin (Claude-only).`
+          result.error = `Cannot assign ${(newTitle || '').toUpperCase()} to ${clientType} agent "${agent.name || agentId}". Title requires a role-plugin (Claude-only).`
           return result
         }
         ops.push(`G03: Client type is Claude — compatible with title`)

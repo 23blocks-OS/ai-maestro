@@ -125,6 +125,12 @@ export async function installPluginLocally(
     throw new Error(`Invalid plugin name "${pluginName}"`)
   }
 
+  // SAFEGUARD: Role-plugins MUST be local-scope only. This function enforces it
+  // by requiring agentDir (no user-scope path). Fail-fast if agentDir is missing.
+  if (!agentDir || agentDir.trim() === '') {
+    throw new Error(`installPluginLocally requires agentDir — role-plugins MUST be local scope`)
+  }
+
   // Resolve ~ in agentDir
   const resolvedDir = agentDir.startsWith('~')
     ? agentDir.replace('~', HOME)
@@ -392,6 +398,15 @@ export async function installPlugin(
     )
   }
 
+  // SAFEGUARD: Even if the role-plugin check above is somehow bypassed,
+  // NEVER allow a role-plugin name at user scope. Belt + suspenders.
+  if (options.scope === 'user' && (PREDEFINED_ROLE_PLUGIN_NAMES as readonly string[]).includes(pluginName)) {
+    throw new Error(
+      `SECURITY: Role-plugin "${pluginName}" cannot be installed at user scope. ` +
+      `Role-plugins MUST use --scope local to avoid affecting all sessions.`
+    )
+  }
+
   if (options.scope === 'user') {
     const args = ['plugin', 'install', pluginName, marketplace, '--scope', 'user']
     if (options.force) args.push('--force')
@@ -434,6 +449,15 @@ export async function uninstallPlugin(
   marketplace: string,
   options: { scope: 'user' | 'local'; agentDir?: string },
 ): Promise<void> {
+  // SAFEGUARD: Role-plugins at user scope should not exist. Block uninstall from
+  // masking the problem — fail-fast so the root cause is investigated.
+  if (options.scope === 'user' && PREDEFINED_ROLE_PLUGINS[pluginName]) {
+    throw new Error(
+      `SECURITY: Role-plugin "${pluginName}" should never exist at user scope. ` +
+      `Investigate how it was installed. Role-plugins MUST be --scope local.`
+    )
+  }
+
   if (options.scope === 'user') {
     await execFileAsync('claude', [
       'plugin', 'uninstall', pluginName, marketplace, '--scope', 'user',

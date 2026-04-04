@@ -2538,6 +2538,89 @@ const routes: Route[] = [
   }},
 
   // Title → required role-plugin lookup
+  // Role-plugin status: list agents with their installed role-plugins
+  { method: 'GET', pattern: /^\/api\/agents\/role-plugins\/status$/, paramNames: [], handler: async (req, res) => {
+    const { existsSync, readFileSync } = await import('fs')
+    const { join } = await import('path')
+    const { homedir } = await import('os')
+    const { loadAgents } = await import('@/lib/agent-registry')
+    const { PREDEFINED_ROLE_PLUGINS } = await import('@/services/element-management-service')
+
+    const HOME = homedir()
+    const ROLE_PLUGIN_NAMES = new Set(Object.keys(PREDEFINED_ROLE_PLUGINS))
+
+    const readJsonSafe = (p: string) => {
+      try { return existsSync(p) ? JSON.parse(readFileSync(p, 'utf-8')) : null } catch { return null }
+    }
+
+    const findRolePlugins = (settingsPath: string) => {
+      const data = readJsonSafe(settingsPath)
+      if (!data?.enabledPlugins) return []
+      const results: { name: string; marketplace: string; enabled: boolean; pluginKey: string }[] = []
+      for (const [key, enabled] of Object.entries(data.enabledPlugins as Record<string, boolean>)) {
+        const at = key.indexOf('@')
+        if (at === -1) continue
+        const pluginName = key.substring(0, at)
+        if (ROLE_PLUGIN_NAMES.has(pluginName)) {
+          results.push({ name: pluginName, marketplace: key.substring(at + 1), enabled: !!enabled, pluginKey: key })
+        }
+      }
+      return results
+    }
+
+    const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
+    const filterParam = url.searchParams.get('filter')
+    const pluginParam = url.searchParams.get('plugin')
+    const agentIdParam = url.searchParams.get('agentId')
+
+    let filterRegex: RegExp | null = null
+    if (filterParam) {
+      try { filterRegex = new RegExp(filterParam, 'i') }
+      catch { return sendJson(res, 400, { error: `Invalid regex: "${filterParam}"` }) }
+    }
+
+    const userScopePlugins = findRolePlugins(join(HOME, '.claude', 'settings.json'))
+    const agents = loadAgents()
+    const results: unknown[] = []
+
+    for (const agent of agents) {
+      if (agentIdParam && agent.id !== agentIdParam) continue
+      const warnings: string[] = []
+      let rolePlugin: { name: string; marketplace: string; enabled: boolean; scope: string; pluginKey: string } | null = null
+
+      const workDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
+      if (workDir) {
+        const localPlugins = findRolePlugins(join(workDir, '.claude', 'settings.local.json'))
+        if (localPlugins.length > 1) warnings.push(`Multiple role-plugins: ${localPlugins.map(p => p.name).join(', ')}`)
+        if (localPlugins.length > 0) rolePlugin = { ...localPlugins[0], scope: 'local' }
+      }
+
+      for (const up of userScopePlugins) {
+        warnings.push(`SECURITY: "${up.name}" at USER scope`)
+        if (!rolePlugin) rolePlugin = { ...up, scope: 'user' }
+      }
+
+      const info = {
+        agentId: agent.id, name: agent.name, label: agent.label || null,
+        governanceTitle: agent.governanceTitle || null, workingDirectory: workDir || null,
+        rolePlugin, warnings,
+      }
+
+      if (filterRegex && !filterRegex.test(`${agent.name} ${agent.label || ''} ${rolePlugin?.name || ''}`)) continue
+      if (pluginParam && rolePlugin?.name !== pluginParam) continue
+      results.push(info)
+    }
+
+    const summary = {
+      total: results.length,
+      withPlugin: results.filter((r: any) => r.rolePlugin !== null).length,
+      withoutPlugin: results.filter((r: any) => r.rolePlugin === null).length,
+      userScopeWarnings: userScopePlugins.length,
+    }
+
+    sendJson(res, 200, { agents: results, summary })
+  }},
+
   { method: 'GET', pattern: /^\/api\/agents\/role-plugins\/required$/, paramNames: [], handler: async (req, res) => {
     const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
     const title = url.searchParams.get('title')

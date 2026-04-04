@@ -2304,8 +2304,8 @@ export async function CreateAgent(
     ops.push(`G01: Name "${name}" is valid`)
 
     // ── G02: Infer client/program (smart, with deprecated client handling) ──
-    // Supported clients ranked by capability (used as tiebreaker when counts are equal)
-    // 1=most capable. Order: plugin support, tool use, context window, ecosystem maturity
+    // Supported clients ranked by capability (tiebreaker when counts are equal)
+    // Order: plugin support, tool use, context window, ecosystem maturity
     const CLIENT_POWER_RANK: string[] = ['claude', 'codex', 'gemini', 'opencode']
     const SUPPORTED_CLIENTS: Record<string, string> = {
       claude: 'claude',
@@ -2313,56 +2313,81 @@ export async function CreateAgent(
       gemini: 'gemini',
       opencode: 'opencode',
     }
-    // Deprecated clients — auto-fallback to most popular (or most powerful) client
     const DEPRECATED_CLIENTS = new Set(['aider', 'kiro'])
+
+    // Check if a CLI binary is installed on the system
+    const { execFileSync } = await import('child_process')
+    const isInstalled = (bin: string): boolean => {
+      try {
+        execFileSync('which', [bin], { timeout: 3000, stdio: 'pipe' })
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    // Find the best installed client by power rank
+    const bestInstalledClient = (): string => {
+      for (const client of CLIENT_POWER_RANK) {
+        if (isInstalled(SUPPORTED_CLIENTS[client])) return client
+      }
+      return 'claude' // absolute fallback even if not installed — let it fail at session start
+    }
 
     let program = desired.program || ''
     const requestedClient = (desired.client || '').toLowerCase()
 
     if (!program && requestedClient) {
       if (DEPRECATED_CLIENTS.has(requestedClient)) {
-        // Deprecated client: fallback to the most-used client on this host
+        // Deprecated client: fallback to most-used installed client on this host
         const { loadAgents } = await import('@/lib/agent-registry')
         const { detectClientType } = await import('@/lib/client-capabilities')
         const agents = loadAgents()
         const clientCounts: Record<string, number> = {}
         for (const a of agents) {
           const ct = detectClientType(a.program || '')
-          if (ct !== 'unknown' && !DEPRECATED_CLIENTS.has(ct)) {
+          if (ct !== 'unknown' && !DEPRECATED_CLIENTS.has(ct) && isInstalled(SUPPORTED_CLIENTS[ct] || ct)) {
             clientCounts[ct] = (clientCounts[ct] || 0) + 1
           }
         }
-        // Pick the most popular supported client; tiebreak by power rank (claude > codex > gemini > opencode)
+        // Pick most popular installed client; tiebreak by power rank
         const sorted = Object.entries(clientCounts).sort((a, b) => {
-          if (b[1] !== a[1]) return b[1] - a[1]  // most used first
-          return CLIENT_POWER_RANK.indexOf(a[0]) - CLIENT_POWER_RANK.indexOf(b[0])  // most powerful first on tie
+          if (b[1] !== a[1]) return b[1] - a[1]
+          return CLIENT_POWER_RANK.indexOf(a[0]) - CLIENT_POWER_RANK.indexOf(b[0])
         })
-        const fallback = sorted.length > 0 ? sorted[0][0] : 'claude'
-        program = SUPPORTED_CLIENTS[fallback] || 'claude'
-        ops.push(`G02: Client "${requestedClient}" is deprecated — fallback to '${program}' (most used: ${sorted.map(([k, v]) => `${k}=${v}`).join(', ') || 'none'})`)
+        const fallback = sorted.length > 0 ? sorted[0][0] : bestInstalledClient()
+        program = SUPPORTED_CLIENTS[fallback] || fallback
+        ops.push(`G02: Client "${requestedClient}" is deprecated — fallback to '${program}' (most used installed: ${sorted.map(([k, v]) => `${k}=${v}`).join(', ') || 'none'})`)
       } else if (SUPPORTED_CLIENTS[requestedClient]) {
         program = SUPPORTED_CLIENTS[requestedClient]
-        ops.push(`G02: Program set to '${program}' (from client field)`)
+        // Verify the requested client is actually installed
+        if (!isInstalled(program)) {
+          program = bestInstalledClient()
+          ops.push(`G02: Client "${requestedClient}" not installed — fallback to '${program}'`)
+        } else {
+          ops.push(`G02: Program set to '${program}' (from client field, verified installed)`)
+        }
       } else {
-        // Unknown client name — treat as direct program path
         program = requestedClient
         ops.push(`G02: Unknown client "${requestedClient}" — using as direct program name`)
       }
     } else if (program) {
-      // Explicit program provided — validate it's not a deprecated client
       const { detectClientType } = await import('@/lib/client-capabilities')
       const ct = detectClientType(program)
       if (DEPRECATED_CLIENTS.has(ct)) {
         const oldProgram = program
-        program = 'claude'
-        ops.push(`G02: Program "${oldProgram}" maps to deprecated client "${ct}" — overridden to 'claude'`)
+        program = bestInstalledClient()
+        ops.push(`G02: Program "${oldProgram}" maps to deprecated client "${ct}" — fallback to '${program}'`)
+      } else if (!isInstalled(program)) {
+        const oldProgram = program
+        program = bestInstalledClient()
+        ops.push(`G02: Program "${oldProgram}" not installed — fallback to '${program}'`)
       } else {
-        ops.push(`G02: Program set to '${program}' (explicit)`)
+        ops.push(`G02: Program set to '${program}' (explicit, verified installed)`)
       }
     } else {
-      // No client, no program — default to claude
-      program = 'claude'
-      ops.push(`G02: No client/program specified — defaulting to 'claude'`)
+      program = bestInstalledClient()
+      ops.push(`G02: No client/program specified — defaulting to '${program}' (best installed)`)
     }
 
     // ── G03: Resolve working directory ───────────────────────

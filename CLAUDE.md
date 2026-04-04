@@ -1198,7 +1198,36 @@ Two test scripts exist for validating the Agent Messaging Protocol:
 
 **Prerequisites:** AI Maestro running on localhost:23000, jq installed, AMP scripts installed (`./install-messaging.sh -y`).
 
-**No other automated tests yet.** Phase 1 focuses on getting the core working.
+### UI Scenario Tests
+
+Browser-based UI scenario tests that verify end-to-end workflows through Chrome DevTools Protocol (CDP).
+
+**Rules & Format:** `tests/scenarios/SCENARIOS_TESTS_RULES.md` — 9 mandatory rules including CLEAN-AFTER-YOURSELF (cleanup), 0-IMPACT (don't touch user data), STATE-WIPE (backup/restore configs), FIX-AS-YOU-GO (fix bugs immediately during test), STICK-TO-UI (never bypass the browser).
+
+**Scenarios:**
+
+| # | File | Steps | Tests |
+|---|------|-------|-------|
+| SCEN-001 | `tests/scenarios/SCEN-001_title-change-lifecycle.scen.md` | 33 | ChangeTitle pipeline, plugin swap, singleton enforcement |
+| SCEN-002 | `tests/scenarios/SCEN-002_teams-groups-agents.scen.md` | 53 | Team CRUD, title auto-assignment, COS, orchestrator |
+| SCEN-003 | `tests/scenarios/SCEN-003_agent-creation-wizard.scen.md` | 40 | Agent wizard with INTEGRATOR, MEMBER, plugin enforcement |
+
+**Running a scenario:** Say "run scenario 1" (or 2 or 3). The scenario file is read and executed step-by-step via Chrome CDP. Reports are saved to `tests/scenarios/reports/`, screenshots to `tests/scenarios/screenshots/SCEN-NNN/`.
+
+**Prerequisites:** AI Maestro server running, Chrome browser open with DevTools accessible, governance password set.
+
+### Element Management Service
+
+All plugin/element/agent-property mutations go through `services/element-management-service.ts`. This is the centralized gateway — no other code may directly write to `enabledPlugins`, call `claude plugin` CLI, or delete element files.
+
+**Key functions:**
+- `ChangeTitle(agentId, newTitle)` — 23-gate pipeline for governance title lifecycle
+- `ChangePlugin(agentId, desired)` — 13-gate pipeline for plugin install/uninstall/enable/disable
+- `ChangeSkill`, `ChangeAgentDef`, `ChangeCommand`, `ChangeRule`, `ChangeOutputStyle`, `ChangeMCP`, `ChangeLSP`, `ChangeHook` — Element-specific pipelines
+- `ChangeTeam(agentId, desired)` — Team membership with auto-title transitions
+- `ChangeName`, `ChangeFolder`, `ChangeAvatar`, `ChangeCLIArgs` — Agent property pipelines
+
+The PATCH `/api/agents/{id}` route is a router that dispatches to the appropriate Change* function based on which fields are in the body.
 
 ## Documentation References
 

@@ -1044,20 +1044,15 @@ function RolePluginPickerWidget({
         </button>
       ))}
 
-      {/* No custom plugins available (AUTONOMOUS title) */}
-      {plugins.length === 0 && selectedTitle !== 'member' && (
-        <div className="px-1">
-          <p className="text-xs text-gray-500 mb-2">
-            No custom plugins available for this title yet.
-          </p>
-          <button
-            onClick={() => onSelect(null)}
-            className="w-full text-left px-3 py-2.5 rounded-lg bg-gray-800/80 border border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all text-sm"
-          >
-            <div className="font-medium text-gray-200">No plugin (bare agent)</div>
-            <div className="text-xs text-gray-500">Start without a role plugin</div>
-          </button>
-        </div>
+      {/* Always show "No plugin" option — agents don't require a role-plugin */}
+      {selectedTitle !== 'member' && (
+        <button
+          onClick={() => onSelect(null)}
+          className="w-full text-left px-3 py-2.5 rounded-lg bg-gray-800/80 border border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all text-sm"
+        >
+          <div className="font-medium text-gray-200">No plugin (bare agent)</div>
+          <div className="text-xs text-gray-500">Start without a role plugin</div>
+        </button>
       )}
     </div>
   )

@@ -71,3 +71,29 @@ export function broadcastStatusUpdate(sessionName, status, hookStatus, notificat
     _onStatusUpdate(sessionName, status, hookStatus, notificationType)
   }
 }
+
+/**
+ * Broadcast a governance update to all /status WebSocket subscribers.
+ * ISSUE-001: Enables instant UI refresh when governance titles change.
+ * NT-039 SYNC: must mirror shared-state.ts
+ */
+export function broadcastGovernanceUpdate(agentId, newTitle) {
+  const message = JSON.stringify({
+    type: 'governance_update',
+    agentId,
+    newTitle,
+    timestamp: new Date().toISOString()
+  })
+
+  const dead = []
+  statusSubscribers.forEach(ws => {
+    if (ws.readyState === 1) { // WebSocket.OPEN
+      ws.send(message)
+    } else {
+      dead.push(ws)
+    }
+  })
+  for (const ws of dead) {
+    statusSubscribers.delete(ws)
+  }
+}

@@ -930,6 +930,13 @@ export async function ChangeTitle(
 
     result.success = true
     console.log(`[ChangeTitle] Agent ${agentId} "${agent.name}": ${oldTitle || 'none'} → ${newTitle || 'none'} (${ops.length} gates, restart=${result.restartNeeded})`)
+
+    // ISSUE-001: Broadcast governance update so UI refreshes instantly
+    try {
+      const { broadcastGovernanceUpdate } = await import('@/services/shared-state')
+      broadcastGovernanceUpdate(agentId, newTitle)
+    } catch { /* non-fatal — UI will still catch up via 10s poll */ }
+
     return result
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err)

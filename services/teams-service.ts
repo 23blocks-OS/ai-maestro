@@ -203,6 +203,23 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
       }
     }
 
+    // BUG-002 FIX: Auto-title all agents added to the team as MEMBER.
+    // Without this, agents stay AUTONOMOUS after team creation.
+    // Exclude COS (already titled above) and MANAGER (title must not change).
+    const managerId2 = getManagerId()
+    const agentIdsToTitle = (team.agentIds || []).filter(
+      (id: string) => id !== params.chiefOfStaffId && id !== managerId2
+    )
+    for (const id of agentIdsToTitle) {
+      try {
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        await ChangeTitle(id, 'member')
+      } catch (err) {
+        // Non-blocking — team creation succeeds even if individual title assignment fails
+        console.warn(`[teams] Failed ChangeTitle to MEMBER for agent ${id}:`, err instanceof Error ? err.message : err)
+      }
+    }
+
     // Flag if team still needs a COS
     const needsChiefOfStaff = !team.chiefOfStaffId
     return { data: { team, needsChiefOfStaff }, status: 201 }

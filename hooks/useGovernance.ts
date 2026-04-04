@@ -207,12 +207,33 @@ export function useGovernance(agentId: string | null): GovernanceState {
         refresh(pollController.signal)
       }
     }, 10_000)
+
+    // ISSUE-001: Subscribe to /status WebSocket for instant governance_update refresh.
+    // This avoids the 10s poll delay when titles change via the API.
+    let ws: WebSocket | null = null
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      ws = new WebSocket(`${protocol}//${window.location.host}/status`)
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === 'governance_update' && isMountedRef.current) {
+            // Immediate refresh — governance title changed server-side
+            const wsAbort = new AbortController()
+            refresh(wsAbort.signal)
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      ws.onerror = () => { /* non-fatal — 10s poll remains as fallback */ }
+    } catch { /* WebSocket creation failed — poll fallback covers it */ }
+
     return () => {
       clearInterval(interval)
       controller.abort()
       pollController?.abort() // Abort any in-flight poll fetch
       // SF-040: Also abort any in-flight mutation-triggered refreshes
       mutationAbortRef.current?.abort()
+      if (ws) ws.close()
       isMountedRef.current = false // SF-023: Prevent state updates after unmount
     }
   }, [agentId, refresh])

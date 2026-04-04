@@ -85,18 +85,18 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     rules: false, commands: true, mcpServers: true, lspServers: false, rolePlugins: false,
     configFile: 'GEMINI.md',
     skillPaths: { project: '.gemini/skills', user: '~/.gemini/skills' },
-    // Verified from: gemini --help
+    // Verified from: gemini --help + geminicli.com/docs/cli/system-prompt
     cli: {
       binary: 'gemini',
       resume: '-r latest',            // --resume latest
       skipPermissions: '-y',          // --yolo mode (auto-approve all)
-      useAgent: '',                   // no --agent flag — uses extensions instead
+      useAgent: '',                   // no --agent flag — use GEMINI_SYSTEM_MD env var instead
       exit: '/exit',
       compact: '/compact',
       clearLine: 'C-u',
       cancel: 'C-c',
       update: 'npm update -g @anthropic-ai/gemini-cli',
-      envVars: {},
+      envVars: {},                    // GEMINI_SYSTEM_MD=/path/to/agent.md added dynamically by launch builder
       noAltScreen: '',
     },
   },

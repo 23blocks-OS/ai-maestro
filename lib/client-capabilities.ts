@@ -1,10 +1,13 @@
 /**
  * Client type detection and capability mapping.
- * Different AI clients (Claude, Codex, Gemini, Aider) support different features.
+ * Different AI coding clients support different features.
  * The profile panel adapts its visible sections based on client capabilities.
+ *
+ * Supported (converter + tmux launch): claude, codex, gemini, opencode, kiro
+ * Deprecated: aider (kept for backward compat, CreateAgent will auto-fallback)
  */
 
-export type ClientType = 'claude' | 'codex' | 'gemini' | 'aider' | 'opencode' | 'unknown'
+export type ClientType = 'claude' | 'codex' | 'gemini' | 'opencode' | 'kiro' | 'aider' | 'unknown'
 
 export interface ClientCapabilities {
   skills: boolean
@@ -53,6 +56,12 @@ const CAPABILITIES: Record<ClientType, ClientCapabilities> = {
     configFile: 'AGENTS.md',
     skillPaths: { project: '.opencode/skills', user: '~/.opencode/skills' },
   },
+  kiro: {
+    skills: true, plugins: false, agents: true, hooks: true,
+    rules: false, commands: false, mcpServers: true, lspServers: false, rolePlugins: false,
+    configFile: '.kiro/settings.json',
+    skillPaths: { project: '.kiro/skills', user: '~/.kiro/skills' },
+  },
   unknown: {
     skills: true, plugins: false, agents: false, hooks: false,
     rules: false, commands: false, mcpServers: false, lspServers: false, rolePlugins: false,
@@ -68,8 +77,9 @@ export function detectClientType(program: string): ClientType {
   if (p.includes('claude')) return 'claude'
   if (p.includes('codex')) return 'codex'
   if (p.includes('gemini')) return 'gemini'
-  if (p.includes('aider')) return 'aider'
   if (p.includes('opencode')) return 'opencode'
+  if (p.includes('kiro')) return 'kiro'
+  if (p.includes('aider')) return 'aider'  // deprecated — kept for backward compat
   return 'unknown'
 }
 
@@ -107,8 +117,9 @@ export function clientTypeLabel(clientType: ClientType): string {
     claude: 'Claude Code',
     codex: 'Codex CLI',
     gemini: 'Gemini CLI',
-    aider: 'Aider',
     opencode: 'OpenCode',
+    kiro: 'Kiro',
+    aider: 'Aider (deprecated)',
     unknown: 'Unknown',
   }
   return labels[clientType]

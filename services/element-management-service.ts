@@ -2306,14 +2306,16 @@ export async function CreateAgent(
     // ── G02: Infer client/program (smart, with deprecated client handling) ──
     // Supported clients ranked by capability (tiebreaker when counts are equal)
     // Order: plugin support, tool use, context window, ecosystem maturity
-    const CLIENT_POWER_RANK: string[] = ['claude', 'codex', 'gemini', 'opencode']
+    // Power rank: plugin support, tool use, context window, ecosystem maturity
+    const CLIENT_POWER_RANK: string[] = ['claude', 'codex', 'gemini', 'kiro', 'opencode']
     const SUPPORTED_CLIENTS: Record<string, string> = {
       claude: 'claude',
       codex: 'codex',
       gemini: 'gemini',
+      kiro: 'kiro',
       opencode: 'opencode',
     }
-    const DEPRECATED_CLIENTS = new Set(['aider', 'kiro'])
+    const DEPRECATED_CLIENTS = new Set(['aider'])
 
     // Check if a CLI binary is installed on the system
     const { execFileSync } = await import('child_process')

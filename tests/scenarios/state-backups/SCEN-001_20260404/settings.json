@@ -1,0 +1,1815 @@
+{
+  "cleanupPeriodDays": 90,
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "1800000",
+    "BASH_MAX_TIMEOUT_MS": "1800000",
+    "MCP_TIMEOUT": "1800000",
+    "MCP_TOOL_TIMEOUT": "1800000",
+    "ENABLE_BACKGROUND_TASKS": "1",
+    "FORCE_AUTO_BACKGROUND_TASKS": "0",
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1",
+    "MAX_MCP_OUTPUT_TOKENS": "35000",
+    "CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION": "false",
+    "ENABLE_TOOL_SEARCH": "1",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "90",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(./config/credentials.json)",
+      "Read(./.keys)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/on-file-write.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/git_safety_guard.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/dist/tldr-read-enforcer.mjs",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/dist/tldr-context-inject.mjs",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/dist/arch-context-inject.mjs",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/dist/session-start-tldr-cache.mjs",
+            "timeout": 2
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt|permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:3333/api/session-stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:3333/api/session-start",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/emanuelesabetta/ai-maestro/scripts/claude-hooks/ai-maestro-hook.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /Users/emanuelesabetta/.claude/statusline.sh"
+  },
+  "enabledPlugins": {
+    "claude-code-settings@claude-code-settings": false,
+    "context7-docs-fetcher@awesome-claude-code-plugins": true,
+    "nanobanana-skill@claude-code-settings": false,
+    "frontend-design@claude-plugins-official": false,
+    "plugin-dev@claude-plugins-official": true,
+    "greptile@claude-plugins-official": false,
+    "playwright@claude-plugins-official": false,
+    "serena@claude-plugins-official": true,
+    "apple-platform-build-tools@apple-platform-build-tools": false,
+    "deployment-engineer@awesome-claude-code-plugins": false,
+    "mobile-app-builder@awesome-claude-code-plugins": false,
+    "device-screenshot@claude-dev-skills": true,
+    "swiftui-developer@skills-marketplace": false,
+    "design-skills@GhostScientist-skills": false,
+    "nano-banana-illustrator@claude-skills": false,
+    "axiom@axiom-marketplace": false,
+    "mobile-app-builder@cc-marketplace": false,
+    "research-skills@GhostScientist-skills": false,
+    "claude-plugin@geoffjay-claude-plugins": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "csharp-lsp@claude-plugins-official": false,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "jdtls-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "multi-platform-apps@claude-code-workflows": false,
+    "claude-md-management@claude-plugins-official": true,
+    "playground@claude-plugins-official": false,
+    "perfect-skill-suggester@emasoft-plugins": true,
+    "claude-plugins-validation@emasoft-plugins": true,
+    "emasoft-chat-history@emasoft-plugins": true,
+    "grepika@agentika-marketplace": true,
+    "python-uv@skills-marketplace": true,
+    "safe-rm@skills-marketplace": true,
+    "skill-creator@skills-marketplace": false,
+    "typescript-advanced-types@skills-marketplace": true,
+    "verify-known-issues@skills-marketplace": false,
+    "wget-reader@skills-marketplace": true,
+    "ui-design@claude-code-workflows": false,
+    "code-auditor-agent@emasoft-plugins": true,
+    "all-skills@buildwithclaude": false,
+    "agents-data-ai@buildwithclaude": false,
+    "agents-design-experience@buildwithclaude": false,
+    "agents-development-architecture@buildwithclaude": false,
+    "agents-infrastructure-operations@buildwithclaude": false,
+    "agents-language-specialists@buildwithclaude": false,
+    "agents-quality-security@buildwithclaude": false,
+    "agents-sales-marketing@buildwithclaude": false,
+    "agents-specialized-domains@buildwithclaude": false,
+    "commands-database-operations@buildwithclaude": false,
+    "commands-typescript-migration@buildwithclaude": false,
+    "nextjs-expert@buildwithclaude": false,
+    "cc-plugin-viz@uhyunpark-plugins": true,
+    "interstat@interagency-marketplace": false,
+    "token-reporter@emasoft-plugins": true,
+    "llm-externalizer@emasoft-plugins": true,
+    "visualize@careerhackeralex": true,
+    "stratarts@maigent": true,
+    "clean-viz@clean-viz-skill": true,
+    "rechecker-plugin@emasoft-plugins": true,
+    "chromedev-tools@kriscard": true,
+    "dev-browser@dev-browser-marketplace": true,
+    "change-journal@agentika-marketplace": false,
+    "clip@agentika-marketplace": false,
+    "web-automation-suite@web-automation-suite": true,
+    "eins78-skills@eins78-marketplace": true,
+    "webgpu-metal-debug-kit@webgpu-metal-debug-kit": true,
+    "codex@openai-codex": true,
+    "ai-maestro-plugin@ai-maestro-plugins": true,
+    "code-review@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "chrome-devtools-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "BACH-AI-Tools/chrome-devtools-mcp"
+      }
+    },
+    "context7-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "upstash/context7"
+      }
+    },
+    "taskmaster": {
+      "source": {
+        "source": "github",
+        "repo": "khulnasoft-bot/claude-task"
+      }
+    },
+    "repomix": {
+      "source": {
+        "source": "github",
+        "repo": "yamadashy/repomix"
+      }
+    },
+    "mcp-use": {
+      "source": {
+        "source": "github",
+        "repo": "mcp-use/mcp-use"
+      }
+    },
+    "firebase": {
+      "source": {
+        "source": "github",
+        "repo": "firebase/firebase-tools"
+      }
+    },
+    "spec-workflow-mcp-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "Pimzino/spec-workflow-mcp"
+      }
+    },
+    "exa-mcp-server": {
+      "source": {
+        "source": "github",
+        "repo": "exa-labs/exa-mcp-server"
+      }
+    },
+    "trailofbits": {
+      "source": {
+        "source": "github",
+        "repo": "trailofbits/skills"
+      }
+    },
+    "n8n-mcp-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Gingi892/automation-shamai"
+      }
+    },
+    "perplexity-mcp-server": {
+      "source": {
+        "source": "github",
+        "repo": "perplexityai/modelcontextprotocol"
+      }
+    },
+    "microsoft-docs-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "MicrosoftDocs/mcp"
+      }
+    },
+    "awesome-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ComposioHQ/awesome-claude-plugins"
+      }
+    },
+    "jarrodwatts-claude-delegator": {
+      "source": {
+        "source": "github",
+        "repo": "MakFly/glm-delegator"
+      }
+    },
+    "cc-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "ananddtyagi/claude-code-marketplace"
+      }
+    },
+    "sentry-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "getsentry/sentry-mcp"
+      }
+    },
+    "awesome-claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ccplugins/awesome-claude-code-plugins"
+      }
+    },
+    "mcp-apps": {
+      "source": {
+        "source": "github",
+        "repo": "modelcontextprotocol/ext-apps"
+      }
+    },
+    "claude-settings": {
+      "source": {
+        "source": "github",
+        "repo": "fcakyon/claude-codex-settings"
+      }
+    },
+    "context-engineering-kit": {
+      "source": {
+        "source": "github",
+        "repo": "NeoLabHQ/context-engineering-kit"
+      }
+    },
+    "cloudshipai-station": {
+      "source": {
+        "source": "github",
+        "repo": "cloudshipai/station"
+      }
+    },
+    "mintlify-workflows": {
+      "source": {
+        "source": "github",
+        "repo": "mintlify/docs"
+      }
+    },
+    "jezweb-skills": {
+      "source": {
+        "source": "github",
+        "repo": "jezweb/claude-skills"
+      }
+    },
+    "life-sciences": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/life-sciences"
+      }
+    },
+    "aws-skills": {
+      "source": {
+        "source": "github",
+        "repo": "zxkane/aws-skills"
+      }
+    },
+    "dex": {
+      "source": {
+        "source": "github",
+        "repo": "dcramer/dex"
+      }
+    },
+    "svelte": {
+      "source": {
+        "source": "github",
+        "repo": "sveltejs/mcp"
+      }
+    },
+    "task-orchestrator-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "Angriff36/Capsule"
+      }
+    },
+    "mhattingpete-claude-skills": {
+      "source": {
+        "source": "github",
+        "repo": "mhattingpete/claude-skills-marketplace"
+      }
+    },
+    "tabzchrome-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "GGPrompts/TabzChrome"
+      }
+    },
+    "ai-launchpad": {
+      "source": {
+        "source": "github",
+        "repo": "kenneth-liao/ai-launchpad-marketplace"
+      }
+    },
+    "mcp-voice-hooks-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "johnmatthewtennant/mcp-voice-hooks"
+      }
+    },
+    "full-stack-skills": {
+      "source": {
+        "source": "github",
+        "repo": "partme-ai/full-stack-skills"
+      }
+    },
+    "neon": {
+      "source": {
+        "source": "github",
+        "repo": "neondatabase/ai-rules"
+      }
+    },
+    "han": {
+      "source": {
+        "source": "github",
+        "repo": "TheBushidoCollective/han"
+      }
+    },
+    "remix-icon-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "Remix-Design/RemixIcon-MCP"
+      }
+    },
+    "ipybox": {
+      "source": {
+        "source": "github",
+        "repo": "gradion-ai/ipybox"
+      }
+    },
+    "agent-security": {
+      "source": {
+        "source": "github",
+        "repo": "mintmcp/agent-security"
+      }
+    },
+    "freee-api-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "him0/freee-mcp"
+      }
+    },
+    "orchestkit": {
+      "source": {
+        "source": "github",
+        "repo": "yonatangross/orchestkit"
+      }
+    },
+    "claude-skills": {
+      "source": {
+        "source": "github",
+        "repo": "secondsky/claude-skills"
+      }
+    },
+    "verygoodplugins-mcp-automem": {
+      "source": {
+        "source": "github",
+        "repo": "verygoodplugins/mcp-automem"
+      }
+    },
+    "superclaude": {
+      "source": {
+        "source": "github",
+        "repo": "SuperClaude-Org/SuperClaude_Plugin"
+      }
+    },
+    "cem-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "bennypowers/cem"
+      }
+    },
+    "claude-mermaid": {
+      "source": {
+        "source": "github",
+        "repo": "veelenga/claude-mermaid"
+      }
+    },
+    "flux": {
+      "source": {
+        "source": "github",
+        "repo": "sirsjg/flux"
+      }
+    },
+    "mcp-chrome-tabs": {
+      "source": {
+        "source": "github",
+        "repo": "pokutuna/mcp-chrome-tabs"
+      }
+    },
+    "luminary-lane-tools": {
+      "source": {
+        "source": "github",
+        "repo": "raveenb/fal-mcp-server"
+      }
+    },
+    "prefect": {
+      "source": {
+        "source": "github",
+        "repo": "PrefectHQ/prefect-mcp-server"
+      }
+    },
+    "melodic-software": {
+      "source": {
+        "source": "github",
+        "repo": "melodic-software/claude-code-plugins"
+      }
+    },
+    "claude-code-plugins-dev": {
+      "source": {
+        "source": "github",
+        "repo": "charlesjones-dev/claude-code-plugins-dev"
+      }
+    },
+    "cc_chrome_devtools_mcp_skill-plugin-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "justfinethanku/cc_chrome_devtools_mcp_skill"
+      }
+    },
+    "toolscript": {
+      "source": {
+        "source": "github",
+        "repo": "mKeRix/toolscript"
+      }
+    },
+    "netresearch-claude-code-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "netresearch/claude-code-marketplace"
+      }
+    },
+    "wookstar-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "henkisdabro/claudecode-marketplace"
+      }
+    },
+    "ralph-wiggum": {
+      "source": {
+        "source": "github",
+        "repo": "hmemcpy/ralph-wiggum"
+      }
+    },
+    "kazuph-dotfiles": {
+      "source": {
+        "source": "github",
+        "repo": "kazuph/dotfiles"
+      }
+    },
+    "claudesmith-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "JNLei/claude-tools"
+      }
+    },
+    "docker": {
+      "source": {
+        "source": "github",
+        "repo": "docker/claude-plugins"
+      }
+    },
+    "lunar-claude": {
+      "source": {
+        "source": "github",
+        "repo": "basher83/lunar-claude"
+      }
+    },
+    "claude-ruby-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "hoblin/claude-ruby-marketplace"
+      }
+    },
+    "miro-ai": {
+      "source": {
+        "source": "github",
+        "repo": "miroapp/miro-ai"
+      }
+    },
+    "rtfd-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "aserper/RTFD"
+      }
+    },
+    "unity-mcp-server": {
+      "source": {
+        "source": "github",
+        "repo": "akiojin/unity-mcp-server"
+      }
+    },
+    "whatsappme": {
+      "source": {
+        "source": "github",
+        "repo": "AsharibAli/whatsapp-me"
+      }
+    },
+    "swe-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "andisab/swe-marketplace"
+      }
+    },
+    "multi_mcp": {
+      "source": {
+        "source": "github",
+        "repo": "religa/multi_mcp"
+      }
+    },
+    "ubrowser-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "Lulzx/ubrowser"
+      }
+    },
+    "meta-skills-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "nemori-ai/skills"
+      }
+    },
+    "draw-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "ekusiadadus/draw-mcp"
+      }
+    },
+    "convex-visual-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "waynesutton/convex-mcp-visual"
+      }
+    },
+    "claude-code-toolkit": {
+      "source": {
+        "source": "github",
+        "repo": "spences10/claude-code-toolkit"
+      }
+    },
+    "claude-plugin-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "JosiahSiegel/claude-code-marketplace"
+      }
+    },
+    "sangkwun": {
+      "source": {
+        "source": "github",
+        "repo": "Sangkwun/sandy"
+      }
+    },
+    "mcp-tasks": {
+      "source": {
+        "source": "github",
+        "repo": "hugoduncan/mcp-tasks"
+      }
+    },
+    "gitlab-mr-review-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "Synaps-Squad/gitlab-mr-mcp"
+      }
+    },
+    "claude-memory-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "codenamev/claude_memory"
+      }
+    },
+    "arvindand-skills": {
+      "source": {
+        "source": "github",
+        "repo": "arvindand/agent-skills"
+      }
+    },
+    "laurigates-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "laurigates/claude-plugins"
+      }
+    },
+    "flow-state": {
+      "source": {
+        "source": "github",
+        "repo": "vre/flow-state"
+      }
+    },
+    "gm": {
+      "source": {
+        "source": "github",
+        "repo": "AnEntrypoint/glootie-cc"
+      }
+    },
+    "oh-my-claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "huangdijia/oh-my-claude-code-plugins"
+      }
+    },
+    "sinch": {
+      "source": {
+        "source": "github",
+        "repo": "sinch/sinch-plugins"
+      }
+    },
+    "claude-at-proto-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "johnwhiteside/claude-at-proto-plugins"
+      }
+    },
+    "anysite-skills-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "anysiteio/agent-skills"
+      }
+    },
+    "anysite-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anysiteio/cookbook"
+      }
+    },
+    "agents-skills-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "EricGrill/agents-skills-plugins"
+      }
+    },
+    "atr-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "imyousuf/agentic-test-runner"
+      }
+    },
+    "media-pipeline-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "guinacio/claude-image-gen"
+      }
+    },
+    "sanzaru-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "TJC-LP/sanzaru"
+      }
+    },
+    "constellos-local": {
+      "source": {
+        "source": "github",
+        "repo": "constellos/claude-code-plugins"
+      }
+    },
+    "doc-manager-suite": {
+      "source": {
+        "source": "github",
+        "repo": "ari1110/doc-manager-mcp"
+      }
+    },
+    "fastmcp-builder-skill": {
+      "source": {
+        "source": "github",
+        "repo": "husniadil/fastmcp-builder"
+      }
+    },
+    "oliphant-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "JoshuaOliphant/claude-plugins"
+      }
+    },
+    "colliery-io-metis": {
+      "source": {
+        "source": "github",
+        "repo": "colliery-io/metis"
+      }
+    },
+    "clockwork-mcp-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "fridzema/clockwork-mcp"
+      }
+    },
+    "apple-notes-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "sweetrb/apple-notes-mcp"
+      }
+    },
+    "xiaolai": {
+      "source": {
+        "source": "github",
+        "repo": "xiaolai/codex-toolkit-for-claude"
+      }
+    },
+    "adspirer-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "amekala/ads-mcp"
+      }
+    },
+    "mcp-skills-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ulasbilgen/mcp-skills-plugins"
+      }
+    },
+    "claude-journal-dev": {
+      "source": {
+        "source": "github",
+        "repo": "chrismbryant/claude-journal-mcp"
+      }
+    },
+    "workbench": {
+      "source": {
+        "source": "github",
+        "repo": "cameronsjo/claude-marketplace"
+      }
+    },
+    "agnt-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "standardbeagle/agnt"
+      }
+    },
+    "my-claude-code-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "irfansofyana/my-claude-code-marketplace"
+      }
+    },
+    "ccc": {
+      "source": {
+        "source": "github",
+        "repo": "trancong12102/ccc"
+      }
+    },
+    "claude-code-graphite": {
+      "source": {
+        "source": "github",
+        "repo": "georgeguimaraes/claude-code-graphite"
+      }
+    },
+    "claude-1337": {
+      "source": {
+        "source": "github",
+        "repo": "yzavyas/claude-1337"
+      }
+    },
+    "forgetful-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ScottRBK/forgetful-plugin"
+      }
+    },
+    "mira": {
+      "source": {
+        "source": "github",
+        "repo": "ConaryLabs/Mira"
+      }
+    },
+    "ttt-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "wayne930242/team-toon-tack"
+      }
+    },
+    "john-claude-skills": {
+      "source": {
+        "source": "github",
+        "repo": "jbdamask/john-claude-skills"
+      }
+    },
+    "shopware-ai-coding-tools": {
+      "source": {
+        "source": "github",
+        "repo": "shopwareLabs/claude-code-plugins"
+      }
+    },
+    "claude-skills-engineering": {
+      "source": {
+        "source": "github",
+        "repo": "djacobsmeyer/claude-skills-engineering"
+      }
+    },
+    "mcp-fortress": {
+      "source": {
+        "source": "github",
+        "repo": "mcp-fortress/mcp-fortress"
+      }
+    },
+    "pleaseai": {
+      "source": {
+        "source": "github",
+        "repo": "pleaseai/claude-code-plugins"
+      }
+    },
+    "security-compliance-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "diegocconsolini/ClaudeSkillCollection"
+      }
+    },
+    "my-gg-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "GGPrompts/my-gg-plugins"
+      }
+    },
+    "ce-dot-net-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "ce-dot-net/ce-claude-marketplace"
+      }
+    },
+    "rookie-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "ClementWalter/rookie-marketplace"
+      }
+    },
+    "open-horizon-labs": {
+      "source": {
+        "source": "github",
+        "repo": "cloud-atlas-ai/bottle"
+      }
+    },
+    "awesome-claude-skills": {
+      "source": {
+        "source": "github",
+        "repo": "QuyDatSadBoy/Agent-skill"
+      }
+    },
+    "copilot-flow": {
+      "source": {
+        "source": "github",
+        "repo": "Aykahshi/copilot-mcp-tool"
+      }
+    },
+    "qazi0-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "qazi0/claude-plugins"
+      }
+    },
+    "librarian": {
+      "source": {
+        "source": "github",
+        "repo": "telvokdev/librarian"
+      }
+    },
+    "catenary": {
+      "source": {
+        "source": "github",
+        "repo": "MarkWells-Dev/Catenary"
+      }
+    },
+    "hal-9000": {
+      "source": {
+        "source": "github",
+        "repo": "Hellblazer/hal-9000"
+      }
+    },
+    "marketplace-claude": {
+      "source": {
+        "source": "github",
+        "repo": "kjgarza/marketplace-claude"
+      }
+    },
+    "ai-dev-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "vanman2024/ai-dev-marketplace"
+      }
+    },
+    "coderabbit-fix-flow-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "alchemiststudiosDOTai/coderabbit-fix-flow-plugin"
+      }
+    },
+    "pair-review": {
+      "source": {
+        "source": "github",
+        "repo": "in-the-loop-labs/pair-review"
+      }
+    },
+    "clix-mcp-server": {
+      "source": {
+        "source": "github",
+        "repo": "clix-so/clix-mcp-server"
+      }
+    },
+    "mcp-vector-search-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "hugoduncan/mcp-vector-search"
+      }
+    },
+    "claude-code-template": {
+      "source": {
+        "source": "github",
+        "repo": "rikdc/claude_code_template"
+      }
+    },
+    "devsolo-tools": {
+      "source": {
+        "source": "github",
+        "repo": "slamb2k/devsolo"
+      }
+    },
+    "leapmultix-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "jls42/leapmultix"
+      }
+    },
+    "mcp-code-execution-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "bjoernbethge/mcp-code-execution"
+      }
+    },
+    "neurosift-mcps": {
+      "source": {
+        "source": "github",
+        "repo": "magland/neurosift-mcps"
+      }
+    },
+    "superclaude-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "caiomioto2/SuperClaude_MarketplacePlugin"
+      }
+    },
+    "claude-code-plugin-automations": {
+      "source": {
+        "source": "github",
+        "repo": "C0ntr0lledCha0s/claude-code-plugin-automations"
+      }
+    },
+    "fx-cc": {
+      "source": {
+        "source": "github",
+        "repo": "fx/cc"
+      }
+    },
+    "pickled-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "technicalpickles/pickled-claude-plugins"
+      }
+    },
+    "oh-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "cloud-atlas-ai/oh-mcp-server"
+      }
+    },
+    "my-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "dkmaker/my-claude-plugins"
+      }
+    },
+    "kreatsaas-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "johunsang/kreatsaas"
+      }
+    },
+    "synthetic-claude": {
+      "source": {
+        "source": "github",
+        "repo": "hongbietcode/synthetic-claude"
+      }
+    },
+    "telecom-ops-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "thc1006/telecom-ops-claude-code-plugins"
+      }
+    },
+    "cattoolkit": {
+      "source": {
+        "source": "github",
+        "repo": "Git-Fg/thecattoolkit"
+      }
+    },
+    "withqwerty": {
+      "source": {
+        "source": "github",
+        "repo": "rahulkeerthi/expo-toolkit"
+      }
+    },
+    "corgi-hub-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "captain-corgi/marketplace"
+      }
+    },
+    "julia-tools": {
+      "source": {
+        "source": "github",
+        "repo": "samtalki/AgentREPL.jl"
+      }
+    },
+    "claude-toymarket": {
+      "source": {
+        "source": "github",
+        "repo": "wonjiko/claude-toymarket"
+      }
+    },
+    "my-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "GGPrompts/my-plugins"
+      }
+    },
+    "dev-lifecycle-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "vanman2024/dev-lifecycle-marketplace"
+      }
+    },
+    "essdive-mcp-skills": {
+      "source": {
+        "source": "github",
+        "repo": "ess-dive/essdive-mcp"
+      }
+    },
+    "alliance-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "alliance-genome/agr_claude_code"
+      }
+    },
+    "mcp-debugger": {
+      "source": {
+        "source": "github",
+        "repo": "bherbruck/mcp-debugger"
+      }
+    },
+    "anomalyarmor": {
+      "source": {
+        "source": "github",
+        "repo": "anomalyarmor/agents"
+      }
+    },
+    "claudex": {
+      "source": {
+        "source": "github",
+        "repo": "cskiro/claudex"
+      }
+    },
+    "aaronmaturen-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "aaronmaturen/claude-plugin"
+      }
+    },
+    "dreamwalker-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "lukeslp/mcp-dreamwalker"
+      }
+    },
+    "ai-agent-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "takemi-ohama/ai-agent-marketplace"
+      }
+    },
+    "brandcast-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "BrandCast-Signage/brandcast-plugins"
+      }
+    },
+    "agent-orchestrator-framework": {
+      "source": {
+        "source": "github",
+        "repo": "rawe/claude-agent-orchestrator"
+      }
+    },
+    "devstefancho-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "devstefancho/claude-plugins"
+      }
+    },
+    "velikodnys-claude-code": {
+      "source": {
+        "source": "github",
+        "repo": "vvelikodny/velikodnys-claude-code"
+      }
+    },
+    "dnlopes": {
+      "source": {
+        "source": "github",
+        "repo": "dnlopes/claude-code-plugins"
+      }
+    },
+    "okx-trader-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "destinydesigner/okxapi-claude-plugin"
+      }
+    },
+    "mcfearsome-cc-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "mcfearsome/cc-marketplace"
+      }
+    },
+    "product-forge-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "jpoutrin/product-forge"
+      }
+    },
+    "claude-mkt": {
+      "source": {
+        "source": "github",
+        "repo": "phaezer/claude-mkt"
+      }
+    },
+    "jot-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "veelenga/jot-mcp"
+      }
+    },
+    "claude-foundry": {
+      "source": {
+        "source": "github",
+        "repo": "tylerburleigh/claude-foundry"
+      }
+    },
+    "slamb2k-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "slamb2k/mad-skills"
+      }
+    },
+    "musora-engineering": {
+      "source": {
+        "source": "github",
+        "repo": "railroadmedia/claude-code-plugin-marketplace"
+      }
+    },
+    "claude-code-repoprompt-codex-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "GantisStorm/claude-code-repoprompt-codex-plugins"
+      }
+    },
+    "claude-code-apex-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "JesseHenson/claude_code_apex_marketplace"
+      }
+    },
+    "mcp-servers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "vanman2024/mcp-servers-marketplace"
+      }
+    },
+    "jawhny-cooke-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "jawhnycooke/claude-plugins"
+      }
+    },
+    "RedJayMarketing": {
+      "source": {
+        "source": "github",
+        "repo": "JoshuaRamirez/ms-ado-claude-code-plugin"
+      }
+    },
+    "beads-skill": {
+      "source": {
+        "source": "github",
+        "repo": "chrisvaillancourt/beads-skill"
+      }
+    },
+    "claude-mem0-project-memory": {
+      "source": {
+        "source": "github",
+        "repo": "evgenygurin/claude-mem0-project-memory"
+      }
+    },
+    "serena-refactor-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "chkim-su/serena-refactor"
+      }
+    },
+    "grok-mcp-dev": {
+      "source": {
+        "source": "github",
+        "repo": "mortenbrudvik/ClaudeGrokMcp"
+      }
+    },
+    "pnl-dev-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "wakanachan/preferred-natural-language"
+      }
+    },
+    "mac-skills": {
+      "source": {
+        "source": "github",
+        "repo": "macnversion/skills"
+      }
+    },
+    "cc_win_marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "dsodol/cc_win_marketplace"
+      }
+    },
+    "fieldkit": {
+      "source": {
+        "source": "github",
+        "repo": "ken-cavanagh-glean/fieldkit"
+      }
+    },
+    "minukHwang-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "minukHwang/claude-plugins"
+      }
+    },
+    "claude-code-ccf-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "ccf/claude-code-ccf-marketplace"
+      }
+    },
+    "buddy-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "qik/buddy-plugin-marketplace"
+      }
+    },
+    "drizzle-cube-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "cliftonc/drizzle-cube-plugin"
+      }
+    },
+    "oneq-skills": {
+      "source": {
+        "source": "github",
+        "repo": "oneqmethod/skills"
+      }
+    },
+    "etribe": {
+      "source": {
+        "source": "github",
+        "repo": "wishdevs/wishdev-marketplace"
+      }
+    },
+    "naw3-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Naw3/skillsrepo"
+      }
+    },
+    "thomas-rohde-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ThomasRohde/marketplace"
+      }
+    },
+    "teslasoft-skills": {
+      "source": {
+        "source": "github",
+        "repo": "teslasoft-de/claude-skills-marketplace"
+      }
+    },
+    "claudeskillz": {
+      "source": {
+        "source": "github",
+        "repo": "tsilva/claude-skills"
+      }
+    },
+    "milo-claudekit": {
+      "source": {
+        "source": "github",
+        "repo": "Michael0520/milo-claudekit"
+      }
+    },
+    "sen-claude-hub": {
+      "source": {
+        "source": "github",
+        "repo": "sancodeee/sen-claude-hub"
+      }
+    },
+    "photo-mcp-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "jsemldonado/photo-mcp"
+      }
+    },
+    "tubone24-claude-code-settings": {
+      "source": {
+        "source": "github",
+        "repo": "tubone24/claude-code-settings"
+      }
+    },
+    "vrshn-claude-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "HarieshVarshan/Vrshn-Claude-Marketplace"
+      }
+    },
+    "mcplite": {
+      "source": {
+        "source": "github",
+        "repo": "daniel-ddtech/mcplite"
+      }
+    },
+    "zhumon-hubs": {
+      "source": {
+        "source": "github",
+        "repo": "ZhuMon/claude-code-hubs"
+      }
+    },
+    "expanly-claude-code-agents": {
+      "source": {
+        "source": "github",
+        "repo": "Expanly/expanly-claude-code-agents"
+      }
+    },
+    "otolab": {
+      "source": {
+        "source": "github",
+        "repo": "otolab/ai-agent-prompts"
+      }
+    },
+    "ccx-arsenal": {
+      "source": {
+        "source": "github",
+        "repo": "xmgrex/ccx-arsenal"
+      }
+    },
+    "omc-mcp-extension": {
+      "source": {
+        "source": "github",
+        "repo": "chlee1001/omc-mcp-extension"
+      }
+    },
+    "jasonhch-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "jason-hchsieh/marketplace"
+      }
+    },
+    "maude-claude-vunds-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "bennoloeffler/maude-claude-vunds-plugins"
+      }
+    },
+    "taisun-agent": {
+      "source": {
+        "source": "github",
+        "repo": "taiyousan15/taisun_agent"
+      }
+    },
+    "triqual": {
+      "source": {
+        "source": "github",
+        "repo": "Montinou/triqual"
+      }
+    },
+    "openwebf": {
+      "source": {
+        "source": "github",
+        "repo": "archview-ai/webf-plugin"
+      }
+    },
+    "gamja-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "oooo12-git/claude-gamja-marketplace"
+      }
+    },
+    "aws-sso-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "veelenga/aws-sso-mcp"
+      }
+    },
+    "discord-approval-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "malanjp/discord-approval-mcp"
+      }
+    },
+    "skills": {
+      "source": {
+        "source": "github",
+        "repo": "ramonclaudio/skills"
+      }
+    },
+    "ai-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "takemi-ohama/ai-plugins"
+      }
+    },
+    "cognitive-mechanisms": {
+      "source": {
+        "source": "github",
+        "repo": "bogheorghiu/cognitive-mechanisms"
+      }
+    },
+    "epochtime-ai-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "EpochTime-AI/cc-plugins"
+      }
+    },
+    "che-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "kiki830621/che-claude-plugins"
+      }
+    },
+    "ark-ai-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "HelloWorldSungin/ark-ai-mcp"
+      }
+    },
+    "manifest-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "manifestdocs/claude-plugins"
+      }
+    },
+    "qazuor-claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "qazuor/claude-code-plugins"
+      }
+    },
+    "zeul-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "zeulewan/zeul-claude-plugins"
+      }
+    },
+    "umbraco-mcp-server-sdk-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "umbraco/Umbraco-MCP-Base"
+      }
+    },
+    "awesome-agent-toolkit": {
+      "source": {
+        "source": "github",
+        "repo": "COvayurt/awesome-agent-toolkit"
+      }
+    },
+    "arm-reference": {
+      "source": {
+        "source": "github",
+        "repo": "yerry262/arm-reference-mcp"
+      }
+    },
+    "fraim-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "fraim-ai/fraim-toolkit"
+      }
+    },
+    "mouse-mcp": {
+      "source": {
+        "source": "github",
+        "repo": "cameronsjo/mouse-mcp"
+      }
+    },
+    "ccode-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "junjiangao/ccode"
+      }
+    },
+    "semgrep": {
+      "source": {
+        "source": "github",
+        "repo": "semgrep/mcp-marketplace"
+      }
+    },
+    "rules": {
+      "source": {
+        "source": "github",
+        "repo": "cameronsjo/rules"
+      }
+    },
+    "tribo-skills": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/dmend3z/tribo-skills.git"
+      }
+    },
+    "skills-curated": {
+      "source": {
+        "source": "github",
+        "repo": "trailofbits/skills-curated"
+      }
+    },
+    "uhyunpark-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "uhyunpark/cc-plugin-viz"
+      }
+    },
+    "interagency-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "mistakeknot/interagency-marketplace"
+      }
+    },
+    "emasoft-plugins": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/Emasoft/emasoft-plugins.git"
+      }
+    },
+    "careerhackeralex": {
+      "source": {
+        "source": "github",
+        "repo": "careerhackeralex/visualize"
+      }
+    },
+    "maigent": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/maigentic/stratarts.git"
+      }
+    },
+    "clean-viz-skill": {
+      "source": {
+        "source": "github",
+        "repo": "maksymsherman/clean-viz-skill"
+      }
+    },
+    "notebooklm-ai-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "proyecto26/notebooklm-ai-plugin"
+      }
+    },
+    "huggingface-skills": {
+      "source": {
+        "source": "github",
+        "repo": "huggingface/skills"
+      }
+    },
+    "kriscard": {
+      "source": {
+        "source": "github",
+        "repo": "kriscard/kriscard-claude-plugins"
+      }
+    },
+    "kriscard-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "kriscard/kriscard-claude-plugins"
+      }
+    },
+    "birdcar-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "birdcar/claude-plugins"
+      }
+    },
+    "last30days-skill": {
+      "source": {
+        "source": "github",
+        "repo": "mvanhorn/last30days-skill"
+      }
+    },
+    "dev-browser-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "sawyerhood/dev-browser"
+      }
+    },
+    "web-automation-suite": {
+      "source": {
+        "source": "github",
+        "repo": "ioansalaug/web-skills"
+      }
+    },
+    "eins78-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "eins78/skills"
+      }
+    },
+    "webgpu-metal-debug-kit": {
+      "source": {
+        "source": "github",
+        "repo": "penspanic/webgpu-metal-debug-kit"
+      }
+    },
+    "ai-maestro-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "Emasoft/ai-maestro-plugins"
+      }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
+    },
+    "agent-browser": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/vercel-labs/agent-browser.git"
+      }
+    }
+  },
+  "effortLevel": "high",
+  "skipDangerousModePermissionPrompt": true
+}

@@ -240,15 +240,23 @@ state_wipe_verified: true | false
 Scenario files are saved in `tests/scenarios/` with the naming convention:
 
 ```
-<scenario-name>_<YYYYMMDD-HHMMSS>.scen.md
+SCEN-<NNN>_<scenario-name>.scen.md
 ```
 
-Example: `title-change-lifecycle_20260404-123000.scen.md`
+Where `<NNN>` is a zero-padded unique number (001, 002, ...). This allows referencing scenarios by number: "run scenario 14" → `SCEN-014_*.scen.md`.
+
+Example: `SCEN-001_title-change-lifecycle.scen.md`
+
+**Numbering rules:**
+- Numbers are assigned sequentially and never reused (even if a scenario is deleted)
+- The current highest number is tracked in `tests/scenarios/NEXT_SCEN_NUMBER` (plain text, e.g. `4`)
+- Each scenario's number is also in its YAML frontmatter (`number: 1`)
 
 ### Frontmatter (YAML):
 
 ```yaml
 ---
+number: <unique integer, e.g. 1>
 name: <human-readable scenario name>
 version: "1.0"
 description: >
@@ -321,14 +329,16 @@ author: <who wrote the scenario>
 
 ```
 tests/scenarios/
-  SCENARIOS_TESTS_RULES.md       ← This file
-  *.scen.md                      ← Scenario definition files
+  SCENARIOS_TESTS_RULES.md        ← This file
+  NEXT_SCEN_NUMBER                ← Next available scenario number (plain text)
+  SCEN-001_<name>.scen.md         ← Scenario definition files
+  SCEN-002_<name>.scen.md
   reports/
-    *.report.md                  ← Execution reports
+    SCEN-001_<timestamp>.report.md ← Execution reports
   screenshots/
-    <scenario-name>/             ← Screenshots per scenario run
+    SCEN-001/                      ← Screenshots per scenario run
       S001-<description>.png
       S002-<description>.png
   state-backups/
-    <scenario-name>_<timestamp>/ ← Config file backups for STATE-WIPE
+    SCEN-001_<timestamp>/          ← Config file backups for STATE-WIPE
 ```

@@ -1,0 +1,891 @@
+[
+  {
+    "id": "3cb4e42c-73e6-49a7-ac17-d2acfd0c8904",
+    "alias": "development",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "apps",
+      "svgplayer",
+      "fbf.svg"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {
+      "repositories": [
+        {
+          "name": "SKIA-BUILD-ARM64",
+          "remoteUrl": "https://github.com/Emasoft/fbfsvg-player.git",
+          "localPath": "/Users/emanuelesabetta/Code/SKIA-BUILD-ARM64",
+          "defaultBranch": "main",
+          "currentBranch": "main",
+          "lastCommit": "293e4835",
+          "lastSynced": "2026-01-23T14:09:31.229Z",
+          "isPrimary": true
+        }
+      ]
+    },
+    "status": "active",
+    "createdAt": "2025-12-25T22:23:28.000Z",
+    "lastActive": "2026-03-22T17:34:00.726Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-25T22:23:36.507Z"
+    },
+    "documentation": {},
+    "preferences": {},
+    "name": "apps-svgplayer-development",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SKIA-BUILD-ARM64",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SKIA-BUILD-ARM64",
+        "createdAt": "2026-02-07T19:15:44.340Z",
+        "lastActive": "2026-02-07T19:15:44.340Z"
+      }
+    ],
+    "avatar": "/avatars/robots_21.jpg",
+    "launchCount": 1,
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp"
+  },
+  {
+    "id": "7809a516-c4bc-4c7d-8561-ab7c23af01af",
+    "alias": "writer",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Develop a perfect SMIL skill for claude code. It must be authoritative and complete, It must teach how to convert any CSS/html/Js animation into pure standalone SVG file using only SMIL to reproduce it, and teach to write any svg animation using SMIL and nothing else.\n",
+    "tags": [
+      "claude",
+      "svgskills",
+      "skills",
+      "claudedev"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2025-12-25T22:35:36.000Z",
+    "lastActive": "2026-03-22T17:34:47.316Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-25T22:35:38.557Z"
+    },
+    "documentation": {},
+    "preferences": {},
+    "name": "claude-svgskills-writer",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SVG_PROCESSING",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SVG_PROCESSING",
+        "createdAt": "2026-02-06T15:25:30.418Z",
+        "lastActive": "2026-02-06T15:25:30.418Z"
+      }
+    ],
+    "avatar": "/avatars/robots_03.jpg",
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp"
+  },
+  {
+    "id": "d63ea87e-5948-4026-8708-54fcf267fd50",
+    "alias": "svgmatrix",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "libs",
+      "svg"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2025-12-25T22:43:18.000Z",
+    "lastActive": "2026-03-22T17:31:58.615Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-25T22:43:18.580Z"
+    },
+    "name": "libs-svg-svgmatrix",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SVG-MATRIX",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SVG-MATRIX",
+        "createdAt": "2026-01-29T13:40:52.042Z",
+        "lastActive": "2026-02-06T15:04:14.763Z"
+      }
+    ],
+    "avatar": "/avatars/robots_42.jpg",
+    "documentation": {},
+    "preferences": {},
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp"
+  },
+  {
+    "id": "720287bd-79fb-4de6-96c9-79ee5dfe08b1",
+    "alias": "svgbbox",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "libs",
+      "svg",
+      "svg_bbox",
+      "bounding_box"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2025-12-25T22:47:58.000Z",
+    "lastActive": "2026-03-22T17:33:31.681Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-25T22:47:58.588Z"
+    },
+    "documentation": {},
+    "preferences": {},
+    "name": "libs-svg-svgbbox",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SVG-BBOX",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SVG-BBOX",
+        "createdAt": "2026-01-29T13:40:24.095Z",
+        "lastActive": "2026-01-31T16:27:18.243Z"
+      }
+    ],
+    "avatar": "/avatars/robots_22.jpg",
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp"
+  },
+  {
+    "id": "ae55ae09-639d-4c8a-a8e9-8e0c3733ca8f",
+    "alias": "smartmediamanager",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "utils",
+      "media"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2025-12-28T18:08:27.000Z",
+    "lastActive": "2026-03-22T17:33:18.210Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-28T18:08:34.719Z"
+    },
+    "name": "utils-media-smartmediamanager",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SMART_MEDIA_MANAGER",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SMART_MEDIA_MANAGER",
+        "createdAt": "2026-01-29T12:25:29.654Z",
+        "lastActive": "2026-02-06T15:03:11.333Z"
+      }
+    ],
+    "avatar": "/avatars/robots_05.jpg",
+    "documentation": {},
+    "preferences": {},
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp"
+  },
+  {
+    "id": "cbd8a7ff-3c5e-4c4c-a398-04fd155fa743",
+    "alias": "factory",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "claude",
+      "skills"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2025-12-29T02:14:30.000Z",
+    "lastActive": "2026-03-22T17:37:22.596Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-29T02:14:33.171Z"
+    },
+    "name": "claude-skills-factory",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SKILL_FACTORY",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SKILL_FACTORY",
+        "createdAt": "2026-02-16T03:01:38.066Z",
+        "lastActive": "2026-03-22T17:37:22.596Z"
+      }
+    ],
+    "avatar": "/avatars/robots_50.jpg",
+    "documentation": {},
+    "preferences": {},
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp",
+    "launchCount": 2
+  },
+  {
+    "id": "65097713-728a-4000-a8d8-012640378429",
+    "alias": "text2path",
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://localhost:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "libs",
+      "svg"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2025-12-31T02:30:56.000Z",
+    "lastActive": "2026-03-22T17:32:11.114Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2025-12-31T02:31:05.866Z"
+    },
+    "name": "libs-svg-text2path",
+    "workingDirectory": "/Users/emanuelesabetta/Code/TEXT2PATH/text2path",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/Code/TEXT2PATH/text2path",
+        "createdAt": "2026-01-25T19:42:57.090Z",
+        "lastActive": "2026-01-31T16:27:37.874Z"
+      }
+    ],
+    "avatar": "/avatars/robots_33.jpg",
+    "documentation": {},
+    "preferences": {},
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp"
+  },
+  {
+    "id": "b2693195-712c-4261-9eb5-b9db1305b6fa",
+    "name": "lib-svg-svg2fbf",
+    "label": "lib-svg-svg2fbf",
+    "avatar": "https://randomuser.me/api/portraits/women/5.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SVG_FBF_PROJECT/svg2fbf",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SVG_FBF_PROJECT/svg2fbf",
+        "createdAt": "2026-02-08T02:10:07.060Z",
+        "lastActive": "2026-02-08T02:10:07.060Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Agent for lib-svg-svg2fbf",
+    "tags": [
+      "lib",
+      "svg",
+      "fbfsvg",
+      "vector-video",
+      "vector-animation",
+      "fbfsvg-converter"
+    ],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-01-25T14:38:59.342Z"
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-01-25T14:38:59.342Z",
+    "lastActive": "2026-02-08T02:10:07.060Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/Code/SVG_FBF_PROJECT/svg2fbf"
+    },
+    "documentation": {},
+    "metadata": {},
+    "programArgs": "--continue --dangerously-skip-permissions --chrome --add-dir /tmp",
+    "launchCount": 1
+  },
+  {
+    "id": "054d438e-2d06-4507-bc42-0de61ebcec55",
+    "name": "ecos-chief-of-staff-one",
+    "label": "Daire",
+    "avatar": "/avatars/robots_32.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/agents/ecos-chief-of-staff-one",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/agents/ecos-chief-of-staff-one",
+        "createdAt": "2026-02-15T01:05:52.391Z",
+        "lastActive": "2026-02-15T01:05:52.391Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Coordinate agents across all projects",
+    "programArgs": "--dangerously-skip-permissions --chrome --add-dir /tmp --agent ecos-chief-of-staff-main-agent",
+    "launchCount": 1,
+    "tags": [
+      "ecos",
+      "chief-of-staff",
+      "coordinator"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-02-08T12:52:42.746Z"
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-02-08T12:52:42.746Z",
+    "lastActive": "2026-03-22T17:33:47.025Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/ecos-chief-of-staff-one"
+    },
+    "documentation": {},
+    "metadata": {}
+  },
+  {
+    "id": "6847f4ec-87b6-4f04-a0e6-fac648cac137",
+    "name": "tmux-test-audit",
+    "workingDirectory": "/Users/emanuelesabetta/Code/SKILL_FACTORY",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/Code/SKILL_FACTORY",
+        "createdAt": "2026-02-15T14:57:34.000Z",
+        "lastActive": "2026-02-15T14:57:34.000Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "tmux",
+      "test"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-02-15T14:57:34.000Z",
+    "lastActive": "2026-02-15T14:57:34.000Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2026-02-15T14:57:38.377Z"
+    }
+  },
+  {
+    "id": "86218bd8-33b6-4a47-8c8a-aeeee6a39f92",
+    "name": "default",
+    "workingDirectory": "/",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/",
+        "createdAt": "2026-03-05T21:38:45.000Z",
+        "lastActive": "2026-03-05T21:38:45.000Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-03-05T21:38:45.000Z",
+    "lastActive": "2026-03-05T21:38:45.000Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2026-03-06T07:18:42.549Z"
+    }
+  },
+  {
+    "id": "848b0e9d-15a2-4ed9-9b2c-9900d167a157",
+    "name": "backend-infrastructure-engineer",
+    "label": "backend-infrastructure-engineer",
+    "avatar": "/avatars/robots_37.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/agents/backend-infrastructure-engineer",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/agents/backend-infrastructure-engineer",
+        "createdAt": "2026-03-16T05:42:15.617Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Agent for backend-infrastructure-engineer",
+    "programArgs": "--agent backend-infrastructure-engineer-main-agent --name backend-infrastructure-engineer",
+    "launchCount": 0,
+    "tags": [
+      "backend",
+      "infrastructure"
+    ],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "role": "member",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-03-16T05:42:15.618Z"
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2026-03-16T05:42:15.618Z",
+    "lastActive": "2026-03-22T17:34:35.969Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/backend-infrastructure-engineer"
+    },
+    "documentation": {},
+    "metadata": {}
+  },
+  {
+    "id": "7fbbbcb5-03c8-492c-930a-068db2cc72e0",
+    "name": "alexandre",
+    "label": "alexandre",
+    "avatar": "/avatars/robots_51.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/agents/alexandre",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/agents/alexandre",
+        "createdAt": "2026-03-22T17:35:19.690Z",
+        "lastActive": "2026-03-22T17:35:19.690Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude",
+    "taskDescription": "d\n\n",
+    "programArgs": "--agent ai-maestro-architect-agent-main-agent --name alexandre --chrome",
+    "launchCount": 1,
+    "tags": [],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "role": "autonomous",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-03-16T19:15:35.131Z"
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-03-16T19:15:35.131Z",
+    "lastActive": "2026-04-04T10:28:29.202Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/alexandre",
+      "autoContinue": true
+    },
+    "documentation": {},
+    "metadata": {},
+    "skills": {
+      "marketplace": [],
+      "aiMaestro": {
+        "enabled": true,
+        "skills": [
+          "agent-messaging",
+          "docs-search",
+          "graph-query",
+          "memory-search",
+          "planning"
+        ]
+      },
+      "custom": []
+    },
+    "governanceTitle": null
+  },
+  {
+    "id": "7bc77b59-d806-461b-b2eb-c7afe8fe6cba",
+    "name": "luckas-bot",
+    "label": "luckas-bot",
+    "avatar": "/avatars/men_79.png",
+    "workingDirectory": "/Users/emanuelesabetta/agents/luckas-bot",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/agents/luckas-bot",
+        "createdAt": "2026-03-18T16:40:00.888Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Agent for luckas-bot",
+    "programArgs": "--agent luckas-bot-main-agent --name luckas-bot",
+    "launchCount": 0,
+    "tags": [
+      "luckas"
+    ],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "role": "member",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-03-18T16:40:00.888Z"
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2026-03-18T16:40:00.888Z",
+    "lastActive": "2026-03-18T16:40:00.888Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/luckas-bot"
+    }
+  },
+  {
+    "id": "7d37a2fe-9208-41e7-bc66-aa2804f1c16d",
+    "name": "jhonny-bot",
+    "label": "jhonny-bot",
+    "avatar": "/avatars/robots_24.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/agents/jhonny-bot",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/agents/jhonny-bot",
+        "createdAt": "2026-03-18T17:50:07.057Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Agent for jhonny-bot",
+    "programArgs": "--agent backend-infra-engineer-main-agent --name jhonny-bot",
+    "launchCount": 0,
+    "tags": [
+      "jhonny"
+    ],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "role": "member",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-03-18T17:50:07.057Z"
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2026-03-18T17:50:07.057Z",
+    "lastActive": "2026-03-18T17:50:07.057Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/jhonny-bot"
+    }
+  },
+  {
+    "id": "d0f96d66-e9c7-4e57-bb5b-ed3ab453c814",
+    "name": "jack-bot",
+    "label": "jack-bot",
+    "avatar": "/avatars/robots_09.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/agents/jack-bot",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "offline",
+        "workingDirectory": "/Users/emanuelesabetta/agents/jack-bot",
+        "createdAt": "2026-03-19T05:06:47.922Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Agent for jack-bot",
+    "programArgs": "--agent backend-infrastructure-engineer-main-agent --name jack-bot",
+    "launchCount": 0,
+    "tags": [
+      "jack"
+    ],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "role": "member",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-03-19T05:06:47.922Z"
+    },
+    "tools": {},
+    "status": "offline",
+    "createdAt": "2026-03-19T05:06:47.922Z",
+    "lastActive": "2026-03-19T05:06:47.922Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/jack-bot"
+    }
+  },
+  {
+    "id": "60778982-8aa1-4abc-911f-14194c138ec6",
+    "name": "genny-bot",
+    "label": "genny-bot",
+    "avatar": "/avatars/robots_49.jpg",
+    "workingDirectory": "/Users/emanuelesabetta/agents/genny-bot",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/agents/genny-bot",
+        "createdAt": "2026-03-22T19:44:26.276Z",
+        "lastActive": "2026-03-22T19:44:26.276Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Agent for genny-bot",
+    "programArgs": "--agent genny-bot-main-agent --name genny-bot",
+    "launchCount": 1,
+    "tags": [
+      "genny"
+    ],
+    "capabilities": [],
+    "owner": "emanuelesabetta",
+    "role": "member",
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "metrics": {
+      "totalSessions": 0,
+      "totalMessages": 0,
+      "totalTasksCompleted": 0,
+      "uptimeHours": 0,
+      "totalApiCalls": 0,
+      "totalTokensUsed": 0,
+      "estimatedCost": 0,
+      "lastCostUpdate": "2026-03-19T05:46:47.510Z"
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-03-19T05:46:47.510Z",
+    "lastActive": "2026-03-22T19:44:26.276Z",
+    "preferences": {
+      "defaultWorkingDirectory": "/Users/emanuelesabetta/agents/genny-bot"
+    }
+  },
+  {
+    "id": "372f6d6f-e866-4880-bec4-6b7c28f340c1",
+    "name": "_aim-creation-helper",
+    "workingDirectory": "/Users/emanuelesabetta/ai-maestro",
+    "sessions": [
+      {
+        "index": 0,
+        "status": "online",
+        "workingDirectory": "/Users/emanuelesabetta/ai-maestro",
+        "createdAt": "2026-03-30T19:42:20.000Z",
+        "lastActive": "2026-03-30T19:42:20.000Z"
+      }
+    ],
+    "hostId": "mac-mini-di-emanuele",
+    "hostName": "mac-mini-di-emanuele",
+    "hostUrl": "http://100.99.233.43:23000",
+    "program": "claude-code",
+    "taskDescription": "Auto-registered from orphan tmux session",
+    "tags": [
+      "_aim",
+      "creation"
+    ],
+    "capabilities": [],
+    "deployment": {
+      "type": "local",
+      "local": {
+        "hostname": "Mac-mini-di-Emanuele.local",
+        "platform": "darwin"
+      }
+    },
+    "tools": {},
+    "status": "active",
+    "createdAt": "2026-03-30T19:42:20.000Z",
+    "lastActive": "2026-03-30T19:42:20.000Z",
+    "metadata": {
+      "autoRegistered": true,
+      "autoRegisteredAt": "2026-03-30T19:42:21.984Z"
+    }
+  }
+]

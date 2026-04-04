@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "teams": [
+    {
+      "id": "e12e0788-009c-4075-9b79-229041fe7d70",
+      "name": "Test Kanban Team",
+      "description": "Team for testing kanban board",
+      "agentIds": [
+        "7fbbbcb5-03c8-492c-930a-068db2cc72e0",
+        "60778982-8aa1-4abc-911f-14194c138ec6"
+      ],
+      "type": "closed",
+      "chiefOfStaffId": null,
+      "createdAt": "2026-03-31T02:01:40.515Z",
+      "updatedAt": "2026-04-04T10:27:15.687Z",
+      "githubProject": {
+        "owner": "IpaziaSoftware",
+        "number": 1
+      },
+      "orchestratorId": "7fbbbcb5-03c8-492c-930a-068db2cc72e0"
+    }
+  ]
+}

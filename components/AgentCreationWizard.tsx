@@ -971,10 +971,18 @@ function TeamPickerWidget({
 }
 
 // Step 3: Title picker — context-filtered by team assignment
+interface FolderEntry {
+  name: string
+  path: string
+  selectable: boolean
+  reason: string | null
+  agentName: string | null
+}
+
 function FolderPickerWidget({
   agentName,
-  folderInput,
-  setFolderInput,
+  folderInput: _folderInput,
+  setFolderInput: _setFolderInput,
   onSelect,
 }: {
   agentName: string
@@ -984,6 +992,32 @@ function FolderPickerWidget({
 }) {
   const autoFolder = `~/agents/${agentName}/`
   const [mode, setMode] = useState<'auto' | 'custom'>('auto')
+  const [browsePath, setBrowsePath] = useState('~')
+  const [entries, setEntries] = useState<FolderEntry[]>([])
+  const [currentSelectable, setCurrentSelectable] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  // Fetch directory listing when browsePath changes
+  useEffect(() => {
+    if (mode !== 'custom') return
+    setLoading(true)
+    fetch(`/api/agents/folders?path=${encodeURIComponent(browsePath)}`)
+      .then(r => r.ok ? r.json() : { entries: [], selectable: false })
+      .then(data => {
+        setEntries(data.entries || [])
+        setCurrentSelectable(data.selectable ?? false)
+      })
+      .catch(() => { setEntries([]); setCurrentSelectable(false) })
+      .finally(() => setLoading(false))
+  }, [browsePath, mode])
+
+  const reasonLabel = (reason: string | null, agent: string | null): string => {
+    if (reason === 'system') return 'System folder'
+    if (reason === 'exact') return `Used by ${agent}`
+    if (reason === 'child') return `Inside ${agent}'s folder`
+    if (reason === 'parent') return `Contains ${agent}'s folder`
+    return ''
+  }
 
   return (
     <div className="space-y-2 w-full">
@@ -1003,7 +1037,7 @@ function FolderPickerWidget({
         </div>
       </button>
 
-      {/* Option 2: Pick existing folder */}
+      {/* Option 2: Browse existing folder */}
       <button
         onClick={() => setMode('custom')}
         className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-200 ${
@@ -1012,28 +1046,79 @@ function FolderPickerWidget({
       >
         <div className="flex items-center gap-2">
           <FolderOpen className="w-4 h-4 text-blue-400 flex-shrink-0" />
-          <div className="text-sm text-white font-medium">Use existing project folder</div>
+          <div className="text-sm text-white font-medium">Browse existing project folder</div>
         </div>
       </button>
 
-      {/* Custom folder input */}
+      {/* Directory browser */}
       {mode === 'custom' && (
-        <div className="mt-2 space-y-2">
-          <input
-            type="text"
-            value={folderInput}
-            onChange={(e) => setFolderInput(e.target.value)}
-            placeholder="/path/to/existing/project"
-            className="w-full text-xs px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
-            autoFocus
-          />
-          <button
-            onClick={() => onSelect(folderInput)}
-            disabled={!folderInput.startsWith('/') && !folderInput.startsWith('~')}
-            className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Use this folder
-          </button>
+        <div className="mt-2 rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
+          {/* Current path + back button */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700/50 bg-gray-900/50">
+            <button
+              onClick={() => {
+                const parent = browsePath.replace(/\/[^/]+\/?$/, '') || '/'
+                setBrowsePath(parent)
+              }}
+              disabled={browsePath === '/'}
+              className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-xs text-gray-300 font-mono truncate flex-1">{browsePath}</span>
+            {currentSelectable && (
+              <button
+                onClick={() => onSelect(browsePath)}
+                className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex-shrink-0"
+              >
+                Select this folder
+              </button>
+            )}
+          </div>
+
+          {/* Folder list */}
+          <div className="max-h-48 overflow-y-auto">
+            {loading ? (
+              <div className="px-3 py-4 text-center text-xs text-gray-500">Loading...</div>
+            ) : entries.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-gray-500">No subdirectories</div>
+            ) : (
+              entries.map(entry => (
+                <div
+                  key={entry.path}
+                  className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 cursor-pointer transition-colors ${
+                    entry.selectable
+                      ? 'hover:bg-gray-700/50 text-gray-200'
+                      : 'text-gray-500'
+                  }`}
+                  onClick={() => setBrowsePath(entry.path)}
+                >
+                  <FolderOpen className={`w-3.5 h-3.5 flex-shrink-0 ${
+                    entry.selectable ? 'text-blue-400' : 'text-gray-600'
+                  }`} />
+                  <span className={`text-xs font-mono flex-1 truncate ${
+                    entry.selectable ? '' : 'line-through opacity-60'
+                  }`}>
+                    {entry.name}
+                  </span>
+                  {!entry.selectable && (
+                    <span className="text-[10px] text-red-400/70 flex-shrink-0">
+                      {reasonLabel(entry.reason, entry.agentName)}
+                    </span>
+                  )}
+                  {entry.selectable && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onSelect(entry.path) }}
+                      className="text-[10px] px-1.5 py-0.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded flex-shrink-0"
+                    >
+                      Select
+                    </button>
+                  )}
+                  <ChevronRight className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

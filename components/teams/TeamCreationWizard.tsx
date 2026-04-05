@@ -85,7 +85,7 @@ interface WizardData {
   linkedProjectValid: boolean | null // null = not checked, true/false = result
   linkedProjectInfo: GitHubProjectInfo | null
   // Step 4: Team Roles
-  cosAgentId: string                 // '' = none, 'auto' = auto-create
+  cosAgentId: string                 // 'auto' = auto-create (default), or agent UUID
   orchestratorAgentId: string        // '' = none, 'auto' = auto-create
   // Step 5: (confirm — no extra data)
 }
@@ -103,7 +103,7 @@ const INITIAL_DATA: WizardData = {
   linkedProjectUrl: '',
   linkedProjectValid: null,
   linkedProjectInfo: null,
-  cosAgentId: '',
+  cosAgentId: 'auto',
   orchestratorAgentId: '',
 }
 
@@ -672,7 +672,7 @@ export default function TeamCreationWizard({
         return (
           <div className="space-y-5">
             <p className="text-xs text-gray-500">
-              Assign key roles for the team. Both are optional but a Chief of Staff is recommended for governance.
+              Every team requires a Chief of Staff. Select an existing AUTONOMOUS agent or auto-create one. Orchestrator is optional.
             </p>
 
             {agentsLoading ? (
@@ -687,7 +687,7 @@ export default function TeamCreationWizard({
                   <div className="flex items-center gap-2 mb-2">
                     <Shield className="w-4 h-4 text-yellow-400" />
                     <span className="text-sm font-medium text-white">Chief of Staff</span>
-                    <span className="text-xs text-gray-600">(recommended)</span>
+                    <span className="text-xs text-red-400">(required)</span>
                   </div>
                   <p className="text-xs text-gray-500 mb-2">Leads the team, manages membership, routes external messages.</p>
                   <select
@@ -696,7 +696,6 @@ export default function TeamCreationWizard({
                     aria-label="Select Chief of Staff"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="">None</option>
                     <option value="auto">Auto-create COS agent</option>
                     {agents.map(a => (
                       <option key={a.id} value={a.id} disabled={a.id === data.orchestratorAgentId}>

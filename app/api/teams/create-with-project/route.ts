@@ -114,9 +114,39 @@ export async function POST(request: NextRequest) {
       await updateTeam(team.id, { githubProject: body.githubProject })
     }
 
-    // Auto-assign role-plugins for COS and Orchestrator
-    if (body.chiefOfStaffId) {
-      try { await ChangeTitle(body.chiefOfStaffId, 'chief-of-staff') }
+    // Auto-create COS agent if none was specified (COS is mandatory for every team)
+    let cosId = body.chiefOfStaffId || null
+    if (!cosId) {
+      try {
+        const { createAgent: createCosAgent } = await import('@/lib/agent-registry')
+        const teamSlug = body.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 30)
+        const cosName = `cos-${teamSlug}`
+        const robotIndex = Math.floor(Math.random() * 50) + 1
+        const robotAvatar = `/avatars/robots_${robotIndex.toString().padStart(2, '0')}.jpg`
+        const cosAgent = await createCosAgent({
+          name: cosName,
+          program: 'claude',
+          avatar: robotAvatar,
+          workingDirectory: process.env.HOME || '/tmp',
+          taskDescription: `Chief-of-Staff for team "${body.name.trim()}"`,
+          role: 'chief-of-staff',
+          createSession: false,
+        })
+        cosId = cosAgent.id
+        const { updateTeam: updateTeamCos } = await import('@/lib/team-registry')
+        await updateTeamCos(team.id, {
+          chiefOfStaffId: cosId,
+          agentIds: [...(team.agentIds || []), cosId],
+        })
+        console.log(`[create-with-project] Auto-created COS agent "${cosName}" (${cosId})`)
+      } catch (err) {
+        console.warn('[create-with-project] Auto-create COS failed:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // Assign COS title + role-plugin
+    if (cosId) {
+      try { await ChangeTitle(cosId, 'chief-of-staff') }
       catch (err) { console.warn('[create-with-project] ChangeTitle COS failed:', err) }
     }
     if (body.orchestratorId) {

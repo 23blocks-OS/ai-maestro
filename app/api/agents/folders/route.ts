@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
   // Build the set of taken directories (all agent working dirs), resolved to canonical paths
   const agents = loadAgents()
   const takenDirs = agents
-    .map(a => resolve(a.workingDirectory || '.').replace(/\/+$/, ''))
-    .filter(d => d !== '.')
+    .filter(a => a.workingDirectory)  // skip agents with no working dir
+    .map(a => resolve(a.workingDirectory!).replace(/\/+$/, ''))
 
   // Forbidden system directories (resolved)
   const FORBIDDEN = new Set([
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     for (const taken of takenDirs) {
       const takenSlash = taken + sep
-      const findAgent = () => agents.find(a => resolve(a.workingDirectory || '.').replace(/\/+$/, '') === taken)
+      const findAgent = () => agents.find(a => a.workingDirectory && resolve(a.workingDirectory).replace(/\/+$/, '') === taken)
 
       if (candidate === taken) {
         return { overlaps: true, reason: 'exact', agentName: findAgent()?.label || findAgent()?.name }

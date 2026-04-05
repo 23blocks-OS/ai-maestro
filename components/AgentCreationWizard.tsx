@@ -250,7 +250,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
     setMessages(msgs => msgs.filter(m => m.step !== step && !(m.step === prevStep && m.role === 'user')))
     setStep(prevStep)
     setActiveWidgetStep(prevStep)
-  }, [step])
+  }, [step, STEP_ORDER])
 
   // --- Handlers ---
 
@@ -361,7 +361,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [personaName, selectedAvatar, selectedTitle, selectedTeamId, selectedPlugin, selectedClient])
+  }, [personaName, selectedAvatar, selectedTitle, selectedTeamId, selectedPlugin, selectedClient, selectedFolder])
 
   // Animation timer sequence
   useEffect(() => {

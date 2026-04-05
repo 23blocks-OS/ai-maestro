@@ -2565,11 +2565,12 @@ export async function CreateAgent(
     {
       const { loadAgents: loadAllAgents } = await import('@/lib/agent-registry')
       const allAgents = loadAllAgents()
-      const candidatePath = normalizedWorkDir + '/'  // ensure trailing slash for prefix comparison
+      const candidatePath = normalizedWorkDir + sep
       for (const existingAgent of allAgents) {
-        const existingDir = (existingAgent.workingDirectory || '').replace(/\/+$/, '')
-        if (!existingDir) continue
-        const existingPath = existingDir + '/'
+        const rawExisting = existingAgent.workingDirectory || ''
+        if (!rawExisting) continue
+        const existingDir = resolve(rawExisting).replace(/\/+$/, '')
+        const existingPath = existingDir + sep
         // Check: exact match, candidate is child of existing, or candidate is parent of existing
         if (
           normalizedWorkDir === existingDir ||

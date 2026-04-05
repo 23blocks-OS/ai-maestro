@@ -606,10 +606,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const resolvedWd = workingDirectory?.startsWith('~') ? workingDirectory.replace(/^~/, os.homedir()) : workingDirectory
   const cwd = resolvedWd || path.join(os.homedir(), 'agents', normalizedName)
 
-  // Hard safety check: reject forbidden directories (exact match + prefix/nesting)
+  // Hard safety check: reject forbidden directories
   const resolvedCwd = path.resolve(cwd)
-  const FORBIDDEN = [process.cwd(), os.homedir(), '/', '/tmp'].map(d => path.resolve(d))
-  for (const forbidden of FORBIDDEN) {
+  // BLOCKED_TREE: exact + child + parent (source code, tmp). Root excluded — matches everything after normalization.
+  const BLOCKED_TREE = [process.cwd(), '/tmp'].map(d => path.resolve(d))
+  for (const forbidden of BLOCKED_TREE) {
     if (
       resolvedCwd === forbidden ||
       resolvedCwd.startsWith(forbidden + path.sep) ||
@@ -617,6 +618,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     ) {
       return { error: `Working directory "${cwd}" is forbidden (overlaps with "${forbidden}"). Use ~/agents/<name>/ or a dedicated project folder.`, status: 400, data: undefined }
     }
+  }
+  // BLOCKED_EXACT: root and $HOME itself (but ~/agents/ is fine)
+  const BLOCKED_EXACT = [path.resolve('/'), path.resolve(os.homedir())]
+  if (BLOCKED_EXACT.includes(resolvedCwd)) {
+    return { error: `Working directory cannot be / or $HOME root. Use ~/agents/<name>/ instead.`, status: 400, data: undefined }
   }
 
   await runtime.createSession(actualSessionName, cwd)

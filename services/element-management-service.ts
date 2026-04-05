@@ -2538,26 +2538,44 @@ export async function CreateAgent(
     const { resolve, sep } = await import('path')
     workDir = resolve(workDir)  // canonical absolute path, no .. or symlink tricks
 
-    const FORBIDDEN_DIRS = [
-      process.cwd(),                          // AI Maestro source folder (where server runs)
-      HOME,                                    // $HOME root
+    // Two categories of forbidden directories:
+    // 1. BLOCKED_TREE: reject exact match AND any child/parent (e.g. process.cwd() and all children)
+    // Note: '/' excluded — it would match every absolute path after normalization.
+    // Instead, the $HOME check below and the ~/agents/ default prevent root usage.
+    const BLOCKED_TREE = [
+      process.cwd(),                          // AI Maestro source folder + children
+      '/tmp',                                  // temp
+    ].map(d => resolve(d))
+
+    // 2. BLOCKED_EXACT: reject exact match only (children are OK — e.g. ~/agents/ is fine)
+    const BLOCKED_EXACT = [
+      '/',                                     // filesystem root
+      HOME,                                    // $HOME itself (but ~/agents/ is fine)
       join(HOME, 'Desktop'),
       join(HOME, 'Documents'),
       join(HOME, 'Downloads'),
-      '/',
-      '/tmp',
     ].map(d => resolve(d))
 
     const normalizedWorkDir = workDir.replace(/[/\\]+$/, '')
-    for (const forbidden of FORBIDDEN_DIRS) {
+
+    // Check BLOCKED_TREE: exact + child + parent
+    for (const forbidden of BLOCKED_TREE) {
       const normalizedForbidden = forbidden.replace(/[/\\]+$/, '')
-      // Exact match OR workDir is a child of forbidden OR workDir is a parent of forbidden
       if (
         normalizedWorkDir === normalizedForbidden ||
         normalizedWorkDir.startsWith(normalizedForbidden + sep) ||
         normalizedForbidden.startsWith(normalizedWorkDir + sep)
       ) {
         result.error = `Working directory "${workDir}" is forbidden (overlaps with "${normalizedForbidden}"). Agents must use ~/agents/<name>/ or a dedicated project folder outside system/source directories.`
+        return result
+      }
+    }
+
+    // Check BLOCKED_EXACT: exact match only
+    for (const forbidden of BLOCKED_EXACT) {
+      const normalizedForbidden = forbidden.replace(/[/\\]+$/, '')
+      if (normalizedWorkDir === normalizedForbidden) {
+        result.error = `Working directory "${workDir}" is forbidden (exact match with "${normalizedForbidden}"). Use a subfolder like ~/agents/<name>/ instead.`
         return result
       }
     }
@@ -2570,8 +2588,8 @@ export async function CreateAgent(
       const allAgents = loadAllAgents()
       const candidatePath = normalizedWorkDir + sep
       for (const existingAgent of allAgents) {
-        const rawExisting = existingAgent.workingDirectory || ''
-        if (!rawExisting) continue
+        const rawExisting = (existingAgent.workingDirectory || '').trim()
+        if (!rawExisting || rawExisting === '.' || rawExisting === '/') continue
         const existingDir = resolve(rawExisting).replace(/[/\\]+$/, '')
         const existingPath = existingDir + sep
         // Check: exact match, candidate is child of existing, or candidate is parent of existing

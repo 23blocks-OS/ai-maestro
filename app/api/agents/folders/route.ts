@@ -39,9 +39,12 @@ export async function GET(request: NextRequest) {
     .filter(a => a.workingDirectory)  // skip agents with no working dir
     .map(a => resolve(a.workingDirectory!).replace(/[/\\]+$/, ''))
 
-  // Forbidden system directories (resolved)
-  const FORBIDDEN = new Set([
+  // Forbidden dirs split into tree-blocked (exact+children) and exact-only
+  const BLOCKED_TREE = new Set([
     resolve(process.cwd()),
+  ].map(d => d.replace(/[/\\]+$/, '')))
+
+  const BLOCKED_EXACT = new Set([
     resolve(HOME),
     resolve(join(HOME, 'Desktop')),
     resolve(join(HOME, 'Documents')),
@@ -54,11 +57,15 @@ export async function GET(request: NextRequest) {
     const candidate = resolve(candidateRaw).replace(/[/\\]+$/, '')
     const candidateSlash = candidate + sep
 
-    // Forbidden system dirs (exact or child)
-    for (const f of FORBIDDEN) {
+    // Tree-blocked: exact + child + parent
+    for (const f of BLOCKED_TREE) {
       if (candidate === f || candidate.startsWith(f + sep) || f.startsWith(candidate + sep)) {
         return { overlaps: true, reason: 'system' }
       }
+    }
+    // Exact-blocked: only exact match (children like ~/agents/ are fine)
+    if (BLOCKED_EXACT.has(candidate)) {
+      return { overlaps: true, reason: 'system' }
     }
 
     for (const taken of takenDirs) {

@@ -2486,13 +2486,50 @@ export async function CreateAgent(
     }
 
     // ── G03: Resolve working directory ───────────────────────
-    let workDir = desired.workingDirectory
-    if (!workDir) {
-      // Default: ~/agents/<name>/
+    // RULE: Non-AUTONOMOUS agents ALWAYS get ~/agents/<name>/ (no override allowed).
+    // AUTONOMOUS agents may specify an existing project folder; otherwise ~/agents/<name>/.
+    const { mkdir, stat } = await import('fs/promises')
+    const isTeamTitle = desired.governanceTitle && desired.governanceTitle !== 'autonomous'
+    let workDir: string
+
+    if (isTeamTitle) {
+      // Non-AUTONOMOUS: always ~/agents/<name>/, ignore any override
+      workDir = join(HOME, 'agents', name)
+      if (desired.workingDirectory && desired.workingDirectory !== workDir) {
+        ops.push(`G03: OVERRIDE — non-AUTONOMOUS agent forced to ~/agents/${name}/ (requested: ${desired.workingDirectory})`)
+      }
+    } else if (desired.workingDirectory) {
+      // AUTONOMOUS with explicit folder (user chose an existing project)
+      workDir = desired.workingDirectory.startsWith('~')
+        ? desired.workingDirectory.replace('~', HOME)
+        : desired.workingDirectory
+    } else {
+      // AUTONOMOUS with no folder specified: auto-create ~/agents/<name>/
       workDir = join(HOME, 'agents', name)
     }
-    // Create directory if it doesn't exist
-    const { mkdir } = await import('fs/promises')
+
+    // Name collision check: if workDir is ~/agents/<name>/ and it already exists
+    // AND belongs to a different agent, reject
+    const autoDir = join(HOME, 'agents', name)
+    if (workDir === autoDir) {
+      try {
+        const dirStat = await stat(autoDir)
+        if (dirStat.isDirectory()) {
+          // Check if an agent with this name already exists in registry
+          const { loadAgents } = await import('@/lib/agent-registry')
+          const existing = loadAgents().find(a => a.name === name)
+          if (existing) {
+            result.error = `Agent folder ~/agents/${name}/ already exists and belongs to agent "${existing.label || existing.name}" (${existing.id}). Choose a different name.`
+            return result
+          }
+          // Folder exists but no agent claims it — reuse (orphaned folder)
+          ops.push(`G03: Reusing orphaned folder ~/agents/${name}/`)
+        }
+      } catch {
+        // Folder doesn't exist — will be created below
+      }
+    }
+
     await mkdir(workDir, { recursive: true })
     ops.push(`G03: Working directory: ${workDir}`)
 

@@ -25,6 +25,7 @@
  *   POST   /api/teams/notify                    -> notifyTeamAgents
  */
 
+import { join } from 'path'
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
 // Local task-registry removed (governance simplification 2026-03-27) — kanban uses GitHub Projects exclusively
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
@@ -227,11 +228,14 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
         // Random robot avatar (index 1-50)
         const robotIndex = Math.floor(Math.random() * 50) + 1
         const robotAvatar = `/avatars/robots_${robotIndex.toString().padStart(2, '0')}.jpg`
+        const cosWorkDir = join(process.env.HOME || '/tmp', 'agents', cosName)
+        const { mkdir } = await import('fs/promises')
+        await mkdir(cosWorkDir, { recursive: true })
         const cosAgent = await createCosAgent({
           name: cosName,
           program: 'claude',
           avatar: robotAvatar,
-          workingDirectory: process.env.HOME || '/tmp',
+          workingDirectory: cosWorkDir,
           taskDescription: `Chief-of-Staff for team "${name}"`,
           role: 'chief-of-staff',
           createSession: false,

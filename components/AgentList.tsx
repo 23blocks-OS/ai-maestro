@@ -600,14 +600,15 @@ export default function AgentList({
     }
   }
 
-  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string, programArgs?: string): Promise<boolean> => {
+  const handleCreateAgent = async (name: string, _workingDirectory?: string, hostId?: string, label?: string, avatar?: string, programArgs?: string): Promise<boolean> => {
     setActionLoading(true)
 
     try {
-      const response = await fetch('/api/sessions/create', {
+      // Use CreateAgent AIO — workingDirectory auto-created as ~/agents/<name>/
+      const response = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, workingDirectory, hostId, label, avatar, programArgs }),
+        body: JSON.stringify({ name, label, avatar, programArgs, createSession: true }),
       })
 
       if (!response.ok) {
@@ -682,16 +683,7 @@ export default function AgentList({
                     <Plus className="w-4 h-4 text-green-400" />
                     Create Agent
                   </button>
-                  <button
-                    onClick={() => {
-                      setShowCreateDropdown(false)
-                      router.push('/agent-creation')
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
-                  >
-                    <Settings className="w-4 h-4 text-blue-400" />
-                    Create Agent (Advanced)
-                  </button>
+                  {/* Advanced wizard removed — Haephestos creates role-plugins, not agents */}
                 </div>
               )}
             </div>

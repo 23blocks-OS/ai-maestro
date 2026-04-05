@@ -601,7 +601,10 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     return { error: 'Session already exists', status: 409, data: undefined }
   }
 
-  const cwd = (workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory) || process.cwd()
+  // SAFETY: Never fall back to process.cwd() — that would put agents in the AI Maestro source folder.
+  // Default to ~/agents/<name>/ when no workingDirectory is provided.
+  const resolvedWd = workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory
+  const cwd = resolvedWd || path.join(os.homedir(), 'agents', normalizedName)
   await runtime.createSession(actualSessionName, cwd)
 
   // Register agent

@@ -72,12 +72,13 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
         setAnimationProgress(40)
       }, 800)
 
-      const response = await fetch('/api/sessions/create', {
+      const response = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentName,
-          workingDirectory: workingDirectory || undefined,
+          // workingDirectory auto-created as ~/agents/<name>/ by CreateAgent
+          createSession: true,
         }),
       })
 

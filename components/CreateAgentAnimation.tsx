@@ -422,8 +422,8 @@ function ReadyAnimation({ agentName, agentAlias, avatarUrl, showNextSteps }: { a
   const nextSteps = [
     {
       icon: FolderOpen,
-      title: 'Set Working Directory',
-      description: 'Choose a repo or folder as your agent\'s home',
+      title: 'Agent Folder Created',
+      description: `Your agent lives at ~/agents/${agentName}/`,
       color: 'text-blue-400',
       bgColor: 'bg-blue-500/10',
       borderColor: 'border-blue-500/30',

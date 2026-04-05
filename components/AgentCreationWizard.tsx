@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, ChevronRight, Check, Lock } from 'lucide-react'
+import { X, ArrowLeft, ChevronRight, Check, Lock, FolderOpen } from 'lucide-react'
 import Image from 'next/image'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import type { Team } from '@/types/team'
@@ -12,14 +12,14 @@ import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP } from '@/lib/ecosystem-constan
 
 // --- Types ---
 
-type WizardStep = 'client' | 'avatar' | 'team' | 'title' | 'role-plugin' | 'summary' | 'creating' | 'done'
+type WizardStep = 'client' | 'avatar' | 'team' | 'title' | 'folder' | 'role-plugin' | 'summary' | 'creating' | 'done'
 
 interface ChatMessage {
   id: string
   role: 'robot' | 'user'
   text: string
   step: WizardStep
-  widget?: 'client-picker' | 'avatar-picker' | 'team-picker' | 'title-picker' | 'role-plugin-picker' | 'summary'
+  widget?: 'client-picker' | 'avatar-picker' | 'team-picker' | 'title-picker' | 'folder-picker' | 'role-plugin-picker' | 'summary'
   widgetData?: Record<string, unknown>
 }
 
@@ -71,8 +71,11 @@ function getAvatarUrl(category: AvatarCategory, index: number): string {
 // --- Step order (visible navigation steps only) ---
 
 // Step order — role-plugin step only shown if client supports plugins
-const STEP_ORDER_WITH_PLUGINS: WizardStep[] = ['client', 'avatar', 'team', 'title', 'role-plugin', 'summary']
-const STEP_ORDER_NO_PLUGINS: WizardStep[] = ['client', 'avatar', 'team', 'title', 'summary']
+// Step order varies by: plugin support (client) AND title (AUTONOMOUS gets folder step)
+const STEP_ORDER_AUTONOMOUS_PLUGINS: WizardStep[] = ['client', 'avatar', 'team', 'title', 'folder', 'role-plugin', 'summary']
+const STEP_ORDER_AUTONOMOUS_NO_PLUGINS: WizardStep[] = ['client', 'avatar', 'team', 'title', 'folder', 'summary']
+const STEP_ORDER_TEAM_PLUGINS: WizardStep[] = ['client', 'avatar', 'team', 'title', 'role-plugin', 'summary']
+const STEP_ORDER_TEAM_NO_PLUGINS: WizardStep[] = ['client', 'avatar', 'team', 'title', 'summary']
 
 let msgCounter = 0
 function makeMsg(
@@ -95,6 +98,8 @@ function robotQuestion(step: WizardStep): ChatMessage {
       return makeMsg('robot', 'Should this agent belong to a team?', step, 'team-picker')
     case 'title':
       return makeMsg('robot', 'What governance title should this agent hold?', step, 'title-picker')
+    case 'folder':
+      return makeMsg('robot', 'Where should this agent work? Choose a project folder or let me create one.', step, 'folder-picker')
     case 'role-plugin':
       return makeMsg('robot', "Choose a role plugin to define this agent's specialization.", step, 'role-plugin-picker')
     case 'summary':
@@ -128,10 +133,15 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)  // null = no team
   const [selectedTitle, setSelectedTitle] = useState<AgentRole>('autonomous')
   const [selectedPlugin, setSelectedPlugin] = useState<RolePlugin | null>(null)
+  const [selectedFolder, setSelectedFolder] = useState<string>('')  // empty = auto ~/agents/<name>/
+  const [folderInput, setFolderInput] = useState('')  // text input for custom folder path
 
-  // Dynamic step order based on client capabilities (only plugin-supporting clients see role-plugin step)
+  // Dynamic step order: plugin support (client) + AUTONOMOUS gets folder step, team agents don't
   const clientSupportsPlugins = selectedClient === 'claude' || selectedClient === 'codex'
-  const STEP_ORDER = clientSupportsPlugins ? STEP_ORDER_WITH_PLUGINS : STEP_ORDER_NO_PLUGINS
+  const isAutonomous = !selectedTeamId && (selectedTitle === 'autonomous' || selectedTitle === '' as AgentRole)
+  const STEP_ORDER = isAutonomous
+    ? (clientSupportsPlugins ? STEP_ORDER_AUTONOMOUS_PLUGINS : STEP_ORDER_AUTONOMOUS_NO_PLUGINS)
+    : (clientSupportsPlugins ? STEP_ORDER_TEAM_PLUGINS : STEP_ORDER_TEAM_NO_PLUGINS)
 
   // Teams & plugins data
   const [teams, setTeams] = useState<Team[]>([])
@@ -271,14 +281,34 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
 
   const handleTitleSelect = useCallback((title: AgentRole) => {
     setSelectedTitle(title)
-    // Titles with a locked plugin skip the role-plugin step
-    if (LOCKED_TITLE_PLUGINS[title]) {
-      setSelectedPlugin(null)  // resolved during creation
+    // AUTONOMOUS agents → next step is 'folder' (choose working directory)
+    // Team agents → skip folder (auto ~/agents/<name>/)
+    const isAutoTitle = title === 'autonomous'
+    const hasLockedPlugin = !!LOCKED_TITLE_PLUGINS[title]
+    if (isAutoTitle) {
+      // AUTONOMOUS: go to folder selection step
+      advance(title.toUpperCase(), 'folder')
+    } else if (hasLockedPlugin) {
+      // Team title with locked plugin: skip folder AND role-plugin → summary
+      setSelectedPlugin(null)
       advance(title.toUpperCase(), 'summary')
     } else {
+      // Team title without locked plugin: skip folder → role-plugin
       advance(title.toUpperCase(), 'role-plugin')
     }
   }, [advance])
+
+  const handleFolderSelect = useCallback((folder: string) => {
+    setSelectedFolder(folder)
+    const agentName = personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
+    const label = folder || `~/agents/${agentName}/`
+    // After folder, go to role-plugin (if supported) or summary
+    if (clientSupportsPlugins) {
+      advance(label, 'role-plugin')
+    } else {
+      advance(label, 'summary')
+    }
+  }, [advance, personaName, clientSupportsPlugins])
 
   const handlePluginSelect = useCallback((plugin: RolePlugin | null) => {
     setSelectedPlugin(plugin)
@@ -287,6 +317,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   }, [advance])
 
   // --- Create agent ---
+  // Single API call to CreateAgent AIO — handles registration, folder creation,
+  // team assignment, title, plugin install, and tmux session in one atomic operation.
   const handleCreate = useCallback(async () => {
     setIsCreating(true)
     setStep('creating')
@@ -295,74 +327,32 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
     // Derive slug-style internal agent name from persona name
     const agentName = personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
     const avatar = selectedAvatar || getPreviewAvatarUrl(personaName)
+    const lockedPlugin = LOCKED_TITLE_PLUGINS[selectedTitle]
+    const pluginName = lockedPlugin ?? selectedPlugin?.name
 
     try {
-      // Step 1: Create tmux session + register agent
-      const response = await fetch('/api/sessions/create', {
+      // Single call to CreateAgent AIO — replaces the old 4-step creation
+      // Working directory: CreateAgent enforces ~/agents/<name>/ for non-AUTONOMOUS agents.
+      // For AUTONOMOUS agents, workingDirectory is only sent if user chose an existing folder.
+      const response = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentName,
           label: personaName,
           avatar,
-          program: selectedClient,
-          role: selectedTitle,
+          client: selectedClient,
+          governanceTitle: selectedTitle || 'autonomous',
+          teamId: selectedTeamId || undefined,
+          pluginName: pluginName || undefined,
+          createSession: true,
+          // Only send workingDirectory if user chose a specific folder (AUTONOMOUS only)
+          workingDirectory: selectedFolder || undefined,
         }),
       })
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Failed to create agent')
-      }
-      const created = await response.json()
-      const agentId: string = created?.agentId ?? created?.id ?? agentName
-
-      // Step 2: Add to team if one was selected
-      if (selectedTeamId) {
-        try {
-          const teamRes = await fetch(`/api/teams/${selectedTeamId}`)
-          if (teamRes.ok) {
-            const teamData = await teamRes.json()
-            const existingIds: string[] = teamData?.team?.agentIds ?? []
-            if (!existingIds.includes(agentId)) {
-              await fetch(`/api/teams/${selectedTeamId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agentIds: [...existingIds, agentId] }),
-              })
-            }
-          }
-        } catch {
-          // Non-fatal: team add failure shouldn't block agent creation
-        }
-      }
-
-      // Step 3: Auto-assign role plugin
-      const lockedPlugin = LOCKED_TITLE_PLUGINS[selectedTitle]
-      const pluginName = lockedPlugin ?? selectedPlugin?.name
-      if (pluginName) {
-        try {
-          await fetch('/api/agents/create-persona', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ personaName, pluginName }),
-          })
-        } catch {
-          // Non-fatal: plugin install may fail if marketplace not synced yet
-        }
-      }
-
-      // Step 4: Explicitly set governanceTitle if not the default 'member'
-      // The team-add in Step 2 auto-sets 'member', so we override with the wizard-selected title
-      if (selectedTitle && selectedTitle !== 'member' && selectedTitle !== 'autonomous') {
-        try {
-          await fetch(`/api/agents/${agentId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ governanceTitle: selectedTitle }),
-          })
-        } catch {
-          // Non-fatal: title set failure shouldn't block agent creation
-        }
       }
 
       setCreationSuccess(true)
@@ -371,7 +361,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [personaName, selectedAvatar, selectedTitle, selectedTeamId, selectedPlugin])
+  }, [personaName, selectedAvatar, selectedTitle, selectedTeamId, selectedPlugin, selectedClient])
 
   // Animation timer sequence
   useEffect(() => {
@@ -525,13 +515,18 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                       // Title step props
                       selectedTeamId={selectedTeamId}
                       onTitleSelect={handleTitleSelect}
+                      // Folder step props (AUTONOMOUS only)
+                      personaName={personaName}
+                      onFolderSelect={handleFolderSelect}
+                      folderInput={folderInput}
+                      setFolderInput={setFolderInput}
                       // Role-plugin step props
                       plugins={plugins}
                       pluginsLoading={pluginsLoading}
                       selectedTitle={selectedTitle}
                       onPluginSelect={handlePluginSelect}
                       // Summary props
-                      state={{ personaName, selectedTeamId, selectedTitle, selectedPlugin, selectedAvatar, teams }}
+                      state={{ personaName, selectedTeamId, selectedTitle, selectedPlugin, selectedAvatar, selectedFolder, teams }}
                       onCreate={handleCreate}
                     />
                   ))}
@@ -605,6 +600,11 @@ interface ChatBubbleProps {
   // Title step
   selectedTeamId: string | null
   onTitleSelect: (title: AgentRole) => void
+  // Folder step (AUTONOMOUS only)
+  personaName: string
+  onFolderSelect: (folder: string) => void
+  folderInput: string
+  setFolderInput: (val: string) => void
   // Role-plugin step
   plugins: RolePlugin[]
   pluginsLoading: boolean
@@ -617,6 +617,7 @@ interface ChatBubbleProps {
     selectedTitle: AgentRole
     selectedPlugin: RolePlugin | null
     selectedAvatar: string
+    selectedFolder: string
     teams: Team[]
   }
   onCreate: () => void
@@ -643,6 +644,10 @@ function ChatBubble({
   onTeamSelect,
   selectedTeamId,
   onTitleSelect,
+  personaName,
+  onFolderSelect,
+  folderInput,
+  setFolderInput,
   plugins,
   pluginsLoading,
   selectedTitle,
@@ -732,6 +737,15 @@ function ChatBubble({
               <TitlePickerWidget
                 selectedTeamId={selectedTeamId}
                 onSelect={onTitleSelect}
+              />
+            )}
+
+            {message.widget === 'folder-picker' && (
+              <FolderPickerWidget
+                agentName={personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')}
+                folderInput={folderInput}
+                setFolderInput={setFolderInput}
+                onSelect={onFolderSelect}
               />
             )}
 
@@ -957,6 +971,75 @@ function TeamPickerWidget({
 }
 
 // Step 3: Title picker — context-filtered by team assignment
+function FolderPickerWidget({
+  agentName,
+  folderInput,
+  setFolderInput,
+  onSelect,
+}: {
+  agentName: string
+  folderInput: string
+  setFolderInput: (val: string) => void
+  onSelect: (folder: string) => void
+}) {
+  const autoFolder = `~/agents/${agentName}/`
+  const [mode, setMode] = useState<'auto' | 'custom'>('auto')
+
+  return (
+    <div className="space-y-2 w-full">
+      {/* Option 1: Auto-create */}
+      <button
+        onClick={() => { setMode('auto'); onSelect('') }}
+        className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-200 ${
+          mode === 'auto' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 hover:border-gray-600 bg-gray-800/50'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <FolderOpen className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <div>
+            <div className="text-sm text-white font-medium">Auto-create agent folder</div>
+            <div className="text-xs text-gray-400 font-mono">{autoFolder}</div>
+          </div>
+        </div>
+      </button>
+
+      {/* Option 2: Pick existing folder */}
+      <button
+        onClick={() => setMode('custom')}
+        className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-200 ${
+          mode === 'custom' ? 'border-blue-500/50 bg-blue-500/10' : 'border-gray-700 hover:border-gray-600 bg-gray-800/50'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <FolderOpen className="w-4 h-4 text-blue-400 flex-shrink-0" />
+          <div className="text-sm text-white font-medium">Use existing project folder</div>
+        </div>
+      </button>
+
+      {/* Custom folder input */}
+      {mode === 'custom' && (
+        <div className="mt-2 space-y-2">
+          <input
+            type="text"
+            value={folderInput}
+            onChange={(e) => setFolderInput(e.target.value)}
+            placeholder="/path/to/existing/project"
+            className="w-full text-xs px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
+            autoFocus
+          />
+          <button
+            onClick={() => onSelect(folderInput)}
+            disabled={!folderInput.startsWith('/') && !folderInput.startsWith('~')}
+            className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Use this folder
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TitlePickerWidget({
   selectedTeamId,
   onSelect,
@@ -1102,6 +1185,7 @@ function SummaryCard({
     selectedTitle: AgentRole
     selectedPlugin: RolePlugin | null
     selectedAvatar: string
+    selectedFolder: string
     teams: Team[]
   }
   onCreate: () => void
@@ -1111,6 +1195,8 @@ function SummaryCard({
   const pluginDisplay = lockedPlugin
     ? lockedPlugin
     : (state.selectedPlugin ? state.selectedPlugin.name : 'Default (Programmer)')
+  const agentName = state.personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
+  const folderDisplay = state.selectedFolder || `~/agents/${agentName}/`
 
   return (
     <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4 space-y-2.5">
@@ -1142,6 +1228,7 @@ function SummaryCard({
       </div>
 
       <SummaryRow label="Team" value={team ? team.name : 'Autonomous (no team)'} />
+      <SummaryRow label="Folder" value={folderDisplay} />
       <SummaryRow label="Role Plugin" value={pluginDisplay} />
 
       <button

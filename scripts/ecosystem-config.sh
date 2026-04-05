@@ -12,7 +12,7 @@
 # ── Marketplace ──────────────────────────────────────────────
 MARKETPLACE_REPO="Emasoft/ai-maestro-plugins"
 MARKETPLACE_NAME="ai-maestro-plugins"
-LOCAL_MARKETPLACE_NAME="ai-maestro-local-agents-marketplace"
+LOCAL_MARKETPLACE_NAME="ai-maestro-local-roles-marketplace"
 LOCAL_MARKETPLACE_DIR_NAME="role-plugins"
 
 # ── User-Scope Plugins ──────────────────────────────────────

@@ -102,6 +102,8 @@ export interface RolePlugin {
   mainAgentName: string
   mainAgentPath: string
   marketplace?: string  // MARKETPLACE_NAME for defaults, LOCAL_MARKETPLACE_NAME for custom (see lib/ecosystem-constants.ts)
+  compatibleTitles?: string[]   // From .agent.toml: which governance titles can use this plugin
+  compatibleClients?: string[]  // From .agent.toml: which AI clients can use this plugin
 }
 
 export interface GlobalDependencies {

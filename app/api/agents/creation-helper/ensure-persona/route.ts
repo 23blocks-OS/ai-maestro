@@ -35,14 +35,20 @@ const HAEPHESTOS_SETTINGS = {
       // PSS profiler binary
       'Bash(pss*)',
       'Bash(*/pss*)',
+      // uv/uvx for CPV validation (uvx cpv-remote-validate)
+      'Bash(uv*)',
+      'Bash(uvx*)',
       // Read-only tools — unrestricted
       'Read',
       'Glob',
       'Grep',
-      // Write tool — ONLY inside haephestos workspace (** = recursive into subdirs)
+      // Write + Edit — ONLY inside haephestos workspace (** = recursive into subdirs)
       'Write(~/agents/haephestos/**)',
-      // Agent spawning REMOVED — was allowing unlimited autonomous subagent spawning.
-      // PSS profiler agent is the only needed subagent; it will prompt for approval.
+      'Edit(~/agents/haephestos/**)',
+      // Agent spawning — allowed for CPV fixer agent only (prompted for approval)
+      'Agent',
+      // WebFetch — user may provide URLs for skills/MCP servers to examine
+      'WebFetch',
     ],
     deny: [
       // Block file deletion: rm* catches rm, rm -rf, rmdir

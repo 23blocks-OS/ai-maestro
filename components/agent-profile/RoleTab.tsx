@@ -1,43 +1,64 @@
 'use client'
 
-import { useState } from 'react'
-import { Shield, FolderOpen, Sparkles, ExternalLink, Lock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Shield, FolderOpen, Sparkles, ExternalLink, Lock, ChevronDown } from 'lucide-react'
 import type { AgentLocalConfig } from '@/types/agent-local-config'
 import type { GovernanceTitle } from '@/hooks/useGovernance'
 import { SectionLabel } from './shared'
 import RolePluginModal from './RolePluginModal'
-import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP, LOCAL_MARKETPLACE_NAME } from '@/lib/ecosystem-constants'
+import { LOCAL_MARKETPLACE_NAME } from '@/lib/ecosystem-constants'
 
-// Governance titles that force a specific role-plugin (no change allowed)
-// Derived from ecosystem-constants — lower-cased keys for UI matching.
-const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
-)
+interface CompatiblePlugin {
+  name: string
+  marketplace?: string
+  source?: string
+  compatibleTitles?: string[]
+  compatibleClients?: string[]
+}
 
 export default function RoleTab({
   config,
   agentTitle,
+  agentClient,
   onEditInHaephestos,
   onBrowse,
   onRefresh,
 }: {
   config: AgentLocalConfig
   agentTitle?: GovernanceTitle
+  agentClient?: string  // Agent's AI client (claude, codex, gemini, etc.)
   onEditInHaephestos?: (profilePath: string) => void
   onBrowse?: (path: string) => void
   onRefresh?: () => void
 }) {
   const [showModal, setShowModal] = useState(false)
   const [switching, setSwitching] = useState(false)
+  const [compatiblePlugins, setCompatiblePlugins] = useState<CompatiblePlugin[]>([])
 
-  // Titles that lock the role-plugin (no Change button)
-  const requiredPlugin = agentTitle ? TITLE_PLUGIN_MAP[agentTitle] || null : null
-  const isLocked = requiredPlugin !== null
-  // MEMBER and AUTONOMOUS can change their plugin
-  const canChange = !isLocked
+  // Fetch compatible plugins for this agent's title + client
+  useEffect(() => {
+    if (!agentTitle || agentTitle === 'autonomous') {
+      setCompatiblePlugins([])
+      return
+    }
+    const url = `/api/agents/role-plugins?title=${agentTitle.toUpperCase()}${agentClient ? `&client=${agentClient}` : ''}`
+    fetch(url)
+      .then(r => r.ok ? r.json() : { plugins: [] })
+      .then(data => setCompatiblePlugins(Array.isArray(data.plugins) ? data.plugins : []))
+      .catch(() => setCompatiblePlugins([]))
+  }, [agentTitle, agentClient])
+
+  // N:1 model: 1 compatible → fixed label; 2+ → dropdown; 0/MEMBER/AUTONOMOUS → free choice
+  const hasMultipleOptions = compatiblePlugins.length > 1
+  const isTitled = agentTitle && !['autonomous', 'member'].includes(agentTitle)
+  // Titled agents: show Change only if 2+ compatible plugins exist
+  // MEMBER/AUTONOMOUS: always show Change (free choice from all plugins)
+  const canChange = isTitled ? hasMultipleOptions : true
+  // Show lock icon only when exactly 1 compatible plugin for a titled agent
+  const isSingleLocked = isTitled && compatiblePlugins.length === 1
 
   const handleSwitchPlugin = async (pluginName: string) => {
-    if (!config.workingDirectory || isLocked) return
+    if (!config.workingDirectory) return
     if (pluginName === config.rolePlugin?.name) return
     setSwitching(true)
     try {
@@ -50,11 +71,11 @@ export default function RoleTab({
         })
         if (!uninstallRes.ok) return
       }
-      // Install new
+      // Install new (rolePluginSwap bypasses the ChangePlugin guard for N:1 role-plugin swaps)
       const installRes = await fetch('/api/agents/role-plugins/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pluginName, agentDir: config.workingDirectory, scope: 'local' }),
+        body: JSON.stringify({ pluginName, agentDir: config.workingDirectory, scope: 'local', rolePluginSwap: true }),
       })
       if (!installRes.ok) return
     } catch (err) {
@@ -66,23 +87,43 @@ export default function RoleTab({
     onRefresh?.()
   }
 
-  // Role plugin display — locked for titled agents, changeable for MEMBER/AUTONOMOUS
+  // Role plugin display — N:1 model:
+  // 1 compatible → locked label; 2+ → dropdown with Change; 0 → free choice
   const selectorEl = (
     <div className="mb-3">
       <SectionLabel text="Role Plugin" />
-      {isLocked ? (
-        // Locked: show static label with lock icon
+      {isSingleLocked ? (
+        // Single compatible plugin: show fixed label with lock icon
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
           <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <span className="text-xs font-medium text-emerald-300 flex-1 truncate">
-            {switching ? 'Switching…' : (requiredPlugin || config.rolePlugin?.name || 'None')}
+            {switching ? 'Switching…' : (config.rolePlugin?.name || compatiblePlugins[0]?.name || 'None')}
           </span>
           <p className="text-[9px] text-emerald-400/60 flex-shrink-0">
-            Locked by {agentTitle?.toUpperCase()}
+            Only option for {agentTitle?.toUpperCase()}
           </p>
         </div>
+      ) : hasMultipleOptions ? (
+        // Multiple compatible plugins: dropdown with Change button
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/30 bg-blue-500/5">
+          <ChevronDown className="w-4 h-4 text-blue-400 flex-shrink-0" />
+          <span className="text-xs font-medium text-blue-300 flex-1 truncate">
+            {switching ? 'Switching…' : (config.rolePlugin?.name || 'Select plugin')}
+            {!switching && config.rolePlugin?.name && config.rolePlugin.marketplace === LOCAL_MARKETPLACE_NAME && (
+              <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">custom</span>
+            )}
+          </span>
+          <span className="text-[9px] text-blue-400/60">{compatiblePlugins.length} options</span>
+          <button
+            onClick={() => setShowModal(true)}
+            disabled={switching}
+            className="text-[10px] px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-blue-200 font-medium transition-colors disabled:opacity-50"
+          >
+            Change
+          </button>
+        </div>
       ) : (
-        // Changeable: show current plugin + Change button
+        // Free choice (AUTONOMOUS/MEMBER or no compatible-titles constraint)
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700/40 bg-gray-800/30">
           <Shield className={`w-4 h-4 flex-shrink-0 ${config.rolePlugin ? 'text-amber-400' : 'text-gray-600'}`} />
           <span className="text-xs font-medium text-gray-400 flex-1 truncate">
@@ -98,6 +139,22 @@ export default function RoleTab({
           >
             Change
           </button>
+        </div>
+      )}
+
+      {/* Metadata: compatible-titles and compatible-clients */}
+      {config.rolePlugin && (
+        <div className="mt-1 flex gap-2 flex-wrap">
+          {config.rolePlugin.compatibleTitles && config.rolePlugin.compatibleTitles.length > 0 && (
+            <span className="text-[8px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/30">
+              titles: {config.rolePlugin.compatibleTitles.join(', ')}
+            </span>
+          )}
+          {config.rolePlugin.compatibleClients && config.rolePlugin.compatibleClients.length > 0 && (
+            <span className="text-[8px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/30">
+              clients: {config.rolePlugin.compatibleClients.join(', ')}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -137,7 +194,7 @@ export default function RoleTab({
       )}
 
       {/* No plugin — show Haephestos create option */}
-      {!config.rolePlugin && !isLocked && (
+      {!config.rolePlugin && !isSingleLocked && (
         <div className="text-center py-4">
           <p className="text-[10px] text-gray-600 mb-4 px-4 leading-relaxed">
             A Role-Plugin defines the agent&apos;s specialization and bundles skills, hooks, and rules for that role.

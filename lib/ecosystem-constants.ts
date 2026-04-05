@@ -15,10 +15,21 @@ export const MARKETPLACE_REPO = 'Emasoft/ai-maestro-plugins'
 export const MARKETPLACE_NAME = 'ai-maestro-plugins'
 
 /** Local marketplace for custom Haephestos-generated role-plugins */
-export const LOCAL_MARKETPLACE_NAME = 'ai-maestro-local-agents-marketplace'
+export const LOCAL_MARKETPLACE_NAME = 'ai-maestro-local-roles-marketplace'
 
-/** Local marketplace directory */
+/** Local marketplace directory name (under ~/agents/) */
 export const LOCAL_MARKETPLACE_DIR_NAME = 'role-plugins'
+
+/**
+ * Resolve the local marketplace root path: ~/agents/role-plugins/
+ * Plugins live directly at ~/agents/role-plugins/<plugin-name>/
+ * Marketplace metadata at ~/agents/role-plugins/.claude-plugin/
+ */
+export function getLocalMarketplacePath(): string {
+  const { homedir } = require('os') as typeof import('os')
+  const { join } = require('path') as typeof import('path')
+  return join(homedir(), 'agents', LOCAL_MARKETPLACE_DIR_NAME)
+}
 
 // ── User-Scope Plugins (from ai-maestro marketplace) ────────
 

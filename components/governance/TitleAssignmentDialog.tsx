@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Shield, Crown, Megaphone, X, AlertTriangle, Compass, GitMerge, Bot } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceTitle } from '@/hooks/useGovernance'
-import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP } from '@/lib/ecosystem-constants'
 
 interface TitleAssignmentDialogProps {
   isOpen: boolean
@@ -229,40 +228,8 @@ export default function TitleAssignmentDialog({
     )
   }
 
-  // Title → role-plugin mapping for auto-install after title change.
-  // Derived from ecosystem-constants — lower-cased keys for API matching.
-  const TITLE_PLUGIN_MAP: Record<string, string> = Object.fromEntries(
-    Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
-  )
-
-  // Auto-install the role-plugin for the given title — uninstalls the OLD plugin first to avoid conflicts
-  const autoInstallPluginForTitle = async (title: string) => {
-    const pluginName = TITLE_PLUGIN_MAP[title]
-    if (!pluginName) return // MEMBER/AUTONOMOUS — no auto-install
-    try {
-      const agentRes = await fetch(`/api/agents/${agentId}`)
-      if (!agentRes.ok) return
-      const agentData = await agentRes.json()
-      const workDir = agentData.agent?.workingDirectory
-      if (!workDir) return
-      // Uninstall ALL other title-locked plugins first (only one should be active at a time)
-      for (const [, otherPlugin] of Object.entries(TITLE_PLUGIN_MAP)) {
-        if (otherPlugin !== pluginName) {
-          await fetch('/api/agents/role-plugins/install', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pluginName: otherPlugin, agentDir: workDir }),
-          }).catch(() => {}) // Ignore errors — plugin may not be installed
-        }
-      }
-      // Install the new plugin
-      await fetch('/api/agents/role-plugins/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pluginName, agentDir: workDir, scope: 'local' }),
-      })
-    } catch { /* best-effort */ }
-  }
+  // Plugin install/swap is handled by ChangeTitle pipeline (Gates 15-16)
+  // via PATCH /api/agents/{id} with governanceTitle — no direct plugin API calls needed
 
   // Execute the role change after password confirmation
   const handleRoleChange = async (password: string) => {
@@ -393,9 +360,8 @@ export default function TitleAssignmentDialog({
             body: JSON.stringify({ orchestratorId: null }),
           })
         }
-        // Set the new simple governance title + auto-install its role-plugin
+        // Set the new simple governance title — ChangeTitle pipeline handles plugin install
         await setGovernanceTitle(selectedTitle)
-        await autoInstallPluginForTitle(selectedTitle)
         // If new title is orchestrator, set orchestratorId on the team
         if (selectedTitle === 'orchestrator') {
           await updateTeamOrchestratorId(agentId)
@@ -422,7 +388,8 @@ export default function TitleAssignmentDialog({
         }
         const result = await governance.assignManager(agentId, password)
         if (!result.success) throw new Error(result.error || 'Failed to assign manager role')
-        await autoInstallPluginForTitle('manager')
+        // ChangeTitle pipeline handles plugin install
+        await setGovernanceTitle('manager')
       } else if (selectedTitle === 'chief-of-staff') {
         // Assign COS: first remove manager or simple title if needed, then remove old COS assignments, then assign COS to selected teams
         if (currentTitle === 'manager') {
@@ -468,7 +435,8 @@ export default function TitleAssignmentDialog({
             throw new Error(`Failed to assign COS to ${failures.length} team(s)`)
           }
         }
-        await autoInstallPluginForTitle('chief-of-staff')
+        // Set governanceTitle — ChangeTitle pipeline handles plugin install
+        await setGovernanceTitle('chief-of-staff')
       }
 
       // Success: notify parent and close

@@ -776,9 +776,27 @@ export default function TomlPreviewPanel({ tomlPath, onClose, onInsertToPrompt }
               {profile.agent.path && (
                 <KvRow label="Path" value={profile.agent.path} icon={FolderOpen} />
               )}
+              {/* Compatible-titles badges */}
+              {profile.agent['compatible-titles'] && (
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#8a7a50' }}>Titles</span>
+                  {profile.agent['compatible-titles'].replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean).map(t => (
+                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ backgroundColor: '#1e1a10', border: '1px solid #3e3418', color: '#d0b870' }}>{t}</span>
+                  ))}
+                </div>
+              )}
+              {/* Compatible-clients badges */}
+              {profile.agent['compatible-clients'] && (
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#507a8a' }}>Clients</span>
+                  {profile.agent['compatible-clients'].replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean).map(c => (
+                    <span key={c} className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ backgroundColor: '#101a1e', border: '1px solid #183438', color: '#70b0c0' }}>{c}</span>
+                  ))}
+                </div>
+              )}
               {/* Show any extra agent fields not covered above */}
               {Object.entries(profile.agent)
-                .filter(([k]) => !['name', 'model', 'program', 'workingDirectory', 'teamId', 'source', 'path'].includes(k))
+                .filter(([k]) => !['name', 'model', 'program', 'workingDirectory', 'teamId', 'source', 'path', 'compatible-titles', 'compatible-clients', 'description'].includes(k))
                 .map(([k, v]) => (
                   <KvRow key={k} label={k} value={v} />
                 ))

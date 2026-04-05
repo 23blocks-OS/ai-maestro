@@ -291,10 +291,50 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
     // Pass governance context (managerId + agent names for collision checks) to updateTeam
     const managerId = getManagerId()
     const agentNames = loadAgents().map(a => a.name).filter(Boolean)
+
+    // Detect agents being REMOVED from the team — they need title stripped to AUTONOMOUS
+    const oldTeam = getTeam(id)
+    const oldAgentIds = oldTeam?.agentIds || []
+    const newAgentIds = (finalFields as any).agentIds as string[] | undefined
+
     const team = await updateTeam(id, finalFields, managerId, agentNames)
     if (!team) {
       return { error: 'Team not found', status: 404 }
     }
+
+    // Strip titles from removed agents (team-bound titles are meaningless outside teams)
+    if (newAgentIds !== undefined) {
+      const removedAgentIds = oldAgentIds.filter(aid => !newAgentIds.includes(aid))
+      if (removedAgentIds.length > 0) {
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        for (const removedId of removedAgentIds) {
+          try {
+            await ChangeTitle(removedId, null)  // Reverts to AUTONOMOUS, uninstalls role-plugin
+          } catch (err) {
+            console.warn(`[teams] Failed to strip title from removed agent ${removedId}:`, err instanceof Error ? err.message : err)
+          }
+        }
+      }
+
+      // Auto-title newly added agents to MEMBER
+      const addedAgentIds = newAgentIds.filter(aid => !oldAgentIds.includes(aid))
+      if (addedAgentIds.length > 0) {
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        for (const addedId of addedAgentIds) {
+          try {
+            const { getAgent } = await import('@/lib/agent-registry')
+            const agent = getAgent(addedId)
+            // Only auto-title if agent doesn't already have a team-specific title
+            if (!agent?.governanceTitle || agent.governanceTitle === 'autonomous') {
+              await ChangeTitle(addedId, 'member')
+            }
+          } catch (err) {
+            console.warn(`[teams] Failed to auto-title added agent ${addedId}:`, err instanceof Error ? err.message : err)
+          }
+        }
+      }
+    }
+
     return { data: { team }, status: 200 }
   } catch (error) {
     // TeamValidationException carries a specific HTTP status code from governance rules

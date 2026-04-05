@@ -288,6 +288,7 @@ prerequisites:
   - Governance password set
   - At least 1 active agent with tmux session
   - Chrome browser open with DevTools accessible
+governance_password: "<the governance password for title changes>"
 commit: <git-hash>
 author: <who wrote the scenario>
 ---

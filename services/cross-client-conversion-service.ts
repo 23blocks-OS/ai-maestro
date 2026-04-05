@@ -153,6 +153,123 @@ export function getAvailableTargets(sourceClient: ProviderId): ProviderId[] {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Role-Plugin Conversion (.agent.toml aware)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Convert a role-plugin for a target client, respecting .agent.toml metadata.
+ *
+ * Key behaviors:
+ * 1. If the plugin's .agent.toml already lists targetClient in compatible-clients → return original (no conversion)
+ * 2. If conversion needed → convert and update compatible-clients in the output .agent.toml
+ * 3. Role-plugins are identified by having a .agent.toml file (easier than content analysis)
+ *
+ * @returns The path/URL to the (possibly converted) plugin, or null if conversion failed
+ */
+export async function convertRolePluginForClient(options: {
+  pluginPath: string        // Local path to the role-plugin directory
+  targetClient: ProviderId  // Target client (e.g., 'codex', 'gemini')
+  outputDir?: string        // Where to write converted plugin (defaults to temp dir)
+}): Promise<{ path: string; converted: boolean; compatibleClients: string[] } | null> {
+  const { pluginPath, targetClient, outputDir } = options
+  const fs = await import('fs')
+  const { readFile, writeFile, mkdir } = fs.promises
+
+  // Find <plugin-name>.agent.toml in the plugin directory
+  let tomlPath: string | null = null
+  try {
+    const entries = fs.readdirSync(pluginPath)
+    const match = entries.find((e: string) => e.endsWith('.agent.toml'))
+    if (match) tomlPath = path.join(pluginPath, match)
+  } catch { /* ignore */ }
+
+  if (!tomlPath) {
+    // Not a role-plugin (no .agent.toml) — use generic conversion
+    return null
+  }
+
+  // Read compatible-clients from .agent.toml
+  try {
+    const tomlContent = await readFile(tomlPath, 'utf-8')
+    // Simple extraction of compatible-clients (avoid full TOML parser dependency)
+    const clientMatch = tomlContent.match(/compatible-clients\s*=\s*\[([^\]]*)\]/)
+    const existingClients: string[] = clientMatch
+      ? clientMatch[1].split(',').map(s => s.trim().replace(/["']/g, '').toLowerCase()).filter(Boolean)
+      : ['claude-code'] // default if not specified
+
+    const normalizedTarget = targetClient.toLowerCase()
+
+    // If target client is already compatible → return original, no conversion needed
+    if (existingClients.includes(normalizedTarget)) {
+      return { path: pluginPath, converted: false, compatibleClients: existingClients }
+    }
+
+    // Conversion needed: convert plugin and update compatible-clients
+    const outDir = outputDir || path.join(os.tmpdir(), `aimaestro-converted-${Date.now()}`)
+    await mkdir(outDir, { recursive: true })
+
+    // Convert using the converter library
+    const result = await convert({
+      dir: pluginPath,
+      to: targetClient,
+      scope: 'project',
+      projectDir: outDir,
+    })
+
+    if (!result.ok) {
+      return null
+    }
+
+    // Update compatible-clients in the converted .agent.toml
+    const convertedTomlPath = path.join(outDir, path.basename(tomlPath))
+    if (fs.existsSync(convertedTomlPath)) {
+      let convertedToml = await readFile(convertedTomlPath, 'utf-8')
+      // Replace or add compatible-clients
+      if (convertedToml.includes('compatible-clients')) {
+        convertedToml = convertedToml.replace(
+          /compatible-clients\s*=\s*\[[^\]]*\]/,
+          `compatible-clients = ["${normalizedTarget}"]`
+        )
+      } else {
+        // Add after compatible-titles line
+        convertedToml = convertedToml.replace(
+          /(compatible-titles\s*=\s*\[[^\]]*\])/,
+          `$1\ncompatible-clients = ["${normalizedTarget}"]`
+        )
+      }
+      await writeFile(convertedTomlPath, convertedToml, 'utf-8')
+    }
+
+    return { path: outDir, converted: true, compatibleClients: [normalizedTarget] }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if a role-plugin is compatible with a target client by reading its .agent.toml.
+ * Returns true if no conversion is needed.
+ */
+export async function isRolePluginCompatibleWithClient(
+  pluginPath: string,
+  targetClient: string
+): Promise<boolean> {
+  const fs = await import('fs')
+  try {
+    const entries = fs.readdirSync(pluginPath)
+    const tomlFile = entries.find((e: string) => e.endsWith('.agent.toml'))
+    if (!tomlFile) return true // Not a role-plugin — assume compatible
+    const tomlContent = fs.readFileSync(path.join(pluginPath, tomlFile), 'utf-8')
+    const clientMatch = tomlContent.match(/compatible-clients\s*=\s*\[([^\]]*)\]/)
+    if (!clientMatch) return targetClient.toLowerCase() === 'claude-code' // default is Claude-only
+    const clients = clientMatch[1].split(',').map(s => s.trim().replace(/["']/g, '').toLowerCase()).filter(Boolean)
+    return clients.includes(targetClient.toLowerCase())
+  } catch {
+    return true // If we can't read, assume compatible
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Backward compatibility wrappers (for existing API routes)
 // These delegate to the new converter library.
 // ═══════════════════════════════════════════════════════════════

@@ -15,7 +15,7 @@ import path from 'path'
 import semver from 'semver'
 import {
   LOCAL_MARKETPLACE_NAME,
-  LOCAL_MARKETPLACE_DIR_NAME,
+  getLocalMarketplacePath,
 } from '@/lib/ecosystem-constants'
 import { getAgent } from '@/lib/agent-registry'
 import type { ServiceResult } from '@/types/service'
@@ -442,12 +442,14 @@ function scanPlugins(
           const roleMarketplace = pluginKey?.includes('@')
             ? pluginKey.split('@').slice(1).join('@')
             : LOCAL_MARKETPLACE_NAME
+          const compat = extractTomlCompatibility(agentTomlPath)
           rolePlugin = {
             name: pluginName,
             profilePath: agentTomlPath,
             mainAgentName,
             mainAgentPath,
             marketplace: roleMarketplace,
+            ...compat,
           }
           globalDependencies = extractTomlDependencies(agentTomlPath)
           // Also scan role plugin's bundled elements (skills, agents, hooks, etc.)
@@ -522,7 +524,7 @@ function collectPluginPaths(claudeDir: string, settingsData: Record<string, unkn
 /**
  * Handle the `enabledPlugins` format used by Haephestos / role-plugin-service.
  * Keys are `<pluginName>@<marketplaceName>`, values are boolean.
- * Resolves the local marketplace name to `~/agents/role-plugins/plugins/<name>/`.
+ * Resolves the local marketplace name to `~/agents/role-plugins/<name>/`.
  */
 function extractEnabledPluginPaths(settings: Record<string, unknown>, paths: Set<string>) {
   const ep = settings.enabledPlugins as Record<string, boolean> | undefined
@@ -560,7 +562,7 @@ function resolvePluginKeyToPath(key: string): string | null {
 
   // Local marketplace for custom Haephestos-generated role-plugins (from ecosystem-constants)
   if (marketplaceName === LOCAL_MARKETPLACE_NAME) {
-    return path.join(homeDir, 'agents', LOCAL_MARKETPLACE_DIR_NAME, 'plugins', pluginName)
+    return path.join(getLocalMarketplacePath(), pluginName)
   }
 
   // Try the global cache directory
@@ -623,6 +625,37 @@ function extractTomlAgentName(tomlPath: string): string | null {
     return nameMatch ? nameMatch[1] : null
   } catch {
     return null
+  }
+}
+
+function extractTomlCompatibility(tomlPath: string): { compatibleTitles?: string[]; compatibleClients?: string[] } {
+  try {
+    const content = fs.readFileSync(tomlPath, 'utf-8')
+    const agentMatch = content.match(/\[agent\]\s*\n([\s\S]*?)(?=\n\[|\n*$)/)
+    if (!agentMatch) return {}
+    const section = agentMatch[1]
+    const result: { compatibleTitles?: string[]; compatibleClients?: string[] } = {}
+    // Parse compatible-titles = ["MEMBER", "AUTONOMOUS"] or "MEMBER, AUTONOMOUS"
+    const titlesMatch = section.match(/^\s*compatible-titles\s*=\s*\[([^\]]*)\]/m)
+      || section.match(/^\s*compatible-titles\s*=\s*"([^"]*)"/m)
+    if (titlesMatch) {
+      result.compatibleTitles = titlesMatch[1]
+        .split(',')
+        .map(s => s.trim().replace(/^"|"$/g, '').trim().toUpperCase())
+        .filter(Boolean)
+    }
+    // Parse compatible-clients = ["claude-code", "codex"] or "claude-code, codex"
+    const clientsMatch = section.match(/^\s*compatible-clients\s*=\s*\[([^\]]*)\]/m)
+      || section.match(/^\s*compatible-clients\s*=\s*"([^"]*)"/m)
+    if (clientsMatch) {
+      result.compatibleClients = clientsMatch[1]
+        .split(',')
+        .map(s => s.trim().replace(/^"|"$/g, '').trim().toLowerCase())
+        .filter(Boolean)
+    }
+    return result
+  } catch {
+    return {}
   }
 }
 

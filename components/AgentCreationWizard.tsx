@@ -194,12 +194,12 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
     if (step !== 'role-plugin') return
     if (!SELECTABLE_PLUGIN_TITLES.includes(selectedTitle)) return
     setPluginsLoading(true)
-    fetch(`/api/agents/role-plugins?title=${selectedTitle.toUpperCase()}`)
+    fetch(`/api/agents/role-plugins?title=${selectedTitle.toUpperCase()}&client=${selectedClient}`)
       .then(r => r.ok ? r.json() : { plugins: [] })
       .then(data => setPlugins(Array.isArray(data.plugins) ? data.plugins : []))
       .catch(() => setPlugins([]))
       .finally(() => setPluginsLoading(false))
-  }, [step, selectedTitle])
+  }, [step, selectedTitle, selectedClient])
 
   // Auto-scroll on new messages
   useEffect(() => {

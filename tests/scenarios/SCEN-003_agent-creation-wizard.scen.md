@@ -48,6 +48,7 @@ prerequisites:
   - Chrome browser open with DevTools accessible via CDP
   - ai-maestro-plugins marketplace registered (Emasoft/ai-maestro-plugins)
   - Role-plugin defaults synced (ai-maestro-integrator-agent, ai-maestro-programmer-agent available)
+governance_password: "mYkri1-xoxrap-gogtan"
 commit: TBD
 author: AI Maestro Team
 ---

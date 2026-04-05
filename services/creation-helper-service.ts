@@ -35,8 +35,9 @@ const LOG_PREFIX = '[CreationHelper]'
 
 // Sonnet for intelligent config suggestions; haiku would be too limited
 const MODEL = 'sonnet'
-// Haephestos needs Bash (for PSS binary, jq, curl), Write (for TOML drafts), and Agent (for PSS subagent)
-const TOOLS = 'Read,Write,Bash,Glob,Grep,Agent'
+// Haephestos needs Bash (for PSS binary, jq, curl), Write/Edit (for TOML/plugin edits),
+// Agent (for CPV fixer), WebFetch (user may provide URLs for skills/MCP to include)
+const TOOLS = 'Read,Write,Edit,Bash,Glob,Grep,Agent,WebFetch'
 // Default mode: allow list auto-approves expected ops, anything not in allow/deny prompts.
 // This enforces "writes only inside haephestos" — Write outside workspace triggers a prompt.
 const PERMISSION_MODE = 'default'

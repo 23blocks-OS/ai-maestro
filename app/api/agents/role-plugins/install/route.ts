@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    let body: { pluginName?: string; agentDir?: string; marketplaceName?: string }
+    let body: { pluginName?: string; agentDir?: string; marketplaceName?: string; rolePluginSwap?: boolean }
     try {
       body = await req.json()
     } catch {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     // Auto-detect marketplace: use explicit body param, or look up predefined defaults
     const predefined = PREDEFINED_ROLE_PLUGINS[body.pluginName]
-    const marketplace = body.marketplaceName || predefined?.marketplace || 'ai-maestro-local-agents-marketplace'
+    const marketplace = body.marketplaceName || predefined?.marketplace || 'ai-maestro-local-roles-marketplace'
 
     const result = await ChangePlugin(null, {
       name: body.pluginName,
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
       action: 'install',
       scope: 'local',
       agentDir: body.agentDir,
+      rolePluginSwap: body.rolePluginSwap || false,
     })
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 })
@@ -80,7 +81,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // marketplaceName is optional — defaults to the local role-plugins marketplace
-    const marketplace = body.marketplaceName || 'ai-maestro-local-agents-marketplace'
+    const marketplace = body.marketplaceName || 'ai-maestro-local-roles-marketplace'
 
     const result = await ChangePlugin(null, {
       name: body.pluginName,

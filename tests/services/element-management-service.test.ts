@@ -101,7 +101,7 @@ describe('element-management-service', () => {
     it('should write settings.local.json for local/custom plugins', async () => {
       /** Validates that custom plugins are installed by writing to settings.local.json */
       const { installPluginLocally } = await import('@/services/element-management-service')
-      await installPluginLocally('my-custom-plugin', '/tmp/agent-dir', 'ai-maestro-local-agents-marketplace')
+      await installPluginLocally('my-custom-plugin', '/tmp/agent-dir', 'ai-maestro-local-roles-marketplace')
 
       // Should create .claude dir and write settings
       expect(mockFsMkdir).toHaveBeenCalled()
@@ -113,13 +113,13 @@ describe('element-management-service', () => {
       )
       expect(writeCall).toBeTruthy()
       const writtenData = JSON.parse(writeCall![1] as string)
-      expect(writtenData.enabledPlugins['my-custom-plugin@ai-maestro-local-agents-marketplace']).toBe(true)
+      expect(writtenData.enabledPlugins['my-custom-plugin@ai-maestro-local-roles-marketplace']).toBe(true)
     })
 
     it('should resolve ~ in agentDir', async () => {
       /** Validates that tilde paths are expanded to the home directory */
       const { installPluginLocally } = await import('@/services/element-management-service')
-      await installPluginLocally('my-plugin', '~/agents/test', 'ai-maestro-local-agents-marketplace')
+      await installPluginLocally('my-plugin', '~/agents/test', 'ai-maestro-local-roles-marketplace')
 
       // Should not throw — tilde was resolved
       expect(mockFsMkdir).toHaveBeenCalled()

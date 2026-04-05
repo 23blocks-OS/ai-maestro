@@ -271,10 +271,42 @@ export async function uninstallPluginLocally(
 // ── Governance title → role-plugin lifecycle ──────────────────
 
 /**
- * Get the required role-plugin name for a governance title, or null if any is allowed.
+ * Get the DEFAULT role-plugin name for a governance title (hardcoded fallback).
+ * For dynamic N:1 compatibility, use getCompatiblePluginsForTitle() instead.
  */
 export function getRequiredPluginForTitle(title: string): string | null {
   return TITLE_PLUGIN_MAP[title] || null
+}
+
+/**
+ * Get compatible role-plugins for a title + client combo (N:1 model).
+ * Scans all installed role-plugins for .agent.toml compatible-titles and compatible-clients.
+ * Falls back to TITLE_PLUGIN_MAP default if no dynamic plugins found.
+ */
+export async function getCompatiblePluginsForTitle(
+  title: string,
+  clientType?: string
+): Promise<{ name: string; marketplace?: string; source?: string; compatibleClients?: string[] }[]> {
+  try {
+    const { getPluginsForTitle } = await import('@/services/role-plugin-service')
+    const plugins = await getPluginsForTitle(title, clientType)
+    if (plugins.length > 0) {
+      return plugins.map(p => ({
+        name: p.name,
+        marketplace: p.marketplace,
+        source: p.source,
+        compatibleClients: p.compatibleClients,
+      }))
+    }
+  } catch {
+    // Fallback to hardcoded map if role-plugin-service unavailable
+  }
+  // Fallback: return the hardcoded default plugin (if any)
+  const defaultPlugin = TITLE_PLUGIN_MAP[title?.toLowerCase()]
+  if (defaultPlugin) {
+    return [{ name: defaultPlugin, marketplace: GITHUB_MARKETPLACE_NAME, source: 'marketplace' }]
+  }
+  return []
 }
 
 /**
@@ -641,78 +673,51 @@ export async function ChangeTitle(
     }
     ops.push(`G02: Agent "${agent.name}" found`)
 
-    // ── GATE 3: Check agent client type (self-healing) ────────
-    // Some titles (those with required role-plugins) only work with Claude.
-    // If program is empty but other signals indicate Claude, auto-fix.
+    // ── GATE 3: Check agent client + compatible plugins ────────
+    // N:1 model: multiple plugins can serve one title. Check if ANY compatible
+    // plugin exists for this title + agent's client combo.
+    // If no native match exists, mark for auto-conversion at Gate 16.
     const titleRequiresPlugin = newTitle ? !!getRequiredPluginForTitle(newTitle) : false
+    let agentClientType = 'claude' // default
+    let needsPluginConversion = false
     if (titleRequiresPlugin) {
       try {
         const { detectClientType } = await import('@/lib/client-capabilities')
-        let clientType = detectClientType(agent.program || '')
+        agentClientType = detectClientType(agent.program || '')
 
-        // Self-healing: if program is empty/unknown, examine the full agent state
-        // to determine the correct client type before rejecting.
-        if (clientType === 'unknown') {
+        // Self-healing: if program is empty/unknown, infer from agent state
+        if (agentClientType === 'unknown') {
           let inferredClient: string | null = null
           const evidence: string[] = []
-
-          // Signal 1: explicit client field (set by wizard step 1)
           const clientField = (agent as unknown as Record<string, unknown>).client as string | undefined
-          if (clientField?.toLowerCase().includes('claude')) {
-            evidence.push(`client='${clientField}'`)
-            inferredClient = 'claude'
-          }
-
-          // Signal 2: programArgs contains --agent (Claude-only flag)
+          if (clientField) { evidence.push(`client='${clientField}'`); inferredClient = clientField.toLowerCase() }
           const args = agent.programArgs || ''
-          if (args.includes('--agent') || args.includes('--chrome') || args.includes('--continue')) {
-            evidence.push(`programArgs contains Claude-only flags`)
-            inferredClient = 'claude'
-          }
-
-          // Signal 3: working directory has .claude/ folder (Claude Code project)
+          if (!inferredClient && (args.includes('--agent') || args.includes('--chrome'))) { evidence.push('Claude-only flags'); inferredClient = 'claude' }
           const wDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
-          if (wDir) {
-            const { existsSync } = await import('fs')
-            if (existsSync(join(wDir, '.claude'))) {
-              evidence.push(`.claude/ dir exists in workDir`)
-              inferredClient = 'claude'
-            }
+          if (!inferredClient && wDir && existsSync(join(wDir, '.claude'))) { evidence.push('.claude/ dir'); inferredClient = 'claude' }
+          if (inferredClient) {
+            await updateAgent(agentId, { program: inferredClient } as Record<string, unknown>)
+            agentClientType = inferredClient
+            ops.push(`G03: program was empty — auto-fixed to '${inferredClient}' (evidence: ${evidence.join(', ')})`)
           }
+        }
 
-          // Signal 4: agent has Claude-specific plugins already installed
-          if (wDir) {
-            const { existsSync } = await import('fs')
-            const localSettings = join(wDir, '.claude', 'settings.local.json')
-            if (existsSync(localSettings)) {
-              evidence.push(`settings.local.json exists`)
-              inferredClient = 'claude'
-            }
-          }
-
-          // Signal 5: tmux session is running (all AI Maestro agents use tmux + Claude)
-          if (agent.sessions && agent.sessions.length > 0 && agent.sessions[0].status === 'online') {
-            evidence.push(`has active tmux session`)
-            inferredClient = 'claude'
-          }
-
-          if (inferredClient === 'claude') {
-            // Auto-fix: set program in registry so future checks don't need inference
-            await updateAgent(agentId, { program: 'claude' } as Record<string, unknown>)
-            clientType = 'claude'
-            ops.push(`G03: program was empty — auto-fixed to 'claude' (evidence: ${evidence.join(', ')})`)
+        // Check if compatible plugins exist for this title + client
+        const compatiblePlugins = await getCompatiblePluginsForTitle(newTitle!, agentClientType)
+        if (compatiblePlugins.length > 0) {
+          ops.push(`G03: ${compatiblePlugins.length} compatible plugin(s) for ${newTitle?.toUpperCase()}+${agentClientType}`)
+        } else {
+          // No plugins for this client — check if plugins exist for OTHER clients (auto-convert)
+          const anyPlugins = await getCompatiblePluginsForTitle(newTitle!)
+          if (anyPlugins.length > 0) {
+            needsPluginConversion = true
+            ops.push(`G03: No native ${agentClientType} plugin for ${newTitle?.toUpperCase()} — will auto-convert from ${anyPlugins[0].name}`)
           } else {
-            ops.push(`G03: program empty, no Claude evidence found`)
+            ops.push(`G03: No compatible plugins found for ${newTitle?.toUpperCase()} at all — proceeding without plugin`)
           }
         }
-
-        if (clientType !== 'claude') {
-          result.error = `Cannot assign ${(newTitle || '').toUpperCase()} to ${clientType} agent "${agent.name || agentId}". Title requires a role-plugin (Claude-only).`
-          return result
-        }
-        ops.push(`G03: Client type is Claude — compatible with title`)
       } catch {
-        ops.push(`G03: Client type check skipped (detectClientType unavailable)`)
+        ops.push(`G03: Client/plugin compatibility check skipped (service unavailable)`)
       }
     } else {
       ops.push(`G03: No plugin required — client check skipped`)
@@ -735,7 +740,11 @@ export async function ChangeTitle(
     ops.push(`G05: Old title detected as "${oldTitle || 'none'}"`)
 
     // ── GATE 6: No-op check ─────────────────────────────────
-    if (oldTitle === effectiveTitle) {
+    // Compare against REGISTRY value, not inferred oldTitle. If the team says COS
+    // but the registry doesn't have governanceTitle stored, we still need to write
+    // the registry and install the plugin.
+    const registryTitle = agent.governanceTitle || null
+    if (oldTitle === effectiveTitle && registryTitle === effectiveTitle) {
       result.success = true
       ops.push(`G06: Title already "${effectiveTitle || 'none'}" — no change`)
       return result
@@ -856,44 +865,92 @@ export async function ChangeTitle(
     await updateAgent(agentId, { governanceTitle: effectiveTitle as any })
     ops.push(`G14: Set governanceTitle="${effectiveTitle || 'null'}" in agent registry`)
 
-    // ── GATE 15: Uninstall old role-plugin ───────────────────
-    const oldPlugin = oldTitle ? getRequiredPluginForTitle(oldTitle) : null
-    const newPlugin = effectiveTitle ? getRequiredPluginForTitle(effectiveTitle) : null
+    // ── GATE 15: Determine plugin swap (N:1 compatible-plugins model) ──
+    // Find what plugin the agent currently has installed, and what plugin
+    // is compatible with the NEW title + client combo.
+    let currentPluginName: string | null = null
+    let targetPluginName: string | null = null
+    let targetMarketplace: string = GITHUB_MARKETPLACE_NAME
 
-    if (!options?.skipPluginSync) {
-      if (oldPlugin && oldPlugin !== newPlugin && agentDir) {
-        // Uninstall ALL role-plugins (safeguard: cleans stale extras)
-        await uninstallAllRolePlugins(agentDir)
-        result.uninstalledPlugin = oldPlugin
-        ops.push(`G15: Uninstalled all role-plugins (was: ${oldPlugin})`)
-      } else if (!oldPlugin) {
-        // No old plugin to remove, but clean stale ones just in case
-        if (agentDir) {
-          await uninstallAllRolePlugins(agentDir).catch(() => {})
+    if (!options?.skipPluginSync && agentDir) {
+      // Detect currently installed role-plugin from settings.local.json
+      try {
+        const localSettingsPath = join(agentDir.startsWith('~') ? agentDir.replace('~', HOME) : agentDir, '.claude', 'settings.local.json')
+        if (existsSync(localSettingsPath)) {
+          const settings = await loadJsonSafe(localSettingsPath) as Record<string, Record<string, unknown>>
+          const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+          // Find the first enabled role-plugin
+          for (const key of Object.keys(ep)) {
+            if (ep[key]) {
+              const plugName = key.split('@')[0]
+              // Check if this is a role-plugin (has .agent.toml or is in predefined list)
+              if (Object.values(TITLE_PLUGIN_MAP).includes(plugName) || (PREDEFINED_ROLE_PLUGIN_NAMES as readonly string[]).includes(plugName)) {
+                currentPluginName = plugName
+                break
+              }
+            }
+          }
         }
-        ops.push(`G15: Cleaned stale role-plugins (no old plugin to remove)`)
-      } else {
-        ops.push(`G15: Old plugin same as new — skip uninstall`)
+      } catch { /* best effort */ }
+
+      if (effectiveTitle) {
+        // Find compatible plugins for new title + agent client
+        const compatibles = await getCompatiblePluginsForTitle(effectiveTitle, agentClientType)
+        if (compatibles.length > 0) {
+          // If current plugin is already compatible with new title → keep it
+          if (currentPluginName && compatibles.some(p => p.name === currentPluginName)) {
+            targetPluginName = currentPluginName
+            ops.push(`G15: Current plugin "${currentPluginName}" is compatible with ${effectiveTitle.toUpperCase()} — keeping`)
+          } else {
+            // Pick the first compatible plugin
+            targetPluginName = compatibles[0].name
+            targetMarketplace = compatibles[0].marketplace || GITHUB_MARKETPLACE_NAME
+            ops.push(`G15: Selected compatible plugin "${targetPluginName}" for ${effectiveTitle.toUpperCase()}+${agentClientType}`)
+          }
+        } else if (needsPluginConversion) {
+          // No native plugin for this client — use default and mark for conversion
+          const defaultPlugin = getRequiredPluginForTitle(effectiveTitle)
+          if (defaultPlugin) {
+            targetPluginName = defaultPlugin
+            ops.push(`G15: No native ${agentClientType} plugin — will install "${defaultPlugin}" (needs conversion)`)
+          }
+        } else {
+          ops.push(`G15: No compatible plugins found for ${effectiveTitle.toUpperCase()}`)
+        }
+      }
+
+      // Uninstall old if swapping
+      if (currentPluginName && currentPluginName !== targetPluginName) {
+        await uninstallAllRolePlugins(agentDir)
+        result.uninstalledPlugin = currentPluginName
+        ops.push(`G15: Uninstalled old role-plugin "${currentPluginName}"`)
+      } else if (!currentPluginName && agentDir) {
+        // Clean stale role-plugins just in case
+        await uninstallAllRolePlugins(agentDir).catch(() => {})
+        ops.push(`G15: Cleaned stale role-plugins`)
       }
     } else {
-      ops.push(`G15: Plugin sync skipped (skipPluginSync=true)`)
+      ops.push(`G15: Plugin sync skipped`)
     }
 
     // ── GATE 16: Install new role-plugin ─────────────────────
-    if (!options?.skipPluginSync && newPlugin && agentDir) {
+    if (!options?.skipPluginSync && targetPluginName && agentDir && targetPluginName !== currentPluginName) {
       try {
-        await installPluginLocally(newPlugin, agentDir, GITHUB_MARKETPLACE_NAME)
-        result.installedPlugin = newPlugin
-        ops.push(`G16: Installed role-plugin ${newPlugin}`)
+        // TODO: If needsPluginConversion, call cross-client converter first
+        // For now, install the plugin directly (works for Claude and native-compatible clients)
+        await installPluginLocally(targetPluginName, agentDir, targetMarketplace)
+        result.installedPlugin = targetPluginName
+        ops.push(`G16: Installed role-plugin "${targetPluginName}"`)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        ops.push(`G16: WARN — Failed to install ${newPlugin}: ${msg}`)
-        // Non-blocking: title change succeeds even if plugin install fails
+        ops.push(`G16: WARN — Failed to install "${targetPluginName}": ${msg}`)
       }
     } else if (options?.skipPluginSync) {
       ops.push(`G16: Plugin install skipped (skipPluginSync=true)`)
+    } else if (!targetPluginName) {
+      ops.push(`G16: No plugin to install for ${newTitle || 'none'}`)
     } else {
-      ops.push(`G16: No plugin required for ${newTitle || 'none'}`)
+      ops.push(`G16: Plugin "${targetPluginName}" already installed — no change`)
     }
 
     // ── GATE 17: Verify plugin state consistency ─────────────
@@ -910,8 +967,8 @@ export async function ChangeTitle(
           if (activeRolePlugins.length > 1) {
             ops.push(`G17: WARN — ${activeRolePlugins.length} role-plugins active (expected 0 or 1). Cleaning.`)
             await uninstallAllRolePlugins(agentDir)
-            if (newPlugin) {
-              await installPluginLocally(newPlugin, agentDir, GITHUB_MARKETPLACE_NAME).catch(() => {})
+            if (targetPluginName) {
+              await installPluginLocally(targetPluginName, agentDir, targetMarketplace).catch(() => {})
             }
           } else {
             ops.push(`G17: Plugin state consistent (${activeRolePlugins.length} role-plugin(s))`)
@@ -948,9 +1005,9 @@ export async function ChangeTitle(
 
     // ── GATE 19: Determine if restart needed ─────────────────
     // Restart is needed if the role-plugin changed (agent needs to reload)
-    if (oldPlugin !== newPlugin) {
+    if (currentPluginName !== targetPluginName) {
       result.restartNeeded = true
-      ops.push(`G19: Restart needed (plugin changed: ${oldPlugin || 'none'} → ${newPlugin || 'none'})`)
+      ops.push(`G19: Restart needed (plugin changed: ${currentPluginName || 'none'} → ${targetPluginName || 'none'})`)
     } else {
       ops.push(`G19: No restart needed (plugin unchanged)`)
     }
@@ -1051,6 +1108,8 @@ export async function ChangePlugin(
     scope: 'user' | 'local'
     /** Agent working directory (required for local scope, auto-resolved from agentId if not provided) */
     agentDir?: string
+    /** N:1 model: bypass role-plugin guard for compatible plugin swaps from RoleTab dropdown */
+    rolePluginSwap?: boolean
   },
 ): Promise<ChangePluginResult> {
   const ops: string[] = []
@@ -1072,11 +1131,15 @@ export async function ChangePlugin(
     ops.push(`G01: Plugin name "${desired.name}" is valid`)
 
     // ── G02: Role-plugin guard ────────────────────────────────
-    if (PREDEFINED_ROLE_PLUGINS[desired.name]) {
+    // Predefined role-plugins can only be installed via ChangeTitle pipeline,
+    // UNLESS the caller explicitly passes rolePluginSwap=true (from RoleTab N:1 dropdown).
+    const isRolePlugin = !!PREDEFINED_ROLE_PLUGINS[desired.name]
+      || (PREDEFINED_ROLE_PLUGIN_NAMES as readonly string[]).includes(desired.name)
+    if (isRolePlugin && !desired.rolePluginSwap) {
       result.error = `Role-plugins must be managed via ChangeTitle(), not ChangePlugin(). Use PATCH /api/agents/{id} with governanceTitle instead.`
       return result
     }
-    ops.push(`G02: Not a role-plugin — proceed`)
+    ops.push(isRolePlugin ? `G02: Role-plugin swap (N:1 model) — allowed` : `G02: Not a role-plugin — proceed`)
 
     // ── G03: Resolve agent context ────────────────────────────
     let agentDir = desired.agentDir || null

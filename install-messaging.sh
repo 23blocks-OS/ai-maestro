@@ -698,6 +698,11 @@ if [ "$INSTALL_SKILL" = true ]; then
     MARKETPLACE_REPO="${MARKETPLACE_REPO:-Emasoft/ai-maestro-plugins}"
     PLUGIN_NAME="${MAIN_PLUGIN_NAME:-ai-maestro-plugin}"
 
+    # Step 0: Remove deprecated 23blocks-OS marketplace (replaced by Emasoft/ai-maestro-plugins)
+    claude plugin marketplace remove "23blocks-OS/ai-maestro-plugins" 2>/dev/null && \
+        print_info "Removed deprecated 23blocks-OS marketplace" || true
+    claude plugin marketplace remove "https://github.com/23blocks-OS/ai-maestro-plugins" 2>/dev/null || true
+
     # Step 1: Register the marketplace from GitHub (enables future updates via claude CLI)
     # Always use the GitHub source — local submodule copies become stale and prevent
     # Claude Code from fetching updates via `claude plugin marketplace update`.
@@ -739,6 +744,71 @@ if [ "$INSTALL_SKILL" = true ]; then
         print_info "Legacy backups can be removed after verifying the plugin works"
     fi
 fi
+
+# Set up local role-plugins marketplace (for Haephestos-generated role-plugins)
+echo ""
+print_info "Setting up local role-plugins marketplace..."
+
+LOCAL_MKT_DIR="$HOME/agents/${LOCAL_MARKETPLACE_DIR_NAME:-role-plugins}"
+LOCAL_MKT_META="$LOCAL_MKT_DIR/.claude-plugin"
+LOCAL_MKT_JSON="$LOCAL_MKT_META/marketplace.json"
+LOCAL_MKT_NAME="${LOCAL_MARKETPLACE_NAME:-ai-maestro-local-roles-marketplace}"
+
+# Create directory structure
+mkdir -p "$LOCAL_MKT_META"
+
+# Create or update marketplace.json — ALWAYS preserve existing plugins
+EXISTING_PLUGINS='[]'
+if [ -f "$LOCAL_MKT_JSON" ] && command -v jq &>/dev/null; then
+    # Try to extract existing plugins array (may be missing, null, or file may be corrupt)
+    EXISTING_PLUGINS=$(jq -c 'if .plugins then .plugins elif type == "array" then . else [] end' "$LOCAL_MKT_JSON" 2>/dev/null || echo '[]')
+    # Validate it's actually a JSON array — if not, reset to empty
+    if ! echo "$EXISTING_PLUGINS" | jq 'type == "array"' 2>/dev/null | grep -q true; then
+        EXISTING_PLUGINS='[]'
+    fi
+    PLUGIN_COUNT=$(echo "$EXISTING_PLUGINS" | jq 'length' 2>/dev/null || echo '0')
+    if [ "$PLUGIN_COUNT" -gt 0 ] 2>/dev/null; then
+        print_info "Existing marketplace found with $PLUGIN_COUNT plugin(s) — preserving"
+    fi
+fi
+
+# Write manifest (always — ensures correct name/metadata, preserves plugins)
+if command -v jq &>/dev/null; then
+    jq -n \
+        --arg name "$LOCAL_MKT_NAME" \
+        --argjson plugins "$EXISTING_PLUGINS" \
+        '{
+            name: $name,
+            version: "1.0.0",
+            owner: { name: "local" },
+            metadata: { description: "Local role-plugin marketplace managed by AI Maestro" },
+            plugins: $plugins
+        }' > "$LOCAL_MKT_JSON"
+else
+    # No jq — write with cat (fresh only, preserves nothing if file existed)
+    if [ ! -f "$LOCAL_MKT_JSON" ]; then
+        cat > "$LOCAL_MKT_JSON" <<MKEOF
+{
+  "name": "$LOCAL_MKT_NAME",
+  "version": "1.0.0",
+  "owner": { "name": "local" },
+  "metadata": {
+    "description": "Local role-plugin marketplace managed by AI Maestro"
+  },
+  "plugins": []
+}
+MKEOF
+    fi
+fi
+print_success "Marketplace manifest ready: $LOCAL_MKT_JSON"
+
+# Register with Claude CLI (add first, then update — handles both fresh and reinstall)
+claude plugin marketplace add "$LOCAL_MKT_DIR" 2>/dev/null && \
+    print_success "Local marketplace registered: $LOCAL_MKT_NAME" || \
+    print_info "Local marketplace already registered"
+claude plugin marketplace update "$LOCAL_MKT_NAME" 2>/dev/null && \
+    print_success "Local marketplace updated: $LOCAL_MKT_NAME" || \
+    print_info "Local marketplace update skipped (may need manual refresh)"
 
 echo ""
 echo "🧪 Verifying installation..."

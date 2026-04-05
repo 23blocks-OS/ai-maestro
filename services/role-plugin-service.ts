@@ -50,7 +50,7 @@ import {
   MARKETPLACE_NAME as GITHUB_MARKETPLACE_NAME_IMPORT,
   MARKETPLACE_REPO,
   LOCAL_MARKETPLACE_NAME,
-  LOCAL_MARKETPLACE_DIR_NAME,
+  getLocalMarketplacePath,
   PREDEFINED_ROLE_PLUGIN_NAMES,
   ROLE_PLUGIN_MAIN_AGENTS,
   PLUGIN_COMPATIBLE_TITLES,
@@ -60,16 +60,13 @@ const execFileAsync = promisify(execFile)
 
 // ── Paths (derived from ecosystem-constants) ────────────────
 const HOME = homedir()
-const ROLE_PLUGINS_DIR = join(HOME, 'agents', LOCAL_MARKETPLACE_DIR_NAME)
+const ROLE_PLUGINS_DIR = getLocalMarketplacePath()
 const MARKETPLACE_META_DIR = join(ROLE_PLUGINS_DIR, '.claude-plugin')
 const MARKETPLACE_JSON = join(MARKETPLACE_META_DIR, 'marketplace.json')
-const PLUGINS_DIR = join(ROLE_PLUGINS_DIR, 'plugins')
+const PLUGINS_DIR = ROLE_PLUGINS_DIR  // Plugins live directly under ~/agents/role-plugins/<name>/
 const CLAUDE_DIR = join(HOME, '.claude')
 const SETTINGS_LOCAL = join(CLAUDE_DIR, 'settings.local.json')
 const INSTALLED_FILE = join(CLAUDE_DIR, 'plugins', 'installed_plugins.json')
-
-// Local marketplace name — for custom Haephestos-generated role-plugins (from ecosystem-constants)
-const MARKETPLACE_NAME = LOCAL_MARKETPLACE_NAME
 
 // GitHub marketplace for predefined role plugins (from ecosystem-constants)
 // Role-plugins are NOT auto-installed. They are installed ON-DEMAND when a user selects one
@@ -378,7 +375,7 @@ function parseAgentToml(tomlContent: string): ParsedToml {
 
 /**
  * Generate a Claude Code plugin from a .agent.toml profile.
- * Saves it to ~/agents/role-plugins/plugins/<name>/
+ * Saves it to ~/agents/role-plugins/<name>/
  */
 export async function generatePluginFromToml(
   tomlContent: string,
@@ -437,7 +434,9 @@ export async function generatePluginFromToml(
   // rules the PSS profiler selected). No file copying needed — the plugin
   // installation with --scope local handles everything automatically.
 
-  // 4. Save the original .agent.toml inside the plugin (quad-match: <plugin-name>.agent.toml)
+  // 4. Save the .agent.toml inside the plugin (quad-match: <plugin-name>.agent.toml)
+  //    Haephestos is responsible for adding compatible-titles and compatible-clients
+  //    to the TOML BEFORE calling this API. The API saves what it receives as-is.
   await writeFile(join(pluginDir, `${pluginName}.agent.toml`), tomlContent)
 
   // 5. Verify the plugin was created correctly by reading back the actual plugin.json
@@ -629,7 +628,7 @@ function buildPersonaMarkdown(
 /**
  * Ensure the role-plugins marketplace directory and global registration exist.
  */
-async function ensureMarketplace(): Promise<void> {
+export async function ensureMarketplace(): Promise<void> {
   // Create marketplace structure
   await mkdir(MARKETPLACE_META_DIR, { recursive: true })
   await mkdir(PLUGINS_DIR, { recursive: true })
@@ -637,7 +636,7 @@ async function ensureMarketplace(): Promise<void> {
   // Create marketplace.json if it doesn't exist
   if (!existsSync(MARKETPLACE_JSON)) {
     const manifest = {
-      name: MARKETPLACE_NAME,
+      name: LOCAL_MARKETPLACE_NAME,
       version: '1.0.0',
       owner: { name: 'local' },
       metadata: {
@@ -666,16 +665,16 @@ async function registerMarketplaceGlobally(): Promise<void> {
 
   // Always ensure the canonical entry has the correct absolute path
   // (fixes corrupted or stale paths from earlier versions)
-  const existing = ekm[MARKETPLACE_NAME] as Record<string, Record<string, string>> | undefined
+  const existing = ekm[LOCAL_MARKETPLACE_NAME] as Record<string, Record<string, string>> | undefined
   const existingPath = existing?.source?.path
   if (existingPath === ROLE_PLUGINS_DIR) return
 
-  ekm[MARKETPLACE_NAME] = canonicalEntry
+  ekm[LOCAL_MARKETPLACE_NAME] = canonicalEntry
   settings.extraKnownMarketplaces = ekm
   await saveJsonSafe(SETTINGS_LOCAL, settings)
 }
 
-async function updateMarketplaceManifest(
+export async function updateMarketplaceManifest(
   pluginName: string,
   description: string,
   version: string,
@@ -689,7 +688,7 @@ async function updateMarketplaceManifest(
     name: pluginName,
     description,
     version,
-    source: `./plugins/${pluginName}`,
+    source: join(PLUGINS_DIR, pluginName),
   })
   manifest.plugins = filtered
 
@@ -706,7 +705,7 @@ export { installPluginLocally, uninstallPluginLocally } from '@/services/element
  * List all available role plugins, merging two sources:
  * 1. GitHub marketplace manifest — reads marketplace.json to discover available role-plugins
  *    (these are NOT installed yet — they're available for on-demand installation)
- * 2. Local marketplace at ~/agents/role-plugins/plugins/ — custom Haephestos-generated plugins
+ * 2. Local marketplace at ~/agents/role-plugins/ — custom Haephestos-generated plugins
  *
  * Deduplicates by name — marketplace plugins take priority over local ones.
  * NOTE: ai-maestro is NOT a role-plugin despite having the ai-maestro- prefix.
@@ -744,7 +743,7 @@ export async function listRolePlugins(): Promise<RolePlugin[]> {
     })
   }
 
-  // Source 2: Local marketplace — custom Haephestos-generated plugins at ~/agents/role-plugins/plugins/
+  // Source 2: Local marketplace — custom Haephestos-generated plugins at ~/agents/role-plugins/
   if (existsSync(PLUGINS_DIR)) {
     const entries = await readdir(PLUGINS_DIR)
     for (const entry of entries) {
@@ -785,7 +784,7 @@ export async function listRolePlugins(): Promise<RolePlugin[]> {
           program,
           pluginDir,
           source: 'local',
-          marketplace: MARKETPLACE_NAME,
+          marketplace: LOCAL_MARKETPLACE_NAME,
           compatibleTitles,
           compatibleClients,
         })
@@ -843,7 +842,7 @@ export async function deleteRolePlugin(pluginName: string): Promise<void> {
   }
 
   // Remove from global enabledPlugins
-  const pluginKey = `${pluginName}@${MARKETPLACE_NAME}`
+  const pluginKey = `${pluginName}@${LOCAL_MARKETPLACE_NAME}`
   if (existsSync(SETTINGS_LOCAL)) {
     const settings = await loadJsonSafe(SETTINGS_LOCAL) as Record<string, Record<string, unknown>>
     const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
@@ -958,10 +957,43 @@ export async function syncDefaultRolePlugins(_force = false): Promise<SyncDefaul
 }
 
 /**
- * Migrate agent settings: change @ai-maestro-local-agents-marketplace to @ai-maestro-plugins
- * for all default role plugins. Scans ~/agents/ for .claude/settings.local.json files.
+ * Migrate agent settings: change old marketplace keys to current @ai-maestro-plugins.
+ * Also removes the deprecated 23blocks-OS marketplace from Claude CLI.
  */
 async function migrateDefaultPluginSettings(): Promise<void> {
+  // Step 1: Remove deprecated 23blocks-OS marketplace (replaced by Emasoft/ai-maestro-plugins)
+  try {
+    const { execSync } = await import('child_process')
+    // Try both short and full URL forms — CLI may accept either
+    execSync('claude plugin marketplace remove 23blocks-OS/ai-maestro-plugins', { timeout: 10000, stdio: 'pipe' }).toString()
+    console.log('[role-plugins] Removed deprecated 23blocks-OS marketplace')
+  } catch {
+    try {
+      const { execSync } = await import('child_process')
+      execSync('claude plugin marketplace remove https://github.com/23blocks-OS/ai-maestro-plugins', { timeout: 10000, stdio: 'pipe' }).toString()
+      console.log('[role-plugins] Removed deprecated 23blocks-OS marketplace (full URL)')
+    } catch {
+      // Not registered or already removed — fine
+    }
+  }
+
+  // Step 1b: Remove deprecated local marketplace names from global settings
+  try {
+    const settings = await loadJsonSafe(SETTINGS_LOCAL) as Record<string, Record<string, unknown>>
+    const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+    const deprecatedNames = ['ai-maestro-local-agents-marketplace', 'ai-maestro-local-marketplace', 'role-plugins']
+    let cleaned = false
+    for (const name of deprecatedNames) {
+      if (ekm[name]) { delete ekm[name]; cleaned = true }
+    }
+    if (cleaned) {
+      settings.extraKnownMarketplaces = ekm
+      await saveJsonSafe(SETTINGS_LOCAL, settings)
+      console.log('[role-plugins] Cleaned deprecated marketplace names from global settings')
+    }
+  } catch { /* ignore */ }
+
+  // Step 2: Migrate agent settings from old local marketplace key to GitHub marketplace key
   const agentsBaseDir = join(HOME, 'agents')
   if (!existsSync(agentsBaseDir)) return
 
@@ -977,12 +1009,29 @@ async function migrateDefaultPluginSettings(): Promise<void> {
         let changed = false
 
         for (const pluginName of DEFAULT_ROLE_PLUGIN_NAMES) {
-          const oldKey = `${pluginName}@${MARKETPLACE_NAME}`
+          // Migrate from local marketplace key → GitHub marketplace key
+          const oldLocalKey = `${pluginName}@${LOCAL_MARKETPLACE_NAME}`
           const newKey = `${pluginName}@${GITHUB_MARKETPLACE_NAME}`
-          if (ep[oldKey] !== undefined && ep[newKey] === undefined) {
-            ep[newKey] = ep[oldKey]
-            delete ep[oldKey]
+          if (ep[oldLocalKey] !== undefined && ep[newKey] === undefined) {
+            ep[newKey] = ep[oldLocalKey]
+            delete ep[oldLocalKey]
             changed = true
+          }
+          // Also migrate from old deprecated names (ai-maestro-local-agents-marketplace, etc.)
+          const legacyKeys = [
+            `${pluginName}@ai-maestro-local-agents-marketplace`,
+            `${pluginName}@ai-maestro-local-marketplace`,
+            `${pluginName}@role-plugins`,
+          ]
+          for (const legacyKey of legacyKeys) {
+            if (ep[legacyKey] !== undefined && ep[newKey] === undefined) {
+              ep[newKey] = ep[legacyKey]
+              delete ep[legacyKey]
+              changed = true
+            } else if (ep[legacyKey] !== undefined) {
+              delete ep[legacyKey]  // Duplicate — just remove
+              changed = true
+            }
           }
         }
 
@@ -1053,10 +1102,12 @@ export async function createPersona(opts: {
 
   if (tomlContent) {
     // Haephestos flow: generate plugin from TOML → local marketplace
+    // Note: Haephestos is responsible for adding compatible-titles/clients to the TOML
+    // before calling this API. The API saves the TOML as-is.
     const result = await generatePluginFromToml(tomlContent, agentDescription)
     pluginName = result.pluginName
     mainAgentName = result.mainAgentName
-    marketplaceName = MARKETPLACE_NAME
+    marketplaceName = LOCAL_MARKETPLACE_NAME
   } else {
     // Wizard flow: use existing predefined plugin
     pluginName = opts.pluginName!
@@ -1066,7 +1117,7 @@ export async function createPersona(opts: {
       mainAgentName = predefined.mainAgent
     } else {
       // Custom plugin name — caller must specify marketplace
-      marketplaceName = opts.marketplaceName || MARKETPLACE_NAME
+      marketplaceName = opts.marketplaceName || LOCAL_MARKETPLACE_NAME
       mainAgentName = `${pluginName}-main-agent`
     }
   }

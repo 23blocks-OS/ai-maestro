@@ -36,6 +36,7 @@ prerequisites:
   - Chrome browser open with DevTools accessible via CDP
   - ai-maestro-plugins marketplace registered
   - At least 1 existing team with available slots
+governance_password: "mYkri1-xoxrap-gogtan"
 commit: TBD
 author: AI Maestro Team
 ---

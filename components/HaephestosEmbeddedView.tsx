@@ -71,7 +71,7 @@ export default function HaephestosEmbeddedView({ agent, onAgentCreated }: Haephe
   const [files, setFiles] = useState<SlottedFile[]>([])
   const [mobilePanel, setMobilePanel] = useState<'none' | 'files' | 'toml'>('none')
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
-  const [playingAnimation, setPlayingAnimation] = useState(false)
+  const [playingAnimation] = useState(true)  // Always loop while on page
   const [videoMuted, setVideoMuted] = useState(true)
   const animationVideoRef = useRef<HTMLVideoElement>(null)
   const signalDetectedRef = useRef(false)
@@ -146,22 +146,21 @@ export default function HaephestosEmbeddedView({ agent, onAgentCreated }: Haephe
         const data = await res.json()
         if (!data.exists || !data.content?.trim()) return
         const signal = JSON.parse(data.content)
-        if (signal.status === 'complete' && signal.personaName) {
+        if (signal.status === 'complete' && (signal.pluginName || signal.personaName)) {
           if (cancelled) return
           signalDetectedRef.current = true
-          setPlayingAnimation(true)
-          // After animation, switch to the new agent — this auto-hibernates haephestos
-          // (dashboard's handleAgentSelect kills haephestos tmux when switching away)
-          const newAgentId = signal.agentId
-          setTimeout(() => {
+          // Clean up Haephestos workspace (kills session + wipes ~/agents/haephestos/)
+          // Then navigate to dashboard where the new plugin is auto-detected
+          setTimeout(async () => {
             if (cancelled) return
+            await fetch('/api/agents/creation-helper/cleanup', { method: 'POST' }).catch(() => {})
+            const newAgentId = signal.agentId
             if (newAgentId && onAgentCreated) {
               onAgentCreated(newAgentId)
             } else {
-              // Fallback: reload dashboard
               router.push('/')
             }
-          }, 6000)
+          }, 3000)
         }
       } catch { /* ignore */ }
     }
@@ -356,7 +355,7 @@ export default function HaephestosEmbeddedView({ agent, onAgentCreated }: Haephe
               <div className="shrink-0 relative" style={{ border: `${FRAME_W}px solid ${FRAME_RED_BASE}`, marginLeft: -FRAME_W, zIndex: 3 }}>
                 {playingAnimation ? (
                   <div className="relative">
-                    <video ref={animationVideoRef} src="/avatars/haephestos-animation.mp4" playsInline muted className="w-full h-auto" style={{ display: 'block' }} />
+                    <video ref={animationVideoRef} src="/avatars/haephestos-animation.mp4" playsInline muted loop autoPlay className="w-full h-auto" style={{ display: 'block' }} />
                     <button className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/50 backdrop-blur-sm text-white/80 hover:bg-black/70 transition-colors"
                       title={videoMuted ? 'Enable sound' : 'Mute'} onClick={() => {
                         const video = animationVideoRef.current; if (!video) return

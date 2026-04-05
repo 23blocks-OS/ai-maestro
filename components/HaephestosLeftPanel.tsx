@@ -152,6 +152,8 @@ export default function HaephestosLeftPanel({
                     src="/avatars/haephestos-animation.mp4"
                     playsInline
                     muted={videoMuted}
+                    loop
+                    autoPlay
                     className="w-full h-auto"
                     style={{ display: 'block' }}
                   />

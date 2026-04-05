@@ -43,6 +43,7 @@ prerequisites:
   - Governance password set
   - Chrome browser open with DevTools accessible via CDP
   - ai-maestro-plugins marketplace registered (Emasoft/ai-maestro-plugins)
+governance_password: "mYkri1-xoxrap-gogtan"
 commit: TBD
 author: AI Maestro Team
 ---

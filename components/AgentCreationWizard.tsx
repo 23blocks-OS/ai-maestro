@@ -8,7 +8,7 @@ import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimatio
 import type { Team } from '@/types/team'
 import type { AgentRole } from '@/types/agent'
 import type { RolePlugin } from '@/services/role-plugin-service'
-import { TITLE_PLUGIN_MAP as ECOSYSTEM_TITLE_MAP } from '@/lib/ecosystem-constants'
+// Plugin compatibility is resolved dynamically via /api/agents/role-plugins
 
 // --- Types ---
 
@@ -51,14 +51,9 @@ const TITLE_COLORS: Record<AgentRole, string> = {
   autonomous: 'border-gray-500/60 bg-gray-500/10 text-gray-400',
 }
 
-// Titles that automatically lock to their predefined role-plugin (not user-selectable).
-// Derived from ecosystem-constants — lower-cased keys for UI matching.
-const LOCKED_TITLE_PLUGINS: Partial<Record<AgentRole, string>> = Object.fromEntries(
-  Object.entries(ECOSYSTEM_TITLE_MAP).map(([k, v]) => [k.toLowerCase(), v])
-) as Partial<Record<AgentRole, string>>
-
-// Titles for which the user can freely choose a role-plugin
-const SELECTABLE_PLUGIN_TITLES: AgentRole[] = ['member', 'autonomous']
+// Plugin compatibility is now determined dynamically by scanning .agent.toml compatible-titles
+// and compatible-clients fields via the /api/agents/role-plugins API. The wizard fetches
+// compatible plugins at runtime and skips the picker if there's only 0-1 choice.
 
 // Avatar category helpers
 const AVATAR_COUNTS = { men: 100, women: 100, robots: 55 }
@@ -199,10 +194,10 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       .finally(() => setTeamsLoading(false))
   }, [step])
 
-  // Fetch plugins when role-plugin step becomes active (only for selectable titles)
+  // Fetch plugins when role-plugin step becomes active (plugins may already be set by checkPluginChoices)
   useEffect(() => {
     if (step !== 'role-plugin') return
-    if (!SELECTABLE_PLUGIN_TITLES.includes(selectedTitle)) return
+    if (plugins.length > 0) return  // Already loaded by checkPluginChoices
     setPluginsLoading(true)
     fetch(`/api/agents/role-plugins?title=${selectedTitle.toUpperCase()}&client=${selectedClient}`)
       .then(r => r.ok ? r.json() : { plugins: [] })
@@ -279,36 +274,73 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
     advance(label, 'title')
   }, [teams, advance])
 
-  const handleTitleSelect = useCallback((title: AgentRole) => {
-    setSelectedTitle(title)
-    // Non-team agents (AUTONOMOUS, MANAGER) → next step is 'folder' (choose working directory)
-    // Team agents → skip folder (auto ~/agents/<name>/)
-    const isNonTeamTitle = title === 'autonomous' || title === 'manager'
-    const hasLockedPlugin = !!LOCKED_TITLE_PLUGINS[title]
-    if (isNonTeamTitle) {
-      // AUTONOMOUS or MANAGER: go to folder selection step
-      advance(title.toUpperCase(), 'folder')
-    } else if (hasLockedPlugin) {
-      // Team title with locked plugin: skip folder AND role-plugin → summary
+  // Fetch compatible plugins for a title+client and decide whether to show picker or auto-assign.
+  // Returns: 'show-picker' (2+ choices) or 'skip' (0-1 choice, auto-assigned).
+  const checkPluginChoices = useCallback(async (title: AgentRole, client: string): Promise<'show-picker' | 'skip'> => {
+    if (client !== 'claude' && client !== 'codex') {
+      // No plugin support → skip
       setSelectedPlugin(null)
-      advance(title.toUpperCase(), 'summary')
-    } else {
-      // Team title without locked plugin: skip folder → role-plugin
-      advance(title.toUpperCase(), 'role-plugin')
+      return 'skip'
     }
-  }, [advance])
+    try {
+      const res = await fetch(`/api/agents/role-plugins?title=${title.toUpperCase()}&client=${client}`)
+      if (!res.ok) { setSelectedPlugin(null); return 'skip' }
+      const data = await res.json()
+      const compatiblePlugins: RolePlugin[] = Array.isArray(data.plugins) ? data.plugins : []
 
-  const handleFolderSelect = useCallback((folder: string) => {
+      // For AUTONOMOUS: "No plugin" is also a valid choice, so count = compatiblePlugins.length + 1
+      // For team titles: plugin is required, so count = compatiblePlugins.length
+      const isAuto = title === 'autonomous'
+      const choiceCount = isAuto ? compatiblePlugins.length + 1 : compatiblePlugins.length
+
+      if (choiceCount <= 1) {
+        // 0 or 1 choice → auto-assign and skip
+        setSelectedPlugin(compatiblePlugins.length === 1 ? compatiblePlugins[0] : null)
+        setPlugins(compatiblePlugins)
+        return 'skip'
+      }
+
+      // 2+ choices → show picker
+      setPlugins(compatiblePlugins)
+      return 'show-picker'
+    } catch {
+      setSelectedPlugin(null)
+      return 'skip'
+    }
+  }, [])
+
+  const handleTitleSelect = useCallback(async (title: AgentRole) => {
+    setSelectedTitle(title)
+    const isNonTeamTitle = title === 'autonomous' || title === 'manager'
+
+    if (isNonTeamTitle) {
+      // AUTONOMOUS or MANAGER: go to folder selection step first
+      advance(title.toUpperCase(), 'folder')
+    } else {
+      // Team agent: skip folder (auto ~/agents/<name>/)
+      // Check if plugin picker is needed
+      const pluginDecision = await checkPluginChoices(title, selectedClient)
+      if (pluginDecision === 'show-picker') {
+        advance(title.toUpperCase(), 'role-plugin')
+      } else {
+        advance(title.toUpperCase(), 'summary')
+      }
+    }
+  }, [advance, selectedClient, checkPluginChoices])
+
+  const handleFolderSelect = useCallback(async (folder: string) => {
     setSelectedFolder(folder)
     const agentName = personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
     const label = folder || `~/agents/${agentName}/`
-    // After folder, go to role-plugin (if supported) or summary
-    if (clientSupportsPlugins) {
+
+    // Check if plugin picker is needed for this title+client
+    const pluginDecision = await checkPluginChoices(selectedTitle, selectedClient)
+    if (pluginDecision === 'show-picker') {
       advance(label, 'role-plugin')
     } else {
       advance(label, 'summary')
     }
-  }, [advance, personaName, clientSupportsPlugins])
+  }, [advance, personaName, selectedClient, selectedTitle, checkPluginChoices])
 
   const handlePluginSelect = useCallback((plugin: RolePlugin | null) => {
     setSelectedPlugin(plugin)
@@ -327,8 +359,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
     // Derive slug-style internal agent name from persona name
     const agentName = personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
     const avatar = selectedAvatar || getPreviewAvatarUrl(personaName)
-    const lockedPlugin = LOCKED_TITLE_PLUGINS[selectedTitle]
-    const pluginName = lockedPlugin ?? selectedPlugin?.name
+    // Plugin name comes from selectedPlugin (set by picker or auto-assigned by checkPluginChoices)
+    const pluginName = selectedPlugin?.name
 
     try {
       // Single call to CreateAgent AIO — replaces the old 4-step creation
@@ -1174,7 +1206,7 @@ function TitlePickerWidget({
               <span className={`text-xs font-bold tracking-wider px-1.5 py-0.5 rounded border ${TITLE_COLORS[t.value]}`}>
                 {t.label}
               </span>
-              {LOCKED_TITLE_PLUGINS[t.value] && (
+              {t.value !== 'autonomous' && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                   <Lock className="w-3 h-3" />
                   auto-assigns plugin
@@ -1276,10 +1308,7 @@ function SummaryCard({
   onCreate: () => void
 }) {
   const team = state.teams.find(t => t.id === state.selectedTeamId)
-  const lockedPlugin = LOCKED_TITLE_PLUGINS[state.selectedTitle]
-  const pluginDisplay = lockedPlugin
-    ? lockedPlugin
-    : (state.selectedPlugin ? state.selectedPlugin.name : 'Default (Programmer)')
+  const pluginDisplay = state.selectedPlugin ? state.selectedPlugin.name : 'None'
   const agentName = state.personaName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '')
   const folderDisplay = state.selectedFolder || `~/agents/${agentName}/`
 

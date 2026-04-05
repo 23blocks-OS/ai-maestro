@@ -61,6 +61,18 @@ export async function POST(
   // Look up the agent's stored program and args from the registry
   const agent = getAgentBySession(sessionName)
 
+  // Manager gate: team agents cannot restart without a MANAGER on the host
+  if (agent) {
+    const { getManagerId } = await import('@/lib/governance')
+    const { isAgentInAnyTeam } = await import('@/lib/team-registry')
+    if (!getManagerId() && isAgentInAnyTeam(agent.id)) {
+      return NextResponse.json(
+        { error: 'Cannot restart team agent: no MANAGER exists on this host. Assign a MANAGER first.' },
+        { status: 403 }
+      )
+    }
+  }
+
   let body: { program?: string; programArgs?: string } = {}
   try { body = await request.json() } catch { /* optional body */ }
 

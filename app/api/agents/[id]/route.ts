@@ -73,8 +73,10 @@ export async function DELETE(
     }
     const hardParam = request.nextUrl.searchParams.get('hard')?.toLowerCase()
     const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
+    const deleteFolderParam = request.nextUrl.searchParams.get('deleteFolder')?.toLowerCase()
+    const deleteFolder = deleteFolderParam === 'true' || deleteFolderParam === '1' || deleteFolderParam === 'yes'
 
-    const result = await deleteAgentById(id, hard)
+    const result = await deleteAgentById(id, hard, undefined, deleteFolder)
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

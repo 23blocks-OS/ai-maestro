@@ -984,15 +984,12 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 
-    # Install Claude Code hooks
-    if [ "$INSTALL_HOOKS" = true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
+    # Claude Code hooks — now provided by ai-maestro-plugin (v2.4.0+)
+    # The plugin's hooks/hooks.json registers all events using ${CLAUDE_PLUGIN_ROOT}.
+    # No settings.json modification needed.
+    if [ "$INSTALL_HOOKS" = true ]; then
         echo ""
-        print_step "Installing Claude Code hooks..."
-        if [ "$NON_INTERACTIVE" = true ]; then
-            ./scripts/claude-hooks/install-hooks.sh -y
-        else
-            ./scripts/claude-hooks/install-hooks.sh
-        fi
+        print_step "Claude Code hooks: provided by ai-maestro-plugin (skipping settings.json)"
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 

@@ -381,7 +381,22 @@ export function getAgentByPartialName(partialName: string): Agent | null {
  */
 export function getAgentBySession(sessionName: string, hostId?: string): Agent | null {
   const { agentName } = parseSessionName(sessionName)
-  return getAgentByName(agentName, hostId)
+  // First try matching by agent name (the common case)
+  const byName = getAgentByName(agentName, hostId)
+  if (byName) return byName
+
+  // BUG-018 fix: Session names may be <uuid>@<hostId> format (created by CreateAgent AIO).
+  // Extract the UUID part and try matching by agent ID.
+  const atIdx = sessionName.indexOf('@')
+  if (atIdx > 0) {
+    const possibleId = sessionName.substring(0, atIdx)
+    // Quick UUID format check (8-4-4-4-12)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(possibleId)) {
+      return getAgent(possibleId) || null
+    }
+  }
+
+  return null
 }
 
 /**

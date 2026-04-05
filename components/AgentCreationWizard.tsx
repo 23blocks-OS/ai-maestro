@@ -391,7 +391,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
     } catch (err) {
       setCreationError(err instanceof Error ? err.message : 'Failed to create agent')
       setAnimationPhase('error')
-      setIsCreating(false)
+      // BUG-019 fix: Do NOT set isCreating=false here — the error display is inside the
+      // isCreating branch. The "Go Back" button in the error UI handles the reset.
     }
   }, [personaName, selectedAvatar, selectedTitle, selectedTeamId, selectedPlugin, selectedClient, selectedFolder])
 
@@ -721,7 +722,6 @@ function ChatBubble({
                   { id: 'claude', label: 'Claude Code', desc: 'Full plugin support', icon: '🟣' },
                   { id: 'codex', label: 'Codex', desc: 'Plugin support', icon: '🟢' },
                   { id: 'gemini', label: 'Gemini CLI', desc: 'No plugin support', icon: '🔵' },
-                  { id: 'aider', label: 'Aider', desc: 'No plugin support', icon: '🟡' },
                   { id: 'opencode', label: 'OpenCode', desc: 'No plugin support', icon: '⚪' },
                 ].map(c => (
                   <button

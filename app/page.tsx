@@ -448,17 +448,8 @@ export default function DashboardPage() {
 
   const handleDeleteAgent = async (agentId: string) => {
     try {
-      // Use the active agent's hostUrl to route to correct host for remote agents
-      const agent = agents.find(a => a.id === agentId)
-      const baseUrl = agent?.hostUrl || ''
-      const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to delete agent')
-      }
+      // API DELETE call is now made by DeleteAgentDialog directly (supports deleteFolder param).
+      // This handler only does UI cleanup.
 
       // Close profile panel
       setShowProfilePanel(false)

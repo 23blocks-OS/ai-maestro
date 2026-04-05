@@ -73,3 +73,31 @@ export function authenticateAgent(authHeader: string | null, agentIdHeader: stri
   // Unreachable: all cases handled above. Throw to catch logic bugs instead of silently granting access.
   throw new Error('Unreachable: authenticateAgent logic error')
 }
+
+/**
+ * Authorization context passed to Change* functions in element-management-service.
+ *
+ * Phase 1 (current): Optional parameter. When omitted, the caller is treated as
+ * system-owner (full access). The dispatch layer (updateAgentById) already enforces
+ * governance roles before calling Change* functions, so this is a belt-and-suspenders
+ * layer for direct callers and for future Phase 2 mandatory enforcement.
+ *
+ * Phase 2 (SF-058): Will become required. All callers must provide auth context.
+ */
+export interface AuthContext {
+  /** Verified agent ID, or undefined for system owner / web UI */
+  agentId?: string
+  /** True when the caller is the system owner (web UI user) — full access */
+  isSystemOwner: boolean
+}
+
+/**
+ * Build an AuthContext from an AgentAuthResult.
+ * Convenience for API routes that call Change* functions directly.
+ */
+export function buildAuthContext(authResult: AgentAuthResult): AuthContext {
+  return {
+    agentId: authResult.agentId,
+    isSystemOwner: !authResult.agentId,
+  }
+}

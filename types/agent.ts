@@ -525,6 +525,7 @@ export interface UpdateAgentRequest {
   model?: string
   taskDescription?: string
   programArgs?: string          // CLI arguments passed to the program on launch
+  program?: string              // AI client: 'claude' | 'codex' | 'gemini' | 'opencode' | 'kiro'
   tags?: string[]
   owner?: string
   role?: AgentRole              // Update messaging role

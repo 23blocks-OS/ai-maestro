@@ -120,16 +120,18 @@ export async function DELETE(
   }
   const requestingAgentId = auth.agentId
 
-  // Extract governance password from request body for this destructive operation
+  // Extract governance password and deleteAgents flag from request body
   let password: string | undefined
+  let deleteAgents = false
   try {
     const body = await request.json()
     password = body?.password
+    deleteAgents = body?.deleteAgents === true
   } catch {
     // No body is OK — deleteTeamById will reject if password is required
   }
 
-  const result = await deleteTeamById(id, requestingAgentId, password)
+  const result = await deleteTeamById(id, requestingAgentId, password, deleteAgents)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

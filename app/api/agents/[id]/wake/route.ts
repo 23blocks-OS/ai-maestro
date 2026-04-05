@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { wakeAgent } from '@/services/agents-core-service'
 import { isValidUuid } from '@/lib/validation'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 /**
  * POST /api/agents/[id]/wake
- * Wake a hibernated agent
+ * Wake a hibernated agent.
+ * Governance: only the web UI (user) or the MANAGER agent can wake agents.
  */
 export async function POST(
   request: NextRequest,
@@ -15,6 +17,44 @@ export async function POST(
     // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+
+    // Governance: user (no auth) = allowed always. Agent-initiated = MANAGER or COS (own team only).
+    const auth = authenticateAgent(
+      request.headers.get('Authorization'),
+      request.headers.get('X-Agent-Id')
+    )
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+    }
+    const { getManagerId } = await import('@/lib/governance')
+    const { isAgentInAnyTeam, loadTeams } = await import('@/lib/team-registry')
+    if (auth.agentId) {
+      // Agent-initiated: MANAGER can wake ANY agent, COS can wake own team agents only
+      const managerId = getManagerId()
+      if (managerId === auth.agentId) {
+        // MANAGER — allowed
+      } else {
+        // Check if caller is COS of a team that contains the target agent
+        const teams = loadTeams()
+        const callerIsCoSOfTargetTeam = teams.some(t =>
+          t.chiefOfStaffId === auth.agentId && t.agentIds.includes(id)
+        )
+        if (!callerIsCoSOfTargetTeam) {
+          return NextResponse.json(
+            { error: 'Only the MANAGER or the team\'s CHIEF-OF-STAFF can wake agents.' },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
+    // Manager gate: team agents cannot wake without a MANAGER on the host
+    if (!getManagerId() && isAgentInAnyTeam(id)) {
+      return NextResponse.json(
+        { error: 'Cannot wake team agent: no MANAGER exists on this host. Assign a MANAGER first.' },
+        { status: 403 }
+      )
     }
 
     // Parse optional body

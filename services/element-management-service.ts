@@ -39,6 +39,9 @@ import {
 
 const execFileAsync = promisify(execFile)
 
+// ── Auth context (Phase 1: optional, Phase 2: required per SF-058) ──
+import type { AuthContext } from '@/lib/agent-auth'
+
 // ── Paths ─────────────────────────────────────────────────────
 const HOME = homedir()
 const ROLE_PLUGINS_DIR = join(HOME, 'agents', LOCAL_MARKETPLACE_DIR_NAME)
@@ -638,6 +641,7 @@ export async function ChangeTitle(
   agentId: string,
   newTitle: string | null,
   options?: {
+    authContext?: AuthContext,
     teamIds?: string[]
     skipPluginSync?: boolean
     skipRestart?: boolean
@@ -1136,6 +1140,7 @@ export async function ChangePlugin(
     /** N:1 model: bypass role-plugin guard for compatible plugin swaps from RoleTab dropdown */
     rolePluginSwap?: boolean
   },
+  authContext?: AuthContext,
 ): Promise<ChangePluginResult> {
   const ops: string[] = []
   const pluginKey = `${desired.name}@${desired.marketplace}`
@@ -1444,7 +1449,7 @@ export async function ChangeMarketplace(desired: {
   action: 'add' | 'remove' | 'update'
   name: string
   source?: { repo: string } | { path: string }
-}): Promise<ChangeResult> {
+}, authContext?: AuthContext): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
 
@@ -1520,7 +1525,7 @@ export async function ChangeSkill(agentId: string | null, desired: {
   sourcePath?: string
   targetClient?: string
   agentDir?: string
-}): Promise<ChangeResult> {
+}, authContext?: AuthContext): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
 
@@ -1708,6 +1713,7 @@ async function changeSimpleElement(
 export async function ChangeAgentDef(
   agentId: string | null,
   desired: { name: string; action: 'install' | 'remove'; scope: 'user' | 'local'; sourcePath?: string; content?: string; agentDir?: string },
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   return changeSimpleElement('agent definition', 'agents', '.md', agentId, desired)
 }
@@ -1715,6 +1721,7 @@ export async function ChangeAgentDef(
 export async function ChangeCommand(
   agentId: string | null,
   desired: { name: string; action: 'install' | 'remove'; scope: 'user' | 'local'; sourcePath?: string; content?: string; agentDir?: string },
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   return changeSimpleElement('command', 'commands', '.md', agentId, desired)
 }
@@ -1722,6 +1729,7 @@ export async function ChangeCommand(
 export async function ChangeRule(
   agentId: string | null,
   desired: { name: string; action: 'install' | 'remove'; scope: 'user' | 'local'; sourcePath?: string; content?: string; agentDir?: string },
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   return changeSimpleElement('rule', 'rules', '.md', agentId, desired)
 }
@@ -1729,6 +1737,7 @@ export async function ChangeRule(
 export async function ChangeOutputStyle(
   agentId: string | null,
   desired: { name: string; action: 'install' | 'remove'; scope: 'user' | 'local'; sourcePath?: string; content?: string; agentDir?: string },
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   return changeSimpleElement('output style', 'output-styles', '.md', agentId, desired)
 }
@@ -1743,7 +1752,7 @@ export async function ChangeMCP(agentId: string | null, desired: {
   scope: 'user' | 'local' | 'project'
   config?: Record<string, unknown>
   agentDir?: string
-}): Promise<ChangeResult> {
+}, _authContext?: AuthContext): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
 
@@ -1800,7 +1809,7 @@ export async function ChangeLSP(agentId: string | null, desired: {
   action: 'add' | 'remove'
   config?: Record<string, unknown>
   agentDir?: string
-}): Promise<ChangeResult> {
+}, _authContext?: AuthContext): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
 
@@ -1878,7 +1887,7 @@ export async function ChangeHook(agentId: string | null, desired: {
   hookConfig?: { command: string; matcher?: string; timeout?: number }
   scope: 'user' | 'local'
   agentDir?: string
-}): Promise<ChangeResult> {
+}, _authContext?: AuthContext): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
 
@@ -1973,6 +1982,7 @@ export async function ChangeTeam(
     teamId: string | null  // null = remove from all teams
     role?: string           // 'member' | 'chief-of-staff' | 'orchestrator' | 'architect' | 'integrator'
   },
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
@@ -2102,6 +2112,7 @@ export async function ChangeTeam(
 export async function ChangeName(
   agentId: string,
   newName: string,
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
@@ -2170,6 +2181,7 @@ export async function ChangeName(
 export async function ChangeFolder(
   agentId: string,
   newFolder: string,
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
@@ -2243,6 +2255,7 @@ export async function ChangeFolder(
 export async function ChangeAvatar(
   agentId: string,
   avatarPath: string,
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
@@ -2286,6 +2299,7 @@ export async function ChangeAvatar(
 export async function ChangeCLIArgs(
   agentId: string,
   newArgs: string,
+  _authContext?: AuthContext,
 ): Promise<ChangeResult> {
   const ops: string[] = []
   const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
@@ -2334,6 +2348,69 @@ export async function ChangeCLIArgs(
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err)
     console.error(`[ChangeCLIArgs] FAILED for agent ${agentId}:`, result.error)
+    return result
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ChangeClient — Switch an agent's AI client (program)
+// ══════════════════════════════════════════════════════════════
+
+const VALID_CLIENTS = new Set(['claude', 'codex', 'gemini', 'opencode', 'kiro'])
+
+export async function ChangeClient(
+  agentId: string,
+  newClient: string,
+  _authContext?: AuthContext,
+): Promise<ChangeResult> {
+  const ops: string[] = []
+  const result: ChangeResult = { success: false, operations: ops, restartNeeded: false }
+
+  try {
+    // ── G01: Validate client value ─────────────────────────────
+    const normalized = newClient.toLowerCase().trim()
+    if (!VALID_CLIENTS.has(normalized)) {
+      result.error = `Invalid client "${newClient}". Valid: ${[...VALID_CLIENTS].join(', ')}`
+      return result
+    }
+    ops.push(`G01: Client "${normalized}" is valid`)
+
+    // ── G02: Get agent from registry ───────────────────────────
+    const { getAgent, updateAgent } = await import('@/lib/agent-registry')
+    const agent = getAgent(agentId)
+    if (!agent) {
+      result.error = `Agent ${agentId} not found`
+      return result
+    }
+    ops.push(`G02: Agent "${agent.name}" found`)
+
+    // ── G03: No-op check ───────────────────────────────────────
+    const oldProgram = (agent.program || 'claude').toLowerCase()
+    if (oldProgram === normalized) {
+      result.success = true
+      ops.push(`G03: Client already "${normalized}" — no-op`)
+      return result
+    }
+    ops.push(`G03: Client change needed: "${oldProgram}" → "${normalized}"`)
+
+    // ── G04: Write to registry ─────────────────────────────────
+    const updated = await updateAgent(agentId, { program: normalized })
+    if (!updated) {
+      result.error = `Failed to update program in registry`
+      return result
+    }
+    ops.push(`G04: Updated program in registry`)
+
+    // ── G05: Restart needed ────────────────────────────────────
+    result.restartNeeded = true
+    ops.push(`G05: Restart needed (client changed)`)
+
+    result.success = true
+    console.log(`[ChangeClient] Agent ${agentId} "${agent.name}": client "${oldProgram}" → "${normalized}" (${ops.length} gates)`)
+    return result
+  } catch (err) {
+    result.error = err instanceof Error ? err.message : String(err)
+    console.error(`[ChangeClient] FAILED for agent ${agentId}:`, result.error)
     return result
   }
 }

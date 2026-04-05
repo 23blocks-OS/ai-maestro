@@ -297,11 +297,11 @@ if [ "$SKIP_AGENT_CLI" != true ] && [ -f "install-agent-cli.sh" ]; then
     print_success "Agent CLI reinstalled"
 fi
 
-# 6. Claude Code hooks (optional — skip with --skip-hooks)
-if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
-    print_info "Reinstalling Claude Code hooks..."
-    ./scripts/claude-hooks/install-hooks.sh -y --force
-    print_success "Claude Code hooks reinstalled"
+# 6. Claude Code hooks — now provided by ai-maestro-plugin (v2.4.0+)
+# The plugin's hooks/hooks.json handles all events via ${CLAUDE_PLUGIN_ROOT}.
+# No settings.json modification needed.
+if [ "$SKIP_HOOKS" != true ]; then
+    print_info "Claude Code hooks: provided by ai-maestro-plugin (no settings.json changes)"
 fi
 
 # 7. Marketplace plugin already updated in step 0 above

@@ -11,6 +11,8 @@ interface DeleteAgentDialogProps {
   agentId: string
   agentAlias: string
   agentDisplayName?: string
+  workingDirectory?: string
+  hostUrl?: string
 }
 
 export default function DeleteAgentDialog({
@@ -20,12 +22,15 @@ export default function DeleteAgentDialog({
   agentId,
   agentAlias,
   agentDisplayName,
+  workingDirectory,
+  hostUrl,
 }: DeleteAgentDialogProps) {
   const [deleting, setDeleting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [phase, setPhase] = useState<'confirm' | 'deleting' | 'done'>('confirm')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [deleteFolder, setDeleteFolder] = useState(false)
 
   const displayName = agentDisplayName || agentAlias
 
@@ -36,6 +41,17 @@ export default function DeleteAgentDialog({
     setDeleting(true)
 
     try {
+      // Call the API directly with deleteFolder param
+      const baseUrl = hostUrl || ''
+      const params = new URLSearchParams()
+      if (deleteFolder) params.set('deleteFolder', 'true')
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const res = await fetch(`${baseUrl}/api/agents/${agentId}${qs}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Delete failed (${res.status})`)
+      }
+      // Also call onConfirm for parent-level UI cleanup (close panel, refresh list)
       await onConfirm()
       setPhase('done')
       // Auto-close after showing success
@@ -59,6 +75,7 @@ export default function DeleteAgentDialog({
     setPhase('confirm')
     setConfirmText('')
     setExportError(null)
+    setDeleteFolder(false)
   }
 
   // Download agent data as ZIP via fetch() with proper error handling
@@ -169,6 +186,22 @@ export default function DeleteAgentDialog({
                     </li>
                   </ul>
                 </div>
+
+                {/* Option to also delete agent working directory folder */}
+                {workingDirectory && (
+                  <label className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg cursor-pointer hover:bg-amber-500/15 transition-all">
+                    <input
+                      type="checkbox"
+                      checked={deleteFolder}
+                      onChange={(e) => setDeleteFolder(e.target.checked)}
+                      className="mt-0.5 accent-amber-500"
+                    />
+                    <div>
+                      <p className="text-sm text-amber-400 font-medium">Also delete agent folder</p>
+                      <p className="text-xs text-gray-400 mt-0.5 font-mono">{workingDirectory}</p>
+                    </div>
+                  </label>
+                )}
 
                 {/* Export prompt -- lets user download agent data before confirming deletion */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">

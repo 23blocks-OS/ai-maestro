@@ -5,6 +5,14 @@
 # Version: 1.0.0
 # Requires: agent-helper.sh, agent-core.sh
 #
+# DEPRECATED: This script is deprecated in favor of the AI Maestro API.
+# All plugin operations are now available via:
+#   - PATCH /api/agents/{id}  (with ChangePlugin in element-management-service.ts)
+#   - POST /api/settings/global-plugins  (for user-scope enable/disable)
+#   - ChangeMarketplace() for marketplace operations
+# This script remains functional for backward compatibility with existing
+# agent CLI workflows. New code should use the API directly.
+#
 # Usage: source "$(dirname "$0")/agent-plugin.sh"
 
 # Double-source guard

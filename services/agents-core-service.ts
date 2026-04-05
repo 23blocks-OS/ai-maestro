@@ -464,7 +464,15 @@ export async function listAgents(): Promise<ServiceResult<{
       const normalizedAgentName = agentName.toLowerCase()
       processedAgentNames.add(normalizedAgentName)
 
-      const agentSessions = sessionsByAgentName.get(normalizedAgentName) || []
+      // BUG-018 fix: Also check for sessions named <uuid>@<hostId> (created by CreateAgent AIO)
+      const uuidSessionKey = `${agent.id}@${hostId}`.toLowerCase()
+      if (uuidSessionKey !== normalizedAgentName) {
+        processedAgentNames.add(uuidSessionKey)
+      }
+
+      const agentSessions = sessionsByAgentName.get(normalizedAgentName)
+        || sessionsByAgentName.get(uuidSessionKey)
+        || []
 
       // Build updated sessions array from discovered tmux sessions
       const updatedSessions: AgentSession[] = []
@@ -753,6 +761,7 @@ export async function updateAgentById(id: string, body: UpdateAgentRequest, requ
       workingDirectory: body.workingDirectory,
       avatar: body.avatar,
       programArgs: body.programArgs,
+      program: body.program,
     }
 
     // Strip changeable fields from body so updateAgent only handles simple fields
@@ -763,6 +772,7 @@ export async function updateAgentById(id: string, body: UpdateAgentRequest, requ
     delete cleanBody.workingDirectory
     delete cleanBody.avatar
     delete cleanBody.programArgs
+    delete cleanBody.program
 
     // Execute simple updateAgent for remaining fields (tags, label, model, etc.)
     const agent = await updateAgent(id, cleanBody)
@@ -846,6 +856,18 @@ export async function updateAgentById(id: string, body: UpdateAgentRequest, requ
       }
     }
 
+    // ChangeClient — AI client (program) change
+    if (changeableFields.program && changeableFields.program !== (existing.program || 'claude')) {
+      try {
+        const { ChangeClient } = await import('@/services/element-management-service')
+        const clientResult = await ChangeClient(id, changeableFields.program)
+        if (!clientResult.success) console.warn('[agents] ChangeClient failed:', clientResult.error)
+        anyChangeExecuted = true
+      } catch (err) {
+        console.warn('[agents] Failed ChangeClient on PATCH:', err instanceof Error ? err.message : err)
+      }
+    }
+
     // Re-read agent after all Change* calls to include updated fields in response
     if (anyChangeExecuted) {
       const freshAgent = getAgent(id)
@@ -864,7 +886,7 @@ export async function updateAgentById(id: string, body: UpdateAgentRequest, requ
 // DELETE /api/agents/[id] -- delete agent (soft or hard)
 // ---------------------------------------------------------------------------
 
-export async function deleteAgentById(id: string, hard: boolean, requestingAgentId?: string | null): Promise<ServiceResult<{ success: boolean; hard: boolean }>> {
+export async function deleteAgentById(id: string, hard: boolean, requestingAgentId?: string | null, deleteFolder?: boolean): Promise<ServiceResult<{ success: boolean; hard: boolean }>> {
   try {
     const agent = getAgent(id, true) // include deleted to distinguish 404 vs 410
     if (!agent) {
@@ -903,6 +925,29 @@ export async function deleteAgentById(id: string, hard: boolean, requestingAgent
       }
     } catch (err) {
       console.warn('[agents] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
+    }
+
+    // Optionally delete the agent's working directory folder
+    if (deleteFolder && agent.workingDirectory) {
+      try {
+        const { resolve } = await import('path')
+        const { rm, stat } = await import('fs/promises')
+        const HOME = (await import('os')).homedir()
+        const resolvedDir = resolve(agent.workingDirectory)
+        // Safety: only delete folders under ~/agents/ to prevent accidental data loss
+        const agentsRoot = resolve(HOME, 'agents')
+        if (resolvedDir.startsWith(agentsRoot + '/') && resolvedDir !== agentsRoot) {
+          const dirStat = await stat(resolvedDir).catch(() => null)
+          if (dirStat?.isDirectory()) {
+            await rm(resolvedDir, { recursive: true, force: true })
+            console.log(`[agents] Deleted agent folder: ${resolvedDir}`)
+          }
+        } else {
+          console.warn(`[agents] Refused to delete folder outside ~/agents/: ${resolvedDir}`)
+        }
+      } catch (err) {
+        console.warn(`[agents] Failed to delete agent folder:`, err instanceof Error ? err.message : err)
+      }
     }
 
     return { data: { success: true, hard }, status: 200 }

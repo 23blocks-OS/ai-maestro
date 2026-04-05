@@ -1532,6 +1532,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentId={agent.id}
           agentAlias={agent.name || agent.alias || ''}
           agentDisplayName={agent.label}
+          workingDirectory={agent.workingDirectory || agent.preferences?.defaultWorkingDirectory}
+          hostUrl={hostUrl}
         />
       )}
 

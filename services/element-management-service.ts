@@ -2530,6 +2530,23 @@ export async function CreateAgent(
       }
     }
 
+    // G03-SAFETY: NEVER allow workDir to be the AI Maestro source folder or HOME root.
+    // These are catastrophic — an agent session could delete the source code or pollute $HOME.
+    const FORBIDDEN_DIRS = [
+      process.cwd(),                          // AI Maestro source folder (where server runs)
+      HOME,                                    // $HOME root
+      join(HOME, 'Desktop'),
+      join(HOME, 'Documents'),
+      join(HOME, 'Downloads'),
+      '/',
+      '/tmp',
+    ]
+    const normalizedWorkDir = workDir.replace(/\/+$/, '')  // strip trailing slashes for comparison
+    if (FORBIDDEN_DIRS.some(d => normalizedWorkDir === d.replace(/\/+$/, ''))) {
+      result.error = `Working directory "${workDir}" is forbidden. Agents must use ~/agents/<name>/ or a dedicated project folder. The AI Maestro source folder, $HOME, and system directories are not allowed.`
+      return result
+    }
+
     await mkdir(workDir, { recursive: true })
     ops.push(`G03: Working directory: ${workDir}`)
 

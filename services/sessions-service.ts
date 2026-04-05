@@ -605,6 +605,14 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   // Default to ~/agents/<name>/ when no workingDirectory is provided.
   const resolvedWd = workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory
   const cwd = resolvedWd || path.join(os.homedir(), 'agents', normalizedName)
+
+  // Hard safety check: reject forbidden directories
+  const normalizedCwd = cwd.replace(/\/+$/, '')
+  const FORBIDDEN = [process.cwd(), os.homedir(), '/', '/tmp'].map(d => d.replace(/\/+$/, ''))
+  if (FORBIDDEN.includes(normalizedCwd)) {
+    return { error: `Working directory "${cwd}" is forbidden. Use ~/agents/<name>/ or a dedicated project folder.`, status: 400, data: undefined }
+  }
+
   await runtime.createSession(actualSessionName, cwd)
 
   // Register agent

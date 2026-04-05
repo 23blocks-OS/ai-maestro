@@ -2530,8 +2530,11 @@ export async function CreateAgent(
       }
     }
 
-    // G03-SAFETY: NEVER allow workDir to be the AI Maestro source folder or HOME root.
-    // These are catastrophic — an agent session could delete the source code or pollute $HOME.
+    // G03-SAFETY: Resolve path and reject forbidden directories + their children.
+    // Uses path.resolve to neutralize traversal tricks (../../etc).
+    const { resolve, sep } = await import('path')
+    workDir = resolve(workDir)  // canonical absolute path, no .. or symlink tricks
+
     const FORBIDDEN_DIRS = [
       process.cwd(),                          // AI Maestro source folder (where server runs)
       HOME,                                    // $HOME root
@@ -2540,11 +2543,20 @@ export async function CreateAgent(
       join(HOME, 'Downloads'),
       '/',
       '/tmp',
-    ]
-    const normalizedWorkDir = workDir.replace(/\/+$/, '')  // strip trailing slashes for comparison
-    if (FORBIDDEN_DIRS.some(d => normalizedWorkDir === d.replace(/\/+$/, ''))) {
-      result.error = `Working directory "${workDir}" is forbidden. Agents must use ~/agents/<name>/ or a dedicated project folder. The AI Maestro source folder, $HOME, and system directories are not allowed.`
-      return result
+    ].map(d => resolve(d))
+
+    const normalizedWorkDir = workDir.replace(/\/+$/, '')
+    for (const forbidden of FORBIDDEN_DIRS) {
+      const normalizedForbidden = forbidden.replace(/\/+$/, '')
+      // Exact match OR workDir is a child of forbidden OR workDir is a parent of forbidden
+      if (
+        normalizedWorkDir === normalizedForbidden ||
+        normalizedWorkDir.startsWith(normalizedForbidden + sep) ||
+        normalizedForbidden.startsWith(normalizedWorkDir + sep)
+      ) {
+        result.error = `Working directory "${workDir}" is forbidden (overlaps with "${normalizedForbidden}"). Agents must use ~/agents/<name>/ or a dedicated project folder outside system/source directories.`
+        return result
+      }
     }
 
     // G03-OVERLAP: No two agents may share the same directory, or be parent/child of each other.

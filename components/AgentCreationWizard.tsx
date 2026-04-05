@@ -136,9 +136,9 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [selectedFolder, setSelectedFolder] = useState<string>('')  // empty = auto ~/agents/<name>/
   const [folderInput, setFolderInput] = useState('')  // text input for custom folder path
 
-  // Dynamic step order: plugin support (client) + AUTONOMOUS gets folder step, team agents don't
+  // Dynamic step order: plugin support (client) + non-team agents (AUTONOMOUS/MANAGER) get folder step
   const clientSupportsPlugins = selectedClient === 'claude' || selectedClient === 'codex'
-  const isAutonomous = !selectedTeamId && (selectedTitle === 'autonomous' || selectedTitle === '' as AgentRole)
+  const isAutonomous = !selectedTeamId && (selectedTitle === 'autonomous' || selectedTitle === 'manager')
   const STEP_ORDER = isAutonomous
     ? (clientSupportsPlugins ? STEP_ORDER_AUTONOMOUS_PLUGINS : STEP_ORDER_AUTONOMOUS_NO_PLUGINS)
     : (clientSupportsPlugins ? STEP_ORDER_TEAM_PLUGINS : STEP_ORDER_TEAM_NO_PLUGINS)
@@ -281,12 +281,12 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
 
   const handleTitleSelect = useCallback((title: AgentRole) => {
     setSelectedTitle(title)
-    // AUTONOMOUS agents → next step is 'folder' (choose working directory)
+    // Non-team agents (AUTONOMOUS, MANAGER) → next step is 'folder' (choose working directory)
     // Team agents → skip folder (auto ~/agents/<name>/)
-    const isAutoTitle = title === 'autonomous'
+    const isNonTeamTitle = title === 'autonomous' || title === 'manager'
     const hasLockedPlugin = !!LOCKED_TITLE_PLUGINS[title]
-    if (isAutoTitle) {
-      // AUTONOMOUS: go to folder selection step
+    if (isNonTeamTitle) {
+      // AUTONOMOUS or MANAGER: go to folder selection step
       advance(title.toUpperCase(), 'folder')
     } else if (hasLockedPlugin) {
       // Team title with locked plugin: skip folder AND role-plugin → summary

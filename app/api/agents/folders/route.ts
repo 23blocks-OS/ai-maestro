@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readdir, stat } from 'fs/promises'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import os from 'os'
 import { loadAgents } from '@/lib/agent-registry'
 
@@ -10,22 +10,18 @@ export const dynamic = 'force-dynamic'
  * GET /api/agents/folders?path=<dir>
  *
  * Lists subdirectories of the given path (default: $HOME).
- * Each entry includes a `selectable` flag based on agent working directory overlap rules:
- * - A folder already used by an agent → unselectable (exact match)
- * - A parent of any agent's folder → unselectable (child exists below)
- * - A child of any agent's folder → unselectable (parent already claimed)
- * - Forbidden system dirs (process.cwd(), $HOME root, /, /tmp, etc.) → unselectable
- *
- * Users can navigate INTO unselectable folders but cannot SELECT them.
+ * Restricted to $HOME and below — cannot browse system directories.
+ * Each entry includes a `selectable` flag based on agent working directory overlap rules.
  */
 export async function GET(request: NextRequest) {
+  const HOME = os.homedir()
   const { searchParams } = new URL(request.url)
-  const rawPath = searchParams.get('path') || os.homedir()
-  const dirPath = rawPath.startsWith('~') ? rawPath.replace('~', os.homedir()) : rawPath
+  const rawPath = searchParams.get('path') || HOME
+  const dirPath = resolve(rawPath.startsWith('~') ? rawPath.replace('~', HOME) : rawPath)
 
-  // Security: reject path traversal
-  if (dirPath.includes('..')) {
-    return NextResponse.json({ error: 'Path traversal not allowed' }, { status: 400 })
+  // Security: must be within $HOME (no browsing /etc, /var, etc.)
+  if (!dirPath.startsWith(HOME + sep) && dirPath !== HOME) {
+    return NextResponse.json({ error: 'Browsing outside home directory is not allowed' }, { status: 403 })
   }
 
   try {
@@ -37,59 +33,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Directory not found' }, { status: 404 })
   }
 
-  // Build the set of taken directories (all agent working dirs)
+  // Build the set of taken directories (all agent working dirs), resolved to canonical paths
   const agents = loadAgents()
   const takenDirs = agents
-    .map(a => (a.workingDirectory || '').replace(/\/+$/, ''))
-    .filter(Boolean)
+    .map(a => resolve(a.workingDirectory || '.').replace(/\/+$/, ''))
+    .filter(d => d !== '.')
 
-  // Forbidden system directories
-  const HOME = os.homedir()
+  // Forbidden system directories (resolved)
   const FORBIDDEN = new Set([
-    process.cwd(),
-    HOME,
-    join(HOME, 'Desktop'),
-    join(HOME, 'Documents'),
-    join(HOME, 'Downloads'),
-    join(HOME, 'Library'),
-    '/',
-    '/tmp',
-    '/var',
-    '/usr',
-    '/etc',
-    '/System',
-    '/Applications',
+    resolve(process.cwd()),
+    resolve(HOME),
+    resolve(join(HOME, 'Desktop')),
+    resolve(join(HOME, 'Documents')),
+    resolve(join(HOME, 'Downloads')),
+    resolve(join(HOME, 'Library')),
   ].map(d => d.replace(/\/+$/, '')))
 
   // Check if a candidate path overlaps with any taken directory
   function isOverlapping(candidateRaw: string): { overlaps: boolean; reason?: string; agentName?: string } {
-    const candidate = candidateRaw.replace(/\/+$/, '')
-    const candidateSlash = candidate + '/'
+    const candidate = resolve(candidateRaw).replace(/\/+$/, '')
+    const candidateSlash = candidate + sep
 
-    // Forbidden system dirs
-    if (FORBIDDEN.has(candidate)) {
-      return { overlaps: true, reason: 'system' }
+    // Forbidden system dirs (exact or child)
+    for (const f of FORBIDDEN) {
+      if (candidate === f || candidate.startsWith(f + sep) || f.startsWith(candidate + sep)) {
+        return { overlaps: true, reason: 'system' }
+      }
     }
 
     for (const taken of takenDirs) {
-      const takenSlash = taken + '/'
+      const takenSlash = taken + sep
+      const findAgent = () => agents.find(a => resolve(a.workingDirectory || '.').replace(/\/+$/, '') === taken)
 
-      // Exact match
       if (candidate === taken) {
-        const agent = agents.find(a => (a.workingDirectory || '').replace(/\/+$/, '') === taken)
-        return { overlaps: true, reason: 'exact', agentName: agent?.label || agent?.name }
+        return { overlaps: true, reason: 'exact', agentName: findAgent()?.label || findAgent()?.name }
       }
-
-      // Candidate is child of taken (taken=/foo, candidate=/foo/bar)
       if (candidateSlash.startsWith(takenSlash)) {
-        const agent = agents.find(a => (a.workingDirectory || '').replace(/\/+$/, '') === taken)
-        return { overlaps: true, reason: 'child', agentName: agent?.label || agent?.name }
+        return { overlaps: true, reason: 'child', agentName: findAgent()?.label || findAgent()?.name }
       }
-
-      // Candidate is parent of taken (candidate=/foo, taken=/foo/bar)
       if (takenSlash.startsWith(candidateSlash)) {
-        const agent = agents.find(a => (a.workingDirectory || '').replace(/\/+$/, '') === taken)
-        return { overlaps: true, reason: 'parent', agentName: agent?.label || agent?.name }
+        return { overlaps: true, reason: 'parent', agentName: findAgent()?.label || findAgent()?.name }
       }
     }
 

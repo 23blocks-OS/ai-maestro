@@ -606,11 +606,17 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const resolvedWd = workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory
   const cwd = resolvedWd || path.join(os.homedir(), 'agents', normalizedName)
 
-  // Hard safety check: reject forbidden directories
-  const normalizedCwd = cwd.replace(/\/+$/, '')
-  const FORBIDDEN = [process.cwd(), os.homedir(), '/', '/tmp'].map(d => d.replace(/\/+$/, ''))
-  if (FORBIDDEN.includes(normalizedCwd)) {
-    return { error: `Working directory "${cwd}" is forbidden. Use ~/agents/<name>/ or a dedicated project folder.`, status: 400, data: undefined }
+  // Hard safety check: reject forbidden directories (exact match + prefix/nesting)
+  const resolvedCwd = path.resolve(cwd)
+  const FORBIDDEN = [process.cwd(), os.homedir(), '/', '/tmp'].map(d => path.resolve(d))
+  for (const forbidden of FORBIDDEN) {
+    if (
+      resolvedCwd === forbidden ||
+      resolvedCwd.startsWith(forbidden + path.sep) ||
+      forbidden.startsWith(resolvedCwd + path.sep)
+    ) {
+      return { error: `Working directory "${cwd}" is forbidden (overlaps with "${forbidden}"). Use ~/agents/<name>/ or a dedicated project folder.`, status: 400, data: undefined }
+    }
   }
 
   await runtime.createSession(actualSessionName, cwd)

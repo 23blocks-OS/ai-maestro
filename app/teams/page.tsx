@@ -22,6 +22,8 @@ export default function TeamsPage() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [deletePhase, setDeletePhase] = useState<'confirm' | 'agents'>('confirm')
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [reservedNames, setReservedNames] = useState<{ teamNames: string[]; agentNames: string[] }>({ teamNames: [], agentNames: [] })
   const [nameValidation, setNameValidation] = useState<{ error: string | null; warning: string | null }>({ error: null, warning: null })
 
@@ -84,18 +86,26 @@ export default function TeamsPage() {
   }, [creating])
 
   const handleDelete = async (teamId: string, deleteAgents: boolean = false) => {
+    setDeleteError(null)
     try {
       const res = await fetch(`/api/teams/${teamId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteAgents }),
+        body: JSON.stringify({ deleteAgents, password: deletePassword }),
       })
-      if (!res.ok) throw new Error('Failed to delete team')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Failed to delete team' }))
+        setDeleteError(data.error || 'Failed to delete team')
+        return
+      }
       setTeams(prev => prev.filter(t => t.id !== teamId))
       setDeleteConfirm(null)
       setDeletePhase('confirm')
+      setDeletePassword('')
+      setDeleteError(null)
     } catch (err) {
       console.error('Failed to delete team:', err)
+      setDeleteError('Failed to delete team')
     }
   }
 
@@ -186,7 +196,7 @@ export default function TeamsPage() {
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => { setDeleteConfirm(null); setDeletePhase('confirm') }}
+                    onClick={() => { setDeleteConfirm(null); setDeletePhase('confirm'); setDeletePassword(''); setDeleteError(null) }}
                     className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
                   >
                     Cancel
@@ -205,22 +215,37 @@ export default function TeamsPage() {
                 <p className="text-xs text-gray-400 mb-4">
                   Do you want to delete also all the agents belonging to the team? (Not deleting them will leave them as AUTONOMOUS titled agents)
                 </p>
+                <div className="mb-3">
+                  <label className="block text-xs text-gray-400 mb-1">Governance Password</label>
+                  <input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(null) }}
+                    placeholder="Enter governance password"
+                    className="w-full text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                {deleteError && (
+                  <p className="text-xs text-red-400 mb-3">{deleteError}</p>
+                )}
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => { setDeleteConfirm(null); setDeletePhase('confirm') }}
+                    onClick={() => { setDeleteConfirm(null); setDeletePhase('confirm'); setDeletePassword(''); setDeleteError(null) }}
                     className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleDelete(deleteConfirm, false)}
-                    className="text-xs px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                    disabled={!deletePassword}
+                    className="text-xs px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Keep Agents
                   </button>
                   <button
                     onClick={() => handleDelete(deleteConfirm, true)}
-                    className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                    disabled={!deletePassword}
+                    className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Delete Agents Too
                   </button>

@@ -603,7 +603,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
 
   // SAFETY: Never fall back to process.cwd() — that would put agents in the AI Maestro source folder.
   // Default to ~/agents/<name>/ when no workingDirectory is provided.
-  const resolvedWd = workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory
+  const resolvedWd = workingDirectory?.startsWith('~') ? workingDirectory.replace(/^~/, os.homedir()) : workingDirectory
   const cwd = resolvedWd || path.join(os.homedir(), 'agents', normalizedName)
 
   // Hard safety check: reject forbidden directories (exact match + prefix/nesting)

@@ -228,7 +228,8 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
         // Random robot avatar (index 1-50)
         const robotIndex = Math.floor(Math.random() * 50) + 1
         const robotAvatar = `/avatars/robots_${robotIndex.toString().padStart(2, '0')}.jpg`
-        const cosWorkDir = join(process.env.HOME || '/tmp', 'agents', cosName)
+        const os = await import('os')
+        const cosWorkDir = join(os.homedir(), 'agents', cosName)
         const { mkdir } = await import('fs/promises')
         await mkdir(cosWorkDir, { recursive: true })
         const cosAgent = await createCosAgent({

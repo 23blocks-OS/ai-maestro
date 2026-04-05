@@ -2489,7 +2489,10 @@ export async function CreateAgent(
     // RULE: Non-AUTONOMOUS agents ALWAYS get ~/agents/<name>/ (no override allowed).
     // AUTONOMOUS agents may specify an existing project folder; otherwise ~/agents/<name>/.
     const { mkdir, stat } = await import('fs/promises')
-    const isTeamTitle = desired.governanceTitle && desired.governanceTitle !== 'autonomous'
+    // Team titles (member, cos, orchestrator, etc.) are forced to ~/agents/<name>/
+    // Non-team titles (autonomous, manager) can choose their own folder
+    const NON_TEAM_TITLES = new Set(['autonomous', 'manager', ''])
+    const isTeamTitle = desired.governanceTitle && !NON_TEAM_TITLES.has(desired.governanceTitle)
     let workDir: string
 
     if (isTeamTitle) {
@@ -2501,7 +2504,7 @@ export async function CreateAgent(
     } else if (desired.workingDirectory) {
       // AUTONOMOUS with explicit folder (user chose an existing project)
       workDir = desired.workingDirectory.startsWith('~')
-        ? desired.workingDirectory.replace('~', HOME)
+        ? desired.workingDirectory.replace(/^~/, HOME)
         : desired.workingDirectory
     } else {
       // AUTONOMOUS with no folder specified: auto-create ~/agents/<name>/
@@ -2545,9 +2548,9 @@ export async function CreateAgent(
       '/tmp',
     ].map(d => resolve(d))
 
-    const normalizedWorkDir = workDir.replace(/\/+$/, '')
+    const normalizedWorkDir = workDir.replace(/[/\\]+$/, '')
     for (const forbidden of FORBIDDEN_DIRS) {
-      const normalizedForbidden = forbidden.replace(/\/+$/, '')
+      const normalizedForbidden = forbidden.replace(/[/\\]+$/, '')
       // Exact match OR workDir is a child of forbidden OR workDir is a parent of forbidden
       if (
         normalizedWorkDir === normalizedForbidden ||
@@ -2569,7 +2572,7 @@ export async function CreateAgent(
       for (const existingAgent of allAgents) {
         const rawExisting = existingAgent.workingDirectory || ''
         if (!rawExisting) continue
-        const existingDir = resolve(rawExisting).replace(/\/+$/, '')
+        const existingDir = resolve(rawExisting).replace(/[/\\]+$/, '')
         const existingPath = existingDir + sep
         // Check: exact match, candidate is child of existing, or candidate is parent of existing
         if (

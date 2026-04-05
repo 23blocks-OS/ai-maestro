@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   const agents = loadAgents()
   const takenDirs = agents
     .filter(a => a.workingDirectory)  // skip agents with no working dir
-    .map(a => resolve(a.workingDirectory!).replace(/\/+$/, ''))
+    .map(a => resolve(a.workingDirectory!).replace(/[/\\]+$/, ''))
 
   // Forbidden system directories (resolved)
   const FORBIDDEN = new Set([
@@ -47,11 +47,11 @@ export async function GET(request: NextRequest) {
     resolve(join(HOME, 'Documents')),
     resolve(join(HOME, 'Downloads')),
     resolve(join(HOME, 'Library')),
-  ].map(d => d.replace(/\/+$/, '')))
+  ].map(d => d.replace(/[/\\]+$/, '')))
 
   // Check if a candidate path overlaps with any taken directory
   function isOverlapping(candidateRaw: string): { overlaps: boolean; reason?: string; agentName?: string } {
-    const candidate = resolve(candidateRaw).replace(/\/+$/, '')
+    const candidate = resolve(candidateRaw).replace(/[/\\]+$/, '')
     const candidateSlash = candidate + sep
 
     // Forbidden system dirs (exact or child)
@@ -63,16 +63,17 @@ export async function GET(request: NextRequest) {
 
     for (const taken of takenDirs) {
       const takenSlash = taken + sep
-      const findAgent = () => agents.find(a => a.workingDirectory && resolve(a.workingDirectory).replace(/\/+$/, '') === taken)
+      const matchingAgent = agents.find(a => a.workingDirectory && resolve(a.workingDirectory).replace(/[/\\]+$/, '') === taken)
+      const agentDisplay = matchingAgent?.label || matchingAgent?.name
 
       if (candidate === taken) {
-        return { overlaps: true, reason: 'exact', agentName: findAgent()?.label || findAgent()?.name }
+        return { overlaps: true, reason: 'exact', agentName: agentDisplay }
       }
       if (candidateSlash.startsWith(takenSlash)) {
-        return { overlaps: true, reason: 'child', agentName: findAgent()?.label || findAgent()?.name }
+        return { overlaps: true, reason: 'child', agentName: agentDisplay }
       }
       if (takenSlash.startsWith(candidateSlash)) {
-        return { overlaps: true, reason: 'parent', agentName: findAgent()?.label || findAgent()?.name }
+        return { overlaps: true, reason: 'parent', agentName: agentDisplay }
       }
     }
 

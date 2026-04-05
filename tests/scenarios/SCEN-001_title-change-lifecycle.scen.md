@@ -131,21 +131,21 @@ author: AI Maestro Team
 - **Goal:** Title Assignment Dialog opens with radio cards
 - **Creates:** nothing
 - **Modifies:** nothing
-- **Verify:** Dialog shows AUTONOMOUS and MANAGER options (agent is not in a team → standalone titles only)
+- **Verify:** Dialog shows AUTONOMOUS and MANAGER options (agent is not in a team → standalone titles only). MANAGER grayed out if already assigned, with message showing who holds it.
 
-#### S013: Verify only standalone titles are shown
+#### S013: Verify only standalone titles are shown and MANAGER singleton enforced
 - **Action:** Inspect dialog options
-- **Goal:** Only AUTONOMOUS and MANAGER should be visible (agent has no team → team titles hidden)
+- **Goal:** Only AUTONOMOUS and MANAGER should be visible (agent has no team → team titles hidden). If MANAGER is already assigned, it should be disabled with explanation text.
 - **Creates:** nothing
 - **Modifies:** nothing
-- **Verify:** No ORCHESTRATOR/ARCHITECT/INTEGRATOR/MEMBER/COS options shown
+- **Verify:** No ORCHESTRATOR/ARCHITECT/INTEGRATOR/MEMBER/COS options shown. MANAGER disabled if already taken.
 
 #### S014: Cancel dialog and add agent to existing team first
 - **Action:** Cancel title dialog, click "Reassign" button next to Team field, select an existing team
-- **Goal:** Agent joins a team, title auto-transitions to MEMBER
+- **Goal:** Agent joins a team, title auto-transitions to MEMBER with programmer plugin
 - **Creates:** nothing (joining existing team)
-- **Modifies:** Team membership (agent added), agent title (→ MEMBER)
-- **Verify:** Team name shown in profile, title badge shows MEMBER
+- **Modifies:** Team membership (agent added), agent title (→ MEMBER), plugin (→ ai-maestro-programmer-agent)
+- **Verify:** Team name shown in profile, title badge shows MEMBER, plugin banner shows ai-maestro-programmer-agent
 
 #### S015: Click title badge (now showing MEMBER)
 - **Action:** Click the MEMBER title button
@@ -202,17 +202,17 @@ author: AI Maestro Team
 
 #### S022: Click ARCHITECT title badge → select MEMBER → password
 - **Action:** Open title dialog, select MEMBER, confirm with password
-- **Goal:** Title reverts to MEMBER, ALL role-plugins removed
+- **Goal:** Title reverts to MEMBER, programmer plugin auto-installed
 - **Creates:** nothing
-- **Modifies:** Agent title (→ MEMBER, stored as null), plugins (all removed)
-- **Verify:** Profile shows MEMBER badge, plugin banner shows "No Role Plugin"
+- **Modifies:** Agent title (→ MEMBER), plugin (→ ai-maestro-programmer-agent)
+- **Verify:** Profile shows MEMBER badge, plugin banner shows "ai-maestro-programmer-agent"
 
-#### S023: Verify Config tab shows no role-plugins
+#### S023: Verify Config tab shows programmer role-plugin
 - **Action:** Click Config tab
-- **Goal:** No role-plugins in the plugin section
+- **Goal:** Programmer role-plugin installed for MEMBER title
 - **Creates:** nothing
 - **Modifies:** nothing
-- **Verify:** Config tab shows empty or "No Role Plugin" for the role section
+- **Verify:** Config tab shows `ai-maestro-programmer-agent` as active role-plugin
 
 ## Phase 5: Singleton Constraint Check
 

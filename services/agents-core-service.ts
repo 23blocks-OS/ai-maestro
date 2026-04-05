@@ -774,7 +774,16 @@ export async function updateAgentById(id: string, body: UpdateAgentRequest, requ
     let anyChangeExecuted = false
 
     // ChangeTitle — governance title transitions
-    const oldTitle = existing.governanceTitle || null
+    // BUG-014 fix: detect old title from ALL sources (registry + governance.json + team COS),
+    // not just the registry field. This mirrors ChangeTitle Gate 5 logic.
+    let oldTitle = existing.governanceTitle || null
+    if (!oldTitle) {
+      try {
+        const { isManager, isChiefOfStaffAnywhere } = await import('@/lib/governance')
+        if (isManager(id)) oldTitle = 'manager'
+        else if (isChiefOfStaffAnywhere(id)) oldTitle = 'chief-of-staff'
+      } catch { /* best effort */ }
+    }
     const newTitle = changeableFields.governanceTitle !== undefined
       ? (changeableFields.governanceTitle || null)
       : oldTitle

@@ -173,6 +173,12 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
     return { error: 'agentIds must be an array', status: 400 }
   }
 
+  // Governance: teams require an existing MANAGER first
+  const existingManagerId = getManagerId()
+  if (!existingManagerId) {
+    return { error: 'Teams require an existing MANAGER first. Assign the MANAGER title to an agent before creating teams.', status: 400 }
+  }
+
   // Governance: only MANAGER or web UI (no requestingAgentId) can create teams
   if (params.requestingAgentId) {
     const managerId = getManagerId()
@@ -182,47 +188,93 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
   }
 
   try {
+    // Validate chiefOfStaffId if provided: must be an existing AUTONOMOUS agent (not in any team)
+    let cosId: string | null = params.chiefOfStaffId || null
+    if (cosId) {
+      const cosAgent = loadAgents().find(a => a.id === cosId)
+      if (!cosAgent) {
+        return { error: `Agent ${cosId} not found`, status: 404 }
+      }
+      const { loadTeams: loadTeamsForCos } = await import('@/lib/team-registry')
+      const cosInTeam = loadTeamsForCos().some(t => t.agentIds.includes(cosId!))
+      if (cosInTeam) {
+        return { error: `Agent "${cosAgent.name}" is already in a team. Only AUTONOMOUS agents can be assigned as COS for a new team.`, status: 400 }
+      }
+      const cosTitle = cosAgent.governanceTitle || null
+      if (cosTitle && cosTitle !== 'autonomous') {
+        return { error: `Agent "${cosAgent.name}" has title "${cosTitle}". Only AUTONOMOUS agents can be assigned as COS.`, status: 400 }
+      }
+    }
+
     // Pass governance context (managerId + agent names for collision checks) to createTeam
     const managerId = getManagerId()
     const agentNames = loadAgents().map(a => a.name).filter(Boolean)
     const team = await createTeam(
-      { name, description, agentIds: agentIds || [], type: 'closed', chiefOfStaffId: params.chiefOfStaffId },
+      { name, description, agentIds: agentIds || [], type: 'closed', chiefOfStaffId: cosId || undefined },
       managerId,
       agentNames
     )
 
-    // Auto-COS chain: auto-assign the COS role-plugin so the agent gets its governance persona.
-    // All teams are closed, so always attempt COS plugin assignment when chiefOfStaffId is provided.
-    if (params.chiefOfStaffId) {
+    // Auto-create COS agent if none was provided.
+    // Every team MUST have a COS. If the caller didn't specify one, we create a new
+    // agent with a random robot persona name and assign it as COS automatically.
+    if (!cosId) {
+      try {
+        const { createAgent: createCosAgent } = await import('@/lib/agent-registry')
+        const teamSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 30)
+        const cosName = `cos-${teamSlug}`
+        // Random robot avatar (index 1-50)
+        const robotIndex = Math.floor(Math.random() * 50) + 1
+        const robotAvatar = `/avatars/robots_${robotIndex.toString().padStart(2, '0')}.jpg`
+        const cosAgent = await createCosAgent({
+          name: cosName,
+          program: 'claude',
+          avatar: robotAvatar,
+          workingDirectory: process.env.HOME || '/tmp',
+          taskDescription: `Chief-of-Staff for team "${name}"`,
+          role: 'chief-of-staff',
+          createSession: false,
+        })
+        cosId = cosAgent.id
+        // Add COS to team agentIds and set chiefOfStaffId
+        await updateTeam(team.id, {
+          chiefOfStaffId: cosId,
+          agentIds: [...(team.agentIds || []), cosId],
+        }, managerId)
+        console.log(`[teams] Auto-created COS agent "${cosName}" (${cosId}) for team "${name}"`)
+      } catch (err) {
+        console.warn('[teams] Failed to auto-create COS agent:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // Assign COS title + role-plugin via ChangeTitle pipeline.
+    if (cosId) {
       try {
         const { ChangeTitle } = await import('@/services/element-management-service')
-        await ChangeTitle(params.chiefOfStaffId, 'chief-of-staff')
+        await ChangeTitle(cosId, 'chief-of-staff')
       } catch (err) {
-        // Non-blocking — team creation succeeds even if plugin install fails
         console.warn('[teams] Failed ChangeTitle for COS:', err instanceof Error ? err.message : err)
       }
     }
 
-    // BUG-002 FIX: Auto-title all agents added to the team as MEMBER.
-    // Without this, agents stay AUTONOMOUS after team creation.
+    // Auto-title all other agents added to the team as MEMBER.
     // Exclude COS (already titled above) and MANAGER (title must not change).
     const managerId2 = getManagerId()
     const agentIdsToTitle = (team.agentIds || []).filter(
-      (id: string) => id !== params.chiefOfStaffId && id !== managerId2
+      (id: string) => id !== cosId && id !== managerId2
     )
     for (const id of agentIdsToTitle) {
       try {
         const { ChangeTitle } = await import('@/services/element-management-service')
         await ChangeTitle(id, 'member')
       } catch (err) {
-        // Non-blocking — team creation succeeds even if individual title assignment fails
         console.warn(`[teams] Failed ChangeTitle to MEMBER for agent ${id}:`, err instanceof Error ? err.message : err)
       }
     }
 
-    // Flag if team still needs a COS
-    const needsChiefOfStaff = !team.chiefOfStaffId
-    return { data: { team, needsChiefOfStaff }, status: 201 }
+    // Reload team to get the latest state (COS may have been added)
+    const finalTeam = getTeam(team.id) || team
+    return { data: { team: finalTeam, needsChiefOfStaff: false }, status: 201 }
   } catch (error) {
     // TeamValidationException carries a specific HTTP status code from governance rules
     if (error instanceof TeamValidationException) {
@@ -270,6 +322,12 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
   }
 
   try {
+    // R9.3: Reject mutations on blocked teams (no MANAGER on host)
+    const teamForBlockCheck = getTeam(id)
+    if (teamForBlockCheck?.blocked) {
+      return { error: 'Team is blocked: no MANAGER exists on this host. Assign a MANAGER first.', status: 400 }
+    }
+
     // Destructure requestingAgentId, type, and chiefOfStaffId out so they do not leak
     // into the lib update call. Governance type/COS changes must go through dedicated
     // endpoints, not the general update path (CC-007 defense-in-depth).
@@ -350,7 +408,7 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
  * Delete a team by ID.
  * Governance: closed team deletion requires MANAGER or COS authority.
  */
-export async function deleteTeamById(id: string, requestingAgentId?: string, password?: string): Promise<ServiceResult<{ success: boolean }>> {
+export async function deleteTeamById(id: string, requestingAgentId?: string, password?: string, deleteAgents: boolean = false): Promise<ServiceResult<{ success: boolean }>> {
   // Validate UUID format for consistency with getTeamById (CC-008)
   if (!isValidUuid(id)) {
     return { error: 'Invalid team ID', status: 400 }
@@ -404,10 +462,43 @@ export async function deleteTeamById(id: string, requestingAgentId?: string, pas
     }
   }
 
+  // Strip titles from all team agents before deleting the team.
+  // Team deletion reverts all agents to AUTONOMOUS (no team = no team title).
+  const agentsToRevert = [
+    ...team.agentIds,
+    ...(team.chiefOfStaffId ? [team.chiefOfStaffId] : []),
+    ...(team.orchestratorId && !team.agentIds.includes(team.orchestratorId) ? [team.orchestratorId] : []),
+  ]
+  const uniqueAgents = [...new Set(agentsToRevert)]
+  if (uniqueAgents.length > 0) {
+    const { ChangeTitle } = await import('@/services/element-management-service')
+    for (const agentId of uniqueAgents) {
+      try {
+        await ChangeTitle(agentId, 'autonomous')
+      } catch (err) {
+        console.warn(`[deleteTeamById] ChangeTitle to AUTONOMOUS failed for ${agentId}:`, err instanceof Error ? err.message : err)
+      }
+    }
+  }
+
   const deleted = await deleteTeam(id)
   if (!deleted) {
     return { error: 'Team not found', status: 404 }
   }
+
+  // If deleteAgents requested (UI-only option), delete all team agents from registry
+  if (deleteAgents && uniqueAgents.length > 0) {
+    const { deleteAgent } = await import('@/lib/agent-registry')
+    for (const agentId of uniqueAgents) {
+      try {
+        await deleteAgent(agentId)
+        console.log(`[deleteTeamById] Deleted team agent ${agentId}`)
+      } catch (err) {
+        console.warn(`[deleteTeamById] Failed to delete agent ${agentId}:`, err instanceof Error ? err.message : err)
+      }
+    }
+  }
+
   return { data: { success: true }, status: 200 }
 }
 

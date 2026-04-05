@@ -331,6 +331,8 @@ export default function TitleAssignmentDialog({
             await updateTeamOrchestratorId(null)
           }
         }
+        // Set MEMBER title — ChangeTitle pipeline handles programmer plugin install
+        await setGovernanceTitle('member')
       } else if (selectedTitle === 'architect' || selectedTitle === 'integrator' || selectedTitle === 'orchestrator') {
         // Transitioning TO a simple governance title (including orchestrator)
         if (currentTitle === 'manager') {

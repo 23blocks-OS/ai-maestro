@@ -177,10 +177,10 @@ author: AI Maestro Team
 
 #### S018: Submit Create Team
 - **Action:** Click "Create Team" submit button
-- **Goal:** Modal closes, team created via `POST /api/teams`, team card appears in sidebar
-- **Creates:** Team `scen-test-team-alpha` in teams registry
-- **Modifies:** Teams registry (new entry), both agents' team membership and title
-- **Verify:** Wait 2s, team card visible in sidebar showing name `scen-test-team-alpha` and count "2"
+- **Goal:** Modal closes, team created via `POST /api/teams`, team card appears in sidebar. Auto-COS agent created (cos-scen-test-team-alpha with robot avatar).
+- **Creates:** Team `scen-test-team-alpha` in teams registry, auto-COS agent `cos-scen-test-team-alpha`
+- **Modifies:** Teams registry (new entry), agents registry (COS + members), both test agents get MEMBER title + programmer plugin
+- **Verify:** Wait 2s, team card visible in sidebar showing name `scen-test-team-alpha` and count "3" (2 test agents + 1 auto-COS)
 
 #### S019: Verify team card shows description
 - **Action:** Inspect the `scen-test-team-alpha` team card in sidebar
@@ -205,12 +205,12 @@ author: AI Maestro Team
 - **Modifies:** nothing
 - **Verify:** Snapshot shows team name header with count "2"
 
-#### S022: Check scen-test-agent-alpha title
+#### S022: Check scen-test-agent-alpha title and plugin
 - **Action:** Click on `scen-test-agent-alpha` in the agent list
-- **Goal:** Profile panel opens, title auto-transitioned to MEMBER
+- **Goal:** Profile panel opens, title auto-transitioned to MEMBER with programmer plugin
 - **Creates:** nothing
 - **Modifies:** nothing
-- **Verify:** Title badge shows "MEMBER" (was AUTONOMOUS before joining team)
+- **Verify:** Title badge shows "MEMBER" (was AUTONOMOUS before joining team). Plugin banner shows `ai-maestro-programmer-agent`.
 
 #### S023: Verify team membership in profile
 - **Action:** Scroll to "Team" section in profile Overview tab
@@ -221,12 +221,12 @@ author: AI Maestro Team
 
 ## Phase 4: COS Assignment
 
-#### S024: Check team COS status
+#### S024: Check team auto-COS was created
 - **Action:** Verify team data (via team card or API check) for chiefOfStaffId
-- **Goal:** Confirm no COS was auto-created (sidebar quick-create does not set COS)
-- **Creates:** nothing
+- **Goal:** Confirm a COS agent was auto-created (every team must have a COS)
+- **Creates:** nothing (COS was auto-created during team creation at S018)
 - **Modifies:** nothing
-- **Verify:** chiefOfStaffId is null (expected for sidebar quick-create)
+- **Verify:** chiefOfStaffId is NOT null. A `cos-scen-test-team-alpha` agent exists with CHIEF-OF-STAFF title and robot avatar.
 
 #### S025: Click on scen-test-agent-beta
 - **Action:** Click `scen-test-agent-beta` in the agent list
@@ -420,12 +420,19 @@ author: AI Maestro Team
 - **Modifies:** Agent registry (entry removed), team agentIds (beta removed), team chiefOfStaffId (cleared)
 - **Verify:** Agent no longer appears in sidebar
 
-#### S051: Delete scen-test-team-alpha
-- **Action:** Switch to "Teams" tab, find `scen-test-team-alpha` team card, click delete icon, confirm deletion
-- **Goal:** Test team fully removed from teams registry
+#### S051: Delete scen-test-team-alpha (strips all agent titles to AUTONOMOUS)
+- **Action:** Switch to "Teams" tab, find `scen-test-team-alpha` team card, click delete icon, enter governance password, confirm deletion
+- **Goal:** Test team fully removed. All agents (including auto-COS) reverted to AUTONOMOUS with no role-plugin.
 - **Creates:** nothing
-- **Modifies:** Teams registry (entry removed)
+- **Modifies:** Teams registry (entry removed), all team agents get title→AUTONOMOUS, plugins stripped
 - **Verify:** Team card no longer appears in sidebar
+
+#### S051b: Delete auto-COS agent (cos-scen-test-team-alpha)
+- **Action:** Find `cos-scen-test-team-alpha` in agent list (ALL tab), click delete button, confirm
+- **Goal:** Auto-created COS agent removed from registry
+- **Creates:** nothing
+- **Modifies:** Agent registry (entry removed)
+- **Verify:** Agent no longer appears in sidebar
 
 #### S052: STATE-WIPE -- Restore configuration files
 - **Action:** Compare current config files with backups from S002. If any differ, restore from backup.

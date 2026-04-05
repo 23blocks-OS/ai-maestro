@@ -349,3 +349,94 @@ export async function deleteTeam(id: string): Promise<boolean> {
   }
   return deleted
 }
+
+// ═══════════════════════════════════════════════════════════
+// Manager-gated team blocking
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Block all teams on this host. Called when MANAGER is removed or missing at startup.
+ * Sets `blocked: true` on every team, then hibernates all team agents.
+ * Returns the list of agent IDs that were hibernated.
+ */
+export async function blockAllTeams(): Promise<string[]> {
+  const teams = loadTeams()
+  if (teams.length === 0) return []
+
+  // Set blocked flag on all teams
+  let anyChanged = false
+  for (const team of teams) {
+    if (!team.blocked) {
+      team.blocked = true
+      team.updatedAt = new Date().toISOString()
+      anyChanged = true
+    }
+  }
+  if (anyChanged) saveTeams(teams)
+
+  // Collect all unique agent IDs across all teams
+  const teamAgentIds = new Set<string>()
+  for (const team of teams) {
+    for (const id of team.agentIds) teamAgentIds.add(id)
+    if (team.chiefOfStaffId) teamAgentIds.add(team.chiefOfStaffId)
+    if (team.orchestratorId) teamAgentIds.add(team.orchestratorId)
+  }
+
+  // Hibernate each team agent (kill tmux session)
+  const hibernated: string[] = []
+  for (const agentId of teamAgentIds) {
+    try {
+      const { getAgent } = await import('@/lib/agent-registry')
+      const agent = getAgent(agentId)
+      if (!agent) continue
+      const sessionName = agent.name
+      if (!sessionName) continue
+      // Kill tmux session (hibernate)
+      const { execSync } = await import('child_process')
+      try {
+        execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null`, { timeout: 5000 })
+        hibernated.push(agentId)
+        console.log(`[blockAllTeams] Hibernated team agent "${sessionName}" (${agentId})`)
+      } catch {
+        // Session may not exist (already offline) — not an error
+      }
+    } catch {
+      // Agent not found in registry — skip
+    }
+  }
+
+  console.log(`[blockAllTeams] Blocked ${teams.length} team(s), hibernated ${hibernated.length} agent(s)`)
+  return hibernated
+}
+
+/**
+ * Unblock all teams on this host. Called when a MANAGER is assigned.
+ * Clears `blocked` flag. Does NOT wake agents — user/MANAGER must do that manually.
+ */
+export function unblockAllTeams(): void {
+  const teams = loadTeams()
+  let anyChanged = false
+  for (const team of teams) {
+    if (team.blocked) {
+      team.blocked = false
+      team.updatedAt = new Date().toISOString()
+      anyChanged = true
+    }
+  }
+  if (anyChanged) {
+    saveTeams(teams)
+    console.log(`[unblockAllTeams] Unblocked ${teams.length} team(s) — agents remain hibernated until manually woken`)
+  }
+}
+
+/**
+ * Check if an agent belongs to any team (used by wake guard).
+ */
+export function isAgentInAnyTeam(agentId: string): boolean {
+  const teams = loadTeams()
+  return teams.some(t =>
+    t.agentIds.includes(agentId) ||
+    t.chiefOfStaffId === agentId ||
+    t.orchestratorId === agentId
+  )
+}

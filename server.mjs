@@ -1341,6 +1341,22 @@ async function startServer(handleRequest) {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
 
+    // Manager gate: if no MANAGER exists, block all teams + hibernate team agents
+    try {
+      const { getManagerId } = await import('./lib/governance.ts')
+      if (!getManagerId()) {
+        const { blockAllTeams } = await import('./lib/team-registry.ts')
+        const hibernated = await blockAllTeams()
+        if (hibernated.length > 0) {
+          console.log(`[Startup] No MANAGER detected — blocked all teams, hibernated ${hibernated.length} team agent(s)`)
+        } else {
+          console.log(`[Startup] No MANAGER detected — all teams blocked (no active team agents to hibernate)`)
+        }
+      }
+    } catch (error) {
+      console.error('[Startup] Manager gate check failed:', error)
+    }
+
     // Kill any orphaned creation-helper sessions on startup.
     // These zombie sessions can consume tokens indefinitely if not cleaned up.
     try {

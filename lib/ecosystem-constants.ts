@@ -83,6 +83,7 @@ export const TITLE_PLUGIN_MAP: Record<string, string> = {
   'ARCHITECT': ROLE_PLUGIN_ARCHITECT,
   'INTEGRATOR': ROLE_PLUGIN_INTEGRATOR,
   'ORCHESTRATOR': ROLE_PLUGIN_ORCHESTRATOR,
+  'MEMBER': ROLE_PLUGIN_PROGRAMMER,
 }
 
 /** Map from role-plugin name to compatible governance titles */

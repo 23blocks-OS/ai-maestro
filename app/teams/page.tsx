@@ -21,6 +21,7 @@ export default function TeamsPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [deletePhase, setDeletePhase] = useState<'confirm' | 'agents'>('confirm')
   const [reservedNames, setReservedNames] = useState<{ teamNames: string[]; agentNames: string[] }>({ teamNames: [], agentNames: [] })
   const [nameValidation, setNameValidation] = useState<{ error: string | null; warning: string | null }>({ error: null, warning: null })
 
@@ -82,12 +83,17 @@ export default function TeamsPage() {
     return () => document.removeEventListener('keydown', handleKey)
   }, [creating])
 
-  const handleDelete = async (teamId: string) => {
+  const handleDelete = async (teamId: string, deleteAgents: boolean = false) => {
     try {
-      const res = await fetch(`/api/teams/${teamId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteAgents }),
+      })
       if (!res.ok) throw new Error('Failed to delete team')
       setTeams(prev => prev.filter(t => t.id !== teamId))
       setDeleteConfirm(null)
+      setDeletePhase('confirm')
     } catch (err) {
       console.error('Failed to delete team:', err)
     }
@@ -168,27 +174,59 @@ export default function TeamsPage() {
         reservedNames={reservedNames}
       />
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation — Two-phase dialog */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          {/* SF-012: Add dialog role and aria attributes for screen readers */}
           <div role="dialog" aria-modal="true" aria-labelledby="delete-team-title" className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
-            <h4 id="delete-team-title" className="text-sm font-medium text-white mb-2">Delete Team</h4>
-            <p className="text-xs text-gray-400 mb-4">Are you sure you want to delete team &apos;{teams.find(t => t.id === deleteConfirm)?.name || 'this team'}&apos;? This will remove the team but not its agents.</p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-              >
-                Delete
-              </button>
-            </div>
+            {deletePhase === 'confirm' ? (
+              <>
+                <h4 id="delete-team-title" className="text-sm font-medium text-white mb-2">Delete Team</h4>
+                <p className="text-xs text-gray-400 mb-4">
+                  Are you sure you want to delete this Team &apos;{teams.find(t => t.id === deleteConfirm)?.name || 'this team'}&apos;?
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setDeleteConfirm(null); setDeletePhase('confirm') }}
+                    className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setDeletePhase('agents')}
+                    className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h4 id="delete-team-title" className="text-sm font-medium text-white mb-2">Delete Team Agents?</h4>
+                <p className="text-xs text-gray-400 mb-4">
+                  Do you want to delete also all the agents belonging to the team? (Not deleting them will leave them as AUTONOMOUS titled agents)
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setDeleteConfirm(null); setDeletePhase('confirm') }}
+                    className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDelete(deleteConfirm, false)}
+                    className="text-xs px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                  >
+                    Keep Agents
+                  </button>
+                  <button
+                    onClick={() => handleDelete(deleteConfirm, true)}
+                    className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                  >
+                    Delete Agents Too
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

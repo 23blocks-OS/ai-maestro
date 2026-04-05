@@ -48,6 +48,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 403 })
     }
 
+    // Governance: teams require an existing MANAGER first
+    const existingManager = getManagerId()
+    if (!existingManager) {
+      return NextResponse.json(
+        { error: 'Teams require an existing MANAGER first. Assign the MANAGER title to an agent before creating teams.' },
+        { status: 400 }
+      )
+    }
+
     // Validate agent IDs if provided
     const agentIds: string[] = []
     if (body.chiefOfStaffId) {

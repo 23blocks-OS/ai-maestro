@@ -60,6 +60,7 @@ export interface Team {
    * Target implementation: Phase 2 multi-host team support.
    */
   agentHostMap?: Record<string, string>
+  blocked?: boolean       // true when no MANAGER exists — team ops frozen, agents hibernated
   createdAt: string       // ISO
   updatedAt: string       // ISO
   lastMeetingAt?: string  // ISO - last time a meeting was started with this team

@@ -657,7 +657,7 @@ export async function ChangeTitle(
 
   try {
     // ── GATE 1: Validate title value ─────────────────────────
-    const effectiveTitle = newTitle === 'autonomous' || newTitle === 'member' ? null : newTitle
+    const effectiveTitle = newTitle === 'autonomous' ? null : newTitle
     if (newTitle && !VALID_TITLES.has(newTitle)) {
       result.error = `Invalid title "${newTitle}". Valid: ${[...VALID_TITLES].join(', ')}`
       return result
@@ -773,9 +773,18 @@ export async function ChangeTitle(
     }
 
     // ── GATE 9: Team membership validation ───────────────────
+    // Team titles (member, chief-of-staff, orchestrator, architect, integrator)
+    // can ONLY be assigned to agents that belong to a team. If the agent has no
+    // team, the title is rejected. Only MANAGER and AUTONOMOUS are standalone.
     if (newTitle && TEAM_TITLES.has(newTitle)) {
-      // Team-based titles: agent should be in a team (enforced by caller)
-      ops.push(`G09: ${newTitle.toUpperCase()} requires team membership — caller must ensure`)
+      const { loadTeams: loadTeamsG9 } = await import('@/lib/team-registry')
+      const allTeamsG9 = loadTeamsG9()
+      const agentInTeam = allTeamsG9.some(t => t.agentIds.includes(agentId))
+      if (!agentInTeam) {
+        result.error = `Title "${newTitle.toUpperCase()}" requires team membership. Assign the agent to a team first.`
+        return result
+      }
+      ops.push(`G09: ${newTitle.toUpperCase()} requires team — agent is in a team ✓`)
     } else if (newTitle && STANDALONE_TITLES.has(newTitle)) {
       ops.push(`G09: ${newTitle.toUpperCase()} is standalone — no team required`)
     } else {
@@ -787,6 +796,14 @@ export async function ChangeTitle(
       const { removeManager } = await import('@/lib/governance')
       await removeManager()
       ops.push(`G10: Removed manager from governance.json`)
+      // MANAGER removed → block all teams + hibernate team agents
+      try {
+        const { blockAllTeams } = await import('@/lib/team-registry')
+        const hibernated = await blockAllTeams()
+        ops.push(`G10: Blocked all teams, hibernated ${hibernated.length} team agent(s)`)
+      } catch (err) {
+        ops.push(`G10: WARN — blockAllTeams failed: ${err instanceof Error ? err.message : err}`)
+      }
     } else {
       ops.push(`G10: Old title not MANAGER — governance.json unchanged`)
     }
@@ -857,6 +874,14 @@ export async function ChangeTitle(
       const { setManager } = await import('@/lib/governance')
       await setManager(agentId)
       ops.push(`G13: Set manager in governance.json + broadcast to mesh`)
+      // MANAGER assigned → unblock all teams (agents stay hibernated, manual wake required)
+      try {
+        const { unblockAllTeams } = await import('@/lib/team-registry')
+        unblockAllTeams()
+        ops.push(`G13: Unblocked all teams — agents remain hibernated until manually woken`)
+      } catch (err) {
+        ops.push(`G13: WARN — unblockAllTeams failed: ${err instanceof Error ? err.message : err}`)
+      }
     } else {
       ops.push(`G13: New title not MANAGER — governance.json unchanged`)
     }
@@ -1962,9 +1987,13 @@ export async function ChangeTeam(
     }
     ops.push(`G01: Agent "${agent.name}" found`)
 
-    // ── G02: Validate team exists (if adding) ─────────────────
+    // ── G01b: Manager gate — no team mutations without a MANAGER ──
     const { getTeam, updateTeam, loadTeams } = await import('@/lib/team-registry')
     const { getManagerId, isManager } = await import('@/lib/governance')
+    if (!getManagerId()) {
+      result.error = 'Team operations are blocked: no MANAGER exists on this host. Assign a MANAGER first.'
+      return result
+    }
 
     if (desired.teamId) {
       const team = getTeam(desired.teamId)

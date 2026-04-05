@@ -966,28 +966,61 @@ function TitlePickerWidget({
 }) {
   const titles = selectedTeamId ? TEAM_TITLES : AUTONOMOUS_TITLES
 
+  // Check MANAGER singleton: fetch current manager to disable option if taken
+  const [managerInfo, setManagerInfo] = useState<{ id: string; name: string } | null>(null)
+  useEffect(() => {
+    fetch('/api/governance')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.managerId) {
+          // Fetch manager agent name
+          fetch(`/api/agents/${data.managerId}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(agentData => {
+              if (agentData?.agent) {
+                setManagerInfo({ id: data.managerId, name: agentData.agent.label || agentData.agent.name || data.managerId })
+              }
+            })
+            .catch(() => {})
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <div className="space-y-1.5">
-      {titles.map((t) => (
-        <button
-          key={t.value}
-          onClick={() => onSelect(t.value)}
-          className="w-full text-left px-3 py-2.5 rounded-lg bg-gray-800/80 border border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all text-sm"
-        >
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-bold tracking-wider px-1.5 py-0.5 rounded border ${TITLE_COLORS[t.value]}`}>
-              {t.label}
-            </span>
-            {LOCKED_TITLE_PLUGINS[t.value] && (
-              <span className="text-xs text-gray-500 flex items-center gap-1">
-                <Lock className="w-3 h-3" />
-                auto-assigns plugin
+      {titles.map((t) => {
+        const isManagerTaken = t.value === 'manager' && managerInfo !== null
+        return (
+          <button
+            key={t.value}
+            onClick={() => !isManagerTaken && onSelect(t.value)}
+            disabled={isManagerTaken}
+            className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all text-sm ${
+              isManagerTaken
+                ? 'bg-gray-800/40 border-gray-700 opacity-50 cursor-not-allowed'
+                : 'bg-gray-800/80 border-gray-600 hover:border-blue-500 hover:bg-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold tracking-wider px-1.5 py-0.5 rounded border ${TITLE_COLORS[t.value]}`}>
+                {t.label}
               </span>
-            )}
-          </div>
-          <div className="text-xs text-gray-500 mt-0.5">{t.description}</div>
-        </button>
-      ))}
+              {LOCKED_TITLE_PLUGINS[t.value] && (
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  auto-assigns plugin
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              {isManagerTaken
+                ? `Only one Manager allowed. "${managerInfo.name}" already holds this title.`
+                : t.description}
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }

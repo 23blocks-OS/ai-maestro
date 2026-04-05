@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Team } from '@/types/team'
 import type { TransferRequest, GovernanceTitle } from '@/types/governance'
 import type { GovernanceRequest } from '@/types/governance-request'
-import { ROLE_PLUGIN_PROGRAMMER } from '@/lib/ecosystem-constants'
 
 // Re-export so downstream consumers still work
 export type { GovernanceTitle } from '@/types/governance'
@@ -339,25 +338,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to add agent to team' }
         }
-        // Phase 3: Auto-assign MEMBER role + default programmer plugin when agent joins a team
-        await fetch(`/api/agents/${targetAgentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'member', governanceTitle: null }),
-        })
-        // Auto-install default programmer plugin for MEMBER title
-        const agentRes = await fetch(`/api/agents/${targetAgentId}`)
-        if (agentRes.ok) {
-          const agentData = await agentRes.json()
-          const workDir = agentData.agent?.workingDirectory
-          if (workDir) {
-            await fetch('/api/agents/role-plugins/install', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pluginName: ROLE_PLUGIN_PROGRAMMER, agentDir: workDir }),
-            }).catch(() => {}) // Best-effort — don't fail the join if plugin install fails
-          }
-        }
+        // Phase 3: ChangeTeam (called by team PUT route) handles title + plugin automatically.
+        // No need to PATCH governanceTitle or install plugin — server does it.
         // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
         mutationAbortRef.current?.abort()
         mutationAbortRef.current = new AbortController()

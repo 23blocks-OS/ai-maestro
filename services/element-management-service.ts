@@ -2547,6 +2547,30 @@ export async function CreateAgent(
       return result
     }
 
+    // G03-OVERLAP: No two agents may share the same directory, or be parent/child of each other.
+    // E.g. if agent A uses ~/agents/foo/, agent B cannot use ~/agents/foo/ OR ~/agents/foo/bar/
+    // OR ~/agents/ (parent). This prevents agents from interfering with each other's files.
+    {
+      const { loadAgents: loadAllAgents } = await import('@/lib/agent-registry')
+      const allAgents = loadAllAgents()
+      const candidatePath = normalizedWorkDir + '/'  // ensure trailing slash for prefix comparison
+      for (const existingAgent of allAgents) {
+        const existingDir = (existingAgent.workingDirectory || '').replace(/\/+$/, '')
+        if (!existingDir) continue
+        const existingPath = existingDir + '/'
+        // Check: exact match, candidate is child of existing, or candidate is parent of existing
+        if (
+          normalizedWorkDir === existingDir ||
+          candidatePath.startsWith(existingPath) ||
+          existingPath.startsWith(candidatePath)
+        ) {
+          result.error = `Working directory "${workDir}" overlaps with agent "${existingAgent.label || existingAgent.name}" (${existingAgent.id}) which uses "${existingDir}". Each agent must have its own isolated directory — no sharing, no parent/child nesting.`
+          return result
+        }
+      }
+      ops.push(`G03-OVERLAP: No directory overlap with ${allAgents.length} existing agents`)
+    }
+
     await mkdir(workDir, { recursive: true })
     ops.push(`G03: Working directory: ${workDir}`)
 

@@ -54,6 +54,7 @@ export interface CreateTeamParams {
   agentIds?: string[]
   type?: TeamType
   chiefOfStaffId?: string
+  orchestratorId?: string
   requestingAgentId?: string
 }
 
@@ -272,7 +273,18 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
       }
     }
 
-    // Reload team to get the latest state (COS may have been added)
+    // Set orchestrator if provided
+    if (params.orchestratorId) {
+      try {
+        await updateTeam(team.id, { orchestratorId: params.orchestratorId }, managerId)
+        const { ChangeTitle } = await import('@/services/element-management-service')
+        await ChangeTitle(params.orchestratorId, 'orchestrator')
+      } catch (err) {
+        console.warn('[teams] Failed to set orchestrator:', err instanceof Error ? err.message : err)
+      }
+    }
+
+    // Reload team to get the latest state (COS/orchestrator may have been added)
     const finalTeam = getTeam(team.id) || team
     return { data: { team: finalTeam, needsChiefOfStaff: false }, status: 201 }
   } catch (error) {

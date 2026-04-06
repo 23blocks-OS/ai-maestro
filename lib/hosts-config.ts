@@ -16,6 +16,52 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
+// Cached aliases from the self host entry in hosts.json.
+// Loaded once at startup so isSelf() can recognize old hostnames
+// after macOS hostname drift without reading disk on every call.
+let storedSelfAliasesCache: string[] = []
+
+function loadStoredSelfAliases(): void {
+  try {
+    const configPath = path.join(os.homedir(), '.aimaestro', 'hosts.json')
+    if (!fs.existsSync(configPath)) { storedSelfAliasesCache = []; return }
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as HostsConfig
+    const selfId = getSelfHostId()
+
+    // Pass 1: Match by hostname or legacy 'local' (guaranteed safe)
+    for (const host of config.hosts) {
+      const id = host.id.toLowerCase()
+      if (id === selfId || id === 'local') {
+        storedSelfAliasesCache = [id, ...(host.aliases || []).map(a => a.toLowerCase())]
+        return
+      }
+    }
+
+    // Pass 2: Hostname drifted — no id matches. Find the host whose aliases
+    // contain one of our current IPs. Only trust this if exactly one host
+    // matches (ambiguous = skip). This is the macOS hostname drift case.
+    const selfIPs = getLocalIPs().map(i => i.ip.toLowerCase())
+    if (selfIPs.length === 0) { storedSelfAliasesCache = []; return }
+
+    const matches: Host[] = []
+    for (const host of config.hosts) {
+      const hostAliases = (host.aliases || []).map(a => a.toLowerCase())
+      if (selfIPs.some(ip => hostAliases.includes(ip))) {
+        matches.push(host)
+      }
+    }
+
+    if (matches.length === 1) {
+      const match = matches[0]
+      storedSelfAliasesCache = [match.id.toLowerCase(), ...(match.aliases || []).map(a => a.toLowerCase())]
+      return
+    }
+
+    storedSelfAliasesCache = []
+  } catch { storedSelfAliasesCache = [] }
+}
+loadStoredSelfAliases()
+
 // File lock state
 let lockHeld = false
 const lockQueue: Array<{ resolve: () => void; reject: (err: Error) => void }> = []
@@ -196,6 +242,9 @@ export function isSelf(hostId: string): boolean {
   } catch {
     // Not a URL, that's fine
   }
+
+  // Check stored aliases from hosts.json (catches old hostnames after macOS hostname drift)
+  if (storedSelfAliasesCache.includes(hostIdLower)) return true
 
   return false
 }
@@ -462,6 +511,7 @@ export function getRemoteHosts(): Host[] {
  */
 export function clearHostsCache(): void {
   cachedHosts = null
+  loadStoredSelfAliases()
 }
 
 /**

@@ -3,6 +3,41 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.0] - 2026-04-16
+
+### Added
+- **Unified API error format** — All API error responses across the codebase now follow the AMP protocol format: `{ error: 'code', message: 'Human text', field?, details? }`. One consistent shape for all 106 route handlers. (#285, #327 — thanks @mvillmow for the original report)
+- **`services/service-errors.ts`** — Single source of truth for `ServiceResult<T>`, `ServiceError`, and `ServiceErrorCode` (30 codes: AMP's 18 + 12 generic). Ships 20+ factory functions (`missingField`, `notFound`, `operationFailed`, `alreadyExists`, `gone`, `invalidState`, etc.) and validation helpers (`requireString`, `requireArray`, `requireNameFormat`).
+- **`app/api/_helpers.ts`** — `toResponse()` turns any `ServiceResult` into a `NextResponse` with consistent error formatting.
+
+### Changed
+- **25 service files** migrated to shared `ServiceResult` and factories (~305 error returns standardized).
+- **88 route files** converted to thin wrappers: `return toResponse(result)`.
+- **25 component files** updated to read `data.message || data.error` for backward-compatible error display.
+- **5 test files** updated (49 assertions now match structured `ServiceError` shape).
+- **`lib/types/amp.ts`** refactored: `AMPErrorCode` is now `Extract<ServiceErrorCode, ...>`, `AMPError extends ServiceError`. `AMPNameTakenError` interface corrected to match runtime shape (`details.suggestions`).
+- **`services/headless-router.ts`** — `sendServiceResult()` mirrors `toResponse()` for headless mode.
+- Net change: **154 files, +1,365 / −1,977 = −612 lines** despite adding the new foundation.
+
+### Fixed
+- `preconditionFailed()` factory now returns **412** (was 400).
+- `lookupAgentByName` and `lookupAgentByDirectoryName` catch blocks now propagate real errors via `operationFailed()` instead of silently swallowing failures.
+- `toResponse()` defensive fallback preserves caller's 4xx status instead of always overriding to 500.
+
+## [0.27.0] - 2026-04-14
+
+### Added
+- **Multi-agent hook support** — AMP inbox notifications now work across Claude Code, Codex CLI, and Gemini CLI. Hook script auto-detects which AI agent is calling it and returns the correct response format (`additionalContext` for Claude, `systemMessage` for Codex/Gemini; normalizes Gemini's `AfterAgent` → `Stop`). Installer auto-detects installed agents and writes hook configs for each, enabling `codex_hooks = true` in Codex's `config.toml`. (#324)
+- **Claude Code `additionalContext` for inbox notifications** — Replaced broken tmux `send-keys` notification with Claude Code's native `additionalContext` hook response. Agents now receive inbox notifications as system reminders injected into their conversation context instead of having text typed into their TUI input field. Added standalone fallback via `amp-inbox.sh --count` so notifications still work when AI Maestro is down. (#321, #322, #323)
+
+### Changed
+- Removed `sendMessageNotification()` (broken tmux send-keys approach) in favor of hook-based `additionalContext` injection.
+
+## [0.26.6] - 2026-04-06
+
+### Fixed
+- **macOS hostname drift in mesh identity** — `isSelf()` now checks cached aliases so machines retain mesh identity after the OS hostname changes. Two-pass lookup (hostname first, then IP alias with exactly-one-match guard) prevents DHCP false positives from claiming remote hosts as self. (#318, #320)
+
 ## [0.26.5] - 2026-03-25
 
 ### Added

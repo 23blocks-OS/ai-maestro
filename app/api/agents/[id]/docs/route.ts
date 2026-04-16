@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { queryDocs, indexDocs, clearDocs } from '@/services/agents-docs-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   request: NextRequest,
@@ -29,10 +30,7 @@ export async function GET(
       project: searchParams.get('project'),
     })
 
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Docs API] Error:', error)
     return NextResponse.json(
@@ -60,10 +58,7 @@ export async function POST(
     }
 
     const result = await indexDocs(agentId, body)
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Docs API] Error:', error)
     return NextResponse.json(
@@ -83,10 +78,7 @@ export async function DELETE(
     const projectPath = searchParams.get('project') || undefined
 
     const result = await clearDocs(agentId, projectPath)
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Docs API] Error:', error)
     return NextResponse.json(

@@ -321,7 +321,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
         })
         if (!response.ok) {
           const data = await response.json()
-          throw new Error(data.error || 'Failed to create Docker agent')
+          throw new Error(data.message || data.error || 'Failed to create Docker agent')
         }
       } else {
         const response = await fetch('/api/sessions/create', {
@@ -338,7 +338,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
         })
         if (!response.ok) {
           const data = await response.json()
-          throw new Error(data.error || 'Failed to create agent')
+          throw new Error(data.message || data.error || 'Failed to create agent')
         }
       }
       setCreationSuccess(true)

@@ -39,16 +39,7 @@ import {
   initializeFileMetadata,
   getProjectFileMetadata,
 } from '@/lib/rag/code-indexer'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, missingField, notFound, invalidRequest, operationFailed } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -102,10 +93,7 @@ export async function getDatabaseInfo(agentId: string): Promise<ServiceResult<an
     }
   } catch (error) {
     console.error('[Graph Service] getDatabaseInfo Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('get database info', (error as Error).message)
   }
 }
 
@@ -142,10 +130,7 @@ export async function initializeDatabase(agentId: string): Promise<ServiceResult
     }
   } catch (error) {
     console.error('[Graph Service] initializeDatabase Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('initialize database', (error as Error).message)
   }
 }
 
@@ -206,7 +191,7 @@ export async function queryDbGraph(
 
       case 'columns': {
         if (!name) {
-          return { error: 'columns requires "name" parameter (table name)', status: 400 }
+          return missingField('name')
         }
         result = await findColumnsInTable(agentDb, name)
         break
@@ -214,7 +199,7 @@ export async function queryDbGraph(
 
       case 'fk': {
         if (!name) {
-          return { error: 'fk requires "name" parameter (table name)', status: 400 }
+          return missingField('name')
         }
         result = await findForeignKeysFromTable(agentDb, name)
         break
@@ -222,7 +207,7 @@ export async function queryDbGraph(
 
       case 'dependents': {
         if (!name) {
-          return { error: 'dependents requires "name" parameter (table name)', status: 400 }
+          return missingField('name')
         }
         result = await findTableDependents(agentDb, name)
         break
@@ -230,7 +215,7 @@ export async function queryDbGraph(
 
       case 'impact': {
         if (!name || !column) {
-          return { error: 'impact requires "name" (table) and "column" parameters', status: 400 }
+          return missingField('name and column')
         }
         result = await analyzeColumnTypeChange(agentDb, name, column)
         break
@@ -266,7 +251,7 @@ export async function queryDbGraph(
       }
 
       default:
-        return { error: `Unknown action: ${action}`, status: 400 }
+        return invalidRequest(`Unknown action: ${action}`)
     }
 
     return {
@@ -275,10 +260,7 @@ export async function queryDbGraph(
     }
   } catch (error) {
     console.error('[Graph Service] queryDbGraph Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('query database graph', (error as Error).message)
   }
 }
 
@@ -290,7 +272,7 @@ export async function indexDbSchema(
     const { connectionString, clear = true } = body
 
     if (!connectionString) {
-      return { error: 'Missing required parameter: connectionString', status: 400 }
+      return missingField('connectionString')
     }
 
     console.log(`[Graph Service] Indexing database schema for agent ${agentId}`)
@@ -316,10 +298,7 @@ export async function indexDbSchema(
     }
   } catch (error) {
     console.error('[Graph Service] indexDbSchema Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('index database schema', (error as Error).message)
   }
 }
 
@@ -329,7 +308,7 @@ export async function clearDbGraph(
 ): Promise<ServiceResult<any>> {
   try {
     if (!databaseName) {
-      return { error: 'Missing required parameter: database', status: 400 }
+      return missingField('database')
     }
 
     console.log(`[Graph Service] Clearing database schema graph for agent ${agentId}: ${databaseName}`)
@@ -345,10 +324,7 @@ export async function clearDbGraph(
     }
   } catch (error) {
     console.error('[Graph Service] clearDbGraph Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('clear database graph', (error as Error).message)
   }
 }
 
@@ -379,7 +355,7 @@ export async function queryGraph(
     switch (queryType) {
       case 'find-callers': {
         if (!name) {
-          return { error: 'find-callers requires "name" parameter', status: 400 }
+          return missingField('name')
         }
 
         const callersResult = await agentDb.run(`
@@ -401,7 +377,7 @@ export async function queryGraph(
 
       case 'find-callees': {
         if (!name) {
-          return { error: 'find-callees requires "name" parameter', status: 400 }
+          return missingField('name')
         }
 
         const calleesResult = await agentDb.run(`
@@ -423,7 +399,7 @@ export async function queryGraph(
 
       case 'find-related': {
         if (!name) {
-          return { error: 'find-related requires "name" parameter', status: 400 }
+          return missingField('name')
         }
 
         const related: any = {
@@ -540,7 +516,7 @@ export async function queryGraph(
 
       case 'find-by-type': {
         if (!type) {
-          return { error: 'find-by-type requires "type" parameter', status: 400 }
+          return missingField('type')
         }
 
         try {
@@ -569,7 +545,7 @@ export async function queryGraph(
 
       case 'find-associations': {
         if (!name) {
-          return { error: 'find-associations requires "name" parameter', status: 400 }
+          return missingField('name')
         }
 
         try {
@@ -607,7 +583,7 @@ export async function queryGraph(
 
       case 'find-serializers': {
         if (!name) {
-          return { error: 'find-serializers requires "name" parameter', status: 400 }
+          return missingField('name')
         }
 
         try {
@@ -638,7 +614,7 @@ export async function queryGraph(
 
       case 'find-path': {
         if (!from || !to) {
-          return { error: 'find-path requires "from" and "to" parameters', status: 400 }
+          return missingField('from and to')
         }
 
         try {
@@ -687,7 +663,7 @@ export async function queryGraph(
 
       case 'describe': {
         if (!name) {
-          return { error: 'describe requires "name" parameter', status: 400 }
+          return missingField('name')
         }
 
         const description: any = { name, found: false }
@@ -821,16 +797,7 @@ export async function queryGraph(
       }
 
       default:
-        return {
-          error: `Unknown query type: ${queryType}`,
-          data: {
-            available_queries: [
-              'find-callers', 'find-callees', 'find-related', 'find-by-type',
-              'find-associations', 'find-serializers', 'find-path', 'describe',
-            ],
-          },
-          status: 400
-        }
+        return invalidRequest(`Unknown query type: ${queryType}`)
     }
 
     return {
@@ -839,10 +806,7 @@ export async function queryGraph(
     }
   } catch (error) {
     console.error('[Graph Service] queryGraph Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('query graph', (error as Error).message)
   }
 }
 
@@ -933,7 +897,7 @@ export async function queryCodeGraph(
 
       case 'call-chain': {
         if (!from || !to) {
-          return { error: 'call-chain requires "from" and "to" parameters', status: 400 }
+          return missingField('from and to')
         }
         result = await findCallChain(agentDb, from, to)
         break
@@ -941,7 +905,7 @@ export async function queryCodeGraph(
 
       case 'dependencies': {
         if (!name) {
-          return { error: 'dependencies requires "name" parameter', status: 400 }
+          return missingField('name')
         }
         result = await getFunctionDependencies(agentDb, name)
         break
@@ -1021,7 +985,7 @@ export async function queryCodeGraph(
 
       case 'focus': {
         if (!nodeId) {
-          return { error: 'focus requires "nodeId" parameter', status: 400 }
+          return missingField('nodeId')
         }
 
         console.log(`[Graph Service] Focus on node: ${nodeId}, depth: ${depth}`)
@@ -1133,7 +1097,7 @@ export async function queryCodeGraph(
       }
 
       default:
-        return { error: `Unknown action: ${action}`, status: 400 }
+        return invalidRequest(`Unknown action: ${action}`)
     }
 
     return {
@@ -1142,10 +1106,7 @@ export async function queryCodeGraph(
     }
   } catch (error) {
     console.error('[Graph Service] queryCodeGraph Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('query code graph', (error as Error).message)
   }
 }
 
@@ -1167,7 +1128,7 @@ export async function indexCodeGraph(
     if (!projectPath) {
       const registryAgent = getAgentFromRegistry(agentId)
       if (!registryAgent) {
-        return { error: `Agent not found in registry: ${agentId}`, status: 404 }
+        return notFound('Agent', agentId)
       }
 
       projectPath = registryAgent.workingDirectory ||
@@ -1175,7 +1136,7 @@ export async function indexCodeGraph(
                     registryAgent.preferences?.defaultWorkingDirectory
 
       if (!projectPath) {
-        return { error: 'No projectPath provided and agent has no configured working directory', status: 400 }
+        return missingField('projectPath')
       }
 
       console.log(`[Graph Service] Auto-detected projectPath from registry: ${projectPath}`)
@@ -1264,10 +1225,7 @@ export async function indexCodeGraph(
     }
   } catch (error) {
     console.error('[Graph Service] indexCodeGraph Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('index code graph', (error as Error).message)
   }
 }
 
@@ -1277,7 +1235,7 @@ export async function deleteCodeGraph(
 ): Promise<ServiceResult<any>> {
   try {
     if (!projectPath) {
-      return { error: 'Missing required parameter: project', status: 400 }
+      return missingField('project')
     }
 
     console.log(`[Graph Service] Clearing code graph for agent ${agentId}: ${projectPath}`)
@@ -1293,9 +1251,6 @@ export async function deleteCodeGraph(
     }
   } catch (error) {
     console.error('[Graph Service] deleteCodeGraph Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('clear code graph', (error as Error).message)
   }
 }

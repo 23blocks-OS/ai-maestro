@@ -192,7 +192,7 @@ export default function MobileWorkTree({
       console.log('[MobileWorkTree] Memory API response:', data)
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch memory')
+        throw new Error(data.message || data.error || 'Failed to fetch memory')
       }
 
       // Transform data to match component interface (same as desktop WorkTree)

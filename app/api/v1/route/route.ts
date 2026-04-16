@@ -7,11 +7,12 @@
  * Thin wrapper - business logic in services/amp-service.ts
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { routeMessage } from '@/services/amp-service'
-import type { AMPRouteRequest, AMPRouteResponse, AMPError } from '@/lib/types/amp'
+import { toResponse } from '@/app/api/_helpers'
+import type { AMPRouteRequest } from '@/lib/types/amp'
 
-export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteResponse | AMPError>> {
+export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   const forwardedFrom = request.headers.get('X-Forwarded-From')
   const envelopeIdHeader = request.headers.get('X-AMP-Envelope-Id')
@@ -21,8 +22,5 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
   const body = await request.json() as AMPRouteRequest
 
   const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
-  return NextResponse.json(result.data!, {
-    status: result.status,
-    headers: result.headers
-  })
+  return toResponse(result)
 }

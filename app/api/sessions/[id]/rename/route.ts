@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { renameSession } from '@/services/sessions-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,12 +25,7 @@ export async function PATCH(
     ])
 
     const result = await renameSession(oldName, newName)
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('Failed to rename session:', error)
     return NextResponse.json({ error: 'Failed to rename session' }, { status: 500 })

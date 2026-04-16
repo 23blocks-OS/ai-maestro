@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { queryGraph } from '@/services/agents-graph-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/graph/query
@@ -20,8 +21,5 @@ export async function GET(
     to: searchParams.get('to'),
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error, ...(result.data || {}) }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

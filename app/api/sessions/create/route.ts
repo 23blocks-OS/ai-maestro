@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSession } from '@/services/sessions-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function POST(request: Request) {
   try {
@@ -16,11 +17,7 @@ export async function POST(request: Request) {
       program: body.program,
     })
 
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('Failed to create session:', error)
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getDatabaseInfo, initializeDatabase } from '@/services/agents-graph-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/database
@@ -11,11 +12,7 @@ export async function GET(
 ) {
   const { id: agentId } = await params
   const result = await getDatabaseInfo(agentId)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -28,9 +25,5 @@ export async function POST(
 ) {
   const { id: agentId } = await params
   const result = await initializeDatabase(agentId)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getMeetingById, updateExistingMeeting, deleteExistingMeeting } from '@/services/messages-service'
+import { toResponse } from '@/app/api/_helpers'
 
 // GET /api/meetings/[id] - Get a single meeting
 export async function GET(
@@ -8,7 +9,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = getMeetingById(id)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }
 
 // PATCH /api/meetings/[id] - Update a meeting
@@ -19,7 +20,7 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
   const result = updateExistingMeeting(id, body)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }
 
 // DELETE /api/meetings/[id] - Delete a meeting
@@ -29,5 +30,5 @@ export async function DELETE(
 ) {
   const { id } = await params
   const result = deleteExistingMeeting(id)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }

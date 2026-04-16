@@ -12,6 +12,7 @@
  */
 
 import type { AMPAgentIdentity, AMPExternalRegistration } from '@/types/agent'
+import type { ServiceErrorCode, ServiceError } from '@/services/service-errors'
 
 // Re-export for convenience
 export type { AMPAgentIdentity, AMPExternalRegistration }
@@ -421,9 +422,9 @@ export interface AMPInfoResponse {
 // ============================================================================
 
 /**
- * AMP error codes
+ * AMP error codes — subset of ServiceErrorCode covering the 18 AMP protocol codes.
  */
-export type AMPErrorCode =
+export type AMPErrorCode = Extract<ServiceErrorCode,
   | 'invalid_request'
   | 'missing_field'
   | 'invalid_field'
@@ -436,29 +437,27 @@ export type AMPErrorCode =
   | 'invalid_signature'
   | 'agent_not_found'
   | 'tenant_access_denied'
-  | 'organization_not_set'  // Phase 2: Organization required for AMP registration
-  | 'external_provider'     // Recipient is on external provider — client must send directly
-  | 'payload_too_large'     // Message payload exceeds size limit
-  | 'missing_header'        // Required HTTP header is missing
-  | 'duplicate_message'     // Message ID has already been delivered (replay protection)
-  | 'key_already_registered' // Public key fingerprint is already associated with another agent
+  | 'organization_not_set'
+  | 'external_provider'
+  | 'payload_too_large'
+  | 'missing_header'
+  | 'duplicate_message'
+  | 'key_already_registered'
+>
 
 /**
- * AMP error response
+ * AMP error response — extends ServiceError with constrained error code.
  */
-export interface AMPError {
+export interface AMPError extends ServiceError {
   error: AMPErrorCode
-  message: string
-  field?: string
-  details?: Record<string, unknown>
 }
 
 /**
- * Name taken error with suggestions
+ * Name taken error with suggestions (in details.suggestions)
  */
 export interface AMPNameTakenError extends AMPError {
   error: 'name_taken'
-  suggestions: string[]
+  details: { suggestions: string[] }
 }
 
 // ============================================================================

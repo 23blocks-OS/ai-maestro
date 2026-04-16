@@ -7,14 +7,7 @@
 
 import { getAgent, getAgentByAlias, getAgentByName } from '@/lib/agent-registry'
 import type { Agent } from '@/types/agent'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, notFound, missingField, invalidField } from '@/services/service-errors'
 
 interface PlaybackState {
   agentId: string
@@ -44,7 +37,7 @@ export function getPlaybackState(
 ): ServiceResult<Record<string, unknown>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   console.log(
@@ -82,26 +75,26 @@ export function controlPlayback(
 ): ServiceResult<Record<string, unknown>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   const { action, sessionId, value } = body
 
   if (!action) {
-    return { error: 'Missing required parameter: action', status: 400 }
+    return missingField('action')
   }
 
   const validActions = ['play', 'pause', 'seek', 'setSpeed', 'reset']
   if (!validActions.includes(action)) {
-    return { error: `Invalid action. Must be one of: ${validActions.join(', ')}`, status: 400 }
+    return invalidField('action', `Must be one of: ${validActions.join(', ')}`)
   }
 
   if ((action === 'seek' || action === 'setSpeed') && (value === undefined || isNaN(value))) {
-    return { error: `Action '${action}' requires a numeric value parameter`, status: 400 }
+    return invalidField('value', `Action '${action}' requires a numeric value parameter`)
   }
 
   if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId))) {
-    return { error: 'Session not found for this agent', status: 404 }
+    return notFound('Session', sessionId)
   }
 
   console.log(

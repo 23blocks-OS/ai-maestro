@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getMessages, sendMessage, updateMessage, removeMessage } from '@/services/messages-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     from: searchParams.get('from'),
     to: searchParams.get('to'),
   })
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json()
   const result = await sendMessage(body)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -39,7 +40,7 @@ export async function PATCH(request: NextRequest) {
     searchParams.get('id'),
     searchParams.get('action'),
   )
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -51,5 +52,5 @@ export async function DELETE(request: NextRequest) {
     searchParams.get('agent'),
     searchParams.get('id'),
   )
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  return toResponse(result)
 }

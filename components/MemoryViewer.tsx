@@ -181,7 +181,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         success: data.success,
         memoriesCreated: data.memories_created,
         memoriesReinforced: data.memories_reinforced,
-        error: data.error
+        error: data.message || data.error
       })
 
       if (data.success) {

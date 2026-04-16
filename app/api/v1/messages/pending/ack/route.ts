@@ -10,9 +10,10 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { batchAcknowledgeMessages } from '@/services/amp-service'
+import { toResponse } from '@/app/api/_helpers'
 import type { AMPError } from '@/lib/types/amp'
 
-export async function POST(request: NextRequest): Promise<NextResponse<{ acknowledged: number } | AMPError>> {
+export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
 
   let body: { ids?: string[] }
@@ -26,5 +27,5 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
   }
 
   const result = batchAcknowledgeMessages(authHeader, body.ids)
-  return NextResponse.json(result.data!, { status: result.status })
+  return toResponse(result)
 }

@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getSubconsciousStatus, triggerSubconsciousAction } from '@/services/agents-subconscious-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   _request: NextRequest,
@@ -17,10 +18,7 @@ export async function GET(
   try {
     const { id: agentId } = await params
     const result = await getSubconsciousStatus(agentId)
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Agent Subconscious API] Error:', error)
     return NextResponse.json(
@@ -39,10 +37,7 @@ export async function POST(
     const body = await request.json()
 
     const result = await triggerSubconsciousAction(agentId, body.action)
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Agent Subconscious API] POST Error:', error)
     return NextResponse.json(

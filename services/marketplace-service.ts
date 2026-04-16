@@ -16,16 +16,7 @@ import {
   getSkillById,
 } from '@/lib/marketplace-skills'
 import type { SkillSearchParams } from '@/types/marketplace'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { type ServiceResult, operationFailed, invalidFormat, notFound } from '@/services/service-errors'
 
 // ===========================================================================
 // PUBLIC API -- called by API routes
@@ -59,10 +50,7 @@ export async function listMarketplaceSkills(params: SkillSearchParams): Promise<
     return { data: result, status: 200 }
   } catch (error) {
     console.error('Error fetching marketplace skills:', error)
-    return {
-      error: 'Failed to fetch marketplace skills',
-      status: 500,
-    }
+    return operationFailed('fetch marketplace skills')
   }
 }
 
@@ -77,25 +65,19 @@ export async function getMarketplaceSkillById(rawId: string): Promise<ServiceRes
     // Validate format
     const parts = skillId.split(':')
     if (parts.length !== 3) {
-      return {
-        error: 'Invalid skill ID format. Skill ID must be in format: marketplace:plugin:skill',
-        status: 400,
-      }
+      return invalidFormat('skillId', 'Skill ID must be in format: marketplace:plugin:skill')
     }
 
     // Get the skill with full content
     const skill = await getSkillById(skillId, true)
 
     if (!skill) {
-      return { error: 'Skill not found', status: 404 }
+      return notFound('Skill')
     }
 
     return { data: skill, status: 200 }
   } catch (error) {
     console.error('Error fetching skill:', error)
-    return {
-      error: 'Failed to fetch skill',
-      status: 500,
-    }
+    return operationFailed('fetch skill')
   }
 }

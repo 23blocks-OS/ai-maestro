@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import {
   getMessage,
   updateMessage,
   deleteMessageById,
   forwardMessage,
 } from '@/services/agents-messaging-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/[id]/messages/[messageId]
@@ -19,11 +20,7 @@ export async function GET(
   const box = (searchParams.get('box') || 'inbox') as 'inbox' | 'sent'
 
   const result = await getMessage(id, messageId, box)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -38,11 +35,7 @@ export async function PATCH(
   const body = await request.json()
 
   const result = await updateMessage(id, messageId, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -56,11 +49,7 @@ export async function DELETE(
   const { id, messageId } = await params
 
   const result = await deleteMessageById(id, messageId)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -75,9 +64,5 @@ export async function POST(
   const body = await request.json()
 
   const result = await forwardMessage(id, messageId, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

@@ -8,13 +8,11 @@
  * Thin wrapper — business logic in services/agents-directory-service.ts
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getDirectory } from '@/services/agents-directory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(_request: NextRequest) {
   const result = getDirectory()
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

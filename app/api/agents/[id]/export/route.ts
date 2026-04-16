@@ -9,6 +9,8 @@
 
 import { NextResponse } from 'next/server'
 import { exportAgentZip, createTranscriptExportJob } from '@/services/agents-transfer-service'
+import { toResponse } from '@/app/api/_helpers'
+import { isServiceError } from '@/services/service-errors'
 
 export async function GET(
   _request: Request,
@@ -17,8 +19,8 @@ export async function GET(
   try {
     const result = await exportAgentZip(params.id)
 
-    if (result.error || !result.data) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+    if (!result.data || isServiceError(result.data)) {
+      return toResponse(result)
     }
 
     const { buffer, filename, agentId, agentName } = result.data
@@ -50,11 +52,7 @@ export async function POST(
   try {
     const body = await request.json()
     const result = createTranscriptExportJob(params.id, body)
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Failed to create transcript export job:', error)
     return NextResponse.json(

@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { listRepos, updateRepos, removeRepo } from '@/services/agents-repos-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   _request: Request,
@@ -17,10 +18,7 @@ export async function GET(
 ) {
   try {
     const result = listRepos(params.id)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error getting agent repos:', error)
     return NextResponse.json(
@@ -37,10 +35,7 @@ export async function POST(
   try {
     const body = await request.json()
     const result = updateRepos(params.id, body)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error updating agent repos:', error)
     return NextResponse.json(
@@ -63,10 +58,7 @@ export async function DELETE(
     }
 
     const result = removeRepo(params.id, remoteUrl)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error removing repo:', error)
     return NextResponse.json(

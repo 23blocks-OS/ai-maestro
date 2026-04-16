@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { queryEmailIndex } from '@/services/agents-messaging-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/email-index
@@ -22,8 +23,5 @@ export async function GET(request: NextRequest) {
     isFederatedSubQuery: request.headers.get('X-Federated-Query') === 'true',
   })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

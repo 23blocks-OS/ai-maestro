@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { deleteSession } from '@/services/sessions-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,12 +21,7 @@ export async function DELETE(
   try {
     const { id: sessionName } = await params
     const result = await deleteSession(sessionName)
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('Failed to delete session:', error)
     return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 })

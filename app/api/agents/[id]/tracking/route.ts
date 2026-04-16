@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getTracking, initializeTracking } from '@/services/agents-memory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/tracking
@@ -11,11 +12,7 @@ export async function GET(
 ) {
   const { id: agentId } = await params
   const result = await getTracking(agentId)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -33,8 +30,5 @@ export async function POST(
     addSampleData: body.addSampleData,
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

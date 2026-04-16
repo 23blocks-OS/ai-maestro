@@ -18,14 +18,7 @@ import { getSkillById } from '@/lib/marketplace-skills'
 import { agentRegistry } from '@/lib/agent'
 import fs from 'fs/promises'
 import path from 'path'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, missingField, notFound, invalidField, operationFailed } from '@/services/service-errors'
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -35,7 +28,7 @@ export interface ServiceResult<T> {
 export function getSkillsConfig(agentId: string): ServiceResult<Record<string, unknown>> {
   const skills = getAgentSkills(agentId)
   if (!skills) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
   return { data: skills as unknown as Record<string, unknown>, status: 200 }
 }
@@ -49,7 +42,7 @@ export async function updateSkills(
 ): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   // Handle skill additions
@@ -65,7 +58,7 @@ export async function updateSkills(
     for (const skillId of body.add) {
       const skill = await getSkillById(skillId, false)
       if (!skill) {
-        return { error: `Skill not found: ${skillId}`, status: 400 }
+        return notFound('Skill', skillId)
       }
       skillsToAdd.push({
         id: skill.id,
@@ -78,7 +71,7 @@ export async function updateSkills(
 
     const result = addMarketplaceSkills(agentId, skillsToAdd)
     if (!result) {
-      return { error: 'Failed to add skills', status: 500 }
+      return operationFailed('add skills')
     }
   }
 
@@ -86,7 +79,7 @@ export async function updateSkills(
   if (body.remove && Array.isArray(body.remove) && body.remove.length > 0) {
     const result = removeMarketplaceSkills(agentId, body.remove)
     if (!result) {
-      return { error: 'Failed to remove skills', status: 500 }
+      return operationFailed('remove skills')
     }
   }
 
@@ -94,7 +87,7 @@ export async function updateSkills(
   if (body.aiMaestro) {
     const result = updateAiMaestroSkills(agentId, body.aiMaestro)
     if (!result) {
-      return { error: 'Failed to update AI Maestro skills', status: 500 }
+      return operationFailed('update AI Maestro skills')
     }
   }
 
@@ -114,19 +107,19 @@ export function addSkill(
 ): ServiceResult<Record<string, unknown>> {
   const agent = getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   if (!body.name || typeof body.name !== 'string') {
-    return { error: 'Missing required field: name', status: 400 }
+    return missingField('name')
   }
 
   if (!body.content || typeof body.content !== 'string') {
-    return { error: 'Missing required field: content', status: 400 }
+    return missingField('content')
   }
 
   if (!/^[a-zA-Z0-9_-]+$/.test(body.name)) {
-    return { error: 'Invalid skill name. Use only alphanumeric characters, hyphens, and underscores.', status: 400 }
+    return invalidField('name', 'Invalid skill name. Use only alphanumeric characters, hyphens, and underscores.')
   }
 
   const result = addCustomSkill(agentId, {
@@ -136,7 +129,7 @@ export function addSkill(
   })
 
   if (!result) {
-    return { error: 'Failed to add custom skill', status: 500 }
+    return operationFailed('add custom skill')
   }
 
   const updatedSkills = getAgentSkills(agentId)
@@ -156,7 +149,7 @@ export function removeSkill(
 ): ServiceResult<Record<string, unknown>> {
   const agent = getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   const isMarketplaceSkill = type === 'marketplace' || (type === 'auto' && skillId.includes(':'))
@@ -169,7 +162,7 @@ export function removeSkill(
   }
 
   if (!result) {
-    return { error: 'Failed to remove skill', status: 500 }
+    return operationFailed('remove skill')
   }
 
   const updatedSkills = getAgentSkills(agentId)
@@ -185,7 +178,7 @@ export function removeSkill(
 export async function getSkillSettings(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = await agentRegistry.getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || ''
@@ -208,12 +201,12 @@ export async function saveSkillSettings(
   settings: Record<string, unknown>
 ): Promise<ServiceResult<Record<string, unknown>>> {
   if (!settings) {
-    return { error: 'Settings are required', status: 400 }
+    return missingField('settings')
   }
 
   const agent = await agentRegistry.getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || ''

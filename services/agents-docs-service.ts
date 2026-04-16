@@ -18,14 +18,7 @@ import {
   findDocsByType,
   getDocumentWithSections,
 } from '@/lib/rag/doc-indexer'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, invalidRequest, notFound, missingField } from '@/services/service-errors'
 
 export interface DocsQueryOptions {
   action: string
@@ -72,7 +65,7 @@ export async function queryDocs(
 
     case 'search': {
       if (!q && !keyword) {
-        return { error: 'search requires "q" (semantic) or "keyword" (lexical) parameter', status: 400 }
+        return invalidRequest('search requires "q" (semantic) or "keyword" (lexical) parameter')
       }
 
       // Trigger delta indexing in background
@@ -90,7 +83,7 @@ export async function queryDocs(
 
     case 'find-by-type': {
       if (!docType) {
-        return { error: 'find-by-type requires "type" parameter', status: 400 }
+        return missingField('type')
       }
       result = await findDocsByType(agentDb, docType, project || undefined)
       break
@@ -98,7 +91,7 @@ export async function queryDocs(
 
     case 'get-doc': {
       if (!docId) {
-        return { error: 'get-doc requires "docId" parameter', status: 400 }
+        return missingField('docId')
       }
       result = await getDocumentWithSections(agentDb, docId)
       break
@@ -134,7 +127,7 @@ export async function queryDocs(
     }
 
     default:
-      return { error: `Unknown action: ${action}`, status: 400 }
+      return invalidRequest(`Unknown action: ${action}`)
   }
 
   return {
@@ -161,7 +154,7 @@ export async function indexDocs(
   if (!projectPath) {
     const registryAgent = getAgentFromRegistry(agentId)
     if (!registryAgent) {
-      return { error: `Agent not found in registry: ${agentId}`, status: 404 }
+      return notFound('Agent', agentId)
     }
 
     projectPath = registryAgent.workingDirectory ||
@@ -169,7 +162,7 @@ export async function indexDocs(
                   registryAgent.preferences?.defaultWorkingDirectory
 
     if (!projectPath) {
-      return { error: 'No projectPath provided and agent has no configured working directory', status: 400 }
+      return missingField('projectPath')
     }
 
     console.log(`[Docs Service] Auto-detected projectPath from registry: ${projectPath}`)

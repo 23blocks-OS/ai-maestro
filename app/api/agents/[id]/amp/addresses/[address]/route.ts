@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import {
   getAMPAddress,
   updateAMPAddressOnAgent,
   removeAMPAddressFromAgent,
 } from '@/services/agents-messaging-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/[id]/amp/addresses/[address]
@@ -16,11 +17,7 @@ export async function GET(
   const { id, address } = await params
 
   const result = getAMPAddress(id, address)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -35,11 +32,7 @@ export async function PATCH(
   const body = await request.json()
 
   const result = updateAMPAddressOnAgent(id, address, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -53,9 +46,5 @@ export async function DELETE(
   const { id, address } = await params
 
   const result = removeAMPAddressFromAgent(id, address)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

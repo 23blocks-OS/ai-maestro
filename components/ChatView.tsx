@@ -92,7 +92,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch messages')
+        throw new Error(data.message || data.error || 'Failed to fetch messages')
       }
 
       if (data.success) {
@@ -194,7 +194,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message')
+        throw new Error(data.message || data.error || 'Failed to send message')
       }
 
       // Clear pending message after a delay (it was sent successfully)

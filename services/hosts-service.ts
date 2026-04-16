@@ -49,18 +49,9 @@ import type {
   HostIdentity,
   HostIdentityResponse,
 } from '@/types/host-sync'
+import { type ServiceResult, missingField, invalidField, notFound, operationFailed, invalidRequest } from '@/services/service-errors'
 
 const execAsync = promisify(exec)
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -325,7 +316,7 @@ export async function listHosts(): Promise<ServiceResult<{ hosts: any[] }>> {
     return { data: { hosts: hostsWithSelf }, status: 200 }
   } catch (error) {
     console.error('[Hosts API] Failed to fetch hosts:', error)
-    return { error: 'Failed to fetch hosts', status: 500 }
+    return operationFailed('fetch hosts')
   }
 }
 
@@ -344,19 +335,19 @@ export async function addNewHost(params: AddHostParams): Promise<ServiceResult<a
 
     // Validate required fields
     if (!host.id || !host.name || !host.url || !host.type) {
-      return { error: 'Missing required fields: id, name, url, type', status: 400 }
+      return invalidRequest('Missing required fields: id, name, url, type')
     }
 
     // Validate ID format (alphanumeric, dash, underscore)
     if (!/^[a-zA-Z0-9_-]+$/.test(host.id)) {
-      return { error: 'Host ID can only contain letters, numbers, dashes, and underscores', status: 400 }
+      return invalidField('id', 'Host ID can only contain letters, numbers, dashes, and underscores')
     }
 
     // Validate URL format
     try {
       new URL(host.url)
     } catch {
-      return { error: 'Invalid URL format', status: 400 }
+      return invalidField('url', 'Invalid URL format')
     }
 
     // Use sync-enabled add for remote hosts, regular add for local
@@ -381,7 +372,7 @@ export async function addNewHost(params: AddHostParams): Promise<ServiceResult<a
       // Legacy: local-only add (for local host or when sync disabled)
       const result = addHost(host)
       if (!result.success) {
-        return { error: result.error, status: 400 }
+        return invalidRequest(result.error || 'Failed to add host')
       }
 
       return {
@@ -395,7 +386,7 @@ export async function addNewHost(params: AddHostParams): Promise<ServiceResult<a
     }
   } catch (error) {
     console.error('[Hosts API] Failed to add host:', error)
-    return { error: 'Failed to add host', status: 500 }
+    return operationFailed('add host')
   }
 }
 
@@ -413,19 +404,21 @@ export async function updateExistingHost(
       try {
         new URL(hostData.url)
       } catch {
-        return { error: 'Invalid URL format', status: 400 }
+        return invalidField('url', 'Invalid URL format')
       }
     }
 
     const result = updateHost(id, hostData)
     if (!result.success) {
-      return { error: result.error, status: result.error?.includes('not found') ? 404 : 400 }
+      return result.error?.includes('not found')
+        ? notFound('Host', id)
+        : invalidRequest(result.error || 'Failed to update host')
     }
 
     return { data: { success: true, host: result.host }, status: 200 }
   } catch (error) {
     console.error(`[Hosts API] Failed to update host:`, error)
-    return { error: 'Failed to update host', status: 500 }
+    return operationFailed('update host')
   }
 }
 
@@ -437,13 +430,15 @@ export async function deleteExistingHost(id: string): Promise<ServiceResult<{ su
   try {
     const result = deleteHost(id)
     if (!result.success) {
-      return { error: result.error, status: result.error?.includes('not found') ? 404 : 400 }
+      return result.error?.includes('not found')
+        ? notFound('Host', id)
+        : invalidRequest(result.error || 'Failed to delete host')
     }
 
     return { data: { success: true }, status: 200 }
   } catch (error) {
     console.error(`[Hosts API] Failed to delete host:`, error)
-    return { error: 'Failed to delete host', status: 500 }
+    return operationFailed('delete host')
   }
 }
 
@@ -488,7 +483,7 @@ export function getHostIdentity(): ServiceResult<HostIdentityResponse> {
 export async function checkRemoteHealth(hostUrl: string): Promise<ServiceResult<any>> {
   try {
     if (!hostUrl) {
-      return { error: 'url query parameter is required', status: 400 }
+      return missingField('url')
     }
 
     // Validate URL format
@@ -496,7 +491,7 @@ export async function checkRemoteHealth(hostUrl: string): Promise<ServiceResult<
     try {
       parsedUrl = new URL(hostUrl)
     } catch {
-      return { error: 'Invalid URL format', status: 400 }
+      return invalidField('url', 'Invalid URL format')
     }
 
     // Make health check request using fetch
@@ -589,10 +584,7 @@ export async function triggerMeshSync(): Promise<ServiceResult<any>> {
     }
   } catch (error) {
     console.error('[Mesh Sync] Error during manual sync:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('mesh sync', (error as Error).message)
   }
 }
 
@@ -663,10 +655,7 @@ export async function getMeshStatus(): Promise<ServiceResult<any>> {
     }
   } catch (error) {
     console.error('[Mesh Status] Error getting mesh status:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('get mesh status', (error as Error).message)
   }
 }
 

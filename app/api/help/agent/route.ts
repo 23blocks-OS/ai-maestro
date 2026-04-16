@@ -6,26 +6,19 @@
  * GET /api/help/agent - Check assistant agent status
  */
 
-import { NextResponse } from 'next/server'
 import {
   createAssistantAgent,
   deleteAssistantAgent,
   getAssistantStatus,
 } from '@/services/help-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * POST - Create or return existing assistant agent
  */
 export async function POST() {
   const result = await createAssistantAgent()
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -33,14 +26,7 @@ export async function POST() {
  */
 export async function DELETE() {
   const result = await deleteAssistantAgent()
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -48,12 +34,5 @@ export async function DELETE() {
  */
 export async function GET() {
   const result = await getAssistantStatus()
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

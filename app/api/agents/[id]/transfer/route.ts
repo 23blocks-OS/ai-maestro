@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { transferAgent } from '@/services/agents-transfer-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function POST(
   request: Request,
@@ -16,11 +17,7 @@ export async function POST(
   try {
     const body = await request.json()
     const result = await transferAgent(params.id, body)
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Transfer error:', error)
     return NextResponse.json(

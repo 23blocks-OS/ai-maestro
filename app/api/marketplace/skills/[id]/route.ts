@@ -7,9 +7,9 @@
  * Example: claude-plugins-official:code-review:code-review
  */
 
-import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getMarketplaceSkillById } from '@/services/marketplace-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   _request: NextRequest,
@@ -17,12 +17,5 @@ export async function GET(
 ) {
   const { id } = await params
   const result = await getMarketplaceSkillById(id)
-
-  if (result.error) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

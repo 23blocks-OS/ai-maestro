@@ -15,16 +15,11 @@
 
 import { listDomains, createDomain, getDomain, updateDomain, deleteDomain } from '@/lib/domain-service'
 import type { CreateDomainRequest } from '@/types/agent'
+import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
 
 export interface UpdateDomainParams {
   description?: string
@@ -44,7 +39,7 @@ export function listAllDomains(): ServiceResult<{ domains: any[] }> {
     return { data: { domains }, status: 200 }
   } catch (error) {
     console.error('Failed to list domains:', error)
-    return { error: 'Failed to list domains', status: 500 }
+    return operationFailed('list domains')
   }
 }
 
@@ -54,7 +49,7 @@ export function listAllDomains(): ServiceResult<{ domains: any[] }> {
 export function createNewDomain(body: CreateDomainRequest): ServiceResult<{ domain: any }> {
   // Validate required fields
   if (!body.domain) {
-    return { error: 'Domain is required', status: 400 }
+    return missingField('domain')
   }
 
   try {
@@ -64,15 +59,15 @@ export function createNewDomain(body: CreateDomainRequest): ServiceResult<{ doma
     const message = error instanceof Error ? error.message : 'Failed to create domain'
 
     if (message.includes('already exists')) {
-      return { error: message, status: 409 }
+      return alreadyExists('Domain', body.domain)
     }
 
     if (message.includes('Invalid domain')) {
-      return { error: message, status: 400 }
+      return invalidField('domain', message)
     }
 
     console.error('Failed to create domain:', error)
-    return { error: message, status: 500 }
+    return operationFailed('create domain', message)
   }
 }
 
@@ -84,13 +79,13 @@ export function getDomainById(id: string): ServiceResult<{ domain: any }> {
     const domain = getDomain(id)
 
     if (!domain) {
-      return { error: 'Domain not found', status: 404 }
+      return notFound('Domain', id)
     }
 
     return { data: { domain }, status: 200 }
   } catch (error) {
     console.error('Failed to get domain:', error)
-    return { error: 'Failed to get domain', status: 500 }
+    return operationFailed('get domain')
   }
 }
 
@@ -105,13 +100,13 @@ export function updateDomainById(id: string, params: UpdateDomainParams): Servic
     })
 
     if (!domain) {
-      return { error: 'Domain not found', status: 404 }
+      return notFound('Domain', id)
     }
 
     return { data: { domain }, status: 200 }
   } catch (error) {
     console.error('Failed to update domain:', error)
-    return { error: 'Failed to update domain', status: 500 }
+    return operationFailed('update domain')
   }
 }
 
@@ -123,12 +118,12 @@ export function deleteDomainById(id: string): ServiceResult<{ success: boolean }
     const success = deleteDomain(id)
 
     if (!success) {
-      return { error: 'Domain not found', status: 404 }
+      return notFound('Domain', id)
     }
 
     return { data: { success: true }, status: 200 }
   } catch (error) {
     console.error('Failed to delete domain:', error)
-    return { error: 'Failed to delete domain', status: 500 }
+    return operationFailed('delete domain')
   }
 }

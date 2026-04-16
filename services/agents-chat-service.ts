@@ -11,14 +11,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import os from 'os'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, notFound, invalidRequest, missingField } from '@/services/service-errors'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -37,7 +30,7 @@ export async function getConversationMessages(
 ): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   const { since, limit = 100 } = options
@@ -47,7 +40,7 @@ export async function getConversationMessages(
                      agent.preferences?.defaultWorkingDirectory
 
   if (!workingDir) {
-    return { error: 'Agent has no working directory configured', status: 400 }
+    return invalidRequest('Agent has no working directory configured')
   }
 
   // Find the Claude conversation directory for this project
@@ -244,22 +237,22 @@ export async function sendChatMessage(
   message: string
 ): Promise<ServiceResult<Record<string, unknown>>> {
   if (!message || typeof message !== 'string') {
-    return { error: 'Message is required', status: 400 }
+    return missingField('message')
   }
 
   const agent = getAgent(agentId)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentId)
   }
 
   const sessionName = agent.name || agent.alias
   if (!sessionName) {
-    return { error: 'Agent has no session name', status: 400 }
+    return invalidRequest('Agent has no session name')
   }
 
   const hasOnlineSession = agent.sessions?.some(s => s.status === 'online')
   if (!hasOnlineSession) {
-    return { error: 'Agent session is not online', status: 400 }
+    return invalidRequest('Agent session is not online')
   }
 
   const runtime = getRuntime()

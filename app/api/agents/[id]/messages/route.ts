@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { listMessages, sendMessage } from '@/services/agents-messaging-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/[id]/messages
@@ -20,10 +21,7 @@ export async function GET(
     to: searchParams.get('to') || undefined,
   })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -38,9 +36,5 @@ export async function POST(
   const body = await request.json()
 
   const result = await sendMessage(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

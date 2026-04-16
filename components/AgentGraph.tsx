@@ -169,7 +169,7 @@ export default function AgentGraph({ sessionName, agentId, workingDirectory, hos
       if (data.success) {
         setGraphData(data.result)
       } else {
-        setError(data.error || 'Failed to fetch graph')
+        setError(data.message || data.error || 'Failed to fetch graph')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -192,7 +192,7 @@ export default function AgentGraph({ sessionName, agentId, workingDirectory, hos
       if (data.success) {
         setFocusMode({ nodeId, data: data.result })
       } else {
-        setError(data.error || 'Failed to focus on node')
+        setError(data.message || data.error || 'Failed to focus on node')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -267,7 +267,7 @@ export default function AgentGraph({ sessionName, agentId, workingDirectory, hos
         // Refresh graph
         await fetchGraphData()
       } else {
-        setError(data.error || 'Failed to index project')
+        setError(data.message || data.error || 'Failed to index project')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

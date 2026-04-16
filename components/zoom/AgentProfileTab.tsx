@@ -876,7 +876,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
           })
           if (!response.ok) {
             const data = await response.json()
-            throw new Error(data.error || 'Failed to delete agent')
+            throw new Error(data.message || data.error || 'Failed to delete agent')
           }
           onClose?.()
         }}

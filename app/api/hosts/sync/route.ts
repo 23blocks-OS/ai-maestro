@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { triggerMeshSync, getMeshStatus } from '@/services/hosts-service'
+import { toResponse } from '@/app/api/_helpers'
 
 // Force this route to be dynamic
 export const dynamic = 'force-dynamic'
@@ -11,10 +11,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST() {
   const result = await triggerMeshSync()
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -24,8 +21,5 @@ export async function POST() {
  */
 export async function GET() {
   const result = await getMeshStatus()
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

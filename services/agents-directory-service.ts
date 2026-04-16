@@ -14,7 +14,7 @@
  *   POST   /api/agents/normalize-hosts              -> normalizeHosts
  */
 
-import type { ServiceResult } from '@/services/agents-core-service'
+import { type ServiceResult, operationFailed } from '@/services/service-errors'
 import {
   rebuildLocalDirectory,
   getLocalEntriesForSync,
@@ -39,10 +39,7 @@ export function getDirectory(): ServiceResult<any> {
     return { data: { success: true, entries, stats }, status: 200 }
   } catch (error) {
     console.error('[Agent Directory Service] getDirectory error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Internal server error',
-      status: 500,
-    }
+    return operationFailed('get directory', error instanceof Error ? error.message : 'Internal server error')
   }
 }
 
@@ -77,7 +74,7 @@ export function lookupAgentByDirectoryName(name: string): ServiceResult<any> {
     }
   } catch (error) {
     console.error('[Agent Directory Service] lookupAgentByDirectoryName error:', error)
-    return { data: { found: false }, status: 500 }
+    return operationFailed('lookup agent', error instanceof Error ? error.message : 'Internal server error')
   }
 }
 
@@ -104,10 +101,7 @@ export async function syncDirectory(): Promise<ServiceResult<any>> {
     }
   } catch (error) {
     console.error('[Agent Directory Service] syncDirectory error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Internal server error',
-      status: 500,
-    }
+    return operationFailed('directory operation', error instanceof Error ? error.message : 'Internal server error')
   }
 }
 
@@ -130,10 +124,7 @@ export function diagnoseHosts(): ServiceResult<any> {
     }
   } catch (error) {
     console.error('[Agent Directory Service] diagnoseHosts error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Internal server error',
-      status: 500,
-    }
+    return operationFailed('directory operation', error instanceof Error ? error.message : 'Internal server error')
   }
 }
 
@@ -156,9 +147,6 @@ export function normalizeHosts(): ServiceResult<any> {
     }
   } catch (error) {
     console.error('[Agent Directory Service] normalizeHosts error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Internal server error',
-      status: 500,
-    }
+    return operationFailed('directory operation', error instanceof Error ? error.message : 'Internal server error')
   }
 }

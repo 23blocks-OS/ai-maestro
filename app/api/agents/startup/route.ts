@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { initializeStartup, getStartupInfo } from '@/services/agents-core-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,14 +9,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST() {
   const result = await initializeStartup()
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -25,12 +18,5 @@ export async function POST() {
  */
 export async function GET() {
   const result = getStartupInfo()
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

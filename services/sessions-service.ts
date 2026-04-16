@@ -36,19 +36,10 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { sessionActivity, broadcastStatusUpdate } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
+import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
 
 export type SessionActivityStatus = 'active' | 'idle' | 'waiting'
 
@@ -523,7 +514,7 @@ export function broadcastActivityUpdate(
   notificationType?: string
 ): ServiceResult<{ success: boolean }> {
   if (!sessionName) {
-    return { error: 'sessionName is required', status: 400 }
+    return missingField('sessionName')
   }
 
   broadcastStatusUpdate(sessionName, status, hookStatus, notificationType)
@@ -537,11 +528,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const { name, workingDirectory, agentId, hostId, label, avatar, programArgs, program } = params
 
   if (!name || typeof name !== 'string') {
-    return { error: 'Session name is required', status: 400 }
+    return missingField('name')
   }
 
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    return { error: 'Session name can only contain letters, numbers, dashes, and underscores', status: 400 }
+    return invalidField('name', 'Session name can only contain letters, numbers, dashes, and underscores')
   }
 
   // Determine target host
@@ -567,15 +558,15 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
       console.error(`[Sessions] Failed to connect to ${targetHost.name} (${targetHost.url}):`, { message: errorMessage, causeCode, causeMessage })
 
       if (errorMessage.includes('aborted') || causeCode === 'ABORT_ERR') {
-        return { error: `Timeout connecting to ${targetHost.name}. Is the remote AI Maestro running?`, status: 504 }
+        return serviceError('timeout', `Timeout connecting to ${targetHost.name}. Is the remote AI Maestro running?`, 504)
       } else if (fullErrorText.includes('ECONNREFUSED') || causeCode === 'ECONNREFUSED') {
-        return { error: `Connection refused by ${targetHost.name}. Verify the remote AI Maestro is running on ${targetHost.url}`, status: 503 }
+        return serviceError('operation_failed', `Connection refused by ${targetHost.name}. Verify the remote AI Maestro is running on ${targetHost.url}`, 503)
       } else if (fullErrorText.includes('EHOSTUNREACH') || causeCode === 'EHOSTUNREACH') {
-        return { error: `Cannot reach ${targetHost.name} at ${targetHost.url}. Try again or check network.`, status: 503 }
+        return serviceError('operation_failed', `Cannot reach ${targetHost.name} at ${targetHost.url}. Try again or check network.`, 503)
       } else if (fullErrorText.includes('ENETUNREACH') || causeCode === 'ENETUNREACH') {
-        return { error: `Network unreachable to ${targetHost.name}. Are you on the same network/VPN?`, status: 503 }
+        return serviceError('operation_failed', `Network unreachable to ${targetHost.name}. Are you on the same network/VPN?`, 503)
       } else {
-        return { error: `Failed to connect to ${targetHost.name}: ${errorMessage} (${causeCode})`, status: 500 }
+        return operationFailed(`connect to ${targetHost.name}`, `${errorMessage} (${causeCode})`)
       }
     }
   }
@@ -586,9 +577,9 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const selfHostId = getSelfHostId()
   const actualSessionName = agentId ? `${agentId}@${selfHostId}` : normalizedName
 
-  const alreadyExists = await runtime.sessionExists(actualSessionName)
-  if (alreadyExists) {
-    return { error: 'Session already exists', status: 409 }
+  const sessionExists = await runtime.sessionExists(actualSessionName)
+  if (sessionExists) {
+    return alreadyExists('Session', actualSessionName)
   }
 
   const cwd = workingDirectory || process.cwd()
@@ -695,7 +686,7 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
   const runtime = getRuntime()
   const exists = await runtime.sessionExists(sessionName)
   if (!exists) {
-    return { error: 'Session not found', status: 404 }
+    return notFound('Session', sessionName)
   }
 
   await runtime.killSession(sessionName)
@@ -710,10 +701,10 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
  */
 export async function renameSession(oldName: string, newName: string): Promise<ServiceResult<{ success: boolean; oldName: string; newName: string; type?: string }>> {
   if (!newName || typeof newName !== 'string') {
-    return { error: 'New session name is required', status: 400 }
+    return missingField('newName')
   }
   if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
-    return { error: 'Session name can only contain letters, numbers, dashes, and underscores', status: 400 }
+    return invalidField('newName', 'Session name can only contain letters, numbers, dashes, and underscores')
   }
 
   // Check if cloud agent
@@ -724,7 +715,7 @@ export async function renameSession(oldName: string, newName: string): Promise<S
 
   if (isCloudAgent) {
     if (fs.existsSync(newAgentFilePath)) {
-      return { error: 'Agent name already exists', status: 409 }
+      return alreadyExists('Agent', newName)
     }
     const agentConfig = JSON.parse(fs.readFileSync(oldAgentFilePath, 'utf8'))
     agentConfig.id = newName
@@ -740,12 +731,12 @@ export async function renameSession(oldName: string, newName: string): Promise<S
   const runtime = getRuntime()
   const oldExists = await runtime.sessionExists(oldName)
   if (!oldExists) {
-    return { error: 'Session not found', status: 404 }
+    return notFound('Session', oldName)
   }
 
   const newExists = await runtime.sessionExists(newName)
   if (newExists) {
-    return { error: 'Session name already exists', status: 409 }
+    return alreadyExists('Session', newName)
   }
 
   await runtime.renameSession(oldName, newName)
@@ -766,23 +757,21 @@ export async function sendCommand(
   const addNewline = options.addNewline !== false
 
   if (!command || typeof command !== 'string') {
-    return { error: 'Command is required', status: 400 }
+    return missingField('command')
   }
 
   const runtime = getRuntime()
   const exists = await runtime.sessionExists(sessionName)
   if (!exists) {
-    return { error: 'Tmux session not found', status: 404 }
+    return notFound('Session', sessionName)
   }
 
   if (requireIdle && !isSessionIdle(sessionName)) {
     const lastActivity = sessionActivity.get(sessionName)
     const timeSinceActivity = lastActivity ? Date.now() - lastActivity : 0
-    return {
-      data: { success: false, sessionName, idle: false, timeSinceActivity, idleThreshold: IDLE_THRESHOLD_MS },
-      error: 'Session is not idle',
-      status: 409
-    }
+    return serviceError('invalid_state', 'Session is not idle', 409, {
+      details: { success: false, sessionName, idle: false, timeSinceActivity, idleThreshold: IDLE_THRESHOLD_MS }
+    })
   }
 
   await runtime.cancelCopyMode(sessionName)
@@ -841,7 +830,7 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
     : persistedSessions.filter(s => s.id === params.sessionId)
 
   if (sessionsToRestore.length === 0) {
-    return { error: 'No sessions to restore', status: 404 }
+    return notFound('Session')
   }
 
   const runtime = getRuntime()
@@ -880,11 +869,11 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
  */
 export function deletePersistedSession(sessionId: string): ServiceResult<{ success: boolean }> {
   if (!sessionId) {
-    return { error: 'Session ID is required', status: 400 }
+    return missingField('sessionId')
   }
   const success = unpersistSession(sessionId)
   if (!success) {
-    return { error: 'Failed to delete session', status: 500 }
+    return operationFailed('delete session')
   }
   return { data: { success: true }, status: 200 }
 }

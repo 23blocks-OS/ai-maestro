@@ -10,14 +10,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import type { Agent, Repository } from '@/types/agent'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, notFound, missingField, invalidRequest } from '@/services/service-errors'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,7 +86,7 @@ function getAgentWorkingDir(agent: Agent): string | undefined {
 export function listRepos(agentIdOrName: string): ServiceResult<Record<string, unknown>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   const configuredRepos = agent.tools.repositories || []
@@ -134,7 +127,7 @@ export function updateRepos(
 ): ServiceResult<Record<string, unknown>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   if (body.detectFromWorkingDir) {
@@ -164,11 +157,11 @@ export function updateRepos(
       }
     }
 
-    return { error: 'No git repository found in working directory', status: 400 }
+    return invalidRequest('No git repository found in working directory')
   }
 
   if (!body.repositories || !Array.isArray(body.repositories)) {
-    return { error: 'repositories array required', status: 400 }
+    return missingField('repositories')
   }
 
   const agents = loadAgents()
@@ -189,19 +182,19 @@ export function updateRepos(
  */
 export function removeRepo(agentIdOrName: string, remoteUrl: string): ServiceResult<Record<string, unknown>> {
   if (!remoteUrl) {
-    return { error: 'url parameter required', status: 400 }
+    return missingField('url')
   }
 
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   const repos = agent.tools.repositories || []
   const filteredRepos = repos.filter(r => r.remoteUrl !== remoteUrl)
 
   if (filteredRepos.length === repos.length) {
-    return { error: 'Repository not found', status: 404 }
+    return notFound('Repository')
   }
 
   const agents = loadAgents()

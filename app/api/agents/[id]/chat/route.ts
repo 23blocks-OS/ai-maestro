@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getConversationMessages, sendChatMessage } from '@/services/agents-chat-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   request: NextRequest,
@@ -21,10 +22,7 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '100', 10)
 
     const result = await getConversationMessages(agentId, { since, limit })
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Chat API] GET Error:', error)
     return NextResponse.json(
@@ -43,10 +41,7 @@ export async function POST(
     const body = await request.json()
 
     const result = await sendChatMessage(agentId, body.message)
-    if (result.error) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Chat API] POST Error:', error)
     return NextResponse.json(

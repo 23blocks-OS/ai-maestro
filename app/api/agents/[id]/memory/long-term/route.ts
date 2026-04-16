@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import {
   queryLongTermMemories,
   deleteLongTermMemory,
   updateLongTermMemory,
 } from '@/services/agents-memory-service'
 import type { MemoryCategory } from '@/lib/cozo-schema-memory'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/memory/long-term
@@ -40,10 +41,7 @@ export async function GET(
     maxTokens: parseInt(searchParams.get('maxTokens') || '2000'),
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -61,11 +59,7 @@ export async function DELETE(
   const memoryId = request.nextUrl.searchParams.get('id') || ''
 
   const result = await deleteLongTermMemory(agentId, memoryId)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -92,8 +86,5 @@ export async function PATCH(
     context: body.context,
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

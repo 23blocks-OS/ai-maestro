@@ -94,12 +94,12 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
       if (!response.ok) {
         console.error('[ConversationDetail] API error:', response.status, data)
-        throw new Error(data.error || `Failed to load conversation (${response.status})`)
+        throw new Error(data.message || data.error || `Failed to load conversation (${response.status})`)
       }
 
       if (!data.success) {
         console.error('[ConversationDetail] API returned success=false:', data)
-        throw new Error(data.error || 'Failed to parse conversation')
+        throw new Error(data.message || data.error || 'Failed to parse conversation')
       }
 
       console.log('[ConversationDetail] API returned', data.messages?.length, 'messages')

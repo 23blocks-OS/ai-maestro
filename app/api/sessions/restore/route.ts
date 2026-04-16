@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { listRestorableSessions, restoreSessions, deletePersistedSession } from '@/services/sessions-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/sessions/restore
@@ -24,12 +25,7 @@ export async function POST(request: Request) {
     const { sessionId, all } = await request.json()
 
     const result = await restoreSessions({ sessionId, all })
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-
-    return NextResponse.json({ success: true, ...result.data }, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('Failed to restore sessions:', error)
     return NextResponse.json({ error: 'Failed to restore sessions' }, { status: 500 })
@@ -46,12 +42,7 @@ export async function DELETE(request: Request) {
     const sessionId = searchParams.get('sessionId')
 
     const result = deletePersistedSession(sessionId || '')
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('Failed to delete persisted session:', error)
     return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 })

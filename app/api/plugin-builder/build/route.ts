@@ -9,19 +9,13 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { buildPlugin } from '@/services/plugin-builder-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const result = await buildPlugin(body)
-
-    if (result.error) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
-      )
-    }
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch {
     return NextResponse.json(
       { error: 'Invalid request body' },

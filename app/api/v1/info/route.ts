@@ -7,14 +7,11 @@
  * and rate limits. No authentication required.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getProviderInfo } from '@/services/amp-service'
-import type { AMPInfoResponse } from '@/lib/types/amp'
+import { toResponse } from '@/app/api/_helpers'
 
-export async function GET(_request: NextRequest): Promise<NextResponse<AMPInfoResponse>> {
+export async function GET(_request: NextRequest) {
   const result = getProviderInfo()
-  return NextResponse.json(result.data!, {
-    status: result.status,
-    headers: result.headers
-  })
+  return toResponse(result)
 }

@@ -33,6 +33,9 @@ export interface Session {
 
   // Custom tmux socket (e.g., OpenClaw agents)
   socketPath?: string           // Custom tmux socket path for -S flag
+
+  // Standalone agent (no tmux session, heartbeat-based presence)
+  standalone?: boolean          // true if agent registered via heartbeat, no terminal
 }
 
 export type SessionStatus = Session['status']

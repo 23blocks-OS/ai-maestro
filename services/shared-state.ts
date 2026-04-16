@@ -27,6 +27,7 @@ export interface PTYSessionState {
 export interface StatusUpdate {
   type: 'status_update'
   sessionName: string
+  agentId?: string
   status: string
   hookStatus?: string
   notificationType?: string
@@ -41,6 +42,7 @@ declare global {
   // eslint-disable-next-line no-var
   var _sharedState: {
     sessionActivity: Map<string, number>
+    agentActivity: Map<string, number>
     terminalSessions: Map<string, PTYSessionState>
     statusSubscribers: Set<WebSocket>
     companionClients: Map<string, Set<WebSocket>>
@@ -50,6 +52,7 @@ declare global {
 if (!globalThis._sharedState) {
   globalThis._sharedState = {
     sessionActivity: new Map<string, number>(),
+    agentActivity: new Map<string, number>(),
     terminalSessions: new Map<string, PTYSessionState>(),
     statusSubscribers: new Set<WebSocket>(),
     companionClients: new Map<string, Set<WebSocket>>(),
@@ -64,6 +67,9 @@ const state = globalThis._sharedState
 
 /** sessionName -> last activity timestamp (ms). Populated by server.mjs PTY data handler. */
 export const sessionActivity: Map<string, number> = state.sessionActivity
+
+/** agentId -> last heartbeat timestamp (ms). Populated by heartbeat API for standalone agents. */
+export const agentActivity: Map<string, number> = state.agentActivity
 
 /** sessionName -> PTY process + connected clients. Populated by server.mjs WebSocket handler. */
 export const terminalSessions: Map<string, PTYSessionState> = state.terminalSessions
@@ -82,11 +88,13 @@ export function broadcastStatusUpdate(
   sessionName: string,
   status: string,
   hookStatus?: string,
-  notificationType?: string
+  notificationType?: string,
+  agentId?: string
 ): void {
   const message = JSON.stringify({
     type: 'status_update',
     sessionName,
+    ...(agentId && { agentId }),
     status,
     hookStatus,
     notificationType,

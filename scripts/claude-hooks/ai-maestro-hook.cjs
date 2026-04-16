@@ -57,7 +57,6 @@ async function broadcastStatusUpdate(cwd, state) {
             if (!agentWd) return false;
             if (agentWd === cwd) return true;
             if (cwd.startsWith(agentWd + '/')) return true;
-            if (agentWd.startsWith(cwd + '/')) return true;
             return false;
         });
 
@@ -72,13 +71,23 @@ async function broadcastStatusUpdate(cwd, state) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 sessionName,
+                agentId: agent.id,
                 status: state.status,
                 hookStatus: state.status,
                 notificationType: state.notificationType
             })
         });
 
-        debugLog({ event: 'status_broadcast', sessionName, status: state.status });
+        // Also send heartbeat so standalone agents appear in dashboard
+        if (agent.id) {
+            await fetch(`http://localhost:23000/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: state.status })
+            }).catch(() => {});
+        }
+
+        debugLog({ event: 'status_broadcast', sessionName, agentId: agent.id, status: state.status });
     } catch (err) {
         debugLog({ event: 'status_broadcast_error', error: err.message });
     }
@@ -207,7 +216,6 @@ async function checkUnreadMessages(cwd) {
             if (cwd.startsWith(agentWd + '/')) return true;
 
             // Agent's working directory is subdirectory of cwd
-            if (agentWd.startsWith(cwd + '/')) return true;
 
             return false;
         });

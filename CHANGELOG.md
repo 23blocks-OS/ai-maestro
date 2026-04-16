@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.2] - 2026-04-16
+
+### Added
+- **Standalone agent presence** — Agents that run outside of tmux (plain terminal, API-only, remote hosts) can now appear live in the dashboard via a heartbeat mechanism. New `POST /api/agents/:id/heartbeat` endpoint lets any agent announce itself periodically. The dashboard discovers standalone agents alongside tmux sessions, Docker containers, and cloud deployments. Agents with a recent heartbeat (< 2 min) show in the sidebar; stale heartbeats auto-expire.
+- **Hook-based heartbeat for Claude Code** — The AI Maestro hook now sends a heartbeat on every event (SessionStart, Stop, Notification), so Claude Code sessions automatically register their presence even when running outside tmux. The hook also sends `agentId` alongside `sessionName` in status broadcasts for more precise activity tracking.
+- **`agentActivity` shared state** — New in-memory Map tracking standalone agent heartbeat timestamps, shared between server.mjs and API routes via the existing globalThis bridge pattern.
+- **Client-side activity by agentId** — The `useSessionActivity` hook now indexes activity updates by both `sessionName` and `agentId`, and `getSessionActivity()` accepts an optional `agentId` parameter for standalone agent lookups.
+- **`standalone` flag on Session type** — Sessions discovered via heartbeat carry `standalone: true` so the UI can distinguish them from tmux/Docker/cloud sessions.
+
+### Fixed
+- **Hook directory matching bug** — Removed `agentWd.startsWith(cwd + '/')` from all 3 hook copies. This condition caused a parent directory agent to incorrectly match when running from any child directory (e.g., agent in `/project` would match cwd `/project-tools`). Only exact matches and "cwd is inside agent's directory" now count.
+
 ## [0.29.1] - 2026-04-16
 
 ### Fixed

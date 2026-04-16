@@ -24,7 +24,6 @@ export function createRuntimeMock() {
     killSession: vi.fn().mockResolvedValue(undefined),
     renameSession: vi.fn().mockResolvedValue(undefined),
     sendKeys: vi.fn().mockResolvedValue(undefined),
-    pasteAndSubmit: vi.fn().mockResolvedValue(undefined),
     cancelCopyMode: vi.fn().mockResolvedValue(undefined),
     setEnvironment: vi.fn().mockResolvedValue(undefined),
     unsetEnvironment: vi.fn().mockResolvedValue(undefined),

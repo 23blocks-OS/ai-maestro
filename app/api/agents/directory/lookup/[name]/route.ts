@@ -8,8 +8,9 @@
  * Thin wrapper — business logic in services/agents-directory-service.ts
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { lookupAgentByDirectoryName } from '@/services/agents-directory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   _request: NextRequest,
@@ -17,8 +18,5 @@ export async function GET(
 ) {
   const { name } = await params
   const result = lookupAgentByDirectoryName(name)
-  if (result.error) {
-    return NextResponse.json({ found: false }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

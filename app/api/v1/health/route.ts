@@ -7,14 +7,11 @@
  * No authentication required - used for monitoring and load balancers.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getHealthStatus } from '@/services/amp-service'
-import type { AMPHealthResponse } from '@/lib/types/amp'
+import { toResponse } from '@/app/api/_helpers'
 
-export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealthResponse>> {
+export async function GET(_request: NextRequest) {
   const result = getHealthStatus()
-  return NextResponse.json(result.data!, {
-    status: result.status,
-    headers: result.headers
-  })
+  return toResponse(result)
 }

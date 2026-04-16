@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { getExportJobStatus, deleteExportJob } from '@/services/config-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/export/jobs/[jobId]
@@ -10,17 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await params
-
   const result = getExportJobStatus(jobId)
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -32,15 +23,6 @@ export async function DELETE(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await params
-
   const result = deleteExportJob(jobId)
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

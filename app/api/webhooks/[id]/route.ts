@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { getWebhookById, deleteWebhookById } from '@/services/webhooks-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/webhooks/[id]
@@ -11,11 +11,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = getWebhookById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -28,9 +24,5 @@ export async function DELETE(
 ) {
   const { id } = await params
   const result = deleteWebhookById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

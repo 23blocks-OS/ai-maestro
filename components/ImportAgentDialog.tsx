@@ -113,7 +113,7 @@ export default function ImportAgentDialog({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Import failed')
+        throw new Error(data.message || data.error || 'Import failed')
       }
 
       const data: AgentImportResult = await response.json()

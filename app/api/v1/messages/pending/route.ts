@@ -10,31 +10,29 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { listPendingMessages, acknowledgePendingMessage, batchAcknowledgeMessages } from '@/services/amp-service'
-import type { AMPError, AMPPendingMessagesResponse } from '@/lib/types/amp'
+import { toResponse } from '@/app/api/_helpers'
+import type { AMPError } from '@/lib/types/amp'
 
-export async function GET(request: NextRequest): Promise<NextResponse<AMPPendingMessagesResponse | AMPError>> {
+export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   const { searchParams } = new URL(request.url)
   const limitParam = searchParams.get('limit')
   const limit = limitParam ? parseInt(limitParam, 10) : undefined
 
   const result = listPendingMessages(authHeader, limit)
-  return NextResponse.json(result.data!, {
-    status: result.status,
-    headers: result.headers
-  })
+  return toResponse(result)
 }
 
-export async function DELETE(request: NextRequest): Promise<NextResponse<{ acknowledged: boolean } | AMPError>> {
+export async function DELETE(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   const { searchParams } = new URL(request.url)
   const messageId = searchParams.get('id')
 
   const result = acknowledgePendingMessage(authHeader, messageId)
-  return NextResponse.json(result.data!, { status: result.status })
+  return toResponse(result)
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<{ acknowledged: number } | AMPError>> {
+export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
 
   let body: { ids?: string[] }
@@ -48,5 +46,5 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
   }
 
   const result = batchAcknowledgeMessages(authHeader, body.ids)
-  return NextResponse.json(result.data!, { status: result.status })
+  return toResponse(result)
 }

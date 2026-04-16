@@ -21,16 +21,7 @@ import {
   sendTestWebhook,
 } from '@/lib/webhook-service'
 import type { CreateWebhookRequest, WebhookEventType } from '@/types/agent'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { type ServiceResult, missingField, notFound, invalidField, alreadyExists, operationFailed } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -70,7 +61,7 @@ export function listAllWebhooks(): ServiceResult<{ webhooks: any[] }> {
     return { data: { webhooks: sanitized }, status: 200 }
   } catch (error) {
     console.error('Failed to list webhooks:', error)
-    return { error: 'Failed to list webhooks', status: 500 }
+    return operationFailed('list webhooks')
   }
 }
 
@@ -81,24 +72,24 @@ export function listAllWebhooks(): ServiceResult<{ webhooks: any[] }> {
 export function createNewWebhook(body: CreateWebhookRequest): ServiceResult<{ webhook: any; message?: string }> {
   // Validate required fields
   if (!body.url) {
-    return { error: 'URL is required', status: 400 }
+    return missingField('url')
   }
 
   if (!body.events || !Array.isArray(body.events) || body.events.length === 0) {
-    return { error: 'At least one event is required', status: 400 }
+    return missingField('events')
   }
 
   // Validate URL format
   try {
     new URL(body.url)
   } catch {
-    return { error: 'Invalid URL format', status: 400 }
+    return invalidField('url', 'Invalid URL format')
   }
 
   // Validate event types
   for (const event of body.events) {
     if (!VALID_EVENTS.includes(event)) {
-      return { error: `Invalid event type: ${event}. Valid events: ${VALID_EVENTS.join(', ')}`, status: 400 }
+      return invalidField('events', `Invalid event type: ${event}. Valid events: ${VALID_EVENTS.join(', ')}`)
     }
   }
 
@@ -124,11 +115,11 @@ export function createNewWebhook(body: CreateWebhookRequest): ServiceResult<{ we
     const message = error instanceof Error ? error.message : 'Failed to create webhook'
 
     if (message.includes('already exists')) {
-      return { error: message, status: 409 }
+      return alreadyExists('Webhook')
     }
 
     console.error('Failed to create webhook:', error)
-    return { error: message, status: 500 }
+    return operationFailed('create webhook', message)
   }
 }
 
@@ -140,7 +131,7 @@ export function getWebhookById(id: string): ServiceResult<any> {
     const webhook = getWebhook(id)
 
     if (!webhook) {
-      return { error: 'Webhook not found', status: 404 }
+      return notFound('Webhook', id)
     }
 
     // Don't expose secret
@@ -158,7 +149,7 @@ export function getWebhookById(id: string): ServiceResult<any> {
     }
   } catch (error) {
     console.error('Failed to get webhook:', error)
-    return { error: 'Failed to get webhook', status: 500 }
+    return operationFailed('get webhook')
   }
 }
 
@@ -170,13 +161,13 @@ export function deleteWebhookById(id: string): ServiceResult<{ success: boolean 
     const success = deleteWebhook(id)
 
     if (!success) {
-      return { error: 'Webhook not found', status: 404 }
+      return notFound('Webhook', id)
     }
 
     return { data: { success: true }, status: 200 }
   } catch (error) {
     console.error('Failed to delete webhook:', error)
-    return { error: 'Failed to delete webhook', status: 500 }
+    return operationFailed('delete webhook')
   }
 }
 
@@ -200,10 +191,10 @@ export async function testWebhookById(id: string): Promise<ServiceResult<{ succe
     const message = error instanceof Error ? error.message : 'Failed to send test webhook'
 
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('Webhook', id)
     }
 
     console.error('Failed to send test webhook:', error)
-    return { error: message, status: 500 }
+    return operationFailed('send test webhook', message)
   }
 }

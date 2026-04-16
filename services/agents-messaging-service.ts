@@ -55,16 +55,7 @@ import { emitEmailChanged } from '@/lib/webhook-service'
 import { getHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { getPublicUrl } from '@/lib/host-sync'
 import type { AddAMPAddressRequest, AddEmailAddressRequest, EmailConflictError, EmailIndexResponse, FederatedEmailIndexResponse } from '@/types/agent'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -216,9 +207,8 @@ export async function listMessages(
       return { data: { messages }, status: 200 }
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to list messages'
     console.error('Failed to list messages:', error)
-    return { error: message, status: 500 }
+    return operationFailed('list messages', (error as Error).message)
   }
 }
 
@@ -230,7 +220,7 @@ export async function sendMessage(
     const { to, subject, content, priority, inReplyTo } = body
 
     if (!to || !subject || !content) {
-      return { error: 'Missing required fields: to, subject, content', status: 400 }
+      return invalidRequest('Missing required fields: to, subject, content')
     }
 
     const result = await sendFromUI({
@@ -244,9 +234,8 @@ export async function sendMessage(
 
     return { data: { message: result.message, notified: result.notified }, status: 201 }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send message'
     console.error('Failed to send message:', error)
-    return { error: message, status: 500 }
+    return operationFailed('send message', (error as Error).message)
   }
 }
 
@@ -263,14 +252,13 @@ export async function getMessage(
     const msg = await getAgentMessage(agentId, messageId, box)
 
     if (!msg) {
-      return { error: 'Message not found', status: 404 }
+      return notFound('Message', messageId)
     }
 
     return { data: { message: msg }, status: 200 }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to get message'
     console.error('Failed to get message:', error)
-    return { error: message, status: 500 }
+    return operationFailed('get message', (error as Error).message)
   }
 }
 
@@ -285,22 +273,21 @@ export async function updateMessage(
     if (action === 'read') {
       const success = await markAgentMessageAsRead(agentId, messageId)
       if (!success) {
-        return { error: 'Message not found', status: 404 }
+        return notFound('Message', messageId)
       }
       return { data: { success: true }, status: 200 }
     } else if (action === 'archive') {
       const success = await archiveAgentMessage(agentId, messageId)
       if (!success) {
-        return { error: 'Message not found', status: 404 }
+        return notFound('Message', messageId)
       }
       return { data: { success: true }, status: 200 }
     } else {
-      return { error: 'Invalid action', status: 400 }
+      return invalidRequest('Invalid action')
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update message'
     console.error('Failed to update message:', error)
-    return { error: message, status: 500 }
+    return operationFailed('update message', (error as Error).message)
   }
 }
 
@@ -312,14 +299,13 @@ export async function deleteMessageById(
     const success = await deleteAgentMessage(agentId, messageId)
 
     if (!success) {
-      return { error: 'Message not found', status: 404 }
+      return notFound('Message', messageId)
     }
 
     return { data: { success: true }, status: 200 }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete message'
     console.error('Failed to delete message:', error)
-    return { error: message, status: 500 }
+    return operationFailed('delete message', (error as Error).message)
   }
 }
 
@@ -332,7 +318,7 @@ export async function forwardMessage(
     const { to, note } = body
 
     if (!to) {
-      return { error: 'Missing required field: to', status: 400 }
+      return missingField('to')
     }
 
     const result = await forwardFromUI({
@@ -344,9 +330,8 @@ export async function forwardMessage(
 
     return { data: { message: result.message }, status: 201 }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to forward message'
     console.error('Failed to forward message:', error)
-    return { error: message, status: 500 }
+    return operationFailed('forward message', (error as Error).message)
   }
 }
 
@@ -358,7 +343,7 @@ export function listAMPAddresses(agentId: string): ServiceResult<any> {
   try {
     const agent = getAgent(agentId)
     if (!agent) {
-      return { error: 'Agent not found', status: 404 }
+      return notFound('Agent', agentId)
     }
 
     const addresses = getAgentAMPAddresses(agentId)
@@ -369,7 +354,7 @@ export function listAMPAddresses(agentId: string): ServiceResult<any> {
     }
   } catch (error) {
     console.error('Failed to get AMP addresses:', error)
-    return { error: 'Failed to get AMP addresses', status: 500 }
+    return operationFailed('get AMP addresses', (error as Error).message)
   }
 }
 
@@ -379,13 +364,13 @@ export function addAMPAddressToAgent(
 ): ServiceResult<any> {
   try {
     if (!body.address) {
-      return { error: 'AMP address is required', status: 400 }
+      return missingField('address')
     }
     if (!body.provider) {
-      return { error: 'Provider is required', status: 400 }
+      return missingField('provider')
     }
     if (!body.type || !['local', 'cloud'].includes(body.type)) {
-      return { error: 'Type must be "local" or "cloud"', status: 400 }
+      return invalidField('type', 'Type must be "local" or "cloud"')
     }
 
     const agent = addAMPAddress(agentId, {
@@ -405,17 +390,17 @@ export function addAMPAddressToAgent(
       status: 201
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to add AMP address'
+    const message = (error as Error).message || 'Failed to add AMP address'
 
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('Agent', agentId)
     }
     if (message.includes('Invalid AMP') || message.includes('Maximum of 10') || message.includes('already claimed')) {
-      return { error: message, status: 400 }
+      return invalidRequest(message)
     }
 
     console.error('Failed to add AMP address:', error)
-    return { error: message, status: 500 }
+    return operationFailed('add AMP address', message)
   }
 }
 
@@ -427,7 +412,7 @@ export function getAMPAddress(agentId: string, address: string): ServiceResult<a
   try {
     const agent = getAgent(agentId)
     if (!agent) {
-      return { error: 'Agent not found', status: 404 }
+      return notFound('Agent', agentId)
     }
 
     const ampAddress = decodeURIComponent(address).toLowerCase()
@@ -435,7 +420,7 @@ export function getAMPAddress(agentId: string, address: string): ServiceResult<a
     const found = addresses.find(a => a.address.toLowerCase() === ampAddress)
 
     if (!found) {
-      return { error: 'AMP address not found', status: 404 }
+      return notFound('AMP address', ampAddress)
     }
 
     return {
@@ -444,7 +429,7 @@ export function getAMPAddress(agentId: string, address: string): ServiceResult<a
     }
   } catch (error) {
     console.error('Failed to get AMP address:', error)
-    return { error: 'Failed to get AMP address', status: 500 }
+    return operationFailed('get AMP address', (error as Error).message)
   }
 }
 
@@ -469,12 +454,12 @@ export function updateAMPAddressOnAgent(
       status: 200
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update AMP address'
+    const message = (error as Error).message || 'Failed to update AMP address'
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('AMP address', address)
     }
     console.error('Failed to update AMP address:', error)
-    return { error: message, status: 500 }
+    return operationFailed('update AMP address', message)
   }
 }
 
@@ -490,12 +475,12 @@ export function removeAMPAddressFromAgent(agentId: string, address: string): Ser
       status: 200
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to remove AMP address'
+    const message = (error as Error).message || 'Failed to remove AMP address'
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('AMP address', address)
     }
     console.error('Failed to remove AMP address:', error)
-    return { error: message, status: 500 }
+    return operationFailed('remove AMP address', message)
   }
 }
 
@@ -507,7 +492,7 @@ export function listEmailAddresses(agentId: string): ServiceResult<any> {
   try {
     const agent = getAgent(agentId)
     if (!agent) {
-      return { error: 'Agent not found', status: 404 }
+      return notFound('Agent', agentId)
     }
 
     const addresses = getAgentEmailAddresses(agentId)
@@ -518,7 +503,7 @@ export function listEmailAddresses(agentId: string): ServiceResult<any> {
     }
   } catch (error) {
     console.error('Failed to get email addresses:', error)
-    return { error: 'Failed to get email addresses', status: 500 }
+    return operationFailed('get email addresses', (error as Error).message)
   }
 }
 
@@ -528,7 +513,7 @@ export function addEmailAddressToAgent(
 ): ServiceResult<any> {
   try {
     if (!body.address) {
-      return { error: 'Email address is required', status: 400 }
+      return missingField('address')
     }
 
     const agent = addEmailAddress(agentId, {
@@ -561,17 +546,17 @@ export function addEmailAddressToAgent(
       return { data: error, status: 409 }
     }
 
-    const message = error instanceof Error ? error.message : 'Failed to add email address'
+    const message = (error as Error).message || 'Failed to add email address'
 
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('Agent', agentId)
     }
     if (message.includes('Invalid email') || message.includes('Maximum of 10') || message.includes('already exists')) {
-      return { error: message, status: 400 }
+      return invalidRequest(message)
     }
 
     console.error('Failed to add email address:', error)
-    return { error: message, status: 500 }
+    return operationFailed('add email address', message)
   }
 }
 
@@ -583,7 +568,7 @@ export function getEmailAddressDetail(agentId: string, address: string): Service
   try {
     const agent = getAgent(agentId)
     if (!agent) {
-      return { error: 'Agent not found', status: 404 }
+      return notFound('Agent', agentId)
     }
 
     const email = decodeURIComponent(address).toLowerCase()
@@ -591,7 +576,7 @@ export function getEmailAddressDetail(agentId: string, address: string): Service
     const found = addresses.find(a => a.address.toLowerCase() === email)
 
     if (!found) {
-      return { error: 'Email address not found', status: 404 }
+      return notFound('Email address', email)
     }
 
     return {
@@ -600,7 +585,7 @@ export function getEmailAddressDetail(agentId: string, address: string): Service
     }
   } catch (error) {
     console.error('Failed to get email address:', error)
-    return { error: 'Failed to get email address', status: 500 }
+    return operationFailed('get email address', (error as Error).message)
   }
 }
 
@@ -625,12 +610,12 @@ export function updateEmailAddressOnAgent(
       status: 200
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update email address'
+    const message = (error as Error).message || 'Failed to update email address'
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('Email address', address)
     }
     console.error('Failed to update email address:', error)
-    return { error: message, status: 500 }
+    return operationFailed('update email address', message)
   }
 }
 
@@ -657,12 +642,12 @@ export function removeEmailAddressFromAgent(agentId: string, address: string): S
       status: 200
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to remove email address'
+    const message = (error as Error).message || 'Failed to remove email address'
     if (message.includes('not found')) {
-      return { error: message, status: 404 }
+      return notFound('Email address', address)
     }
     console.error('Failed to remove email address:', error)
-    return { error: message, status: 500 }
+    return operationFailed('remove email address', message)
   }
 }
 
@@ -727,7 +712,7 @@ export async function queryEmailIndex(
     if (agentIdQuery) {
       const agent = getAgent(agentIdQuery)
       if (!agent) {
-        return { error: 'Agent not found', status: 404 }
+        return notFound('Agent', agentIdQuery)
       }
 
       const addresses = getAgentEmailAddresses(agentIdQuery)
@@ -761,6 +746,6 @@ export async function queryEmailIndex(
     return { data: enrichedIndex, status: 200 }
   } catch (error) {
     console.error('Failed to get email index:', error)
-    return { error: 'Failed to get email index', status: 500 }
+    return operationFailed('get email index', (error as Error).message)
   }
 }

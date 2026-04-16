@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getTeamById, updateTeamById, deleteTeamById } from '@/services/teams-service'
+import { toResponse } from '@/app/api/_helpers'
 
 // GET /api/teams/[id] - Get a single team
 export async function GET(
@@ -8,11 +9,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = getTeamById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 // PUT /api/teams/[id] - Update a team
@@ -23,11 +20,7 @@ export async function PUT(
   const { id } = await params
   const body = await request.json()
   const result = updateTeamById(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 // DELETE /api/teams/[id] - Delete a team
@@ -37,9 +30,5 @@ export async function DELETE(
 ) {
   const { id } = await params
   const result = deleteTeamById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

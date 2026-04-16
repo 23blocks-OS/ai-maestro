@@ -56,21 +56,9 @@ import type {
   AMPKeyRotationResponse,
   AMPEnvelope,
   AMPPayload,
-  AMPError,
-  AMPNameTakenError,
   AMPKeypairRotationRequest,
 } from '@/lib/types/amp'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-  headers?: Record<string, string>
-}
+import { type ServiceResult } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)
@@ -509,7 +497,7 @@ export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
 export async function registerAgent(
   body: AMPRegistrationRequest,
   authHeader: string | null
-): Promise<ServiceResult<AMPRegistrationResponse | AMPError | AMPNameTakenError>> {
+): Promise<ServiceResult<AMPRegistrationResponse>> {
   try {
     // Check for User Key authentication (D5)
     let userKeyInfo: { ownerId: string; tenantId: string } | null = null
@@ -517,7 +505,7 @@ export async function registerAgent(
       userKeyInfo = decodeUserKey(authHeader.substring(7))
       if (!userKeyInfo) {
         return {
-          data: { error: 'unauthorized', message: 'Invalid User Key format' } as AMPError,
+          data: { error: 'unauthorized', message: 'Invalid User Key format' },
           status: 401
         }
       }
@@ -529,28 +517,28 @@ export async function registerAgent(
     // Validate required fields
     if (!body.tenant || typeof body.tenant !== 'string') {
       return {
-        data: { error: 'missing_field', message: 'tenant is required (or provide a User Key via Authorization header)', field: 'tenant' } as AMPError,
+        data: { error: 'missing_field', message: 'tenant is required (or provide a User Key via Authorization header)', field: 'tenant' },
         status: 400
       }
     }
 
     if (!body.name || typeof body.name !== 'string') {
       return {
-        data: { error: 'missing_field', message: 'name is required', field: 'name' } as AMPError,
+        data: { error: 'missing_field', message: 'name is required', field: 'name' },
         status: 400
       }
     }
 
     if (!body.public_key || typeof body.public_key !== 'string') {
       return {
-        data: { error: 'missing_field', message: 'public_key is required', field: 'public_key' } as AMPError,
+        data: { error: 'missing_field', message: 'public_key is required', field: 'public_key' },
         status: 400
       }
     }
 
     if (!body.key_algorithm || body.key_algorithm !== 'Ed25519') {
       return {
-        data: { error: 'invalid_field', message: 'key_algorithm must be "Ed25519"', field: 'key_algorithm' } as AMPError,
+        data: { error: 'invalid_field', message: 'key_algorithm must be "Ed25519"', field: 'key_algorithm' },
         status: 400
       }
     }
@@ -561,7 +549,7 @@ export async function registerAgent(
     // Validate name format
     if (!isValidAgentName(normalizedName)) {
       return {
-        data: { error: 'invalid_field', message: 'name must be 1-63 characters, alphanumeric and hyphens only, cannot start or end with hyphen', field: 'name' } as AMPError,
+        data: { error: 'invalid_field', message: 'name must be 1-63 characters, alphanumeric and hyphens only, cannot start or end with hyphen', field: 'name' },
         status: 400
       }
     }
@@ -570,7 +558,7 @@ export async function registerAgent(
     const publicKeyHex = extractPublicKeyHex(body.public_key)
     if (!publicKeyHex) {
       return {
-        data: { error: 'invalid_field', message: 'Invalid public key format. Must be PEM-encoded Ed25519 public key.', field: 'public_key' } as AMPError,
+        data: { error: 'invalid_field', message: 'Invalid public key format. Must be PEM-encoded Ed25519 public key.', field: 'public_key' },
         status: 400
       }
     }
@@ -592,8 +580,8 @@ export async function registerAgent(
           error: 'organization_not_set',
           message: 'Organization must be configured before registering agents. Please complete the AI Maestro setup first.',
           field: 'organization',
-          setup_url: '/setup'
-        } as AMPError & { setup_url: string },
+          details: { setup_url: '/setup' }
+        },
         status: 400
       }
     }
@@ -607,7 +595,7 @@ export async function registerAgent(
           message: `This AI Maestro instance is configured for organization '${configOrg}'. Cannot register under '${body.tenant}'.`,
           field: 'tenant',
           details: { expected_tenant: configOrg }
-        } as AMPError,
+        },
         status: 400
       }
     }
@@ -624,7 +612,7 @@ export async function registerAgent(
           error: 'key_already_registered',
           message: 'This public key is already associated with another agent',
           details: { fingerprint }
-        } as AMPError,
+        },
         status: 409
       }
     }
@@ -645,8 +633,8 @@ export async function registerAgent(
             data: {
               error: 'name_taken',
               message: `Agent name '${normalizedName}' is already registered`,
-              suggestions: generateNameSuggestions(normalizedName)
-            } as AMPNameTakenError,
+              details: { suggestions: generateNameSuggestions(normalizedName) }
+            },
             status: 409
           }
         }
@@ -680,7 +668,7 @@ export async function registerAgent(
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create agent'
         return {
-          data: { error: 'internal_error', message: errorMessage } as AMPError,
+          data: { error: 'internal_error', message: errorMessage },
           status: 500
         }
       }
@@ -754,7 +742,7 @@ export async function registerAgent(
   } catch (error) {
     console.error('[AMP Register] Error:', error)
     return {
-      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' } as AMPError,
+      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' },
       status: 500
     }
   }
@@ -771,7 +759,7 @@ export async function routeMessage(
   envelopeIdHeader: string | null,
   signatureHeader: string | null,
   contentLength: string | null
-): Promise<ServiceResult<AMPRouteResponse | AMPError>> {
+): Promise<ServiceResult<AMPRouteResponse>> {
   try {
     // ── Authentication ─────────────────────────────────────────────────
     let auth = authenticateRequest(authHeader)
@@ -791,7 +779,7 @@ export async function routeMessage(
 
     if (!auth.authenticated) {
       return {
-        data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+        data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
         status: 401
       }
     }
@@ -807,7 +795,7 @@ export async function routeMessage(
 
     if (!rateLimit.allowed) {
       return {
-        data: { error: 'rate_limited', message: `Rate limit exceeded: ${ROUTE_RATE_LIMIT_MAX} requests per minute` } as AMPError,
+        data: { error: 'rate_limited', message: `Rate limit exceeded: ${ROUTE_RATE_LIMIT_MAX} requests per minute` },
         status: 429,
         headers: rateLimitHeaders
       }
@@ -816,7 +804,7 @@ export async function routeMessage(
     // ── Payload Size Limit (S10) ──────────────────────────────────────
     if (contentLength && parseInt(contentLength, 10) > MAX_PAYLOAD_SIZE) {
       return {
-        data: { error: 'payload_too_large', message: `Payload exceeds maximum size of ${MAX_PAYLOAD_SIZE} bytes` } as AMPError,
+        data: { error: 'payload_too_large', message: `Payload exceeds maximum size of ${MAX_PAYLOAD_SIZE} bytes` },
         status: 413
       }
     }
@@ -824,25 +812,25 @@ export async function routeMessage(
     // ── Body Validation ────────────────────────────────────────────────
     if (!body.to || typeof body.to !== 'string') {
       return {
-        data: { error: 'missing_field', message: 'to address is required', field: 'to' } as AMPError,
+        data: { error: 'missing_field', message: 'to address is required', field: 'to' },
         status: 400
       }
     }
     if (!body.subject || typeof body.subject !== 'string') {
       return {
-        data: { error: 'missing_field', message: 'subject is required', field: 'subject' } as AMPError,
+        data: { error: 'missing_field', message: 'subject is required', field: 'subject' },
         status: 400
       }
     }
     if (!body.payload || typeof body.payload !== 'object') {
       return {
-        data: { error: 'missing_field', message: 'payload is required', field: 'payload' } as AMPError,
+        data: { error: 'missing_field', message: 'payload is required', field: 'payload' },
         status: 400
       }
     }
     if (!body.payload.type || !body.payload.message) {
       return {
-        data: { error: 'invalid_field', message: 'payload must have type and message fields', field: 'payload' } as AMPError,
+        data: { error: 'invalid_field', message: 'payload must have type and message fields', field: 'payload' },
         status: 400
       }
     }
@@ -853,7 +841,7 @@ export async function routeMessage(
 
     if (!senderAgent && !isMeshForwarded) {
       return {
-        data: { error: 'internal_error', message: 'Sender agent not found in registry' } as AMPError,
+        data: { error: 'internal_error', message: 'Sender agent not found in registry' },
         status: 500
       }
     }
@@ -945,7 +933,7 @@ export async function routeMessage(
         data: {
           error: 'external_provider',
           message: `Recipient is on external provider "${recipientParsed?.provider}". Send directly to that provider using its route_url from your registration.`
-        } as AMPError,
+        },
         status: 422
       }
     }
@@ -1002,7 +990,7 @@ export async function routeMessage(
         if (!resolvedAgentId) {
           console.error(`[AMP Route] Host '${resolvedHostId}' not in config and no UUID for ${recipientName} -- cannot queue`)
           return {
-            data: { error: 'not_found', message: `Recipient '${recipientName}' not found and target host '${resolvedHostId}' is not configured` } as AMPError,
+            data: { error: 'not_found', message: `Recipient '${recipientName}' not found and target host '${resolvedHostId}' is not configured` },
             status: 404
           }
         }
@@ -1032,7 +1020,7 @@ export async function routeMessage(
       console.error(`[AMP Route] Mesh delivery to ${resolvedHostId} failed: ${fwd.error}`)
       if (!resolvedAgentId) {
         return {
-          data: { error: 'internal_error', message: `Mesh delivery to ${resolvedHostId} failed and no UUID to queue: ${fwd.error}` } as AMPError,
+          data: { error: 'internal_error', message: `Mesh delivery to ${resolvedHostId} failed and no UUID to queue: ${fwd.error}` },
           status: 502
         }
       }
@@ -1053,7 +1041,7 @@ export async function routeMessage(
     if (!localAgent) {
       if (!resolvedAgentId) {
         return {
-          data: { error: 'not_found', message: `Recipient '${recipientName}' not found on any host` } as AMPError,
+          data: { error: 'not_found', message: `Recipient '${recipientName}' not found on any host` },
           status: 404
         }
       }
@@ -1094,7 +1082,7 @@ export async function routeMessage(
   } catch (error) {
     console.error('[AMP Route] Error:', error)
     return {
-      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' } as AMPError,
+      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' },
       status: 500
     }
   }
@@ -1107,7 +1095,7 @@ export async function routeMessage(
 export function listPendingMessages(
   authHeader: string | null,
   limit?: number
-): ServiceResult<AMPPendingMessagesResponse | AMPError> {
+): ServiceResult<AMPPendingMessagesResponse> {
   // Lazy cleanup of expired relay messages
   lazyCleanup()
 
@@ -1115,7 +1103,7 @@ export function listPendingMessages(
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1137,19 +1125,19 @@ export function listPendingMessages(
 export function acknowledgePendingMessage(
   authHeader: string | null,
   messageId: string | null
-): ServiceResult<{ acknowledged: boolean } | AMPError> {
+): ServiceResult<{ acknowledged: boolean }> {
   const auth = authenticateRequest(authHeader)
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
 
   if (!messageId) {
     return {
-      data: { error: 'missing_field', message: 'Message ID required (use DELETE /pending/:id or DELETE /pending?id=<messageId>)', field: 'id' } as AMPError,
+      data: { error: 'missing_field', message: 'Message ID required (use DELETE /pending/:id or DELETE /pending?id=<messageId>)', field: 'id' },
       status: 400
     }
   }
@@ -1158,7 +1146,7 @@ export function acknowledgePendingMessage(
 
   if (!acknowledged) {
     return {
-      data: { error: 'not_found', message: `Message ${messageId} not found in pending queue` } as AMPError,
+      data: { error: 'not_found', message: `Message ${messageId} not found in pending queue` },
       status: 404
     }
   }
@@ -1173,26 +1161,26 @@ export function acknowledgePendingMessage(
 export function batchAcknowledgeMessages(
   authHeader: string | null,
   ids: string[] | undefined
-): ServiceResult<{ acknowledged: number } | AMPError> {
+): ServiceResult<{ acknowledged: number }> {
   const auth = authenticateRequest(authHeader)
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
 
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return {
-      data: { error: 'missing_field', message: 'ids array required', field: 'ids' } as AMPError,
+      data: { error: 'missing_field', message: 'ids array required', field: 'ids' },
       status: 400
     }
   }
 
   if (ids.length > 100) {
     return {
-      data: { error: 'invalid_request', message: 'Maximum 100 messages per batch' } as AMPError,
+      data: { error: 'invalid_request', message: 'Maximum 100 messages per batch' },
       status: 400
     }
   }
@@ -1215,7 +1203,7 @@ export async function sendReadReceipt(
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1274,7 +1262,7 @@ export function listAMPAgents(
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1320,7 +1308,7 @@ export function getAgentSelf(authHeader: string | null): ServiceResult<any> {
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1328,7 +1316,7 @@ export function getAgentSelf(authHeader: string | null): ServiceResult<any> {
   const agent = getAgent(auth.agentId!)
   if (!agent) {
     return {
-      data: { error: 'not_found', message: 'Agent not found' } as AMPError,
+      data: { error: 'not_found', message: 'Agent not found' },
       status: 404
     }
   }
@@ -1357,7 +1345,7 @@ export function getAgentCard(authHeader: string | null): ServiceResult<any> {
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1365,7 +1353,7 @@ export function getAgentCard(authHeader: string | null): ServiceResult<any> {
   const agent = getAgent(auth.agentId!)
   if (!agent) {
     return {
-      data: { error: 'not_found', message: 'Agent not found' } as AMPError,
+      data: { error: 'not_found', message: 'Agent not found' },
       status: 404
     }
   }
@@ -1373,7 +1361,7 @@ export function getAgentCard(authHeader: string | null): ServiceResult<any> {
   const keyPair = loadKeyPair(auth.agentId!)
   if (!keyPair) {
     return {
-      data: { error: 'not_found', message: 'Agent keypair not found' } as AMPError,
+      data: { error: 'not_found', message: 'Agent keypair not found' },
       status: 404
     }
   }
@@ -1402,7 +1390,7 @@ export function getAgentCard(authHeader: string | null): ServiceResult<any> {
   } catch (err) {
     console.error('[AMP] Failed to sign agent card:', err)
     return {
-      data: { error: 'internal_error', message: 'Failed to sign card' } as AMPError,
+      data: { error: 'internal_error', message: 'Failed to sign card' },
       status: 500
     }
   }
@@ -1422,7 +1410,7 @@ export async function updateAgentSelf(
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1430,7 +1418,7 @@ export async function updateAgentSelf(
   const agent = getAgent(auth.agentId!)
   if (!agent) {
     return {
-      data: { error: 'not_found', message: 'Agent not found' } as AMPError,
+      data: { error: 'not_found', message: 'Agent not found' },
       status: 404
     }
   }
@@ -1473,7 +1461,7 @@ export async function deleteAgentSelf(authHeader: string | null): Promise<Servic
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1485,7 +1473,7 @@ export async function deleteAgentSelf(authHeader: string | null): Promise<Servic
   const deleted = deleteAgent(auth.agentId!, true)
   if (!deleted) {
     return {
-      data: { error: 'not_found', message: 'Agent not found' } as AMPError,
+      data: { error: 'not_found', message: 'Agent not found' },
       status: 404
     }
   }
@@ -1507,12 +1495,12 @@ export async function deleteAgentSelf(authHeader: string | null): Promise<Servic
 export function resolveAgentAddress(
   authHeader: string | null,
   address: string
-): ServiceResult<AMPAgentResolveResponse | AMPError> {
+): ServiceResult<AMPAgentResolveResponse> {
   const auth = authenticateRequest(authHeader)
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1534,7 +1522,7 @@ export function resolveAgentAddress(
     )
     if (!byAddress) {
       return {
-        data: { error: 'not_found', message: `Agent not found: ${decodedAddress}` } as AMPError,
+        data: { error: 'not_found', message: `Agent not found: ${decodedAddress}` },
         status: 404
       }
     }
@@ -1578,7 +1566,7 @@ export function revokeKey(authHeader: string | null): ServiceResult<any> {
 
   if (!apiKey) {
     return {
-      data: { error: 'unauthorized', message: 'Missing or invalid Authorization header' } as AMPError,
+      data: { error: 'unauthorized', message: 'Missing or invalid Authorization header' },
       status: 401
     }
   }
@@ -1587,7 +1575,7 @@ export function revokeKey(authHeader: string | null): ServiceResult<any> {
 
   if (!revoked) {
     return {
-      data: { error: 'not_found', message: 'API key not found' } as AMPError,
+      data: { error: 'not_found', message: 'API key not found' },
       status: 404
     }
   }
@@ -1602,12 +1590,12 @@ export function revokeKey(authHeader: string | null): ServiceResult<any> {
 // POST /api/v1/auth/rotate-key
 // ---------------------------------------------------------------------------
 
-export function rotateKey(authHeader: string | null): ServiceResult<AMPKeyRotationResponse | AMPError> {
+export function rotateKey(authHeader: string | null): ServiceResult<AMPKeyRotationResponse> {
   const apiKey = extractApiKeyFromHeader(authHeader)
 
   if (!apiKey) {
     return {
-      data: { error: 'unauthorized', message: 'Missing or invalid Authorization header' } as AMPError,
+      data: { error: 'unauthorized', message: 'Missing or invalid Authorization header' },
       status: 401
     }
   }
@@ -1616,7 +1604,7 @@ export function rotateKey(authHeader: string | null): ServiceResult<AMPKeyRotati
 
   if (!result) {
     return {
-      data: { error: 'unauthorized', message: 'Invalid or expired API key' } as AMPError,
+      data: { error: 'unauthorized', message: 'Invalid or expired API key' },
       status: 401
     }
   }
@@ -1636,7 +1624,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
 
   if (!auth.authenticated) {
     return {
-      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' },
       status: 401
     }
   }
@@ -1644,7 +1632,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
   const agent = getAgent(auth.agentId!)
   if (!agent) {
     return {
-      data: { error: 'not_found', message: 'Agent not found' } as AMPError,
+      data: { error: 'not_found', message: 'Agent not found' },
       status: 404
     }
   }
@@ -1655,7 +1643,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
     // ── Proof-of-possession rotation ──────────────────────────────────────
     if (body.key_algorithm && body.key_algorithm !== 'Ed25519') {
       return {
-        data: { error: 'invalid_field', message: 'key_algorithm must be Ed25519', field: 'key_algorithm' } as AMPError,
+        data: { error: 'invalid_field', message: 'key_algorithm must be Ed25519', field: 'key_algorithm' },
         status: 400
       }
     }
@@ -1663,7 +1651,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
     const newPublicKeyHex = extractPublicKeyHex(body.new_public_key)
     if (!newPublicKeyHex) {
       return {
-        data: { error: 'invalid_field', message: 'Invalid new_public_key format. Must be PEM-encoded Ed25519 public key.', field: 'new_public_key' } as AMPError,
+        data: { error: 'invalid_field', message: 'Invalid new_public_key format. Must be PEM-encoded Ed25519 public key.', field: 'new_public_key' },
         status: 400
       }
     }
@@ -1672,7 +1660,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
     const oldKeyPair = loadKeyPair(auth.agentId!)
     if (!oldKeyPair) {
       return {
-        data: { error: 'not_found', message: 'Existing keypair not found for agent' } as AMPError,
+        data: { error: 'not_found', message: 'Existing keypair not found for agent' },
         status: 404
       }
     }
@@ -1681,7 +1669,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
     const proofValid = verifySignature(newPublicKeyHex, body.proof, oldKeyPair.publicHex)
     if (!proofValid) {
       return {
-        data: { error: 'invalid_signature', message: 'Proof-of-possession verification failed. The proof must be the new public key hex signed with the old private key.' } as AMPError,
+        data: { error: 'invalid_signature', message: 'Proof-of-possession verification failed. The proof must be the new public key hex signed with the old private key.' },
         status: 401
       }
     }
@@ -1697,7 +1685,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
     // Partial body — both fields required
     const missing = !body.new_public_key ? 'new_public_key' : 'proof'
     return {
-      data: { error: 'missing_field', message: `Both new_public_key and proof are required for proof-of-possession rotation`, field: missing } as AMPError,
+      data: { error: 'missing_field', message: `Both new_public_key and proof are required for proof-of-possession rotation`, field: missing },
       status: 400
     }
   } else {
@@ -1741,7 +1729,7 @@ export async function deliverFederated(
     // ── Provider Identity ───────────────────────────────────────────────
     if (!providerName) {
       return {
-        data: { error: 'missing_header', message: 'X-AMP-Provider header is required' } as AMPError,
+        data: { error: 'missing_header', message: 'X-AMP-Provider header is required' },
         status: 400
       }
     }
@@ -1750,7 +1738,7 @@ export async function deliverFederated(
     const rateLimit = checkFederationRateLimit(providerName)
     if (!rateLimit.allowed) {
       return {
-        data: { error: 'rate_limited', message: 'Federation rate limit exceeded' } as AMPError,
+        data: { error: 'rate_limited', message: 'Federation rate limit exceeded' },
         status: 429,
         headers: { 'Retry-After': '60' }
       }
@@ -1761,7 +1749,7 @@ export async function deliverFederated(
 
     if (!envelope || !payload) {
       return {
-        data: { error: 'invalid_request', message: 'envelope and payload are required' } as AMPError,
+        data: { error: 'invalid_request', message: 'envelope and payload are required' },
         status: 400
       }
     }
@@ -1769,7 +1757,7 @@ export async function deliverFederated(
     // ── Replay Protection ───────────────────────────────────────────────
     if (!trackMessageId(envelope.id)) {
       return {
-        data: { error: 'duplicate_message', message: `Message ${envelope.id} has already been delivered` } as AMPError,
+        data: { error: 'duplicate_message', message: `Message ${envelope.id} has already been delivered` },
         status: 409
       }
     }
@@ -1813,7 +1801,7 @@ export async function deliverFederated(
         }
       }
       return {
-        data: { error: 'not_found', message: `Recipient '${recipientName}' not found on any host` } as AMPError,
+        data: { error: 'not_found', message: `Recipient '${recipientName}' not found on any host` },
         status: 404
       }
     }
@@ -1845,7 +1833,7 @@ export async function deliverFederated(
   } catch (error) {
     console.error('[Federation] Error:', error)
     return {
-      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' } as AMPError,
+      data: { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' },
       status: 500
     }
   }

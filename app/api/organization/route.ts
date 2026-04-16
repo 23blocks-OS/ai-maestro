@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getOrganization, setOrganizationName } from '@/services/config-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/organization
@@ -7,7 +8,7 @@ import { getOrganization, setOrganizationName } from '@/services/config-service'
  */
 export async function GET() {
   const result = getOrganization()
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const { organization, setBy } = body
 
     const result = setOrganizationName({ organization, setBy })
-    return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('[Organization API] Error:', error)
     return NextResponse.json(

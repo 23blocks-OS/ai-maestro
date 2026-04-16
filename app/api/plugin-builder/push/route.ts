@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { pushToGitHub } from '@/services/plugin-builder-service'
+import { toResponse } from '@/app/api/_helpers'
 import type { PluginPushConfig } from '@/types/plugin-builder'
 
 export async function POST(request: NextRequest) {
@@ -28,14 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await pushToGitHub(body)
-
-    if (result.error) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
-      )
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
     return NextResponse.json(

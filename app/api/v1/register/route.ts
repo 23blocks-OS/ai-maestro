@@ -7,14 +7,15 @@
  * Thin wrapper - business logic in services/amp-service.ts
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { registerAgent } from '@/services/amp-service'
-import type { AMPRegistrationRequest, AMPRegistrationResponse, AMPError, AMPNameTakenError } from '@/lib/types/amp'
+import { toResponse } from '@/app/api/_helpers'
+import type { AMPRegistrationRequest } from '@/lib/types/amp'
 
-export async function POST(request: NextRequest): Promise<NextResponse<AMPRegistrationResponse | AMPError | AMPNameTakenError>> {
+export async function POST(request: NextRequest) {
   const body = await request.json() as AMPRegistrationRequest
   const authHeader = request.headers.get('Authorization')
 
   const result = await registerAgent(body, authHeader)
-  return NextResponse.json(result.data!, { status: result.status })
+  return toResponse(result)
 }

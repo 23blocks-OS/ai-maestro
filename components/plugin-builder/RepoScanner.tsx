@@ -40,7 +40,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       if (!res.ok) {
         const data = await res.json()
-        if (!signal.aborted) setError(data.error || 'Failed to scan repository')
+        if (!signal.aborted) setError(data.message || data.error || 'Failed to scan repository')
         return
       }
 

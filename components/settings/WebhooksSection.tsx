@@ -129,7 +129,7 @@ export default function WebhooksSection() {
       setTestResult({
         id,
         success: data.success,
-        message: data.success ? 'Webhook delivered successfully' : (data.error || 'Delivery failed'),
+        message: data.success ? 'Webhook delivered successfully' : (data.message || data.error || 'Delivery failed'),
       })
     } catch (err) {
       setTestResult({

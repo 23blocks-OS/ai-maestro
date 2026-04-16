@@ -29,16 +29,7 @@ import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocum
 import type { TaskStatus } from '@/types/task'
 import { getAgent } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { type ServiceResult, missingField, notFound, invalidField, operationFailed, selfReference, circularDependency } from '@/services/service-errors'
 
 export interface CreateTeamParams {
   name: string
@@ -116,11 +107,11 @@ export function createNewTeam(params: CreateTeamParams): ServiceResult<{ team: a
   const { name, description, agentIds } = params
 
   if (!name || typeof name !== 'string') {
-    return { error: 'Team name is required', status: 400 }
+    return missingField('name')
   }
 
   if (agentIds && !Array.isArray(agentIds)) {
-    return { error: 'agentIds must be an array', status: 400 }
+    return invalidField('agentIds', 'agentIds must be an array')
   }
 
   try {
@@ -128,7 +119,7 @@ export function createNewTeam(params: CreateTeamParams): ServiceResult<{ team: a
     return { data: { team }, status: 201 }
   } catch (error) {
     console.error('Failed to create team:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to create team', status: 500 }
+    return operationFailed('create team', (error as Error).message)
   }
 }
 
@@ -138,7 +129,7 @@ export function createNewTeam(params: CreateTeamParams): ServiceResult<{ team: a
 export function getTeamById(id: string): ServiceResult<{ team: any }> {
   const team = getTeam(id)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', id)
   }
   return { data: { team }, status: 200 }
 }
@@ -158,12 +149,12 @@ export function updateTeamById(id: string, params: UpdateTeamParams): ServiceRes
     if (params.lastActivityAt !== undefined) updates.lastActivityAt = params.lastActivityAt
     const team = updateTeam(id, updates as any)
     if (!team) {
-      return { error: 'Team not found', status: 404 }
+      return notFound('Team', id)
     }
     return { data: { team }, status: 200 }
   } catch (error) {
     console.error('Failed to update team:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to update team', status: 500 }
+    return operationFailed('update team', (error as Error).message)
   }
 }
 
@@ -173,7 +164,7 @@ export function updateTeamById(id: string, params: UpdateTeamParams): ServiceRes
 export function deleteTeamById(id: string): ServiceResult<{ success: boolean }> {
   const deleted = deleteTeam(id)
   if (!deleted) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', id)
   }
   return { data: { success: true }, status: 200 }
 }
@@ -188,7 +179,7 @@ export function deleteTeamById(id: string): ServiceResult<{ success: boolean }> 
 export function listTeamTasks(teamId: string): ServiceResult<{ tasks: any[] }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const tasks = loadTasks(teamId)
@@ -202,19 +193,19 @@ export function listTeamTasks(teamId: string): ServiceResult<{ tasks: any[] }> {
 export function createTeamTask(teamId: string, params: CreateTaskParams): ServiceResult<{ task: any }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const { subject, description, assigneeAgentId, blockedBy, priority } = params
 
   if (!subject || typeof subject !== 'string' || !subject.trim()) {
-    return { error: 'Subject is required', status: 400 }
+    return missingField('subject')
   }
 
   // Validate blockedBy is an array of strings if provided
   if (blockedBy !== undefined) {
     if (!Array.isArray(blockedBy) || !blockedBy.every((id: unknown) => typeof id === 'string')) {
-      return { error: 'blockedBy must be an array of task ID strings', status: 400 }
+      return invalidField('blockedBy', 'blockedBy must be an array of task ID strings')
     }
   }
 
@@ -230,7 +221,7 @@ export function createTeamTask(teamId: string, params: CreateTaskParams): Servic
     return { data: { task }, status: 201 }
   } catch (error) {
     console.error('Failed to create task:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to create task', status: 500 }
+    return operationFailed('create task', (error as Error).message)
   }
 }
 
@@ -244,12 +235,12 @@ export function updateTeamTask(
 ): ServiceResult<{ task: any; unblocked?: any[] }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const existing = getTask(teamId, taskId)
   if (!existing) {
-    return { error: 'Task not found', status: 404 }
+    return notFound('Task', taskId)
   }
 
   const { subject, description, status, assigneeAgentId, blockedBy, priority } = params
@@ -258,20 +249,20 @@ export function updateTeamTask(
   if (Array.isArray(blockedBy)) {
     for (const depId of blockedBy) {
       if (typeof depId !== 'string') {
-        return { error: 'blockedBy must contain only string task IDs', status: 400 }
+        return invalidField('blockedBy', 'blockedBy must contain only string task IDs')
       }
       if (depId === taskId) {
-        return { error: 'A task cannot depend on itself', status: 400 }
+        return selfReference('A task cannot depend on itself')
       }
       if (wouldCreateCycle(teamId, taskId, depId)) {
-        return { error: `Adding dependency on task ${depId} would create a circular reference`, status: 400 }
+        return circularDependency(`Adding dependency on task ${depId} would create a circular reference`)
       }
     }
   }
 
   // Validate status enum
   if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
-    return { error: 'Invalid status. Must be backlog, pending, in_progress, review, or completed', status: 400 }
+    return invalidField('status', 'Invalid status. Must be backlog, pending, in_progress, review, or completed')
   }
 
   try {
@@ -285,13 +276,13 @@ export function updateTeamTask(
     })
 
     if (!result.task) {
-      return { error: 'Task not found', status: 404 }
+      return notFound('Task', taskId)
     }
 
     return { data: { task: result.task, unblocked: result.unblocked }, status: 200 }
   } catch (error) {
     console.error('Failed to update task:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to update task', status: 500 }
+    return operationFailed('update task', (error as Error).message)
   }
 }
 
@@ -301,12 +292,12 @@ export function updateTeamTask(
 export function deleteTeamTask(teamId: string, taskId: string): ServiceResult<{ success: boolean }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const deleted = deleteTask(teamId, taskId)
   if (!deleted) {
-    return { error: 'Task not found', status: 404 }
+    return notFound('Task', taskId)
   }
 
   return { data: { success: true }, status: 200 }
@@ -322,7 +313,7 @@ export function deleteTeamTask(teamId: string, taskId: string): ServiceResult<{ 
 export function listTeamDocuments(teamId: string): ServiceResult<{ documents: any[] }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const documents = loadDocuments(teamId)
@@ -335,13 +326,13 @@ export function listTeamDocuments(teamId: string): ServiceResult<{ documents: an
 export function createTeamDocument(teamId: string, params: CreateDocumentParams): ServiceResult<{ document: any }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const { title, content, pinned, tags } = params
 
   if (!title || typeof title !== 'string') {
-    return { error: 'title is required', status: 400 }
+    return missingField('title')
   }
 
   try {
@@ -355,7 +346,7 @@ export function createTeamDocument(teamId: string, params: CreateDocumentParams)
     return { data: { document }, status: 201 }
   } catch (error) {
     console.error('Failed to create document:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to create document', status: 500 }
+    return operationFailed('create document', (error as Error).message)
   }
 }
 
@@ -365,12 +356,12 @@ export function createTeamDocument(teamId: string, params: CreateDocumentParams)
 export function getTeamDocument(teamId: string, docId: string): ServiceResult<{ document: any }> {
   const team = getTeam(teamId)
   if (!team) {
-    return { error: 'Team not found', status: 404 }
+    return notFound('Team', teamId)
   }
 
   const document = getDocument(teamId, docId)
   if (!document) {
-    return { error: 'Document not found', status: 404 }
+    return notFound('Document', docId)
   }
 
   return { data: { document }, status: 200 }
@@ -393,13 +384,13 @@ export function updateTeamDocument(
 
     const document = updateDocument(teamId, docId, updates as any)
     if (!document) {
-      return { error: 'Document not found', status: 404 }
+      return notFound('Document', docId)
     }
 
     return { data: { document }, status: 200 }
   } catch (error) {
     console.error('Failed to update document:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to update document', status: 500 }
+    return operationFailed('update document', (error as Error).message)
   }
 }
 
@@ -409,7 +400,7 @@ export function updateTeamDocument(
 export function deleteTeamDocument(teamId: string, docId: string): ServiceResult<{ success: boolean }> {
   const deleted = deleteDocument(teamId, docId)
   if (!deleted) {
-    return { error: 'Document not found', status: 404 }
+    return notFound('Document', docId)
   }
 
   return { data: { success: true }, status: 200 }
@@ -426,11 +417,11 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
   const { agentIds, teamName } = params
 
   if (!agentIds || !Array.isArray(agentIds)) {
-    return { error: 'agentIds array is required', status: 400 }
+    return missingField('agentIds')
   }
 
   if (!teamName || typeof teamName !== 'string') {
-    return { error: 'teamName is required', status: 400 }
+    return missingField('teamName')
   }
 
   try {
@@ -462,6 +453,6 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
     return { data: { results }, status: 200 }
   } catch (error) {
     console.error('Failed to notify team:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to notify team', status: 500 }
+    return operationFailed('notify team', (error as Error).message)
   }
 }

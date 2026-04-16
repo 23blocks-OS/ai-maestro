@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { listAMPAddresses, addAMPAddressToAgent } from '@/services/agents-messaging-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/[id]/amp/addresses
@@ -12,11 +13,7 @@ export async function GET(
   const { id } = await params
 
   const result = listAMPAddresses(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -31,9 +28,5 @@ export async function POST(
   const body = await request.json()
 
   const result = addAMPAddressToAgent(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

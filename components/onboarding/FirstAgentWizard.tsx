@@ -83,7 +83,7 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to create agent')
+        throw new Error(data.message || data.error || 'Failed to create agent')
       }
 
       // Animate completion

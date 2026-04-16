@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { registerAgent } from '@/services/agents-core-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,12 +10,5 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   const body = await request.json()
   const result = registerAgent(body)
-
-  if (result.error) {
-    return NextResponse.json(
-      { error: result.error, details: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

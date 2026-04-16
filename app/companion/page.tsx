@@ -1096,7 +1096,7 @@ function CompanionInput({
         textareaRef.current?.focus()
       } else {
         const data = await res.json().catch(() => ({}))
-        console.error('[CompanionInput] Send failed:', data.error || res.statusText)
+        console.error('[CompanionInput] Send failed:', data.message || data.error || res.statusText)
       }
     } catch (err) {
       console.error('[CompanionInput] Send error:', err)

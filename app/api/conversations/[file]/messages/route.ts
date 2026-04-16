@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getConversationMessages } from '@/services/config-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/conversations/:file/messages?agentId=X
@@ -13,13 +14,5 @@ export async function GET(
   const agentId = request.nextUrl.searchParams.get('agentId') || ''
 
   const result = await getConversationMessages(encodedFile, agentId)
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error, ...(result.data || {}) },
-      { status: result.status }
-    )
-  }
-
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

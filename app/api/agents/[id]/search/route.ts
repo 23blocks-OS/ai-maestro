@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { searchConversations, ingestConversations } from '@/services/agents-memory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/search
@@ -39,10 +40,7 @@ export async function GET(
     semanticWeight: searchParams.get('semanticWeight') ? parseFloat(searchParams.get('semanticWeight')!) : undefined,
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -65,8 +63,5 @@ export async function POST(
     batchSize: body.batchSize,
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

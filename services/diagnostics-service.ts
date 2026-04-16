@@ -24,18 +24,13 @@ import path from 'path'
 import os from 'os'
 import { getHosts, isSelf } from '@/lib/hosts-config'
 import { loadAgents } from '@/lib/agent-registry'
+import { type ServiceResult } from '@/services/service-errors'
 
 const execAsync = promisify(exec)
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
 
 export type DiagnosticStatus = 'pass' | 'fail' | 'warn'
 

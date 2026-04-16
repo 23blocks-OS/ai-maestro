@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSkillsConfig, updateSkills, addSkill, removeSkill } from '@/services/agents-skills-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   _request: NextRequest,
@@ -20,10 +21,7 @@ export async function GET(
   try {
     const { id } = await params
     const result = getSkillsConfig(id)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error fetching agent skills:', error)
     return NextResponse.json(
@@ -41,10 +39,7 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
     const result = await updateSkills(id, body)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error updating agent skills:', error)
     return NextResponse.json(
@@ -62,10 +57,7 @@ export async function POST(
     const { id } = await params
     const body = await request.json()
     const result = addSkill(id, body)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error adding custom skill:', error)
     return NextResponse.json(
@@ -90,10 +82,7 @@ export async function DELETE(
     }
 
     const result = removeSkill(id, skill, type)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error removing skill:', error)
     return NextResponse.json(

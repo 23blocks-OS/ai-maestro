@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import {
   getConsolidationStatus,
   triggerConsolidation,
   manageConsolidation,
 } from '@/services/agents-memory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/memory/consolidate
@@ -15,11 +16,7 @@ export async function GET(
 ) {
   const { id: agentId } = await params
   const result = await getConsolidationStatus(agentId)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -46,13 +43,7 @@ export async function POST(
       : undefined,
   })
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, status: 'failed', error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -78,8 +69,5 @@ export async function PATCH(
     dryRun: body.dryRun,
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

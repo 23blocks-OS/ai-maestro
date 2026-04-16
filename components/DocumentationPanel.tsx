@@ -188,7 +188,7 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
         await fetchStats()
         await fetchDocuments()
       } else {
-        setError(data.error || 'Failed to index documentation')
+        setError(data.message || data.error || 'Failed to index documentation')
       }
     } catch (err: any) {
       console.error('[DocumentationPanel] Indexing error:', err)
@@ -225,7 +225,7 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
         setSearchResults(data.result || [])
         setActiveView('search')
       } else {
-        setError(data.error || 'Search failed')
+        setError(data.message || data.error || 'Search failed')
       }
     } catch (err) {
       setError('Failed to search documentation')

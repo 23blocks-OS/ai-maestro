@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { listTeamTasks, createTeamTask } from '@/services/teams-service'
+import { toResponse } from '@/app/api/_helpers'
 
 // GET /api/teams/[id]/tasks - List tasks with resolved dependencies
 export async function GET(
@@ -8,11 +9,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = listTeamTasks(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 // POST /api/teams/[id]/tasks - Create a new task
@@ -23,9 +20,5 @@ export async function POST(
   const { id } = await params
   const body = await request.json()
   const result = createTeamTask(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

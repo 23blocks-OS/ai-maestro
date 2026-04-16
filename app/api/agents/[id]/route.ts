@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { getAgentById, updateAgentById, deleteAgentById } from '@/services/agents-core-service'
 import type { UpdateAgentRequest } from '@/types/agent'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/[id]
@@ -12,11 +12,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = getAgentById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -30,11 +26,7 @@ export async function PATCH(
   const { id } = await params
   const body: UpdateAgentRequest = await request.json()
   const result = updateAgentById(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -52,9 +44,5 @@ export async function DELETE(
   const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
 
   const result = deleteAgentById(id, hard)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

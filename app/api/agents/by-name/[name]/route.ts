@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { lookupAgentByName } from '@/services/agents-core-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/by-name/[name]
@@ -11,9 +12,5 @@ export async function GET(
 ) {
   const { name } = await params
   const result = lookupAgentByName(name)
-
-  if (result.error) {
-    return NextResponse.json(result.data || { exists: false }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

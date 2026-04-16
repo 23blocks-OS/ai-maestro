@@ -74,7 +74,8 @@ describe('GET /api/teams/[id]/documents', () => {
 
     expect(res.status).toBe(404)
     const data = await res.json()
-    expect(data.error).toBe('Team not found')
+    expect(data.error).toBe('not_found')
+    expect(data.message).toMatch(/team/i)
   })
 
   it('returns empty documents array for team with no docs', async () => {
@@ -132,7 +133,8 @@ describe('POST /api/teams/[id]/documents', () => {
 
     expect(res.status).toBe(400)
     const data = await res.json()
-    expect(data.error).toBe('title is required')
+    expect(data.error).toBe('missing_field')
+    expect(data.message).toMatch(/title/i)
   })
 
   it('creates a document with 201 status', async () => {
@@ -195,7 +197,8 @@ describe('GET /api/teams/[id]/documents/[docId]', () => {
 
     expect(res.status).toBe(404)
     const data = await res.json()
-    expect(data.error).toBe('Team not found')
+    expect(data.error).toBe('not_found')
+    expect(data.message).toMatch(/team/i)
   })
 
   it('returns 404 when document does not exist', async () => {
@@ -206,7 +209,8 @@ describe('GET /api/teams/[id]/documents/[docId]', () => {
 
     expect(res.status).toBe(404)
     const data = await res.json()
-    expect(data.error).toBe('Document not found')
+    expect(data.error).toBe('not_found')
+    expect(data.message).toMatch(/document/i)
   })
 
   it('returns the document when it exists', async () => {

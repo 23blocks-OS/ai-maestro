@@ -6,14 +6,7 @@
  */
 
 import { agentRegistry } from '@/lib/agent'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, notInitialized, invalidRequest } from '@/services/service-errors'
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -76,7 +69,7 @@ export async function triggerSubconsciousAction(
   const subconscious = agent.getSubconscious()
 
   if (!subconscious) {
-    return { error: 'Subconscious not initialized', status: 400 }
+    return notInitialized('Subconscious')
   }
 
   switch (action) {
@@ -106,6 +99,6 @@ export async function triggerSubconsciousAction(
     }
 
     default:
-      return { error: `Unknown action: ${action}`, status: 400 }
+      return invalidRequest(`Unknown action: ${action}`)
   }
 }

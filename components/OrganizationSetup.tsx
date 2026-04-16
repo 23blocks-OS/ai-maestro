@@ -117,7 +117,7 @@ export default function OrganizationSetup({ onComplete, onSkip }: OrganizationSe
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to set organization')
+        throw new Error(data.message || data.error || 'Failed to set organization')
       }
 
       onComplete()
@@ -215,7 +215,7 @@ export default function OrganizationSetup({ onComplete, onSkip }: OrganizationSe
 
       if (!orgResponse.ok) {
         const data = await orgResponse.json()
-        throw new Error(data.error || 'Failed to adopt organization')
+        throw new Error(data.message || data.error || 'Failed to adopt organization')
       }
 
       // 2. Add the remote host to our hosts list

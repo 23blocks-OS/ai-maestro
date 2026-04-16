@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeAgent, makeAgentSession, resetFixtureCounter } from '../test-utils/fixtures'
+import { type ServiceError } from '@/services/service-errors'
 
 // ============================================================================
 // Mocks — vi.hoisted() ensures availability before vi.mock() runs
@@ -161,8 +162,8 @@ describe('listAgents', () => {
     const result = await listAgents()
 
     expect(result.status).toBe(200)
-    expect(result.data?.agents).toEqual([])
-    expect(result.data?.stats.total).toBe(0)
+    expect((result.data as any)?.agents).toEqual([])
+    expect((result.data as any)?.stats.total).toBe(0)
   })
 
   it('returns agents from registry with session status', async () => {
@@ -175,8 +176,8 @@ describe('listAgents', () => {
     const result = await listAgents()
 
     expect(result.status).toBe(200)
-    expect(result.data?.agents).toHaveLength(1)
-    expect(result.data?.agents[0].name).toBe('my-agent')
+    expect((result.data as any)?.agents).toHaveLength(1)
+    expect((result.data as any)?.agents[0].name).toBe('my-agent')
   })
 
   it('creates orphan agents for sessions without registry entries', async () => {
@@ -187,9 +188,9 @@ describe('listAgents', () => {
 
     const result = await listAgents()
 
-    expect(result.data?.agents).toHaveLength(1)
-    expect(result.data?.agents[0].isOrphan).toBe(true)
-    expect(result.data?.stats.orphans).toBe(1)
+    expect((result.data as any)?.agents).toHaveLength(1)
+    expect((result.data as any)?.agents[0].isOrphan).toBe(true)
+    expect((result.data as any)?.stats.orphans).toBe(1)
     // Orphan should be saved to registry
     expect(mockAgentRegistry.saveAgents).toHaveBeenCalled()
   })
@@ -201,8 +202,8 @@ describe('listAgents', () => {
 
     const result = await listAgents()
 
-    expect(result.data?.agents[0].status).toBe('offline')
-    expect(result.data?.agents[0].session?.status).toBe('offline')
+    expect((result.data as any)?.agents[0].status).toBe('offline')
+    expect((result.data as any)?.agents[0].session?.status).toBe('offline')
   })
 
   it('marks agents active when matching tmux session exists', async () => {
@@ -214,8 +215,8 @@ describe('listAgents', () => {
 
     const result = await listAgents()
 
-    expect(result.data?.agents[0].status).toBe('active')
-    expect(result.data?.agents[0].session?.status).toBe('online')
+    expect((result.data as any)?.agents[0].status).toBe('active')
+    expect((result.data as any)?.agents[0].session?.status).toBe('online')
   })
 
   it('sorts online agents before offline', async () => {
@@ -228,14 +229,14 @@ describe('listAgents', () => {
 
     const result = await listAgents()
 
-    expect(result.data?.agents[0].name).toBe('zzz-online')
-    expect(result.data?.agents[1].name).toBe('aaa-offline')
+    expect((result.data as any)?.agents[0].name).toBe('zzz-online')
+    expect((result.data as any)?.agents[1].name).toBe('aaa-offline')
   })
 
   it('includes host info in response', async () => {
     const result = await listAgents()
 
-    expect(result.data?.hostInfo).toEqual({
+    expect((result.data as any)?.hostInfo).toEqual({
       id: 'test-host',
       name: 'Test Host',
       url: 'http://localhost:23000',
@@ -264,7 +265,7 @@ describe('searchAgentsByQuery', () => {
     const result = searchAgentsByQuery('backend')
 
     expect(result.status).toBe(200)
-    expect(result.data?.agents).toHaveLength(1)
+    expect((result.data as any)?.agents).toHaveLength(1)
     expect(mockAgentRegistry.searchAgents).toHaveBeenCalledWith('backend')
   })
 
@@ -274,7 +275,7 @@ describe('searchAgentsByQuery', () => {
     const result = searchAgentsByQuery('nonexistent')
 
     expect(result.status).toBe(200)
-    expect(result.data?.agents).toEqual([])
+    expect((result.data as any)?.agents).toEqual([])
   })
 })
 
@@ -294,7 +295,7 @@ describe('createNewAgent', () => {
     })
 
     expect(result.status).toBe(201)
-    expect(result.data?.agent.name).toBe('new-agent')
+    expect((result.data as any)?.agent.name).toBe('new-agent')
   })
 
   it('returns 400 when createAgent throws (e.g., duplicate name)', () => {
@@ -307,7 +308,7 @@ describe('createNewAgent', () => {
     })
 
     expect(result.status).toBe(400)
-    expect(result.error).toMatch(/already exists/i)
+    expect((result.data as ServiceError).message).toMatch(/already exists/i)
   })
 })
 
@@ -323,7 +324,7 @@ describe('getAgentById', () => {
     const result = getAgentById('agent-1')
 
     expect(result.status).toBe(200)
-    expect(result.data?.agent.name).toBe('found')
+    expect((result.data as any)?.agent.name).toBe('found')
   })
 
   it('returns 404 when agent not found', () => {
@@ -357,7 +358,7 @@ describe('updateAgentById', () => {
     const result = updateAgentById('agent-1', { taskDescription: 'Updated task' })
 
     expect(result.status).toBe(200)
-    expect(result.data?.agent.taskDescription).toBe('Updated task')
+    expect((result.data as any)?.agent.taskDescription).toBe('Updated task')
   })
 
   it('returns 404 when agent not found', () => {
@@ -375,7 +376,7 @@ describe('updateAgentById', () => {
     const result = updateAgentById('agent-1', { taskDescription: 'X' })
 
     expect(result.status).toBe(410)
-    expect(result.error).toMatch(/deleted/i)
+    expect((result.data as ServiceError).message).toMatch(/deleted/i)
   })
 
   it('returns 400 when updateAgent throws (e.g., duplicate name)', () => {
@@ -386,7 +387,7 @@ describe('updateAgentById', () => {
     const result = updateAgentById('agent-1', { name: 'taken' })
 
     expect(result.status).toBe(400)
-    expect(result.error).toBe('Name taken')
+    expect((result.data as ServiceError).message).toBe('Name taken')
   })
 })
 
@@ -403,8 +404,8 @@ describe('deleteAgentById', () => {
     const result = deleteAgentById('agent-1', false)
 
     expect(result.status).toBe(200)
-    expect(result.data?.success).toBe(true)
-    expect(result.data?.hard).toBe(false)
+    expect((result.data as any)?.success).toBe(true)
+    expect((result.data as any)?.hard).toBe(false)
   })
 
   it('hard deletes agent', () => {
@@ -415,7 +416,7 @@ describe('deleteAgentById', () => {
     const result = deleteAgentById('agent-1', true)
 
     expect(result.status).toBe(200)
-    expect(result.data?.hard).toBe(true)
+    expect((result.data as any)?.hard).toBe(true)
   })
 
   it('returns 404 when agent not found', () => {
@@ -433,7 +434,7 @@ describe('deleteAgentById', () => {
     const result = deleteAgentById('agent-1', false)
 
     expect(result.status).toBe(410)
-    expect(result.error).toMatch(/already deleted/i)
+    expect((result.data as ServiceError).message).toMatch(/deleted/i)
   })
 
   it('allows hard delete of already soft-deleted agent', () => {
@@ -460,8 +461,8 @@ describe('registerAgent', () => {
     const result = registerAgent({ sessionName: 'my-agent', workingDirectory: '/home' })
 
     expect(result.status).toBe(200)
-    expect(result.data?.success).toBe(true)
-    expect(result.data?.agentId).toBe('my-agent')
+    expect((result.data as any)?.success).toBe(true)
+    expect((result.data as any)?.agentId).toBe('my-agent')
   })
 
   it('links existing agent when found by session', () => {
@@ -473,7 +474,7 @@ describe('registerAgent', () => {
 
     expect(result.status).toBe(200)
     expect(mockAgentRegistry.linkSession).toHaveBeenCalledWith('existing-id', 'my-agent', expect.any(String))
-    expect(result.data?.registryAgent?.id).toBe('existing-id')
+    expect((result.data as any)?.registryAgent?.id).toBe('existing-id')
   })
 
   it('registers cloud agent with websocket URL', () => {
@@ -485,7 +486,7 @@ describe('registerAgent', () => {
     })
 
     expect(result.status).toBe(200)
-    expect(result.data?.agentId).toBe('cloud-agent')
+    expect((result.data as any)?.agentId).toBe('cloud-agent')
   })
 
   it('returns 400 when session name is missing (worktree format)', () => {
@@ -500,7 +501,7 @@ describe('registerAgent', () => {
     const result = registerAgent({ id: 'cloud', deployment: {} as any })
 
     expect(result.status).toBe(400)
-    expect(result.error).toMatch(/missing/i)
+    expect((result.data as ServiceError).message).toMatch(/required/i)
   })
 
   it('saves agent config to file', () => {
@@ -526,8 +527,8 @@ describe('lookupAgentByName', () => {
     const result = lookupAgentByName('my-agent')
 
     expect(result.status).toBe(200)
-    expect(result.data?.exists).toBe(true)
-    expect(result.data?.agent?.name).toBe('my-agent')
+    expect((result.data as any)?.exists).toBe(true)
+    expect((result.data as any)?.agent?.name).toBe('my-agent')
   })
 
   it('returns exists=false when agent not resolved', () => {
@@ -536,7 +537,7 @@ describe('lookupAgentByName', () => {
     const result = lookupAgentByName('unknown')
 
     expect(result.status).toBe(200)
-    expect(result.data?.exists).toBe(false)
+    expect((result.data as any)?.exists).toBe(false)
   })
 
   it('returns exists=false when resolved but not in registry', () => {
@@ -546,7 +547,7 @@ describe('lookupAgentByName', () => {
     const result = lookupAgentByName('gone-agent')
 
     expect(result.status).toBe(200)
-    expect(result.data?.exists).toBe(false)
+    expect((result.data as any)?.exists).toBe(false)
   })
 })
 
@@ -565,8 +566,8 @@ describe('wakeAgent', () => {
     const result = await wakeAgent('agent-1', { startProgram: false })
 
     expect(result.status).toBe(200)
-    expect(result.data?.woken).toBe(true)
-    expect(result.data?.sessionName).toBe('my-agent')
+    expect((result.data as any)?.woken).toBe(true)
+    expect((result.data as any)?.sessionName).toBe('my-agent')
     expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', '/home')
   })
 
@@ -579,7 +580,7 @@ describe('wakeAgent', () => {
     const result = await wakeAgent('agent-1', {})
 
     expect(result.status).toBe(200)
-    expect(result.data?.alreadyRunning).toBe(true)
+    expect((result.data as any)?.alreadyRunning).toBe(true)
     expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 
@@ -632,8 +633,8 @@ describe('wakeAgent', () => {
 
     const result = await wakeAgent('agent-1', { sessionIndex: 2, startProgram: false })
 
-    expect(result.data?.sessionName).toBe('my-agent_2')
-    expect(result.data?.sessionIndex).toBe(2)
+    expect((result.data as any)?.sessionName).toBe('my-agent_2')
+    expect((result.data as any)?.sessionIndex).toBe(2)
   })
 
   it('returns 500 when tmux session creation fails', async () => {
@@ -662,7 +663,7 @@ describe('hibernateAgent', () => {
     const result = await hibernateAgent('agent-1', {})
 
     expect(result.status).toBe(200)
-    expect(result.data?.hibernated).toBe(true)
+    expect((result.data as any)?.hibernated).toBe(true)
     expect(mockRuntime.killSession).toHaveBeenCalledWith('my-agent')
   })
 
@@ -675,8 +676,8 @@ describe('hibernateAgent', () => {
     const result = await hibernateAgent('agent-1', {})
 
     expect(result.status).toBe(200)
-    expect(result.data?.hibernated).toBe(true)
-    expect(result.data?.message).toMatch(/already terminated/i)
+    expect((result.data as any)?.hibernated).toBe(true)
+    expect((result.data as any)?.message).toMatch(/already terminated/i)
   })
 
   it('returns 404 when agent not found', async () => {
@@ -734,9 +735,9 @@ describe('sendAgentSessionCommand', () => {
     const result = await sendAgentSessionCommand('agent-1', { command: 'ls -la' })
 
     expect(result.status).toBe(200)
-    expect(result.data?.success).toBe(true)
-    expect(result.data?.commandSent).toBe('ls -la')
-    expect(result.data?.sessionName).toBe('my-agent')
+    expect((result.data as any)?.success).toBe(true)
+    expect((result.data as any)?.commandSent).toBe('ls -la')
+    expect((result.data as any)?.sessionName).toBe('my-agent')
   })
 
   it('returns 409 when session is busy', async () => {
@@ -748,7 +749,7 @@ describe('sendAgentSessionCommand', () => {
     const result = await sendAgentSessionCommand('agent-1', { command: 'ls' })
 
     expect(result.status).toBe(409)
-    expect(result.error).toMatch(/not idle/i)
+    expect((result.data as any)?.idle).toBe(false)
   })
 
   it('allows command when requireIdle is false', async () => {
@@ -816,7 +817,7 @@ describe('sendAgentSessionCommand', () => {
     const result = await sendAgentSessionCommand('agent-1', { command: 'ls' })
 
     expect(result.status).toBe(400)
-    expect(result.error).toMatch(/no name/i)
+    expect((result.data as ServiceError).message).toMatch(/no name/i)
   })
 })
 
@@ -831,7 +832,7 @@ describe('linkAgentSession', () => {
     const result = linkAgentSession('agent-1', { sessionName: 'my-session' })
 
     expect(result.status).toBe(200)
-    expect(result.data?.success).toBe(true)
+    expect((result.data as any)?.success).toBe(true)
   })
 
   it('returns 400 when sessionName is missing', () => {
@@ -862,7 +863,7 @@ describe('unlinkOrDeleteAgentSession', () => {
     const result = await unlinkOrDeleteAgentSession('agent-1', {})
 
     expect(result.status).toBe(200)
-    expect(result.data?.sessionUnlinked).toBe(true)
+    expect((result.data as any)?.sessionUnlinked).toBe(true)
   })
 
   it('kills session and unlinks when kill=true', async () => {
@@ -874,7 +875,7 @@ describe('unlinkOrDeleteAgentSession', () => {
     const result = await unlinkOrDeleteAgentSession('agent-1', { kill: true })
 
     expect(result.status).toBe(200)
-    expect(result.data?.sessionKilled).toBe(true)
+    expect((result.data as any)?.sessionKilled).toBe(true)
     expect(mockRuntime.killSession).toHaveBeenCalledWith('my-agent')
   })
 
@@ -886,7 +887,7 @@ describe('unlinkOrDeleteAgentSession', () => {
     const result = await unlinkOrDeleteAgentSession('agent-1', { deleteAgent: true })
 
     expect(result.status).toBe(200)
-    expect(result.data?.deleted).toBe(true)
+    expect((result.data as any)?.deleted).toBe(true)
     expect(mockAgentRegistry.deleteAgent).toHaveBeenCalledWith('agent-1', true)
   })
 
@@ -922,8 +923,8 @@ describe('getAgentSessionStatus', () => {
     const result = await getAgentSessionStatus('agent-1')
 
     expect(result.status).toBe(200)
-    expect(result.data?.hasSession).toBe(true)
-    expect(result.data?.exists).toBe(true)
+    expect((result.data as any)?.hasSession).toBe(true)
+    expect((result.data as any)?.exists).toBe(true)
   })
 
   it('returns hasSession=false when agent has no name', async () => {
@@ -933,7 +934,7 @@ describe('getAgentSessionStatus', () => {
     const result = await getAgentSessionStatus('agent-1')
 
     expect(result.status).toBe(200)
-    expect(result.data?.hasSession).toBe(false)
+    expect((result.data as any)?.hasSession).toBe(false)
   })
 
   it('returns 404 when agent not found', async () => {
@@ -952,7 +953,7 @@ describe('getAgentSessionStatus', () => {
 
     const result = await getAgentSessionStatus('agent-1')
 
-    expect(result.data?.idle).toBe(true)
+    expect((result.data as any)?.idle).toBe(true)
   })
 })
 
@@ -970,8 +971,8 @@ describe('initializeStartup', () => {
     const result = await initializeStartup()
 
     expect(result.status).toBe(200)
-    expect(result.data?.initialized).toHaveLength(2)
-    expect(result.data?.failed).toHaveLength(0)
+    expect((result.data as any)?.initialized).toHaveLength(2)
+    expect((result.data as any)?.failed).toHaveLength(0)
   })
 
   it('reports partial failures', async () => {
@@ -983,7 +984,7 @@ describe('initializeStartup', () => {
     const result = await initializeStartup()
 
     expect(result.status).toBe(200)
-    expect(result.data?.failed).toHaveLength(1)
+    expect((result.data as any)?.failed).toHaveLength(1)
   })
 
   it('returns 500 on unexpected error', async () => {
@@ -1006,7 +1007,7 @@ describe('getStartupInfo', () => {
     const result = getStartupInfo()
 
     expect(result.status).toBe(200)
-    expect(result.data?.initialized).toBe(true)
+    expect((result.data as any)?.initialized).toBe(true)
   })
 
   it('returns 500 on error', () => {

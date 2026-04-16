@@ -105,7 +105,7 @@ export default function HelpPanel({ isOpen, onClose }: HelpPanelProps) {
         }
       } else {
         setAgentStatus('error')
-        setAgentError(data.error || 'Failed to create assistant')
+        setAgentError(data.message || data.error || 'Failed to create assistant')
       }
     } catch (err) {
       setAgentStatus('error')

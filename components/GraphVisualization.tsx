@@ -97,7 +97,7 @@ export function GraphVisualization({ agentId, graphType, onNodeSelect }: GraphVi
       const data = await response.json()
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch graph data')
+        throw new Error(data.message || data.error || 'Failed to fetch graph data')
       }
 
       setGraphData(data.result)

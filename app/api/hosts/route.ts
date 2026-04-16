@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { listHosts, addNewHost } from '@/services/hosts-service'
+import { toResponse } from '@/app/api/_helpers'
 
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
@@ -11,10 +12,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   const result = await listHosts()
-  if (result.error) {
-    return NextResponse.json({ error: result.error, hosts: [] }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }
 
 /**
@@ -27,8 +25,5 @@ export async function POST(request: NextRequest) {
   const host = await request.json()
 
   const result = await addNewHost({ host, syncEnabled })
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

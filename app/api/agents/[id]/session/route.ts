@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import {
   getAgentSessionStatus,
   linkAgentSession,
   sendAgentSessionCommand,
   unlinkOrDeleteAgentSession,
 } from '@/services/agents-core-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * POST /api/agents/[id]/session
@@ -17,11 +18,7 @@ export async function POST(
   const { id } = await params
   const body = await request.json()
   const result = linkAgentSession(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -41,22 +38,7 @@ export async function PATCH(
     addNewline: body.addNewline,
   })
 
-  if (result.error && result.status !== 409) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-
-  // For 409 (not idle), include data + error together
-  if (result.status === 409) {
-    return NextResponse.json(
-      { success: false, error: result.error, ...result.data },
-      { status: 409 }
-    )
-  }
-
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -69,14 +51,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = await getAgentSessionStatus(id)
-
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -95,8 +70,5 @@ export async function DELETE(
     deleteAgent: searchParams.get('deleteAgent') === 'true',
   })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

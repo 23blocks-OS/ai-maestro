@@ -9,6 +9,7 @@
 
 import { NextResponse } from 'next/server'
 import { getPlaybackState, controlPlayback } from '@/services/agents-playback-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   request: Request,
@@ -19,10 +20,7 @@ export async function GET(
     const sessionId = searchParams.get('sessionId')
 
     const result = getPlaybackState(params.id, sessionId)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Playback API] Failed to get playback state:', error)
     return NextResponse.json(
@@ -39,10 +37,7 @@ export async function POST(
   try {
     const body = await request.json()
     const result = controlPlayback(params.id, body)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('[Playback API] Failed to control playback:', error)
     return NextResponse.json(

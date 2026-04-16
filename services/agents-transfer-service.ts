@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { execSync } from 'child_process'
 import type { Agent, Repository } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
+import { type ServiceResult, notFound, missingField, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -25,14 +26,6 @@ const VERSION_FILE = path.join(process.cwd(), 'version.json')
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
 const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
 
 export interface TransferRequest {
   targetHostId: string
@@ -294,12 +287,12 @@ function resolveAgent(idOrName: string): Agent | null {
 export async function exportAgentZip(agentIdOrName: string): Promise<ServiceResult<ExportZipResult>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   const agentName = agent.name || agent.alias
   if (!agentName) {
-    return { error: 'Agent has no name configured', status: 400 }
+    return invalidRequest('Agent has no name configured')
   }
 
   // Paths to agent data
@@ -511,29 +504,29 @@ export function createTranscriptExportJob(
 ): ServiceResult<Record<string, unknown>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   const { format, sessionId, startDate, endDate } = body
 
   if (!format) {
-    return { error: 'Missing required parameter: format', status: 400 }
+    return missingField('format')
   }
 
   if (!['json', 'markdown', 'plaintext'].includes(format)) {
-    return { error: 'Invalid format. Must be: json, markdown, or plaintext', status: 400 }
+    return invalidField('format', 'Invalid format. Must be: json, markdown, or plaintext')
   }
 
   if (startDate && isNaN(Date.parse(startDate))) {
-    return { error: 'Invalid startDate format. Must be ISO 8601 timestamp', status: 400 }
+    return invalidField('startDate', 'Invalid startDate format. Must be ISO 8601 timestamp')
   }
 
   if (endDate && isNaN(Date.parse(endDate))) {
-    return { error: 'Invalid endDate format. Must be ISO 8601 timestamp', status: 400 }
+    return invalidField('endDate', 'Invalid endDate format. Must be ISO 8601 timestamp')
   }
 
   if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId))) {
-    return { error: 'Session not found for this agent', status: 404 }
+    return notFound('Session')
   }
 
   console.log(
@@ -600,7 +593,7 @@ export async function importAgent(
     // Read manifest
     const manifestPath = path.join(tempDir, 'manifest.json')
     if (!fs.existsSync(manifestPath)) {
-      return { error: 'Invalid agent export: missing manifest.json', status: 400 }
+      return invalidRequest('Invalid agent export: missing manifest.json')
     }
 
     const manifest: AgentExportManifest = JSON.parse(
@@ -615,7 +608,7 @@ export async function importAgent(
     // Read registry
     const registryPath = path.join(tempDir, 'registry.json')
     if (!fs.existsSync(registryPath)) {
-      return { error: 'Invalid agent export: missing registry.json', status: 400 }
+      return invalidRequest('Invalid agent export: missing registry.json')
     }
 
     const importedAgent: Agent = JSON.parse(
@@ -624,7 +617,7 @@ export async function importAgent(
 
     const importedAgentName = importedAgent.name || importedAgent.alias
     if (!importedAgentName) {
-      return { error: 'Invalid agent export: agent has no name', status: 400 }
+      return invalidRequest('Invalid agent export: agent has no name')
     }
 
     // Check for name conflict
@@ -984,13 +977,13 @@ export async function transferAgent(
 ): Promise<ServiceResult<TransferResult>> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
-    return { error: 'Agent not found', status: 404 }
+    return notFound('Agent', agentIdOrName)
   }
 
   const { targetHostUrl, mode, newAlias, cloneRepositories } = body
 
   if (!targetHostUrl) {
-    return { error: 'Target host URL required', status: 400 }
+    return missingField('targetHostUrl')
   }
 
   let normalizedUrl = targetHostUrl.trim()
@@ -1005,7 +998,7 @@ export async function transferAgent(
 
   if (!exportResponse.ok) {
     const errorText = await exportResponse.text()
-    return { error: `Failed to export agent: ${errorText}`, status: 500 }
+    return operationFailed('export agent', errorText)
   }
 
   const exportBuffer = Buffer.from(await exportResponse.arrayBuffer())
@@ -1038,7 +1031,7 @@ export async function transferAgent(
     } catch {
       errorMessage = errorText || errorMessage
     }
-    return { error: errorMessage, status: 500 }
+    return operationFailed('import on target host', errorMessage)
   }
 
   const importResult = await importResponse.json()

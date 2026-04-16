@@ -9,9 +9,9 @@
  * GET /api/marketplace/skills?includeContent=true - Include full SKILL.md content
  */
 
-import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { listMarketplaceSkills } from '@/services/marketplace-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -24,12 +24,5 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await listMarketplaceSkills(params)
-
-  if (result.error) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
-    )
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

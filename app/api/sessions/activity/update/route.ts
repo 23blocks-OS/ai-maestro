@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { broadcastActivityUpdate } from '@/services/sessions-service'
+import { toResponse } from '@/app/api/_helpers'
 
 // Disable caching
 export const dynamic = 'force-dynamic'
@@ -13,15 +14,7 @@ export async function POST(request: NextRequest) {
     const { sessionName, status, hookStatus, notificationType } = await request.json()
 
     const result = broadcastActivityUpdate(sessionName, status, hookStatus, notificationType)
-
-    if (result.error) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
-      )
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('[Activity Update API] Error:', error)
     return NextResponse.json(

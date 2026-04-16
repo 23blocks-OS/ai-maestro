@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { queryCodeGraph, indexCodeGraph, deleteCodeGraph } from '@/services/agents-graph-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/graph/code
@@ -22,10 +23,7 @@ export async function GET(
     depth: parseInt(searchParams.get('depth') || '1', 10),
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -50,11 +48,7 @@ export async function POST(
   }
 
   const result = await indexCodeGraph(agentId, body)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -69,9 +63,5 @@ export async function DELETE(
   const projectPath = request.nextUrl.searchParams.get('project') || ''
 
   const result = await deleteCodeGraph(agentId, projectPath)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

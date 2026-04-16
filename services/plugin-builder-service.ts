@@ -18,7 +18,7 @@ import os from 'os'
 import { execFile } from 'child_process'
 import { randomUUID } from 'crypto'
 import matter from 'gray-matter'
-import type { ServiceResult } from '@/services/marketplace-service'
+import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 import type {
   PluginBuildConfig,
   PluginBuildResult,
@@ -308,12 +308,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // Validate inputs (protects both Next.js routes and headless router)
   const validationError = validateBuildConfig(config)
   if (validationError) {
-    return { error: validationError, status: 400 }
+    return invalidRequest(validationError)
   }
 
   // Concurrency guard
   if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
+    return invalidRequest('Too many concurrent builds. Please wait and try again.')
   }
 
   try {
@@ -383,7 +383,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   } catch (error) {
     activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
-    return { error: 'Failed to start plugin build', status: 500 }
+    return operationFailed('start plugin build')
   }
 }
 
@@ -392,11 +392,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
  */
 export async function getBuildStatus(buildId: string): Promise<ServiceResult<PluginBuildResult>> {
   if (!buildId || typeof buildId !== 'string') {
-    return { error: 'Build ID is required', status: 400 }
+    return missingField('buildId')
   }
   const result = buildResults.get(buildId)
   if (!result) {
-    return { error: 'Build not found', status: 404 }
+    return notFound('Build', buildId)
   }
   return { data: result, status: 200 }
 }
@@ -408,15 +408,15 @@ export async function getBuildStatus(buildId: string): Promise<ServiceResult<Plu
 export async function scanRepo(url: string, ref: string = 'main'): Promise<ServiceResult<RepoScanResult>> {
   // Validate URL
   const urlErr = validateGitUrl(url)
-  if (urlErr) return { error: urlErr, status: 400 }
+  if (urlErr) return invalidField('url', urlErr)
 
   // Validate ref
   const refErr = validateGitRef(ref)
-  if (refErr) return { error: refErr, status: 400 }
+  if (refErr) return invalidField('ref', refErr)
 
   // Concurrency guard
   if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
+    return invalidRequest('Too many concurrent operations. Please wait and try again.')
   }
 
   const scanId = randomUUID().slice(0, 8)
@@ -451,10 +451,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     const message = error instanceof Error ? error.message : String(error)
 
     if (exitCode === 128 || message.includes('not found')) {
-      return { error: `Repository not found or access denied: ${url}`, status: 404 }
+      return notFound('Repository', url)
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${message}`, status: 500 }
+    return operationFailed('scan repository', message)
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -466,24 +466,24 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
 export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceResult<PluginPushResult>> {
   // Validate fork URL
   if (!config.forkUrl || typeof config.forkUrl !== 'string') {
-    return { error: 'Fork URL is required', status: 400 }
+    return missingField('forkUrl')
   }
   const urlErr = validateGitUrl(config.forkUrl)
-  if (urlErr) return { error: urlErr, status: 400 }
+  if (urlErr) return invalidField('forkUrl', urlErr)
 
   // Validate manifest
   if (!config.manifest || typeof config.manifest !== 'object') {
-    return { error: 'Manifest is required', status: 400 }
+    return missingField('manifest')
   }
 
   // Validate branch
   const branch = config.branch || 'main'
   const refErr = validateGitRef(branch)
-  if (refErr) return { error: refErr, status: 400 }
+  if (refErr) return invalidField('branch', refErr)
 
   // Concurrency guard
   if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
+    return invalidRequest('Too many concurrent operations. Please wait and try again.')
   }
 
   const pushId = randomUUID().slice(0, 8)
@@ -543,7 +543,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
     console.error('Error pushing to GitHub:', error)
-    return { error: `Failed to push to GitHub: ${message}`, status: 500 }
+    return operationFailed('push to GitHub', message)
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }

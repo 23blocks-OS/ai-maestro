@@ -70,16 +70,7 @@ import type { MemoryCategory } from '@/lib/cozo-schema-memory'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, accessDenied, operationFailed } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -250,10 +241,7 @@ export async function getMemory(agentId: string): Promise<ServiceResult<any>> {
     }
   } catch (error) {
     console.error('[Memory Service] getMemory Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('get memory', (error as Error).message)
   }
 }
 
@@ -454,10 +442,7 @@ export async function initializeMemory(
     }
   } catch (error) {
     console.error('[Memory Service] initializeMemory Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('initialize memory', (error as Error).message)
   }
 }
 
@@ -522,10 +507,7 @@ export async function getConsolidationStatus(agentId: string): Promise<ServiceRe
     }
   } catch (error) {
     console.error('[Memory Service] getConsolidationStatus Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('get consolidation status', (error as Error).message)
   }
 }
 
@@ -577,10 +559,7 @@ export async function triggerConsolidation(
     }
   } catch (error) {
     console.error('[Memory Service] triggerConsolidation Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('trigger consolidation', (error as Error).message)
   }
 }
 
@@ -617,17 +596,11 @@ export async function manageConsolidation(
       }
 
       default:
-        return {
-          error: `Unknown action: ${body.action}`,
-          status: 400
-        }
+        return invalidRequest(`Unknown action: ${body.action}`)
     }
   } catch (error) {
     console.error('[Memory Service] manageConsolidation Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('manage consolidation', (error as Error).message)
   }
 }
 
@@ -717,7 +690,7 @@ export async function queryLongTermMemories(
     if (memoryId) {
       const memory = await getMemoryById(agentDb, memoryId)
       if (!memory) {
-        return { error: 'Memory not found', status: 404 }
+        return notFound('Memory', memoryId)
       }
       return { data: { success: true, agent_id: agentId, memory }, status: 200 }
     }
@@ -750,17 +723,14 @@ export async function queryLongTermMemories(
     return { data: { success: true, agent_id: agentId, memories, count: memories.length }, status: 200 }
   } catch (error) {
     console.error('[Memory Service] queryLongTermMemories Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('query long-term memories', (error as Error).message)
   }
 }
 
 export async function deleteLongTermMemory(agentId: string, memoryId: string): Promise<ServiceResult<any>> {
   try {
     if (!memoryId) {
-      return { error: 'Memory ID is required', status: 400 }
+      return missingField('memoryId')
     }
 
     const agent = await agentRegistry.getAgent(agentId)
@@ -768,11 +738,11 @@ export async function deleteLongTermMemory(agentId: string, memoryId: string): P
 
     const memory = await getMemoryById(agentDb, memoryId)
     if (!memory) {
-      return { error: 'Memory not found', status: 404 }
+      return notFound('Memory', memoryId)
     }
 
     if (memory.agent_id !== agentId) {
-      return { error: 'Memory does not belong to this agent', status: 403 }
+      return accessDenied('Memory does not belong to this agent')
     }
 
     await agentDb.run(`?[memory_id] <- [['${memoryId}']] :delete memories`)
@@ -793,10 +763,7 @@ export async function deleteLongTermMemory(agentId: string, memoryId: string): P
     return { data: { success: true, deleted: memoryId }, status: 200 }
   } catch (error) {
     console.error('[Memory Service] deleteLongTermMemory Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('delete long-term memory', (error as Error).message)
   }
 }
 
@@ -808,11 +775,11 @@ export async function updateLongTermMemory(
     const { id: memoryId, content, category, context } = body
 
     if (!memoryId) {
-      return { error: 'Memory ID is required', status: 400 }
+      return missingField('id')
     }
 
     if (!content && !category && context === undefined) {
-      return { error: 'At least one field (content, category, context) must be provided', status: 400 }
+      return invalidRequest('At least one field (content, category, context) must be provided')
     }
 
     const agent = await agentRegistry.getAgent(agentId)
@@ -820,11 +787,11 @@ export async function updateLongTermMemory(
 
     const memory = await getMemoryById(agentDb, memoryId)
     if (!memory) {
-      return { error: 'Memory not found', status: 404 }
+      return notFound('Memory', memoryId)
     }
 
     if (memory.agent_id !== agentId) {
-      return { error: 'Memory does not belong to this agent', status: 403 }
+      return accessDenied('Memory does not belong to this agent')
     }
 
     const newContent = content || memory.content
@@ -865,10 +832,7 @@ export async function updateLongTermMemory(
     return { data: { success: true, memory: updatedMemory }, status: 200 }
   } catch (error) {
     console.error('[Memory Service] updateLongTermMemory Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('update long-term memory', (error as Error).message)
   }
 }
 
@@ -900,11 +864,11 @@ export async function searchConversations(
     } = params
 
     if (!query) {
-      return { error: 'Missing required parameter: q (query)', status: 400 }
+      return missingField('q')
     }
 
     if (!['hybrid', 'semantic', 'term', 'symbol'].includes(mode)) {
-      return { error: 'Invalid mode. Must be: hybrid, semantic, term, or symbol', status: 400 }
+      return invalidField('mode', 'Mode must be: hybrid, semantic, term, or symbol')
     }
 
     // Trigger delta indexing before search
@@ -942,10 +906,7 @@ export async function searchConversations(
     }
   } catch (error) {
     console.error('[Memory Service] searchConversations Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('search conversations', (error as Error).message)
   }
 }
 
@@ -957,7 +918,7 @@ export async function ingestConversations(
     const { conversationFiles, batchSize = 10 } = body
 
     if (!conversationFiles || !Array.isArray(conversationFiles)) {
-      return { error: 'Missing or invalid conversationFiles array', status: 400 }
+      return invalidField('conversationFiles', 'conversationFiles must be an array')
     }
 
     const agent = await agentRegistry.getAgent(agentId)
@@ -978,10 +939,7 @@ export async function ingestConversations(
     }
   } catch (error) {
     console.error('[Memory Service] ingestConversations Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('ingest conversations', (error as Error).message)
   }
 }
 
@@ -1022,10 +980,7 @@ export async function getTracking(agentId: string): Promise<ServiceResult<any>> 
     }
   } catch (error) {
     console.error('[Memory Service] getTracking Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('get tracking', (error as Error).message)
   }
 }
 
@@ -1092,10 +1047,7 @@ export async function initializeTracking(
     }
   } catch (error) {
     console.error('[Memory Service] initializeTracking Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500
-    }
+    return operationFailed('initialize tracking', (error as Error).message)
   }
 }
 
@@ -1107,12 +1059,12 @@ export function getMetrics(agentId: string): ServiceResult<any> {
   try {
     const agent = getAgentFromFileRegistry(agentId)
     if (!agent) {
-      return { error: 'Agent not found', status: 404 }
+      return notFound('Agent', agentId)
     }
     return { data: { metrics: agent.metrics || {} }, status: 200 }
   } catch (error) {
     console.error('Failed to get agent metrics:', error)
-    return { error: 'Failed to get agent metrics', status: 500 }
+    return operationFailed('get agent metrics', (error as Error).message)
   }
 }
 
@@ -1126,7 +1078,7 @@ export function updateMetrics(
     if (action === 'increment' && metric) {
       const success = incrementAgentMetric(agentId, metric as any, amount || 1)
       if (!success) {
-        return { error: 'Agent not found', status: 404 }
+        return notFound('Agent', agentId)
       }
       const agent = getAgentFromFileRegistry(agentId)
       return { data: { metrics: agent?.metrics }, status: 200 }
@@ -1134,13 +1086,12 @@ export function updateMetrics(
 
     const agent = updateAgentMetrics(agentId, metrics as UpdateAgentMetricsRequest)
     if (!agent) {
-      return { error: 'Agent not found', status: 404 }
+      return notFound('Agent', agentId)
     }
 
     return { data: { metrics: agent.metrics }, status: 200 }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update metrics'
     console.error('Failed to update agent metrics:', error)
-    return { error: message, status: 400 }
+    return invalidRequest((error as Error).message)
   }
 }

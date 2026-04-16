@@ -173,11 +173,11 @@ describe('getHealthStatus', () => {
     const result = getHealthStatus()
 
     expect(result.status).toBe(200)
-    expect(result.data?.status).toBe('healthy')
-    expect(result.data?.agents_online).toBe(1)
-    expect(result.data?.provider).toBe('testorg.aimaestro.local')
-    expect(result.data?.version).toBe('0.1.3')
-    expect(result.data?.uptime_seconds).toBeGreaterThanOrEqual(0)
+    expect((result.data as any)?.status).toBe('healthy')
+    expect((result.data as any)?.agents_online).toBe(1)
+    expect((result.data as any)?.provider).toBe('testorg.aimaestro.local')
+    expect((result.data as any)?.version).toBe('0.1.3')
+    expect((result.data as any)?.uptime_seconds).toBeGreaterThanOrEqual(0)
   })
 
   it('returns unhealthy on error', () => {
@@ -186,8 +186,8 @@ describe('getHealthStatus', () => {
     const result = getHealthStatus()
 
     expect(result.status).toBe(503)
-    expect(result.data?.status).toBe('unhealthy')
-    expect(result.data?.agents_online).toBe(0)
+    expect((result.data as any)?.status).toBe('unhealthy')
+    expect((result.data as any)?.agents_online).toBe(0)
   })
 
   it('includes no-cache headers', () => {
@@ -206,14 +206,14 @@ describe('getProviderInfo', () => {
     const result = getProviderInfo()
 
     expect(result.status).toBe(200)
-    expect(result.data?.provider).toBe('testorg.aimaestro.local')
-    expect(result.data?.version).toBe('amp/0.1.3')
-    expect(result.data?.capabilities).toContain('registration')
-    expect(result.data?.capabilities).toContain('local-delivery')
-    expect(result.data?.capabilities).toContain('relay-queue')
-    expect(result.data?.capabilities).toContain('mesh-routing')
-    expect(result.data?.registration_modes).toEqual(['open'])
-    expect(result.data?.rate_limits).toBeDefined()
+    expect((result.data as any)?.provider).toBe('testorg.aimaestro.local')
+    expect((result.data as any)?.version).toBe('amp/0.1.3')
+    expect((result.data as any)?.capabilities).toContain('registration')
+    expect((result.data as any)?.capabilities).toContain('local-delivery')
+    expect((result.data as any)?.capabilities).toContain('relay-queue')
+    expect((result.data as any)?.capabilities).toContain('mesh-routing')
+    expect((result.data as any)?.registration_modes).toEqual(['open'])
+    expect((result.data as any)?.rate_limits).toBeDefined()
   })
 
   it('includes cache headers', () => {
@@ -381,13 +381,13 @@ describe('listAMPAgents', () => {
     const result = listAMPAgents('Bearer test-key')
 
     expect(result.status).toBe(200)
-    expect(result.data.agents).toHaveLength(1)
-    expect(result.data.agents[0]).toEqual({
+    expect((result.data as any).agents).toHaveLength(1)
+    expect((result.data as any).agents[0]).toEqual({
       address: 'alice@testorg.aimaestro.local',
       alias: 'Alice Bot',
       online: true,
     })
-    expect(result.data.total).toBe(1)
+    expect((result.data as any).total).toBe(1)
   })
 
   it('filters by search term', () => {
@@ -399,8 +399,8 @@ describe('listAMPAgents', () => {
     const result = listAMPAgents('Bearer test-key', 'bob')
 
     expect(result.status).toBe(200)
-    expect(result.data.agents).toHaveLength(1)
-    expect(result.data.total).toBe(1)
+    expect((result.data as any).agents).toHaveLength(1)
+    expect((result.data as any).total).toBe(1)
   })
 
   it('filters by tenant', () => {
@@ -412,7 +412,7 @@ describe('listAMPAgents', () => {
     const result = listAMPAgents('Bearer test-key')
 
     expect(result.status).toBe(200)
-    expect(result.data.agents).toHaveLength(1)
+    expect((result.data as any).agents).toHaveLength(1)
   })
 })
 
@@ -453,9 +453,9 @@ describe('getAgentSelf', () => {
     const result = getAgentSelf('Bearer test-key')
 
     expect(result.status).toBe(200)
-    expect(result.data.address).toBe('alice@testorg.aimaestro.local')
-    expect(result.data.fingerprint).toBe('SHA256:abc')
-    expect(result.data.registered_at).toBe('2025-01-01T00:00:00.000Z')
+    expect((result.data as any).address).toBe('alice@testorg.aimaestro.local')
+    expect((result.data as any).fingerprint).toBe('SHA256:abc')
+    expect((result.data as any).registered_at).toBe('2025-01-01T00:00:00.000Z')
   })
 })
 
@@ -486,7 +486,7 @@ describe('getAgentCard', () => {
 
     const result = getAgentCard('Bearer test-key')
     expect(result.status).toBe(404)
-    expect(result.data.message).toContain('keypair')
+    expect((result.data as any).message).toContain('keypair')
   })
 
   it('returns a signed agent card', () => {
@@ -510,19 +510,19 @@ describe('getAgentCard', () => {
     const result = getAgentCard('Bearer test-key')
 
     expect(result.status).toBe(200)
-    expect(result.data.address).toBe('alice@testorg.aimaestro.local')
-    expect(result.data.name).toBe('alice')
-    expect(result.data.alias).toBe('Alice Bot')
-    expect(result.data.public_key).toBe(publicPem)
-    expect(result.data.fingerprint).toBe('SHA256:test-fp')
-    expect(result.data.provider).toBe('testorg.aimaestro.local')
-    expect(result.data.capabilities).toContain('messaging')
-    expect(result.data.capabilities).toContain('read_receipts')
-    expect(result.data.signed_at).toBeDefined()
-    expect(result.data.signature).toBeDefined()
-    expect(typeof result.data.signature).toBe('string')
+    expect((result.data as any).address).toBe('alice@testorg.aimaestro.local')
+    expect((result.data as any).name).toBe('alice')
+    expect((result.data as any).alias).toBe('Alice Bot')
+    expect((result.data as any).public_key).toBe(publicPem)
+    expect((result.data as any).fingerprint).toBe('SHA256:test-fp')
+    expect((result.data as any).provider).toBe('testorg.aimaestro.local')
+    expect((result.data as any).capabilities).toContain('messaging')
+    expect((result.data as any).capabilities).toContain('read_receipts')
+    expect((result.data as any).signed_at).toBeDefined()
+    expect((result.data as any).signature).toBeDefined()
+    expect(typeof (result.data as any).signature).toBe('string')
     // Verify signature is valid base64
-    expect(() => Buffer.from(result.data.signature, 'base64')).not.toThrow()
+    expect(() => Buffer.from((result.data as any).signature, 'base64')).not.toThrow()
   })
 
   it('signature verifies with the public key', () => {
@@ -546,12 +546,12 @@ describe('getAgentCard', () => {
     expect(result.status).toBe(200)
 
     // Verify the signature
-    const signable = `${result.data.address}|${result.data.public_key}|${result.data.signed_at}`
+    const signable = `${(result.data as any).address}|${(result.data as any).public_key}|${(result.data as any).signed_at}`
     const verified = crypto.verify(
       null,
       Buffer.from(signable),
       publicKey,
-      Buffer.from(result.data.signature, 'base64')
+      Buffer.from((result.data as any).signature, 'base64')
     )
     expect(verified).toBe(true)
   })
@@ -570,7 +570,7 @@ describe('getAgentCard', () => {
     })
 
     const result = getAgentCard('Bearer test-key')
-    expect(result.data.address).toBe('custom-addr@provider.com')
+    expect((result.data as any).address).toBe('custom-addr@provider.com')
   })
 })
 

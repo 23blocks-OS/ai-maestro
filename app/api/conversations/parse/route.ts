@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseConversationFile } from '@/services/config-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * POST /api/conversations/parse
@@ -13,15 +14,7 @@ export async function POST(request: NextRequest) {
     console.log('[Parse Conversation] Request for file:', conversationFile)
 
     const result = parseConversationFile(conversationFile)
-
-    if (result.error) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
-      )
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('[Parse Conversation] Error:', error)
     return NextResponse.json(

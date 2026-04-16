@@ -155,7 +155,7 @@ export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isA
         data = await response.json()
 
         if (!data.success) {
-          throw new Error(data.error || 'Failed to fetch memory after initialization')
+          throw new Error(data.message || data.error || 'Failed to fetch memory after initialization')
         }
       }
 

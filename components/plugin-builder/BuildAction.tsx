@@ -65,7 +65,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
       if (!res.ok) {
         const data = await res.json()
-        setError(data.error || 'Build failed')
+        setError(data.message || data.error || 'Build failed')
         setBuilding(false)
         return
       }
@@ -140,7 +140,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       const data = await res.json()
       setPushResult({
         ok: res.ok,
-        message: res.ok ? (data.message || 'Pushed successfully') : (data.error || 'Push failed'),
+        message: res.ok ? (data.message || 'Pushed successfully') : (data.message || data.error || 'Push failed'),
       })
     } catch {
       setPushResult({ ok: false, message: 'Failed to connect to server' })

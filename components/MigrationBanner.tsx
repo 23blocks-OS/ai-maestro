@@ -57,7 +57,7 @@ export default function MigrationBanner() {
           window.location.reload()
         }, 2000)
       } else {
-        setError(data.error || 'Migration failed')
+        setError(data.message || data.error || 'Migration failed')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Migration failed')

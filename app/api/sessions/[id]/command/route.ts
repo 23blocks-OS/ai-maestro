@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendCommand, checkIdleStatus } from '@/services/sessions-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * @deprecated Use /api/agents/[id]/session with PATCH method instead.
@@ -28,22 +29,7 @@ export async function POST(
       addNewline: body.addNewline,
     })
 
-    if (result.error && !result.data) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
-      )
-    }
-
-    if (result.error && result.data) {
-      // Session not idle case: has both data and error
-      return NextResponse.json(
-        { ...result.data, error: result.error },
-        { status: result.status }
-      )
-    }
-
-    return NextResponse.json(result.data, { status: result.status })
+    return toResponse(result)
   } catch (error) {
     console.error('[Session Command API] Error:', error)
     return NextResponse.json(

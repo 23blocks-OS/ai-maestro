@@ -52,7 +52,7 @@ export default function MeetingSidebar({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to hibernate agent')
+        throw new Error(data.message || data.error || 'Failed to hibernate agent')
       }
     } catch (error) {
       console.error('Failed to hibernate agent:', error)
@@ -91,7 +91,7 @@ export default function MeetingSidebar({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to wake agent')
+        throw new Error(data.message || data.error || 'Failed to wake agent')
       }
 
       setWakeDialogAgent(null)

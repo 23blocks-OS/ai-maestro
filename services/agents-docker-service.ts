@@ -9,16 +9,9 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { createAgent, loadAgents, saveAgents } from '@/lib/agent-registry'
 import { getHosts, isSelf } from '@/lib/hosts-config'
+import { type ServiceResult, missingField, operationFailed, invalidRequest, serviceError } from '@/services/service-errors'
 
 const execAsync = promisify(exec)
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
 
 export interface DockerCreateRequest {
   name: string
@@ -44,7 +37,7 @@ export interface DockerCreateRequest {
  */
 export async function createDockerAgent(body: DockerCreateRequest): Promise<ServiceResult<Record<string, unknown>>> {
   if (!body.name?.trim()) {
-    return { error: 'Agent name is required', status: 400 }
+    return missingField('name')
   }
 
   const name = body.name.trim().toLowerCase()
@@ -64,10 +57,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
         const data = await resp.json()
         return { data, status: resp.status }
       } catch (err) {
-        return {
-          error: `Failed to reach remote host: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          status: 502
-        }
+        return operationFailed('reach remote host', err instanceof Error ? err.message : 'Unknown error')
       }
     }
   }
@@ -76,7 +66,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   try {
     await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 5000 })
   } catch {
-    return { error: 'Docker is not available on this host', status: 400 }
+    return invalidRequest('Docker is not available on this host')
   }
 
   // Find an available port in 23001-23100 range
@@ -103,7 +93,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   }
 
   if (!port) {
-    return { error: 'No available ports in range 23001-23100', status: 503 }
+    return serviceError('operation_failed', 'No available ports in range 23001-23100', 503)
   }
 
   // Build the AI_TOOL environment variable
@@ -152,7 +142,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     containerId = stdout.trim().slice(0, 12)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    return { error: `Failed to start container: ${message}`, status: 500 }
+    return operationFailed('start container', message)
   }
 
   // Register in agent registry

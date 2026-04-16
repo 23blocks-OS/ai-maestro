@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { testWebhookById } from '@/services/webhooks-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * POST /api/webhooks/[id]/test
@@ -11,9 +11,5 @@ export async function POST(
 ) {
   const { id } = await params
   const result = await testWebhookById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

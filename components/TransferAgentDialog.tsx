@@ -153,8 +153,8 @@ export default function TransferAgentDialog({
                 const data = JSON.parse(line.slice(6))
                 if (data.status) setStatus(data.status as TransferStatus)
                 if (data.progress) setProgress(data.progress)
-                if (data.error) {
-                  setError(data.error)
+                if (data.error || data.message) {
+                  setError(data.message || data.error)
                   setStatus('error')
                 }
                 if (data.result) {
@@ -177,7 +177,7 @@ export default function TransferAgentDialog({
         const data = await response.json()
 
         if (!response.ok) {
-          throw new Error(data.error || 'Transfer failed')
+          throw new Error(data.message || data.error || 'Transfer failed')
         }
 
         // Transition to arriving

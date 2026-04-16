@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { checkRemoteHealth } from '@/services/hosts-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,8 +13,5 @@ export async function GET(request: NextRequest) {
   const hostUrl = request.nextUrl.searchParams.get('url') || ''
 
   const result = await checkRemoteHealth(hostUrl)
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data, { status: result.status })
+  return toResponse(result)
 }

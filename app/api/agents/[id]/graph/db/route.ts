@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { queryDbGraph, indexDbSchema, clearDbGraph } from '@/services/agents-graph-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/agents/:id/graph/db
@@ -19,10 +20,7 @@ export async function GET(
     database: searchParams.get('database'),
   })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error, ...(result.data || {}) }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -37,11 +35,7 @@ export async function POST(
   const body = await request.json()
 
   const result = await indexDbSchema(agentId, body)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -56,9 +50,5 @@ export async function DELETE(
   const databaseName = request.nextUrl.searchParams.get('database') || ''
 
   const result = await clearDbGraph(agentId, databaseName)
-
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

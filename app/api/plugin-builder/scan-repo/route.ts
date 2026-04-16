@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { scanRepo } from '@/services/plugin-builder-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,14 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await scanRepo(body.url, body.ref || 'main')
-
-    if (result.error) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
-      )
-    }
-    return NextResponse.json(result.data)
+    return toResponse(result)
   } catch (error) {
     console.error('Error scanning repo:', error)
     return NextResponse.json(

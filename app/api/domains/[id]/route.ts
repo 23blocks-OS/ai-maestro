@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { getDomainById, updateDomainById, deleteDomainById } from '@/services/domains-service'
+import { toResponse } from '@/app/api/_helpers'
 
 /**
  * GET /api/domains/[id]
@@ -11,11 +11,7 @@ export async function GET(
 ) {
   const { id } = await params
   const result = getDomainById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -29,11 +25,7 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
   const result = updateDomainById(id, body)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 /**
@@ -46,9 +38,5 @@ export async function DELETE(
 ) {
   const { id } = await params
   const result = deleteDomainById(id)
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

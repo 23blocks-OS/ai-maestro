@@ -10,21 +10,15 @@
  * Thin wrapper — business logic in services/agents-directory-service.ts
  */
 
-import { NextResponse } from 'next/server'
 import { diagnoseHosts, normalizeHosts } from '@/services/agents-directory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function GET() {
   const result = diagnoseHosts()
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }
 
 export async function POST() {
   const result = normalizeHosts()
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

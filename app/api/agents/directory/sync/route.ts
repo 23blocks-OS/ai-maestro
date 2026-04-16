@@ -7,13 +7,11 @@
  * Thin wrapper — business logic in services/agents-directory-service.ts
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { syncDirectory } from '@/services/agents-directory-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export async function POST(_request: NextRequest) {
   const result = await syncDirectory()
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
-  }
-  return NextResponse.json(result.data)
+  return toResponse(result)
 }

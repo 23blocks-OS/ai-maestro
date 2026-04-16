@@ -73,7 +73,7 @@ export default function HostsSettings() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to add host')
+        throw new Error(data.message || data.error || 'Failed to add host')
       }
 
       await fetchHosts()
@@ -94,7 +94,7 @@ export default function HostsSettings() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to update host')
+        throw new Error(data.message || data.error || 'Failed to update host')
       }
 
       await fetchHosts()
@@ -115,7 +115,7 @@ export default function HostsSettings() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to delete host')
+        throw new Error(data.message || data.error || 'Failed to delete host')
       }
 
       await fetchHosts()

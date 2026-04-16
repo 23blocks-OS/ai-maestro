@@ -17,16 +17,7 @@ import { tmpdir } from 'os'
 import { getAgentByName, createAgent, deleteAgent } from '@/lib/agent-registry'
 import { parseNameForDisplay } from '@/types/agent'
 import { getRuntime } from '@/lib/agent-runtime'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { type ServiceResult, operationFailed } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -175,17 +166,7 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
     }
   } catch (error) {
     console.error('[Help Agent] Failed to create assistant:', error)
-    return {
-      data: {
-        success: false,
-        agentId: '',
-        name: ASSISTANT_NAME,
-        status: 'error',
-        created: false,
-      },
-      error: error instanceof Error ? error.message : 'Failed to create assistant',
-      status: 500,
-    }
+    return operationFailed('create assistant', (error as Error).message)
   }
 }
 
@@ -210,10 +191,7 @@ export async function deleteAssistantAgent(): Promise<ServiceResult<{ success: b
     return { data: { success: true }, status: 200 }
   } catch (error) {
     console.error('[Help Agent] Failed to delete assistant:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Failed to delete assistant',
-      status: 500,
-    }
+    return operationFailed('delete assistant', (error as Error).message)
   }
 }
 
@@ -252,9 +230,6 @@ export async function getAssistantStatus(): Promise<ServiceResult<{
       status: 200,
     }
   } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('get assistant status', (error as Error).message)
   }
 }

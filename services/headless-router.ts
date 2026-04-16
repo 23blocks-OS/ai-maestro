@@ -315,10 +315,11 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
-  } else {
+  if (result.data !== undefined) {
     sendJson(res, result.status || 200, result.data, result.headers)
+  } else {
+    const fallbackStatus = (result.status && result.status >= 400) ? result.status : 500
+    sendJson(res, fallbackStatus, { error: 'internal_error', message: 'Unknown error' }, result.headers)
   }
 }
 
@@ -820,8 +821,8 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (_req, res, params) => {
     try {
       const result = await exportAgentZip(params.id)
-      if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+      if (!result.data || 'error' in result.data) {
+        sendServiceResult(res, result)
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -910,25 +911,25 @@ const routes: Route[] = [
   // Metadata (uses agents-core-service getAgentById/updateAgentById)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+    if (!result.data || 'error' in result.data) {
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
+      sendJson(res, 200, { metadata: result.data.agent?.metadata || {} })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+    if (!result.data || 'error' in result.data) {
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      sendJson(res, 200, { metadata: result.data.agent?.metadata })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
-    if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+    if (!result.data || 'error' in result.data) {
+      sendServiceResult(res, result)
     } else {
       sendJson(res, 200, { success: true })
     }

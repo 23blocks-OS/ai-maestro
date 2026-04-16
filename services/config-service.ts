@@ -35,18 +35,9 @@ import type {
   MemoryRunResult,
   MessageCheckResult,
 } from '@/types/subconscious'
+import { type ServiceResult, missingField, notFound, operationFailed } from '@/services/service-errors'
 
 const execAsync = promisify(exec)
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number // HTTP-like status code for the route to use
-}
 
 // -- Config types --
 
@@ -478,10 +469,7 @@ export function getSubconsciousStatus(): ServiceResult<any> {
     }
   } catch (error) {
     console.error('[Subconscious API] Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('get subconscious status', (error as Error).message)
   }
 }
 
@@ -560,10 +548,7 @@ export async function getPtyDebugInfo(): Promise<ServiceResult<PtyDebugInfo>> {
     }
   } catch (error) {
     console.error('[Debug PTY] Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('get PTY debug info', (error as Error).message)
   }
 }
 
@@ -603,18 +588,12 @@ export async function getDockerInfo(): Promise<ServiceResult<DockerInfo>> {
 export function parseConversationFile(conversationFile: string): ServiceResult<ParsedConversation> {
   if (!conversationFile) {
     console.error('[Parse Conversation] Missing conversationFile parameter')
-    return {
-      error: 'conversationFile is required',
-      status: 400,
-    }
+    return missingField('conversationFile')
   }
 
   if (!fs.existsSync(conversationFile)) {
     console.error('[Parse Conversation] File not found:', conversationFile)
-    return {
-      error: `Conversation file not found: ${conversationFile}`,
-      status: 404,
-    }
+    return notFound('Conversation file', conversationFile)
   }
 
   try {
@@ -738,10 +717,7 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
     }
   } catch (error) {
     console.error('[Parse Conversation] Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('parse conversation file', (error as Error).message)
   }
 }
 
@@ -757,10 +733,7 @@ export async function getConversationMessages(
   agentId: string
 ): Promise<ServiceResult<ConversationMessages | { error: string; fallback_to_parse: boolean; conversation_file: string }>> {
   if (!agentId) {
-    return {
-      error: 'agentId query parameter is required',
-      status: 400,
-    }
+    return missingField('agentId')
   }
 
   try {
@@ -812,10 +785,7 @@ export async function getConversationMessages(
     }
   } catch (error) {
     console.error('[Messages API] Error:', error)
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 500,
-    }
+    return operationFailed('get conversation messages', (error as Error).message)
   }
 }
 
@@ -832,10 +802,7 @@ export function getExportJobStatus(jobId: string): ServiceResult<{
   message: string
 }> {
   if (!jobId || typeof jobId !== 'string') {
-    return {
-      error: 'Invalid job ID',
-      status: 400,
-    }
+    return missingField('jobId')
   }
 
   console.log(`[Export Jobs API] Get status: Job=${jobId}`)
@@ -876,10 +843,7 @@ export function deleteExportJob(jobId: string): ServiceResult<{
   message: string
 }> {
   if (!jobId || typeof jobId !== 'string') {
-    return {
-      error: 'Invalid job ID',
-      status: 400,
-    }
+    return missingField('jobId')
   }
 
   console.log(`[Export Jobs API] Delete job: Job=${jobId}`)

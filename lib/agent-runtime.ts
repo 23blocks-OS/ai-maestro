@@ -43,6 +43,7 @@ export interface AgentRuntime {
 
   // I/O
   sendKeys(name: string, keys: string, opts?: { literal?: boolean; enter?: boolean }): Promise<void>
+  pasteAndSubmit(name: string, text: string, opts?: { submitDelayMs?: number }): Promise<void>
   capturePane(name: string, lines?: number): Promise<string>
 
   // Environment
@@ -194,6 +195,25 @@ export class TmuxRuntime implements AgentRuntime {
         await execAsync(`tmux send-keys -t "${name}" ${keys}`)
       }
     }
+  }
+
+  async pasteAndSubmit(
+    name: string,
+    text: string,
+    opts: { submitDelayMs?: number } = {}
+  ): Promise<void> {
+    const { submitDelayMs = 150 } = opts
+    const escaped = text.replace(/'/g, "'\\''")
+    // Unique buffer name so concurrent pastes don't stomp each other
+    const bufferName = `aimaestro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    // 1. Store text in a named tmux buffer
+    await execAsync(`tmux set-buffer -b ${bufferName} -- '${escaped}'`)
+    // 2. Paste buffer into the pane and delete buffer (-d)
+    await execAsync(`tmux paste-buffer -b ${bufferName} -t "${name}" -d`)
+    // 3. Wait for bracketed-paste sequence to flush through the TUI's input handler
+    await new Promise(resolve => setTimeout(resolve, submitDelayMs))
+    // 4. Submit with a clean, separate Enter (after paste bracket is closed)
+    await execAsync(`tmux send-keys -t "${name}" Enter`)
   }
 
   async capturePane(name: string, lines: number = 2000): Promise<string> {

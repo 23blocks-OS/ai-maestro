@@ -40,19 +40,23 @@ export interface NotificationResult {
 }
 
 /**
- * Send a notification to a tmux session
- * Uses echo to display the message without interrupting the agent's work
+ * Send a notification to a tmux session.
+ *
+ * Uses tmux's paste-buffer primitive (not send-keys) so that the text arrives
+ * cleanly in TUIs like Claude Code which use bracketed paste mode. A small
+ * delay between paste and Enter gives the TUI's input handler time to flush
+ * the paste sequence before the submit keystroke lands — without this, the
+ * Enter would land inside the bracketed paste and be interpreted as a newline
+ * rather than "submit", which is why agents had to be woken up manually.
  */
 async function sendTmuxNotification(sessionName: string, message: string): Promise<void> {
   const runtime = getRuntime()
   // Target the first pane of the first window
   const target = `${sessionName}:0.0`
 
-  // Uses literal flag to prevent tmux from misinterpreting key names in notification text
-  // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
-  // will be typed as input to that program. Notifications are designed for idle shell prompts.
+  // Wrap in echo so shells still render the notification at an idle prompt.
   const escapedMessage = message.replace(/'/g, "'\\''")
-  await runtime.sendKeys(target, `echo '${escapedMessage}'`, { literal: true, enter: true })
+  await runtime.pasteAndSubmit(target, `echo '${escapedMessage}'`)
 }
 
 /**

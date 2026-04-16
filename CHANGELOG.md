@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.1] - 2026-04-16
+
+### Fixed
+- **Push notifications now wake Claude reliably** — Real-time AMP inbox notifications previously required the operator to manually click Enter in each agent's terminal before the agent would process the message. Root cause: the tmux `send-keys -l '<text>' \; send-keys C-m` chain fired the Enter inside Claude Code's bracketed-paste sequence, so it was interpreted as a newline-in-paste rather than "submit". `lib/notification-service.ts` now uses the new `AgentRuntime.pasteAndSubmit()` primitive, which uses tmux `paste-buffer` and waits for the paste bracket to close before sending a clean `Enter`. Agents now process inbound messages without operator intervention.
+
+### Added
+- **`AgentRuntime.pasteAndSubmit(name, text, opts?)`** — new runtime method that injects text into a TUI pane using tmux's `paste-buffer` primitive and delays the submit keystroke (default 150ms) so bracketed-paste mode TUIs (Claude Code, vim-style REPLs) receive submit cleanly.
+
 ## [0.29.0] - 2026-04-16
 
 ### Added

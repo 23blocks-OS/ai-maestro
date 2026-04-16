@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.1] - 2026-04-16
+
+### Fixed
+- **Push notifications now wake Claude reliably** — Real-time AMP inbox notifications previously required the operator to manually click Enter in each agent's terminal before the agent would process the message. Root cause: the tmux `send-keys -l '<text>' \; send-keys C-m` chain delivered the text and the Enter in the same tmux tick, so Claude Code's input handler could receive the submit in the same batch as the text — before the input field had updated — and lose the submit. `lib/notification-service.ts` now splits the text and the Enter into two separate `send-keys` calls with a 150ms shell-level delay between them, so agents process inbound messages without operator intervention.
+
 ## [0.29.0] - 2026-04-16
 
 ### Added

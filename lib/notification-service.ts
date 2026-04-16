@@ -39,20 +39,32 @@ export interface NotificationResult {
   error?: string          // Error message (if success=false)
 }
 
+// Delay between pasting text and sending Enter. TUIs like Claude Code batch
+// incoming bytes per event-loop tick: if Enter arrives in the same batch as
+// the text it can be processed before the input field has updated, so the
+// submit is lost and the agent sits idle. A small shell-level delay between
+// the two `send-keys` calls guarantees the TUI sees the text first, then a
+// clean submit — without this, operators had to manually press Enter in
+// every agent's terminal for notifications to take effect.
+const NOTIFICATION_SUBMIT_DELAY_MS = 150
+
 /**
- * Send a notification to a tmux session
- * Uses echo to display the message without interrupting the agent's work
+ * Send a notification to a tmux session.
+ *
+ * The notification is delivered in two separate send-keys calls with a short
+ * shell-level delay between them (text first, then Enter). See the comment on
+ * NOTIFICATION_SUBMIT_DELAY_MS for why this matters.
  */
 async function sendTmuxNotification(sessionName: string, message: string): Promise<void> {
   const runtime = getRuntime()
   // Target the first pane of the first window
   const target = `${sessionName}:0.0`
 
-  // Uses literal flag to prevent tmux from misinterpreting key names in notification text
-  // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
-  // will be typed as input to that program. Notifications are designed for idle shell prompts.
+  // Wrap in echo so shells still render the notification at an idle prompt.
   const escapedMessage = message.replace(/'/g, "'\\''")
-  await runtime.sendKeys(target, `echo '${escapedMessage}'`, { literal: true, enter: true })
+  await runtime.sendKeys(target, `echo '${escapedMessage}'`, { literal: true })
+  await new Promise(resolve => setTimeout(resolve, NOTIFICATION_SUBMIT_DELAY_MS))
+  await runtime.sendKeys(target, 'Enter')
 }
 
 /**

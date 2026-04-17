@@ -70,5 +70,6 @@ export function agentToSession(agent: Agent): Session {
     windows: 1,
     agentId: agent.id,
     hostId: agent.hostId,
+    standalone: agent.session?.standalone,
   }
 }

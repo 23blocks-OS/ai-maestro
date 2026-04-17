@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.3] - 2026-04-17
+
+### Fixed
+- **Standalone agents now visible in dashboard sidebar** — The sidebar uses `/api/agents` (agents-core-service), not `/api/sessions`. Heartbeat data was only integrated into the sessions endpoint. Now `listAgents()` checks the `agentActivity` heartbeat map so standalone agents show as online with `session.standalone: true`.
+- **Heartbeat ID resolution** — The heartbeat function now resolves agent identifiers by both UUID and name, fixing a mismatch where heartbeats stored under the agent name couldn't be found by UUID lookup in `listAgents()`.
+- **Standalone agent terminal view** — Clicking a standalone agent no longer attempts a WebSocket/tmux connection. The dashboard shows a "Standalone Agent" placeholder explaining the agent runs outside tmux. This applies whether the agent is online (recent heartbeat) or offline (expired heartbeat).
+- **Persistent standalone flag** — Agents with no tmux sessions and no cloud deployment are marked `standalone: true` even when offline, preventing the "Start Session" prompt for agents that were never meant to have a terminal.
+
 ## [0.29.2] - 2026-04-16
 
 ### Added

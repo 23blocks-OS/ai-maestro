@@ -27,7 +27,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import type { Session } from '@/types/session'
-import { getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession } from '@/lib/agent-registry'
+import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession } from '@/lib/agent-registry'
 import { loadAgents } from '@/lib/agent-registry'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
@@ -560,8 +560,11 @@ export function broadcastActivityUpdate(
  */
 export function heartbeat(agentId: string, status?: string): ServiceResult<{ success: boolean }> {
   if (!agentId) return missingField('agentId')
-  agentActivity.set(agentId, Date.now())
-  broadcastStatusUpdate('', status || 'active', undefined, undefined, agentId)
+  // Resolve: agentId could be a UUID or a name. Store heartbeat under the UUID.
+  const agent = getAgent(agentId) || getAgentByName(agentId)
+  const resolvedId = agent?.id || agentId
+  agentActivity.set(resolvedId, Date.now())
+  broadcastStatusUpdate('', status || 'active', undefined, undefined, resolvedId)
   return { data: { success: true }, status: 200 }
 }
 

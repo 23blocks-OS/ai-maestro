@@ -511,6 +511,7 @@ export interface AgentSessionStatus {
   // GAP6 FIX: Include host context for distributed agents
   hostId?: string                 // Host ID where session runs (e.g., 'local', 'mac-mini')
   hostName?: string               // Human-readable host name
+  standalone?: boolean            // Agent registered via heartbeat, no tmux session
 }
 
 /**

@@ -93,6 +93,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const { terminal, initializeTerminal, fitTerminal, setSendData } = useTerminal({
     sessionId: session.id,
+    disableWebGL: isTouch,  // MOBILE FIX: WebGL context loss on backgrounding causes blank terminals
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
       registerTerminal(session.id, fitAddon)

@@ -213,6 +213,33 @@ export function useWebSocket({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, autoConnect]) // Reconnect when session changes or visibility changes
 
+  // MOBILE FIX: Reconnect when page becomes visible again (returning from background/tab switch)
+  // Without this, once the phone sleeps or switches apps, the terminal is permanently dead
+  // because all 5 reconnect attempts fire in ~15s while the app is backgrounded.
+  useEffect(() => {
+    if (!autoConnect) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Page is now visible — reconnect if WebSocket is not open
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          reconnectAttemptsRef.current = 0 // Reset attempts so we get fresh retries
+          connect()
+        }
+      } else {
+        // Page is hidden — clear any pending reconnect timeouts (don't waste battery)
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [autoConnect, connect])
+
   return {
     isConnected,
     connectionError,

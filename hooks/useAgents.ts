@@ -293,6 +293,23 @@ export function useAgents() {
     return () => clearInterval(interval)
   }, [hostsLoading, hosts.length, loadAgents])
 
+  // MOBILE FIX: Immediately refetch agents when returning from background
+  // Without this, users wait up to 10s for the next poll to see updated agent status
+  useEffect(() => {
+    if (hostsLoading || hosts.length === 0) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadAgents()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hostsLoading, hosts.length, loadAgents])
+
   // Computed: agents that are currently online (have active session)
   const onlineAgents = useMemo(
     () => agents.filter(a => a.session?.status === 'online'),

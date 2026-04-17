@@ -27,13 +27,13 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import type { Session } from '@/types/session'
-import { getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession } from '@/lib/agent-registry'
+import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession } from '@/lib/agent-registry'
 import { loadAgents } from '@/lib/agent-registry'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, broadcastStatusUpdate } from '@/services/shared-state'
+import { sessionActivity, agentActivity, broadcastStatusUpdate } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
@@ -299,6 +299,38 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
       // Docker not available
     }
 
+    // Discover standalone agents (registered with heartbeat, no tmux session)
+    try {
+      const allAgents = loadAgents()
+      for (const agent of allAgents) {
+        const agentName = agent.name || agent.alias
+        if (!agentName || sessions.find(s => s.name === agentName)) continue
+        if (agent.deployment?.type === 'cloud') continue
+
+        const heartbeatTs = agentActivity.get(agent.id)
+        if (!heartbeatTs) continue
+
+        const age = (Date.now() - heartbeatTs) / 1000
+        if (age > 120) continue  // stale heartbeat (2 min)
+
+        sessions.push({
+          id: agentName,
+          name: agentName,
+          workingDirectory: agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || '',
+          status: age > 3 ? 'idle' : 'active',
+          createdAt: agent.createdAt,
+          lastActivity: new Date(heartbeatTs).toISOString(),
+          windows: 0,
+          hostId,
+          version: AI_MAESTRO_VERSION,
+          agentId: agent.id,
+          standalone: true,
+        })
+      }
+    } catch (error) {
+      console.error('Error discovering standalone agents:', error)
+    }
+
     // Discover OpenClaw sessions (custom tmux sockets)
     try {
       const openclawSocketDir = process.env.OPENCLAW_TMUX_SOCKET_DIR
@@ -511,13 +543,28 @@ export function broadcastActivityUpdate(
   sessionName: string,
   status: string,
   hookStatus?: string,
-  notificationType?: string
+  notificationType?: string,
+  agentId?: string
 ): ServiceResult<{ success: boolean }> {
-  if (!sessionName) {
+  if (!sessionName && !agentId) {
     return missingField('sessionName')
   }
 
-  broadcastStatusUpdate(sessionName, status, hookStatus, notificationType)
+  broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)
+  return { data: { success: true }, status: 200 }
+}
+
+/**
+ * Record a heartbeat for a standalone agent (no tmux session).
+ * Makes the agent appear in the dashboard session list.
+ */
+export function heartbeat(agentId: string, status?: string): ServiceResult<{ success: boolean }> {
+  if (!agentId) return missingField('agentId')
+  // Resolve: agentId could be a UUID or a name. Store heartbeat under the UUID.
+  const agent = getAgent(agentId) || getAgentByName(agentId)
+  const resolvedId = agent?.id || agentId
+  agentActivity.set(resolvedId, Date.now())
+  broadcastStatusUpdate('', status || 'active', undefined, undefined, resolvedId)
   return { data: { success: true }, status: 200 }
 }
 

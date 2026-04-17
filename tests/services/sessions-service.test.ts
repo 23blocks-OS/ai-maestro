@@ -62,6 +62,7 @@ const {
     },
     mockSharedState: {
       sessionActivity: new Map<string, number>(),
+      agentActivity: new Map<string, number>(),
       broadcastStatusUpdate: vi.fn(),
     },
     mockFs: {
@@ -120,6 +121,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetFixtureCounter()
   mockSharedState.sessionActivity.clear()
+  mockSharedState.agentActivity.clear()
   // Reset runtime mock defaults
   mockRuntime.listSessions.mockResolvedValue([])
   mockRuntime.sessionExists.mockResolvedValue(false)
@@ -725,18 +727,31 @@ describe('broadcastActivityUpdate', () => {
 
     expect(result.status).toBe(200)
     expect((result.data as any)?.success).toBe(true)
-    expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith('my-agent', 'active', undefined, undefined)
+    expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith('my-agent', 'active', undefined, undefined, undefined)
   })
 
   it('passes hookStatus and notificationType', () => {
     broadcastActivityUpdate('my-agent', 'waiting', 'waiting_for_input', 'permission')
 
     expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith(
-      'my-agent', 'waiting', 'waiting_for_input', 'permission'
+      'my-agent', 'waiting', 'waiting_for_input', 'permission', undefined
     )
   })
 
-  it('returns 400 when sessionName is missing', () => {
+  it('passes agentId when provided', () => {
+    broadcastActivityUpdate('my-agent', 'active', undefined, undefined, 'agent-123')
+
+    expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith(
+      'my-agent', 'active', undefined, undefined, 'agent-123'
+    )
+  })
+
+  it('allows empty sessionName when agentId is provided', () => {
+    const result = broadcastActivityUpdate('', 'active', undefined, undefined, 'agent-123')
+    expect(result.status).toBe(200)
+  })
+
+  it('returns 400 when both sessionName and agentId are missing', () => {
     const result = broadcastActivityUpdate('', 'active')
 
     expect(result.status).toBe(400)

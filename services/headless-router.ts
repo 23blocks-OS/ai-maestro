@@ -152,6 +152,7 @@ import {
   deletePersistedSession,
   getActivity,
   broadcastActivityUpdate,
+  heartbeat,
 } from '@/services/sessions-service'
 
 import {
@@ -489,7 +490,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
+    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType, body.agentId)
     sendServiceResult(res, result)
   }},
 
@@ -933,6 +934,12 @@ const routes: Route[] = [
     } else {
       sendJson(res, 200, { success: true })
     }
+  }},
+
+  // Agent heartbeat (standalone presence)
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/heartbeat$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, heartbeat(params.id, body.status))
   }},
 
   // Agent CRUD (must be LAST among /api/agents/[id]/* routes)

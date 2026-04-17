@@ -71,6 +71,7 @@ const {
     },
     mockSharedState: {
       sessionActivity: new Map<string, number>(),
+      agentActivity: new Map<string, number>(),
     },
     mockAgentStartup: {
       initializeAllAgents: vi.fn().mockResolvedValue({ initialized: [], failed: [] }),
@@ -144,6 +145,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetFixtureCounter()
   mockSharedState.sessionActivity.clear()
+  mockSharedState.agentActivity.clear()
   mockRuntime.listSessions.mockResolvedValue([])
   mockRuntime.sessionExists.mockResolvedValue(false)
   mockRuntime.createSession.mockResolvedValue(undefined)

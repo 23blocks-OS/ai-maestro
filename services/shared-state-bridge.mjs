@@ -13,6 +13,7 @@
 if (!globalThis._sharedState) {
   globalThis._sharedState = {
     sessionActivity: new Map(),      // sessionName -> lastActivityTimestamp (ms)
+    agentActivity: new Map(),        // agentId -> lastHeartbeatTimestamp (ms) for standalone agents
     terminalSessions: new Map(),     // sessionName -> { clients, ptyProcess, logStream, ... }
     statusSubscribers: new Set(),    // Set<WebSocket> for /status subscribers
     companionClients: new Map(),     // agentId -> Set<WebSocket> for /companion-ws
@@ -22,6 +23,7 @@ if (!globalThis._sharedState) {
 const state = globalThis._sharedState
 
 export const sessionActivity = state.sessionActivity
+export const agentActivity = state.agentActivity
 export const terminalSessions = state.terminalSessions
 export const statusSubscribers = state.statusSubscribers
 export const companionClients = state.companionClients
@@ -30,10 +32,11 @@ export const companionClients = state.companionClients
  * Broadcast a status update to all /status WebSocket subscribers.
  * Used by API routes and server.mjs.
  */
-export function broadcastStatusUpdate(sessionName, status, hookStatus, notificationType) {
+export function broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId) {
   const message = JSON.stringify({
     type: 'status_update',
     sessionName,
+    ...(agentId && { agentId }),
     status,
     hookStatus,
     notificationType,

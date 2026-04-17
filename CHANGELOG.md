@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.3] - 2026-04-17
+
+### Fixed
+- **Standalone agents now visible in dashboard sidebar** — The sidebar uses `/api/agents` (agents-core-service), not `/api/sessions`. Heartbeat data was only integrated into the sessions endpoint. Now `listAgents()` checks the `agentActivity` heartbeat map so standalone agents show as online with `session.standalone: true`.
+- **Heartbeat ID resolution** — The heartbeat function now resolves agent identifiers by both UUID and name, fixing a mismatch where heartbeats stored under the agent name couldn't be found by UUID lookup in `listAgents()`.
+- **Standalone agent terminal view** — Clicking a standalone agent no longer attempts a WebSocket/tmux connection. The dashboard shows a "Standalone Agent" placeholder explaining the agent runs outside tmux. This applies whether the agent is online (recent heartbeat) or offline (expired heartbeat).
+- **Persistent standalone flag** — Agents with no tmux sessions and no cloud deployment are marked `standalone: true` even when offline, preventing the "Start Session" prompt for agents that were never meant to have a terminal.
+
+## [0.29.2] - 2026-04-16
+
+### Added
+- **Standalone agent presence** — Agents that run outside of tmux (plain terminal, API-only, remote hosts) can now appear live in the dashboard via a heartbeat mechanism. New `POST /api/agents/:id/heartbeat` endpoint lets any agent announce itself periodically. The dashboard discovers standalone agents alongside tmux sessions, Docker containers, and cloud deployments. Agents with a recent heartbeat (< 2 min) show in the sidebar; stale heartbeats auto-expire.
+- **Hook-based heartbeat for Claude Code** — The AI Maestro hook now sends a heartbeat on every event (SessionStart, Stop, Notification), so Claude Code sessions automatically register their presence even when running outside tmux. The hook also sends `agentId` alongside `sessionName` in status broadcasts for more precise activity tracking.
+- **`agentActivity` shared state** — New in-memory Map tracking standalone agent heartbeat timestamps, shared between server.mjs and API routes via the existing globalThis bridge pattern.
+- **Client-side activity by agentId** — The `useSessionActivity` hook now indexes activity updates by both `sessionName` and `agentId`, and `getSessionActivity()` accepts an optional `agentId` parameter for standalone agent lookups.
+- **`standalone` flag on Session type** — Sessions discovered via heartbeat carry `standalone: true` so the UI can distinguish them from tmux/Docker/cloud sessions.
+
+### Fixed
+- **Hook directory matching bug** — Removed `agentWd.startsWith(cwd + '/')` from all 3 hook copies. This condition caused a parent directory agent to incorrectly match when running from any child directory (e.g., agent in `/project` would match cwd `/project-tools`). Only exact matches and "cwd is inside agent's directory" now count.
+
 ## [0.29.1] - 2026-04-16
 
 ### Fixed

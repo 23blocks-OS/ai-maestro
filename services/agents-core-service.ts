@@ -60,7 +60,7 @@ import { getHosts, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
-import { sessionActivity } from '@/services/shared-state'
+import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import type { Host } from '@/types/host'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout } from '@/services/service-errors'
@@ -464,6 +464,14 @@ export async function listAgents(): Promise<ServiceResult<{
 
       const hasOnlineSession = updatedSessions.some(s => s.status === 'online')
 
+      // Check for standalone agent heartbeat (agents without tmux sessions)
+      const heartbeatTs = agentActivity.get(agent.id)
+      const heartbeatAge = heartbeatTs ? (Date.now() - heartbeatTs) / 1000 : Infinity
+      const hasRecentHeartbeat = heartbeatAge < 120 // 2 minutes
+      const isOnline = hasOnlineSession || hasRecentHeartbeat
+      // Standalone = no tmux sessions discovered AND not a cloud agent
+      const isStandalone = agentSessions.length === 0 && agent.deployment?.type !== 'cloud'
+
       // Create session status for API response (backward compatibility)
       const onlineSession = updatedSessions.find(s => s.status === 'online')
       const primarySession = updatedSessions.find(s => s.index === 0) || updatedSessions[0]
@@ -480,19 +488,29 @@ export async function listAgents(): Promise<ServiceResult<{
             hostId,
             hostName,
           }
+        : hasRecentHeartbeat
+        ? {
+            status: 'online',
+            workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,
+            lastActivity: new Date(heartbeatTs!).toISOString(),
+            hostId,
+            hostName,
+            standalone: true,
+          }
         : {
             status: 'offline',
             workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,
             hostId,
             hostName,
+            ...(isStandalone && { standalone: true }),
           }
 
       const updatedAgent: Agent = {
         ...agent,
         name: agentName,
         sessions: updatedSessions,
-        status: hasOnlineSession ? 'active' : 'offline',
-        lastActive: hasOnlineSession ? new Date().toISOString() : agent.lastActive,
+        status: isOnline ? 'active' : 'offline',
+        lastActive: isOnline ? new Date().toISOString() : agent.lastActive,
       }
 
       resultAgents.push(mergeAgentWithSession(updatedAgent, sessionStatus, hostId, hostName, hostUrl, false))

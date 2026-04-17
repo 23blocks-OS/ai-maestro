@@ -92,16 +92,19 @@ export function useSessionActivity() {
             setActivity(data.activity || {})
             setLoading(false)
           } else if (data.type === 'status_update') {
-            // Real-time status update
-            setActivity(prev => ({
-              ...prev,
-              [data.sessionName]: {
+            // Real-time status update — index by both sessionName and agentId
+            setActivity(prev => {
+              const update: SessionActivityInfo = {
                 lastActivity: data.timestamp,
                 status: data.status,
                 hookStatus: data.hookStatus,
                 notificationType: data.notificationType
               }
-            }))
+              const next = { ...prev }
+              if (data.sessionName) next[data.sessionName] = update
+              if (data.agentId) next[data.agentId] = update
+              return next
+            })
           }
         } catch (err) {
           console.error('[useSessionActivity] Failed to parse message:', err)
@@ -155,13 +158,14 @@ export function useSessionActivity() {
   }, [connect, fetchActivity])
 
   /**
-   * Get activity status for a specific session
+   * Get activity status for a specific session or agent
    * @param sessionName The tmux session name
+   * @param agentId Optional agent ID (for standalone agents)
    * @returns Activity info or null if not found
    */
   const getSessionActivity = useCallback(
-    (sessionName: string): SessionActivityInfo | null => {
-      return activity[sessionName] || null
+    (sessionName: string, agentId?: string): SessionActivityInfo | null => {
+      return activity[sessionName] || (agentId ? activity[agentId] : null) || null
     },
     [activity]
   )

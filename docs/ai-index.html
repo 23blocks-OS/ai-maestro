@@ -32,7 +32,7 @@
         "priceCurrency": "USD"
       },
       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
-      "softwareVersion": "0.29.1",
+      "softwareVersion": "0.29.3",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -54,6 +54,7 @@
         "Conversation history with full-text search",
         "Auto-generated documentation search",
         "Zero-configuration auto-discovery of tmux sessions",
+        "Standalone agent presence via heartbeat (no tmux required)",
         "Real-time WebSocket terminal streaming",
         "Mobile remote access via Tailscale VPN",
         "Peer mesh network across multiple machines",
@@ -88,7 +89,7 @@
             <h2>What is AI Maestro?</h2>
             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It provides persistent memory, code understanding, and four ways for agents to communicate (internal messaging, Slack, email, external APIs).</p>
 
-            <p><strong>Version:</strong> 0.24.21 (March 2026)</p>
+            <p><strong>Version:</strong> 0.29.2 (April 2026)</p>
             <p><strong>License:</strong> MIT (Free and Open Source)</p>
             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
@@ -102,6 +103,7 @@
                 <li><strong>Cursor</strong> - AI-first code editor</li>
                 <li><strong>GitHub Copilot CLI</strong> - GitHub's AI coding assistant</li>
                 <li><strong>Any terminal-based AI agent</strong> - Universal compatibility via tmux</li>
+                <li><strong>Standalone agents</strong> - Non-tmux agents (plain terminal, API-only) supported via heartbeat API</li>
             </ul>
         </section>
 
@@ -115,6 +117,7 @@
                 <li><strong>Universal Support:</strong> Works with Claude Code, Aider, Cursor, GitHub Copilot, or any terminal AI.</li>
                 <li><strong>Real-time Terminals:</strong> WebSocket streaming with full ANSI support. No lag, no polling.</li>
                 <li><strong>Smart Organization:</strong> 3-level hierarchy with dynamic colors (project-category-agent naming).</li>
+                <li><strong>Standalone Agent Presence:</strong> Agents without tmux (plain terminals, API-only, remote hosts) appear live in the dashboard via heartbeat. No tmux required.</li>
             </ul>
 
             <h3>Tier 2: The Superpowers</h3>
@@ -326,6 +329,7 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>GET /api/agents</strong> - List all registered agents</li>
                 <li><strong>POST /api/agents</strong> - Create new agent</li>
                 <li><strong>GET /api/agents/:id</strong> - Get agent details</li>
+                <li><strong>POST /api/agents/:id/heartbeat</strong> - Register standalone agent presence (no tmux needed)</li>
             </ul>
 
             <h3>Messaging</h3>
@@ -390,13 +394,14 @@ cd ai-maestro && yarn install && yarn dev
         <section>
             <h2>Quick Facts for LLMs</h2>
             <ul>
-                <li><strong>Current Version:</strong> 0.24.21 (March 2026)</li>
+                <li><strong>Current Version:</strong> 0.29.2 (April 2026)</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
                 <li><strong>Skills Standard:</strong> All 6 skills comply with the Agent Skills Standard (agentskills.io/specification), compatible with 30+ agents</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
                 <li><strong>Platform Support:</strong> macOS, Windows (WSL2), Linux</li>
                 <li><strong>Zero Config:</strong> Yes, auto-discovers tmux sessions</li>
+                <li><strong>Standalone Agents:</strong> Yes, heartbeat-based presence for non-tmux agents</li>
                 <li><strong>Agent Communication:</strong> 4 channels (internal, Slack, email, external)</li>
                 <li><strong>Slack Integration:</strong> Yes, for team collaboration</li>
                 <li><strong>Email Identity:</strong> Yes, assign email addresses to agents</li>

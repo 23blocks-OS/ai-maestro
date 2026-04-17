@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Server,
   Terminal,
@@ -8,7 +8,9 @@ import {
   ChevronRight,
   Plus,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Search,
+  X
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
@@ -41,6 +43,8 @@ export default function MobileHostsList({
   const localHostId = localHost?.id || ''
 
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set([localHostId]))
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Group agents by host
   const groupedAgents = useMemo(() => {
@@ -57,6 +61,43 @@ export default function MobileHostsList({
 
     return groups
   }, [agents, localHostId])
+
+  // Filter agents by search query
+  const filteredGroupedAgents = useMemo(() => {
+    if (!searchQuery.trim()) return groupedAgents
+
+    const q = searchQuery.toLowerCase()
+    const filtered: { [hostId: string]: Agent[] } = {}
+
+    Object.entries(groupedAgents).forEach(([hostId, hostAgents]) => {
+      const matching = hostAgents.filter(agent => {
+        const name = (agent.name || '').toLowerCase()
+        const label = (agent.label || '').toLowerCase()
+        const alias = (agent.alias || '').toLowerCase()
+        const tags = (agent.tags || []).join(' ').toLowerCase()
+        const task = (agent.taskDescription || '').toLowerCase()
+        return name.includes(q) || label.includes(q) || alias.includes(q) || tags.includes(q) || task.includes(q)
+      })
+      if (matching.length > 0) {
+        filtered[hostId] = matching
+      }
+    })
+
+    return filtered
+  }, [groupedAgents, searchQuery])
+
+  // Count filtered agents
+  const filteredAgentCount = useMemo(() =>
+    Object.values(filteredGroupedAgents).reduce((sum, arr) => sum + arr.length, 0),
+    [filteredGroupedAgents]
+  )
+
+  // Auto-expand hosts with matching agents when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      setExpandedHosts(new Set(Object.keys(filteredGroupedAgents)))
+    }
+  }, [searchQuery, filteredGroupedAgents])
 
   const toggleHost = (hostId: string) => {
     const newExpanded = new Set(expandedHosts)
@@ -238,6 +279,7 @@ export default function MobileHostsList({
         <div className="flex items-center gap-2 mt-1">
           <p className="text-xs text-gray-500">
             {sortedHostIds.length} host{sortedHostIds.length !== 1 ? 's' : ''} • {agents.length} agent{agents.length !== 1 ? 's' : ''}
+            {searchQuery.trim() && ` • ${filteredAgentCount} match${filteredAgentCount !== 1 ? 'es' : ''}`}
           </p>
           {error && (
             <span className="text-xs text-red-400 flex items-center gap-1">
@@ -246,13 +288,34 @@ export default function MobileHostsList({
             </span>
           )}
         </div>
+
+        {/* Search Input */}
+        <div className="relative mt-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search agents..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-700 rounded"
+            >
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-2">
-          {sortedHostIds.map((hostId) => {
-            const hostAgents = groupedAgents[hostId] || []
+          {sortedHostIds.filter(id => !searchQuery.trim() || filteredGroupedAgents[id]).map((hostId) => {
+            const hostAgents = filteredGroupedAgents[hostId] || []
             const isExpanded = expandedHosts.has(hostId)
             const HostIcon = getHostIcon(hostId)
 

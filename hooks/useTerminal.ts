@@ -10,6 +10,7 @@ export interface UseTerminalOptions {
   fontFamily?: string
   theme?: Record<string, string>
   sessionId?: string
+  disableWebGL?: boolean  // Skip WebGL on touch devices (context loss causes blank terminals)
   onRegister?: (fitAddon: FitAddon) => void
   onUnregister?: () => void
 }
@@ -147,35 +148,42 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Loading WebGL via a separate useEffect caused a race condition on agent switch:
     // the cached import resolved instantly, switching renderers before selection stabilized.
     // By loading here, the terminal is fully set up (with WebGL) before being marked "ready".
-    try {
-      const { WebglAddon } = await import('@xterm/addon-webgl')
-      const webglAddon = new WebglAddon()
+    //
+    // MOBILE FIX: Skip WebGL on touch devices — context loss on mobile backgrounding
+    // causes blank terminals that never recover. Canvas renderer is adequate for mobile.
+    if (optionsRef.current.disableWebGL) {
+      console.log(`[Terminal] Using canvas renderer for session ${optionsRef.current.sessionId} (WebGL disabled)`)
+    } else {
+      try {
+        const { WebglAddon } = await import('@xterm/addon-webgl')
+        const webglAddon = new WebglAddon()
 
-      webglAddon.onContextLoss(() => {
-        console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas`)
-        try { webglAddon.dispose() } catch { /* ignore */ }
-        webglAddonRef.current = null
-        // After WebGL disposal, xterm.js _renderer.value becomes undefined.
-        // RenderService.dimensions uses an unsafe non-null assertion (!), so any
-        // call to scrollToBottom/scrollLines/fit will crash with:
-        //   "Cannot read properties of undefined (reading 'dimensions')"
-        // The only recovery is to re-open the terminal element, which forces
-        // xterm.js to create a new canvas renderer.
-        const term = terminalRef.current
-        const parent = term?.element?.parentElement
-        if (term && parent) {
-          term.open(parent)
-          if (fitAddonRef.current) {
-            try { fitAddonRef.current.fit() } catch { /* ignore */ }
+        webglAddon.onContextLoss(() => {
+          console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas`)
+          try { webglAddon.dispose() } catch { /* ignore */ }
+          webglAddonRef.current = null
+          // After WebGL disposal, xterm.js _renderer.value becomes undefined.
+          // RenderService.dimensions uses an unsafe non-null assertion (!), so any
+          // call to scrollToBottom/scrollLines/fit will crash with:
+          //   "Cannot read properties of undefined (reading 'dimensions')"
+          // The only recovery is to re-open the terminal element, which forces
+          // xterm.js to create a new canvas renderer.
+          const term = terminalRef.current
+          const parent = term?.element?.parentElement
+          if (term && parent) {
+            term.open(parent)
+            if (fitAddonRef.current) {
+              try { fitAddonRef.current.fit() } catch { /* ignore */ }
+            }
           }
-        }
-      })
+        })
 
-      terminal.loadAddon(webglAddon)
-      webglAddonRef.current = webglAddon
-      console.log(`[Terminal] Initialized with WebGL renderer for session ${optionsRef.current.sessionId}`)
-    } catch (e) {
-      console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
+        terminal.loadAddon(webglAddon)
+        webglAddonRef.current = webglAddon
+        console.log(`[Terminal] Initialized with WebGL renderer for session ${optionsRef.current.sessionId}`)
+      } catch (e) {
+        console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
+      }
     }
 
     // Fix xterm.js helper textarea missing id/name (causes browser console warnings)

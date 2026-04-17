@@ -148,89 +148,101 @@ export default function MobileDashboard({
         )}
 
         {/* Terminal & Messages Tabs - Agent-Specific */}
-        {(activeTab === 'terminal' || activeTab === 'messages') && onlineAgents.map(agent => {
-          const isActive = agent.id === activeAgentId
-          const session = agentToSession(agent)
+        {/* MOBILE FIX: Only mount the ACTIVE agent's terminal to save RAM.
+            On mobile with 5+ agents, mounting all xterm.js instances exhausts memory.
+            Trade-off: lose scrollback on agent switch, gain massive memory savings.
+            Messages tab still maps all online agents for the message center view. */}
+        {(activeTab === 'terminal' || activeTab === 'messages') && (() => {
+          // For terminal tab: only mount the active agent
+          // For messages tab: mount all online agents (lightweight, no xterm.js)
+          const agentsToRender = activeTab === 'messages'
+            ? onlineAgents
+            : onlineAgents.filter(a => a.id === activeAgentId)
 
-          return (
-            <div
-              key={agent.id}
-              className="absolute inset-0 flex flex-col"
-              style={{
-                visibility: isActive ? 'visible' : 'hidden',
-                pointerEvents: isActive ? 'auto' : 'none',
-                zIndex: isActive ? 10 : 0
-              }}
-            >
-              {activeTab === 'terminal' ? (
-                <>
-                  {/* View mode toggle */}
-                  <div className="absolute top-2 right-2 z-20 flex rounded-lg overflow-hidden border border-gray-700 bg-gray-900/80 backdrop-blur-sm">
-                    <button
-                      onClick={() => setViewMode('terminal')}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
-                        viewMode === 'terminal'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-400 hover:text-gray-200'
-                      }`}
+          return agentsToRender.map(agent => {
+            const isActive = agent.id === activeAgentId
+            const session = agentToSession(agent)
+
+            return (
+              <div
+                key={agent.id}
+                className="absolute inset-0 flex flex-col"
+                style={{
+                  visibility: isActive ? 'visible' : 'hidden',
+                  pointerEvents: isActive ? 'auto' : 'none',
+                  zIndex: isActive ? 10 : 0
+                }}
+              >
+                {activeTab === 'terminal' ? (
+                  <>
+                    {/* View mode toggle */}
+                    <div className="absolute top-2 right-2 z-20 flex rounded-lg overflow-hidden border border-gray-700 bg-gray-900/80 backdrop-blur-sm">
+                      <button
+                        onClick={() => setViewMode('terminal')}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
+                          viewMode === 'terminal'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        <Terminal className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('chat')}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
+                          viewMode === 'chat'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Terminal - mounted only for active agent (lazy-mount for mobile RAM savings) */}
+                    <div
+                      className="absolute inset-0 flex flex-col"
+                      style={{
+                        visibility: viewMode === 'terminal' ? 'visible' : 'hidden',
+                        pointerEvents: viewMode === 'terminal' ? 'auto' : 'none'
+                      }}
                     >
-                      <Terminal className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode('chat')}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
-                        viewMode === 'chat'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-400 hover:text-gray-200'
-                      }`}
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Terminal (always mounted, visibility toggled) */}
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      visibility: viewMode === 'terminal' ? 'visible' : 'hidden',
-                      pointerEvents: viewMode === 'terminal' ? 'auto' : 'none'
-                    }}
-                  >
-                    <TerminalView
-                      session={session}
-                      hideFooter={true}
-                      hideHeader={true}
-                      onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
-                    />
-                  </div>
-
-                  {/* Chat view (mounted/unmounted) */}
-                  {viewMode === 'chat' && (
-                    <div className="absolute inset-0 pt-10">
-                      <MobileChatView
-                        agentId={agent.id}
-                        agentName={getAgentDisplayName(agent)}
+                      <TerminalView
+                        session={session}
+                        hideFooter={true}
+                        hideHeader={true}
+                        onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
                       />
                     </div>
-                  )}
-                </>
-              ) : (
-                <MobileMessageCenter
-                  sessionName={session.id}
-                  agentId={agent.id}
-                  allAgents={onlineAgents.map(a => ({
-                    id: a.id,
-                    name: a.name || a.alias || a.id,  // Technical name for lookups
-                    alias: a.label || a.name || a.alias || a.id,  // Display name for UI
-                    tmuxSessionName: a.session?.tmuxSessionName,
-                    hostId: a.hostId
-                  }))}
-                  hostUrl={getAgentBaseUrl(agent)}
-                />
-              )}
-            </div>
-          )
-        })}
+
+                    {/* Chat view (mounted/unmounted) */}
+                    {viewMode === 'chat' && (
+                      <div className="absolute inset-0 pt-10">
+                        <MobileChatView
+                          agentId={agent.id}
+                          agentName={getAgentDisplayName(agent)}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <MobileMessageCenter
+                    sessionName={session.id}
+                    agentId={agent.id}
+                    allAgents={onlineAgents.map(a => ({
+                      id: a.id,
+                      name: a.name || a.alias || a.id,  // Technical name for lookups
+                      alias: a.label || a.name || a.alias || a.id,  // Display name for UI
+                      tmuxSessionName: a.session?.tmuxSessionName,
+                      hostId: a.hostId
+                    }))}
+                    hostUrl={getAgentBaseUrl(agent)}
+                  />
+                )}
+              </div>
+            )
+          })
+        })()}
 
         {/* Work Tab - Shows work history for active agent */}
         {activeTab === 'work' && activeAgent && (
@@ -289,7 +301,7 @@ export default function MobileDashboard({
             <button
               onClick={() => {
                 if (activeAgentId) {
-                  window.location.href = `/companion?agent=${encodeURIComponent(activeAgentId)}&popup=1`
+                  window.open(`/companion?agent=${encodeURIComponent(activeAgentId)}&popup=1`, '_blank')
                 }
               }}
               disabled={!activeAgentId || !isActiveAgentConnected}

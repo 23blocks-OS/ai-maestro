@@ -46,8 +46,13 @@ set -g mouse on
 # Default is 2,000 which is too small for long AI conversations
 set -g history-limit 50000
 
-# Improve colors for better terminal display
-set -g default-terminal "screen-256color"
+# Use tmux-256color for modern terminal feature detection
+set -g default-terminal "tmux-256color"
+
+# Enable Synchronized Output (DEC mode 2026) passthrough
+# This lets xterm.js batch screen redraws atomically, preventing
+# the "cut off" appearance during rapid output (e.g. Claude Code TUI updates)
+set -as terminal-features ',xterm*:sync'
 
 # Optional: Enable clipboard integration (macOS)
 # Uncomment if you want copy/paste to work with system clipboard
@@ -70,7 +75,7 @@ echo ""
 echo "📝 Settings applied:"
 echo "   • Mouse mode: enabled (scroll with mouse wheel)"
 echo "   • History limit: 50,000 lines (was 2,000)"
-echo "   • Colors: 256-color support"
+echo "   • Terminal: tmux-256color with synchronized output"
 echo ""
 echo "🔄 To apply changes:"
 echo "   1. Restart tmux: exit all sessions and start tmux again"

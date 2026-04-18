@@ -920,74 +920,62 @@ async function startServer(handleRequest) {
       }
       terminalSessions.set(sessionName, sessionState)
 
-      // Stream PTY output to all clients with flow control (backpressure)
-      // This prevents overwhelming xterm.js with too much data at once
+      // Stream PTY output to all clients
+      // No server-side pause/resume: xterm.js batches writes via requestAnimationFrame,
+      // so multiple chunks arriving within one frame render as a single atomic update.
+      // The old pause/resume pattern added artificial delays between chunks, making
+      // intermediate "cleared" states visible during tmux screen redraws (cut-off bug).
+      // See: https://xtermjs.org/docs/guides/flowcontrol/
       ptyProcess.onData((data) => {
-        // Pause PTY to implement backpressure
-        ptyProcess.pause()
+        try {
+          // Check if this is a redraw/status update we should filter from logs
+          const cleanedData = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '') // Remove all ANSI codes
 
-        // Check if this is a redraw/status update we should filter from logs
-        const cleanedData = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '') // Remove all ANSI codes
+          // Detect Claude Code status patterns and thinking steps
+          const isStatusPattern =
+            /[✳·]\s*\w+ing[\.…]/.test(cleanedData) || // "✳ Forming...", "· Thinking…", etc.
+            cleanedData.includes('esc to interrupt') ||
+            cleanedData.includes('? for shortcuts') ||
+            /Tip:/.test(cleanedData) ||
+            /^[─>]+\s*$/.test(cleanedData.replace(/[\r\n]/g, '')) || // Just border characters
+            /\[\d+\/\d+\]/.test(cleanedData) || // Thinking step markers like [1/418], [2/418]
+            /^\d{2}:\d{2}:\d{2}\s+\[\d+\/\d+\]/.test(cleanedData) // Timestamped steps like "15:34:46 [1/418]"
 
-        // Detect Claude Code status patterns and thinking steps
-        const isStatusPattern =
-          /[✳·]\s*\w+ing[\.…]/.test(cleanedData) || // "✳ Forming...", "· Thinking…", etc.
-          cleanedData.includes('esc to interrupt') ||
-          cleanedData.includes('? for shortcuts') ||
-          /Tip:/.test(cleanedData) ||
-          /^[─>]+\s*$/.test(cleanedData.replace(/[\r\n]/g, '')) || // Just border characters
-          /\[\d+\/\d+\]/.test(cleanedData) || // Thinking step markers like [1/418], [2/418]
-          /^\d{2}:\d{2}:\d{2}\s+\[\d+\/\d+\]/.test(cleanedData) // Timestamped steps like "15:34:46 [1/418]"
-
-        // Write to log file only if global logging is enabled, session logging is enabled, and it's not a status pattern
-        if (globalLoggingEnabled && sessionState.logStream && sessionState.loggingEnabled && !isStatusPattern) {
-          try {
-            sessionState.logStream.write(data)
-          } catch (error) {
-            console.error(`Error writing to log file for session ${sessionName}:`, error)
+          // Write to log file only if global logging is enabled, session logging is enabled, and it's not a status pattern
+          if (globalLoggingEnabled && sessionState.logStream && sessionState.loggingEnabled && !isStatusPattern) {
+            try {
+              sessionState.logStream.write(data)
+            } catch (error) {
+              console.error(`Error writing to log file for session ${sessionName}:`, error)
+            }
           }
-        }
 
-        // Track substantial activity (filter out cursor blinks and pure escape sequences)
-        const hasSubstantialContent = data.length >= 3 &&
-          !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
+          // Track substantial activity (filter out cursor blinks and pure escape sequences)
+          const hasSubstantialContent = data.length >= 3 &&
+            !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
 
-        if (hasSubstantialContent) {
-          trackSessionActivity(sessionName)
-        }
-
-        // Feed data to cerebellum terminal buffer (for voice subsystem)
-        if (sessionState.terminalBuffer && hasSubstantialContent) {
-          sessionState.terminalBuffer.write(data)
-        }
-
-        // Send data to all clients and wait for write completion
-        const writePromises = []
-        sessionState.clients.forEach((client) => {
-          if (client.readyState === 1) { // WebSocket.OPEN
-            writePromises.push(
-              new Promise((resolve) => {
-                try {
-                  // WebSocket.send() is synchronous, but we wrap it to handle errors
-                  client.send(data, (error) => {
-                    if (error) {
-                      console.error('Error sending data to client:', error)
-                    }
-                    resolve()
-                  })
-                } catch (error) {
-                  console.error('Error sending data to client:', error)
-                  resolve()
-                }
-              })
-            )
+          if (hasSubstantialContent) {
+            trackSessionActivity(sessionName)
           }
-        })
 
-        // Resume PTY after all clients have received the data
-        Promise.all(writePromises).finally(() => {
-          ptyProcess.resume()
-        })
+          // Feed data to cerebellum terminal buffer (for voice subsystem)
+          if (sessionState.terminalBuffer && hasSubstantialContent) {
+            sessionState.terminalBuffer.write(data)
+          }
+
+          // Send data to all connected clients synchronously
+          sessionState.clients.forEach((client) => {
+            if (client.readyState === 1) { // WebSocket.OPEN
+              try {
+                client.send(data)
+              } catch (error) {
+                console.error('Error sending data to client:', error)
+              }
+            }
+          })
+        } catch (error) {
+          console.error(`[PTY] Error in onData handler for ${sessionName}:`, error)
+        }
       })
 
       ptyProcess.onExit(({ exitCode, signal }) => {

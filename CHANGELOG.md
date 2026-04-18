@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.8] - 2026-04-17
+
+### Fixed
+- **Terminal content no longer appears "cut off" during active output** — Removed server-side PTY pause/resume backpressure in `server.mjs` that was adding artificial delays between chunks. When tmux redraws the screen (cursor/clear sequences followed by content), these delays made intermediate "cleared" states visible. xterm.js already batches writes via `requestAnimationFrame`, so chunks now flow at their natural rate and render atomically within a single frame.
+- **Synchronized Output passthrough for tmux** — Updated `scripts/setup-tmux.sh` to set `default-terminal` to `tmux-256color` (was `screen-256color`) and added `terminal-features` with `sync` flag. This enables DEC mode 2026 (Synchronized Output) passthrough so xterm.js can defer rendering until the end-of-update sequence, making screen redraws truly atomic. Both tmux 3.6a and xterm.js 6.0.0 support this — it just wasn't configured.
+
 ## [0.29.3] - 2026-04-17
 
 ### Fixed

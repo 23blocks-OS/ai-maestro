@@ -112,6 +112,9 @@ export function useSessionActivity() {
       }
 
       ws.onclose = () => {
+        // Guard against stale closures from orphaned sockets
+        if (wsRef.current !== ws) return
+
         console.log('[useSessionActivity] WebSocket disconnected')
         setConnected(false)
         // Resume polling as fallback

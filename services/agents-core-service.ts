@@ -467,7 +467,7 @@ export async function listAgents(): Promise<ServiceResult<{
       // Check for standalone agent heartbeat (agents without tmux sessions)
       const heartbeatTs = agentActivity.get(agent.id)
       const heartbeatAge = heartbeatTs ? (Date.now() - heartbeatTs) / 1000 : Infinity
-      const hasRecentHeartbeat = heartbeatAge < 120 // 2 minutes
+      const hasRecentHeartbeat = heartbeatAge < 600 // 10 minutes — standalone agents send heartbeats on hook events (SessionStart, Stop, Notification) which may have gaps during long tool executions
       const isOnline = hasOnlineSession || hasRecentHeartbeat
       // Standalone = no tmux sessions discovered AND not a cloud agent
       const isStandalone = agentSessions.length === 0 && agent.deployment?.type !== 'cloud'

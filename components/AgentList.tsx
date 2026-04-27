@@ -1067,14 +1067,14 @@ export default function AgentList({
                                         // Sort by status first (online > hibernated > offline), then by alias
                                         const aSession = a.sessions?.[0]
                                         const bSession = b.sessions?.[0]
-                                        const aOnline = aSession?.status === 'online' ? 2 : (a.sessions?.length ? 1 : 0)
-                                        const bOnline = bSession?.status === 'online' ? 2 : (b.sessions?.length ? 1 : 0)
+                                        const aOnline = (aSession?.status === 'online' || a.session?.status === 'online') ? 2 : (a.sessions?.length ? 1 : 0)
+                                        const bOnline = (bSession?.status === 'online' || b.session?.status === 'online') ? 2 : (b.sessions?.length ? 1 : 0)
                                         if (aOnline !== bOnline) return bOnline - aOnline
                                         return (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase())
                                       })
                                       .map((agent) => {
                                         const session = agent.sessions?.[0]
-                                        const isOnline = session?.status === 'online'
+                                        const isOnline = session?.status === 'online' || agent.session?.status === 'online'
                                         const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
                                         const sessionName = agent.name
                                         const activityInfo = sessionName ? getSessionActivity(sessionName) : null

@@ -66,9 +66,10 @@ function isEmoji(str: string): boolean {
 function getStatusInfo(
   session: AgentSession | undefined,
   isHibernated: boolean,
-  activityStatus?: SessionActivityStatus
+  activityStatus?: SessionActivityStatus,
+  standaloneOnline?: boolean
 ): { color: string; bgColor: string; label: string; pulse?: boolean } {
-  const isOnline = session?.status === 'online'
+  const isOnline = session?.status === 'online' || standaloneOnline
 
   if (isOnline) {
     if (activityStatus === 'waiting') {
@@ -105,12 +106,12 @@ export default function AgentBadge({
   const [showMenu, setShowMenu] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  // Get the primary session
+  // Get the primary session — check runtime session status (covers standalone agents)
   const session = agent.sessions?.[0]
-  const isOnline = session?.status === 'online'
+  const isOnline = session?.status === 'online' || agent.session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const statusInfo = getStatusInfo(session, isHibernated, activityStatus)
+  const statusInfo = getStatusInfo(session, isHibernated, activityStatus, agent.session?.status === 'online')
   const ringColor = stringToRingColor(agent.name)
 
   // Avatar priority: stored URL > stored emoji > computed from ID

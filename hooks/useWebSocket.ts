@@ -104,6 +104,13 @@ export function useWebSocket({
       return
     }
 
+    // Close any existing socket that isn't already closed (e.g. stuck in CONNECTING)
+    // to prevent orphaned connections that leak server-side
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+
     setStatus('connecting')
     setConnectionError(null)
 
@@ -152,6 +159,10 @@ export function useWebSocket({
       }
 
       ws.onclose = (event) => {
+        // Guard against stale closures: if this socket was replaced by a newer
+        // one (orphaned), don't update state or schedule reconnects
+        if (wsRef.current !== ws) return
+
         setIsConnected(false)
         setStatus('disconnected')
         onCloseRef.current?.()

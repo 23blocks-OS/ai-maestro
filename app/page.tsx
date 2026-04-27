@@ -677,49 +677,48 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Standalone agent (no tmux session, heartbeat-based) */}
-            {activeAgent && activeAgent.session?.standalone && (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                <div className="text-center max-w-md">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-violet-900/30 flex items-center justify-center">
-                    <Terminal className="w-10 h-10 text-violet-400" />
+            {/* Standalone/offline fallbacks — only when the main renderer below won't handle this agent */}
+            {activeAgent && !selectableAgents.some(a => a.id === activeAgentId) && (
+              activeAgent.session?.standalone ? (
+                <div className="flex-1 flex items-center justify-center text-gray-400">
+                  <div className="text-center max-w-md">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-violet-900/30 flex items-center justify-center">
+                      <Terminal className="w-10 h-10 text-violet-400" />
+                    </div>
+                    <p className="text-xl mb-2 text-gray-300">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
+                    <p className="text-sm mb-2 text-gray-500">Standalone Agent</p>
+                    <p className="text-xs text-gray-600">This agent is running outside tmux. No terminal view available.</p>
+                    <button
+                      onClick={() => handleShowAgentProfile(activeAgent)}
+                      className="mt-4 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+                    >
+                      View Profile
+                    </button>
                   </div>
-                  <p className="text-xl mb-2 text-gray-300">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
-                  <p className="text-sm mb-2 text-gray-500">Standalone Agent</p>
-                  <p className="text-xs text-gray-600">This agent is running outside tmux. No terminal view available.</p>
-                  <button
-                    onClick={() => handleShowAgentProfile(activeAgent)}
-                    className="mt-4 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
-                  >
-                    View Profile
-                  </button>
                 </div>
-              </div>
-            )}
-
-            {/* Truly offline agent (no session config, not standalone) - show profile prompt */}
-            {activeAgent && activeAgent.session?.status === 'offline' && !activeAgent.session?.standalone && !(activeAgent.sessions && activeAgent.sessions.length > 0) && (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                <div className="text-center max-w-md">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
-                    <User className="w-10 h-10 text-gray-500" />
+              ) : activeAgent.session?.status === 'offline' ? (
+                <div className="flex-1 flex items-center justify-center text-gray-400">
+                  <div className="text-center max-w-md">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
+                      <User className="w-10 h-10 text-gray-500" />
+                    </div>
+                    <p className="text-xl mb-2 text-gray-300">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
+                    <p className="text-sm mb-4 text-gray-500">This agent is offline</p>
+                    <button
+                      onClick={() => handleStartSession(activeAgent)}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all"
+                    >
+                      Start Session
+                    </button>
+                    <button
+                      onClick={() => handleShowAgentProfile(activeAgent)}
+                      className="ml-3 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+                    >
+                      View Profile
+                    </button>
                   </div>
-                  <p className="text-xl mb-2 text-gray-300">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
-                  <p className="text-sm mb-4 text-gray-500">This agent is offline</p>
-                  <button
-                    onClick={() => handleStartSession(activeAgent)}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all"
-                  >
-                    Start Session
-                  </button>
-                  <button
-                    onClick={() => handleShowAgentProfile(activeAgent)}
-                    className="ml-3 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
-                  >
-                    View Profile
-                  </button>
                 </div>
-              </div>
+              ) : null
             )}
 
             {/* Only render the active agent - no need to mount all 40+ agents */}

@@ -43,6 +43,11 @@ export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSock
     function connect() {
       if (!mounted) return
 
+      // Close any existing socket to prevent orphaned connections
+      if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.close()
+      }
+
       ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
@@ -63,6 +68,8 @@ export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSock
       }
 
       ws.onclose = () => {
+        // Guard against stale closures from orphaned sockets
+        if (wsRef.current !== ws) return
         wsRef.current = null
         if (mounted && retryCount < maxRetries) {
           const delay = retryDelays[retryCount] || retryDelays[retryDelays.length - 1]

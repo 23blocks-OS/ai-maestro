@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.9] - 2026-04-23
+
+### Fixed
+- **WebSocket connection leak causing exponential reconnects** — `connect()` in `useWebSocket.ts` only bailed on `readyState === OPEN`, not `CONNECTING`. On high-latency connections (remote hosts over Tailscale), calling `connect()` while a socket was still connecting created orphaned WebSockets that leaked server-side. Each orphan's `onclose` handler spawned its own reconnect chain, multiplying exponentially. Observed as 177 simultaneous clients from a single browser tab. Fixed in `useWebSocket`, `useCompanionWebSocket`, and `useSessionActivity` — close non-CLOSED sockets before creating new ones, and guard `onclose` against stale closures.
+- **Standalone agents now show online in sidebar** — `AgentBadge` and `AgentList` were only checking `agent.sessions[0].status` (persisted session config), ignoring `agent.session.status` (runtime heartbeat status). Standalone agents with no tmux session always appeared offline despite having a valid heartbeat.
+- **Duplicate hibernate + standalone overlay on offline agents** — The standalone/offline early-exit blocks in `page.tsx` rendered as normal flow elements alongside the main renderer's `absolute inset-0` overlay, causing both to be visible simultaneously. Now guarded by `!selectableAgents.some()` so they only render when the main renderer won't handle the agent.
+- **Heartbeat TTL increased from 2 to 10 minutes** — Standalone agents send heartbeats on Claude Code hook events (`Stop`, `SessionStart`, etc.), but during long tool executions no events fire. The 2-minute TTL caused agents to flicker offline mid-task.
+
 ## [0.29.8] - 2026-04-17
 
 ### Fixed

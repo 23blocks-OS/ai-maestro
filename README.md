@@ -199,6 +199,58 @@ We love contributions. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 - [Report a bug](https://github.com/23blocks-OS/ai-maestro/issues)
 - [Request a feature](https://github.com/23blocks-OS/ai-maestro/issues/new?labels=enhancement)
 
+
+---
+
+## FAQ
+
+### What is AI Maestro?
+
+AI Maestro is an open-source orchestration dashboard for AI coding agents. It lets you manage multiple AI agents (Claude Code, Aider, Cursor, Copilot, etc.) from a single interface, with persistent memory, agent-to-agent messaging, and multi-machine support — no central server required.
+
+### How is it different from running agents in separate terminals?
+
+AI Maestro centralizes visibility and coordination. Instead of switching between dozens of terminals, you get one dashboard showing all agents, their status, and outputs. Agents can also communicate directly via the Agent Messaging Protocol (AMP), eliminating the need to manually copy-paste context between them.
+
+### Which AI agents are supported?
+
+Any terminal-based AI agent works, including Claude Code, Aider, Cursor, GitHub Copilot, and custom scripts. AI Maestro discovers tmux sessions automatically and works with Docker containers, cloud deployments, and standalone terminals.
+
+### How does the multi-machine setup work?
+
+AI Maestro uses a peer mesh network where every machine is equal — no central server. Add a computer and it joins the mesh automatically. You can run agents across Mac, Linux, and cloud machines from one dashboard, using each for its strengths.
+
+### What is the Agent Messaging Protocol (AMP)?
+
+AMP gives agents email-like communication with priority levels, message types, cryptographic signatures, and push notifications. Agents coordinate directly while you manage the big picture from the dashboard.
+
+### How does persistent memory work?
+
+Three layers grow over time: **Memory** (agents remember past conversations and decisions), **Code Graph** (interactive visualization of your codebase with delta indexing), and **Documentation** (auto-generated searchable docs from your code).
+
+### What are Gateways?
+
+Gateways connect your AI agents to external platforms like Slack, Discord, Email, and WhatsApp. They include smart routing (`@AIM:agent-name`), thread-aware responses, and content security with prompt injection detection.
+
+### What are the system requirements?
+
+- **Node.js 18+** and **tmux**
+- macOS, Linux, or Windows (WSL2)
+- Installation takes 5-10 minutes via the remote install script
+
+### How do I get started?
+
+Run the install script: `curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh`
+
+The dashboard opens at `http://localhost:23000`. See the [Quick Start Guide](./docs/QUICKSTART.md) for detailed setup.
+
+### Where can I get help?
+
+- [Documentation](./docs/) — Guides for core concepts, multi-machine setup, agent messaging, and operations
+- [Troubleshooting](./docs/TROUBLESHOOTING.md) — Common issues and solutions
+- [GitHub Issues](https://github.com/23blocks-OS/ai-maestro/issues) — Report bugs or request features
+- [Discussions](https://github.com/23blocks-OS/ai-maestro/discussions) — Join the community conversation
+
 <details>
 <summary><b>Acknowledgments</b></summary>
 

@@ -8,7 +8,7 @@
 
 **Orchestrate your AI coding agents from one dashboard — with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.29.11-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.29.12-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -138,7 +138,7 @@ Don't know what to run first? Start with **Lola** — a batteries-included Perso
 ```bash
 # Clone and deploy Lola on AI Maestro
 git clone https://github.com/23blocks-OS/lolabot.git
-cd lolabot && ./install.sh
+cd lolabot && ./setup.sh
 ```
 
 [Learn more about Lola →](https://github.com/23blocks-OS/lolabot)

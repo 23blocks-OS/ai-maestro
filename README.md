@@ -8,7 +8,7 @@
 
 **Orchestrate your AI coding agents from one dashboard — with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.29.9-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.29.11-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -128,6 +128,20 @@ Assemble agents into teams, run meetings in split-pane war rooms, and track task
 *At 80 agents, they all looked the same.*
 
 Custom avatars, personality profiles, and visual presence for every agent. When an agent has a face and a role, you instinctively assign it the right work — just like a real team.
+
+---
+
+## Meet Lola — Your AI Chief of Staff
+
+Don't know what to run first? Start with **Lola** — a batteries-included Personal Assistant framework built for AI Maestro. She handles email triage, semantic memory, task management, and content security out of the box. Install the platform, deploy Lola, and you immediately have a working AI Chief of Staff.
+
+```bash
+# Clone and deploy Lola on AI Maestro
+git clone https://github.com/23blocks-OS/lolabot.git
+cd lolabot && ./install.sh
+```
+
+[Learn more about Lola →](https://github.com/23blocks-OS/lolabot)
 
 ---
 

@@ -170,9 +170,9 @@ class AgentSubconscious {
     this.agent = agent
     // Default interval (will be adjusted based on activity)
     this.memoryCheckInterval = config.memoryCheckInterval || ACTIVITY_INTERVALS.disconnected
-    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes (deprecated)
-    // Message polling is DISABLED by default - use push notifications instead (RFC: Message Delivery Notifications)
-    this.messagePollingEnabled = config.messagePollingEnabled === true  // Default: disabled
+    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes
+    // Message polling enabled by default - triggers inbox check and injects prompt when agent is idle
+    this.messagePollingEnabled = config.messagePollingEnabled !== false  // Default: enabled
     // Long-term memory consolidation config
     this.consolidationEnabled = config.consolidationEnabled !== false  // Default: enabled
     this.consolidationHour = config.consolidationHour ?? 2  // Default: 2 AM
@@ -205,10 +205,9 @@ class AgentSubconscious {
     console.log(`[Agent ${this.agentId.substring(0, 8)}] 🧠 Starting subconscious...`)
     console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Stagger offset: ${Math.round(this.staggerOffset / 1000)}s`)
     console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory interval: ${this.memoryCheckInterval / 60000} min (${this.activityState})`)
-    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message polling: ${this.messagePollingEnabled ? 'enabled (legacy)' : 'disabled (using push notifications)'}`)
+    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message polling: ${this.messagePollingEnabled ? 'enabled' : 'disabled'}`)
 
-    // Message polling is DEPRECATED - push notifications handle this at delivery time
-    // Only enable polling if explicitly configured (for backwards compatibility)
+    // Message polling checks inbox periodically and injects prompt when agent is idle
     if (this.messagePollingEnabled) {
       console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message interval: ${this.messageCheckInterval / 60000} min`)
 

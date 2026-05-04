@@ -6,9 +6,9 @@
 
 *I was running 35 AI agents across multiple terminals and became the human mailman between them. So I built AI Maestro.*
 
-**Orchestrate your AI coding agents from one dashboard — with persistent memory, agent-to-agent messaging, and multi-machine support.**
+**The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.29.12-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.29.13-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -30,7 +30,7 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 **So I built AI Maestro** — one dashboard to see every agent, on every machine, with persistent memory and direct agent-to-agent communication. Today I run 80+ agents across multiple computers, building real companies with them every day.
 
 **What makes this different:**
-- **Works with any AI agent** — Claude Code, Aider, Cursor, Copilot, your own scripts. We don't lock you in.
+- **Works with any AI agent** — Claude Code, Codex, Aider, Cursor, OpenClaw, Hermes, Droid, or any terminal-based agent. We don't lock you in.
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
 
@@ -82,7 +82,7 @@ Dashboard opens at `http://localhost:23000`
 
 ## Features
 
-Every feature was born from a real problem. We built them in the order we needed them.
+Every feature was born from running a real AI-first organization. We built them in the order we needed them.
 
 ### One Dashboard
 
@@ -131,9 +131,9 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 
 ---
 
-## Meet Lola — Your AI Chief of Staff
+## Meet Lola — Your First Hire
 
-Don't know what to run first? Start with **Lola** — a batteries-included Personal Assistant framework built for AI Maestro. She handles email triage, semantic memory, task management, and content security out of the box. Install the platform, deploy Lola, and you immediately have a working AI Chief of Staff.
+Every AI-first organization starts with one agent. **Lola** is yours — a batteries-included Chief of Staff framework built for AI Maestro. She handles email triage, semantic memory, task management, and content security out of the box. Install the platform, deploy Lola, and you have your first employee on day one.
 
 ```bash
 # Clone and deploy Lola on AI Maestro
@@ -147,7 +147,9 @@ cd lolabot && ./setup.sh
 
 ## Who Is This For
 
-**Developers running multiple AI agents.** If you have 3+ agents and you're switching between terminals, losing context, and playing messenger — this is for you. Works with Claude Code, Aider, Cursor, GitHub Copilot, or any terminal-based AI.
+**Founders building AI-first organizations.** You're the CEO, your agents are the team. Solo operators, agency owners, and anyone running a business where AI agents do the work and you drive the strategy. Start with Lola, add specialists, scale your AI workforce.
+
+**Developers running multiple AI agents.** If you have 3+ agents and you're switching between terminals, losing context, and playing messenger — this is for you. Works with Claude Code, Codex, Aider, Cursor, or any terminal-based AI.
 
 **Teams coordinating AI-assisted work.** Multiple developers, multiple agents, multiple machines. One dashboard. Agent-to-agent messaging replaces you as the bottleneck.
 

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Ecosystem: Build Complete AI Agents | AI Maestro</title>
+    <meta name="description" content="Every AI agent has four dimensions: Personality, Capabilities, Identity, and Communication. Learn how AI Maestro, the Agent Library, Plugin Builder, AID, and AMP work together to build complete AI teams.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/ecosystem.html">
+    <meta property="og:title" content="Agent Ecosystem - Build Complete AI Agents">
+    <meta property="og:description" content="Every AI agent has four dimensions: Personality, Capabilities, Identity, and Communication. Build the perfect AI company.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro Agent Ecosystem">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Agent Ecosystem - Build Complete AI Agents">
+    <meta name="twitter:description" content="Every AI agent has four dimensions: Personality, Capabilities, Identity, Communication. Build the perfect AI company.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="author" content="Juan Pel&aacute;ez">
+    <meta name="keywords" content="AI agent ecosystem, agent personalities, AI workforce, agent messaging protocol, agent identity, plugin builder, Claude Code agents, AI company, multi-agent systems, ai maestro, 23blocks">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/ecosystem.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#00d4ff">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="msapplication-TileColor" content="#0f172a">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "The AI Agent Ecosystem",
+      "description": "How AI Maestro, the Agent Library, Plugin Builder, AID, and AMP work together to build complete AI agent teams.",
+      "author": {
+        "@type": "Person",
+        "name": "Juan Pel\u00e1ez",
+        "url": "https://x.com/jkpelaez"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "23blocks"
+      },
+      "url": "https://ai-maestro.23blocks.com/ecosystem.html"
+    }
+    </script>
+
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Dimension cards */
+        .dimension-card {
+            transition: all 0.3s ease;
+        }
+        .dimension-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 212, 255, 0.1);
+        }
+
+        /* Step cards */
+        .step-card {
+            transition: all 0.3s ease;
+        }
+        .step-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="ecosystem.html" class="text-cyan-400 no-underline font-medium transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="ecosystem.html" class="block px-8 py-3 text-cyan-400 no-underline font-medium hover:bg-slate-800/50">Ecosystem</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="relative py-20 md:py-32 px-4 md:px-8 overflow-hidden">
+        <div class="max-w-7xl mx-auto text-center">
+            <p class="font-mono text-xs md:text-sm text-cyan-400 tracking-widest mb-6">THE AGENT ECOSYSTEM</p>
+            <h1 class="font-display text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+                Build <span class="gradient-text">Complete</span> AI Agents
+            </h1>
+            <p class="text-slate-400 text-lg md:text-xl max-w-3xl mx-auto mb-12">
+                Every AI agent has four dimensions. Get all four right and you have a complete team member &mdash; not just a chatbot with a name.
+            </p>
+
+            <!-- The Formula -->
+            <div class="inline-block bg-slate-850 border border-slate-800 rounded-xl px-6 md:px-10 py-5 mb-16">
+                <p class="font-mono text-sm md:text-base text-slate-300">
+                    <span class="text-white font-bold">Complete Agent</span>
+                    <span class="text-slate-500"> = </span>
+                    <span class="text-amber-400">Personality</span>
+                    <span class="text-slate-500"> + </span>
+                    <span class="text-cyan-400">Capabilities</span>
+                    <span class="text-slate-500"> + </span>
+                    <span class="text-green-400">Identity</span>
+                    <span class="text-slate-500"> + </span>
+                    <span class="text-purple-400">Communication</span>
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Four Dimensions -->
+    <section class="py-16 md:py-24 px-4 md:px-8" id="dimensions">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+
+                <!-- WHO -->
+                <div class="dimension-card bg-slate-850 border border-slate-800 rounded-2xl p-8">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-amber-400/10 flex items-center justify-center">
+                            <span class="text-amber-400 font-display font-bold text-lg">WHO</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white">Personality</h3>
+                            <p class="text-slate-500 text-sm">Domain expertise, workflows, deliverables</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-4">
+                        150+ specialist personalities organized by division: engineering, design, marketing, finance, product, strategy, testing, and more. Each personality is a markdown file that defines who your agent is.
+                    </p>
+                    <a href="https://github.com/msitarzewski/agency-agents" target="_blank" class="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300 text-sm font-medium no-underline transition-colors">
+                        Agent Library
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+                    </a>
+                </div>
+
+                <!-- HOW -->
+                <div class="dimension-card bg-slate-850 border border-slate-800 rounded-2xl p-8">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-cyan-400/10 flex items-center justify-center">
+                            <span class="text-cyan-400 font-display font-bold text-lg">HOW</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white">Capabilities</h3>
+                            <p class="text-slate-500 text-sm">Skills, scripts, CLI tools</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-4">
+                        A composable build system that assembles skills from multiple sources into a single Claude Code plugin. Fork it, edit one file, build. Your agent wakes up knowing everything you gave it.
+                    </p>
+                    <a href="https://github.com/23blocks-OS/ai-maestro-plugins" target="_blank" class="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm font-medium no-underline transition-colors">
+                        Plugin Builder
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+                    </a>
+                </div>
+
+                <!-- TRUST -->
+                <div class="dimension-card bg-slate-850 border border-slate-800 rounded-2xl p-8">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-green-400/10 flex items-center justify-center">
+                            <span class="text-green-400 font-display font-bold text-lg">TRUST</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white">Identity</h3>
+                            <p class="text-slate-500 text-sm">Cryptographic keys, OAuth tokens</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-4">
+                        The Agent Identity Protocol gives each agent a verifiable cryptographic identity. Ed25519 key pairs, OAuth 2.0 authentication, and passwordless access to services.
+                    </p>
+                    <a href="https://agentids.org" target="_blank" class="inline-flex items-center gap-2 text-green-400 hover:text-green-300 text-sm font-medium no-underline transition-colors">
+                        AID Protocol
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+                    </a>
+                </div>
+
+                <!-- TALK -->
+                <div class="dimension-card bg-slate-850 border border-slate-800 rounded-2xl p-8">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-purple-400/10 flex items-center justify-center">
+                            <span class="text-purple-400 font-display font-bold text-lg">TALK</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white">Communication</h3>
+                            <p class="text-slate-500 text-sm">Agent-to-agent messaging</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-4">
+                        Email for AI agents. Priority levels, message types, cryptographic signatures, push notifications, and federation across machines. Agents coordinate directly.
+                    </p>
+                    <a href="https://agentmessaging.org" target="_blank" class="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium no-underline transition-colors">
+                        AMP Protocol
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- The Stage -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50">
+        <div class="max-w-7xl mx-auto text-center">
+            <p class="font-mono text-xs text-cyan-400 tracking-widest mb-4">THE STAGE</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6">
+                AI Maestro Orchestrates It All
+            </h2>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12">
+                One dashboard to see every agent on every machine. Persistent memory. Code graph visualization. Team meetings with Kanban boards. Multi-machine peer mesh.
+            </p>
+
+            <!-- Assembly Flow -->
+            <div class="bg-slate-850 border border-slate-800 rounded-2xl p-8 md:p-12 max-w-4xl mx-auto text-left">
+                <p class="font-mono text-xs text-slate-500 tracking-widest mb-6">ASSEMBLY FLOW</p>
+                <div class="font-mono text-sm space-y-4">
+                    <div class="flex items-start gap-4">
+                        <span class="text-amber-400 shrink-0 w-6">1.</span>
+                        <div>
+                            <span class="text-white">Pick a personality</span>
+                            <span class="text-slate-500 block mt-1">agency-agents/engineering/frontend-developer.md</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4">
+                        <span class="text-cyan-400 shrink-0 w-6">2.</span>
+                        <div>
+                            <span class="text-white">Give it skills</span>
+                            <span class="text-slate-500 block mt-1">Plugin Builder assembles messaging, memory, graph, planning</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4">
+                        <span class="text-green-400 shrink-0 w-6">3.</span>
+                        <div>
+                            <span class="text-white">Give it identity</span>
+                            <span class="text-slate-500 block mt-1">AID generates Ed25519 keys + OAuth tokens</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4">
+                        <span class="text-purple-400 shrink-0 w-6">4.</span>
+                        <div>
+                            <span class="text-white">Give it a voice</span>
+                            <span class="text-slate-500 block mt-1">AMP enables agent-to-agent communication</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4">
+                        <span class="text-cyan-400 shrink-0 w-6">5.</span>
+                        <div>
+                            <span class="text-white">Deploy on AI Maestro</span>
+                            <span class="text-slate-500 block mt-1">One dashboard, persistent memory, multi-machine mesh</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Build Your First Agent Team -->
+    <section class="py-16 md:py-24 px-4 md:px-8" id="build">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <p class="font-mono text-xs text-cyan-400 tracking-widest mb-4">GET STARTED</p>
+                <h2 class="font-display text-3xl md:text-5xl font-bold mb-6">
+                    Build Your First Agent Team
+                </h2>
+                <p class="text-slate-400 text-lg max-w-2xl mx-auto">
+                    Five steps from zero to a running AI company.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+
+                <!-- Step 1 -->
+                <div class="step-card bg-slate-850 border border-slate-800 rounded-2xl p-6">
+                    <div class="font-mono text-xs text-cyan-400 mb-3">STEP 1</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Install AI Maestro</h3>
+                    <p class="text-slate-400 text-sm mb-4">One command installs the dashboard, messaging, and a Claude Code plugin with 7 skills.</p>
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <code class="font-mono text-xs text-cyan-400 break-all">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="step-card bg-slate-850 border border-slate-800 rounded-2xl p-6">
+                    <div class="font-mono text-xs text-amber-400 mb-3">STEP 2</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Browse Personalities</h3>
+                    <p class="text-slate-400 text-sm mb-4">150+ specialist personalities organized by division. Each is a markdown file defining expertise and workflows.</p>
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <code class="font-mono text-xs text-amber-400">git clone github.com/msitarzewski/agency-agents.git</code>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="step-card bg-slate-850 border border-slate-800 rounded-2xl p-6">
+                    <div class="font-mono text-xs text-green-400 mb-3">STEP 3</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Create Your Agent</h3>
+                    <p class="text-slate-400 text-sm mb-4">Combine a personality with skills. Your agent now has a WHO and a HOW.</p>
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <code class="font-mono text-xs text-green-400">aimaestro-agent.sh create --name frontend-dev</code>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="step-card bg-slate-850 border border-slate-800 rounded-2xl p-6">
+                    <div class="font-mono text-xs text-purple-400 mb-3">STEP 4</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Deploy Lola</h3>
+                    <p class="text-slate-400 text-sm mb-4">Your batteries-included Chief of Staff. Email, memory, tasks, content security out of the box.</p>
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <code class="font-mono text-xs text-purple-400">git clone github.com/23blocks-OS/lolabot.git</code>
+                    </div>
+                </div>
+
+                <!-- Step 5 -->
+                <div class="step-card bg-slate-850 border border-slate-800 rounded-2xl p-6 md:col-span-2 lg:col-span-2">
+                    <div class="font-mono text-xs text-cyan-400 mb-3">STEP 5</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Scale Your AI Company</h3>
+                    <p class="text-slate-400 text-sm mb-4">Add specialists from the Agent Library. They communicate via AMP. You orchestrate from the dashboard.</p>
+                    <div class="bg-slate-900 rounded-lg p-4 font-mono text-xs text-slate-400">
+                        <div class="text-white mb-2">Your AI Company:</div>
+                        <div class="ml-4 space-y-1">
+                            <div><span class="text-amber-400">Lola</span> <span class="text-slate-600">&mdash;</span> Chief of Staff (email, tasks, memory)</div>
+                            <div><span class="text-cyan-400">frontend-dev</span> <span class="text-slate-600">&mdash;</span> UI implementation, components</div>
+                            <div><span class="text-green-400">backend-api</span> <span class="text-slate-600">&mdash;</span> API design, database optimization</div>
+                            <div><span class="text-purple-400">growth-hacker</span> <span class="text-slate-600">&mdash;</span> acquisition, viral loops</div>
+                            <div><span class="text-amber-400">content-writer</span> <span class="text-slate-600">&mdash;</span> blog posts, documentation</div>
+                            <div><span class="text-cyan-400">qa-engineer</span> <span class="text-slate-600">&mdash;</span> testing, quality assurance</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Component Links -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50" id="components">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-12">
+                <p class="font-mono text-xs text-cyan-400 tracking-widest mb-4">COMPONENTS</p>
+                <h2 class="font-display text-3xl md:text-4xl font-bold">
+                    Everything You Need
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block bg-slate-850 border border-slate-800 rounded-xl p-6 no-underline hover:border-cyan-400/30 transition-colors">
+                    <h3 class="font-display text-lg font-bold text-white mb-2">AI Maestro</h3>
+                    <p class="text-slate-400 text-sm">The OS for AI-first organizations. Dashboard, memory, multi-machine mesh.</p>
+                </a>
+                <a href="https://github.com/msitarzewski/agency-agents" target="_blank" class="block bg-slate-850 border border-slate-800 rounded-xl p-6 no-underline hover:border-amber-400/30 transition-colors">
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Agent Library</h3>
+                    <p class="text-slate-400 text-sm">150+ specialist personalities. Engineering, design, marketing, and more.</p>
+                </a>
+                <a href="https://github.com/23blocks-OS/ai-maestro-plugins" target="_blank" class="block bg-slate-850 border border-slate-800 rounded-xl p-6 no-underline hover:border-cyan-400/30 transition-colors">
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Plugin Builder</h3>
+                    <p class="text-slate-400 text-sm">Composable skill assembly. Fork, edit, build, install.</p>
+                </a>
+                <a href="https://github.com/23blocks-OS/lolabot" target="_blank" class="block bg-slate-850 border border-slate-800 rounded-xl p-6 no-underline hover:border-purple-400/30 transition-colors">
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Lola</h3>
+                    <p class="text-slate-400 text-sm">Your first hire. AI Chief of Staff with email, memory, tasks.</p>
+                </a>
+                <a href="https://agentmessaging.org" target="_blank" class="block bg-slate-850 border border-slate-800 rounded-xl p-6 no-underline hover:border-purple-400/30 transition-colors">
+                    <h3 class="font-display text-lg font-bold text-white mb-2">AMP</h3>
+                    <p class="text-slate-400 text-sm">Agent Messaging Protocol. Signed messages, routing, federation.</p>
+                </a>
+                <a href="https://agentids.org" target="_blank" class="block bg-slate-850 border border-slate-800 rounded-xl p-6 no-underline hover:border-green-400/30 transition-colors">
+                    <h3 class="font-display text-lg font-bold text-white mb-2">AID</h3>
+                    <p class="text-slate-400 text-sm">Agent Identity. Cryptographic keys, OAuth 2.0, passwordless auth.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="py-20 md:py-28 px-4 md:px-8 text-center">
+        <div class="max-w-3xl mx-auto">
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6">
+                Build the Perfect <span class="gradient-text">AI Company</span>
+            </h2>
+            <p class="text-slate-400 text-lg mb-10">
+                Start with one agent. Add specialists. Scale your AI workforce.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro#readme" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200 no-underline">
+                    GET STARTED FREE
+                </a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-sm tracking-wide hover:bg-slate-700 transition-all duration-200 no-underline border border-slate-700">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    STAR ON GITHUB
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The OS for AI-first organizations. Orchestrate any AI agent with persistent memory, messaging, and multi-machine support.</p>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro-plugins" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Plugin Builder</a>
+                    <a href="https://github.com/msitarzewski/agency-agents" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Agent Library</a>
+                    <a href="plugin-builder.html" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Plugin Builder Docs</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h4>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Pel&aacute;ez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">&#9829;</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">&copy; 2025 Juan Pel&aacute;ez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

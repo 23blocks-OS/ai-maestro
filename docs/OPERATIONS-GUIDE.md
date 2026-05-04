@@ -1042,6 +1042,33 @@ After mastering basic operations:
 
 ---
 
+## Known Issues
+
+### AMP commands prompt for permission on every use
+
+When agents use `amp-read.sh` or `amp-reply.sh`, Claude Code asks for permission each time. This also blocks the subconscious from automatically processing inbox messages since `triggerMessageCheck()` injects a prompt that includes "check your inbox."
+
+**Fix:** Add AMP commands to the global allow list in `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(amp-inbox.sh:*)",
+      "Bash(amp-read.sh:*)",
+      "Bash(amp-reply.sh:*)",
+      "Bash(CLAUDE_AGENT_NAME=* amp-inbox.sh:*)",
+      "Bash(CLAUDE_AGENT_NAME=* amp-read.sh:*)",
+      "Bash(CLAUDE_AGENT_NAME=* amp-reply.sh:*)"
+    ]
+  }
+}
+```
+
+If the file already has a `permissions.allow` array, merge these entries into it. This must be done on each machine where agents run.
+
+---
+
 ## Support
 
 Questions or issues?

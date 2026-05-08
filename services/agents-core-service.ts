@@ -468,9 +468,12 @@ export async function listAgents(): Promise<ServiceResult<{
       const heartbeatTs = agentActivity.get(agent.id)
       const heartbeatAge = heartbeatTs ? (Date.now() - heartbeatTs) / 1000 : Infinity
       const hasRecentHeartbeat = heartbeatAge < 600 // 10 minutes — standalone agents send heartbeats on hook events (SessionStart, Stop, Notification) which may have gaps during long tool executions
-      const isOnline = hasOnlineSession || hasRecentHeartbeat
-      // Standalone = no tmux sessions discovered AND not a cloud agent
-      const isStandalone = agentSessions.length === 0 && agent.deployment?.type !== 'cloud'
+      // Standalone = no tmux sessions discovered, no session history in registry, AND not a cloud agent
+      // Agents with session history (e.g. hibernated agents) are NOT standalone even if they have heartbeats
+      const hasTmuxSessionHistory = (agent.sessions || []).length > 0
+      const isStandalone = agentSessions.length === 0 && !hasTmuxSessionHistory && agent.deployment?.type !== 'cloud'
+      // Only count heartbeat as "online" for truly standalone agents (no tmux session history)
+      const isOnline = hasOnlineSession || (hasRecentHeartbeat && isStandalone)
 
       // Create session status for API response (backward compatibility)
       const onlineSession = updatedSessions.find(s => s.status === 'online')
@@ -488,7 +491,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostId,
             hostName,
           }
-        : hasRecentHeartbeat
+        : (hasRecentHeartbeat && isStandalone)
         ? {
             status: 'online',
             workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,

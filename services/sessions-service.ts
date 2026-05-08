@@ -299,13 +299,16 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
       // Docker not available
     }
 
-    // Discover standalone agents (registered with heartbeat, no tmux session)
+    // Discover standalone agents (registered with heartbeat, no tmux session, no session history)
+    // Agents with session history (e.g. hibernated agents) are NOT standalone
     try {
       const allAgents = loadAgents()
       for (const agent of allAgents) {
         const agentName = agent.name || agent.alias
         if (!agentName || sessions.find(s => s.name === agentName)) continue
         if (agent.deployment?.type === 'cloud') continue
+        // Skip agents with tmux session history — they are managed (hibernated), not standalone
+        if ((agent.sessions || []).length > 0) continue
 
         const heartbeatTs = agentActivity.get(agent.id)
         if (!heartbeatTs) continue

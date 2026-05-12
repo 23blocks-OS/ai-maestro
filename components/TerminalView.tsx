@@ -36,7 +36,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const { addToast } = useToast()
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
-  const [historyLoaded, setHistoryLoaded] = useState(false) // Gate for input handler
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
@@ -200,8 +199,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     initialRows: terminal?.rows,
     autoConnect: isVisible && isReady,  // Wait for terminal init so PTY gets correct dimensions
     onOpen: () => {
-      // Reset historyLoaded - server will send new history on each connect
-      setHistoryLoaded(false)
       // Report activity when WebSocket connects
       reportActivity(session.id)
       // Notify parent of connection status change
@@ -227,7 +224,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          setHistoryLoaded(true)
           if (terminalInstanceRef.current) {
             // Wait for xterm.js to finish processing history
             setTimeout(() => {

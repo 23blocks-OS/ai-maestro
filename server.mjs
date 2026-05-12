@@ -1000,37 +1000,11 @@ async function startServer(handleRequest) {
       sessionState.cleanupTimer = null
     }
 
-    // Send scrollback history to new clients - ASYNC to avoid blocking the event loop
-    // The client can start typing immediately; history loads in the background
-    setTimeout(async () => {
-      try {
-        const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
-        const runtime = getRt()
-
-        let historyContent = ''
-        try {
-          // Capture scrollback history (up to 2000 lines) WITHOUT escape sequences
-          // Reduced from 5000 to 2000 for faster loading
-          historyContent = await runtime.capturePane(sessionName, 2000)
-        } catch (historyError) {
-          console.error('Failed to capture history:', historyError)
-        }
-
-        if (ws.readyState === 1) {
-          if (historyContent) {
-            // Send with proper line endings
-            const formattedHistory = historyContent.replace(/\n/g, '\r\n')
-            ws.send(formattedHistory)
-          }
-          ws.send(JSON.stringify({ type: 'history-complete' }))
-        }
-      } catch (error) {
-        console.error('Error capturing terminal history:', error)
-        if (ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'history-complete' }))
-        }
-      }
-    }, 100)
+    // Signal that the connection is ready — PTY attach will redraw the visible pane
+    // (capture-pane history was removed: it caused double-rendering at mismatched widths)
+    if (ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'history-complete' }))
+    }
 
     // Handle client input
     ws.on('message', (data) => {

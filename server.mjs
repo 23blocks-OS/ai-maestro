@@ -920,6 +920,15 @@ async function startServer(handleRequest) {
       }
       terminalSessions.set(sessionName, sessionState)
 
+      // Disable tmux mouse mode on this session so xterm.js handles browser-native
+      // text selection (gray highlight, clipboard copy). Without this, tmux captures
+      // mouse events and shows its own yellow copy-mode selection.
+      import('child_process').then(({ exec: cpExec }) => {
+        const sockArg = socketPath ? `-S ${socketPath} ` : ''
+        cpExec(`tmux ${sockArg}set-option -t "${sessionName}" mouse off`, () => {})
+      }).catch(() => {})
+
+
       // Stream PTY output to all clients
       // No server-side pause/resume: xterm.js batches writes via requestAnimationFrame,
       // so multiple chunks arriving within one frame render as a single atomic update.

@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.18] - 2026-05-12
+
+### Fixed
+- **Terminal text selection broken (yellow tmux copy-mode)** — `set -g mouse on` in user's `~/.tmux.conf` caused tmux to capture all mouse events, showing yellow copy-mode selection instead of browser-native gray selection. Server now disables mouse mode per-session via `tmux set-option -t <session> mouse off` after PTY creation so xterm.js handles text selection and clipboard copy.
+- **Double/overlapping terminal content on connect** — Server was sending both PTY `tmux attach` redraw (ANSI, correct width) AND `tmux capture-pane` scrollback (plain text, potentially different width) to xterm.js, causing duplicate overlapping content. Removed capture-pane entirely — PTY attach already redraws the visible pane.
+- **Blank terminal on agent switch** — `history-complete` signal fired immediately before PTY had time to stream the tmux redraw, causing refit/scroll on an empty terminal. Added 200ms delay so data arrives before client does scroll-to-bottom.
+
+### Changed
+- Removed `historyLoaded` state from `TerminalView.tsx` (was unused as a gate)
+- Removed `capture-pane` scrollback history from WebSocket connection handler
+- `history-complete` signal sent after 200ms delay instead of immediately
+
+### Added
+- `docs/KNOWN-ISSUES.md` — recurring terminal issues and their fixes
+
 ## [0.29.9] - 2026-04-23
 
 ### Fixed

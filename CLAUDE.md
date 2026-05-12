@@ -696,19 +696,17 @@ try {
    - Scrollback must be captured from tmux's buffer, not just xterm.js's buffer
    - The `windowOptions: { setWinLines: true }` setting enables proper alternate buffer support
 
-3. **Scrollback Capture Strategy** - On initial connection, capture both normal and alternate screen content:
-   ```bash
-   # Try to capture full history (50000 lines)
-   tmux capture-pane -t <session> -p -S -50000 -e -1
-   # Fallback to visible content only
-   tmux capture-pane -t <session> -p
-   ```
+3. **NO capture-pane history on connect (v0.29.16+)** - The server does NOT send `tmux capture-pane` scrollback when a client connects. The PTY `tmux attach` already redraws the visible pane with correct ANSI content. Sending capture-pane on top caused **double-rendering** (same content at mismatched widths, overlapping text). The server sends only a `history-complete` signal after a 200ms delay to let the PTY stream the initial redraw, then the client does refit + resize + scroll-to-bottom. Scrollback is still available via tmux copy mode (Ctrl-b [) or xterm.js buffer (Shift+PageUp/Down).
+
+4. **tmux mouse mode must be OFF per-session (v0.29.18+)** - When the user's `~/.tmux.conf` has `set -g mouse on`, tmux captures all mouse events (clicks, drags, scroll) and shows its own **yellow copy-mode selection** instead of letting xterm.js handle browser-native text selection (gray highlight, clipboard copy). The server disables mouse mode per-session via `tmux set-option -t <session> mouse off` immediately after PTY creation. **DO NOT remove this** or text selection will break. This is a recurring issue that has been fixed multiple times.
 
 **Common Issues and Fixes:**
 
 - **Every character creates a new line**: `convertEol` was set to `true` - must be `false` for PTY connections
 - **Can't scroll back during Claude session**: Claude Code uses alternate screen buffer - use Shift+PageUp/Down to scroll xterm.js buffer, or tmux copy mode (Ctrl-b [) to access tmux's scrollback
-- **Lost history after switching agents**: History capture timeout was too short or tmux session not fully initialized - increased timeout to 150ms
+- **Yellow text selection instead of gray (can't copy)**: tmux `mouse on` is intercepting mouse events - the server must run `tmux set-option -t <session> mouse off` after PTY creation (see point 4 above)
+- **Double/overlapping text on connect**: capture-pane history was being sent on top of PTY attach redraw - removed in v0.29.16 (see point 3 above)
+- **Blank terminal on agent switch**: `history-complete` was firing before PTY streamed initial redraw - added 200ms delay in v0.29.17
 
 ### WebSocket Reconnection Strategy
 
@@ -939,6 +937,8 @@ When implementing features:
 - **Don't hardcode category colors** - Use the hash-based dynamic color system
 - **Don't use display:none for hidden terminals** - Use visibility:hidden to maintain correct dimensions and enable selection (v0.3.0+)
 - **Don't add session.id to terminal initialization useEffect** - Terminals initialize once with empty dependency array in tab architecture (v0.3.0+)
+- **Don't send capture-pane history on WebSocket connect** - PTY `tmux attach` already redraws the pane. Sending capture-pane on top causes double-rendering at mismatched widths (v0.29.16+)
+- **Don't remove the `tmux set-option mouse off` in server.mjs** - Without it, tmux captures mouse events and shows yellow copy-mode selection instead of browser-native text selection. This has broken multiple times (v0.29.18+)
 
 ## Key Files to Understand
 

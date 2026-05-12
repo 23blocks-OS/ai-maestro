@@ -1000,11 +1000,16 @@ async function startServer(handleRequest) {
       sessionState.cleanupTimer = null
     }
 
-    // Signal that the connection is ready — PTY attach will redraw the visible pane
+    // Signal that the connection is ready after a short delay.
+    // The PTY `tmux attach` redraws the visible pane with correct ANSI content,
+    // but needs ~150ms to stream it. The history-complete handler on the client
+    // does refit + resize + scroll-to-bottom, so it must fire AFTER initial data.
     // (capture-pane history was removed: it caused double-rendering at mismatched widths)
-    if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'history-complete' }))
-    }
+    setTimeout(() => {
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'history-complete' }))
+      }
+    }, 200)
 
     // Handle client input
     ws.on('message', (data) => {

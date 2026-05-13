@@ -78,6 +78,29 @@ export interface AMPExternalRegistration {
 }
 
 // ============================================================================
+// Lifecycle Hooks
+// ============================================================================
+
+/**
+ * Lifecycle hooks for agent events.
+ *
+ * Values support variable interpolation:
+ *   ${projectDirectory} — replaced with runtime projectDirectory from wake call
+ *   ${agentName}        — replaced with agent name
+ *
+ * Value prefixes:
+ *   "prompt:..." — typed into agent CLI stdin after launch
+ *   anything else — run as shell command via tmux send-keys
+ *
+ * Example: "prompt:cd ${projectDirectory} && Execute your startup instructions"
+ */
+export interface AgentHooks {
+  'on-wake'?: string      // Fires after program starts in tmux session
+  'on-hibernate'?: string // Fires before session is killed (future)
+  [key: string]: string | undefined
+}
+
+// ============================================================================
 // Session Name Helpers
 // ============================================================================
 
@@ -214,8 +237,15 @@ export interface Agent {
   // Skills (composable capabilities)
   skills?: AgentSkillsConfig
 
-  // Hooks (event-triggered scripts)
-  hooks?: Record<string, string>  // event -> script path
+  // Hooks (lifecycle event automation)
+  hooks?: AgentHooks
+
+  // Mesh awareness: when true (default), a short mesh-protocol primer is
+  // prepended to the agent's on-wake prompt hook, giving the agent enough
+  // context to know it's in an AI Maestro mesh and how to message peers.
+  // Set to false to opt out (sandboxed/test agents, agents that should not
+  // know about the mesh, etc.).
+  meshAware?: boolean
 
   // Runtime type (default: 'tmux') — future: 'docker' | 'api' | 'direct'
   runtime?: 'tmux' | 'docker' | 'api' | 'direct'
@@ -233,6 +263,16 @@ export interface Agent {
 }
 
 export type DeploymentType = 'local' | 'cloud'
+
+export interface SandboxMount {
+  hostPath: string                  // Absolute path on host (e.g., /home/user/code/project)
+  containerPath: string             // Absolute path inside container (e.g., /workspace/project)
+  readOnly?: boolean                // Default false; sets `:ro` on the docker bind
+}
+
+export interface SandboxConfig {
+  mounts?: SandboxMount[]           // Bind mounts applied at container creation
+}
 
 export interface AgentDeployment {
   type: DeploymentType              // Where the agent is running
@@ -256,6 +296,9 @@ export interface AgentDeployment {
     containerName?: string            // Docker container name
     status?: 'provisioning' | 'running' | 'stopped' | 'error'
   }
+
+  // Sandbox configuration (currently consumed by cloud/container deployments)
+  sandbox?: SandboxConfig
 }
 
 export interface AgentTools {
@@ -455,6 +498,7 @@ export interface CreateAgentRequest {
   team?: string
   documentation?: AgentDocumentation
   metadata?: Record<string, any>
+  hooks?: AgentHooks             // Lifecycle hooks (e.g., on-wake)
   // DEPRECATED: for backward compatibility
   alias?: string
   displayName?: string
@@ -478,6 +522,7 @@ export interface UpdateAgentRequest {
   documentation?: Partial<AgentDocumentation>
   metadata?: Record<string, any>
   preferences?: Partial<AgentPreferences>
+  hooks?: AgentHooks             // Update lifecycle hooks
   // DEPRECATED: for backward compatibility
   alias?: string
   displayName?: string

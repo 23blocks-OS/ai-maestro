@@ -4,7 +4,7 @@ import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
 import { parseSessionName, computeSessionName } from '@/types/agent'
-import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
+import { getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 import { invalidateAgentCache } from '@/lib/messageQueue'
 import { sessionExistsSync, killSessionSync, renameSessionSync } from '@/lib/agent-runtime'
@@ -214,7 +214,16 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
   const normalizedName = name.toLowerCase()
 
   if (hostId) {
-    // Scoped to specific host; exclude soft-deleted agents
+    // If the requested hostId is actually this machine (possibly under a different
+    // hostname due to dock/WiFi switching), use isSelf() for robust matching
+    if (isSelf(hostId)) {
+      return agents.find(a =>
+        !a.deletedAt &&
+        a.name?.toLowerCase() === normalizedName &&
+        a.hostId != null && isSelf(a.hostId)
+      ) || null
+    }
+    // Scoped to specific remote host; exclude soft-deleted agents
     return agents.find(a =>
       !a.deletedAt &&
       a.name?.toLowerCase() === normalizedName &&
@@ -223,11 +232,11 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
   }
 
   // Default: search on self host only; exclude soft-deleted agents
-  const selfHostId = getSelfHostId().toLowerCase()
+  // Uses isSelf() to handle hostname changes (e.g., dock vs WiFi)
   return agents.find(a =>
     !a.deletedAt &&
     a.name?.toLowerCase() === normalizedName &&
-    a.hostId?.toLowerCase() === selfHostId
+    a.hostId != null && isSelf(a.hostId)
   ) || null
 }
 
@@ -252,15 +261,18 @@ export function getAgentByAlias(alias: string, hostId?: string): Agent | null {
   const agents = loadAgents()
   const normalizedAlias = alias.toLowerCase()
 
-  // Determine which host to search on
-  const targetHostId = hostId?.toLowerCase() || getSelfHostId().toLowerCase()
+  // Determine if target is self (handles hostname changes from dock/WiFi switching)
+  const targetIsSelf = hostId ? isSelf(hostId) : true
+  const targetHostId = hostId?.toLowerCase()
 
   // Try name first (on specific host), then deprecated alias field; exclude soft-deleted
   return agents.find(a =>
     !a.deletedAt &&
     (a.name?.toLowerCase() === normalizedAlias ||
      a.alias?.toLowerCase() === normalizedAlias) &&
-    a.hostId?.toLowerCase() === targetHostId
+    (targetIsSelf
+      ? (a.hostId != null && isSelf(a.hostId))
+      : a.hostId?.toLowerCase() === targetHostId)
   ) || null
 }
 
@@ -398,7 +410,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     name: agentName,
     label,
     avatar,
-    workingDirectory: request.workingDirectory || process.cwd(),
+    workingDirectory: request.workingDirectory,
     sessions,
     hostId,
     hostName,
@@ -2135,6 +2147,13 @@ export function normalizeHostId(hostId: string | undefined): string {
     return selfHostId
   }
 
+  // Migrate stale hostnames: if isSelf() recognizes this hostId (via aliases/IPs)
+  // but it doesn't match the current hostname, update it to the canonical self ID.
+  // This handles hostname drift (e.g. milo-dock.internal → shanes-m3-pro-mbp).
+  if (isSelf(hostId) && hostId.toLowerCase().replace(/\.local$/, '') !== selfHostId) {
+    return selfHostId
+  }
+
   // Normalize: lowercase and strip .local suffix
   return hostId.toLowerCase().replace(/\.local$/, '')
 }
@@ -2149,6 +2168,9 @@ export function needsHostIdNormalization(hostId: string | undefined): boolean {
   if (hostId === 'local') return true
   if (hostId !== hostId.toLowerCase()) return true
   if (hostId.endsWith('.local')) return true
+  // Stale self-hostname: isSelf() recognizes it but it doesn't match current hostname
+  const selfHostId = getSelfHostId()
+  if (isSelf(hostId) && hostId.toLowerCase().replace(/\.local$/, '') !== selfHostId) return true
   return false
 }
 

@@ -482,6 +482,22 @@ async function main() {
             }
             break;
 
+        case 'UserPromptSubmit': {
+            // Drain on every user prompt — this is the reliable delivery slot
+            // for Claude Code. SessionStart can be preempted by other plugins'
+            // hooks; UserPromptSubmit fires once per user turn and is rarely contended.
+            const [upsInbox, upsMeeting] = await Promise.all([
+                checkUnreadMessages(cwd),
+                drainMeetingInjectQueue(cwd)
+            ]);
+            const upsContext = [upsMeeting, upsInbox].filter(Boolean).join('\n\n');
+            if (upsContext) {
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting });
+                hookResponse = buildContextResponse(agent, rawEvent, upsContext);
+            }
+            break;
+        }
+
         default:
             // Unknown event - just log it
             if (process.env.DEBUG) {
@@ -489,8 +505,11 @@ async function main() {
             }
     }
 
-    // Output hook response (may include additionalContext for inbox notifications)
-    console.log(JSON.stringify(hookResponse));
+    // Output hook response (may include additionalContext for inbox notifications).
+    // Force immediate exit — pending fire-and-forget fetches (broadcastStatusUpdate)
+    // can keep the event loop alive past Claude Code's hook deadline.
+    process.stdout.write(JSON.stringify(hookResponse));
+    process.exit(0);
 }
 
 main().catch(err => {

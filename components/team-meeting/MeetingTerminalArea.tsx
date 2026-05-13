@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, memo } from 'react'
 import TerminalView from '@/components/TerminalView'
 import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
@@ -9,11 +10,19 @@ interface MeetingTerminalAreaProps {
   activeAgentId: string | null
 }
 
-export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTerminalAreaProps) {
+function MeetingTerminalAreaInner({ agents, activeAgentId }: MeetingTerminalAreaProps) {
   // Only render the active agent's terminal - matches main dashboard pattern.
   // Mounting all agents simultaneously creates N WebGL contexts which exhausts
   // the browser's GPU context limit (~8-16), breaking canvas-based text selection.
   const activeAgent = agents.find(a => a.id === activeAgentId)
+  const session = useMemo(
+    () => activeAgent ? agentToSession(activeAgent) : null,
+    [
+      activeAgent?.id,
+      activeAgent?.session?.tmuxSessionName,
+      activeAgent?.hostId,
+    ]
+  )
 
   if (!activeAgent) {
     return (
@@ -25,9 +34,7 @@ export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTe
     )
   }
 
-  const hasTerminal = !!activeAgent.session?.tmuxSessionName
-
-  if (!hasTerminal) {
+  if (!session) {
     return (
       <div className="flex-1 relative">
         <div className="absolute inset-0 flex items-center justify-center">
@@ -39,8 +46,6 @@ export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTe
       </div>
     )
   }
-
-  const session = agentToSession(activeAgent)
 
   return (
     <div className="flex-1 relative">
@@ -57,3 +62,22 @@ export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTe
     </div>
   )
 }
+
+// Freeze re-renders unless the meaningful identity (activeAgentId + active agent's
+// session/host) actually changes. Prevents the terminal from thrashing on every
+// useAgents/useHosts poll, which churns `agents` prop refs without meaningful change.
+function propsEqual(prev: MeetingTerminalAreaProps, next: MeetingTerminalAreaProps): boolean {
+  if (prev.activeAgentId !== next.activeAgentId) return false
+  const prevAgent = prev.agents.find(a => a.id === prev.activeAgentId)
+  const nextAgent = next.agents.find(a => a.id === next.activeAgentId)
+  if (!prevAgent && !nextAgent) return true
+  if (!prevAgent || !nextAgent) return false
+  return (
+    prevAgent.session?.tmuxSessionName === nextAgent.session?.tmuxSessionName &&
+    prevAgent.hostId === nextAgent.hostId &&
+    !!prevAgent.session === !!nextAgent.session
+  )
+}
+
+const MeetingTerminalArea = memo(MeetingTerminalAreaInner, propsEqual)
+export default MeetingTerminalArea

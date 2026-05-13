@@ -918,7 +918,13 @@ export default function DashboardPage() {
                             </div>
                             <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-2 text-gray-500">Standalone Agent</p>
-                            <p className="text-xs text-gray-600">This agent is running outside tmux (plain terminal, API-only, or remote host). No terminal view available.</p>
+                            <p className="text-xs text-gray-600 mb-4">This agent is running outside tmux (plain terminal, API-only, or remote host). No terminal view available.</p>
+                            <button
+                              onClick={() => handleShowAgentProfile(agent)}
+                              className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+                            >
+                              View Profile
+                            </button>
                           </div>
                         </div>
                       ) : (

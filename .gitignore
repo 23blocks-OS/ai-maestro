@@ -153,3 +153,9 @@ public/avatars/*_enhanced.png
 # Presentation (hedge fund deck, Remotion animations)
 presentation/
 docs/FORK-ANALYSIS.md
+
+# Incoming scratch (screenshots, drops)
+incoming/
+
+# AI team operator-private instructions
+ai-team/

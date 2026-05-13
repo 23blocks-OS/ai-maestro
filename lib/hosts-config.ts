@@ -58,7 +58,10 @@ function loadStoredSelfAliases(): void {
     }
 
     storedSelfAliasesCache = []
-  } catch { storedSelfAliasesCache = [] }
+  } catch (err) {
+    console.warn('[Hosts] Failed to load stored self aliases:', err)
+    storedSelfAliasesCache = []
+  }
 }
 loadStoredSelfAliases()
 

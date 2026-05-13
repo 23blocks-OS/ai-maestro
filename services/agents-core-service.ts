@@ -1416,6 +1416,7 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
     if (!exists) {
       // Session doesn't exist, just update the status
       updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+      agentActivity.delete(agentId)
 
       return {
         data: {
@@ -1450,8 +1451,9 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
     // Remove from session persistence
     unpersistSession(sessionName)
 
-    // Update agent status in registry
+    // Update agent status in registry and clear heartbeat
     updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+    agentActivity.delete(agentId)
 
     console.log(`[Hibernate] Agent ${agentName} (${agentId}) session ${sessionIndex} hibernated successfully`)
 

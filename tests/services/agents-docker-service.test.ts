@@ -1502,7 +1502,7 @@ describe('buildRecreateBody', () => {
     const agent = makeCloudAgent({
       deployment: {
         type: 'cloud',
-        cloud: { provider: 'local-container', containerName: 'aim-x', status: 'running' },
+        cloud: { provider: 'local-container', containerName: 'aim-x', status: 'running', websocketUrl: 'ws://localhost:46000/term' },
         sandbox: { mounts },
       },
     })

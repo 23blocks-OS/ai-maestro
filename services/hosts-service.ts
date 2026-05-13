@@ -81,6 +81,41 @@ async function getDockerStatus(): Promise<{ available: boolean; version?: string
 }
 
 // ---------------------------------------------------------------------------
+// Cloud capability detection (terraform + AWS CLI)
+// ---------------------------------------------------------------------------
+
+let cloudCache: { terraform: boolean; aws: boolean; awsRegion: string; checkedAt: number } | null = null
+const CLOUD_CACHE_TTL = 60000 // 60 seconds
+
+async function getCloudStatus(): Promise<{ terraform: boolean; aws: boolean; awsRegion: string }> {
+  if (cloudCache && Date.now() - cloudCache.checkedAt < CLOUD_CACHE_TTL) {
+    return cloudCache
+  }
+
+  let terraformAvailable = false
+  try {
+    await execAsync('terraform version', { timeout: 3000 })
+    terraformAvailable = true
+  } catch {}
+
+  let awsAvailable = false
+  let awsRegion = 'us-east-1'
+  if (terraformAvailable) {
+    try {
+      await execAsync('aws sts get-caller-identity', { timeout: 5000 })
+      awsAvailable = true
+      try {
+        const { stdout } = await execAsync('aws configure get region', { timeout: 3000 })
+        if (stdout.trim()) awsRegion = stdout.trim()
+      } catch {}
+    } catch {}
+  }
+
+  cloudCache = { terraform: terraformAvailable, aws: awsAvailable, awsRegion, checkedAt: Date.now() }
+  return cloudCache
+}
+
+// ---------------------------------------------------------------------------
 // Package version (read once at module load)
 // ---------------------------------------------------------------------------
 
@@ -293,8 +328,9 @@ export async function listHosts(): Promise<ServiceResult<{ hosts: any[] }>> {
   try {
     const hosts = getHosts()
 
-    // Start Docker check in parallel
+    // Start Docker + Cloud checks in parallel
     const dockerStatusPromise = getDockerStatus()
+    const cloudStatusPromise = getCloudStatus()
 
     // Add isSelf flag to each host right away
     const hostsWithSelf = hosts.map(host => ({
@@ -302,13 +338,18 @@ export async function listHosts(): Promise<ServiceResult<{ hosts: any[] }>> {
       isSelf: isSelf(host.id),
     }))
 
-    // Await Docker status (returns from cache instantly after first check)
-    const docker = await dockerStatusPromise
+    // Await Docker + Cloud status (returns from cache instantly after first check)
+    const [docker, cloud] = await Promise.all([dockerStatusPromise, cloudStatusPromise])
     for (const host of hostsWithSelf) {
       if (host.isSelf) {
         (host as any).capabilities = {
           docker: docker.available,
           dockerVersion: docker.version,
+          cloud: {
+            aws: cloud.aws && cloud.terraform,
+            terraform: cloud.terraform,
+            awsRegion: cloud.awsRegion,
+          },
         }
       }
     }

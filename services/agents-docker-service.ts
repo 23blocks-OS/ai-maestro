@@ -984,7 +984,7 @@ export function mergeEnv(common: Record<string, string>, operator: Record<string
 // Failures are logged loudly but non-fatal — the container is already
 // running by the time we get here, the agent can use its program normally,
 // only AMP signing is unavailable until an operator amp-init runs manually.
-async function bootstrapAmpIdentity(
+export async function bootstrapAmpIdentity(
   agentId: string,
   agentName: string,
   hostHome: string = os.homedir()

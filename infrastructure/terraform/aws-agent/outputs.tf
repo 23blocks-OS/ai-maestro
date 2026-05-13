@@ -28,13 +28,18 @@ output "ssh_command" {
   value       = "ssh -i ~/.ssh/${var.key_name}.pem ec2-user@${aws_instance.agent.public_ip}"
 }
 
+# What Gets Created:
+# - EC2 instance (ARM64 Graviton) with Node.js, tmux, AI CLI installed natively
+# - agent-server.js running as systemd service on port 23000
+# - Nginx reverse proxy with Let's Encrypt SSL
+# - Security group (SSH + HTTP/HTTPS)
 output "agent_registry_json" {
   description = "JSON snippet to add to ~/.aimaestro/agents/registry.json"
   value = jsonencode({
     id          = var.agent_name
     alias       = var.agent_name
     displayName = "AWS Agent - ${var.agent_name}"
-    avatar      = "☁️"
+    avatar      = "\u2601\ufe0f"
     program     = "Claude Code"
     model       = "Sonnet 4.5"
     deployment = {
@@ -49,6 +54,8 @@ output "agent_registry_json" {
         websocketUrl   = "wss://${var.domain_name}/term"
         healthCheckUrl = "https://${var.domain_name}/health"
         ssl            = "letsencrypt"
+        runtime        = "ec2-native"
+        aiTool         = var.ai_tool
         status         = "running"
       }
     }
@@ -69,21 +76,18 @@ output "dns_instructions" {
   description = "DNS setup instructions"
   value       = <<-EOT
 
-  ╔════════════════════════════════════════════════════════════╗
-  ║  DNS SETUP REQUIRED - Add this A record to your DNS:      ║
-  ╠════════════════════════════════════════════════════════════╣
-  ║                                                            ║
-  ║  Domain: ${var.domain_name}                                ║
-  ║  Type:   A                                                 ║
-  ║  Value:  ${aws_instance.agent.public_ip}                   ║
-  ║  TTL:    300 (5 minutes)                                   ║
-  ║                                                            ║
-  ║  After adding the DNS record, wait 5-10 minutes for:      ║
-  ║  1. DNS propagation                                        ║
-  ║  2. Let's Encrypt to issue SSL certificate               ║
-  ║                                                            ║
-  ║  Then test: https://${var.domain_name}/health              ║
-  ╚════════════════════════════════════════════════════════════╝
+  DNS SETUP REQUIRED - Add this A record to your DNS:
+
+  Domain: ${var.domain_name}
+  Type:   A
+  Value:  ${aws_instance.agent.public_ip}
+  TTL:    300 (5 minutes)
+
+  After adding the DNS record, wait 5-10 minutes for:
+  1. DNS propagation
+  2. Let's Encrypt to issue SSL certificate
+
+  Then test: https://${var.domain_name}/health
 
   EOT
 }

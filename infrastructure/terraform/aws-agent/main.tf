@@ -78,60 +78,25 @@ resource "aws_security_group" "agent" {
   }
 }
 
-# IAM Role for EC2 to access ECR
-resource "aws_iam_role" "agent_ec2" {
-  name = "aimaestro-agent-ec2-${var.agent_name}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name    = "aimaestro-agent-ec2-${var.agent_name}"
-    Project = "AI Maestro"
-    Agent   = var.agent_name
-  }
-}
-
-# Attach ECR read-only policy
-resource "aws_iam_role_policy_attachment" "ecr_readonly" {
-  role       = aws_iam_role.agent_ec2.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-# Instance profile
-resource "aws_iam_instance_profile" "agent" {
-  name = "aimaestro-agent-${var.agent_name}"
-  role = aws_iam_role.agent_ec2.name
-}
-
-# EC2 Instance
+# EC2 Instance — native install (no Docker, no ECR)
 resource "aws_instance" "agent" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.instance_type
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.agent.id]
-  iam_instance_profile   = aws_iam_instance_profile.agent.name
 
-  # User data script to install Docker, Nginx, and run agent with SSL
+  # User data script installs Node.js, tmux, AI CLI natively
   user_data = templatefile("${path.module}/user_data.sh", {
-    ecr_image_url      = var.ecr_image_url
     agent_name         = var.agent_name
+    ai_tool            = var.ai_tool
     github_token       = var.github_token
     websocket_port     = var.websocket_port
     anthropic_api_key  = var.anthropic_api_key
     aws_region         = var.aws_region
     domain_name        = var.domain_name
     ssl_email          = var.ssl_email
+    agent_server_js    = file("${path.module}/agent-server.js")
+    agent_package_json = file("${path.module}/agent-package.json")
     nginx_config       = templatefile("${path.module}/nginx.conf.tpl", {
       domain_name = var.domain_name
       agent_name  = var.agent_name

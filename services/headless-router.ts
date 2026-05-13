@@ -138,6 +138,7 @@ import {
 } from '@/services/agents-playback-service'
 
 import { createDockerAgent, recreateDockerAgent } from '@/services/agents-docker-service'
+import { createCloudAgent, destroyCloudAgent, getCloudAgentStatus } from '@/services/agents-cloud-service'
 
 import {
   listSessions,
@@ -532,6 +533,17 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/docker\/create$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await createDockerAgent(body))
+  }},
+  // Cloud agent endpoints (EC2 / ECS Fargate)
+  { method: 'POST', pattern: /^\/api\/agents\/cloud\/create$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await createCloudAgent(body))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/cloud\/([^/]+)\/destroy$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await destroyCloudAgent(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/cloud\/([^/]+)\/status$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await getCloudAgentStatus(params.id))
   }},
   // Docker agent recreate (atomic re-provision)
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/recreate$/, paramNames: ['id'], handler: async (_req, res, params) => {

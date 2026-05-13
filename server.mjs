@@ -1,5 +1,6 @@
 import { createServer } from 'http'
 import { parse } from 'url'
+import { execSync } from 'child_process'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -819,6 +820,7 @@ async function startServer(handleRequest) {
 
     // Get or create session state (for traditional local tmux sessions)
     let sessionState = terminalSessions.get(sessionName)
+    const socketPath = query.socket || undefined
 
     if (!sessionState) {
       let ptyProcess
@@ -828,7 +830,6 @@ async function startServer(handleRequest) {
       // tmux may still be detaching. Retrying after a short delay resolves this.
       const PTY_SPAWN_MAX_RETRIES = 3
       const PTY_SPAWN_RETRY_DELAY_MS = 500
-      const socketPath = query.socket || undefined
 
       for (let attempt = 1; attempt <= PTY_SPAWN_MAX_RETRIES; attempt++) {
         try {
@@ -986,8 +987,33 @@ async function startServer(handleRequest) {
       }
     }
 
-    // Add client to session
-    sessionState.clients.add(ws)
+    // Disable tmux mouse mode per-session so xterm.js handles mouse natively.
+    // Without this, ~/.tmux.conf "set -g mouse on" causes tmux to intercept
+    // click-drag (yellow copy-mode selection instead of browser clipboard) and
+    // wheel events (tmux copy-mode instead of app-native scrolling).
+    try {
+      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
+      execSync(`${tmuxBase} set-option -t "${sessionName}" mouse off`, { timeout: 2000, stdio: 'pipe' })
+    } catch (e) {
+      console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, e.message)
+    }
+
+    // Capture FULL pane content (scrollback + visible area) with ANSI color codes.
+    // We send this as a single snapshot and intentionally DON'T add the client to the
+    // PTY broadcast set yet — the PTY's initial `tmux attach` redraw would duplicate
+    // the visible area. By delaying broadcast join, the redraw is discarded.
+    try {
+      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
+      const paneContent = execSync(
+        `${tmuxBase} capture-pane -t "${sessionName}" -e -p -S -5000 2>/dev/null`,
+        { encoding: 'utf8', timeout: 3000 }
+      )
+      if (paneContent && paneContent.trim() && ws.readyState === 1) {
+        ws.send(paneContent.replace(/\n/g, '\r\n'))
+      }
+    } catch (e) {
+      // capture failed — client will get content once added to broadcast
+    }
 
     // Track connection as activity (so newly opened sessions show as active)
     trackSessionActivity(sessionName)
@@ -1000,37 +1026,15 @@ async function startServer(handleRequest) {
       sessionState.cleanupTimer = null
     }
 
-    // Send scrollback history to new clients - ASYNC to avoid blocking the event loop
-    // The client can start typing immediately; history loads in the background
-    setTimeout(async () => {
-      try {
-        const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
-        const runtime = getRt()
-
-        let historyContent = ''
-        try {
-          // Capture scrollback history (up to 2000 lines) WITHOUT escape sequences
-          // Reduced from 5000 to 2000 for faster loading
-          historyContent = await runtime.capturePane(sessionName, 2000)
-        } catch (historyError) {
-          console.error('Failed to capture history:', historyError)
-        }
-
-        if (ws.readyState === 1) {
-          if (historyContent) {
-            // Send with proper line endings
-            const formattedHistory = historyContent.replace(/\n/g, '\r\n')
-            ws.send(formattedHistory)
-          }
-          ws.send(JSON.stringify({ type: 'history-complete' }))
-        }
-      } catch (error) {
-        console.error('Error capturing terminal history:', error)
-        if (ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'history-complete' }))
-        }
+    // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
+    // 150ms is enough for the tmux attach redraw to fire and be ignored.
+    // After this, the client receives all live PTY output going forward.
+    setTimeout(() => {
+      sessionState.clients.add(ws)
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'history-complete' }))
       }
-    }, 100)
+    }, 150)
 
     // Handle client input
     ws.on('message', (data) => {

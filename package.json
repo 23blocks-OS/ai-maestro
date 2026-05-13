@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.29.15",
+  "version": "0.29.16",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -25,6 +25,7 @@
     "macos"
   ],
   "scripts": {
+    "postinstall": "node scripts/postinstall-node-pty.js",
     "dev": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 tsx server.mjs",
     "dev:linux": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 tsx server.mjs",
     "build": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 next build",

@@ -153,6 +153,10 @@ export function getLocalIPs(): { ip: string; family: string; internal: boolean; 
       if (addr.internal) continue
       // Only IPv4 for now (more compatible)
       if (addr.family === 'IPv4') {
+        // Skip Docker/container bridge IPs (172.16-31.x.x) — these are identical
+        // on every Docker host and cause false positives in isSelf() and isSameHost()
+        if (/^172\.(1[6-9]|2\d|3[01])\./.test(addr.address)) continue
+
         ips.push({
           ip: addr.address,
           family: addr.family,
@@ -631,9 +635,15 @@ function isSameHost(host1: Host, host2: Host): boolean {
     if (ip1 && ip2 && ip1 === ip2) return true
   }
 
-  // Check aliases overlap
-  const aliases1 = new Set((host1.aliases || []).map(a => a.toLowerCase()))
-  const aliases2 = host2.aliases || []
+  // Check aliases overlap — exclude Docker/container bridge IPs which are
+  // identical on every host (172.16-31.x.x)
+  const isDockerBridgeIP = (ip: string) =>
+    /^(172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+:\d+)$/.test(ip)
+
+  const aliases1 = new Set(
+    (host1.aliases || []).filter(a => !isDockerBridgeIP(a)).map(a => a.toLowerCase())
+  )
+  const aliases2 = (host2.aliases || []).filter(a => !isDockerBridgeIP(a))
   for (const alias of aliases2) {
     if (aliases1.has(alias.toLowerCase())) return true
   }

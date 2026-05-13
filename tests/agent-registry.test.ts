@@ -311,6 +311,29 @@ describe('createAgent', () => {
     )
   })
 
+  it('throws when caller-supplied id collides with an active agent', () => {
+    const first = createAgent(makeCreateRequest({ name: 'first-agent' }))
+    expect(() => createAgent(makeCreateRequest({
+      id: first.id,
+      name: 'second-agent',
+    }))).toThrow(/already exists in registry/)
+  })
+
+  it('throws when caller-supplied id collides with a soft-deleted agent', () => {
+    const first = createAgent(makeCreateRequest({ name: 'soft-deleted' }))
+    deleteAgent(first.id, false)
+    expect(() => createAgent(makeCreateRequest({
+      id: first.id,
+      name: 'reusing-id',
+    }))).toThrow(/already exists in registry/)
+  })
+
+  it('honors a unique caller-supplied id (offline-first round-trip)', () => {
+    const explicitId = '11111111-2222-3333-4444-555555555555'
+    const agent = createAgent(makeCreateRequest({ id: explicitId, name: 'explicit-id' }))
+    expect(agent.id).toBe(explicitId)
+  })
+
   it('auto-generates label when not provided', () => {
     const agent = createAgent(makeCreateRequest({ name: 'auto-label' }))
     expect(agent.label).toBeDefined()

@@ -256,6 +256,7 @@ export async function sendChatMessage(
   }
 
   const runtime = getRuntime()
+  await runtime.cancelCopyMode(sessionName)
   await runtime.sendKeys(sessionName, message, { literal: true, enter: true })
 
   console.log('[Chat Service] Message sent successfully')

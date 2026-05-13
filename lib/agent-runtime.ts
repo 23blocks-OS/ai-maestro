@@ -145,12 +145,21 @@ export class TmuxRuntime implements AgentRuntime {
   async cancelCopyMode(name: string): Promise<void> {
     try {
       const inCopyMode = await this.isInCopyMode(name)
-      if (inCopyMode) {
+      if (!inCopyMode) return
+
+      // Stage 1: Escape dismisses any command-prompt overlay + exits plain copy-mode
+      await execAsync(`tmux send-keys -t "${name}" Escape`)
+      await new Promise(resolve => setTimeout(resolve, 30))
+
+      // Stage 2: belt-and-suspenders. If Stage 1 only dismissed the overlay,
+      // force-exit with q.
+      const stillInCopyMode = await this.isInCopyMode(name)
+      if (stillInCopyMode) {
         await execAsync(`tmux send-keys -t "${name}" q`)
         await new Promise(resolve => setTimeout(resolve, 50))
       }
     } catch {
-      // Ignore
+      // Non-fatal: caller's send-keys will surface the underlying tmux error
     }
   }
 

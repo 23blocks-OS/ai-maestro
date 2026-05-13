@@ -371,6 +371,12 @@ export function createAgent(request: CreateAgentRequest): Agent {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const agentId = (request.id && UUID_RE.test(request.id)) ? request.id : uuidv4()
 
+  // UUID uniqueness invariant: caller-supplied IDs bypass the name-only guard
+  // and can otherwise create dup-UUID phantoms (active OR soft-deleted predecessor).
+  if (agents.some(a => a.id === agentId)) {
+    throw new Error(`Agent with id "${agentId}" already exists in registry`)
+  }
+
   // Get already used labels and avatars on this host
   const { labels: usedLabels, avatars: usedAvatars } = getUsedLabelsAndAvatars(hostId)
 

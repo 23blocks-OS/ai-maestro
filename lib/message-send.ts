@@ -22,6 +22,7 @@ import { queueMessage as queueToAMPRelay } from '@/lib/amp-relay'
 import { resolveAgentIdentifier, getMessage } from '@/lib/messageQueue'
 import { getAgent } from '@/lib/agent-registry'
 import { verifySignature } from '@/lib/amp-keys'
+import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { Message } from '@/lib/messageQueue'
@@ -174,7 +175,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     try {
       const payloadHash = crypto
         .createHash('sha256')
-        .update(JSON.stringify(content))
+        .update(canonicalStringify(content))
         .digest('base64')
       const signatureData = [
         options.amp.ampAddress || (fromAgent?.alias || from),

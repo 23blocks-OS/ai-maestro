@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { X, ListTodo, MessageSquare } from 'lucide-react'
+import { X, ListTodo, MessageSquare, Maximize2 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import TaskPanel from './TaskPanel'
@@ -28,6 +28,9 @@ interface MeetingRightPanelProps {
   onSendToAgent: (agentId: string, message: string) => Promise<void>
   onBroadcastToAll: (message: string) => Promise<void>
   onMarkChatRead?: () => void
+  onExpandChat?: () => void
+  chatOverlayOpen?: boolean
+  onCollapseChat?: () => void
 }
 
 export default function MeetingRightPanel({
@@ -47,6 +50,9 @@ export default function MeetingRightPanel({
   onSendToAgent,
   onBroadcastToAll,
   onMarkChatRead,
+  onExpandChat,
+  chatOverlayOpen,
+  onCollapseChat,
 }: MeetingRightPanelProps) {
   const taskCount = tasks.filter(t => t.status !== 'completed').length
 
@@ -94,6 +100,15 @@ export default function MeetingRightPanel({
           )}
         </button>
         <div className="flex-1" />
+        {activeTab === 'chat' && onExpandChat && (
+          <button
+            onClick={onExpandChat}
+            className="p-1.5 text-gray-500 hover:text-emerald-400 hover:bg-gray-800 rounded transition-colors"
+            title="Open chat in focus mode (covers terminal, larger text)"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={onClose}
           className="p-1.5 mr-1 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
@@ -115,6 +130,20 @@ export default function MeetingRightPanel({
             onUpdateTask={onUpdateTask}
             onDeleteTask={onDeleteTask}
           />
+        ) : chatOverlayOpen ? (
+          <div className="flex flex-col items-center justify-center h-full px-4 text-center gap-3">
+            <p className="text-sm text-gray-400">
+              Chat is in focus mode (middle slot).
+            </p>
+            {onCollapseChat && (
+              <button
+                onClick={onCollapseChat}
+                className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded transition-colors"
+              >
+                Exit focus mode
+              </button>
+            )}
+          </div>
         ) : (
           <MeetingChatPanel
             agents={agents}

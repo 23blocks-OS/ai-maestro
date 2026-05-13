@@ -14,6 +14,7 @@ import MeetingHeader from '@/components/team-meeting/MeetingHeader'
 import MeetingSidebar from '@/components/team-meeting/MeetingSidebar'
 import MeetingTerminalArea from '@/components/team-meeting/MeetingTerminalArea'
 import MeetingRightPanel from '@/components/team-meeting/MeetingRightPanel'
+import MeetingChatPanel from '@/components/team-meeting/MeetingChatPanel'
 import TaskKanbanBoard from '@/components/team-meeting/TaskKanbanBoard'
 import RingingAnimation from '@/components/team-meeting/RingingAnimation'
 import { VersionChecker } from '@/components/VersionChecker'
@@ -50,6 +51,7 @@ const initialState: TeamMeetingState = {
   rightPanelOpen: false,
   rightPanelTab: 'tasks',
   kanbanOpen: false,
+  chatOpen: false,
 }
 
 function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): TeamMeetingState {
@@ -162,6 +164,18 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
     case 'CLOSE_KANBAN':
       return { ...state, kanbanOpen: false }
 
+    case 'OPEN_CHAT':
+      return {
+        ...state,
+        chatOpen: true,
+        kanbanOpen: false,
+        rightPanelOpen: true,
+        rightPanelTab: 'tasks',
+      }
+
+    case 'CLOSE_CHAT':
+      return { ...state, chatOpen: false }
+
     case 'RESTORE_MEETING': {
       const agentIds = Array.isArray(action.meeting.agentIds) ? action.meeting.agentIds : []
       return {
@@ -177,6 +191,7 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
         rightPanelOpen: false,
         rightPanelTab: 'tasks',
         kanbanOpen: false,
+        chatOpen: false,
       }
     }
 
@@ -596,6 +611,15 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
                   onClose={() => dispatch({ type: 'CLOSE_KANBAN' })}
                   teamName={state.teamName}
                 />
+              ) : state.chatOpen && teamId ? (
+                <MeetingChatPanel
+                  mode="overlay"
+                  agents={selectedAgents}
+                  messages={chatHook.messages}
+                  onSendToAgent={chatHook.sendToAgent}
+                  onBroadcastToAll={chatHook.broadcastToAll}
+                  onClose={() => dispatch({ type: 'CLOSE_CHAT' })}
+                />
               ) : (
                 <MeetingTerminalArea
                   agents={selectedAgents}
@@ -621,6 +645,9 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
                   onSendToAgent={chatHook.sendToAgent}
                   onBroadcastToAll={chatHook.broadcastToAll}
                   onMarkChatRead={chatHook.markAsRead}
+                  onExpandChat={() => dispatch({ type: 'OPEN_CHAT' })}
+                  chatOverlayOpen={state.chatOpen}
+                  onCollapseChat={() => dispatch({ type: 'CLOSE_CHAT' })}
                 />
               )}
             </div>

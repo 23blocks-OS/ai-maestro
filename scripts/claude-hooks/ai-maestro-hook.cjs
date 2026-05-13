@@ -44,6 +44,31 @@ function hashCwd(cwd) {
     return crypto.createHash('md5').update(cwd || '').digest('hex').substring(0, 16);
 }
 
+// Resolve the agent for this hook invocation.
+// Priority: AIM_AGENT_ID env (exact) > AIM_AGENT_NAME env (exact) > cwd exact match.
+function resolveAgent(cwd, agents) {
+    const envId = process.env.AIM_AGENT_ID;
+    if (envId) {
+        const byId = agents.find(a => a.id === envId);
+        if (byId) {
+            debugLog({ event: 'resolved_agent_from_env', source: 'id', value: envId });
+            return byId;
+        }
+    }
+    const envName = process.env.AIM_AGENT_NAME;
+    if (envName) {
+        const byName = agents.find(a => a.name === envName);
+        if (byName) {
+            debugLog({ event: 'resolved_agent_from_env', source: 'name', value: envName });
+            return byName;
+        }
+    }
+    return agents.find(a => {
+        const agentWd = a.workingDirectory || a.session?.workingDirectory;
+        return agentWd && agentWd === cwd;
+    }) || null;
+}
+
 // Broadcast status update via WebSocket (non-blocking)
 async function broadcastStatusUpdate(cwd, state) {
     try {
@@ -52,13 +77,7 @@ async function broadcastStatusUpdate(cwd, state) {
         if (!agentsResponse.ok) return;
 
         const agentsData = await agentsResponse.json();
-        const agent = (agentsData.agents || []).find(a => {
-            const agentWd = a.workingDirectory || a.session?.workingDirectory;
-            if (!agentWd) return false;
-            if (agentWd === cwd) return true;
-            if (cwd.startsWith(agentWd + '/')) return true;
-            return false;
-        });
+        const agent = resolveAgent(cwd, agentsData.agents || []);
 
         if (!agent) return;
 
@@ -202,23 +221,7 @@ async function checkUnreadMessages(cwd) {
 
         const agentsData = await agentsResponse.json();
         const agents = agentsData.agents || [];
-
-        // Find agent matching this working directory
-        // Check exact match first, then check if cwd is within the agent's directory or vice versa
-        const agent = agents.find(a => {
-            const agentWd = a.workingDirectory || a.session?.workingDirectory;
-            if (!agentWd) return false;
-
-            // Exact match
-            if (agentWd === cwd) return true;
-
-            // cwd is subdirectory of agent's working directory
-            if (cwd.startsWith(agentWd + '/')) return true;
-
-            // Agent's working directory is subdirectory of cwd
-
-            return false;
-        });
+        const agent = resolveAgent(cwd, agents);
 
         if (!agent) {
             debugLog({ event: 'no_agent_for_cwd', cwd });

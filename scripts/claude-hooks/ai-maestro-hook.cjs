@@ -269,6 +269,39 @@ async function checkUnreadMessages(cwd) {
     }
 }
 
+// Drain the meeting inject queue for this session
+async function drainMeetingInjectQueue(cwd) {
+    try {
+        // Resolve agent to get session name
+        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        if (!agentsResponse.ok) return null;
+
+        const agentsData = await agentsResponse.json();
+        const agent = resolveAgent(cwd, agentsData.agents || []);
+        if (!agent) return null;
+
+        const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
+        if (!sessionName) return null;
+
+        const queueResponse = await fetch(
+            `http://localhost:23000/api/meetings/inject-queue?session=${encodeURIComponent(sessionName)}`
+        );
+        if (!queueResponse.ok) return null;
+
+        const queueData = await queueResponse.json();
+        if (!queueData.messages || queueData.messages.length === 0) return null;
+
+        debugLog({ event: 'meeting_queue_drained', sessionName, count: queueData.count });
+
+        // Combine all queued messages into one context block
+        const combined = queueData.messages.map(m => m.text).join('\n\n---\n\n');
+        return combined;
+    } catch (err) {
+        debugLog({ event: 'meeting_queue_drain_error', error: err.message });
+        return null;
+    }
+}
+
 // Main
 async function main() {
     const input = await readStdin();
@@ -373,11 +406,15 @@ async function main() {
                     transcriptPath
                 });
 
-                // Check for unread messages and inject as context
-                const idleMessagePrompt = await checkUnreadMessages(cwd);
-                if (idleMessagePrompt) {
-                    debugLog({ event: 'injecting_inbox_context', cwd, agent, trigger: 'idle_prompt' });
-                    hookResponse = buildContextResponse(agent, rawEvent, idleMessagePrompt);
+                // Check for unread messages and meeting inject queue
+                const [idleMessagePrompt, meetingContext] = await Promise.all([
+                    checkUnreadMessages(cwd),
+                    drainMeetingInjectQueue(cwd)
+                ]);
+                const combined = [idleMessagePrompt, meetingContext].filter(Boolean).join('\n\n');
+                if (combined) {
+                    debugLog({ event: 'injecting_context', cwd, agent, trigger: 'idle_prompt', hasInbox: !!idleMessagePrompt, hasMeeting: !!meetingContext });
+                    hookResponse = buildContextResponse(agent, rawEvent, combined);
                 }
             } else if (notificationType === 'permission_prompt') {
                 // For permission prompts, preserve existing tool info if we have it
@@ -433,11 +470,15 @@ async function main() {
                 source: input.source
             });
 
-            // Check for unread messages and inject as context
-            const startMessagePrompt = await checkUnreadMessages(cwd);
-            if (startMessagePrompt) {
-                debugLog({ event: 'injecting_inbox_context', cwd, agent, trigger: 'session_start' });
-                hookResponse = buildContextResponse(agent, rawEvent, startMessagePrompt);
+            // Check for unread messages and meeting inject queue
+            const [startMessagePrompt, startMeetingContext] = await Promise.all([
+                checkUnreadMessages(cwd),
+                drainMeetingInjectQueue(cwd)
+            ]);
+            const startCombined = [startMessagePrompt, startMeetingContext].filter(Boolean).join('\n\n');
+            if (startCombined) {
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'session_start', hasInbox: !!startMessagePrompt, hasMeeting: !!startMeetingContext });
+                hookResponse = buildContextResponse(agent, rawEvent, startCombined);
             }
             break;
 

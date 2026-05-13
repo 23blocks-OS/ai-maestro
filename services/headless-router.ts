@@ -1119,6 +1119,13 @@ const routes: Route[] = [
   // =========================================================================
   // Meetings
   // =========================================================================
+  { method: 'GET', pattern: /^\/api\/meetings\/inject-queue$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const { drainForSession } = await import('@/lib/meeting-inject-queue')
+    const session = query.session
+    if (!session) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing session parameter' })); return }
+    const messages = drainForSession(session)
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ messages, count: messages.length }))
+  }},
   { method: 'GET', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getMeetingById(params.id))
   }},

@@ -7,6 +7,12 @@
 
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
+import {
+  enqueueForSession,
+  shouldUseAdditionalContext,
+  sanitizeForRawInject,
+  wrapAsBracketedPaste,
+} from '@/lib/meeting-inject-queue'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
@@ -267,6 +273,74 @@ export async function sendChatMessage(
       message: 'Message sent to session',
       sessionName
     },
+    status: 200
+  }
+}
+
+/**
+ * Inject a meeting prompt into an agent's session.
+ *
+ * Hybrid dispatch:
+ * - If the agent's program supports additionalContext (feature-gated),
+ *   the text is queued and a wake-ping ("." + Enter) is sent so the hook
+ *   drains the queue on the next idle_prompt.
+ * - Otherwise, legacy path: sanitize + bracketed-paste + send-keys.
+ */
+export async function injectMeetingPrompt(
+  params: { agentId?: string; agentName?: string; injection: string }
+): Promise<ServiceResult<Record<string, unknown>>> {
+  const { injection } = params
+  if (!injection) {
+    return missingField('injection')
+  }
+
+  // Resolve agent
+  let agent = params.agentId ? getAgent(params.agentId) : null
+  if (!agent && params.agentName) {
+    // Search by name in registry
+    const { getAgentByName } = await import('@/lib/agent-registry')
+    agent = getAgentByName(params.agentName)
+  }
+  if (!agent) {
+    return notFound('Agent', params.agentId || params.agentName || 'unknown')
+  }
+
+  const sessionName = agent.name || agent.alias
+  if (!sessionName) {
+    return invalidRequest('Agent has no session name')
+  }
+
+  const runtime = getRuntime()
+  const exists = await runtime.sessionExists(sessionName)
+  if (!exists) {
+    return invalidRequest(`Session ${sessionName} is not active`)
+  }
+
+  // Determine program for kind detection
+  const program = (agent as any).program || agent.name
+
+  if (shouldUseAdditionalContext(program)) {
+    // ── Queue path: enqueue + wake-ping ─────────────────────────────
+    enqueueForSession(sessionName, injection)
+    await runtime.cancelCopyMode(sessionName)
+    // "." wakes Claude Code (bare Enter is a no-op); hook drains on next turn
+    await runtime.sendKeys(sessionName, '.', { literal: true, enter: true })
+
+    console.log(`[Meeting Inject] Queued for ${sessionName} (additionalContext path)`)
+    return {
+      data: { success: true, queued: true, sessionName },
+      status: 200
+    }
+  }
+
+  // ── Legacy path: sanitize + bracketed paste + send-keys ───────────
+  const safe = wrapAsBracketedPaste(sanitizeForRawInject(injection))
+  await runtime.cancelCopyMode(sessionName)
+  await runtime.sendKeys(sessionName, safe, { literal: true, enter: true })
+
+  console.log(`[Meeting Inject] Injected into ${sessionName} (legacy send-keys path)`)
+  return {
+    data: { success: true, injected: true, sessionName },
     status: 200
   }
 }

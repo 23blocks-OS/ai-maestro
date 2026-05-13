@@ -108,6 +108,15 @@ vi.mock('@/lib/agent-startup', () => mockAgentStartup)
 vi.mock('@/lib/messageQueue', () => mockMessageQueue)
 vi.mock('fs', () => mockFs)
 vi.mock('uuid', () => mockUuid)
+vi.mock('@/lib/container-utils', () => ({
+  capturePaneFromContainer: vi.fn().mockResolvedValue(''),
+  inspectContainerStatus: vi.fn().mockResolvedValue('missing'),
+  removeContainer: vi.fn().mockResolvedValue(undefined),
+  sendKeysToContainer: vi.fn().mockResolvedValue(undefined),
+  startContainer: vi.fn().mockResolvedValue(undefined),
+  stopContainer: vi.fn().mockResolvedValue(undefined),
+  tmuxHasSessionInContainer: vi.fn().mockResolvedValue(false),
+}))
 vi.mock('child_process', () => ({
   exec: vi.fn((_cmd: string, cb: Function) => cb(null, { stdout: '', stderr: '' })),
   execSync: vi.fn().mockReturnValue(''),
@@ -398,53 +407,53 @@ describe('updateAgentById', () => {
 // ============================================================================
 
 describe('deleteAgentById', () => {
-  it('soft deletes agent', () => {
+  it('soft deletes agent', async () => {
     const agent = makeAgent({ id: 'agent-1' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)
     mockAgentRegistry.deleteAgent.mockReturnValue(true)
 
-    const result = deleteAgentById('agent-1', false)
+    const result = await deleteAgentById('agent-1', false)
 
     expect(result.status).toBe(200)
     expect((result.data as any)?.success).toBe(true)
     expect((result.data as any)?.hard).toBe(false)
   })
 
-  it('hard deletes agent', () => {
+  it('hard deletes agent', async () => {
     const agent = makeAgent({ id: 'agent-1' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)
     mockAgentRegistry.deleteAgent.mockReturnValue(true)
 
-    const result = deleteAgentById('agent-1', true)
+    const result = await deleteAgentById('agent-1', true)
 
     expect(result.status).toBe(200)
     expect((result.data as any)?.hard).toBe(true)
   })
 
-  it('returns 404 when agent not found', () => {
+  it('returns 404 when agent not found', async () => {
     mockAgentRegistry.getAgent.mockReturnValue(null)
 
-    const result = deleteAgentById('nonexistent', false)
+    const result = await deleteAgentById('nonexistent', false)
 
     expect(result.status).toBe(404)
   })
 
-  it('returns 410 when already soft-deleted and not hard deleting', () => {
+  it('returns 410 when already soft-deleted and not hard deleting', async () => {
     const deleted = makeAgent({ id: 'agent-1', deletedAt: '2025-01-01T00:00:00Z' })
     mockAgentRegistry.getAgent.mockReturnValue(deleted)
 
-    const result = deleteAgentById('agent-1', false)
+    const result = await deleteAgentById('agent-1', false)
 
     expect(result.status).toBe(410)
     expect((result.data as ServiceError).message).toMatch(/deleted/i)
   })
 
-  it('allows hard delete of already soft-deleted agent', () => {
+  it('allows hard delete of already soft-deleted agent', async () => {
     const deleted = makeAgent({ id: 'agent-1', deletedAt: '2025-01-01T00:00:00Z' })
     mockAgentRegistry.getAgent.mockReturnValue(deleted)
     mockAgentRegistry.deleteAgent.mockReturnValue(true)
 
-    const result = deleteAgentById('agent-1', true)
+    const result = await deleteAgentById('agent-1', true)
 
     expect(result.status).toBe(200)
   })

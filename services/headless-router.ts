@@ -137,7 +137,7 @@ import {
   controlPlayback,
 } from '@/services/agents-playback-service'
 
-import { createDockerAgent } from '@/services/agents-docker-service'
+import { createDockerAgent, recreateDockerAgent } from '@/services/agents-docker-service'
 
 import {
   listSessions,
@@ -532,6 +532,10 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/docker\/create$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await createDockerAgent(body))
+  }},
+  // Docker agent recreate (atomic re-provision)
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/recreate$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await recreateDockerAgent(params.id))
   }},
   // Agent import (multipart form-data)
   { method: 'POST', pattern: /^\/api\/agents\/import$/, paramNames: [], handler: async (req, res) => {
@@ -951,7 +955,7 @@ const routes: Route[] = [
     sendServiceResult(res, updateAgentById(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, deleteAgentById(params.id, query.hard === 'true'))
+    sendServiceResult(res, await deleteAgentById(params.id, query.hard === 'true'))
   }},
 
   // =========================================================================

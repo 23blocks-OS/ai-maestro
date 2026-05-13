@@ -617,6 +617,110 @@ async function startServer(handleRequest) {
     })
   })
 
+  // ─── Meeting Chat WebSocket (/meeting-chat?meetingId=X) ──────────────────
+  // Shared-timeline broadcast: clients subscribe to a meetingId and receive
+  // all messages + loop guard updates in real time.
+
+  const meetingChatWss = new WebSocketServer({ noServer: true })
+
+  // Map<meetingId, Set<WebSocket>>
+  const meetingChatSubscribers = new Map()
+
+  meetingChatWss.on('connection', (ws, query) => {
+    let subscribedMeetingId = null
+
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+
+        if (msg.type === 'subscribe' && msg.meetingId) {
+          // Unsubscribe from previous meeting if any
+          if (subscribedMeetingId) {
+            const prev = meetingChatSubscribers.get(subscribedMeetingId)
+            if (prev) {
+              prev.delete(ws)
+              if (prev.size === 0) meetingChatSubscribers.delete(subscribedMeetingId)
+            }
+          }
+
+          subscribedMeetingId = msg.meetingId
+          if (!meetingChatSubscribers.has(subscribedMeetingId)) {
+            meetingChatSubscribers.set(subscribedMeetingId, new Set())
+          }
+          meetingChatSubscribers.get(subscribedMeetingId).add(ws)
+          console.log(`[MEETING-CHAT-WS] Client subscribed to meeting ${subscribedMeetingId} (${meetingChatSubscribers.get(subscribedMeetingId).size} clients)`)
+
+          // Send ack
+          ws.send(JSON.stringify({ type: 'subscribed', meetingId: subscribedMeetingId }))
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    })
+
+    ws.on('close', () => {
+      if (subscribedMeetingId) {
+        const subs = meetingChatSubscribers.get(subscribedMeetingId)
+        if (subs) {
+          subs.delete(ws)
+          if (subs.size === 0) meetingChatSubscribers.delete(subscribedMeetingId)
+        }
+        console.log(`[MEETING-CHAT-WS] Client disconnected from meeting ${subscribedMeetingId}`)
+      }
+    })
+
+    ws.on('error', () => {
+      if (subscribedMeetingId) {
+        const subs = meetingChatSubscribers.get(subscribedMeetingId)
+        if (subs) {
+          subs.delete(ws)
+          if (subs.size === 0) meetingChatSubscribers.delete(subscribedMeetingId)
+        }
+      }
+    })
+  })
+
+  /**
+   * Broadcast a meeting chat message to all subscribed WebSocket clients.
+   */
+  function broadcastMeetingChatMessage(meetingId, message) {
+    const subs = meetingChatSubscribers.get(meetingId)
+    if (!subs || subs.size === 0) return
+
+    const payload = JSON.stringify({ type: 'message', data: message })
+    let sent = 0
+    for (const ws of subs) {
+      if (ws.readyState === 1) {
+        try {
+          ws.send(payload)
+          sent++
+        } catch { /* ignore */ }
+      }
+    }
+    if (sent > 0) {
+      console.log(`[MEETING-CHAT-WS] Broadcast message to ${sent} client(s) in meeting ${meetingId}`)
+    }
+  }
+
+  /**
+   * Broadcast loop guard status update to all subscribed WebSocket clients.
+   */
+  function broadcastMeetingLoopGuard(meetingId, loopGuardData) {
+    const subs = meetingChatSubscribers.get(meetingId)
+    if (!subs || subs.size === 0) return
+
+    const payload = JSON.stringify({ type: 'loopGuard', data: loopGuardData })
+    for (const ws of subs) {
+      if (ws.readyState === 1) {
+        try { ws.send(payload) } catch { /* ignore */ }
+      }
+    }
+  }
+
+  // Expose broadcast functions so API routes can call them
+  globalThis.__meetingChatBroadcast = broadcastMeetingChatMessage
+  globalThis.__meetingLoopGuardBroadcast = broadcastMeetingLoopGuard
+
   // WebSocket server for companion speech events (/companion-ws)
   const companionWss = new WebSocketServer({ noServer: true })
 
@@ -771,6 +875,10 @@ async function startServer(handleRequest) {
       ampWss.handleUpgrade(request, socket, head, (ws) => {
         ampWss.emit('connection', ws)
       })
+    } else if (pathname === '/meeting-chat') {
+      meetingChatWss.handleUpgrade(request, socket, head, (ws) => {
+        meetingChatWss.emit('connection', ws, query)
+      })
     } else if (pathname === '/companion-ws') {
       companionWss.handleUpgrade(request, socket, head, (ws) => {
         companionWss.emit('connection', ws, query)
@@ -814,13 +922,44 @@ async function startServer(handleRequest) {
       }
     }
 
-    // NOTE: Container/cloud agent routing is not yet implemented
-    // Future: Check agent metadata for cloud deployment and proxy to container WebSocket
-    // Currently all agents are local tmux sessions
+    const socketPath = query.socket || undefined
+
+    // Cloud-agent dispatch: if the requested session belongs to an agent with
+    // deployment.type === 'cloud', proxy the WebSocket to the agent's container
+    // via handleRemoteWorker. The container's in-process ai-maestro-agent server
+    // speaks the same /term protocol the host server speaks (initial connected
+    // handshake, raw PTY frames, JSON input messages), so the proxy is a plain
+    // WS-to-WS pipe — no protocol bridging.
+    try {
+      const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+      // sessionName may be either the agent's name or its UUID. Try ID first.
+      const cloudAgent = getAgent(sessionName) || getAgentByName(sessionName)
+      if (cloudAgent?.deployment?.type === 'cloud') {
+        const cloudWsUrl = cloudAgent.deployment.cloud?.websocketUrl
+        if (!cloudWsUrl) {
+          console.error(`☁️  [CLOUD] Agent ${sessionName} has deployment.type=cloud but no websocketUrl`)
+          ws.close(1011, 'Cloud agent missing websocketUrl')
+          return
+        }
+        // websocketUrl is shape "ws://localhost:<port>/term"; strip the /term
+        // path and convert to http so handleRemoteWorker can rebuild it.
+        const containerBaseUrl = cloudWsUrl
+          .replace(/\/term.*$/, '')
+          .replace(/^ws:/, 'http:')
+          .replace(/^wss:/, 'https:')
+        const containerSessionName = cloudAgent.name || sessionName
+        console.log(`☁️  [CLOUD] Routing ${sessionName} (resolved to ${containerSessionName}) to container at ${containerBaseUrl}`)
+        handleRemoteWorker(ws, containerSessionName, containerBaseUrl)
+        return
+      }
+    } catch (error) {
+      console.error('☁️  [CLOUD] Error routing to cloud agent:', error)
+      ws.close(1011, 'Cloud agent routing error')
+      return
+    }
 
     // Get or create session state (for traditional local tmux sessions)
     let sessionState = terminalSessions.get(sessionName)
-    const socketPath = query.socket || undefined
 
     if (!sessionState) {
       let ptyProcess

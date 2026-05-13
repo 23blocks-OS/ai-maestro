@@ -166,7 +166,9 @@ export class TmuxRuntime implements AgentRuntime {
   // -- Lifecycle -----------------------------------------------------------
 
   async createSession(name: string, cwd: string): Promise<void> {
-    await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`)
+    // Unset TMUX so tmux doesn't try to use a stale parent socket
+    const env = { ...process.env, TMUX: undefined }
+    await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`, { env })
   }
 
   async killSession(name: string): Promise<void> {
@@ -188,17 +190,19 @@ export class TmuxRuntime implements AgentRuntime {
 
     if (literal) {
       const escaped = keys.replace(/'/g, "'\\''")
+      await execAsync(`tmux send-keys -t "${name}" -l '${escaped}'`)
       if (enter) {
-        await execAsync(
-          `tmux send-keys -t "${name}" -l '${escaped}' \\; send-keys -t "${name}" C-m`
-        )
-      } else {
-        await execAsync(`tmux send-keys -t "${name}" -l '${escaped}'`)
+        // Send Enter separately with a delay so TUIs (Claude Code, Codex)
+        // process the literal text before receiving the submit. Without this,
+        // Enter can arrive in the same tmux tick and be processed before the
+        // input field updates, causing the submit to be silently lost.
+        await new Promise(r => setTimeout(r, 100))
+        await execAsync(`tmux send-keys -t "${name}" Enter`)
       }
     } else {
       // Non-literal: keys is a raw key sequence (e.g. "C-c", "exit Enter", quoted command)
       if (enter) {
-        await execAsync(`tmux send-keys -t "${name}" ${keys} C-m`)
+        await execAsync(`tmux send-keys -t "${name}" ${keys} Enter`)
       } else {
         await execAsync(`tmux send-keys -t "${name}" ${keys}`)
       }

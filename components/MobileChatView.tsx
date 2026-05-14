@@ -370,13 +370,13 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     }
   }, [agentId, wsSessionName, getChatWsUrl])
 
-  // Auto-scroll when new messages arrive
+  // Auto-scroll when new messages or pending messages arrive
   useEffect(() => {
-    if (messages.length > prevMessageCountRef.current) {
+    if (messages.length > prevMessageCountRef.current || pendingMessages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
     prevMessageCountRef.current = messages.length
-  }, [messages.length])
+  }, [messages.length, pendingMessages])
 
   // Send message via WebSocket
   const sendMessage = () => {

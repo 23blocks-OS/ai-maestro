@@ -11,10 +11,10 @@ import {
   Power,
   Copy,
   Mail,
-  Box,
 } from 'lucide-react'
 import { computeHash, getAvatarUrl } from '@/lib/hash-utils'
 import { Agent, AgentSession } from '@/types/agent'
+import InfraIcon from './InfraIcon'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 
 interface AgentBadgeProps {
@@ -345,11 +345,7 @@ export default function AgentBadge({
             ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
           `}>
             {agent.name}
-            {agent.deployment?.cloud?.provider === 'local-container' && (
-              <span className="flex-shrink-0" aria-label="Docker container">
-                <Box className="w-3 h-3 text-blue-400" />
-              </span>
-            )}
+            <InfraIcon agent={agent} size={12} />
           </p>
 
           {agent.hostId && (

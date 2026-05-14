@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.1] - 2026-05-14
+
+### Added
+- **Infrastructure type icons** — New `InfraIcon` component displays infrastructure type (Docker, EC2, ECS, Cloud, Standalone) as a small icon next to agent names across all views (sidebar, tablet, mobile). Local agents show no icon to reduce clutter.
+- **WebSocket heartbeat** — Client-side ping/pong mechanism (30s interval, 10s timeout) detects dead connections that mobile browsers kill silently without firing close events. Server responds to pings in both terminal and chat-only WebSocket handlers.
+
+### Fixed
+- **Mobile WebSocket disconnection** — Mobile browsers (iOS Safari, Android Chrome) silently kill WebSocket connections after a few minutes without triggering close events. The new heartbeat mechanism detects dead connections within 40s and triggers reconnection.
+- **Chat messages hidden behind input** — Messages went behind the textarea and send button when sending because auto-scroll only triggered on received messages, not pending messages. Fixed in both desktop and mobile chat views.
+- **Non-AWS cloud agents mislabeled** — GCP, Azure, and DigitalOcean agents were incorrectly shown with AWS EC2 icon. Added generic "Cloud" infra type for non-AWS providers.
+- **Unsafe type cast in deployment detection** — Replaced `(cloud as Record<string, unknown>).runtime` with proper `runtime?: string` field on `AgentDeployment.cloud` interface.
+
 ## [0.35.0] - 2026-05-14
 
 ### Added

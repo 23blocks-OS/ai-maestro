@@ -215,22 +215,22 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
   }, [agent?.id, agent?.name, agent?.alias, isActive, getChatWsUrl])
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages or pending messages arrive
   useEffect(() => {
-    if (messages.length === 0) return
+    if (messages.length === 0 && pendingMessages.length === 0) return
 
     const hasNewMessages = messages.length > prevMessageCountRef.current
     const isInitialLoad = prevMessageCountRef.current === 0
 
     prevMessageCountRef.current = messages.length
 
-    // Scroll on initial load (instant) or new messages (smooth)
+    // Scroll on initial load (instant) or new messages/pending messages (smooth)
     if (isInitialLoad) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
-    } else if (hasNewMessages) {
+    } else if (hasNewMessages || pendingMessages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages])
+  }, [messages, pendingMessages])
 
   // Send quick response (assisted mode — for permission buttons)
   const sendQuickResponse = (text: string) => {

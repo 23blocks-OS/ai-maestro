@@ -72,9 +72,12 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     if (typeof window === 'undefined') return 'assisted'
     return (localStorage.getItem('aimaestro-chat-mode') as ChatMode) || 'assisted'
   })
+  const [chatWsConnected, setChatWsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectAttemptsRef = useRef(0)
 
   // Track if we've done initial load
   const hasLoadedRef = useRef(false)
@@ -118,11 +121,18 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
     const connect = () => {
       if (wsRef.current?.readyState === WebSocket.OPEN) return
+      // Close zombie sockets stuck in CONNECTING
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
 
       const ws = new WebSocket(getChatWsUrl())
 
       ws.onopen = () => {
         console.log(`[ChatView] Connected to chat WS for ${sessionName}`)
+        setChatWsConnected(true)
+        reconnectAttemptsRef.current = 0
         // Request history on connect
         ws.send(JSON.stringify({ type: 'chat:requestHistory', agentId: agent.id }))
         setIsLoading(true)
@@ -173,11 +183,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             }
 
             case 'chat:sent': {
-              // Confirmation that message was delivered to PTY
-              // Clear the pending message after a short delay
-              setTimeout(() => {
-                setPendingMessages(prev => prev.length > 0 ? prev.slice(1) : prev)
-              }, 2000)
+              // Server confirmed message was written to PTY — keep pending visible
+              // until we see the user message appear in chat:messages (JSONL watcher)
+              // Don't clear on a timer; let chat:messages handle it
               break
             }
 
@@ -194,12 +202,20 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
       ws.onclose = () => {
         console.log(`[ChatView] Chat WS disconnected for ${sessionName}`)
+        setChatWsConnected(false)
+        // Guard against stale closures
+        if (wsRef.current !== ws) return
         wsRef.current = null
+
+        // Auto-reconnect with backoff (up to 5 attempts)
+        if (reconnectAttemptsRef.current < 5) {
+          reconnectAttemptsRef.current++
+          reconnectTimeoutRef.current = setTimeout(connect, 3000)
+        }
       }
 
       ws.onerror = () => {
-        setError('Chat connection error')
-        wsRef.current = null
+        // onclose will fire after this — reconnect handled there
       }
 
       wsRef.current = ws
@@ -208,12 +224,41 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     connect()
 
     return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
       }
+      setChatWsConnected(false)
     }
   }, [agent?.id, agent?.name, agent?.alias, isActive, getChatWsUrl])
+
+  // Reconnect chat WS when page becomes visible (mobile background recovery)
+  useEffect(() => {
+    if (!isActive) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          reconnectAttemptsRef.current = 0 // Reset for fresh retries
+          // Trigger reconnect by closing any zombie socket
+          if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+            wsRef.current.close()
+          }
+        }
+      } else {
+        // Page hidden — cancel pending reconnects
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isActive])
 
   // Auto-scroll to bottom when new messages or pending messages arrive
   useEffect(() => {
@@ -254,6 +299,17 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     if (!input.trim() || isSending) return
 
     const messageToSend = input.trim()
+
+    // Check connection BEFORE clearing input — don't lose the user's text
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      setError('Not connected — reconnecting...')
+      reconnectAttemptsRef.current = 0
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        wsRef.current.close()
+      }
+      return
+    }
+
     setInput('')
     setIsSending(true)
 
@@ -268,7 +324,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
     const sent = sendChatMessage('chat:send', { message: messageToSend })
     if (!sent) {
-      setError('Not connected — try refreshing')
+      setError('Failed to send — try again')
       setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
       setInput(messageToSend)
     }
@@ -487,7 +543,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                         <Bot className="w-3.5 h-3.5" />
                       )}
                       <span className="text-xs opacity-70">
-                        {isQueued ? 'Queued' : isUser ? 'You' : isThinking ? 'Thinking...' : 'Claude'}
+                        {isQueued ? 'Queued' : isUser ? 'You' : isThinking ? 'Thinking...' : (agent.label || agent.name || 'Agent')}
                       </span>
                       {message.timestamp && (
                         <span className="text-xs opacity-50 ml-auto">
@@ -669,6 +725,12 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         {!isOnline && (
           <div className="mb-3 px-3 py-2 bg-yellow-900/20 border border-yellow-800 rounded-lg text-xs text-yellow-400">
             Agent is offline. Wake the session to send messages.
+          </div>
+        )}
+        {isOnline && !chatWsConnected && (
+          <div className="mb-3 px-3 py-2 bg-yellow-900/20 border border-yellow-800 rounded-lg text-xs text-yellow-400 flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Chat disconnected — reconnecting...
           </div>
         )}
 

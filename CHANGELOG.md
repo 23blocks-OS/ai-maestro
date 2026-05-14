@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.5] - 2026-05-14
+
+### Fixed
+- **Duplicate agent creation from UUID-based session naming** — When `agentId` was passed to `createSession()`, the tmux session was named `uuid@host` instead of the agent's friendly name, causing session discovery to fail matching and triggering phantom agent creation via AMP. Now always uses the normalized agent name for tmux sessions.
+- **Orphan session fallback matching** — Session discovery had no fallback when `getAgentBySession()` failed for legacy UUID-named sessions. Added fallback that extracts UUIDs from `uuid@host` session names and looks up the agent by ID directly.
+
 ## [0.35.1] - 2026-05-14
 
 ### Added

@@ -29,7 +29,7 @@ import os from 'os'
 import type { Session } from '@/types/session'
 import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession } from '@/lib/agent-registry'
 import { loadAgents } from '@/lib/agent-registry'
-import { getHosts, getSelfHost, getSelfHostId, isSelf, getHostById } from '@/lib/hosts-config'
+import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
@@ -210,7 +210,15 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
         status = 'disconnected'
       }
 
-      const agent = getAgentBySession(disc.name)
+      let agent = getAgentBySession(disc.name)
+
+      // Fallback: session name might be UUID@host (from legacy bug where agentId was used as session name)
+      if (!agent) {
+        const uuidMatch = disc.name.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:@|$)/)
+        if (uuidMatch) {
+          agent = getAgent(uuidMatch[1])
+        }
+      }
 
       sessions.push({
         id: disc.name,
@@ -633,8 +641,9 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   // Local session creation
   const runtime = getRuntime()
   const normalizedName = name.toLowerCase()
-  const selfHostId = getSelfHostId()
-  const actualSessionName = agentId ? `${agentId}@${selfHostId}` : normalizedName
+  // Always use the friendly agent name for the tmux session (never UUID)
+  // agentId is only used for linking to an existing agent, not naming
+  const actualSessionName = normalizedName
 
   const sessionExists = await runtime.sessionExists(actualSessionName)
   if (sessionExists) {
@@ -671,8 +680,8 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
 
   // Persist session metadata (legacy)
   persistSession({
-    id: actualSessionName,
-    name: actualSessionName,
+    id: normalizedName,
+    name: normalizedName,
     workingDirectory: cwd,
     createdAt: new Date().toISOString(),
     ...(agentId && { agentId }),

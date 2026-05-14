@@ -24,6 +24,8 @@ export async function POST(
   let sessionIndex = 0
   let program: string | undefined
   let hostUrl: string | undefined
+  let projectDirectory: string | undefined
+  let allowHostFallback = false
   try {
     const body = await request.json()
     console.log(`[Wake] Received body:`, JSON.stringify(body))
@@ -39,14 +41,24 @@ export async function POST(
     if (typeof body.hostUrl === 'string') {
       hostUrl = body.hostUrl
     }
+    if (typeof body.projectDirectory === 'string') {
+      projectDirectory = body.projectDirectory
+    }
+    if (body.allowHostFallback === true) {
+      allowHostFallback = true
+    }
   } catch (e) {
     console.log(`[Wake] No body or invalid JSON, using defaults. Error:`, e)
   }
 
   // Determine if the agent is remote — check local registry first, then body.hostUrl
+  // IMPORTANT: Check both hostId AND hostUrl, because hostId can be stale after a
+  // hostname change (e.g. milo-dock.internal → shanes-m3-pro-mbp) while hostUrl
+  // still points to this machine's Tailscale IP. Without the hostUrl check,
+  // the agent appears "remote" and we'd proxy to ourselves in an infinite loop.
   const agent = getAgent(id)
-  const remoteHostId = agent?.hostId && !isSelf(agent.hostId) ? agent.hostId : null
-  const remoteHostUrl = remoteHostId ? agent?.hostUrl : hostUrl
+  const isLocalAgent = !agent?.hostId || isSelf(agent.hostId) || (agent?.hostUrl ? isSelf(agent.hostUrl) : false)
+  const remoteHostUrl = !isLocalAgent ? agent?.hostUrl : hostUrl
 
   if (remoteHostUrl) {
     console.log(`[Wake] Agent ${id} is on remote host (${remoteHostUrl}), proxying...`)
@@ -57,7 +69,7 @@ export async function POST(
       const response = await fetch(`${remoteHostUrl}/api/agents/${id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startProgram, sessionIndex, program }),
+        body: JSON.stringify({ startProgram, sessionIndex, program, projectDirectory, allowHostFallback }),
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
@@ -73,6 +85,6 @@ export async function POST(
     }
   }
 
-  const result = await wakeAgent(id, { startProgram, sessionIndex, program })
+  const result = await wakeAgent(id, { startProgram, sessionIndex, program, projectDirectory, allowHostFallback })
   return toResponse(result)
 }

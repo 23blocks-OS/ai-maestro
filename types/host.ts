@@ -64,6 +64,11 @@ export interface Host {
   capabilities?: {
     docker?: boolean
     dockerVersion?: string
+    cloud?: {
+      aws?: boolean          // AWS CLI + terraform both available and configured
+      terraform?: boolean    // terraform CLI on PATH
+      awsRegion?: string     // default region from profile
+    }
   }
 }
 

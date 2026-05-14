@@ -117,7 +117,7 @@ echo ""
 
 # 1. version.json
 _sed_inplace "$VERSION_FILE" "s|\"version\": \"$CURRENT_VERSION\"|\"version\": \"$NEW_VERSION\"|g"
-_sed_inplace "$VERSION_FILE" "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$(date +%Y-%m-%d)\"|g"
+_sed_inplace "$VERSION_FILE" "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$(date -u +%Y-%m-%d)\"|g"
 echo -e "  ${GREEN}✓${NC} version.json"
 FILES_UPDATED=$((FILES_UPDATED + 1))
 

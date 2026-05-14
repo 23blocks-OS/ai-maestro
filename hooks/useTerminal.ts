@@ -308,8 +308,22 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       }
     })
 
+    // Wheel handler: intercept mouse wheel at the DOM level (capture phase) to
+    // scroll xterm.js buffer directly. Without this, xterm.js may convert wheel
+    // events to cursor key sequences (sent to shell/app as arrow up/down) instead
+    // of scrolling the terminal buffer. We always intercept because tmux mouse is
+    // disabled per-session, so there's no app that needs the raw wheel events.
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const lines = Math.round(e.deltaY / 25) || (e.deltaY > 0 ? 1 : -1)
+      terminal.scrollLines(lines)
+    }
+    container.addEventListener('wheel', handleWheel, { passive: false, capture: true })
+
     // Cleanup function
     return () => {
+      container.removeEventListener('wheel', handleWheel, { capture: true } as EventListenerOptions)
       resizeObserver.disconnect()
       // Dispose WebGL addon before terminal to free GPU context cleanly
       if (webglAddonRef.current) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Users, User } from 'lucide-react'
+import { Send, Users, User, X } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 
 interface ChatMessage {
@@ -18,14 +18,19 @@ interface ChatMessage {
   displayFrom: string
 }
 
+export type MeetingChatPanelMode = 'sidebar' | 'overlay'
+
 interface MeetingChatPanelProps {
   agents: Agent[]
   messages: ChatMessage[]
   onSendToAgent: (agentId: string, message: string) => Promise<void>
   onBroadcastToAll: (message: string) => Promise<void>
+  mode?: MeetingChatPanelMode
+  meetingId?: string
+  onClose?: () => void
 }
 
-export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBroadcastToAll }: MeetingChatPanelProps) {
+export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBroadcastToAll, mode = 'sidebar', onClose }: MeetingChatPanelProps) {
   const [recipient, setRecipient] = useState<string>('all')
   const [inputText, setInputText] = useState('')
   const [sending, setSending] = useState(false)
@@ -60,6 +65,8 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
     }
   }
 
+  const isOverlay = mode === 'overlay'
+
   // Filter messages based on selected recipient
   const filteredMessages = recipient === 'all'
     ? messages
@@ -68,8 +75,24 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
         m.fromAlias === recipient || m.toAlias === recipient
       )
 
-  return (
+  const inner = (
     <div className="flex flex-col h-full">
+      {/* Overlay header with close button */}
+      {isOverlay && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 flex-shrink-0">
+          <h3 className="text-sm font-medium text-gray-200">Meeting chat</h3>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-gray-200 transition-colors"
+              title="Close (back to terminal)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Recipient selector */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-800 overflow-x-auto">
         <button
@@ -118,7 +141,7 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
               {msg.displayFrom} {msg.toAlias ? `→ ${msg.toAlias}` : ''}
             </span>
             <div
-              className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ${
+              className={`${isOverlay ? 'max-w-[700px]' : 'max-w-[85%]'} rounded-lg px-3 py-2 ${isOverlay ? 'text-sm' : 'text-[11px]'} leading-relaxed whitespace-pre-wrap break-words ${
                 msg.isMine
                   ? 'bg-emerald-600/30 text-emerald-100'
                   : 'bg-gray-800 text-gray-300'
@@ -153,6 +176,18 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
           >
             <Send className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (!isOverlay) return inner
+
+  return (
+    <div className="flex-1 flex flex-col bg-gray-950 min-w-0">
+      <div className="flex-1 flex justify-center overflow-hidden">
+        <div className="w-full max-w-[900px] flex flex-col h-full">
+          {inner}
         </div>
       </div>
     </div>

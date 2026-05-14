@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.29.15-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.29.16-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -88,7 +88,7 @@ Every feature was born from running a real AI-first organization. We built them 
 
 *I had 35 terminals and couldn't tell which was which.*
 
-See and manage all your AI agents in one place. Create agents from the UI, organize them with smart naming (`project-backend-api` becomes a 3-level tree with auto-coloring), and switch between any agent with a click. Auto-discovers tmux sessions, Docker containers, cloud deployments, and standalone agents (plain terminals, API-only agents, or remote hosts that register via heartbeat).
+See and manage all your AI agents in one place. Create agents from the UI with a guided wizard, organize them with smart naming (`project-backend-api` becomes a 3-level tree with auto-coloring), and switch between any agent with a click. Four deployment modes: **tmux** (local), **Docker** (containerized), **AWS EC2** (dedicated instance), and **AWS ECS Fargate** (serverless). Auto-discovers tmux sessions, Docker containers, cloud deployments, and standalone agents.
 
 ### Any Machine
 
@@ -128,6 +128,30 @@ Assemble agents into teams, run meetings in split-pane war rooms, and track task
 *At 80 agents, they all looked the same.*
 
 Custom avatars, personality profiles, and visual presence for every agent. When an agent has a face and a role, you instinctively assign it the right work — just like a real team.
+
+### Agent Deployment
+
+*One agent on my laptop. Another on EC2. A third on Fargate. All in the same dashboard.*
+
+Four ways to run agents, each for a different need:
+
+| Mode | What | Best For |
+|------|------|----------|
+| **tmux** | Direct terminal sessions on your machine | Local development, zero setup |
+| **Docker** | Containerized agents with resource limits | Isolation, reproducibility, multi-project |
+| **AWS EC2** | Dedicated Graviton instance with native install, Nginx + SSL | Always-on agents, SSH access, persistent workloads |
+| **AWS ECS Fargate** | Serverless containers, auto-built Docker image | Burst scaling, zero maintenance, pay-per-use |
+
+Cloud agents are Terraform-managed. EC2 installs Node.js, tmux, and AI CLIs directly on ARM64 hardware (no Docker overhead). ECS auto-builds your Docker image, pushes to ECR, and runs on Fargate. Both deploy with one command from the dashboard or CLI.
+
+```bash
+# EC2: dedicated instance with SSL
+aimaestro-agent.sh create my-api --ec2 \
+  --domain api.example.com --ssl-email admin@example.com --key-name my-key
+
+# ECS Fargate: serverless (auto-builds image)
+aimaestro-agent.sh create worker --ecs
+```
 
 ---
 
@@ -203,6 +227,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 **Going deeper:**
 - [Multi-Machine Setup](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
+- [Cloud Deployment (AWS)](./docs/cloud-aws.html) · [Docker Agents](./docs/docker-local.html)
 - [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
 - [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
 - [Operations Guide](./docs/OPERATIONS-GUIDE.md)

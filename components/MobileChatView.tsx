@@ -6,6 +6,7 @@ import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check
 interface MobileChatViewProps {
   agentId: string
   agentName: string
+  sessionName?: string  // tmux session name for WebSocket (falls back to agentName)
 }
 
 interface ChatMessage {
@@ -23,18 +24,9 @@ interface ChatMessage {
       thinking?: string
     }>
   }
-}
-
-interface ChatAPIResponse {
-  success: boolean
-  messages: ChatMessage[]
-  hookState?: {
-    status?: string
-    updatedAt?: string
-  }
-  terminalPrompt?: string | null
-  promptType?: 'permission' | 'input' | null
-  lastModified?: string
+  // For queue-operation type
+  operation?: 'enqueue' | 'dequeue'
+  content?: string
 }
 
 // Copy button with checkmark feedback
@@ -190,6 +182,10 @@ function extractText(msg: ChatMessage): string {
       .map(b => b.text!)
       .join('\n')
   }
+  // Handle queue-operation (enqueued user messages)
+  if (msg.type === 'queue-operation' && msg.content) {
+    return msg.content
+  }
   return ''
 }
 
@@ -228,42 +224,151 @@ function ThinkingBlock({ text }: { text: string }) {
   )
 }
 
-export default function MobileChatView({ agentId, agentName }: MobileChatViewProps) {
+export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp }: MobileChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [hookState, setHookState] = useState<ChatAPIResponse['hookState']>(undefined)
-  const [terminalPrompt, setTerminalPrompt] = useState<string | null>(null)
-  const [promptType, setPromptType] = useState<ChatAPIResponse['promptType']>(null)
+  const [hookState, setHookState] = useState<{
+    status?: string;
+    description?: string;
+    message?: string;
+    toolName?: string;
+    toolInput?: {
+      command?: string;
+      file_path?: string;
+      path?: string;
+      [key: string]: any;
+    };
+    options?: Array<{
+      key: string;
+      label: string;
+      action: string;
+    }>;
+    updatedAt?: string;
+  } | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const prevMessageCountRef = useRef(0)
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const burstTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const wsRef = useRef<WebSocket | null>(null)
 
-  // Fetch messages
-  const fetchMessages = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/agents/${agentId}/chat?limit=50`)
-      if (!res.ok) {
-        setError('Failed to fetch messages')
-        return
-      }
-      const data: ChatAPIResponse = await res.json()
-      if (data.success) {
-        setMessages(data.messages)
-        setHookState(data.hookState)
-        setTerminalPrompt(data.terminalPrompt ?? null)
-        setPromptType(data.promptType ?? null)
+  // The session name to use for the WebSocket URL
+  const wsSessionName = sessionNameProp || agentName
+
+  // ── WebSocket connection for chat ─────────────────────────────────
+  const getChatWsUrl = useCallback(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    return `${protocol}//${host}/term?name=${encodeURIComponent(wsSessionName)}&chatOnly=1`
+  }, [wsSessionName])
+
+  const sendChatWs = useCallback((type: string, payload?: Record<string, any>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type, ...payload }))
+      return true
+    }
+    return false
+  }, [])
+
+  // Connect WebSocket on mount
+  useEffect(() => {
+    if (!agentId) return
+
+    const connect = () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) return
+
+      const ws = new WebSocket(getChatWsUrl())
+
+      ws.onopen = () => {
+        console.log(`[MobileChatView] Connected to chat WS for ${wsSessionName}`)
+        ws.send(JSON.stringify({ type: 'chat:requestHistory', agentId }))
         setError(null)
       }
-    } catch {
-      setError('Connection error')
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+
+          switch (data.type) {
+            case 'chat:history': {
+              const history = data.data || {}
+              setMessages(history.messages || [])
+              setHookState(history.hookState || null)
+              break
+            }
+
+            case 'chat:messages': {
+              const newMsgs = data.data || []
+              if (newMsgs.length > 0) {
+                setMessages(prev => {
+                  const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
+                  const uniqueNew = newMsgs.filter((m: ChatMessage) =>
+                    !m.uuid || !existingUuids.has(m.uuid)
+                  )
+                  if (uniqueNew.length === 0) return prev
+                  return [...prev, ...uniqueNew].slice(-100)
+                })
+                setPendingMessages([])
+              }
+              break
+            }
+
+            case 'chat:hookState': {
+              setHookState(data.data || null)
+              setPendingMessages([])
+              break
+            }
+
+            case 'chat:sent': {
+              setTimeout(() => {
+                setPendingMessages(prev => prev.length > 0 ? prev.slice(1) : prev)
+              }, 2000)
+              break
+            }
+
+            case 'chat:error': {
+              setError(data.error || 'Unknown error')
+              break
+            }
+          }
+        } catch {
+          // Not JSON — ignore
+        }
+      }
+
+      ws.onclose = () => {
+        wsRef.current = null
+      }
+
+      ws.onerror = () => {
+        setError('Chat connection error')
+        wsRef.current = null
+      }
+
+      wsRef.current = ws
     }
-  }, [agentId])
+
+    connect()
+
+    // Reconnect on visibility change (mobile tab switching)
+    const handleVisibility = () => {
+      if (!document.hidden && !wsRef.current) {
+        connect()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+    }
+  }, [agentId, wsSessionName, getChatWsUrl])
 
   // Auto-scroll when new messages arrive
   useEffect(() => {
@@ -273,42 +378,8 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
     prevMessageCountRef.current = messages.length
   }, [messages.length])
 
-  // Polling with visibility API
-  useEffect(() => {
-    fetchMessages()
-
-    const startPolling = () => {
-      pollTimerRef.current = setInterval(fetchMessages, 3000)
-    }
-
-    const stopPolling = () => {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-      }
-    }
-
-    const handleVisibility = () => {
-      if (document.hidden) {
-        stopPolling()
-      } else {
-        fetchMessages()
-        startPolling()
-      }
-    }
-
-    startPolling()
-    document.addEventListener('visibilitychange', handleVisibility)
-
-    return () => {
-      stopPolling()
-      burstTimersRef.current.forEach(t => clearTimeout(t))
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [fetchMessages])
-
-  // Send message
-  const sendMessage = async () => {
+  // Send message via WebSocket
+  const sendMessage = () => {
     const text = input.trim()
     if (!text || sending) return
 
@@ -320,44 +391,31 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
       textareaRef.current.style.height = 'auto'
     }
 
-    try {
-      const res = await fetch(`/api/agents/${agentId}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
-      })
-      if (!res.ok) {
-        setError('Failed to send message')
-      } else {
-        // Burst re-polls to catch the response as soon as it's written
-        // Poll at 0.5s, 1s, 2s, 4s, 8s, 15s, 25s after send
-        burstTimersRef.current.forEach(t => clearTimeout(t))
-        burstTimersRef.current = [500, 1000, 2000, 4000, 8000, 15000, 25000].map(
-          delay => setTimeout(fetchMessages, delay)
-        )
-      }
-    } catch {
-      setError('Failed to send')
-    } finally {
-      setSending(false)
+    const pendingMsg = { text, timestamp: new Date().toISOString() }
+    setPendingMessages(prev => [...prev, pendingMsg])
+
+    const sent = sendChatWs('chat:send', { message: text })
+    if (!sent) {
+      setError('Not connected')
+      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
+      setInput(text)
     }
+
+    setSending(false)
   }
 
   // Send quick response (for permission prompts)
-  const sendQuickResponse = async (text: string) => {
+  const sendQuickResponse = (text: string) => {
     setSending(true)
-    try {
-      await fetch(`/api/agents/${agentId}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
-      })
-      setTimeout(fetchMessages, 500)
-    } catch {
-      setError('Failed to send')
-    } finally {
-      setSending(false)
+    const pendingMsg = { text, timestamp: new Date().toISOString() }
+    setPendingMessages(prev => [...prev, pendingMsg])
+
+    const sent = sendChatWs('chat:send', { message: text })
+    if (!sent) {
+      setError('Not connected')
+      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
     }
+    setSending(false)
   }
 
   // Auto-grow textarea
@@ -377,9 +435,10 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
   }
 
   // Determine status
-  const isWaiting = hookState?.status === 'waiting_for_input' || promptType === 'input'
-  const isPermission = promptType === 'permission'
-  const isWorking = !isWaiting && !isPermission && messages.length > 0
+  const isPermission = hookState?.status === 'permission_request'
+  const isWaiting = hookState?.status === 'waiting_for_input'
+  const isWorking = pendingMessages.length > 0 || (messages.length > 0 && !isWaiting && !isPermission &&
+    (messages[messages.length - 1]?.type === 'user' || messages[messages.length - 1]?.type === 'human'))
 
   return (
     <div className="flex flex-col h-full bg-gray-900">
@@ -406,8 +465,8 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
             return <ThinkingBlock key={key} text={msg.thinking} />
           }
 
-          // Human message
-          if (msg.type === 'human') {
+          // Human/user message
+          if (msg.type === 'human' || msg.type === 'user') {
             const text = extractText(msg)
             if (!text) return null
             return (
@@ -418,6 +477,25 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
                   </div>
                   <div className="flex justify-end mt-0.5 mr-1">
                     <CopyButton text={text} className="text-gray-500" />
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          // Queue-operation (enqueued user messages)
+          if (msg.type === 'queue-operation' && msg.operation === 'enqueue') {
+            const text = extractText(msg)
+            if (!text) return null
+            return (
+              <div key={key} className="flex justify-end mx-3 my-1.5">
+                <div className="max-w-[85%]">
+                  <div className="px-3 py-2 rounded-2xl rounded-br-sm bg-yellow-600/80 text-white text-sm border border-yellow-500 select-text">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span className="text-xs opacity-70">Queued</span>
+                    </div>
+                    <p className="whitespace-pre-wrap">{text}</p>
                   </div>
                 </div>
               </div>
@@ -477,34 +555,74 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
             return null
           }
 
-          // Result messages (tool results) - skip rendering, context is in assistant messages
+          // Result messages (tool results) - skip rendering
           return null
         })}
+
+        {/* Pending messages */}
+        {pendingMessages.map((pending, idx) => (
+          <div key={`pending-${idx}`} className="flex justify-end mx-3 my-1.5">
+            <div className="max-w-[85%]">
+              <div className="px-3 py-2 rounded-2xl rounded-br-sm bg-blue-600/70 text-white text-sm border border-blue-500/50 select-text">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="text-xs opacity-70">Sending...</span>
+                </div>
+                <p className="whitespace-pre-wrap">{pending.text}</p>
+              </div>
+            </div>
+          </div>
+        ))}
 
         <div ref={messagesEndRef} />
       </div>
 
       {/* Status bar */}
       <div className="flex-shrink-0 border-t border-gray-800">
-        {isPermission && terminalPrompt && (
+        {isPermission && (
           <div className="px-3 py-2 bg-yellow-900/20 border-b border-yellow-800/50">
-            <p className="text-xs text-yellow-300 mb-2 whitespace-pre-wrap">{terminalPrompt}</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => sendQuickResponse('y')}
-                disabled={sending}
-                className="px-4 py-1.5 text-xs font-medium rounded-md bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50"
-              >
-                Yes
-              </button>
-              <button
-                onClick={() => sendQuickResponse('n')}
-                disabled={sending}
-                className="px-4 py-1.5 text-xs font-medium rounded-md bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
-              >
-                No
-              </button>
-            </div>
+            <p className="text-xs text-yellow-300 mb-2">
+              {hookState?.description || hookState?.message || `Allow ${hookState?.toolName || 'action'}?`}
+            </p>
+            {hookState?.toolName === 'Bash' && hookState?.toolInput?.command && (
+              <pre className="text-xs bg-gray-950/50 p-2 rounded font-mono overflow-x-auto max-h-20 overflow-y-auto mb-2 text-gray-300">
+                {hookState.toolInput.command}
+              </pre>
+            )}
+            {hookState?.options && hookState.options.length > 0 ? (
+              <div className="space-y-1.5">
+                {hookState.options.map((option, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => sendQuickResponse(option.key)}
+                    disabled={sending}
+                    className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg
+                      bg-amber-800/30 hover:bg-amber-700/40 border border-amber-600/30
+                      hover:border-amber-500/50 transition-all disabled:opacity-50"
+                  >
+                    <span className="text-amber-400 font-bold w-5 text-center">{option.key}</span>
+                    <span className="text-amber-200 text-sm flex-1">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => sendQuickResponse('y')}
+                  disabled={sending}
+                  className="px-4 py-1.5 text-xs font-medium rounded-md bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => sendQuickResponse('n')}
+                  disabled={sending}
+                  className="px-4 py-1.5 text-xs font-medium rounded-md bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+                >
+                  No
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -512,7 +630,7 @@ export default function MobileChatView({ agentId, agentName }: MobileChatViewPro
           <div className="px-3 py-1.5 flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                isWaiting ? 'bg-green-500' : 'bg-amber-500 animate-pulse'
+                isWaiting ? 'bg-green-500' : isWorking ? 'bg-amber-500 animate-pulse' : 'bg-gray-500'
               }`}
             />
             <span className="text-xs text-gray-400">

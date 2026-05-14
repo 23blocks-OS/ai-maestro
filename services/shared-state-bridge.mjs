@@ -29,6 +29,21 @@ export const statusSubscribers = state.statusSubscribers
 export const companionClients = state.companionClients
 
 /**
+ * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.
+ * Chat clients subscribe via the terminal WebSocket with { type: 'chat:subscribe' }.
+ */
+export function broadcastChatEvent(sessionName, type, payload) {
+  const sessions = globalThis._sharedState?.terminalSessions
+  if (!sessions) return
+  const session = sessions.get(sessionName)
+  if (!session?.chatClients) return
+  const msg = JSON.stringify({ type, ...payload })
+  for (const ws of session.chatClients) {
+    if (ws.readyState === 1) ws.send(msg)
+  }
+}
+
+/**
  * Broadcast a status update to all /status WebSocket subscribers.
  * Used by API routes and server.mjs.
  */

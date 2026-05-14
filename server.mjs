@@ -1,11 +1,13 @@
 import { createServer } from 'http'
 import { parse } from 'url'
+import { execSync } from 'child_process'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer } from './lib/cerebellum/session-bridge.mjs'
@@ -14,7 +16,8 @@ import {
   terminalSessions,
   statusSubscribers,
   companionClients,
-  broadcastStatusUpdate
+  broadcastStatusUpdate,
+  broadcastChatEvent
 } from './services/shared-state-bridge.mjs'
 
 // =============================================================================
@@ -158,6 +161,206 @@ function killPtyProcess(ptyProcess, sessionName, alreadyExited = false) {
   return true
 }
 
+// =============================================================================
+// CHAT PROTOCOL HELPERS — getChatHistory, JSONL watcher, broadcast updates
+// =============================================================================
+
+/**
+ * Resolve the JSONL conversation file path for an agent.
+ * Returns null if not found.
+ */
+function resolveJsonlPath(agent) {
+  const workingDir = agent?.workingDirectory ||
+                     agent?.sessions?.[0]?.workingDirectory ||
+                     agent?.preferences?.defaultWorkingDirectory
+  if (!workingDir) return null
+
+  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
+  const projectDirName = workingDir.replace(/\//g, '-')
+  const conversationDir = path.join(claudeProjectsDir, projectDirName)
+
+  if (!fs.existsSync(conversationDir)) return null
+
+  const files = fs.readdirSync(conversationDir)
+    .filter(f => f.endsWith('.jsonl'))
+    .map(f => ({
+      name: f,
+      path: path.join(conversationDir, f),
+      mtime: fs.statSync(path.join(conversationDir, f)).mtime
+    }))
+    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+
+  return files.length > 0 ? files[0] : null
+}
+
+/**
+ * Read hook state file for an agent's working directory.
+ */
+function readHookState(workingDir) {
+  if (!workingDir) return null
+  const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
+  const cwdHash = crypto.createHash('md5').update(workingDir || '').digest('hex').substring(0, 16)
+  const stateFile = path.join(stateDir, `${cwdHash}.json`)
+  try {
+    if (fs.existsSync(stateFile)) {
+      const content = fs.readFileSync(stateFile, 'utf-8')
+      const state = JSON.parse(content)
+      const isWaitingState = state.status === 'waiting_for_input' || state.status === 'permission_request'
+      if (!isWaitingState) {
+        const stateAge = Date.now() - new Date(state.updatedAt).getTime()
+        if (stateAge > 60000) return null
+      }
+      return state
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+/**
+ * Parse JSONL lines into message objects (same logic as agents-chat-service).
+ */
+function parseJsonlLines(lines, limit = 100) {
+  const messages = []
+  for (const line of lines) {
+    if (!line.trim()) continue
+    try {
+      const message = JSON.parse(line)
+      // Extract thinking blocks from assistant messages
+      if (message.type === 'assistant' && message.message?.content) {
+        const content = message.message.content
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === 'thinking' && block.thinking) {
+              messages.push({
+                type: 'thinking',
+                thinking: block.thinking,
+                timestamp: message.timestamp,
+                uuid: message.uuid
+              })
+            }
+          }
+        }
+      }
+      messages.push(message)
+    } catch { /* skip malformed */ }
+  }
+  return messages.slice(-limit)
+}
+
+/**
+ * Get chat history for a session (messages + hookState).
+ * Called on chat:requestHistory.
+ */
+async function getChatHistory(sessionName, agentId) {
+  const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+  const agent = agentId ? getAgent(agentId) : getAgentByName(sessionName)
+  if (!agent) {
+    return { messages: [], hookState: null }
+  }
+
+  const file = resolveJsonlPath(agent)
+  if (!file) {
+    return { messages: [], hookState: null }
+  }
+
+  const fileContent = fs.readFileSync(file.path, 'utf-8')
+  const lines = fileContent.split('\n')
+  const messages = parseJsonlLines(lines, 25)
+
+  const workingDir = agent.workingDirectory ||
+                     agent.sessions?.[0]?.workingDirectory ||
+                     agent.preferences?.defaultWorkingDirectory
+  const hookState = readHookState(workingDir)
+
+  return {
+    messages,
+    hookState,
+    conversationFile: file.path,
+    lastModified: file.mtime.toISOString()
+  }
+}
+
+/**
+ * Start watching the JSONL file for a session.
+ * Uses fs.watchFile (polling-based, reliable on macOS) to detect changes.
+ */
+function startJsonlWatcher(sessionName, sessionState, agentId) {
+  // Already watching
+  if (sessionState.jsonlWatcher) return
+
+  import('./lib/agent-registry.ts').then(({ getAgent, getAgentByName }) => {
+    const agent = agentId ? getAgent(agentId) : getAgentByName(sessionName)
+    if (!agent) return
+
+    const file = resolveJsonlPath(agent)
+    if (!file) return
+
+    sessionState.jsonlFilePath = file.path
+    try {
+      const stat = fs.statSync(file.path)
+      sessionState.jsonlFileSize = stat.size
+    } catch {
+      sessionState.jsonlFileSize = 0
+    }
+
+    // Poll every 1s — low overhead, reliable on macOS where fs.watch is flaky
+    fs.watchFile(file.path, { interval: 1000 }, (curr, prev) => {
+      if (curr.size > sessionState.jsonlFileSize) {
+        broadcastJsonlUpdates(sessionName, sessionState)
+      }
+      // Handle file truncation (new conversation started)
+      if (curr.size < sessionState.jsonlFileSize) {
+        sessionState.jsonlFileSize = 0
+        broadcastJsonlUpdates(sessionName, sessionState)
+      }
+    })
+    sessionState.jsonlWatcher = true
+    console.log(`[Chat] Started JSONL watcher for ${sessionName}: ${file.path}`)
+  }).catch(err => {
+    console.error(`[Chat] Failed to start JSONL watcher for ${sessionName}:`, err.message)
+  })
+}
+
+/**
+ * Read new JSONL lines since last read and broadcast to chat clients.
+ */
+function broadcastJsonlUpdates(sessionName, sessionState) {
+  if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
+  if (!sessionState.jsonlFilePath) return
+
+  try {
+    const stat = fs.statSync(sessionState.jsonlFilePath)
+    const currentSize = stat.size
+    const prevSize = sessionState.jsonlFileSize || 0
+
+    if (currentSize <= prevSize && prevSize > 0) return
+
+    // Read only new bytes (or full file if truncated)
+    const readStart = currentSize < prevSize ? 0 : prevSize
+    const fd = fs.openSync(sessionState.jsonlFilePath, 'r')
+    const buffer = Buffer.alloc(currentSize - readStart)
+    fs.readSync(fd, buffer, 0, buffer.length, readStart)
+    fs.closeSync(fd)
+
+    sessionState.jsonlFileSize = currentSize
+
+    const newContent = buffer.toString('utf-8')
+    const lines = newContent.split('\n').filter(l => l.trim())
+    if (lines.length === 0) return
+
+    const messages = parseJsonlLines(lines, 50)
+    if (messages.length === 0) return
+
+    const msg = JSON.stringify({ type: 'chat:messages', data: messages })
+    sessionState.chatClients.forEach(ws => {
+      if (ws.readyState === 1) ws.send(msg)
+    })
+  } catch (err) {
+    // File may not exist yet or be in the middle of being written
+    console.error(`[Chat] Error reading JSONL updates for ${sessionName}:`, err.message)
+  }
+}
+
 /**
  * Clean up a session's PTY and resources
  * Called when last client disconnects, on error, or when PTY exits
@@ -204,6 +407,14 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
     killPtyProcess(sessionState.ptyProcess, sessionName, ptyAlreadyExited)
   }
 
+  // Stop JSONL file watcher
+  if (sessionState.jsonlWatcher) {
+    try {
+      fs.unwatchFile(sessionState.jsonlFilePath)
+    } catch { /* ignore */ }
+    sessionState.jsonlWatcher = null
+  }
+
   // Close all remaining client connections
   if (sessionState.clients) {
     sessionState.clients.forEach((client) => {
@@ -216,6 +427,11 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
       }
     })
     sessionState.clients.clear()
+  }
+
+  // Clear chat clients
+  if (sessionState.chatClients) {
+    sessionState.chatClients.clear()
   }
 
   // Remove from terminal sessions map
@@ -239,8 +455,9 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
 function handleClientDisconnect(ws, sessionName, sessionState, reason = 'close') {
   if (!sessionState) return
 
-  // Remove this client
+  // Remove this client from both regular and chat client sets
   sessionState.clients.delete(ws)
+  sessionState.chatClients?.delete(ws)
 
   console.log(`[PTY] Client disconnected from ${sessionName} (${reason}). Remaining clients: ${sessionState.clients.size}`)
 
@@ -616,6 +833,110 @@ async function startServer(handleRequest) {
     })
   })
 
+  // ─── Meeting Chat WebSocket (/meeting-chat?meetingId=X) ──────────────────
+  // Shared-timeline broadcast: clients subscribe to a meetingId and receive
+  // all messages + loop guard updates in real time.
+
+  const meetingChatWss = new WebSocketServer({ noServer: true })
+
+  // Map<meetingId, Set<WebSocket>>
+  const meetingChatSubscribers = new Map()
+
+  meetingChatWss.on('connection', (ws, query) => {
+    let subscribedMeetingId = null
+
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+
+        if (msg.type === 'subscribe' && msg.meetingId) {
+          // Unsubscribe from previous meeting if any
+          if (subscribedMeetingId) {
+            const prev = meetingChatSubscribers.get(subscribedMeetingId)
+            if (prev) {
+              prev.delete(ws)
+              if (prev.size === 0) meetingChatSubscribers.delete(subscribedMeetingId)
+            }
+          }
+
+          subscribedMeetingId = msg.meetingId
+          if (!meetingChatSubscribers.has(subscribedMeetingId)) {
+            meetingChatSubscribers.set(subscribedMeetingId, new Set())
+          }
+          meetingChatSubscribers.get(subscribedMeetingId).add(ws)
+          console.log(`[MEETING-CHAT-WS] Client subscribed to meeting ${subscribedMeetingId} (${meetingChatSubscribers.get(subscribedMeetingId).size} clients)`)
+
+          // Send ack
+          ws.send(JSON.stringify({ type: 'subscribed', meetingId: subscribedMeetingId }))
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    })
+
+    ws.on('close', () => {
+      if (subscribedMeetingId) {
+        const subs = meetingChatSubscribers.get(subscribedMeetingId)
+        if (subs) {
+          subs.delete(ws)
+          if (subs.size === 0) meetingChatSubscribers.delete(subscribedMeetingId)
+        }
+        console.log(`[MEETING-CHAT-WS] Client disconnected from meeting ${subscribedMeetingId}`)
+      }
+    })
+
+    ws.on('error', () => {
+      if (subscribedMeetingId) {
+        const subs = meetingChatSubscribers.get(subscribedMeetingId)
+        if (subs) {
+          subs.delete(ws)
+          if (subs.size === 0) meetingChatSubscribers.delete(subscribedMeetingId)
+        }
+      }
+    })
+  })
+
+  /**
+   * Broadcast a meeting chat message to all subscribed WebSocket clients.
+   */
+  function broadcastMeetingChatMessage(meetingId, message) {
+    const subs = meetingChatSubscribers.get(meetingId)
+    if (!subs || subs.size === 0) return
+
+    const payload = JSON.stringify({ type: 'message', data: message })
+    let sent = 0
+    for (const ws of subs) {
+      if (ws.readyState === 1) {
+        try {
+          ws.send(payload)
+          sent++
+        } catch { /* ignore */ }
+      }
+    }
+    if (sent > 0) {
+      console.log(`[MEETING-CHAT-WS] Broadcast message to ${sent} client(s) in meeting ${meetingId}`)
+    }
+  }
+
+  /**
+   * Broadcast loop guard status update to all subscribed WebSocket clients.
+   */
+  function broadcastMeetingLoopGuard(meetingId, loopGuardData) {
+    const subs = meetingChatSubscribers.get(meetingId)
+    if (!subs || subs.size === 0) return
+
+    const payload = JSON.stringify({ type: 'loopGuard', data: loopGuardData })
+    for (const ws of subs) {
+      if (ws.readyState === 1) {
+        try { ws.send(payload) } catch { /* ignore */ }
+      }
+    }
+  }
+
+  // Expose broadcast functions so API routes can call them
+  globalThis.__meetingChatBroadcast = broadcastMeetingChatMessage
+  globalThis.__meetingLoopGuardBroadcast = broadcastMeetingLoopGuard
+
   // WebSocket server for companion speech events (/companion-ws)
   const companionWss = new WebSocketServer({ noServer: true })
 
@@ -770,6 +1091,10 @@ async function startServer(handleRequest) {
       ampWss.handleUpgrade(request, socket, head, (ws) => {
         ampWss.emit('connection', ws)
       })
+    } else if (pathname === '/meeting-chat') {
+      meetingChatWss.handleUpgrade(request, socket, head, (ws) => {
+        meetingChatWss.emit('connection', ws, query)
+      })
     } else if (pathname === '/companion-ws') {
       companionWss.handleUpgrade(request, socket, head, (ws) => {
         companionWss.emit('connection', ws, query)
@@ -785,6 +1110,91 @@ async function startServer(handleRequest) {
     if (!sessionName || typeof sessionName !== 'string') {
       ws.close(1008, 'Session name required')
       return
+    }
+
+    // ── Chat-only WebSocket connection ─────────────────────────────────
+    // Lightweight connection that only participates in chat:* protocol.
+    // Skips PTY attach, history capture, and raw terminal broadcast.
+    if (query.chatOnly === '1') {
+      console.log(`[Chat] Chat-only client connected for ${sessionName}`)
+
+      // Get or create minimal session state for chatClients
+      let sessionState = terminalSessions.get(sessionName)
+      if (!sessionState) {
+        // No terminal session exists — create a stub for chat-only clients
+        sessionState = {
+          clients: new Set(),
+          chatClients: new Set(),
+          ptyProcess: null,
+          logStream: null,
+          loggingEnabled: false,
+          cleanupTimer: null,
+          terminalBuffer: null,
+          jsonlWatcher: null,
+          jsonlFileSize: 0,
+          jsonlFilePath: null,
+        }
+        terminalSessions.set(sessionName, sessionState)
+      }
+
+      // Initialize chatClients if missing (existing sessions before this change)
+      if (!sessionState.chatClients) {
+        sessionState.chatClients = new Set()
+      }
+
+      sessionState.chatClients.add(ws)
+
+      ws.on('message', async (data) => {
+        try {
+          const parsed = JSON.parse(data.toString())
+          if (parsed.type === 'chat:requestHistory') {
+            try {
+              const history = await getChatHistory(sessionName, parsed.agentId)
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:history', data: history }))
+              }
+            } catch (err) {
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:error', error: err.message }))
+              }
+            }
+            startJsonlWatcher(sessionName, sessionState, parsed.agentId)
+          } else if (parsed.type === 'chat:send') {
+            if (parsed.message && sessionState.ptyProcess) {
+              sessionState.ptyProcess.write(parsed.message + '\r')
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:sent' }))
+              }
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+            } else if (parsed.message) {
+              // No PTY — try to send via tmux send-keys as fallback
+              try {
+                execSync(`tmux send-keys -t "${sessionName}" -l ${JSON.stringify(parsed.message)}`, { timeout: 3000 })
+                execSync(`tmux send-keys -t "${sessionName}" Enter`, { timeout: 3000 })
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: 'chat:sent' }))
+                }
+              } catch (err) {
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: no PTY connection' }))
+                }
+              }
+            }
+          }
+        } catch { /* not JSON, ignore */ }
+      })
+
+      ws.on('close', () => {
+        sessionState.chatClients?.delete(ws)
+        console.log(`[Chat] Chat-only client disconnected from ${sessionName}`)
+      })
+
+      ws.on('error', () => {
+        sessionState.chatClients?.delete(ws)
+      })
+
+      return // Skip all PTY/terminal setup below
     }
 
     // Check if this is a remote host connection
@@ -813,9 +1223,41 @@ async function startServer(handleRequest) {
       }
     }
 
-    // NOTE: Container/cloud agent routing is not yet implemented
-    // Future: Check agent metadata for cloud deployment and proxy to container WebSocket
-    // Currently all agents are local tmux sessions
+    const socketPath = query.socket || undefined
+
+    // Cloud-agent dispatch: if the requested session belongs to an agent with
+    // deployment.type === 'cloud', proxy the WebSocket to the agent's container
+    // via handleRemoteWorker. The container's in-process ai-maestro-agent server
+    // speaks the same /term protocol the host server speaks (initial connected
+    // handshake, raw PTY frames, JSON input messages), so the proxy is a plain
+    // WS-to-WS pipe — no protocol bridging.
+    try {
+      const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+      // sessionName may be either the agent's name or its UUID. Try ID first.
+      const cloudAgent = getAgent(sessionName) || getAgentByName(sessionName)
+      if (cloudAgent?.deployment?.type === 'cloud') {
+        const cloudWsUrl = cloudAgent.deployment.cloud?.websocketUrl
+        if (!cloudWsUrl) {
+          console.error(`☁️  [CLOUD] Agent ${sessionName} has deployment.type=cloud but no websocketUrl`)
+          ws.close(1011, 'Cloud agent missing websocketUrl')
+          return
+        }
+        // websocketUrl is shape "ws://localhost:<port>/term"; strip the /term
+        // path and convert to http so handleRemoteWorker can rebuild it.
+        const containerBaseUrl = cloudWsUrl
+          .replace(/\/term.*$/, '')
+          .replace(/^ws:/, 'http:')
+          .replace(/^wss:/, 'https:')
+        const containerSessionName = cloudAgent.name || sessionName
+        console.log(`☁️  [CLOUD] Routing ${sessionName} (resolved to ${containerSessionName}) to container at ${containerBaseUrl}`)
+        handleRemoteWorker(ws, containerSessionName, containerBaseUrl)
+        return
+      }
+    } catch (error) {
+      console.error('☁️  [CLOUD] Error routing to cloud agent:', error)
+      ws.close(1011, 'Cloud agent routing error')
+      return
+    }
 
     // Get or create session state (for traditional local tmux sessions)
     let sessionState = terminalSessions.get(sessionName)
@@ -828,7 +1270,6 @@ async function startServer(handleRequest) {
       // tmux may still be detaching. Retrying after a short delay resolves this.
       const PTY_SPAWN_MAX_RETRIES = 3
       const PTY_SPAWN_RETRY_DELAY_MS = 500
-      const socketPath = query.socket || undefined
 
       for (let attempt = 1; attempt <= PTY_SPAWN_MAX_RETRIES; attempt++) {
         try {
@@ -912,11 +1353,15 @@ async function startServer(handleRequest) {
 
       sessionState = {
         clients: new Set(),
+        chatClients: new Set(), // WebSocket clients subscribed to chat events
         ptyProcess,
         logStream,
         loggingEnabled: true, // Default to enabled (but only works if globalLoggingEnabled is true)
         cleanupTimer: null, // Timer for cleaning up PTY when no clients connected
-        terminalBuffer: getOrCreateBuffer(sessionName) // Cerebellum terminal buffer for voice subsystem
+        terminalBuffer: getOrCreateBuffer(sessionName), // Cerebellum terminal buffer for voice subsystem
+        jsonlWatcher: null, // fs.watchFile cleanup handle for JSONL file watching
+        jsonlFileSize: 0,   // Track file size for incremental reads
+        jsonlFilePath: null, // Path to the watched JSONL file
       }
       terminalSessions.set(sessionName, sessionState)
 
@@ -986,8 +1431,33 @@ async function startServer(handleRequest) {
       }
     }
 
-    // Add client to session
-    sessionState.clients.add(ws)
+    // Disable tmux mouse mode per-session so xterm.js handles mouse natively.
+    // Without this, ~/.tmux.conf "set -g mouse on" causes tmux to intercept
+    // click-drag (yellow copy-mode selection instead of browser clipboard) and
+    // wheel events (tmux copy-mode instead of app-native scrolling).
+    try {
+      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
+      execSync(`${tmuxBase} set-option -t "${sessionName}" mouse off`, { timeout: 2000, stdio: 'pipe' })
+    } catch (e) {
+      console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, e.message)
+    }
+
+    // Capture FULL pane content (scrollback + visible area) with ANSI color codes.
+    // We send this as a single snapshot and intentionally DON'T add the client to the
+    // PTY broadcast set yet — the PTY's initial `tmux attach` redraw would duplicate
+    // the visible area. By delaying broadcast join, the redraw is discarded.
+    try {
+      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
+      const paneContent = execSync(
+        `${tmuxBase} capture-pane -t "${sessionName}" -e -p -S -5000 2>/dev/null`,
+        { encoding: 'utf8', timeout: 3000 }
+      )
+      if (paneContent && paneContent.trim() && ws.readyState === 1) {
+        ws.send(paneContent.replace(/\n/g, '\r\n'))
+      }
+    } catch (e) {
+      // capture failed — client will get content once added to broadcast
+    }
 
     // Track connection as activity (so newly opened sessions show as active)
     trackSessionActivity(sessionName)
@@ -1000,40 +1470,18 @@ async function startServer(handleRequest) {
       sessionState.cleanupTimer = null
     }
 
-    // Send scrollback history to new clients - ASYNC to avoid blocking the event loop
-    // The client can start typing immediately; history loads in the background
-    setTimeout(async () => {
-      try {
-        const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
-        const runtime = getRt()
-
-        let historyContent = ''
-        try {
-          // Capture scrollback history (up to 2000 lines) WITHOUT escape sequences
-          // Reduced from 5000 to 2000 for faster loading
-          historyContent = await runtime.capturePane(sessionName, 2000)
-        } catch (historyError) {
-          console.error('Failed to capture history:', historyError)
-        }
-
-        if (ws.readyState === 1) {
-          if (historyContent) {
-            // Send with proper line endings
-            const formattedHistory = historyContent.replace(/\n/g, '\r\n')
-            ws.send(formattedHistory)
-          }
-          ws.send(JSON.stringify({ type: 'history-complete' }))
-        }
-      } catch (error) {
-        console.error('Error capturing terminal history:', error)
-        if (ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'history-complete' }))
-        }
+    // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
+    // 150ms is enough for the tmux attach redraw to fire and be ignored.
+    // After this, the client receives all live PTY output going forward.
+    setTimeout(() => {
+      sessionState.clients.add(ws)
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'history-complete' }))
       }
-    }, 100)
+    }, 150)
 
     // Handle client input
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       try {
         const message = data.toString()
 
@@ -1049,6 +1497,42 @@ async function startServer(handleRequest) {
           if (parsed.type === 'set-logging') {
             sessionState.loggingEnabled = parsed.enabled
             console.log(`Logging ${parsed.enabled ? 'enabled' : 'disabled'} for session: ${sessionName}`)
+            return
+          }
+
+          // ── Chat protocol messages ────────────────────────────────
+          if (parsed.type === 'chat:subscribe') {
+            sessionState.chatClients.add(ws)
+            console.log(`[Chat] Client subscribed to chat for ${sessionName}`)
+            return
+          }
+
+          if (parsed.type === 'chat:requestHistory') {
+            try {
+              const history = await getChatHistory(sessionName, parsed.agentId)
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:history', data: history }))
+              }
+            } catch (err) {
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:error', error: err.message }))
+              }
+            }
+            // Start JSONL file watcher for this session if not already watching
+            startJsonlWatcher(sessionName, sessionState, parsed.agentId)
+            return
+          }
+
+          if (parsed.type === 'chat:send') {
+            if (parsed.message && sessionState.ptyProcess) {
+              sessionState.ptyProcess.write(parsed.message + '\r')
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:sent' }))
+              }
+              // Burst re-read of JSONL after a short delay to catch the response
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+            }
             return
           }
         } catch {

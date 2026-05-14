@@ -21,6 +21,65 @@ interface ChatMessage {
   widgetData?: Record<string, unknown>
 }
 
+interface DockerMount {
+  hostPath: string
+  containerPath: string
+  readOnly: boolean
+}
+
+interface DockerEnvVar {
+  key: string
+  value: string
+}
+
+interface DockerState {
+  showDockerAdvanced: boolean
+  setShowDockerAdvanced: (v: boolean) => void
+  dockerCpus: number
+  setDockerCpus: (v: number) => void
+  dockerMemory: string
+  setDockerMemory: (v: string) => void
+  dockerMounts: DockerMount[]
+  setDockerMounts: (v: DockerMount[]) => void
+  dockerEnvVars: DockerEnvVar[]
+  setDockerEnvVars: (v: DockerEnvVar[]) => void
+  dockerOnWake: string
+  setDockerOnWake: (v: string) => void
+  dockerOnHibernate: string
+  setDockerOnHibernate: (v: string) => void
+  dockerGithubToken: string
+  setDockerGithubToken: (v: string) => void
+  dockerYolo: boolean
+  setDockerYolo: (v: boolean) => void
+  dockerMeshAware: boolean
+  setDockerMeshAware: (v: boolean) => void
+  dockerAutoRemove: boolean
+  setDockerAutoRemove: (v: boolean) => void
+}
+
+interface CloudState {
+  cloudEcrImageOverride: string
+  setCloudEcrImageOverride: (v: string) => void
+  cloudDomain: string
+  setCloudDomain: (v: string) => void
+  cloudSslEmail: string
+  setCloudSslEmail: (v: string) => void
+  cloudKeyName: string
+  setCloudKeyName: (v: string) => void
+  cloudAwsRegion: string
+  setCloudAwsRegion: (v: string) => void
+  cloudInstanceType: string
+  setCloudInstanceType: (v: string) => void
+  cloudEcsCpu: number
+  setCloudEcsCpu: (v: number) => void
+  cloudEcsMemory: number
+  setCloudEcsMemory: (v: number) => void
+  cloudAnthropicKey: string
+  setCloudAnthropicKey: (v: string) => void
+  cloudGithubToken: string
+  setCloudGithubToken: (v: string) => void
+}
+
 // --- Constants ---
 
 const PROGRAM_OPTIONS = [
@@ -37,22 +96,28 @@ const PROGRAM_OPTIONS = [
 
 const STEP_ORDER: WizardStep[] = ['host', 'runtime', 'program', 'name', 'directory', 'summary']
 
-function getVisibleStepCount(hosts: Host[], hostId: string): number {
-  let count = STEP_ORDER.length
-  if (hosts.length <= 1) count--
-  const selectedHost = hosts.find(h => h.id === hostId)
-  if (!selectedHost?.capabilities?.docker) count--
-  return count
+function hasRuntimeChoice(host: Host | undefined): boolean {
+  return !!(host?.capabilities?.docker || host?.capabilities?.cloud?.aws)
 }
 
-function getStepNumber(step: WizardStep, hosts: Host[], hostId: string): number {
+function shouldSkipStep(s: WizardStep, hosts: Host[], hostId: string, runtime: string): boolean {
+  if (s === 'host' && hosts.length <= 1) return true
+  if (s === 'runtime') {
+    const selectedHost = hosts.find(h => h.id === hostId)
+    if (!hasRuntimeChoice(selectedHost)) return true
+  }
+  if (s === 'directory' && (runtime === 'ec2' || runtime === 'ecs')) return true
+  return false
+}
+
+function getVisibleStepCount(hosts: Host[], hostId: string, runtime: string): number {
+  return STEP_ORDER.filter(s => !shouldSkipStep(s, hosts, hostId, runtime)).length
+}
+
+function getStepNumber(step: WizardStep, hosts: Host[], hostId: string, runtime: string): number {
   let n = 0
   for (const s of STEP_ORDER) {
-    if (s === 'host' && hosts.length <= 1) continue
-    if (s === 'runtime') {
-      const selectedHost = hosts.find(h => h.id === hostId)
-      if (!selectedHost?.capabilities?.docker) continue
-    }
+    if (shouldSkipStep(s, hosts, hostId, runtime)) continue
     n++
     if (s === step) return n
   }
@@ -64,7 +129,7 @@ function makeMsg(role: 'robot' | 'user', text: string, step: WizardStep, widget?
   return { id: `msg-${++msgCounter}-${Math.random().toString(36).slice(2, 6)}`, role, text, step, widget, widgetData }
 }
 
-function robotQuestion(step: WizardStep): ChatMessage {
+function robotQuestion(step: WizardStep, host?: Host): ChatMessage {
   switch (step) {
     case 'host':
       return makeMsg('robot', 'Where should this agent live?', step, 'buttons', {
@@ -73,13 +138,19 @@ function robotQuestion(step: WizardStep): ChatMessage {
           { value: '__remote__', label: 'Another host on the network' },
         ]
       })
-    case 'runtime':
-      return makeMsg('robot', 'How should this agent run?', step, 'buttons', {
-        options: [
-          { value: 'tmux', label: 'Direct access' },
-          { value: 'docker', label: 'Private container (Docker)' },
-        ]
-      })
+    case 'runtime': {
+      const options: { value: string; label: string }[] = [
+        { value: 'tmux', label: 'Direct access' },
+      ]
+      if (host?.capabilities?.docker) {
+        options.push({ value: 'docker', label: 'Private container (Docker)' })
+      }
+      if (host?.capabilities?.cloud?.aws) {
+        options.push({ value: 'ec2', label: 'AWS EC2 (dedicated instance)' })
+        options.push({ value: 'ecs', label: 'AWS ECS Fargate (serverless)' })
+      }
+      return makeMsg('robot', 'How should this agent run?', step, 'buttons', { options })
+    }
     case 'program':
       return makeMsg('robot', 'What AI tool should power this agent?', step, 'program-grid')
     case 'name':
@@ -112,11 +183,36 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [step, setStep] = useState<WizardStep>('host')
   const [hostId, setHostId] = useState('')
-  const [runtime, setRuntime] = useState<'tmux' | 'docker'>('tmux')
+  const [runtime, setRuntime] = useState<'tmux' | 'docker' | 'ec2' | 'ecs'>('tmux')
   const [program, setProgram] = useState('claude-code')
   const [agentName, setAgentName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [showHostCards, setShowHostCards] = useState(false)
+
+  // Docker advanced options state
+  const [showDockerAdvanced, setShowDockerAdvanced] = useState(false)
+  const [dockerCpus, setDockerCpus] = useState(2)
+  const [dockerMemory, setDockerMemory] = useState('4g')
+  const [dockerMounts, setDockerMounts] = useState<{hostPath: string, containerPath: string, readOnly: boolean}[]>([])
+  const [dockerEnvVars, setDockerEnvVars] = useState<{key: string, value: string}[]>([])
+  const [dockerOnWake, setDockerOnWake] = useState('')
+  const [dockerOnHibernate, setDockerOnHibernate] = useState('')
+  const [dockerGithubToken, setDockerGithubToken] = useState('')
+  const [dockerYolo, setDockerYolo] = useState(false)
+  const [dockerMeshAware, setDockerMeshAware] = useState(false)
+  const [dockerAutoRemove, setDockerAutoRemove] = useState(false)
+
+  // Cloud state (EC2 / ECS)
+  const [cloudEcrImageOverride, setCloudEcrImageOverride] = useState('')
+  const [cloudDomain, setCloudDomain] = useState('')
+  const [cloudSslEmail, setCloudSslEmail] = useState('')
+  const [cloudKeyName, setCloudKeyName] = useState('')
+  const [cloudAwsRegion, setCloudAwsRegion] = useState('us-east-1')
+  const [cloudInstanceType, setCloudInstanceType] = useState('t4g.small')
+  const [cloudEcsCpu, setCloudEcsCpu] = useState(512)
+  const [cloudEcsMemory, setCloudEcsMemory] = useState(1024)
+  const [cloudAnthropicKey, setCloudAnthropicKey] = useState('')
+  const [cloudGithubToken, setCloudGithubToken] = useState('')
 
   // Creation animation state
   const [isCreating, setIsCreating] = useState(false)
@@ -159,7 +255,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
       setHostId(initHostId)
 
       const selectedHost = hosts.find(h => h.id === initHostId)
-      if (!selectedHost?.capabilities?.docker) {
+      if (!hasRuntimeChoice(selectedHost)) {
         firstStep = 'program'
         setRuntime('tmux')
       } else {
@@ -167,12 +263,13 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
       }
     }
 
+    const initHost = hosts.find(h => h.id === initHostId)
     setStep(firstStep)
     setActiveWidgetStep(firstStep)
     setTimeout(() => {
       setMessages([
         makeMsg('robot', "Hey! I'm here to help you set up a new agent.", firstStep),
-        robotQuestion(firstStep),
+        robotQuestion(firstStep, initHost),
       ])
     }, 200)
   }, [hostsLoading, initialized, hosts])
@@ -191,15 +288,16 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     setMessages(prev => [...prev, userMsg])
     setActiveWidgetStep(null)
 
+    const selectedHost = hosts.find(h => h.id === hostId)
     // Clear any pending transition before scheduling a new one
     if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
     transitionTimerRef.current = setTimeout(() => {
       transitionTimerRef.current = null
       setStep(nextStep)
       setActiveWidgetStep(nextStep)
-      setMessages(prev => [...prev, robotQuestion(nextStep)])
+      setMessages(prev => [...prev, robotQuestion(nextStep, selectedHost)])
     }, 400)
-  }, [step])
+  }, [step, hosts, hostId])
 
   // Go back one step
   const goBack = useCallback(() => {
@@ -215,11 +313,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     let prevStep: WizardStep | null = null
     for (let i = idx - 1; i >= 0; i--) {
       const s = STEP_ORDER[i]
-      if (s === 'host' && hosts.length <= 1) continue
-      if (s === 'runtime') {
-        const selectedHost = hosts.find(h => h.id === hostId)
-        if (!selectedHost?.capabilities?.docker) continue
-      }
+      if (shouldSkipStep(s, hosts, hostId, runtime)) continue
       prevStep = s
       break
     }
@@ -231,15 +325,14 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     setStep(prevStep)
     setActiveWidgetStep(prevStep)
     setShowHostCards(false)
-  }, [step, hosts, hostId])
+  }, [step, hosts, hostId, runtime])
 
   // --- Handlers ---
 
   const handleHostLocal = useCallback(() => {
     const selfHost = hosts.find(h => h.isSelf) || hosts[0]
     if (selfHost) setHostId(selfHost.id)
-    const hasDocker = selfHost ? (hosts.find(h => h.id === selfHost.id)?.capabilities?.docker ?? false) : false
-    if (!hasDocker) {
+    if (!hasRuntimeChoice(selfHost)) {
       setRuntime('tmux')
       advance('This computer', 'program')
     } else {
@@ -254,8 +347,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
   const handleHostSelect = useCallback((host: Host) => {
     setHostId(host.id)
     setShowHostCards(false)
-    const hasDocker = host.capabilities?.docker ?? false
-    if (!hasDocker) {
+    if (!hasRuntimeChoice(host)) {
       setRuntime('tmux')
       advance(host.name || host.id, 'program')
     } else {
@@ -263,7 +355,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     }
   }, [advance])
 
-  const handleRuntime = useCallback((rt: 'tmux' | 'docker', label: string) => {
+  const handleRuntime = useCallback((rt: 'tmux' | 'docker' | 'ec2' | 'ecs', label: string) => {
     setRuntime(rt)
     advance(label, 'program')
   }, [advance])
@@ -282,8 +374,14 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     }
     setAgentName(trimmed)
     setNameError('')
-    advance(trimmed, 'directory')
-  }, [nameInput, advance])
+    // Cloud agents don't need a working directory (it's /workspace on the VM)
+    if (runtime === 'ec2' || runtime === 'ecs') {
+      setWorkingDirectory('')
+      advance(trimmed, 'summary')
+    } else {
+      advance(trimmed, 'directory')
+    }
+  }, [nameInput, runtime, advance])
 
   const handleDirectorySubmit = useCallback(() => {
     const trimmed = dirInput.trim()
@@ -306,18 +404,76 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     const avatarUrl = getPreviewAvatarUrl(agentName)
 
     try {
-      if (runtime === 'docker') {
+      if (runtime === 'ec2' || runtime === 'ecs') {
+        // Cloud payload (EC2 / ECS Fargate)
+        const cloudPayload: Record<string, unknown> = {
+          name: agentName,
+          provider: runtime,
+          label: personaName,
+          avatar: avatarUrl,
+          program: program === 'claude-code' ? 'claude' : program,
+        }
+        // ECS only: include ECR image override if provided (auto-built if omitted)
+        if (runtime === 'ecs' && cloudEcrImageOverride) cloudPayload.ecrImageUrl = cloudEcrImageOverride
+        if (cloudAwsRegion !== 'us-east-1') cloudPayload.awsRegion = cloudAwsRegion
+        if (cloudDomain) cloudPayload.domainName = cloudDomain
+        if (runtime === 'ec2') {
+          if (cloudSslEmail) cloudPayload.sslEmail = cloudSslEmail
+          if (cloudKeyName) cloudPayload.keyName = cloudKeyName
+          if (cloudInstanceType !== 't4g.small') cloudPayload.instanceType = cloudInstanceType
+        }
+        if (runtime === 'ecs') {
+          if (cloudEcsCpu !== 512) cloudPayload.cpu = cloudEcsCpu
+          if (cloudEcsMemory !== 1024) cloudPayload.memory = cloudEcsMemory
+        }
+        if (cloudAnthropicKey) cloudPayload.anthropicKey = cloudAnthropicKey
+        if (cloudGithubToken) cloudPayload.githubToken = cloudGithubToken
+
+        const response = await fetch('/api/agents/cloud/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudPayload),
+        })
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.message || data.error || 'Failed to create cloud agent')
+        }
+      } else if (runtime === 'docker') {
+        // Build Docker payload with advanced options
+        const dockerPayload: Record<string, unknown> = {
+          name: agentName,
+          workingDirectory: workingDirectory || undefined,
+          hostId: hostId || undefined,
+          program: program === 'claude-code' ? 'claude' : program,
+          label: personaName,
+          avatar: avatarUrl,
+        }
+
+        if (showDockerAdvanced) {
+          if (dockerCpus !== 2) dockerPayload.cpus = dockerCpus
+          if (dockerMemory !== '4g') dockerPayload.memory = dockerMemory
+          if (dockerMounts.length > 0) dockerPayload.mounts = dockerMounts
+          if (dockerEnvVars.length > 0) {
+            const extraEnv: Record<string, string> = {}
+            dockerEnvVars.forEach(e => { if (e.key && e.value) extraEnv[e.key] = e.value })
+            if (Object.keys(extraEnv).length > 0) dockerPayload.extraEnv = extraEnv
+          }
+          if (dockerOnWake || dockerOnHibernate) {
+            const hooks: Record<string, string> = {}
+            if (dockerOnWake) hooks['on-wake'] = dockerOnWake
+            if (dockerOnHibernate) hooks['on-hibernate'] = dockerOnHibernate
+            dockerPayload.hooks = hooks
+          }
+          if (dockerGithubToken) dockerPayload.githubToken = dockerGithubToken
+          if (dockerYolo) dockerPayload.yolo = true
+          if (dockerMeshAware) dockerPayload.meshAware = true
+          if (dockerAutoRemove) dockerPayload.autoRemove = true
+        }
+
         const response = await fetch('/api/agents/docker/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: agentName,
-            workingDirectory: workingDirectory || undefined,
-            hostId: hostId || undefined,
-            program: program === 'claude-code' ? 'claude' : program,
-            label: personaName,
-            avatar: avatarUrl,
-          }),
+          body: JSON.stringify(dockerPayload),
         })
         if (!response.ok) {
           const data = await response.json()
@@ -347,50 +503,69 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [agentName, workingDirectory, hostId, runtime, program])
+  }, [agentName, workingDirectory, hostId, runtime, program, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken])
 
-  // Animation timer sequence
+  // Animation timer sequence — fast fixed for local, slow open-ended for cloud
+  const isCloudRuntime = runtime === 'ec2' || runtime === 'ecs'
+
   useEffect(() => {
     if (!isCreating) return
     setAnimationPhase('preparing')
     setAnimationProgress(5)
 
-    const timers = [
-      setTimeout(() => setAnimationProgress(12), 500),
-      setTimeout(() => setAnimationProgress(20), 1000),
-      setTimeout(() => setAnimationProgress(28), 1800),
-      setTimeout(() => { setAnimationPhase('creating'); setAnimationProgress(35) }, 2500),
-      setTimeout(() => setAnimationProgress(45), 3200),
-      setTimeout(() => setAnimationProgress(55), 3900),
-      setTimeout(() => setAnimationProgress(65), 4600),
-      setTimeout(() => setAnimationProgress(78), 5300),
-      setTimeout(() => setAnimationProgress(90), 6000),
-      setTimeout(() => { setAnimationPhase('ready'); setAnimationProgress(100) }, 6500),
-      setTimeout(() => { if (creationSuccess) setShowLetsGo(true) }, 8000),
-    ]
-    return () => timers.forEach(clearTimeout)
-  }, [isCreating, creationSuccess])
+    if (!isCloudRuntime) {
+      // Local/Docker: fixed 6.5s animation
+      const timers = [
+        setTimeout(() => setAnimationProgress(12), 500),
+        setTimeout(() => setAnimationProgress(20), 1000),
+        setTimeout(() => setAnimationProgress(28), 1800),
+        setTimeout(() => { setAnimationPhase('creating'); setAnimationProgress(35) }, 2500),
+        setTimeout(() => setAnimationProgress(45), 3200),
+        setTimeout(() => setAnimationProgress(55), 3900),
+        setTimeout(() => setAnimationProgress(65), 4600),
+        setTimeout(() => setAnimationProgress(78), 5300),
+        setTimeout(() => setAnimationProgress(90), 6000),
+        setTimeout(() => { setAnimationPhase('ready'); setAnimationProgress(100) }, 6500),
+        setTimeout(() => { if (creationSuccess) setShowLetsGo(true) }, 8000),
+      ]
+      return () => timers.forEach(clearTimeout)
+    } else {
+      // Cloud: open-ended — slowly crawl to 85% over ~5 min, then wait for success
+      const timers = [
+        setTimeout(() => setAnimationProgress(8), 2000),
+        setTimeout(() => { setAnimationPhase('creating'); setAnimationProgress(15) }, 5000),
+        setTimeout(() => setAnimationProgress(22), 15000),
+        setTimeout(() => setAnimationProgress(30), 30000),
+        setTimeout(() => setAnimationProgress(40), 60000),
+        setTimeout(() => setAnimationProgress(50), 90000),
+        setTimeout(() => setAnimationProgress(60), 120000),
+        setTimeout(() => setAnimationProgress(70), 180000),
+        setTimeout(() => setAnimationProgress(78), 240000),
+        setTimeout(() => setAnimationProgress(85), 300000),
+      ]
+      return () => timers.forEach(clearTimeout)
+    }
+  }, [isCreating, creationSuccess, isCloudRuntime])
 
+  // When creation succeeds, snap to 100% and show "Let's Go"
   useEffect(() => {
-    if (creationSuccess && animationPhase === 'ready') {
+    if (creationSuccess && animationPhase !== 'ready') {
+      setAnimationPhase('ready')
+      setAnimationProgress(100)
       const timer = setTimeout(() => setShowLetsGo(true), 1500)
       return () => clearTimeout(timer)
     }
   }, [creationSuccess, animationPhase])
 
   // --- Computed ---
-  const stepNumber = getStepNumber(step, hosts, hostId)
-  const totalSteps = getVisibleStepCount(hosts, hostId)
+  const stepNumber = getStepNumber(step, hosts, hostId, runtime)
+  const totalSteps = getVisibleStepCount(hosts, hostId, runtime)
   const canGoBack = step !== 'creating' && step !== 'done' && (() => {
     const idx = STEP_ORDER.indexOf(step)
     if (idx <= 0) return false
     for (let i = idx - 1; i >= 0; i--) {
       const s = STEP_ORDER[i]
-      if (s === 'host' && hosts.length <= 1) continue
-      if (s === 'runtime') {
-        const selectedHost = hosts.find(h => h.id === hostId)
-        if (!selectedHost?.capabilities?.docker) continue
-      }
+      if (shouldSkipStep(s, hosts, hostId, runtime)) continue
       return true
     }
     return false
@@ -510,7 +685,26 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
                       isActiveWidget={msg.role === 'robot' && msg.widget !== undefined && msg.step === activeWidgetStep}
                       hosts={hosts}
                       showHostCards={showHostCards}
-                      state={{ hostId, runtime, program, agentName, workingDirectory }}
+                      state={{ hostId, runtime, program, agentName, workingDirectory, dockerState: {
+                        showDockerAdvanced, setShowDockerAdvanced,
+                        dockerCpus, setDockerCpus, dockerMemory, setDockerMemory,
+                        dockerMounts, setDockerMounts, dockerEnvVars, setDockerEnvVars,
+                        dockerOnWake, setDockerOnWake, dockerOnHibernate, setDockerOnHibernate,
+                        dockerGithubToken, setDockerGithubToken,
+                        dockerYolo, setDockerYolo, dockerMeshAware, setDockerMeshAware,
+                        dockerAutoRemove, setDockerAutoRemove,
+                      }, cloudState: {
+                        cloudEcrImageOverride, setCloudEcrImageOverride,
+                        cloudDomain, setCloudDomain,
+                        cloudSslEmail, setCloudSslEmail,
+                        cloudKeyName, setCloudKeyName,
+                        cloudAwsRegion, setCloudAwsRegion,
+                        cloudInstanceType, setCloudInstanceType,
+                        cloudEcsCpu, setCloudEcsCpu,
+                        cloudEcsMemory, setCloudEcsMemory,
+                        cloudAnthropicKey, setCloudAnthropicKey,
+                        cloudGithubToken, setCloudGithubToken,
+                      }}}
                       nameInput={nameInput}
                       nameError={nameError}
                       dirInput={dirInput}
@@ -601,7 +795,7 @@ function ChatBubble({
   isActiveWidget: boolean
   hosts: Host[]
   showHostCards: boolean
-  state: { hostId: string; runtime: string; program: string; agentName: string; workingDirectory: string }
+  state: { hostId: string; runtime: string; program: string; agentName: string; workingDirectory: string; dockerState?: DockerState; cloudState?: CloudState }
   nameInput: string
   nameError: string
   dirInput: string
@@ -611,7 +805,7 @@ function ChatBubble({
   onHostLocal: () => void
   onHostRemote: () => void
   onHostSelect: (host: Host) => void
-  onRuntime: (rt: 'tmux' | 'docker', label: string) => void
+  onRuntime: (rt: 'tmux' | 'docker' | 'ec2' | 'ecs', label: string) => void
   onProgram: (prog: string, label: string) => void
   onNameSubmit: () => void
   onDirectorySubmit: () => void
@@ -654,7 +848,7 @@ function ChatBubble({
                     if (value === '__local__') onHostLocal()
                     else onHostRemote()
                   } else if (message.step === 'runtime') {
-                    onRuntime(value as 'tmux' | 'docker', label)
+                    onRuntime(value as 'tmux' | 'docker' | 'ec2' | 'ecs', label)
                   }
                 }}
               />
@@ -709,6 +903,8 @@ function ChatBubble({
                 agentName={state.agentName}
                 workingDirectory={state.workingDirectory}
                 onCreate={onCreate}
+                dockerState={state.runtime === 'docker' ? state.dockerState : undefined}
+                cloudState={(state.runtime === 'ec2' || state.runtime === 'ecs') ? state.cloudState : undefined}
               />
             )}
           </div>
@@ -845,6 +1041,8 @@ function SummaryCard({
   agentName,
   workingDirectory,
   onCreate,
+  dockerState,
+  cloudState,
 }: {
   hosts: Host[]
   hostId: string
@@ -853,23 +1051,410 @@ function SummaryCard({
   agentName: string
   workingDirectory: string
   onCreate: () => void
+  dockerState?: DockerState
+  cloudState?: CloudState
 }) {
   const host = hosts.find(h => h.id === hostId)
   const programLabel = PROGRAM_OPTIONS.find(p => p.value === program)?.label || program
+  const [showCloudOptions, setShowCloudOptions] = useState(false)
+
+  const runtimeLabel = {
+    tmux: 'Direct (tmux)',
+    docker: 'Docker container',
+    ec2: 'AWS EC2 (dedicated)',
+    ecs: 'AWS ECS Fargate (serverless)',
+  }[runtime] || runtime
 
   return (
     <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4 space-y-2.5">
       <SummaryRow label="Name" value={agentName} />
       <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || hostId || 'Local')} />
-      <SummaryRow label="Runtime" value={runtime === 'docker' ? 'Docker container' : 'Direct (tmux)'} />
+      <SummaryRow label="Runtime" value={runtimeLabel} />
       <SummaryRow label="Program" value={programLabel} />
-      <SummaryRow label="Directory" value={workingDirectory || '(default home)'} />
+      {runtime !== 'ec2' && runtime !== 'ecs' && (
+        <SummaryRow label="Directory" value={workingDirectory || '(default home)'} />
+      )}
+
+      {/* Docker advanced options — collapsible */}
+      {runtime === 'docker' && dockerState && (
+        <div className="border-t border-gray-700/50 pt-2">
+          <button
+            onClick={() => dockerState.setShowDockerAdvanced(!dockerState.showDockerAdvanced)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors w-full"
+          >
+            <ChevronRight className={`w-3 h-3 transition-transform ${dockerState.showDockerAdvanced ? 'rotate-90' : ''}`} />
+            Container Options
+          </button>
+
+          {dockerState.showDockerAdvanced && (
+            <div className="mt-2 space-y-3 text-sm">
+              {/* Resources */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-500 font-medium">Resources</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-400">CPUs</label>
+                    <select
+                      value={dockerState.dockerCpus}
+                      onChange={(e) => dockerState.setDockerCpus(Number(e.target.value))}
+                      className="w-full mt-0.5 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {[1, 2, 4, 8].map(n => <option key={n} value={n}>{n} CPU{n > 1 ? 's' : ''}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Memory</label>
+                    <select
+                      value={dockerState.dockerMemory}
+                      onChange={(e) => dockerState.setDockerMemory(e.target.value)}
+                      className="w-full mt-0.5 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {['1g', '2g', '4g', '8g', '16g'].map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mounts */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-500 font-medium">Bind Mounts</label>
+                {dockerState.dockerMounts.map((mount, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <input
+                      type="text"
+                      value={mount.hostPath}
+                      onChange={(e) => {
+                        const updated = [...dockerState.dockerMounts]
+                        updated[i] = { ...updated[i], hostPath: e.target.value }
+                        dockerState.setDockerMounts(updated)
+                      }}
+                      placeholder="/host/path"
+                      className="flex-1 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="text-gray-600 text-xs">:</span>
+                    <input
+                      type="text"
+                      value={mount.containerPath}
+                      onChange={(e) => {
+                        const updated = [...dockerState.dockerMounts]
+                        updated[i] = { ...updated[i], containerPath: e.target.value }
+                        dockerState.setDockerMounts(updated)
+                      }}
+                      placeholder="/container/path"
+                      className="flex-1 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <label className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={mount.readOnly}
+                        onChange={(e) => {
+                          const updated = [...dockerState.dockerMounts]
+                          updated[i] = { ...updated[i], readOnly: e.target.checked }
+                          dockerState.setDockerMounts(updated)
+                        }}
+                        className="rounded border-gray-600"
+                      />
+                      ro
+                    </label>
+                    <button
+                      onClick={() => dockerState.setDockerMounts(dockerState.dockerMounts.filter((_, j) => j !== i))}
+                      className="text-gray-500 hover:text-red-400 text-xs px-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => dockerState.setDockerMounts([...dockerState.dockerMounts, { hostPath: '', containerPath: '', readOnly: false }])}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  + Add mount
+                </button>
+              </div>
+
+              {/* Env vars */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-500 font-medium">Environment Variables</label>
+                {dockerState.dockerEnvVars.map((env, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <input
+                      type="text"
+                      value={env.key}
+                      onChange={(e) => {
+                        const updated = [...dockerState.dockerEnvVars]
+                        updated[i] = { ...updated[i], key: e.target.value }
+                        dockerState.setDockerEnvVars(updated)
+                      }}
+                      placeholder="KEY"
+                      className="w-28 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                    />
+                    <span className="text-gray-600 text-xs">=</span>
+                    <input
+                      type="text"
+                      value={env.value}
+                      onChange={(e) => {
+                        const updated = [...dockerState.dockerEnvVars]
+                        updated[i] = { ...updated[i], value: e.target.value }
+                        dockerState.setDockerEnvVars(updated)
+                      }}
+                      placeholder="value"
+                      className="flex-1 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => dockerState.setDockerEnvVars(dockerState.dockerEnvVars.filter((_, j) => j !== i))}
+                      className="text-gray-500 hover:text-red-400 text-xs px-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => dockerState.setDockerEnvVars([...dockerState.dockerEnvVars, { key: '', value: '' }])}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  + Add variable
+                </button>
+              </div>
+
+              {/* Hooks */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-500 font-medium">Lifecycle Hooks</label>
+                <div>
+                  <label className="text-xs text-gray-400">On wake</label>
+                  <input
+                    type="text"
+                    value={dockerState.dockerOnWake}
+                    onChange={(e) => dockerState.setDockerOnWake(e.target.value)}
+                    placeholder="e.g. npm install"
+                    className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">On hibernate</label>
+                  <input
+                    type="text"
+                    value={dockerState.dockerOnHibernate}
+                    onChange={(e) => dockerState.setDockerOnHibernate(e.target.value)}
+                    placeholder="e.g. npm run cleanup"
+                    className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-500 font-medium">Options</label>
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                    <input type="checkbox" checked={dockerState.dockerYolo} onChange={(e) => dockerState.setDockerYolo(e.target.checked)} className="rounded border-gray-600" />
+                    Skip permission prompts (yolo)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                    <input type="checkbox" checked={dockerState.dockerMeshAware} onChange={(e) => dockerState.setDockerMeshAware(e.target.checked)} className="rounded border-gray-600" />
+                    Mesh networking
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                    <input type="checkbox" checked={dockerState.dockerAutoRemove} onChange={(e) => dockerState.setDockerAutoRemove(e.target.checked)} className="rounded border-gray-600" />
+                    Auto-remove container on delete
+                  </label>
+                </div>
+              </div>
+
+              {/* GitHub token */}
+              <div className="space-y-1">
+                <label className="text-xs text-gray-500 font-medium">GitHub Token</label>
+                <input
+                  type="password"
+                  value={dockerState.dockerGithubToken}
+                  onChange={(e) => dockerState.setDockerGithubToken(e.target.value)}
+                  placeholder="ghp_... (optional)"
+                  className="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cloud: EC2 required fields — always visible */}
+      {runtime === 'ec2' && cloudState && (
+        <div className="border-t border-gray-700/50 pt-2 space-y-3 text-sm">
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Domain *</label>
+            <input
+              type="text"
+              value={cloudState.cloudDomain}
+              onChange={(e) => cloudState.setCloudDomain(e.target.value)}
+              placeholder="agent.example.com"
+              className="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-gray-400">SSL Email *</label>
+              <input
+                type="text"
+                value={cloudState.cloudSslEmail}
+                onChange={(e) => cloudState.setCloudSslEmail(e.target.value)}
+                placeholder="admin@example.com"
+                className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">SSH Key Name *</label>
+              <input
+                type="text"
+                value={cloudState.cloudKeyName}
+                onChange={(e) => cloudState.setCloudKeyName(e.target.value)}
+                placeholder="my-key"
+                className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400">Instance Type</label>
+            <select
+              value={cloudState.cloudInstanceType}
+              onChange={(e) => cloudState.setCloudInstanceType(e.target.value)}
+              className="w-full mt-0.5 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {['t4g.micro', 't4g.small', 't4g.medium', 't4g.large', 't4g.xlarge'].map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Cloud: ECS options — always visible */}
+      {runtime === 'ecs' && cloudState && (
+        <div className="border-t border-gray-700/50 pt-2 space-y-3 text-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-gray-400">CPU (Fargate units)</label>
+              <select
+                value={cloudState.cloudEcsCpu}
+                onChange={(e) => cloudState.setCloudEcsCpu(Number(e.target.value))}
+                className="w-full mt-0.5 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {[256, 512, 1024, 2048, 4096].map(n => (
+                  <option key={n} value={n}>{n} ({n / 1024} vCPU)</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">Memory (MB)</label>
+              <select
+                value={cloudState.cloudEcsMemory}
+                onChange={(e) => cloudState.setCloudEcsMemory(Number(e.target.value))}
+                className="w-full mt-0.5 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {[512, 1024, 2048, 4096, 8192].map(n => (
+                  <option key={n} value={n}>{n} MB</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">Docker image auto-built from agent-container/Dockerfile</p>
+        </div>
+      )}
+
+      {/* Cloud: shared options (region, keys) — collapsible */}
+      {(runtime === 'ec2' || runtime === 'ecs') && cloudState && (
+        <div className="border-t border-gray-700/50 pt-2">
+          <button
+            onClick={() => setShowCloudOptions(!showCloudOptions)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors w-full"
+          >
+            <ChevronRight className={`w-3 h-3 transition-transform ${showCloudOptions ? 'rotate-90' : ''}`} />
+            More Options
+          </button>
+
+          {showCloudOptions && (
+            <div className="mt-2 space-y-3 text-sm">
+              {/* Domain for ECS (optional) */}
+              {runtime === 'ecs' && (
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500 font-medium">Domain (optional)</label>
+                  <input
+                    type="text"
+                    value={cloudState.cloudDomain}
+                    onChange={(e) => cloudState.setCloudDomain(e.target.value)}
+                    placeholder="agent.example.com"
+                    className="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+
+              {/* ECR Image Override (ECS only) */}
+              {runtime === 'ecs' && (
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500 font-medium">ECR Image Override</label>
+                  <input
+                    type="text"
+                    value={cloudState.cloudEcrImageOverride}
+                    onChange={(e) => cloudState.setCloudEcrImageOverride(e.target.value)}
+                    placeholder="123456.dkr.ecr.region.amazonaws.com/repo:tag"
+                    className="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-600">For pre-built images. Leave empty to auto-build.</p>
+                </div>
+              )}
+
+              {/* AWS Region */}
+              <div>
+                <label className="text-xs text-gray-400">AWS Region</label>
+                <select
+                  value={cloudState.cloudAwsRegion}
+                  onChange={(e) => cloudState.setCloudAwsRegion(e.target.value)}
+                  className="w-full mt-0.5 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-central-1', 'ap-southeast-1'].map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* API Keys — optional */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-500 font-medium">API Keys</label>
+                <p className="text-xs text-gray-600">Optional if your AI tool uses token-based subscription auth.</p>
+                <div>
+                  <label className="text-xs text-gray-400">Anthropic API Key</label>
+                  <input
+                    type="password"
+                    value={cloudState.cloudAnthropicKey}
+                    onChange={(e) => cloudState.setCloudAnthropicKey(e.target.value)}
+                    placeholder="sk-ant-... (optional)"
+                    className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">GitHub Token</label>
+                  <input
+                    type="password"
+                    value={cloudState.cloudGithubToken}
+                    onChange={(e) => cloudState.setCloudGithubToken(e.target.value)}
+                    placeholder="ghp_... (optional)"
+                    className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         onClick={onCreate}
-        className="w-full mt-3 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-[1.02] text-sm"
+        disabled={runtime === 'ec2' && cloudState && (!cloudState.cloudDomain || !cloudState.cloudSslEmail || !cloudState.cloudKeyName)}
+        className={`w-full mt-3 px-4 py-2.5 text-white font-semibold rounded-lg shadow-lg transition-all duration-300 text-sm ${
+          runtime === 'ec2' && cloudState && (!cloudState.cloudDomain || !cloudState.cloudSslEmail || !cloudState.cloudKeyName)
+            ? 'bg-gray-600 cursor-not-allowed shadow-none'
+            : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/25 hover:shadow-green-500/40 transform hover:scale-[1.02]'
+        }`}
       >
-        Create Agent!
+        {(runtime === 'ec2' || runtime === 'ecs') ? 'Deploy to AWS!' : 'Create Agent!'}
       </button>
     </div>
   )

@@ -62,6 +62,15 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
+import {
+  capturePaneFromContainer,
+  inspectContainerStatus,
+  removeContainer,
+  sendKeysToContainer,
+  startContainer,
+  stopContainer,
+  tmuxHasSessionInContainer,
+} from '@/lib/container-utils'
 import type { Host } from '@/types/host'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout } from '@/services/service-errors'
 
@@ -120,6 +129,13 @@ export interface WakeAgentParams {
   startProgram?: boolean
   sessionIndex?: number
   program?: string
+  projectDirectory?: string  // Runtime: where the agent works (Lane 2)
+  /**
+   * Opt-in: for cloud (containerized) agents, allow falling back to a host-native
+   * tmux wake when the container is unavailable (missing / docker daemon down).
+   * Default false — sandboxing is preserved by failing loudly. See swickson/ai-maestro#6.
+   */
+  allowHostFallback?: boolean
 }
 
 export interface HibernateAgentParams {
@@ -187,6 +203,252 @@ function resolveStartCommand(program: string): string {
     return 'opencode'
   }
   return 'claude' // Default
+}
+
+/**
+ * Wait until the CLI program in a tmux session is ready to accept input.
+ * Polls capturePane looking for a prompt indicator (>, ❯, $, %).
+ * Returns true if a prompt was detected, false on timeout.
+ */
+async function waitForPrompt(
+  sessionName: string,
+  runtime: any,
+  { timeoutMs = 30000, pollIntervalMs = 500, initialDelayMs = 2000 } = {}
+): Promise<boolean> {
+  // Give the program time to start before polling
+  await new Promise(resolve => setTimeout(resolve, initialDelayMs))
+
+  const deadline = Date.now() + timeoutMs
+  // Prompt indicators for various CLIs:
+  // Claude: ">", Codex: ">", Gemini: "❯", Aider: ">", Shell: "$" or "%"
+  // Also match "? for shortcuts" (Claude) and "shortcuts" (end of TUI init)
+  const promptPattern = /[>❯$%]\s*$/m
+  const tuiReadyPattern = /\?\s*for\s*shortcuts|waiting for input|ready/i
+
+  while (Date.now() < deadline) {
+    try {
+      const paneContent = await runtime.capturePane(sessionName, 50)
+      // Strip non-printable/TUI control characters that CLIs emit
+      // (box-drawing, cursor positioning, etc.)
+      const cleaned = paneContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+        .replace(/\u2500[\u2500-\u257F]*/g, '') // box-drawing sequences
+      const lines = cleaned.split('\n').filter((l: string) => l.trim().length > 0)
+      const tail = lines.slice(-5).join('\n')
+      if (promptPattern.test(tail) || tuiReadyPattern.test(tail)) {
+        console.log(`[Hook] Prompt detected in ${sessionName}, tail: ${tail.slice(-80)}`)
+        return true
+      }
+    } catch {
+      // capturePane failed, keep trying
+    }
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
+  }
+
+  console.warn(`[Hook] Prompt not detected in ${sessionName} after ${timeoutMs}ms, proceeding anyway`)
+  return false
+}
+
+/**
+ * Short mesh-awareness primer prepended to prompt-type on-wake hooks.
+ *
+ * Universal (provider-agnostic): works for Claude (with or without the
+ * agent-messaging skill installed), Gemini, and Codex. Uses a self-
+ * dereferencing design — the primer is short, and points at amp-primer
+ * as the escape hatch for full protocol detail.
+ *
+ * Opt-out per-agent via Agent.meshAware === false.
+ *
+ * NOTE: No ${variable} interpolation is applied to MESH_PRIMER. The hook
+ * variables (${projectDirectory}, ${agentName}) are interpolated only on
+ * the user's hook string in executeHook. If you need dynamic values in
+ * the primer in the future, run the interpolation loop over finalPrompt
+ * instead of resolved.
+ *
+ * Command syntax here MUST match the real amp-* CLI surface in
+ * plugins/ai-maestro/scripts/amp-*.sh — if you edit this string, re-run
+ * `amp-send --help` (or equivalent) to verify the flags and values stay
+ * in sync. The test suite contains a regex smoke check as a safety net.
+ */
+export const MESH_PRIMER = [
+  'You are running as part of an AI Maestro agent mesh. Other agents in the mesh can send you messages and you can send messages to them.',
+  'To send a message: use your agent-messaging skill if available, otherwise invoke amp-send <recipient> "<subject>" "<body>" [--priority low|normal|high|urgent] [--type request|response|notification|task|status]. Quote multi-word subjects and bodies so the shell does not split them into separate positional args.',
+  'For the full mesh protocol, command reference, and peer list, run: amp-primer (available in your PATH alongside the other amp-* commands).',
+].join(' ')
+
+/**
+ * Load mesh-awareness primer content for an agent.
+ * Returns empty string if the agent has opted out via meshAware === false.
+ * Defaults to enabled (returns the primer) when meshAware is unset.
+ *
+ * Exported for direct unit testing; the wake flow calls it internally.
+ */
+export function loadMeshPrimer(agent: Agent): string {
+  if (agent.meshAware === false) return ''
+  return MESH_PRIMER
+}
+
+/**
+ * Execute a lifecycle hook, interpolating runtime variables.
+ * Supports "prompt:..." (typed into agent stdin) or shell commands.
+ * Waits for the CLI prompt to be ready before sending input.
+ *
+ * If meshPrimer is provided, it is prepended to prompt-type hooks so the
+ * agent gains mesh awareness on wake. Shell-command hooks are unaffected.
+ */
+async function executeHook(
+  sessionName: string,
+  hookValue: string,
+  runtime: any,
+  variables: Record<string, string> = {},
+  meshPrimer: string = '',
+): Promise<void> {
+  // Interpolate variables: ${projectDirectory}, ${agentName}, etc.
+  let resolved = hookValue
+  for (const [key, value] of Object.entries(variables)) {
+    resolved = resolved.replaceAll(`\${${key}}`, value)
+  }
+
+  // Wait for the CLI to be ready instead of a fixed delay
+  await waitForPrompt(sessionName, runtime)
+
+  if (resolved.startsWith('prompt:')) {
+    const userPrompt = resolved.slice('prompt:'.length).trim()
+    const finalPrompt = meshPrimer ? `${meshPrimer}\n\n${userPrompt}` : userPrompt
+    await runtime.sendKeys(sessionName, finalPrompt, { literal: true, enter: true })
+  } else {
+    const sanitized = sanitizeArgs(resolved)
+    if (sanitized) {
+      await runtime.sendKeys(sessionName, `"${sanitized}"`, { enter: true })
+    }
+  }
+}
+
+/**
+ * Poll until the in-container tmux server has the named session ready, or
+ * give up. agent-server.js inside the container creates the session within
+ * ~1s of `docker start`; 5s ceiling leaves headroom without slowing the
+ * happy-path wake. Returns true if the session appeared.
+ */
+async function waitForContainerTmux(
+  containerName: string,
+  sessionName: string,
+  { timeoutMs = 5000, pollIntervalMs = 250 } = {}
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await tmuxHasSessionInContainer(containerName, sessionName)) return true
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
+  }
+  return false
+}
+
+// PR #87 chowns ~/.claude on every container recreate, so claude/gemini hit
+// first-launch modals on every fresh wake — the Trust-folder dialog AND the
+// theme picker (no theme set in the per-container settings.json today). The
+// default waitForPrompt regexes ignore both; without auto-dismiss the on-wake
+// hook gets typed into the menu where the first character can fire a
+// destructive choice.
+//
+// Auto-dismiss strategy: press Enter, which selects the highlighted default —
+// option 1 "Trust folder (workspace)" for Trust, option 2 "Dark mode" for
+// theme picker. Both safe for a sandboxed cloud agent confined to its
+// workspace mount. Suppressing these modals at provision-time is the right
+// long-term fix (kanban to file post-merge).
+export const FIRST_RUN_MODAL_PATTERN = /Trust folder|Trust this folder|Don'?t trust|Trust parent folder|Choose the text style|theme that looks best|Auto \(match terminal\)/i
+
+/**
+ * In-container variant of waitForPrompt: polls capturePaneFromContainer,
+ * matches the same prompt indicators as the host path, AND auto-dismisses
+ * the first-launch Trust-folder modal by selecting option 1 ("Trust this
+ * folder"). Workspace-only opt-in mount makes option 1 the safe answer for
+ * a sandboxed cloud agent.
+ *
+ * initialDelayMs covers the race between agent-server.js creating the tmux
+ * session and issuing the AI_TOOL send-keys — without it the poll catches
+ * the empty bash `$` prompt and returns prematurely, sending the hook into
+ * a shell instead of the AI program.
+ */
+async function waitForPromptInContainer(
+  containerName: string,
+  sessionName: string,
+  { timeoutMs = 30000, pollIntervalMs = 500, initialDelayMs = 2000 } = {}
+): Promise<boolean> {
+  await new Promise(resolve => setTimeout(resolve, initialDelayMs))
+  const deadline = Date.now() + timeoutMs
+  const promptPattern = /[>❯$%]\s*$/m
+  const tuiReadyPattern = /\?\s*for\s*shortcuts|waiting for input|ready/i
+  let modalDismissCount = 0
+
+  while (Date.now() < deadline) {
+    const paneContent = await capturePaneFromContainer(containerName, sessionName, 50)
+    const cleaned = paneContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+      .replace(/─[─-╿]*/g, '')
+    const lines = cleaned.split('\n').filter((l: string) => l.trim().length > 0)
+    const tail = lines.slice(-15).join('\n')
+
+    // Cap dismisses at 3 — one per modal claude could plausibly stack
+    // (theme + trust + future). Beyond that something is wrong; bail.
+    if (modalDismissCount < 3 && FIRST_RUN_MODAL_PATTERN.test(tail)) {
+      console.log(`[Wake/Cloud] First-run modal detected in ${containerName} (dismiss #${modalDismissCount + 1}), pressing Enter to accept default`)
+      try {
+        await sendKeysToContainer(containerName, sessionName, '', { literal: false, enter: true })
+        modalDismissCount += 1
+      } catch (err) {
+        console.warn(`[Wake/Cloud] Modal auto-dismiss failed:`, err)
+      }
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
+      continue
+    }
+
+    if (promptPattern.test(tail) || tuiReadyPattern.test(tail)) {
+      console.log(`[Wake/Cloud] Prompt detected in ${containerName}/${sessionName}`)
+      return true
+    }
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
+  }
+
+  console.warn(
+    `[Wake/Cloud] Prompt not detected in ${containerName}/${sessionName} after ${timeoutMs}ms ` +
+    `(modalDismissCount=${modalDismissCount}). Proceeding to dispatch hook anyway. ` +
+    `If this is a codex container, the hook may be lost — codex first-launch shows a non-Trust ` +
+    `auth picker that this handler does not dismiss; see PR #90 known-issue.`
+  )
+  return false
+}
+
+/**
+ * Cloud-branch counterpart of executeHook. Mirrors the host path's variable
+ * interpolation + meshPrimer prepend, but dispatches via sendKeysToContainer
+ * against the in-container tmux session instead of host runtime.sendKeys.
+ *
+ * Kept as a separate function (not a refactor of executeHook) per Watson's
+ * §E review: smaller blast radius for this PR. Post-merge follow-up tracked
+ * to unify both behind a single primitive.
+ */
+async function executeHookInContainer(
+  containerName: string,
+  sessionName: string,
+  hookValue: string,
+  variables: Record<string, string> = {},
+  meshPrimer: string = '',
+): Promise<void> {
+  let resolved = hookValue
+  for (const [key, value] of Object.entries(variables)) {
+    resolved = resolved.replaceAll(`\${${key}}`, value)
+  }
+
+  await waitForPromptInContainer(containerName, sessionName)
+
+  if (resolved.startsWith('prompt:')) {
+    const userPrompt = resolved.slice('prompt:'.length).trim()
+    const finalPrompt = meshPrimer ? `${meshPrimer}\n\n${userPrompt}` : userPrompt
+    await sendKeysToContainer(containerName, sessionName, finalPrompt, { literal: true, enter: true })
+  } else {
+    const sanitized = sanitizeArgs(resolved)
+    if (sanitized) {
+      await sendKeysToContainer(containerName, sessionName, sanitized, { literal: true, enter: true })
+    }
+  }
 }
 
 /**
@@ -273,6 +535,9 @@ function createOrphanAgent(
     status: 'active',
     createdAt: session.createdAt,
     lastActive: session.lastActivity,
+    preferences: {
+      defaultWorkingDirectory: session.workingDirectory || process.cwd(),
+    },
     metadata: {
       autoRegistered: true,
       autoRegisteredAt: new Date().toISOString(),
@@ -467,13 +732,10 @@ export async function listAgents(): Promise<ServiceResult<{
       // Check for standalone agent heartbeat (agents without tmux sessions)
       const heartbeatTs = agentActivity.get(agent.id)
       const heartbeatAge = heartbeatTs ? (Date.now() - heartbeatTs) / 1000 : Infinity
-      const hasRecentHeartbeat = heartbeatAge < 600 // 10 minutes — standalone agents send heartbeats on hook events (SessionStart, Stop, Notification) which may have gaps during long tool executions
-      // Standalone = no tmux sessions discovered, no session history in registry, AND not a cloud agent
-      // Agents with session history (e.g. hibernated agents) are NOT standalone even if they have heartbeats
-      const hasTmuxSessionHistory = (agent.sessions || []).length > 0
-      const isStandalone = agentSessions.length === 0 && !hasTmuxSessionHistory && agent.deployment?.type !== 'cloud'
-      // Only count heartbeat as "online" for truly standalone agents (no tmux session history)
-      const isOnline = hasOnlineSession || (hasRecentHeartbeat && isStandalone)
+      const hasRecentHeartbeat = heartbeatAge < 120 // 2 minutes
+      const isOnline = hasOnlineSession || hasRecentHeartbeat
+      // Standalone = no tmux sessions discovered AND not a cloud agent
+      const isStandalone = agentSessions.length === 0 && agent.deployment?.type !== 'cloud'
 
       // Create session status for API response (backward compatibility)
       const onlineSession = updatedSessions.find(s => s.status === 'online')
@@ -491,7 +753,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostId,
             hostName,
           }
-        : (hasRecentHeartbeat && isStandalone)
+        : hasRecentHeartbeat
         ? {
             status: 'online',
             workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,
@@ -672,7 +934,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
 // DELETE /api/agents/[id] -- delete agent (soft or hard)
 // ---------------------------------------------------------------------------
 
-export function deleteAgentById(id: string, hard: boolean): ServiceResult<{ success: boolean; hard: boolean }> {
+export async function deleteAgentById(id: string, hard: boolean): Promise<ServiceResult<{ success: boolean; hard: boolean }>> {
   try {
     const agent = getAgent(id, true) // include deleted to distinguish 404 vs 410
     if (!agent) {
@@ -680,6 +942,34 @@ export function deleteAgentById(id: string, hard: boolean): ServiceResult<{ succ
     }
     if (agent.deletedAt && !hard) {
       return gone('Agent')
+    }
+
+    // ─── Cloud (containerized) agents: tear down the docker container ────────
+    // Fixes issue #84 — without this, hard-delete clears the registry + AMP
+    // keystore but leaves `aim-<name>` running, which both leaks resources and
+    // blocks recreate-with-same-name (the `aim-<name>` slot stays occupied).
+    // Mirrors hibernateAgent's cloud branch shape (line ~1804); soft-delete is
+    // intentionally skipped — it's recoverable, and nuking the container would
+    // defeat that.
+    if (hard && agent.deployment?.type === 'cloud' && agent.deployment.cloud?.provider === 'local-container') {
+      const containerName = agent.deployment.cloud.containerName
+      if (containerName) {
+        const status = await inspectContainerStatus(containerName)
+        if (status === 'running' || status === 'paused') {
+          await stopContainer(containerName).catch(err =>
+            console.warn(`[Delete] stop ${containerName} failed: ${(err as Error).message}`)
+          )
+        }
+        // Skip rm when container doesn't exist or daemon is unreachable. Other
+        // states ('stopped', 'created') still need rm to free the name slot for
+        // recreate-with-same-name. Failures are non-fatal so registry/keystore
+        // cleanup proceeds — the operator already chose to nuke the agent.
+        if (status !== 'missing' && status !== 'docker_down') {
+          await removeContainer(containerName).catch(err =>
+            console.warn(`[Delete] rm ${containerName} failed: ${(err as Error).message}`)
+          )
+        }
+      }
     }
 
     const success = deleteAgent(id, hard)
@@ -1251,6 +1541,8 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
   sessionName: string
   sessionIndex: number
   workingDirectory?: string
+  projectDirectory?: string
+  hooksExecuted?: boolean
   woken: boolean
   alreadyRunning?: boolean
   programStarted?: boolean
@@ -1277,12 +1569,115 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
                             agent.preferences?.defaultWorkingDirectory ||
                             process.cwd()
 
-    const runtime = getRuntime()
     const sessionName = computeSessionName(agentName, sessionIndex)
+
+    // ─── Cloud (containerized) agents: dispatch to docker before host tmux ───
+    // Fixes swickson/ai-maestro#6 — without this branch, wakeAgent silently runs
+    // every cloud agent on the host via tmux, bypassing the container sandbox.
+    if (agent.deployment?.type === 'cloud' && agent.deployment.cloud?.provider === 'local-container') {
+      const containerName = agent.deployment.cloud.containerName
+      if (!containerName) {
+        return invalidField('deployment.cloud.containerName', 'Cloud agent has no containerName configured')
+      }
+
+      const status = await inspectContainerStatus(containerName)
+
+      if (status === 'running' || status === 'paused') {
+        console.log(`[Wake] Agent ${agentName} (${agentId}) — running in CONTAINER ${containerName} (already ${status})`)
+        updateAgentSessionInRegistry(agentId, sessionIndex, 'online', workingDirectory)
+        return {
+          data: {
+            success: true,
+            agentId,
+            name: agentName,
+            sessionName,
+            sessionIndex,
+            workingDirectory,
+            woken: true,
+            alreadyRunning: true,
+            message: `Agent "${agentName}" container ${containerName} is already running`,
+          },
+          status: 200,
+        }
+      }
+
+      if (status === 'stopped' || status === 'created') {
+        try {
+          await startContainer(containerName)
+          console.log(`[Wake] Agent ${agentName} (${agentId}) — running in CONTAINER ${containerName} (started)`)
+          updateAgentSessionInRegistry(agentId, sessionIndex, 'online', workingDirectory, true)
+
+          // Dispatch on-wake hook into the in-container tmux session. agent-server.js
+          // re-launches AI_TOOL from baked env on every container start; we only
+          // need to push the hook prompt (program is restored by the container's
+          // own boot path). Non-blocking + non-fatal — wake reports success even
+          // if the hook can't be delivered, matching the host path's lifecycle.
+          if (agent.hooks?.['on-wake']) {
+            const { projectDirectory } = params
+            const hookVars: Record<string, string> = {
+              projectDirectory: projectDirectory || workingDirectory,
+              agentName: agentName,
+            }
+            const meshPrimer = loadMeshPrimer(agent)
+            ;(async () => {
+              const tmuxReady = await waitForContainerTmux(containerName, sessionName)
+              if (!tmuxReady) {
+                console.warn(`[Wake/Cloud] tmux session ${sessionName} not ready in ${containerName} after timeout — skipping on-wake hook`)
+                return
+              }
+              await executeHookInContainer(containerName, sessionName, agent.hooks!['on-wake']!, hookVars, meshPrimer)
+            })().catch(err => console.warn(`[Wake/Cloud] on-wake hook failed for ${agentName}:`, err))
+          }
+
+          return {
+            data: {
+              success: true,
+              agentId,
+              name: agentName,
+              sessionName,
+              sessionIndex,
+              workingDirectory,
+              woken: true,
+              programStarted: true,
+              hooksExecuted: !!agent.hooks?.['on-wake'],
+              message: `Agent "${agentName}" container ${containerName} has been started`,
+            },
+            status: 200,
+          }
+        } catch (err) {
+          console.error(`[Wake] Failed to start container ${containerName}:`, err)
+          if (!params.allowHostFallback) {
+            return operationFailed(
+              `start container ${containerName}`,
+              `${(err as Error).message}. Refusing host-native fallback (would lose sandboxing). Pass allowHostFallback=true to override.`
+            )
+          }
+          console.warn(`[Wake] Falling back to HOST tmux for ${agentName} — sandboxing LOST (allowHostFallback=true)`)
+          // fall through to existing host tmux path
+        }
+      } else {
+        // status === 'missing' or 'docker_down'
+        if (!params.allowHostFallback) {
+          const reason = status === 'missing'
+            ? `container ${containerName} does not exist`
+            : 'docker daemon is unreachable'
+          return invalidRequest(
+            `Agent "${agentName}" is configured as a sandboxed cloud agent but ${reason}. ` +
+            `Refusing host-native fallback (would lose sandboxing). ` +
+            `Pass allowHostFallback=true to override, or recreate the container. See swickson/ai-maestro#6.`
+          )
+        }
+        console.warn(`[Wake] Container ${containerName} ${status}, falling back to HOST tmux for ${agentName} — sandboxing LOST (allowHostFallback=true)`)
+        // fall through to existing host tmux path
+      }
+    }
+
+    const runtime = getRuntime()
 
     // Check if session already exists
     const exists = await runtime.sessionExists(sessionName)
     if (exists) {
+      console.log(`[Wake] Agent ${agentName} (${agentId}) — running on HOST tmux session ${sessionName} (already running)`)
       updateAgentSessionInRegistry(agentId, sessionIndex, 'online', workingDirectory)
       return {
         data: {
@@ -1302,6 +1697,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
     // Create new tmux session
     try {
       await runtime.createSession(sessionName, workingDirectory)
+      console.log(`[Wake] Agent ${agentName} (${agentId}) — running on HOST tmux session ${sessionName} (created)`)
     } catch (error) {
       console.error(`[Wake] Failed to create tmux session:`, error)
       return operationFailed('create tmux session', (error as Error).message)
@@ -1333,13 +1729,16 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
       } else {
         let startCommand = resolveStartCommand(program)
 
-        // Build full command with programArgs
+        // Build full command with programArgs and model
         let fullCommand = startCommand
         if (agent.programArgs) {
           const args = sanitizeArgs(agent.programArgs)
           if (args) {
             fullCommand = `${startCommand} ${args}`
           }
+        }
+        if (agent.model) {
+          fullCommand = `${fullCommand} --model ${agent.model}`
         }
 
         // Small delay to let the session initialize
@@ -1362,6 +1761,18 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
 
     console.log(`[Wake] Agent ${agentName} (${agentId}) session ${sessionIndex} woken up successfully`)
 
+    // Execute on-wake hook AFTER program is running (non-blocking, non-fatal)
+    const { projectDirectory } = params
+    if (agent.hooks?.['on-wake']) {
+      const hookVars: Record<string, string> = {
+        projectDirectory: projectDirectory || workingDirectory,
+        agentName: agentName,
+      }
+      const meshPrimer = loadMeshPrimer(agent)
+      executeHook(sessionName, agent.hooks['on-wake'], runtime, hookVars, meshPrimer)
+        .catch(err => console.warn(`[Wake] on-wake hook failed for ${agentName}:`, err))
+    }
+
     return {
       data: {
         success: true,
@@ -1370,6 +1781,8 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         sessionName,
         sessionIndex,
         workingDirectory,
+        projectDirectory,
+        hooksExecuted: !!agent.hooks?.['on-wake'],
         woken: true,
         programStarted: startProgram,
         message: `Agent "${agentName}" session ${sessionIndex} has been woken up and is ready to use.`,
@@ -1411,11 +1824,74 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
     const runtime = getRuntime()
     const sessionName = computeSessionName(agentName, sessionIndex)
 
+    // ─── Cloud (containerized) agents: stop the docker container ─────────────
+    // Mirrors wakeAgent's cloud branch (line ~1413). Without this, hibernate of
+    // a cloud agent falls into the host-tmux check below — that runtime call
+    // returns false (the agent's tmux lives inside its container, not on the
+    // host) and the function takes the early-return at "Session was already
+    // terminated", marking the agent offline while the container stays up.
+    if (agent.deployment?.type === 'cloud' && agent.deployment.cloud?.provider === 'local-container') {
+      const containerName = agent.deployment.cloud.containerName
+      if (!containerName) {
+        return invalidField('deployment.cloud.containerName', 'Cloud agent has no containerName configured')
+      }
+
+      const status = await inspectContainerStatus(containerName)
+
+      // 'created' = docker-created but never started, semantically already-not-running
+      // (and `docker stop` on it is a no-op-or-error depending on docker version).
+      // Mirrors wake's bundling (which groups stopped+created → start) inversely.
+      if (status === 'stopped' || status === 'missing' || status === 'created') {
+        updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+        agentActivity.delete(agentId)
+        const message = status === 'missing'
+          ? `Agent "${agentName}" container ${containerName} does not exist; registry updated`
+          : status === 'created'
+          ? `Agent "${agentName}" container ${containerName} was created but never started; registry updated`
+          : `Agent "${agentName}" container ${containerName} was already stopped; registry updated`
+        return {
+          data: { success: true, agentId, name: agentName, sessionName, sessionIndex, hibernated: true, message },
+          status: 200,
+        }
+      }
+
+      if (status === 'docker_down') {
+        return operationFailed(
+          `inspect container ${containerName}`,
+          'Docker daemon unreachable; cannot hibernate cloud agent'
+        )
+      }
+
+      // status is 'running' or 'paused' — stop it
+      try {
+        await stopContainer(containerName)
+        console.log(`[Hibernate] Agent ${agentName} (${agentId}) — stopped CONTAINER ${containerName}`)
+        updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+        agentActivity.delete(agentId)
+        return {
+          data: {
+            success: true,
+            agentId,
+            name: agentName,
+            sessionName,
+            sessionIndex,
+            hibernated: true,
+            message: `Agent "${agentName}" container ${containerName} has been stopped`,
+          },
+          status: 200,
+        }
+      } catch (err) {
+        console.error(`[Hibernate] Failed to stop container ${containerName}:`, err)
+        return operationFailed(`stop container ${containerName}`, (err as Error).message)
+      }
+    }
+
     // Check if session exists
     const exists = await runtime.sessionExists(sessionName)
     if (!exists) {
       // Session doesn't exist, just update the status
       updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+      agentActivity.delete(agentId)
 
       return {
         data: {
@@ -1452,6 +1928,13 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
 
     // Update agent status in registry
     updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+
+    // Clear the in-memory heartbeat so /api/agents stops counting this agent
+    // as online via hasRecentHeartbeat (line ~597). Without this, the UI keeps
+    // the hibernate button instead of flipping to wake for up to 120s while
+    // the stale timestamp ages out — symptom Shane saw on cloud agents but
+    // the host/tmux path has the same shape so we clear it here too.
+    agentActivity.delete(agentId)
 
     console.log(`[Hibernate] Agent ${agentName} (${agentId}) session ${sessionIndex} hibernated successfully`)
 

@@ -81,6 +81,24 @@ export const statusSubscribers: Set<WebSocket> = state.statusSubscribers
 export const companionClients: Map<string, Set<WebSocket>> = state.companionClients
 
 // ---------------------------------------------------------------------------
+// Broadcast a chat event to chat-subscribed WebSocket clients for a session
+// ---------------------------------------------------------------------------
+
+export function broadcastChatEvent(
+  sessionName: string,
+  type: string,
+  payload: Record<string, unknown>
+): void {
+  const session = terminalSessions.get(sessionName)
+  const chatClients = (session as any)?.chatClients as Set<WebSocket> | undefined
+  if (!chatClients) return
+  const msg = JSON.stringify({ type, ...payload })
+  chatClients.forEach(ws => {
+    if (ws.readyState === 1) ws.send(msg)
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Broadcast a status update to all /status WebSocket subscribers
 // ---------------------------------------------------------------------------
 

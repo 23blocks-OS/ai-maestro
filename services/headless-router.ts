@@ -137,7 +137,8 @@ import {
   controlPlayback,
 } from '@/services/agents-playback-service'
 
-import { createDockerAgent } from '@/services/agents-docker-service'
+import { createDockerAgent, recreateDockerAgent } from '@/services/agents-docker-service'
+import { createCloudAgent, destroyCloudAgent, getCloudAgentStatus } from '@/services/agents-cloud-service'
 
 import {
   listSessions,
@@ -532,6 +533,21 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/docker\/create$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await createDockerAgent(body))
+  }},
+  // Cloud agent endpoints (EC2 / ECS Fargate)
+  { method: 'POST', pattern: /^\/api\/agents\/cloud\/create$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await createCloudAgent(body))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/cloud\/([^/]+)\/destroy$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await destroyCloudAgent(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/cloud\/([^/]+)\/status$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await getCloudAgentStatus(params.id))
+  }},
+  // Docker agent recreate (atomic re-provision)
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/recreate$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await recreateDockerAgent(params.id))
   }},
   // Agent import (multipart form-data)
   { method: 'POST', pattern: /^\/api\/agents\/import$/, paramNames: [], handler: async (req, res) => {
@@ -951,7 +967,7 @@ const routes: Route[] = [
     sendServiceResult(res, updateAgentById(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, deleteAgentById(params.id, query.hard === 'true'))
+    sendServiceResult(res, await deleteAgentById(params.id, query.hard === 'true'))
   }},
 
   // =========================================================================
@@ -1119,6 +1135,13 @@ const routes: Route[] = [
   // =========================================================================
   // Meetings
   // =========================================================================
+  { method: 'GET', pattern: /^\/api\/meetings\/inject-queue$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const { drainForSession } = await import('@/lib/meeting-inject-queue')
+    const session = query.session
+    if (!session) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing session parameter' })); return }
+    const messages = drainForSession(session)
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ messages, count: messages.length }))
+  }},
   { method: 'GET', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getMeetingById(params.id))
   }},

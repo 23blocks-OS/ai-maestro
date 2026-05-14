@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2026-01-03
-**Current Version:** v0.29.15
+**Current Version:** v0.29.16
 
 ---
 
@@ -2035,6 +2035,809 @@ Specialist has all original information
 - `types/message.ts` - Extend Message interface
 - `plugin/skills/agent-messaging/SKILL.md` - Add forward examples
 - `docs/MESSAGING-GUIDE.md` - Document forward feature
+
+---
+
+### Scheduled Agent Tasks (Cron Jobs for Agents)
+
+**Status:** Planned
+**Priority:** High
+**Effort:** Large (7-10 days)
+**Version:** v0.7.0
+
+**Problem:**
+Agents are reactive today — they only work when a human wakes them and types a prompt. There is no way to:
+- Wake an agent on a schedule and send it a recurring task (daily reports, nightly builds, morning briefings)
+- Trigger agent work based on events (new PR, webhook, file change)
+- Chain agent tasks (Agent A finishes → wake Agent B with the results)
+- Run unattended workflows overnight or on weekends
+- Monitor whether scheduled tasks ran successfully or failed
+
+**Inspiration:**
+The swickson fork included a manual cron script (`scripts/cron-wake-hardin.sh`) that:
+1. Checks agent status via API
+2. Wakes the agent if hibernated
+3. Waits for the session to be ready (polling, up to 60s)
+4. Sends a prompt via the session API
+5. Runs on a simple cron schedule (`0 6 * * *` = daily at 6am)
+
+This pattern works but is fragile, undiscoverable, and requires shell scripting knowledge. We should productize it.
+
+**Proposed Solution:**
+
+#### Data Model
+
+```typescript
+// types/scheduled-task.ts
+
+export interface ScheduledTask {
+  id: string                          // UUID
+  name: string                        // Human-readable name
+  agentId: string                     // Target agent UUID
+  enabled: boolean                    // Active or paused
+
+  // Trigger
+  trigger: ScheduleTrigger
+
+  // Action
+  action: ScheduledAction
+
+  // Execution settings
+  timeoutSeconds: number              // Max wait for agent ready (default: 120)
+  retryOnFailure: boolean             // Retry once if wake/prompt fails
+  wakeIfHibernated: boolean           // Auto-wake agent (default: true)
+  hibernateAfter: boolean             // Hibernate agent when done (default: false)
+
+  // Metadata
+  createdAt: string
+  updatedAt: string
+  createdBy?: string                  // Agent or user who created this
+  lastRunAt?: string
+  lastRunStatus?: 'success' | 'failure' | 'timeout' | 'skipped'
+  lastRunError?: string
+  nextRunAt?: string                  // Pre-computed next execution time
+  runCount: number
+  failCount: number
+}
+
+export type ScheduleTrigger =
+  | { type: 'cron'; expression: string; timezone?: string }       // Cron expression
+  | { type: 'interval'; minutes: number }                         // Every N minutes
+  | { type: 'daily'; time: string; timezone?: string; days?: number[] }  // Daily at HH:MM, optional day filter (0=Sun)
+  | { type: 'webhook'; secret: string }                           // External HTTP trigger
+  | { type: 'agent-complete'; sourceAgentId: string; onStatus?: 'success' | 'any' }  // Chain: after another agent
+
+export interface ScheduledAction {
+  type: 'prompt' | 'hook' | 'wake-only'
+
+  // For type: 'prompt'
+  prompt?: string                     // Text to send to agent CLI (supports ${variables})
+
+  // For type: 'hook'
+  hookName?: string                   // Execute a named hook from agent config
+
+  // Common
+  program?: string                    // Override program (claude, gemini, codex)
+  projectDirectory?: string           // Override working directory
+  meshAware?: boolean                 // Prepend mesh primer
+}
+
+export interface ScheduledTaskRun {
+  id: string
+  taskId: string
+  startedAt: string
+  completedAt?: string
+  status: 'running' | 'success' | 'failure' | 'timeout' | 'skipped'
+  error?: string
+  agentStatus: string                 // Agent status at start (active, hibernated, offline)
+  wakeRequired: boolean               // Whether wake was needed
+  durationMs?: number
+}
+```
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│                   Scheduler                      │
+│              (server.mjs startup)                │
+│                                                  │
+│  ┌─────────────┐   ┌──────────────────────────┐ │
+│  │ Timer Loop  │──→│ evaluateScheduledTasks()  │ │
+│  │ (every 30s) │   │                           │ │
+│  └─────────────┘   │ For each enabled task:    │ │
+│                     │  1. Is it time to run?    │ │
+│                     │  2. Is agent available?   │ │
+│                     │  3. Execute action        │ │
+│                     │  4. Log run result        │ │
+│                     └──────────────────────────┘ │
+│                              │                   │
+│                   ┌──────────┼──────────┐        │
+│                   ▼          ▼          ▼        │
+│              wakeAgent  sendPrompt  executeHook  │
+│           (existing API) (sendKeys) (existing)   │
+└─────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- **No external dependencies** — No node-cron, no Redis, no database. Timer loop + file-based storage, same pattern as task registry.
+- **Reuse existing infrastructure** — `wakeAgent()`, `sendKeys()`, `executeHook()`, `waitForPrompt()` are all proven and already handle cloud + local agents.
+- **30-second evaluation loop** — Good enough precision for agent work (not sub-second). Cheap to run.
+- **File-based storage** — `~/.aimaestro/schedules/tasks.json` and `~/.aimaestro/schedules/runs/` for history.
+- **Runs on the coordinator host** — The AI Maestro instance that owns the schedule. Remote agents are woken via existing proxy pattern.
+
+#### Execution Flow
+
+```
+evaluateScheduledTasks() runs every 30 seconds:
+
+1. Load all enabled ScheduledTasks from disk
+2. For each task where nextRunAt <= now:
+   a. Create ScheduledTaskRun record (status: running)
+   b. Check agent status via getAgent()
+   c. If hibernated + wakeIfHibernated:
+      - Call wakeAgent() with task's program/projectDirectory
+      - Poll for session ready (up to timeoutSeconds)
+   d. If agent active:
+      - If action.type === 'prompt':
+        - waitForPrompt() to confirm agent is at CLI prompt
+        - sendKeys() with interpolated prompt text
+      - If action.type === 'hook':
+        - executeHook() with agent's configured hook
+      - If action.type === 'wake-only':
+        - Done (just needed the agent awake)
+   e. Update run record (success/failure/timeout)
+   f. Compute nextRunAt and save task
+   g. If hibernateAfter: wait configurable delay, then hibernateAgent()
+   h. If retryOnFailure && failed: schedule immediate retry (once)
+3. Emit 'scheduled-task-complete' event for chain triggers
+```
+
+#### API Endpoints
+
+```
+GET    /api/schedules                        — List all scheduled tasks
+POST   /api/schedules                        — Create scheduled task
+GET    /api/schedules/:id                    — Get task details
+PUT    /api/schedules/:id                    — Update task
+DELETE /api/schedules/:id                    — Delete task
+POST   /api/schedules/:id/run               — Trigger immediate run
+POST   /api/schedules/:id/enable             — Enable task
+POST   /api/schedules/:id/disable            — Disable task
+GET    /api/schedules/:id/runs               — Get run history
+GET    /api/schedules/:id/runs/:runId        — Get specific run details
+POST   /api/schedules/webhook/:secret        — Webhook trigger endpoint
+```
+
+#### Service Layer
+
+```
+services/agents-scheduler-service.ts
+
+// Core
+startScheduler()                  — Called from server.mjs on startup
+stopScheduler()                   — Called on graceful shutdown
+evaluateScheduledTasks()          — Main loop (every 30s)
+executeScheduledTask(task)        — Run a single task
+
+// CRUD
+listScheduledTasks()              — List all tasks
+getScheduledTask(id)              — Get task by ID
+createScheduledTask(body)         — Create new task with validation
+updateScheduledTask(id, body)     — Update task
+deleteScheduledTask(id)           — Delete task + run history
+triggerScheduledTask(id)          — Force immediate execution
+
+// History
+getTaskRuns(taskId, limit?)       — Get run history
+getTaskRun(taskId, runId)         — Get specific run
+
+// Trigger evaluation
+computeNextRun(task)              — Calculate next execution time from trigger
+shouldRun(task, now)              — Check if task should execute
+```
+
+#### Storage
+
+```
+~/.aimaestro/schedules/
+  tasks.json                      — Array of ScheduledTask objects
+  runs/
+    {taskId}/
+      run-{timestamp}.json        — Individual run records
+      latest.json                 — Symlink or copy of most recent run
+```
+
+Run history auto-prunes: keep last 100 runs per task, delete older.
+
+#### UI Components
+
+**1. Schedule Manager Page** (`app/schedules/page.tsx`)
+- Table view of all scheduled tasks
+- Status indicators (enabled/disabled, last run status, next run time)
+- Quick actions (enable/disable, trigger now, delete)
+- Link to create new schedule
+
+**2. Schedule Creator** (`components/ScheduleCreator.tsx`)
+- Step 1: Select target agent (from agent list)
+- Step 2: Choose trigger type (cron / interval / daily / webhook / chain)
+  - Cron: expression input with human-readable preview ("Every weekday at 9am")
+  - Interval: simple number input (minutes)
+  - Daily: time picker + day selector
+  - Webhook: auto-generate secret, show URL
+  - Chain: select source agent + status filter
+- Step 3: Define action (prompt text / hook / wake-only)
+  - Prompt editor with variable autocomplete (`${agentName}`, `${projectDirectory}`, `${date}`, `${dayOfWeek}`)
+  - Hook selector (from agent's configured hooks)
+- Step 4: Settings (timeout, retry, hibernate after, mesh aware)
+- Step 5: Review + create
+
+**3. Run History Panel** (`components/ScheduleRunHistory.tsx`)
+- Timeline view of past executions
+- Status badges (success/failure/timeout/skipped)
+- Duration, error messages, agent status at time of run
+- Click to expand: full execution log
+
+**4. Agent Profile Integration**
+- Add "Schedules" tab to agent profile/zoom view
+- Shows schedules targeting this agent
+- Quick-create schedule from agent context
+
+**5. Dashboard Widget**
+- Upcoming scheduled tasks (next 24h)
+- Recent failures requiring attention
+- Active/paused schedule counts
+
+#### CLI Integration
+
+```bash
+# New CLI commands (aimaestro-agent.sh or new aimaestro-schedule.sh)
+
+aimaestro-schedule list                              # List all schedules
+aimaestro-schedule create <agentName> \
+  --trigger "daily 09:00" \
+  --prompt "Check messages and summarize overnight activity" \
+  --hibernate-after                                  # Create daily schedule
+
+aimaestro-schedule create <agentName> \
+  --trigger "cron 0 */4 * * *" \
+  --prompt "Run the test suite and report failures" # Every 4 hours
+
+aimaestro-schedule create <agentName> \
+  --trigger "webhook" \
+  --prompt "New PR opened: ${webhookPayload}"        # Webhook trigger
+
+aimaestro-schedule enable <id>
+aimaestro-schedule disable <id>
+aimaestro-schedule run <id>                          # Trigger now
+aimaestro-schedule history <id>                      # Show run history
+aimaestro-schedule delete <id>
+```
+
+#### Skill Integration
+
+Update `ai-maestro-agents-management` skill to understand scheduling:
+
+```
+"Schedule my-agent to check messages every morning at 9am"
+→ aimaestro-schedule create my-agent --trigger "daily 09:00" --prompt "Check your messages and summarize"
+
+"Run the test agent every 4 hours"
+→ aimaestro-schedule create test-agent --trigger "cron 0 */4 * * *" --prompt "Run tests"
+
+"After backend-api finishes, wake frontend-dev with the results"
+→ aimaestro-schedule create frontend-dev --trigger "agent-complete backend-api" --prompt "Backend finished, review changes"
+
+"Show me what's scheduled"
+→ aimaestro-schedule list
+
+"Pause the daily report schedule"
+→ aimaestro-schedule disable <id>
+```
+
+#### Variable Interpolation
+
+Prompts support runtime variables:
+
+| Variable | Value | Example |
+|----------|-------|---------|
+| `${agentName}` | Target agent name | `backend-api` |
+| `${projectDirectory}` | Agent's working directory | `/home/user/myapp` |
+| `${date}` | Current date (ISO) | `2026-05-13` |
+| `${time}` | Current time (HH:MM) | `09:00` |
+| `${dayOfWeek}` | Day name | `Tuesday` |
+| `${runCount}` | How many times this task has run | `42` |
+| `${lastRunStatus}` | Previous run result | `success` |
+| `${webhookPayload}` | Webhook body (for webhook triggers) | `{"pr": 42}` |
+| `${sourceAgent}` | Source agent name (for chain triggers) | `backend-api` |
+
+#### Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Agent not found | Skip run, log `failure`, don't disable task |
+| Agent hibernated, wake fails | Log `failure`, retry once if enabled |
+| Agent active but prompt timeout | Log `timeout`, continue (agent may be busy) |
+| Container stopped, can't start | Log `failure`, include Docker error |
+| Remote host unreachable | Log `failure`, include network error |
+| Webhook with invalid secret | Return 401, don't log a run |
+| Two runs overlap | Skip second run, log `skipped` |
+| Server restart during run | Detect orphaned `running` status on startup, mark as `timeout` |
+
+#### Migration Path
+
+1. **Phase 1:** Core scheduler + cron/interval/daily triggers + prompt action + API + basic UI
+2. **Phase 2:** Webhook triggers + chain triggers + CLI + skill integration
+3. **Phase 3:** Run history UI + dashboard widget + agent profile integration
+4. **Phase 4:** Advanced features (conditional execution, parameterized templates, approval gates)
+
+**Files to Create/Modify:**
+
+New files:
+- `types/scheduled-task.ts` — Type definitions
+- `lib/schedule-registry.ts` — File-based CRUD (load/save/get/create/update/delete)
+- `services/agents-scheduler-service.ts` — Scheduler engine + evaluation loop
+- `app/api/schedules/route.ts` — List + create endpoints
+- `app/api/schedules/[id]/route.ts` — Get + update + delete
+- `app/api/schedules/[id]/run/route.ts` — Trigger immediate run
+- `app/api/schedules/[id]/enable/route.ts` — Enable endpoint
+- `app/api/schedules/[id]/disable/route.ts` — Disable endpoint
+- `app/api/schedules/[id]/runs/route.ts` — Run history
+- `app/api/schedules/webhook/[secret]/route.ts` — Webhook trigger
+- `app/schedules/page.tsx` — Schedule manager page
+- `components/ScheduleCreator.tsx` — Schedule creation wizard
+- `components/ScheduleRunHistory.tsx` — Run history timeline
+- `hooks/useSchedules.ts` — Schedule data fetching + polling
+
+Modified files:
+- `server.mjs` — Start scheduler on boot, stop on shutdown
+- `services/headless-router.ts` — Register schedule API routes
+- `components/SessionList.tsx` or `AgentList.tsx` — Link to schedules
+- `plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md` — Add scheduling examples
+- `plugin/plugins/ai-maestro/scripts/` — New CLI script for schedules
+
+**Example Use Cases:**
+
+1. **Daily standup prep:** Wake agent at 8:30am, prompt "Summarize yesterday's git commits across all repos and prepare standup notes"
+2. **Nightly test runner:** Every night at 2am, wake test agent, prompt "Run full test suite, report failures via AMP to the team channel"
+3. **PR review chain:** Webhook on new PR → wake reviewer agent → prompt "Review PR #${webhookPayload.number} on ${webhookPayload.repo}"
+4. **Content curator:** Every 4 hours, wake curator agent → prompt "Check RSS feeds and YouTube channels for new AI content, save highlights"
+5. **Health monitor:** Every 30 minutes, wake monitor agent → prompt "Check all services are responding, alert via AMP if any are down"
+6. **Memory consolidation:** Daily at midnight, wake each agent → prompt "Run memory consolidation and clean up stale indexes"
+
+---
+
+### Docker/Cloud Agent Options — Surface Integration
+
+**Status:** Planned
+**Priority:** High
+**Effort:** Medium (4-5 days)
+**Version:** v0.7.0
+
+**Problem:**
+The Docker/cloud agent backend (v0.29.24) supports a rich set of provisioning options — multi-runtime (Claude/Gemini/Codex), resource limits, bind mounts, environment variables, lifecycle hooks, GitHub token provisioning, and more. But none of these options are accessible to users. The only way to use them is raw `curl` calls to the API.
+
+**Current Gap Analysis:**
+
+| Feature | Backend API | UI Wizard | CLI | Skill |
+|---------|-------------|-----------|-----|-------|
+| name | Required | Yes | Yes | Yes |
+| workingDirectory | Optional | Yes | Yes (required) | Yes |
+| program | Optional | Yes (7 options) | Yes (9 options) | Yes |
+| model | Optional | No | Yes | Yes |
+| hostId | Optional | Yes (step 1) | No | No |
+| label / avatar | Optional | Auto-generated | No | No |
+| taskDescription | Optional | No | Yes (--task) | Yes |
+| tags | Optional | No | Yes (--tags) | Yes |
+| programArgs | Optional | No | Yes (-- args) | Yes |
+| **cpus** | Optional (default: 2) | **No** | **No** | **No** |
+| **memory** | Optional (default: 4g) | **No** | **No** | **No** |
+| **mounts** | Optional (SandboxMount[]) | **No** | **No** | **No** |
+| **extraEnv** | Optional (Record) | **No** | **No** | **No** |
+| **hooks** | Optional (AgentHooks) | **No** | **No** | **No** |
+| **githubToken** | Optional | **No** | **No** | **No** |
+| **yolo** | Optional | **No** | **No** | **No** |
+| **timeout** | Optional | **No** | **No** | **No** |
+| **autoRemove** | Optional | **No** | **No** | **No** |
+| **meshAware** | Optional | **No** | **No** | **No** |
+| **recreate** | Endpoint exists | **No** | **No** | **No** |
+
+All bolded rows are Docker-specific features with zero surface exposure.
+
+**Proposed Solution:**
+
+#### 1. CLI Integration (`aimaestro-agent.sh`)
+
+Add a `--docker` flag that switches the create command to use the Docker endpoint and unlocks container-specific options.
+
+**New flags:**
+
+```bash
+aimaestro-agent.sh create <name> --dir <path> --docker [options]
+
+# Runtime selection
+--docker                    # Use Docker container instead of tmux
+--runtime <program>         # Alias for --program in Docker context
+
+# Resource limits
+--cpus <n>                  # CPU cores (default: 2)
+--memory <size>             # Memory limit (default: 4g, format: 512m, 2g, 8g)
+
+# Bind mounts
+--mount <host>:<container>           # Read-write mount
+--mount <host>:<container>:ro        # Read-only mount
+                                     # Can be specified multiple times
+
+# Environment variables
+--env <KEY=VALUE>           # Set container env variable
+                            # Can be specified multiple times
+
+# Lifecycle hooks
+--on-wake <command>         # Hook executed after agent wakes
+--on-hibernate <command>    # Hook executed before agent hibernates
+                            # Prefix with "prompt:" to type into CLI stdin
+
+# Auth & config
+--github-token <token>      # Provision GitHub token in container
+--yolo                      # Enable --dangerously-skip-permissions
+--timeout <seconds>         # Container startup timeout (default: 120)
+--mesh-aware                # Prepend mesh primer to on-wake hooks
+
+# Container behavior
+--auto-remove               # Remove container when stopped
+--host <hostId>             # Target remote host for deployment
+```
+
+**CLI examples:**
+
+```bash
+# Basic Docker agent with Claude
+aimaestro-agent.sh create my-api --dir ~/projects/my-api --docker
+
+# Gemini agent with custom resources
+aimaestro-agent.sh create gemini-reviewer --dir ~/projects/app \
+  --docker --program gemini --cpus 1 --memory 2g
+
+# Agent with project mount and env vars
+aimaestro-agent.sh create data-pipeline --dir ~/projects/pipeline --docker \
+  --mount ~/data:/data:ro \
+  --mount ~/output:/output \
+  --env DATABASE_URL=postgres://localhost/mydb \
+  --env API_KEY=sk-xxx
+
+# Agent with lifecycle hooks
+aimaestro-agent.sh create daily-reporter --dir ~/projects/reports --docker \
+  --on-wake "prompt:Check your messages and prepare the daily report" \
+  --on-hibernate "prompt:Save your progress and clean up temp files"
+
+# Full-featured agent
+aimaestro-agent.sh create prod-debugger --dir ~/projects/prod --docker \
+  --program claude --model claude-sonnet-4-5 \
+  --cpus 4 --memory 8g \
+  --mount ~/logs:/logs:ro \
+  --mount ~/.ssh:/root/.ssh:ro \
+  --env NODE_ENV=production \
+  --github-token ghp_xxx \
+  --on-wake "prompt:You are debugging production issues. Check /logs for recent errors." \
+  --mesh-aware --yolo
+
+# Deploy to remote host
+aimaestro-agent.sh create remote-worker --dir /home/user/project --docker \
+  --host banana-jr --cpus 2 --memory 4g
+```
+
+**Implementation:**
+
+In `agent-commands.sh`, the `create` subcommand needs:
+
+```bash
+# New flag parsing (add to existing getopts loop)
+--docker)          DOCKER_MODE=true ;;
+--cpus)            CPUS="$2"; shift ;;
+--memory)          MEMORY="$2"; shift ;;
+--mount)           MOUNTS+=("$2"); shift ;;
+--env)             ENVS+=("$2"); shift ;;
+--on-wake)         ON_WAKE="$2"; shift ;;
+--on-hibernate)    ON_HIBERNATE="$2"; shift ;;
+--github-token)    GITHUB_TOKEN="$2"; shift ;;
+--yolo)            YOLO=true ;;
+--timeout)         TIMEOUT="$2"; shift ;;
+--mesh-aware)      MESH_AWARE=true ;;
+--auto-remove)     AUTO_REMOVE=true ;;
+--host)            HOST_ID="$2"; shift ;;
+```
+
+```bash
+# Build payload — switch endpoint based on --docker flag
+if [ "$DOCKER_MODE" = true ]; then
+  # Build mounts JSON array
+  MOUNTS_JSON="[]"
+  for m in "${MOUNTS[@]}"; do
+    IFS=':' read -r host_path container_path ro_flag <<< "$m"
+    read_only="false"
+    [ "$ro_flag" = "ro" ] && read_only="true"
+    MOUNTS_JSON=$(echo "$MOUNTS_JSON" | jq --arg hp "$host_path" --arg cp "$container_path" --argjson ro "$read_only" '. + [{"hostPath":$hp,"containerPath":$cp,"readOnly":$ro}]')
+  done
+
+  # Build extraEnv JSON object
+  ENV_JSON="{}"
+  for e in "${ENVS[@]}"; do
+    KEY="${e%%=*}"
+    VALUE="${e#*=}"
+    ENV_JSON=$(echo "$ENV_JSON" | jq --arg k "$KEY" --arg v "$VALUE" '. + {($k):$v}')
+  done
+
+  # Build hooks JSON
+  HOOKS_JSON="{}"
+  [ -n "$ON_WAKE" ] && HOOKS_JSON=$(echo "$HOOKS_JSON" | jq --arg v "$ON_WAKE" '. + {"on-wake":$v}')
+  [ -n "$ON_HIBERNATE" ] && HOOKS_JSON=$(echo "$HOOKS_JSON" | jq --arg v "$ON_HIBERNATE" '. + {"on-hibernate":$v}')
+
+  ENDPOINT="/api/agents/docker/create"
+  PAYLOAD=$(jq -n \
+    --arg name "$NAME" \
+    --arg dir "$DIR" \
+    --arg program "$PROGRAM" \
+    --arg model "$MODEL" \
+    --argjson cpus "${CPUS:-2}" \
+    --arg memory "${MEMORY:-4g}" \
+    --argjson mounts "$MOUNTS_JSON" \
+    --argjson extraEnv "$ENV_JSON" \
+    --argjson hooks "$HOOKS_JSON" \
+    '{name:$name, workingDirectory:$dir, program:$program, model:$model, cpus:$cpus, memory:$memory, mounts:$mounts, extraEnv:$extraEnv, hooks:$hooks}')
+else
+  ENDPOINT="/api/agents"
+  # ... existing tmux payload ...
+fi
+```
+
+**New management subcommands:**
+
+```bash
+# Recreate a Docker agent (re-provision container, preserve config)
+aimaestro-agent.sh recreate <name>
+
+# Show Docker agent details (container status, resources, mounts)
+aimaestro-agent.sh inspect <name>
+```
+
+#### 2. UI Wizard Enhancement
+
+Add an optional "Advanced" step when Docker runtime is selected. The wizard keeps its simple default flow but offers a toggle to expand Docker-specific options.
+
+**Modified wizard flow:**
+
+```
+Step 1: Host selection (existing)
+Step 2: Runtime selection — tmux vs Docker (existing)
+Step 3: Program selection (existing, add Gemini/Codex prominence for Docker)
+Step 4: Agent name (existing)
+Step 5: Working directory (existing)
+Step 6: [NEW — Docker only] Advanced options (collapsed by default)
+Step 7: Summary & confirm (existing, show Docker config if set)
+```
+
+**Step 6 — Advanced Docker Options (collapsed accordion):**
+
+```
+┌─────────────────────────────────────────────────┐
+│  ⚙️ Advanced Container Options                  │
+│  ┌─ Resources ────────────────────────────────┐ │
+│  │  CPUs: [2    ▾]    Memory: [4g    ▾]       │ │
+│  └────────────────────────────────────────────┘ │
+│                                                  │
+│  ┌─ Bind Mounts ─────────────────────────────┐ │
+│  │  /home/user/data → /data     [ro] [✕]     │ │
+│  │  /home/user/output → /output [rw] [✕]     │ │
+│  │  [+ Add mount]                              │ │
+│  └────────────────────────────────────────────┘ │
+│                                                  │
+│  ┌─ Environment Variables ────────────────────┐ │
+│  │  DATABASE_URL = postgres://...   [✕]       │ │
+│  │  API_KEY = sk-xxx                [✕]       │ │
+│  │  [+ Add variable]                          │ │
+│  └────────────────────────────────────────────┘ │
+│                                                  │
+│  ┌─ Lifecycle Hooks ─────────────────────────┐ │
+│  │  On Wake:                                   │ │
+│  │  [prompt:Check messages and start work    ] │ │
+│  │  On Hibernate:                              │ │
+│  │  [prompt:Save progress before shutting do ] │ │
+│  └────────────────────────────────────────────┘ │
+│                                                  │
+│  ┌─ Auth & Behavior ─────────────────────────┐ │
+│  │  ☐ GitHub Token: [ghp_...               ]  │ │
+│  │  ☐ Skip permissions (yolo mode)            │ │
+│  │  ☐ Mesh aware (inject agent mesh context)  │ │
+│  │  ☐ Auto-remove container on stop           │ │
+│  └────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────┘
+```
+
+**Implementation notes:**
+
+New state fields in `AgentCreationWizard.tsx`:
+```typescript
+// Docker advanced options
+const [showAdvanced, setShowAdvanced] = useState(false)
+const [cpus, setCpus] = useState(2)
+const [memory, setMemory] = useState('4g')
+const [mounts, setMounts] = useState<{hostPath: string, containerPath: string, readOnly: boolean}[]>([])
+const [envVars, setEnvVars] = useState<{key: string, value: string}[]>([])
+const [onWakeHook, setOnWakeHook] = useState('')
+const [onHibernateHook, setOnHibernateHook] = useState('')
+const [githubToken, setGithubToken] = useState('')
+const [yolo, setYolo] = useState(false)
+const [meshAware, setMeshAware] = useState(false)
+const [autoRemove, setAutoRemove] = useState(false)
+```
+
+Updated Docker create payload:
+```typescript
+if (runtime === 'docker') {
+  const payload: Record<string, unknown> = {
+    name: agentName,
+    workingDirectory: workingDirectory || undefined,
+    hostId: hostId || undefined,
+    program: program === 'claude-code' ? 'claude' : program,
+    label: personaName,
+    avatar: avatarUrl,
+  }
+
+  // Only include advanced options if user expanded them
+  if (showAdvanced) {
+    if (cpus !== 2) payload.cpus = cpus
+    if (memory !== '4g') payload.memory = memory
+    if (mounts.length > 0) payload.mounts = mounts
+    if (envVars.length > 0) {
+      payload.extraEnv = Object.fromEntries(envVars.map(e => [e.key, e.value]))
+    }
+    const hooks: Record<string, string> = {}
+    if (onWakeHook) hooks['on-wake'] = onWakeHook
+    if (onHibernateHook) hooks['on-hibernate'] = onHibernateHook
+    if (Object.keys(hooks).length > 0) payload.hooks = hooks
+    if (githubToken) payload.githubToken = githubToken
+    if (yolo) payload.yolo = true
+    if (meshAware) payload.meshAware = true
+    if (autoRemove) payload.autoRemove = true
+  }
+
+  const response = await fetch('/api/agents/docker/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+```
+
+**New subcomponents:**
+
+```
+components/
+  docker/
+    DockerAdvancedOptions.tsx    — Collapsible accordion with all Docker options
+    MountEditor.tsx              — Add/remove bind mounts with path inputs + ro toggle
+    EnvVarEditor.tsx             — Add/remove key=value pairs
+    HookEditor.tsx               — Text inputs for on-wake/on-hibernate hooks
+    ResourceSlider.tsx           — CPU/memory selectors with presets (light/standard/heavy)
+```
+
+**Resource presets (for non-technical users):**
+
+| Preset | CPUs | Memory | Use case |
+|--------|------|--------|----------|
+| Light | 1 | 2g | Simple tasks, API calls, message checking |
+| Standard | 2 | 4g | General development, code review (default) |
+| Heavy | 4 | 8g | Large codebases, test suites, builds |
+| Custom | user-set | user-set | Advanced users |
+
+#### 3. Skill Documentation Update
+
+Update `plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md` to include Docker-specific instructions and examples.
+
+**New section to add:**
+
+```markdown
+## Docker / Cloud Agent Creation
+
+When the user wants to create an agent in a Docker container, use the `--docker` flag.
+This provisions an isolated container with the selected AI runtime.
+
+### Basic Docker agent
+aimaestro-agent.sh create my-api --dir ~/projects/my-api --docker
+
+### Docker agent with Gemini runtime and light resources
+aimaestro-agent.sh create gemini-helper --dir ~/projects/app \
+  --docker --program gemini --cpus 1 --memory 2g
+
+### Docker agent with mounted data directories
+aimaestro-agent.sh create data-agent --dir ~/projects/pipeline --docker \
+  --mount ~/datasets:/data:ro \
+  --mount ~/results:/output
+
+### Docker agent with environment variables
+aimaestro-agent.sh create api-agent --dir ~/projects/api --docker \
+  --env DATABASE_URL=postgres://localhost/mydb \
+  --env REDIS_URL=redis://localhost:6379
+
+### Docker agent with lifecycle hooks
+aimaestro-agent.sh create daily-worker --dir ~/projects/reports --docker \
+  --on-wake "prompt:Good morning. Check messages and prepare the daily summary." \
+  --on-hibernate "prompt:Save all work in progress."
+
+### Docker agent on a remote host
+aimaestro-agent.sh create remote-builder --dir /home/user/project --docker \
+  --host banana-jr --cpus 4 --memory 8g
+
+### Recreate a Docker agent (re-provision container, keep config)
+aimaestro-agent.sh recreate my-api
+
+### Natural language mappings
+- "Create a Docker agent for my project" → add --docker flag
+- "Give it 8 gigs of memory" → --memory 8g
+- "Mount my data folder read-only" → --mount ~/data:/data:ro
+- "Set the database URL" → --env DATABASE_URL=...
+- "When it wakes, tell it to check messages" → --on-wake "prompt:Check messages"
+- "Use Gemini instead of Claude" → --program gemini
+- "Put it on the remote server" → --host <hostId>
+- "Recreate the container" → aimaestro-agent.sh recreate <name>
+```
+
+#### 4. Agent Profile — Docker Management
+
+Add Docker-specific controls to the agent zoom/profile view for existing Docker agents.
+
+**New UI elements in agent profile:**
+
+```
+┌─ Container Status ────────────────────────────┐
+│  Container: aim-my-api                         │
+│  Status: ● running    Uptime: 3h 42m          │
+│  Resources: 2 CPUs / 4g memory                 │
+│  Image: ai-maestro-agent:latest                │
+│                                                 │
+│  [Recreate]  [Stop]  [Remove]                  │
+└────────────────────────────────────────────────┘
+
+┌─ Mounts ──────────────────────────────────────┐
+│  ~/data → /data (read-only)                    │
+│  ~/output → /output (read-write)               │
+└────────────────────────────────────────────────┘
+
+┌─ Environment ─────────────────────────────────┐
+│  DATABASE_URL = postgres://... (masked)        │
+│  API_KEY = sk-*** (masked)                     │
+└────────────────────────────────────────────────┘
+
+┌─ Hooks ───────────────────────────────────────┐
+│  on-wake: prompt:Check messages and start...   │
+│  on-hibernate: prompt:Save progress before...  │
+│  [Edit hooks]                                  │
+└────────────────────────────────────────────────┘
+```
+
+**Files to Create/Modify:**
+
+New files:
+- `components/docker/DockerAdvancedOptions.tsx` — Collapsible advanced options panel
+- `components/docker/MountEditor.tsx` — Mount path editor with add/remove
+- `components/docker/EnvVarEditor.tsx` — Environment variable editor
+- `components/docker/HookEditor.tsx` — Hook text editor
+- `components/docker/ResourceSlider.tsx` — CPU/memory preset selector
+- `components/docker/ContainerStatus.tsx` — Container info panel for agent profile
+
+Modified files:
+- `plugin/plugins/ai-maestro/scripts/agent-commands.sh` — Add --docker flag + all new options
+- `plugin/plugins/ai-maestro/scripts/agent-core.sh` — Add recreate/inspect subcommands
+- `plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md` — Docker section + examples
+- `components/AgentCreationWizard.tsx` — Add advanced step for Docker, expand payload
+- `components/AgentProfile.tsx` or `components/zoom/AgentProfileTab.tsx` — Docker management section
+
+**Migration Path:**
+
+1. **Phase 1:** CLI `--docker` flag with all options + skill documentation update
+2. **Phase 2:** UI wizard advanced Docker step (collapsed by default)
+3. **Phase 3:** Agent profile Docker management (recreate, inspect, edit hooks/mounts)
+4. **Phase 4:** Resource monitoring dashboard (CPU/memory usage per container)
 
 ---
 

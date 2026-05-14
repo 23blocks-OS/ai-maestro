@@ -43,6 +43,6 @@ export async function DELETE(
   const hardParam = url.searchParams.get('hard')?.toLowerCase()
   const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
 
-  const result = deleteAgentById(id, hard)
+  const result = await deleteAgentById(id, hard)
   return toResponse(result)
 }

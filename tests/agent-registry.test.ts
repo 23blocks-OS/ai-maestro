@@ -13,6 +13,8 @@ vi.mock('uuid', () => ({
 vi.mock('@/lib/hosts-config', () => ({
   getSelfHost: () => ({ id: 'test-host', name: 'Test Host', url: 'http://test-host:23000' }),
   getSelfHostId: () => 'test-host',
+  isSelf: (hostId: string) => hostId?.toLowerCase() === 'test-host',
+  isSelfHost: (host: { id: string }) => host.id?.toLowerCase() === 'test-host',
 }))
 
 vi.mock('@/lib/amp-inbox-writer', () => ({
@@ -309,6 +311,29 @@ describe('createAgent', () => {
     expect(() => createAgent(makeCreateRequest({ name: 'unique-agent' }))).toThrow(
       /already exists on host/
     )
+  })
+
+  it('throws when caller-supplied id collides with an active agent', () => {
+    const first = createAgent(makeCreateRequest({ name: 'first-agent' }))
+    expect(() => createAgent(makeCreateRequest({
+      id: first.id,
+      name: 'second-agent',
+    }))).toThrow(/already exists in registry/)
+  })
+
+  it('throws when caller-supplied id collides with a soft-deleted agent', () => {
+    const first = createAgent(makeCreateRequest({ name: 'soft-deleted' }))
+    deleteAgent(first.id, false)
+    expect(() => createAgent(makeCreateRequest({
+      id: first.id,
+      name: 'reusing-id',
+    }))).toThrow(/already exists in registry/)
+  })
+
+  it('honors a unique caller-supplied id (offline-first round-trip)', () => {
+    const explicitId = '11111111-2222-3333-4444-555555555555'
+    const agent = createAgent(makeCreateRequest({ id: explicitId, name: 'explicit-id' }))
+    expect(agent.id).toBe(explicitId)
   })
 
   it('auto-generates label when not provided', () => {

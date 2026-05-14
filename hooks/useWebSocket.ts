@@ -13,6 +13,7 @@ interface UseWebSocketOptions {
   initialCols?: number  // Initial terminal columns for PTY spawn (avoids 80-col default)
   initialRows?: number  // Initial terminal rows for PTY spawn (avoids 24-row default)
   onMessage?: (data: string) => void
+  onChatMessage?: (type: string, data: any) => void  // Callback for chat:* protocol messages
   onOpen?: () => void
   onClose?: () => void
   onError?: (error: Event) => void
@@ -26,6 +27,7 @@ export function useWebSocket({
   initialCols,
   initialRows,
   onMessage,
+  onChatMessage,
   onOpen,
   onClose,
   onError,
@@ -47,11 +49,13 @@ export function useWebSocket({
   // receives data but writes to null. Users see this as "copy/paste only works after switching
   // agents" because switching triggers a reconnect that picks up the fresh callback.
   const onMessageRef = useRef(onMessage)
+  const onChatMessageRef = useRef(onChatMessage)
   const onOpenRef = useRef(onOpen)
   const onCloseRef = useRef(onClose)
   const onErrorRef = useRef(onError)
 
   useEffect(() => { onMessageRef.current = onMessage }, [onMessage])
+  useEffect(() => { onChatMessageRef.current = onChatMessage }, [onChatMessage])
   useEffect(() => { onOpenRef.current = onOpen }, [onOpen])
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
   useEffect(() => { onErrorRef.current = onError }, [onError])
@@ -142,6 +146,12 @@ export function useWebSocket({
             if (parsed.statusType === 'success') {
               setConnectionMessage(null) // Clear on success
             }
+            return
+          }
+
+          // Route chat:* messages to the chat callback
+          if (parsed.type?.startsWith('chat:')) {
+            onChatMessageRef.current?.(parsed.type, parsed)
             return
           }
         } catch {

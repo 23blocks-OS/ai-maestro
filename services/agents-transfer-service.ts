@@ -447,7 +447,7 @@ export async function exportAgentZip(agentIdOrName: string): Promise<ServiceResu
   if (hasHooks && agent.hooks) {
     archive.append(JSON.stringify(agent.hooks, null, 2), { name: 'hooks/hooks.json' })
     for (const [_event, scriptPath] of Object.entries(agent.hooks)) {
-      if (scriptPath.startsWith('./')) {
+      if (scriptPath && scriptPath.startsWith('./')) {
         const fullPath = path.join(AGENTS_DIR, agent.id, scriptPath.slice(2))
         if (fs.existsSync(fullPath)) {
           archive.file(fullPath, { name: `hooks/${path.basename(scriptPath)}` })

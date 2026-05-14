@@ -80,6 +80,7 @@ export interface TeamMeetingState {
   rightPanelOpen: boolean
   rightPanelTab: RightPanelTab
   kanbanOpen: boolean
+  chatOpen: boolean
 }
 
 /** Actions for the team meeting reducer */
@@ -102,4 +103,6 @@ export type TeamMeetingAction =
   | { type: 'OPEN_RIGHT_PANEL'; tab: RightPanelTab }
   | { type: 'OPEN_KANBAN' }
   | { type: 'CLOSE_KANBAN' }
+  | { type: 'OPEN_CHAT' }
+  | { type: 'CLOSE_CHAT' }
   | { type: 'RESTORE_MEETING'; meeting: Meeting; teamId: string | null }

@@ -44,6 +44,31 @@ function hashCwd(cwd) {
     return crypto.createHash('md5').update(cwd || '').digest('hex').substring(0, 16);
 }
 
+// Resolve the agent for this hook invocation.
+// Priority: AIM_AGENT_ID env (exact) > AIM_AGENT_NAME env (exact) > cwd exact match.
+function resolveAgent(cwd, agents) {
+    const envId = process.env.AIM_AGENT_ID;
+    if (envId) {
+        const byId = agents.find(a => a.id === envId);
+        if (byId) {
+            debugLog({ event: 'resolved_agent_from_env', source: 'id', value: envId });
+            return byId;
+        }
+    }
+    const envName = process.env.AIM_AGENT_NAME;
+    if (envName) {
+        const byName = agents.find(a => a.name === envName);
+        if (byName) {
+            debugLog({ event: 'resolved_agent_from_env', source: 'name', value: envName });
+            return byName;
+        }
+    }
+    return agents.find(a => {
+        const agentWd = a.workingDirectory || a.session?.workingDirectory;
+        return agentWd && agentWd === cwd;
+    }) || null;
+}
+
 // Broadcast status update via WebSocket (non-blocking)
 async function broadcastStatusUpdate(cwd, state) {
     try {
@@ -52,18 +77,25 @@ async function broadcastStatusUpdate(cwd, state) {
         if (!agentsResponse.ok) return;
 
         const agentsData = await agentsResponse.json();
-        const agent = (agentsData.agents || []).find(a => {
-            const agentWd = a.workingDirectory || a.session?.workingDirectory;
-            if (!agentWd) return false;
-            if (agentWd === cwd) return true;
-            if (cwd.startsWith(agentWd + '/')) return true;
-            return false;
-        });
+        const agent = resolveAgent(cwd, agentsData.agents || []);
 
         if (!agent) return;
 
         const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
         if (!sessionName) return;
+
+        // Build hookState payload for events that produce meaningful state
+        const hookStateData = (state.status === 'permission_request' || state.notificationType)
+            ? {
+                status: state.status,
+                toolName: state.toolName,
+                toolInput: state.toolInput,
+                description: state.description,
+                options: state.options,
+                message: state.message,
+                notificationType: state.notificationType,
+              }
+            : undefined;
 
         // Broadcast the status update
         await fetch('http://localhost:23000/api/sessions/activity/update', {
@@ -74,7 +106,8 @@ async function broadcastStatusUpdate(cwd, state) {
                 agentId: agent.id,
                 status: state.status,
                 hookStatus: state.status,
-                notificationType: state.notificationType
+                notificationType: state.notificationType,
+                ...(hookStateData && { hookState: hookStateData })
             })
         });
 
@@ -202,23 +235,7 @@ async function checkUnreadMessages(cwd) {
 
         const agentsData = await agentsResponse.json();
         const agents = agentsData.agents || [];
-
-        // Find agent matching this working directory
-        // Check exact match first, then check if cwd is within the agent's directory or vice versa
-        const agent = agents.find(a => {
-            const agentWd = a.workingDirectory || a.session?.workingDirectory;
-            if (!agentWd) return false;
-
-            // Exact match
-            if (agentWd === cwd) return true;
-
-            // cwd is subdirectory of agent's working directory
-            if (cwd.startsWith(agentWd + '/')) return true;
-
-            // Agent's working directory is subdirectory of cwd
-
-            return false;
-        });
+        const agent = resolveAgent(cwd, agents);
 
         if (!agent) {
             debugLog({ event: 'no_agent_for_cwd', cwd });
@@ -263,6 +280,39 @@ async function checkUnreadMessages(cwd) {
         debugLog({ event: 'message_check_error', error: err.message });
         // Fall back to standalone AMP check (works without AI Maestro)
         return checkUnreadMessagesStandalone();
+    }
+}
+
+// Drain the meeting inject queue for this session
+async function drainMeetingInjectQueue(cwd) {
+    try {
+        // Resolve agent to get session name
+        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        if (!agentsResponse.ok) return null;
+
+        const agentsData = await agentsResponse.json();
+        const agent = resolveAgent(cwd, agentsData.agents || []);
+        if (!agent) return null;
+
+        const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
+        if (!sessionName) return null;
+
+        const queueResponse = await fetch(
+            `http://localhost:23000/api/meetings/inject-queue?session=${encodeURIComponent(sessionName)}`
+        );
+        if (!queueResponse.ok) return null;
+
+        const queueData = await queueResponse.json();
+        if (!queueData.messages || queueData.messages.length === 0) return null;
+
+        debugLog({ event: 'meeting_queue_drained', sessionName, count: queueData.count });
+
+        // Combine all queued messages into one context block
+        const combined = queueData.messages.map(m => m.text).join('\n\n---\n\n');
+        return combined;
+    } catch (err) {
+        debugLog({ event: 'meeting_queue_drain_error', error: err.message });
+        return null;
     }
 }
 
@@ -370,11 +420,15 @@ async function main() {
                     transcriptPath
                 });
 
-                // Check for unread messages and inject as context
-                const idleMessagePrompt = await checkUnreadMessages(cwd);
-                if (idleMessagePrompt) {
-                    debugLog({ event: 'injecting_inbox_context', cwd, agent, trigger: 'idle_prompt' });
-                    hookResponse = buildContextResponse(agent, rawEvent, idleMessagePrompt);
+                // Check for unread messages and meeting inject queue
+                const [idleMessagePrompt, meetingContext] = await Promise.all([
+                    checkUnreadMessages(cwd),
+                    drainMeetingInjectQueue(cwd)
+                ]);
+                const combined = [idleMessagePrompt, meetingContext].filter(Boolean).join('\n\n');
+                if (combined) {
+                    debugLog({ event: 'injecting_context', cwd, agent, trigger: 'idle_prompt', hasInbox: !!idleMessagePrompt, hasMeeting: !!meetingContext });
+                    hookResponse = buildContextResponse(agent, rawEvent, combined);
                 }
             } else if (notificationType === 'permission_prompt') {
                 // For permission prompts, preserve existing tool info if we have it
@@ -430,13 +484,33 @@ async function main() {
                 source: input.source
             });
 
-            // Check for unread messages and inject as context
-            const startMessagePrompt = await checkUnreadMessages(cwd);
-            if (startMessagePrompt) {
-                debugLog({ event: 'injecting_inbox_context', cwd, agent, trigger: 'session_start' });
-                hookResponse = buildContextResponse(agent, rawEvent, startMessagePrompt);
+            // Check for unread messages and meeting inject queue
+            const [startMessagePrompt, startMeetingContext] = await Promise.all([
+                checkUnreadMessages(cwd),
+                drainMeetingInjectQueue(cwd)
+            ]);
+            const startCombined = [startMessagePrompt, startMeetingContext].filter(Boolean).join('\n\n');
+            if (startCombined) {
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'session_start', hasInbox: !!startMessagePrompt, hasMeeting: !!startMeetingContext });
+                hookResponse = buildContextResponse(agent, rawEvent, startCombined);
             }
             break;
+
+        case 'UserPromptSubmit': {
+            // Drain on every user prompt — this is the reliable delivery slot
+            // for Claude Code. SessionStart can be preempted by other plugins'
+            // hooks; UserPromptSubmit fires once per user turn and is rarely contended.
+            const [upsInbox, upsMeeting] = await Promise.all([
+                checkUnreadMessages(cwd),
+                drainMeetingInjectQueue(cwd)
+            ]);
+            const upsContext = [upsMeeting, upsInbox].filter(Boolean).join('\n\n');
+            if (upsContext) {
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting });
+                hookResponse = buildContextResponse(agent, rawEvent, upsContext);
+            }
+            break;
+        }
 
         default:
             // Unknown event - just log it
@@ -445,8 +519,11 @@ async function main() {
             }
     }
 
-    // Output hook response (may include additionalContext for inbox notifications)
-    console.log(JSON.stringify(hookResponse));
+    // Output hook response (may include additionalContext for inbox notifications).
+    // Force immediate exit — pending fire-and-forget fetches (broadcastStatusUpdate)
+    // can keep the event loop alive past Claude Code's hook deadline.
+    process.stdout.write(JSON.stringify(hookResponse));
+    process.exit(0);
 }
 
 main().catch(err => {

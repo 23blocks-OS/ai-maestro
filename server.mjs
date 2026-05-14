@@ -253,7 +253,8 @@ function parseJsonlLines(lines, limit = 100) {
  */
 async function getChatHistory(sessionName, agentId) {
   const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
-  const agent = agentId ? getAgent(agentId) : getAgentByName(sessionName)
+  // Try agentId first, fall back to sessionName (remote hosts won't have the local agentId)
+  const agent = (agentId && getAgent(agentId)) || getAgentByName(sessionName)
   if (!agent) {
     return { messages: [], hookState: null }
   }
@@ -289,7 +290,8 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
   if (sessionState.jsonlWatcher) return
 
   import('./lib/agent-registry.ts').then(({ getAgent, getAgentByName }) => {
-    const agent = agentId ? getAgent(agentId) : getAgentByName(sessionName)
+    // Try agentId first, fall back to sessionName (remote hosts won't have the local agentId)
+    const agent = (agentId && getAgent(agentId)) || getAgentByName(sessionName)
     if (!agent) return
 
     const file = resolveJsonlPath(agent)
@@ -635,6 +637,7 @@ async function startServer(handleRequest) {
     let retryCount = 0
     let workerWs = null
     let clientClosed = false
+    const messageQueue = [] // Buffer client messages until remote connects
 
     // Build WebSocket URL for remote worker
     const workerWsUrl = `${workerUrl}/term?name=${encodeURIComponent(sessionName)}${extraParams}`
@@ -651,6 +654,33 @@ async function startServer(handleRequest) {
         }
       }
     }
+
+    // Register client message handler IMMEDIATELY so early messages
+    // (e.g. chat:requestHistory sent on connect) are not lost
+    clientWs.on('message', (data) => {
+      if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+        workerWs.send(data)
+      } else {
+        // Remote not connected yet — queue for later
+        messageQueue.push(data)
+      }
+    })
+
+    clientWs.on('close', () => {
+      clientClosed = true
+      console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
+      if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+        workerWs.close()
+      }
+    })
+
+    clientWs.on('error', (error) => {
+      clientClosed = true
+      console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
+      if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+        workerWs.close()
+      }
+    })
 
     // Attempt connection with retry
     function attemptConnection() {
@@ -688,12 +718,13 @@ async function startServer(handleRequest) {
         // Track activity for remote sessions
         sessionActivity.set(sessionName, Date.now())
 
-        // Proxy messages: browser → remote worker
-        clientWs.on('message', (data) => {
+        // Flush queued messages (e.g. chat:requestHistory sent before remote connected)
+        while (messageQueue.length > 0) {
+          const queued = messageQueue.shift()
           if (workerWs.readyState === WebSocket.OPEN) {
-            workerWs.send(data)
+            workerWs.send(queued)
           }
-        })
+        }
 
         // Proxy messages: remote worker → browser
         workerWs.on('message', (data) => {
@@ -723,23 +754,6 @@ async function startServer(handleRequest) {
           console.error(`🌐 [REMOTE] Error from ${sessionName}:`, error.message)
           if (clientWs.readyState === 1) {
             clientWs.close(1011, 'Remote worker error')
-          }
-        })
-
-        // Handle client disconnection
-        clientWs.on('close', () => {
-          clientClosed = true
-          console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
-          if (workerWs.readyState === WebSocket.OPEN) {
-            workerWs.close()
-          }
-        })
-
-        clientWs.on('error', (error) => {
-          clientClosed = true
-          console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
-          if (workerWs.readyState === WebSocket.OPEN) {
-            workerWs.close()
           }
         })
       })

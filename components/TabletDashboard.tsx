@@ -260,6 +260,7 @@ export default function TabletDashboard({
                     <MobileChatView
                       agentId={agent.id}
                       agentName={getAgentDisplayName(agent)}
+                      sessionName={agent.name || agent.alias}
                     />
                   </div>
                 )}

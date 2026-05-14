@@ -3,6 +3,30 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.0] - 2026-05-14
+
+### Added
+- **WebSocket-driven chat** — Replaced 5-second file-polling chat with real-time WebSocket architecture. Chat now shows agent activity (tool use, permissions, thinking) instantly instead of lagging behind the terminal. New `chat:*` protocol multiplexed on the existing `/term` WebSocket via lightweight chat-only connections (`/term?name=X&chatOnly=1`). Server-side JSONL file watcher with incremental reads eliminates client polling. Permission prompts appear within 500ms (was 5s+).
+- **Mobile and tablet WebSocket chat** — MobileChatView and TabletDashboard now use the same WebSocket chat architecture. Includes visibility API reconnection on tab switch, pending message bubbles with optimistic UI, hookState options display, and queue-operation message rendering.
+- **Cloud deployment (AWS)** — Full AWS cloud deployment support for running agents on EC2 and ECS. EC2 native install with automated user_data bootstrap, ECS auto-build with Dockerfile and Terraform configs, Agent Creation Wizard with cloud deployment options, container image with agent-server.js for remote agent management.
+- **Meeting inject queue** — Hybrid dispatch with bracketed paste support for reliable message injection during team meetings.
+- **Meeting task CLI** — New `scripts/meeting-task.sh` for managing meeting tasks from the command line.
+- **Container utilities** — `lib/container-utils.ts` with comprehensive test suite for Docker and cloud container management.
+- **AMP canonical JSON** — `lib/amp-canonical-json.ts` for deterministic JSON serialization in message signing.
+- **Cloud API routes** — `agents/cloud/create`, `agents/cloud/[id]/status`, `agents/cloud/[id]/destroy` for cloud agent lifecycle.
+- **MarkdownRenderer component** — Dedicated `components/chat/MarkdownRenderer.tsx` for chat message rendering.
+
+### Fixed
+- **sendKeys split** — Literal sendKeys + Enter now split into separate calls with 100ms delay, preventing race conditions in tmux input handling.
+- **Meeting stability** — Discovery reorder, hook reliability improvements, and meeting chat panel fixes.
+- **Hosts logging** — Improved logging for host discovery and connection issues.
+- **Avatar strip rendering** — Fixed avatar display in compact views.
+- **Hibernate heartbeat** — Fixed heartbeat handling for hibernated agents.
+- **Hostname resilience** — Cloud environments with dynamic hostnames now handled gracefully.
+
+### Tests
+- 755 tests passing (up from 281). New test suites: container-utils (209 tests), agents-docker-service (1589 tests), meeting-inject-queue (179 tests), meeting-inject-utils (54 tests), amp-canonical-json (103 tests).
+
 ## [0.29.9] - 2026-04-23
 
 ### Fixed

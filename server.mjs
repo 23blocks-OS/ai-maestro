@@ -629,7 +629,7 @@ async function startServer(handleRequest) {
 
   // Handle remote worker connections (proxy WebSocket to remote host)
   // With retry logic for flaky networks
-  function handleRemoteWorker(clientWs, sessionName, workerUrl) {
+  function handleRemoteWorker(clientWs, sessionName, workerUrl, extraParams = '') {
     const MAX_RETRIES = 5
     const RETRY_DELAYS = [500, 1000, 2000, 3000, 5000] // Exponential backoff
     let retryCount = 0
@@ -637,7 +637,7 @@ async function startServer(handleRequest) {
     let clientClosed = false
 
     // Build WebSocket URL for remote worker
-    const workerWsUrl = `${workerUrl}/term?name=${encodeURIComponent(sessionName)}`
+    const workerWsUrl = `${workerUrl}/term?name=${encodeURIComponent(sessionName)}${extraParams}`
       .replace(/^http:/, 'ws:')
       .replace(/^https:/, 'wss:')
 
@@ -1116,6 +1116,27 @@ async function startServer(handleRequest) {
     // Lightweight connection that only participates in chat:* protocol.
     // Skips PTY attach, history capture, and raw terminal broadcast.
     if (query.chatOnly === '1') {
+      // Remote host: proxy the chatOnly WebSocket to the remote server
+      if (query.host && typeof query.host === 'string') {
+        try {
+          const host = getHostById(query.host)
+          if (!host) {
+            ws.close(1008, `Host not found: ${query.host}`)
+            return
+          }
+          if (!isSelf(host.id)) {
+            console.log(`[Chat] Proxying chat-only WS for ${sessionName} to remote host ${host.id}`)
+            handleRemoteWorker(ws, sessionName, host.url, '&chatOnly=1')
+            return
+          }
+          // isSelf — fall through to local chatOnly handling
+        } catch (err) {
+          console.error(`[Chat] Error routing chatOnly to remote host:`, err)
+          ws.close(1011, 'Remote host routing error')
+          return
+        }
+      }
+
       console.log(`[Chat] Chat-only client connected for ${sessionName}`)
 
       // Get or create minimal session state for chatClients

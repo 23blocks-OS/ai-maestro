@@ -265,6 +265,7 @@ export default function TabletDashboard({
                       agentId={agent.id}
                       agentName={getAgentDisplayName(agent)}
                       sessionName={agent.name || agent.alias}
+                      hostId={agent.hostId}
                     />
                   </div>
                 )}

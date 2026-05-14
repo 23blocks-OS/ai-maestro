@@ -7,6 +7,7 @@ interface MobileChatViewProps {
   agentId: string
   agentName: string
   sessionName?: string  // tmux session name for WebSocket (falls back to agentName)
+  hostId?: string       // Host ID for remote agent routing (e.g., 'mac-mini')
 }
 
 interface ChatMessage {
@@ -224,7 +225,7 @@ function ThinkingBlock({ text }: { text: string }) {
   )
 }
 
-export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp }: MobileChatViewProps) {
+export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId }: MobileChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [hookState, setHookState] = useState<{
     status?: string;
@@ -265,8 +266,12 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const getChatWsUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    return `${protocol}//${host}/term?name=${encodeURIComponent(wsSessionName)}&chatOnly=1`
-  }, [wsSessionName])
+    let url = `${protocol}//${host}/term?name=${encodeURIComponent(wsSessionName)}&chatOnly=1`
+    if (hostId && hostId !== 'local') {
+      url += `&host=${encodeURIComponent(hostId)}`
+    }
+    return url
+  }, [wsSessionName, hostId])
 
   const sendChatWs = useCallback((type: string, payload?: Record<string, any>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

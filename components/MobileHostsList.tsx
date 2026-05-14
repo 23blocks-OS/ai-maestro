@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
+import InfraIcon from './InfraIcon'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 
@@ -405,10 +406,11 @@ export default function MobileHostsList({
                                 isActive ? 'text-blue-400' : 'text-gray-400'
                               }`} />
                               <div className="flex-1 min-w-0 text-left">
-                                <p className={`text-sm font-medium truncate ${
+                                <p className={`text-sm font-medium truncate flex items-center gap-1 ${
                                   isActive ? 'text-blue-400' : 'text-white'
                                 }`}>
                                   {displayName}
+                                  <InfraIcon agent={agent} size={12} />
                                 </p>
                                 {breadcrumb && (
                                   <p className="text-xs text-gray-500 truncate">{breadcrumb}</p>

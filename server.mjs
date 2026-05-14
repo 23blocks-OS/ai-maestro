@@ -1147,6 +1147,13 @@ async function startServer(handleRequest) {
       ws.on('message', async (data) => {
         try {
           const parsed = JSON.parse(data.toString())
+
+          // Heartbeat ping/pong for chatOnly connections
+          if (parsed.type === 'ping') {
+            if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong' }))
+            return
+          }
+
           if (parsed.type === 'chat:requestHistory') {
             try {
               const history = await getChatHistory(sessionName, parsed.agentId)
@@ -1488,6 +1495,12 @@ async function startServer(handleRequest) {
         // Check if it's a JSON message (for resize events, logging control, etc.)
         try {
           const parsed = JSON.parse(message)
+
+          // Heartbeat ping/pong — respond immediately to keep mobile connections alive
+          if (parsed.type === 'ping') {
+            if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong' }))
+            return
+          }
 
           if (parsed.type === 'resize' && parsed.cols && parsed.rows) {
             sessionState.ptyProcess.resize(parsed.cols, parsed.rows)

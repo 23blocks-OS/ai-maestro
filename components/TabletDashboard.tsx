@@ -7,6 +7,7 @@ import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileConversationDetail from './MobileConversationDetail'
 import { Terminal, Mail, RefreshCw, Activity, Phone, MessageSquare, Plus, Settings, Monitor } from 'lucide-react'
+import InfraIcon from './InfraIcon'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
@@ -183,7 +184,10 @@ export default function TabletDashboard({
 
                 {/* Name + status */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{name}</p>
+                  <p className="text-sm font-medium truncate flex items-center gap-1">
+                    {name}
+                    <InfraIcon agent={agent} size={12} />
+                  </p>
                   <p className="text-xs text-gray-500 truncate">
                     {agent.session?.status === 'online' ? 'Online' : 'Offline'}
                   </p>

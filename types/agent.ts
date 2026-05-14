@@ -295,6 +295,7 @@ export interface AgentDeployment {
     healthCheckUrl?: string           // Health check endpoint (e.g., http://localhost:46000/health)
     containerName?: string            // Docker container name
     status?: 'provisioning' | 'running' | 'stopped' | 'error'
+    runtime?: string                  // Runtime variant (e.g., 'ec2-native', 'ecs-fargate')
   }
 
   // Sandbox configuration (currently consumed by cloud/container deployments)

@@ -46,6 +46,7 @@ import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
 import { SubconsciousStatus } from './SubconsciousStatus'
 import AgentBadge from './AgentBadge'
+import InfraIcon from './InfraIcon'
 import SidebarViewSwitcher, { type SidebarView } from './sidebar/SidebarViewSwitcher'
 import TeamListView from './sidebar/TeamListView'
 import MeetingListView from './sidebar/MeetingListView'
@@ -1309,6 +1310,8 @@ export default function AgentList({
                                                 >
                                                   {agent.label || agent.name || agent.alias}
                                                 </span>
+
+                                                <InfraIcon agent={agent} size={12} />
 
                                                 {/* Cached indicator */}
                                                 {agent._cached && (

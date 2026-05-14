@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    const { sessionName, status, hookStatus, notificationType, agentId } = await request.json()
+    const { sessionName, status, hookStatus, notificationType, agentId, hookState } = await request.json()
 
-    const result = broadcastActivityUpdate(sessionName, status, hookStatus, notificationType, agentId)
+    const result = broadcastActivityUpdate(sessionName, status, hookStatus, notificationType, agentId, hookState)
     return toResponse(result)
   } catch (error) {
     console.error('[Activity Update API] Error:', error)

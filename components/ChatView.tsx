@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
+import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, Zap, Shield } from 'lucide-react'
+import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import type { Agent } from '@/types/agent'
+
+type ChatMode = 'power' | 'assisted'
 
 interface ChatViewProps {
   agent: Agent
-  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
+  isActive?: boolean  // Only connect WebSocket when active (prevents resource waste with many agents)
 }
 
 interface Message {
@@ -65,94 +68,152 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     notificationType?: string;
     updatedAt?: string;
   } | null>(null)
-  const [terminalPrompt, setTerminalPrompt] = useState<string | null>(null)
-  const [promptType, setPromptType] = useState<'permission' | 'input' | null>(null)
+  const [chatMode, setChatMode] = useState<ChatMode>(() => {
+    if (typeof window === 'undefined') return 'assisted'
+    return (localStorage.getItem('aimaestro-chat-mode') as ChatMode) || 'assisted'
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
 
   // Track if we've done initial load
   const hasLoadedRef = useRef(false)
   // Track previous message count for scroll behavior
   const prevMessageCountRef = useRef(0)
-  // Track previous hookState for change detection
-  const prevHookStateRef = useRef<string | null>(null)
 
-  // Fetch messages from the JSONL-based API
-  const fetchMessages = useCallback(async (showLoading = false) => {
-    if (!agent?.id) return
+  // Persist chat mode
+  const toggleChatMode = () => {
+    const next = chatMode === 'power' ? 'assisted' : 'power'
+    setChatMode(next)
+    localStorage.setItem('aimaestro-chat-mode', next)
+  }
 
-    // Only show loading on very first load, not on tab switches
-    if (showLoading && !hasLoadedRef.current) setIsLoading(true)
-    setError(null)
+  // ── WebSocket connection for chat ─────────────────────────────────
+  const getChatWsUrl = useCallback(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    const sessionName = agent.name || agent.alias || agent.id
+    return `${protocol}//${host}/term?name=${encodeURIComponent(sessionName)}&chatOnly=1`
+  }, [agent.name, agent.alias, agent.id])
 
-    try {
-      const hostUrl = agent.hostUrl || ''
-      const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat?limit=25`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || 'Failed to fetch messages')
-      }
-
-      if (data.success) {
-        // Only update if messages actually changed (compare length and last timestamp)
-        const newMessages = data.messages || []
-        const hasChanges = newMessages.length !== messages.length ||
-          (newMessages.length > 0 && messages.length > 0 &&
-           newMessages[newMessages.length - 1]?.timestamp !== messages[messages.length - 1]?.timestamp)
-
-        if (hasChanges || !hasLoadedRef.current) {
-          setMessages(newMessages)
-          // Clear pending messages when we get new activity
-          if (hasChanges && pendingMessages.length > 0) {
-            setPendingMessages([])
-          }
-        }
-        setLastModified(data.lastModified)
-
-        // Clear pending messages if hookState changed (message was processed)
-        const newHookState = data.hookState || null
-        const newHookStateKey = newHookState ? `${newHookState.status}-${newHookState.updatedAt}` : null
-        if (prevHookStateRef.current !== newHookStateKey) {
-          prevHookStateRef.current = newHookStateKey
-          setPendingMessages([])
-        }
-        setHookState(newHookState)
-
-        setTerminalPrompt(data.terminalPrompt || null)
-        setPromptType(data.promptType || null)
-        hasLoadedRef.current = true
-      }
-    } catch (err) {
-      console.error('[ChatView] Error fetching messages:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load messages')
-    } finally {
-      setIsLoading(false)
+  const sendChatMessage = useCallback((type: string, payload?: Record<string, any>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type, ...payload }))
+      return true
     }
-  }, [agent?.id, agent?.hostUrl, messages.length, messages, pendingMessages.length])
+    return false
+  }, [])
 
-  // Only fetch when this agent is active (prevents API flood with 40+ agents)
+  // Request history (used for initial load + manual refresh)
+  const requestHistory = useCallback(() => {
+    setIsLoading(true)
+    sendChatMessage('chat:requestHistory', { agentId: agent.id })
+  }, [sendChatMessage, agent.id])
+
+  // Connect/disconnect WebSocket based on isActive
   useEffect(() => {
-    if (!agent?.id || !isActive) return
+    if (!isActive || !agent?.id) return
 
-    // Initial fetch with loading indicator
-    if (!hasLoadedRef.current) {
-      fetchMessages(true)
+    const sessionName = agent.name || agent.alias || agent.id
+
+    const connect = () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) return
+
+      const ws = new WebSocket(getChatWsUrl())
+
+      ws.onopen = () => {
+        console.log(`[ChatView] Connected to chat WS for ${sessionName}`)
+        // Request history on connect
+        ws.send(JSON.stringify({ type: 'chat:requestHistory', agentId: agent.id }))
+        setIsLoading(true)
+        setError(null)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+
+          switch (data.type) {
+            case 'chat:history': {
+              const history = data.data || {}
+              setMessages(history.messages || [])
+              setHookState(history.hookState || null)
+              setLastModified(history.lastModified || null)
+              hasLoadedRef.current = true
+              setIsLoading(false)
+              break
+            }
+
+            case 'chat:messages': {
+              // Incremental new messages from JSONL watcher
+              const newMsgs = data.data || []
+              if (newMsgs.length > 0) {
+                setMessages(prev => {
+                  // Deduplicate by uuid/timestamp
+                  const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
+                  const uniqueNew = newMsgs.filter((m: Message) =>
+                    !m.uuid || !existingUuids.has(m.uuid)
+                  )
+                  if (uniqueNew.length === 0) return prev
+                  return [...prev, ...uniqueNew].slice(-100) // Keep last 100
+                })
+                // Clear pending messages when new activity arrives
+                setPendingMessages([])
+              }
+              break
+            }
+
+            case 'chat:hookState': {
+              // Real-time hook state update (permission requests, status changes)
+              const newState = data.data || null
+              setHookState(newState)
+              // Clear pending when hookState changes (message was processed)
+              setPendingMessages([])
+              break
+            }
+
+            case 'chat:sent': {
+              // Confirmation that message was delivered to PTY
+              // Clear the pending message after a short delay
+              setTimeout(() => {
+                setPendingMessages(prev => prev.length > 0 ? prev.slice(1) : prev)
+              }, 2000)
+              break
+            }
+
+            case 'chat:error': {
+              setError(data.error || 'Unknown error')
+              setIsLoading(false)
+              break
+            }
+          }
+        } catch {
+          // Not JSON — ignore (shouldn't happen on chatOnly connection)
+        }
+      }
+
+      ws.onclose = () => {
+        console.log(`[ChatView] Chat WS disconnected for ${sessionName}`)
+        wsRef.current = null
+      }
+
+      ws.onerror = () => {
+        setError('Chat connection error')
+        wsRef.current = null
+      }
+
+      wsRef.current = ws
     }
 
-    // Poll every 2 seconds for new messages
-    pollIntervalRef.current = setInterval(() => {
-      fetchMessages(false)
-    }, 2000)
+    connect()
 
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
       }
     }
-  }, [agent?.id, isActive]) // Re-run when agent changes or becomes active
+  }, [agent?.id, agent?.name, agent?.alias, isActive, getChatWsUrl])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -171,50 +232,49 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
   }, [messages])
 
-  // Send message via API
-  const handleSend = async () => {
+  // Send quick response (assisted mode — for permission buttons)
+  const sendQuickResponse = (text: string) => {
+    setIsSending(true)
+
+    // Show pending bubble so user sees their click did something
+    const pendingMsg = { text, timestamp: new Date().toISOString() }
+    setPendingMessages(prev => [...prev, pendingMsg])
+
+    const sent = sendChatMessage('chat:send', { message: text })
+    if (!sent) {
+      setError('Not connected — try refreshing')
+      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
+    }
+
+    setIsSending(false)
+  }
+
+  // Send message via WebSocket
+  const handleSend = () => {
     if (!input.trim() || isSending) return
 
     const messageToSend = input.trim()
     setInput('')
     setIsSending(true)
 
+    // Reset textarea height
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+    }
+
     // Add to pending messages immediately for instant feedback
     const pendingMsg = { text: messageToSend, timestamp: new Date().toISOString() }
     setPendingMessages(prev => [...prev, pendingMsg])
 
-    try {
-      const hostUrl = agent.hostUrl || ''
-      const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || 'Failed to send message')
-      }
-
-      // Clear pending message after a delay (it was sent successfully)
-      // The hookState should change, indicating the message was processed
-      setTimeout(() => {
-        setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
-      }, 3000)
-
-      // Fetch updated messages after a short delay
-      setTimeout(() => fetchMessages(false), 500)
-    } catch (err) {
-      console.error('[ChatView] Error sending message:', err)
-      setError(err instanceof Error ? err.message : 'Failed to send message')
-      // Remove from pending and restore input on error
+    const sent = sendChatMessage('chat:send', { message: messageToSend })
+    if (!sent) {
+      setError('Not connected — try refreshing')
       setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
       setInput(messageToSend)
-    } finally {
-      setIsSending(false)
-      inputRef.current?.focus()
     }
+
+    setIsSending(false)
+    inputRef.current?.focus()
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -222,6 +282,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  // Auto-growing textarea
+  const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value)
+    const el = e.target
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
   }
 
   const toggleTool = (toolId: string) => {
@@ -282,26 +350,66 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
   const isOnline = agent.sessions?.some(s => s.status === 'online')
 
+  // Activity state derived from hookState + messages + pending
+  const activityState = useMemo(() => {
+    if (hookState?.status === 'permission_request') return 'permission' as const
+    if (hookState?.status === 'waiting_for_input') return 'waiting' as const
+    if (pendingMessages.length > 0 || isSending) return 'thinking' as const
+    if (messages.length > 0) {
+      const last = messages[messages.length - 1]
+      if (last.type === 'user' || last.type === 'queue-operation') return 'thinking' as const
+    }
+    return 'idle' as const
+  }, [hookState, pendingMessages.length, isSending, messages])
+
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
-      {/* Header */}
+      {/* Header with activity indicator */}
       <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
-        <div>
-          <h3 className="text-sm font-medium text-gray-200">Chat</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {isOnline ? '🟢 Online' : '🔴 Offline'} •
-            {messages.length} messages
-            {lastModified && ` • Updated ${formatTimestamp(lastModified)}`}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+            !isOnline ? 'bg-red-500'
+            : activityState === 'thinking' ? 'bg-amber-400 animate-pulse'
+            : activityState === 'permission' ? 'bg-red-400 animate-pulse'
+            : activityState === 'waiting' ? 'bg-green-400'
+            : 'bg-gray-500'
+          }`} />
+          <div>
+            <h3 className="text-sm font-medium text-gray-200">
+              {!isOnline ? 'Offline'
+              : activityState === 'thinking' ? 'Agent is working...'
+              : activityState === 'permission' ? 'Permission needed'
+              : activityState === 'waiting' ? 'Ready for input'
+              : agent.label || agent.name || agent.alias || 'Chat'}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {messages.length} messages
+              {lastModified && ` \u00b7 ${formatTimestamp(lastModified)}`}
+            </p>
+          </div>
         </div>
-        <button
-          onClick={() => fetchMessages(true)}
-          disabled={isLoading}
-          className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-          title="Refresh messages"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Chat mode toggle */}
+          <button
+            onClick={toggleChatMode}
+            className={`p-2 rounded-lg transition-colors ${
+              chatMode === 'power'
+                ? 'text-amber-400 hover:bg-gray-700'
+                : 'text-blue-400 hover:bg-gray-700'
+            }`}
+            title={chatMode === 'power' ? 'Power mode — switch to Assisted' : 'Assisted mode — switch to Power'}
+          >
+            {chatMode === 'power' ? <Zap className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={requestHistory}
+            disabled={isLoading}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+            title="Refresh messages"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -321,9 +429,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
         {!isLoading && messages.length === 0 && !error && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <Bot className="w-12 h-12 mb-3 opacity-50" />
-            <p className="text-sm">No messages yet</p>
-            <p className="text-xs mt-1">Send a message to start the conversation</p>
+            <MessageSquare className="w-16 h-16 mb-4 opacity-30" />
+            <p className="text-base text-gray-400">Talk to {agent.label || agent.name || agent.alias || 'this agent'}</p>
+            <p className="text-xs mt-1">Send instructions, approve permissions, or ask questions</p>
           </div>
         )}
 
@@ -338,10 +446,20 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           if (!content && tools.length === 0) return null
           if (message.type === 'queue-operation' && message.operation !== 'enqueue') return null
 
+          // Message grouping: check if previous message is same role within 60s
+          const prevMsg = index > 0 ? messages[index - 1] : null
+          const isSameRole = prevMsg && (
+            (isUser && prevMsg.type === 'user') ||
+            (isQueued && prevMsg.type === 'queue-operation' && prevMsg.operation === 'enqueue') ||
+            (!isUser && !isQueued && !isThinking && prevMsg.type === 'assistant')
+          )
+          const isGrouped = isSameRole && message.timestamp && prevMsg?.timestamp &&
+            Math.abs(new Date(message.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()) < 60000
+
           return (
             <div
               key={message.uuid || index}
-              className={`flex ${(isUser || isQueued) ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${(isUser || isQueued) ? 'justify-end' : 'justify-start'} ${isGrouped ? '!mt-1' : ''}`}
             >
               <div className={`max-w-[85%] ${(isUser || isQueued) ? 'order-1' : ''}`}>
                 {/* Message bubble */}
@@ -356,32 +474,38 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       : 'bg-gray-800 text-gray-200'
                   }`}
                 >
-                  {/* Header with icon */}
-                  <div className="flex items-center gap-2 mb-1">
-                    {isQueued ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : isUser ? (
-                      <User className="w-3.5 h-3.5" />
-                    ) : isThinking ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Bot className="w-3.5 h-3.5" />
-                    )}
-                    <span className="text-xs opacity-70">
-                      {isQueued ? 'Queued' : isUser ? 'You' : isThinking ? 'Thinking...' : 'Claude'}
-                    </span>
-                    {message.timestamp && (
-                      <span className="text-xs opacity-50 ml-auto">
-                        {formatTimestamp(message.timestamp)}
+                  {/* Header with icon — hide if grouped */}
+                  {!isGrouped && (
+                    <div className="flex items-center gap-2 mb-1">
+                      {isQueued ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : isUser ? (
+                        <User className="w-3.5 h-3.5" />
+                      ) : isThinking ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Bot className="w-3.5 h-3.5" />
+                      )}
+                      <span className="text-xs opacity-70">
+                        {isQueued ? 'Queued' : isUser ? 'You' : isThinking ? 'Thinking...' : 'Claude'}
                       </span>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  {content && (
-                    <div className={`text-sm whitespace-pre-wrap break-words ${isThinking ? 'italic' : ''}`}>
-                      {content}
+                      {message.timestamp && (
+                        <span className="text-xs opacity-50 ml-auto">
+                          {formatTimestamp(message.timestamp)}
+                        </span>
+                      )}
                     </div>
+                  )}
+
+                  {/* Content — use markdown for assistant, plain for user/thinking */}
+                  {content && (
+                    (isUser || isQueued || isThinking) ? (
+                      <div className={`text-sm whitespace-pre-wrap break-words ${isThinking ? 'italic' : ''}`}>
+                        {content}
+                      </div>
+                    ) : (
+                      <MarkdownContent text={content} />
+                    )
                   )}
 
                   {/* Tools */}
@@ -448,86 +572,78 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           )
         })}
 
-        {/* Hook state - permission request or waiting for input */}
-        {hookState && (hookState.status === 'permission_request' || hookState.status === 'waiting_for_input') && (() => {
-          // Check if this is a permission prompt (either by status or notificationType)
-          const isPermission = hookState.status === 'permission_request' ||
-                               hookState.notificationType === 'permission_prompt'
-          return (
+        {/* ============================================================
+            AGENT SIGNAL — hookState is the primary source of truth.
+
+            Signals drive the UI (and eventually an avatar):
+            - permission_request → show what tool, what it wants, action buttons
+            - waiting_for_input  → (no bubble, just header dot)
+            - active/idle        → (no bubble, just header dot)
+           ============================================================ */}
+
+        {/* PERMISSION REQUEST — always from hookState */}
+        {hookState?.status === 'permission_request' && (
           <div className="flex justify-start">
             <div className="max-w-[85%]">
-              <div className={`rounded-2xl px-4 py-3 ${
-                isPermission
-                  ? 'bg-amber-900/40 border border-amber-600/50 text-amber-200'
-                  : 'bg-green-900/40 border border-green-600/50 text-green-200'
-              }`}>
+              <div className="rounded-2xl px-4 py-3 bg-amber-900/40 border border-amber-600/50 text-amber-200">
+                {/* Header: what tool is asking */}
                 <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-2 h-2 rounded-full animate-pulse ${
-                    isPermission ? 'bg-amber-400' : 'bg-green-400'
-                  }`} />
-                  <span className={`text-xs font-medium ${
-                    isPermission ? 'text-amber-400' : 'text-green-400'
-                  }`}>
-                    {isPermission ? 'Permission Required' : 'Waiting for your input'}
+                  <div className="w-2 h-2 rounded-full animate-pulse bg-amber-400" />
+                  <span className="text-xs font-medium text-amber-400">
+                    {hookState.description || hookState.message || `Allow ${hookState.toolName || 'action'}?`}
                   </span>
-                  {isPermission && hookState.toolName && (
-                    <span className="text-xs bg-amber-700/50 px-2 py-0.5 rounded">
-                      {hookState.toolName}
-                    </span>
-                  )}
                 </div>
 
-                {/* Show "Do you want to proceed?" like terminal */}
-                {isPermission && (
-                  <div className="text-sm font-medium mb-2">Do you want to proceed?</div>
-                )}
-
-                {/* Show command preview for Bash permissions */}
-                {isPermission && hookState.toolName === 'Bash' && hookState.toolInput?.command && (
-                  <div className="mb-3 text-xs bg-gray-950/50 p-2 rounded font-mono overflow-x-auto max-h-24 overflow-y-auto">
+                {/* Command preview for Bash */}
+                {hookState.toolName === 'Bash' && hookState.toolInput?.command && (
+                  <div className="text-xs bg-gray-950/50 p-2 rounded font-mono overflow-x-auto max-h-32 overflow-y-auto mb-3">
                     {hookState.toolInput.command}
                   </div>
                 )}
 
-                {/* Show file path for Read/Edit/Write/Grep permissions */}
-                {isPermission && (hookState.toolName === 'Read' || hookState.toolName === 'Edit' || hookState.toolName === 'Write' || hookState.toolName === 'Grep') && (hookState.toolInput?.file_path || hookState.toolInput?.path) && (
-                  <div className="mb-3 text-xs opacity-80 font-mono bg-gray-950/30 px-2 py-1 rounded">
+                {/* File path for file operations */}
+                {hookState.toolName !== 'Bash' && (hookState.toolInput?.file_path || hookState.toolInput?.path) && (
+                  <div className="text-xs opacity-80 font-mono bg-gray-950/30 px-2 py-1 rounded mb-3">
                     {hookState.toolInput.file_path || hookState.toolInput.path}
                   </div>
                 )}
 
-                {/* Show options like terminal */}
-                {isPermission && hookState.options && hookState.options.length > 0 && (
-                  <div className="space-y-1.5 text-sm">
+                {/* Action buttons (assisted mode) */}
+                {chatMode === 'assisted' && hookState.options && hookState.options.length > 0 ? (
+                  <div className="space-y-1.5">
                     {hookState.options.map((option, idx) => (
-                      <div key={idx} className="flex items-start gap-2">
-                        <span className="text-amber-400 font-medium w-4">{option.key}.</span>
-                        <span className="opacity-90">{option.label}</span>
-                      </div>
+                      <button
+                        key={idx}
+                        onClick={() => sendQuickResponse(option.key)}
+                        disabled={isSending}
+                        className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg
+                          bg-amber-800/30 hover:bg-amber-700/40 border border-amber-600/30
+                          hover:border-amber-500/50 transition-all disabled:opacity-50"
+                      >
+                        <span className="text-amber-400 font-bold w-5 text-center">{option.key}</span>
+                        <span className="text-amber-200 text-sm flex-1">{option.label}</span>
+                      </button>
                     ))}
                   </div>
-                )}
-
-                {/* Fallback if no options */}
-                {isPermission && (!hookState.options || hookState.options.length === 0) && (
-                  <div className="mt-2 text-xs opacity-60">
-                    Reply with &quot;y&quot; to approve or &quot;n&quot; to deny
+                ) : chatMode === 'assisted' ? (
+                  /* Yes/No fallback */
+                  <div className="flex gap-2">
+                    <button onClick={() => sendQuickResponse('y')} disabled={isSending}
+                      className="px-4 py-1.5 text-xs font-medium rounded-md bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
+                      Yes
+                    </button>
+                    <button onClick={() => sendQuickResponse('n')} disabled={isSending}
+                      className="px-4 py-1.5 text-xs font-medium rounded-md bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50">
+                      No
+                    </button>
                   </div>
-                )}
-
-                {/* Non-permission waiting state */}
-                {!isPermission && (
-                  <div className="text-sm whitespace-pre-wrap break-words">
-                    {hookState.message || 'Waiting for your response...'}
-                  </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
-          )
-        })()}
+        )}
 
-        {/* Pending messages (sent via Chat but not yet in JSONL) - shown after the prompt */}
+        {/* Pending messages (sent via Chat but not yet in JSONL) */}
         {pendingMessages.map((pending, idx) => (
           <div key={`pending-${idx}`} className="flex justify-end">
             <div className="max-w-[85%]">
@@ -545,33 +661,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           </div>
         ))}
 
-        {/* Terminal prompt fallback - only show if no hook state */}
-        {!hookState && terminalPrompt && (
-          <div className="flex justify-start">
-            <div className="max-w-[85%]">
-              <div className={`rounded-2xl px-4 py-3 ${
-                promptType === 'permission'
-                  ? 'bg-amber-900/40 border border-amber-600/50 text-amber-200'
-                  : 'bg-green-900/40 border border-green-600/50 text-green-200'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-2 h-2 rounded-full animate-pulse ${
-                    promptType === 'permission' ? 'bg-amber-400' : 'bg-green-400'
-                  }`} />
-                  <span className={`text-xs font-medium ${
-                    promptType === 'permission' ? 'text-amber-400' : 'text-green-400'
-                  }`}>
-                    {promptType === 'permission' ? 'Permission Required' : 'Ready for input'}
-                  </span>
-                </div>
-                <div className="text-sm whitespace-pre-wrap break-words font-mono">
-                  {terminalPrompt}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div ref={messagesEndRef} />
       </div>
 
@@ -579,7 +668,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       <div className="border-t border-gray-700 bg-gray-800 p-4 flex-shrink-0">
         {!isOnline && (
           <div className="mb-3 px-3 py-2 bg-yellow-900/20 border border-yellow-800 rounded-lg text-xs text-yellow-400">
-            ⚠️ Agent is offline. Wake the session to send messages.
+            Agent is offline. Wake the session to send messages.
           </div>
         )}
 
@@ -587,11 +676,12 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={isOnline ? "Type your message... (Enter to send)" : "Agent is offline"}
+            placeholder={isOnline ? `Message ${agent.label || agent.name || agent.alias || 'agent'}... (Enter to send)` : "Agent is offline"}
             className="flex-1 bg-gray-900 text-gray-200 text-sm rounded-lg px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700 disabled:opacity-50"
-            rows={2}
+            rows={1}
+            style={{ maxHeight: '160px' }}
             disabled={!isOnline || isSending}
           />
           <button
@@ -608,7 +698,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         </div>
 
         <div className="mt-2 text-xs text-gray-500">
-          Enter = Send • Shift+Enter = New Line
+          Enter = Send &bull; Shift+Enter = New Line
         </div>
       </div>
     </div>

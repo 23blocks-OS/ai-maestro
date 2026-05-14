@@ -59,6 +59,8 @@
         "Mobile remote access via Tailscale VPN",
         "Peer mesh network across multiple machines",
         "Docker containerized agents (local and cloud)",
+        "AWS EC2 cloud agents with native install, Nginx + SSL",
+        "AWS ECS Fargate serverless agents with auto-built Docker images",
         "Portable agents (export, import, clone, transfer)",
         "Webhook subscriptions for external integrations",
         "Team Meetings with multi-agent war room sessions",
@@ -286,7 +288,15 @@ cd ai-maestro && yarn install && yarn dev
             <p>Local + cloud containers. Scale heavy workloads to cloud.</p>
             <p><strong>Use case:</strong> Cost-optimized architecture for startups.</p>
 
-            <h3>5. Advanced Setup (30 min setup)</h3>
+            <h3>5. Cloud AWS - EC2 (15 min setup)</h3>
+            <p>Deploy agents on dedicated AWS EC2 Graviton (ARM64) instances. Native install: Node.js, tmux, AI CLIs directly on the VM. Nginx + Let's Encrypt SSL. Terraform-managed.</p>
+            <p><strong>Use case:</strong> Always-on agents, persistent workloads, SSH access, dedicated compute.</p>
+
+            <h3>6. Cloud AWS - ECS Fargate (10 min setup)</h3>
+            <p>Serverless agents on AWS ECS Fargate. Auto-builds Docker image from agent-container/Dockerfile, pushes to ECR, runs on Fargate with ALB. Terraform-managed.</p>
+            <p><strong>Use case:</strong> Burst scaling, zero maintenance, pay-per-use, isolated environments.</p>
+
+            <h3>7. Advanced Setup (30 min setup)</h3>
             <p>Everything combined: local + distributed + Docker + cloud.</p>
             <p><strong>Use case:</strong> Enterprise teams with complex infrastructure.</p>
         </section>
@@ -410,6 +420,7 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>Mobile Support:</strong> Yes, touch-optimized + Tailscale VPN</li>
                 <li><strong>Distributed:</strong> Yes, peer mesh network</li>
                 <li><strong>Docker:</strong> Yes, local and hybrid cloud</li>
+                <li><strong>Cloud AWS:</strong> Yes, EC2 (native install) and ECS Fargate (serverless containers)</li>
                 <li><strong>Portable Agents:</strong> Yes, export/import as .zip</li>
                 <li><strong>Open Source:</strong> Yes, MIT license</li>
             </ul>

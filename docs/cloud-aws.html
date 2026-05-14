@@ -14,9 +14,9 @@
     {
       "@context": "https://schema.org",
       "@type": "TechArticle",
-      "name": "Docker Agents (Local): Containerized AI Agents on One Machine | AI Maestro",
-      "description": "Run AI agents in isolated Docker containers on your local machine. Perfect environment isolation, zero dependency conflicts, instant cleanup.",
-      "keywords": "Docker AI agents, containerized AI, local Docker setup, AI environment isolation, Docker development, container orchestration, AI Maestro Docker",
+      "name": "Cloud Agents (AWS): Deploy AI Agents to EC2 and ECS Fargate | AI Maestro",
+      "description": "Deploy AI agents to AWS with one command. EC2 for dedicated instances with native install, ECS Fargate for serverless containers with auto-built images.",
+      "keywords": "AWS AI agents, EC2 AI deployment, ECS Fargate AI, cloud AI agents, serverless AI, AI Maestro cloud, Terraform AI infrastructure",
       "isPartOf": {
         "@type": "SoftwareApplication",
         "name": "AI Maestro",
@@ -24,7 +24,7 @@
       },
       "author": {
         "@type": "Person",
-        "name": "Juan Peláez",
+        "name": "Juan Pelaez",
         "url": "https://x.com/jkpelaez"
       }
     }
@@ -32,31 +32,31 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Docker Agents (Local): Containerized AI Agents on One Machine | AI Maestro</title>
-    <meta name="description" content="Run AI agents in isolated Docker containers on your local machine. Perfect environment isolation, zero dependency conflicts, instant cleanup.">
+    <title>Cloud Agents (AWS): Deploy AI Agents to EC2 and ECS Fargate | AI Maestro</title>
+    <meta name="description" content="Deploy AI agents to AWS with one command. EC2 for dedicated instances, ECS Fargate for serverless containers. Terraform-managed, SSL included.">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://ai-maestro.23blocks.com/docker-local.html">
-    <meta property="og:title" content="Docker Agents (Local) - AI Maestro">
-    <meta property="og:description" content="Containerized AI agents with perfect isolation. Zero dependency conflicts.">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/cloud-aws.html">
+    <meta property="og:title" content="Cloud Agents (AWS) - AI Maestro">
+    <meta property="og:description" content="Deploy AI agents to AWS. EC2 dedicated instances or ECS Fargate serverless containers.">
     <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="AI Maestro - Orchestrate your AI coding agents">
+    <meta property="og:image:alt" content="AI Maestro - Cloud AI Agent Deployment">
     <meta property="og:locale" content="en_US">
     <meta property="og:site_name" content="AI Maestro">
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Docker Agents (Local) - AI Maestro">
-    <meta name="twitter:description" content="Run AI agents in isolated Docker containers locally.">
+    <meta name="twitter:title" content="Cloud Agents (AWS) - AI Maestro">
+    <meta name="twitter:description" content="Deploy AI agents to AWS EC2 or ECS Fargate with one command.">
     <meta property="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
     <meta name="twitter:creator" content="@jkpelaez">
 
     <!-- Additional SEO -->
-    <meta name="keywords" content="Docker AI agents, containerized AI, local Docker setup, AI environment isolation, Docker development, container orchestration, AI Maestro Docker">
-    <link rel="canonical" href="https://ai-maestro.23blocks.com/docker-local.html">
+    <meta name="keywords" content="AWS AI agents, EC2 AI deployment, ECS Fargate AI, cloud AI agents, serverless AI, AI Maestro cloud, Terraform AI infrastructure, Claude Code cloud, Graviton AI">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/cloud-aws.html">
 
     <!-- Favicon & Icons -->
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -100,8 +100,6 @@
         }
     </script>
 
-
-    
     <style>
         html {
             scroll-behavior: smooth;
@@ -129,7 +127,7 @@
 
         /* Gradient text */
         .gradient-text {
-            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            background: linear-gradient(135deg, #f97316 0%, #f59e0b 50%, #fbbf24 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -168,7 +166,7 @@
         /* Horizontal rule accent */
         .hr-accent {
             height: 1px;
-            background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+            background: linear-gradient(90deg, transparent, #f97316, transparent);
         }
 
         /* Typing cursor */
@@ -176,7 +174,7 @@
             display: inline-block;
             width: 3px;
             height: 1em;
-            background-color: #00d4ff;
+            background-color: #f97316;
             margin-left: 4px;
             animation: blink 1s infinite;
             vertical-align: text-bottom;
@@ -194,11 +192,10 @@
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
-    
     <!-- Copy for AI Button -->
     <button
         onclick="copyForAI()"
-        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-orange-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-orange-500/50 transition-all duration-200"
         title="Copy this page for AI assistants">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -207,8 +204,6 @@
         COPY FOR AI
     </button>
 
-
-    
     <!-- Navigation -->
     <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
         <div class="max-w-7xl mx-auto px-4 md:px-8">
@@ -220,21 +215,21 @@
 
                 <!-- Desktop Navigation -->
                 <div class="hidden md:flex gap-8 items-center">
-                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
-                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
-                    <a href="ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
-                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-orange-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-orange-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-orange-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-orange-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-orange-400 transition-colors duration-200" title="View on GitHub">
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
                     </a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-display font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-orange-500 text-white font-display font-bold text-sm tracking-wide hover:bg-orange-400 transition-all duration-200" target="_blank">
                         START FREE
                     </a>
                 </div>
 
                 <!-- Mobile Navigation -->
                 <div class="flex md:hidden items-center gap-3">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-display font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-orange-500 text-white font-display font-bold text-xs tracking-wide" target="_blank">START</a>
                     <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
                         <span></span>
                         <span></span>
@@ -245,11 +240,11 @@
 
             <!-- Mobile Menu -->
             <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
-                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
-                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
-                <a href="ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
-                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-orange-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-orange-400 hover:bg-slate-800/50">Features</a>
+                <a href="ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-orange-400 hover:bg-slate-800/50">Ecosystem</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-orange-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-orange-400 hover:bg-slate-800/50">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
                     GitHub
                 </a>
@@ -278,7 +273,6 @@
         });
     </script>
 
-
     <!-- Hero Section -->
     <section class="relative py-20 overflow-hidden">
         <div class="absolute inset-0 bg-slate-950 pointer-events-none"></div>
@@ -287,15 +281,15 @@
             <div class="text-center max-w-4xl mx-auto">
                 <p class="text-2xl md:text-3xl font-display font-medium text-slate-400 mb-4" id="announcement"><span class="typing-cursor"></span></p>
                 <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-                    <span class="gradient-text">Docker Agents (Local)</span><br/>
-                    <span class="text-white">Perfect Environment Isolation</span>
+                    <span class="gradient-text">Cloud Agents (AWS)</span><br/>
+                    <span class="text-white">Deploy AI Agents to the Cloud</span>
                 </h1>
                 <p class="text-xl text-slate-400 mb-8 leading-relaxed">
-                    Run each AI agent in its own Docker container. Zero dependency conflicts, reproducible environments, and instant cleanup. All on your local machine.
+                    Two paths to cloud AI agents. <strong class="text-white">EC2</strong> for dedicated instances with native install. <strong class="text-white">ECS Fargate</strong> for serverless containers. Both managed by Terraform, deployed with one command.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#docker-setup" target="_blank" class="bg-cyan-500 hover:bg-cyan-400 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
-                        Get Started with Docker
+                    <a href="#two-paths" class="bg-orange-500 hover:bg-orange-400 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
+                        Compare EC2 vs ECS
                     </a>
                     <a href="#how-it-works" class="bg-slate-900 hover:bg-slate-950 text-white border-2 border-slate-700 px-8 py-3 rounded-lg font-semibold transition no-underline">
                         See How It Works
@@ -310,108 +304,127 @@
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="font-display text-xl font-bold text-white text-center mb-6">Works great for:</h2>
             <div class="flex flex-wrap justify-center gap-6">
-                <div class="flex items-center gap-3 px-5 py-3 bg-slate-900 border border-green-500/30 rounded-lg">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-green-500/30 to-green-600/10 border border-green-500/50 flex items-center justify-center">
-                        <span class="text-xl">👤</span>
-                    </div>
-                    <div>
-                        <span class="font-bold text-white text-sm">Developer</span>
-                        <span class="text-green-400 font-mono text-xs ml-2">Me + Agents</span>
-                    </div>
-                </div>
                 <div class="flex items-center gap-3 px-5 py-3 bg-slate-900 border border-amber-500/30 rounded-lg">
                     <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/30 to-orange-600/10 border border-amber-500/50 flex items-center justify-center">
                         <span class="text-xl">🚀</span>
                     </div>
                     <div>
                         <span class="font-bold text-white text-sm">Startup</span>
-                        <span class="text-amber-400 font-mono text-xs ml-2">Us + Agents</span>
+                        <span class="text-amber-400 font-mono text-xs ml-2">Scale to cloud</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 px-5 py-3 bg-slate-900 border border-purple-500/30 rounded-lg">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/30 to-violet-600/10 border border-purple-500/50 flex items-center justify-center">
+                        <span class="text-xl">👥</span>
+                    </div>
+                    <div>
+                        <span class="font-bold text-white text-sm">Team</span>
+                        <span class="text-purple-400 font-mono text-xs ml-2">Distributed agents</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 px-5 py-3 bg-slate-900 border border-cyan-500/30 rounded-lg">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-600/10 border border-cyan-500/50 flex items-center justify-center">
+                        <span class="text-xl">👑</span>
+                    </div>
+                    <div>
+                        <span class="font-bold text-white text-sm">AI-First Org</span>
+                        <span class="text-cyan-400 font-mono text-xs ml-2">Heavy compute</span>
                     </div>
                 </div>
             </div>
-            <p class="text-slate-500 text-sm text-center mt-4">Perfect isolation without complex infrastructure</p>
+            <p class="text-slate-500 text-sm text-center mt-4">Offload AI workloads to dedicated cloud infrastructure</p>
         </div>
     </section>
 
-    <!-- Benefits Section -->
-    <section class="py-20 bg-slate-950">
+    <!-- Two Paths Section -->
+    <section id="two-paths" class="py-20 bg-slate-950">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
-                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 gradient-text">Why Docker Containers?</h2>
-                <p class="text-xl text-slate-400">Perfect isolation for professional development</p>
+                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 gradient-text">Two Paths to Cloud</h2>
+                <p class="text-xl text-slate-400">Choose the right deployment model for your workload</p>
             </div>
 
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:shadow-lg hover:shadow-cyan-500/10 shadow-cyan-500/5 transition">
-                    <div class="w-12 h-12 bg-cyan-500/10 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                        </svg>
+            <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                <!-- EC2 Card -->
+                <div class="bg-slate-900 rounded-2xl p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-14 h-14 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                            <svg class="w-7 h-7 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">EC2</h3>
+                            <p class="text-orange-400 font-mono text-sm">Dedicated Instance</p>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Perfect Isolation</h3>
-                    <p class="text-slate-400">
-                        Each agent gets its own filesystem, environment variables, and dependencies. No interference, no conflicts.
-                    </p>
+
+                    <p class="text-slate-300 mb-6">A full VM running your AI agent natively. Node.js, tmux, and AI CLIs installed directly on ARM64 Graviton hardware. Nginx + SSL included.</p>
+
+                    <div class="space-y-3 mb-6">
+                        <div class="flex items-start gap-3">
+                            <span class="text-orange-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">Native install (no Docker overhead)</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-orange-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">HTTPS with auto-renewing SSL certificates</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-orange-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">ARM64 Graviton (cost-effective)</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-orange-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">SSH access for debugging</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 rounded-lg p-4">
+                        <div class="font-mono text-xs text-slate-500 mb-2">BEST FOR</div>
+                        <p class="text-slate-300 text-sm">Long-running agents, persistent workloads, SSH access needed</p>
+                    </div>
                 </div>
 
-                <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:shadow-lg hover:shadow-cyan-500/10 shadow-cyan-500/5 transition">
-                    <div class="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                        </svg>
+                <!-- ECS Card -->
+                <div class="bg-slate-900 rounded-2xl p-8 border border-amber-500/30 hover:border-amber-500/50 transition-all">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-14 h-14 bg-amber-500/10 rounded-lg flex items-center justify-center">
+                            <svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">ECS Fargate</h3>
+                            <p class="text-amber-400 font-mono text-sm">Serverless Container</p>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Zero Dependency Conflicts</h3>
-                    <p class="text-slate-400">
-                        Run Node 18 in one container, Node 20 in another. Different Python versions, different tools—all coexisting peacefully.
-                    </p>
-                </div>
 
-                <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:shadow-lg hover:shadow-cyan-500/10 shadow-cyan-500/5 transition">
-                    <div class="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Instant Cleanup</h3>
-                    <p class="text-slate-400">
-                        Done with a project? Delete the container. All dependencies, cache files, and temporary data vanish instantly.
-                    </p>
-                </div>
+                    <p class="text-slate-300 mb-6">Serverless containers on AWS Fargate. AI Maestro auto-builds your Docker image, pushes to ECR, and runs it. No servers to manage.</p>
 
-                <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:shadow-lg hover:shadow-cyan-500/10 shadow-cyan-500/5 transition">
-                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                        </svg>
+                    <div class="space-y-3 mb-6">
+                        <div class="flex items-start gap-3">
+                            <span class="text-amber-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">Auto-builds Docker image from Dockerfile</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-amber-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">No servers to patch or maintain</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-amber-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">Pay only while running</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-amber-400 mt-0.5">&#10003;</span>
+                            <span class="text-slate-400 text-sm">Application Load Balancer included</span>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Reproducible Environments</h3>
-                    <p class="text-slate-400">
-                        Define your environment in a Dockerfile. Share it with teammates. Everyone gets the exact same setup.
-                    </p>
-                </div>
 
-                <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:shadow-lg hover:shadow-cyan-500/10 shadow-cyan-500/5 transition">
-                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
+                    <div class="bg-slate-800/50 rounded-lg p-4">
+                        <div class="font-mono text-xs text-slate-500 mb-2">BEST FOR</div>
+                        <p class="text-slate-300 text-sm">Burst workloads, cost optimization, zero-maintenance infrastructure</p>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Resource Control</h3>
-                    <p class="text-slate-400">
-                        Limit CPU, memory, and disk usage per container. Prevent one runaway agent from consuming all resources.
-                    </p>
-                </div>
-
-                <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:shadow-lg hover:shadow-cyan-500/10 shadow-cyan-500/5 transition">
-                    <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Easy Rollback</h3>
-                    <p class="text-slate-400">
-                        Something broke? Roll back to a previous container image in seconds. Experiment fearlessly with instant snapshots.
-                    </p>
                 </div>
             </div>
         </div>
@@ -422,74 +435,118 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 gradient-text">How It Works</h2>
-                <p class="text-xl text-slate-400">Four steps to containerized AI agents</p>
+                <p class="text-xl text-slate-400">Deploy cloud agents from the dashboard or CLI</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                 <div>
-                    <div class="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mb-4">
-                        <span class="text-2xl font-display font-bold text-cyan-400">1</span>
+                    <div class="w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-display font-bold text-orange-400">1</span>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Install Docker Desktop</h3>
+                    <h3 class="text-xl font-display font-bold mb-3 text-white">Prerequisites</h3>
                     <p class="text-slate-400 mb-3">
-                        Download and install Docker Desktop for your platform. Then install AI Maestro:
+                        Install Terraform and configure AWS credentials:
                     </p>
-                    <div class="bg-slate-800 p-4 rounded-lg text-sm">
-                        <div class="flex items-center justify-between gap-2">
-                            <code class="text-cyan-400 overflow-x-auto install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
-                            <button onclick="copyCmd(this)" class="copy-btn flex-shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 text-xs transition-all" title="Copy">
-                                <span class="copy-label">Copy</span>
-                            </button>
-                        </div>
+                    <pre class="bg-slate-800 p-4 rounded-lg text-sm overflow-x-auto"><code class="text-orange-300"># Install Terraform
+brew install terraform
+
+# Configure AWS
+aws configure</code></pre>
+                </div>
+
+                <div>
+                    <div class="w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-display font-bold text-orange-400">2</span>
+                    </div>
+                    <h3 class="text-xl font-display font-bold mb-3 text-white">Create from Dashboard</h3>
+                    <p class="text-slate-400 mb-3">
+                        Open the agent creation wizard, pick EC2 or ECS, fill in the required fields, and deploy:
+                    </p>
+                    <div class="bg-slate-800 p-4 rounded-lg text-sm space-y-2">
+                        <div class="text-slate-500 font-mono text-xs">EC2 REQUIRES:</div>
+                        <div class="text-slate-300 text-xs">Domain, SSL Email, SSH Key Name</div>
+                        <div class="text-slate-500 font-mono text-xs mt-2">ECS REQUIRES:</div>
+                        <div class="text-slate-300 text-xs">Nothing (all auto-configured)</div>
                     </div>
                 </div>
 
                 <div>
-                    <div class="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mb-4">
-                        <span class="text-2xl font-display font-bold text-cyan-400">2</span>
+                    <div class="w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-display font-bold text-orange-400">3</span>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Build Agent Image</h3>
+                    <h3 class="text-xl font-display font-bold mb-3 text-white">Or Use the CLI</h3>
                     <p class="text-slate-400 mb-3">
-                        Create a Dockerfile for your AI agent with all needed dependencies:
+                        Deploy directly from the command line:
                     </p>
-                    <pre class="bg-slate-800 p-4 rounded-lg text-sm overflow-x-auto"><code>FROM node:20-slim
-RUN apt-get update && \
-    apt-get install -y tmux git
-RUN npm install -g claude
-WORKDIR /workspace
-CMD ["tmux", "new", "-s", "agent"]</code></pre>
+                    <pre class="bg-slate-800 p-4 rounded-lg text-sm overflow-x-auto"><code class="text-orange-300"># EC2 with SSL
+aimaestro-agent.sh create my-api \
+  --ec2 --domain api.example.com \
+  --ssl-email admin@example.com \
+  --key-name my-key
+
+# ECS Fargate (auto-builds image)
+aimaestro-agent.sh create worker --ecs</code></pre>
                 </div>
 
                 <div>
-                    <div class="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mb-4">
-                        <span class="text-2xl font-display font-bold text-cyan-400">3</span>
-                    </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Launch Containers</h3>
-                    <p class="text-slate-400 mb-3">
-                        Start your containerized agents with AI Maestro:
-                    </p>
-                    <pre class="bg-slate-800 p-4 rounded-lg text-sm overflow-x-auto"><code>docker run -d --name frontend-agent \
-  -v $(pwd)/frontend:/workspace \
-  my-ai-agent:latest
-
-# Repeat for each project</code></pre>
-                </div>
-
-                <div>
-                    <div class="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mb-4">
-                        <span class="text-2xl font-display font-bold text-cyan-400">4</span>
+                    <div class="w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-display font-bold text-orange-400">4</span>
                     </div>
                     <h3 class="text-xl font-display font-bold mb-3 text-white">Manage from Dashboard</h3>
                     <p class="text-slate-400">
-                        AI Maestro auto-discovers all Docker containers. Click any container to access its terminal, view logs, or manage resources.
+                        Cloud agents appear in the AI Maestro dashboard alongside local agents. Same terminal access, same messaging, same management. Destroy infrastructure when done.
                     </p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Use Cases -->
+    <!-- What Gets Created -->
     <section class="py-20 bg-slate-950">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-4">What Gets Created</h2>
+                <p class="text-xl text-slate-400">Terraform manages all infrastructure automatically</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                <div class="bg-slate-900 rounded-xl p-6 border border-slate-700">
+                    <h4 class="font-display font-bold mb-4 text-orange-400 flex items-center gap-2">
+                        <span class="text-xl">&#9632;</span>
+                        EC2 Infrastructure
+                    </h4>
+                    <ul class="space-y-2 text-slate-400 text-sm">
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> VPC with public subnet</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> EC2 instance (Graviton ARM64)</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> Security group (ports 22, 80, 443)</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> Elastic IP address</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> Nginx reverse proxy with SSL</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> systemd service for agent-server</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> Node.js 20, tmux, AI CLIs</li>
+                    </ul>
+                </div>
+
+                <div class="bg-slate-900 rounded-xl p-6 border border-slate-700">
+                    <h4 class="font-display font-bold mb-4 text-amber-400 flex items-center gap-2">
+                        <span class="text-xl">&#9632;</span>
+                        ECS Infrastructure
+                    </h4>
+                    <ul class="space-y-2 text-slate-400 text-sm">
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> VPC with public/private subnets</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> ECS Fargate cluster + service</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> ECR repository (auto-created)</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> Application Load Balancer</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> IAM roles + task execution role</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> CloudWatch log group</li>
+                        <li class="flex items-start gap-2"><span class="text-slate-600">&#8226;</span> Docker image (auto-built + pushed)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases -->
+    <section class="py-20">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-4">Perfect For</h2>
@@ -498,41 +555,41 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
             <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                 <div class="bg-slate-900 rounded-xl p-6 border border-slate-700">
                     <h4 class="font-display font-bold mb-3 text-white flex items-center gap-2">
-                        <span class="text-2xl">📦</span>
-                        Multi-Project Development
+                        <span class="text-2xl">&#9889;</span>
+                        Heavy Compute Workloads
                     </h4>
                     <p class="text-slate-400">
-                        Working on frontend (React 18), backend (Node 16), and legacy app (Node 12) simultaneously? Each gets its own container with the exact environment it needs.
+                        Your laptop fan is screaming. Move resource-intensive agents to cloud instances with dedicated CPU and memory. Keep your local machine for what it does best.
                     </p>
                 </div>
 
                 <div class="bg-slate-900 rounded-xl p-6 border border-slate-700">
                     <h4 class="font-display font-bold mb-3 text-white flex items-center gap-2">
-                        <span class="text-2xl">🧪</span>
-                        Testing New Tools
+                        <span class="text-2xl">&#127760;</span>
+                        Always-On Agents
                     </h4>
                     <p class="text-slate-400">
-                        Want to try that new AI coding assistant? Spin up a container, experiment, and delete it. Zero risk to your host machine.
+                        Agents that need to run 24/7 monitoring builds, processing data, or responding to messages. EC2 instances keep working when your laptop sleeps.
                     </p>
                 </div>
 
                 <div class="bg-slate-900 rounded-xl p-6 border border-slate-700">
                     <h4 class="font-display font-bold mb-3 text-white flex items-center gap-2">
-                        <span class="text-2xl">👥</span>
-                        Client Projects
+                        <span class="text-2xl">&#128200;</span>
+                        Burst Scaling
                     </h4>
                     <p class="text-slate-400">
-                        Maintain separate containers for each client. No dependency leakage, complete isolation, and instant environment reproduction.
+                        Need 10 agents for a sprint, then 2 for maintenance? ECS Fargate scales to zero when idle. Pay only for what you use.
                     </p>
                 </div>
 
                 <div class="bg-slate-900 rounded-xl p-6 border border-slate-700">
                     <h4 class="font-display font-bold mb-3 text-white flex items-center gap-2">
-                        <span class="text-2xl">✨</span>
-                        Clean Machine Enthusiasts
+                        <span class="text-2xl">&#128274;</span>
+                        Isolated Environments
                     </h4>
                     <p class="text-slate-400">
-                        Hate cluttering your host machine with dependencies? Keep everything in containers. Your macOS/Linux stays pristine.
+                        Client work that requires network isolation, compliance boundaries, or dedicated infrastructure. Each cloud agent runs in its own VPC.
                     </p>
                 </div>
             </div>
@@ -544,18 +601,18 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
         <div class="absolute inset-0 bg-slate-950 pointer-events-none"></div>
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
             <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-                <span class="gradient-text">Start Using Docker</span><br/>
-                <span class="text-white">For Perfect Isolation</span>
+                <span class="gradient-text">Deploy to AWS</span><br/>
+                <span class="text-white">With One Command</span>
             </h2>
             <p class="text-xl text-slate-400 mb-8">
-                Set up containerized AI agents in 10 minutes. Works on macOS, Linux, and Windows (WSL2).
+                From your terminal to the cloud in minutes. Terraform handles the infrastructure, AI Maestro handles the agents.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="https://github.com/23blocks-OS/ai-maestro#docker-setup" target="_blank" class="bg-cyan-500 hover:bg-cyan-400 text-white px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
-                    View Docker Setup Guide
+                <a href="https://github.com/23blocks-OS/ai-maestro#readme" target="_blank" class="bg-orange-500 hover:bg-orange-400 text-white px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                    Get Started
                 </a>
                 <a href="index.html#personas" class="bg-slate-900 hover:bg-slate-950 text-white border-2 border-slate-700 px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
-                    Compare Work Modes
+                    Compare All Modes
                 </a>
             </div>
         </div>
@@ -567,32 +624,32 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
             <h3 class="font-display text-2xl font-bold text-white text-center mb-8">Other Setup Modes</h3>
             <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
                 <a href="single-computer.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-green-500/50 transition-all duration-300 no-underline">
-                    <span class="text-xl mb-2 block">💻</span>
+                    <span class="text-xl mb-2 block">&#128187;</span>
                     <span class="font-bold text-white text-sm group-hover:text-green-400 transition-colors">Single Computer</span>
                     <p class="text-slate-500 text-xs mt-1">Local setup</p>
                 </a>
                 <a href="multi-computer.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-amber-500/50 transition-all duration-300 no-underline">
-                    <span class="text-xl mb-2 block">🌐</span>
+                    <span class="text-xl mb-2 block">&#127760;</span>
                     <span class="font-bold text-white text-sm group-hover:text-amber-400 transition-colors">Multi-Computer</span>
                     <p class="text-slate-500 text-xs mt-1">SSH-powered agents</p>
                 </a>
                 <a href="peers.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-purple-500/50 transition-all duration-300 no-underline">
-                    <span class="text-xl mb-2 block">⚡</span>
+                    <span class="text-xl mb-2 block">&#9889;</span>
                     <span class="font-bold text-white text-sm group-hover:text-purple-400 transition-colors">Peers</span>
                     <p class="text-slate-500 text-xs mt-1">Peer mesh network</p>
                 </a>
+                <a href="docker-local.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-cyan-500/50 transition-all duration-300 no-underline">
+                    <span class="text-xl mb-2 block">&#128230;</span>
+                    <span class="font-bold text-white text-sm group-hover:text-cyan-400 transition-colors">Docker Local</span>
+                    <p class="text-slate-500 text-xs mt-1">Containerized agents</p>
+                </a>
                 <a href="docker-hybrid.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-pink-500/50 transition-all duration-300 no-underline">
-                    <span class="text-xl mb-2 block">☁️</span>
+                    <span class="text-xl mb-2 block">&#9729;&#65039;</span>
                     <span class="font-bold text-white text-sm group-hover:text-pink-400 transition-colors">Docker Hybrid</span>
                     <p class="text-slate-500 text-xs mt-1">Local + cloud</p>
                 </a>
-                <a href="cloud-aws.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-rose-500/50 transition-all duration-300 no-underline">
-                    <span class="text-xl mb-2 block">🚀</span>
-                    <span class="font-bold text-white text-sm group-hover:text-rose-400 transition-colors">Cloud AWS</span>
-                    <p class="text-slate-500 text-xs mt-1">EC2 + ECS Fargate</p>
-                </a>
                 <a href="advanced-setup.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-orange-500/50 transition-all duration-300 no-underline">
-                    <span class="text-xl mb-2 block">🔧</span>
+                    <span class="text-xl mb-2 block">&#128295;</span>
                     <span class="font-bold text-white text-sm group-hover:text-orange-400 transition-colors">Advanced</span>
                     <p class="text-slate-500 text-xs mt-1">Enterprise config</p>
                 </a>
@@ -611,10 +668,10 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
                     </div>
                     <p class="text-slate-400 leading-relaxed max-w-md">The future of work platform. Orchestrate multiple AI coding agents from one dashboard.</p>
                     <div class="flex items-center gap-4 mt-6">
-                        <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 hover:text-cyan-400 transition-colors">
+                        <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 hover:text-orange-400 transition-colors">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
                         </a>
-                        <a href="https://x.com/jkpelaez" target="_blank" class="text-slate-400 hover:text-cyan-400 transition-colors">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-slate-400 hover:text-orange-400 transition-colors">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                         </a>
                     </div>
@@ -622,15 +679,15 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
                 <div>
                     <h4 class="font-display font-bold text-white mb-4">Resources</h4>
                     <ul class="space-y-3">
-                        <li><a href="https://github.com/23blocks-OS/ai-maestro#readme" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Documentation</a></li>
-                        <li><a href="https://github.com/23blocks-OS/ai-maestro/issues" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Issues</a></li>
-                        <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Contributing</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro#readme" class="text-slate-400 hover:text-orange-400 transition-colors no-underline">Documentation</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/issues" class="text-slate-400 hover:text-orange-400 transition-colors no-underline">Issues</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="text-slate-400 hover:text-orange-400 transition-colors no-underline">Contributing</a></li>
                     </ul>
                 </div>
                 <div>
                     <h4 class="font-display font-bold text-white mb-4">Built by</h4>
                     <p class="text-slate-400">
-                        <a href="https://x.com/jkpelaez" target="_blank" class="hover:text-cyan-400 transition-colors no-underline">Juan Pelaez</a> @ <a href="https://23blocks.com" target="_blank" class="hover:text-cyan-400 transition-colors no-underline">23blocks</a>
+                        <a href="https://x.com/jkpelaez" target="_blank" class="hover:text-orange-400 transition-colors no-underline">Juan Pelaez</a> @ <a href="https://23blocks.com" target="_blank" class="hover:text-orange-400 transition-colors no-underline">23blocks</a>
                     </p>
                     <p class="text-slate-500 text-sm mt-2">Made with <span class="text-red-500">&#9829;</span> in Boulder, CO</p>
                     <p class="text-slate-500 text-sm">Coded with Claude</p>
@@ -641,7 +698,6 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
             </div>
         </div>
     </footer>
-
 
     <!-- Copy for AI functionality -->
     <script src="copy-for-ai.js"></script>
@@ -665,7 +721,7 @@ CMD ["tmux", "new", "-s", "agent"]</code></pre>
     <!-- Typing animation -->
     <script>
         const announcement = document.getElementById('announcement');
-        const text = "Isolated. Reproducible. Perfect.";
+        const text = "Your agents. AWS infrastructure. One command.";
         const cursor = announcement.querySelector('.typing-cursor');
         let charIndex = 0;
 

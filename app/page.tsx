@@ -111,7 +111,15 @@ export default function DashboardPage() {
     setLayoutOverride(next)
     localStorage.setItem('aimaestro-layout-mode', next)
   }
-  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>(() => {
+    if (typeof window === 'undefined') return 'chat'
+    return (localStorage.getItem('aimaestro-active-tab') as any) || 'chat'
+  })
+  // Persist tab choice in localStorage
+  useEffect(() => {
+    localStorage.setItem('aimaestro-active-tab', activeTab)
+  }, [activeTab])
+
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
@@ -738,17 +746,6 @@ export default function DashboardPage() {
                   {/* Tab Navigation - Responsive with flex-wrap */}
                   <div className="flex flex-wrap border-b border-gray-800 bg-gray-900 flex-shrink-0">
                     <button
-                      onClick={() => setActiveTab('terminal')}
-                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
-                        activeTab === 'terminal'
-                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
-                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                      }`}
-                    >
-                      <Terminal className="w-4 h-4" />
-                      Terminal
-                    </button>
-                    <button
                       onClick={() => setActiveTab('chat')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'chat'
@@ -758,6 +755,17 @@ export default function DashboardPage() {
                     >
                       <MessageSquare className="w-4 h-4" />
                       Chat
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('terminal')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'terminal'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Terminal className="w-4 h-4" />
+                      Terminal
                     </button>
                     <button
                       onClick={() => setActiveTab('messages')}

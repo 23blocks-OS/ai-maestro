@@ -7,6 +7,7 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer } from './lib/cerebellum/session-bridge.mjs'
@@ -15,7 +16,8 @@ import {
   terminalSessions,
   statusSubscribers,
   companionClients,
-  broadcastStatusUpdate
+  broadcastStatusUpdate,
+  broadcastChatEvent
 } from './services/shared-state-bridge.mjs'
 
 // =============================================================================
@@ -159,6 +161,206 @@ function killPtyProcess(ptyProcess, sessionName, alreadyExited = false) {
   return true
 }
 
+// =============================================================================
+// CHAT PROTOCOL HELPERS — getChatHistory, JSONL watcher, broadcast updates
+// =============================================================================
+
+/**
+ * Resolve the JSONL conversation file path for an agent.
+ * Returns null if not found.
+ */
+function resolveJsonlPath(agent) {
+  const workingDir = agent?.workingDirectory ||
+                     agent?.sessions?.[0]?.workingDirectory ||
+                     agent?.preferences?.defaultWorkingDirectory
+  if (!workingDir) return null
+
+  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
+  const projectDirName = workingDir.replace(/\//g, '-')
+  const conversationDir = path.join(claudeProjectsDir, projectDirName)
+
+  if (!fs.existsSync(conversationDir)) return null
+
+  const files = fs.readdirSync(conversationDir)
+    .filter(f => f.endsWith('.jsonl'))
+    .map(f => ({
+      name: f,
+      path: path.join(conversationDir, f),
+      mtime: fs.statSync(path.join(conversationDir, f)).mtime
+    }))
+    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+
+  return files.length > 0 ? files[0] : null
+}
+
+/**
+ * Read hook state file for an agent's working directory.
+ */
+function readHookState(workingDir) {
+  if (!workingDir) return null
+  const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
+  const cwdHash = crypto.createHash('md5').update(workingDir || '').digest('hex').substring(0, 16)
+  const stateFile = path.join(stateDir, `${cwdHash}.json`)
+  try {
+    if (fs.existsSync(stateFile)) {
+      const content = fs.readFileSync(stateFile, 'utf-8')
+      const state = JSON.parse(content)
+      const isWaitingState = state.status === 'waiting_for_input' || state.status === 'permission_request'
+      if (!isWaitingState) {
+        const stateAge = Date.now() - new Date(state.updatedAt).getTime()
+        if (stateAge > 60000) return null
+      }
+      return state
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+/**
+ * Parse JSONL lines into message objects (same logic as agents-chat-service).
+ */
+function parseJsonlLines(lines, limit = 100) {
+  const messages = []
+  for (const line of lines) {
+    if (!line.trim()) continue
+    try {
+      const message = JSON.parse(line)
+      // Extract thinking blocks from assistant messages
+      if (message.type === 'assistant' && message.message?.content) {
+        const content = message.message.content
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === 'thinking' && block.thinking) {
+              messages.push({
+                type: 'thinking',
+                thinking: block.thinking,
+                timestamp: message.timestamp,
+                uuid: message.uuid
+              })
+            }
+          }
+        }
+      }
+      messages.push(message)
+    } catch { /* skip malformed */ }
+  }
+  return messages.slice(-limit)
+}
+
+/**
+ * Get chat history for a session (messages + hookState).
+ * Called on chat:requestHistory.
+ */
+async function getChatHistory(sessionName, agentId) {
+  const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+  const agent = agentId ? getAgent(agentId) : getAgentByName(sessionName)
+  if (!agent) {
+    return { messages: [], hookState: null }
+  }
+
+  const file = resolveJsonlPath(agent)
+  if (!file) {
+    return { messages: [], hookState: null }
+  }
+
+  const fileContent = fs.readFileSync(file.path, 'utf-8')
+  const lines = fileContent.split('\n')
+  const messages = parseJsonlLines(lines, 25)
+
+  const workingDir = agent.workingDirectory ||
+                     agent.sessions?.[0]?.workingDirectory ||
+                     agent.preferences?.defaultWorkingDirectory
+  const hookState = readHookState(workingDir)
+
+  return {
+    messages,
+    hookState,
+    conversationFile: file.path,
+    lastModified: file.mtime.toISOString()
+  }
+}
+
+/**
+ * Start watching the JSONL file for a session.
+ * Uses fs.watchFile (polling-based, reliable on macOS) to detect changes.
+ */
+function startJsonlWatcher(sessionName, sessionState, agentId) {
+  // Already watching
+  if (sessionState.jsonlWatcher) return
+
+  import('./lib/agent-registry.ts').then(({ getAgent, getAgentByName }) => {
+    const agent = agentId ? getAgent(agentId) : getAgentByName(sessionName)
+    if (!agent) return
+
+    const file = resolveJsonlPath(agent)
+    if (!file) return
+
+    sessionState.jsonlFilePath = file.path
+    try {
+      const stat = fs.statSync(file.path)
+      sessionState.jsonlFileSize = stat.size
+    } catch {
+      sessionState.jsonlFileSize = 0
+    }
+
+    // Poll every 1s — low overhead, reliable on macOS where fs.watch is flaky
+    fs.watchFile(file.path, { interval: 1000 }, (curr, prev) => {
+      if (curr.size > sessionState.jsonlFileSize) {
+        broadcastJsonlUpdates(sessionName, sessionState)
+      }
+      // Handle file truncation (new conversation started)
+      if (curr.size < sessionState.jsonlFileSize) {
+        sessionState.jsonlFileSize = 0
+        broadcastJsonlUpdates(sessionName, sessionState)
+      }
+    })
+    sessionState.jsonlWatcher = true
+    console.log(`[Chat] Started JSONL watcher for ${sessionName}: ${file.path}`)
+  }).catch(err => {
+    console.error(`[Chat] Failed to start JSONL watcher for ${sessionName}:`, err.message)
+  })
+}
+
+/**
+ * Read new JSONL lines since last read and broadcast to chat clients.
+ */
+function broadcastJsonlUpdates(sessionName, sessionState) {
+  if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
+  if (!sessionState.jsonlFilePath) return
+
+  try {
+    const stat = fs.statSync(sessionState.jsonlFilePath)
+    const currentSize = stat.size
+    const prevSize = sessionState.jsonlFileSize || 0
+
+    if (currentSize <= prevSize && prevSize > 0) return
+
+    // Read only new bytes (or full file if truncated)
+    const readStart = currentSize < prevSize ? 0 : prevSize
+    const fd = fs.openSync(sessionState.jsonlFilePath, 'r')
+    const buffer = Buffer.alloc(currentSize - readStart)
+    fs.readSync(fd, buffer, 0, buffer.length, readStart)
+    fs.closeSync(fd)
+
+    sessionState.jsonlFileSize = currentSize
+
+    const newContent = buffer.toString('utf-8')
+    const lines = newContent.split('\n').filter(l => l.trim())
+    if (lines.length === 0) return
+
+    const messages = parseJsonlLines(lines, 50)
+    if (messages.length === 0) return
+
+    const msg = JSON.stringify({ type: 'chat:messages', data: messages })
+    sessionState.chatClients.forEach(ws => {
+      if (ws.readyState === 1) ws.send(msg)
+    })
+  } catch (err) {
+    // File may not exist yet or be in the middle of being written
+    console.error(`[Chat] Error reading JSONL updates for ${sessionName}:`, err.message)
+  }
+}
+
 /**
  * Clean up a session's PTY and resources
  * Called when last client disconnects, on error, or when PTY exits
@@ -205,6 +407,14 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
     killPtyProcess(sessionState.ptyProcess, sessionName, ptyAlreadyExited)
   }
 
+  // Stop JSONL file watcher
+  if (sessionState.jsonlWatcher) {
+    try {
+      fs.unwatchFile(sessionState.jsonlFilePath)
+    } catch { /* ignore */ }
+    sessionState.jsonlWatcher = null
+  }
+
   // Close all remaining client connections
   if (sessionState.clients) {
     sessionState.clients.forEach((client) => {
@@ -217,6 +427,11 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
       }
     })
     sessionState.clients.clear()
+  }
+
+  // Clear chat clients
+  if (sessionState.chatClients) {
+    sessionState.chatClients.clear()
   }
 
   // Remove from terminal sessions map
@@ -240,8 +455,9 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
 function handleClientDisconnect(ws, sessionName, sessionState, reason = 'close') {
   if (!sessionState) return
 
-  // Remove this client
+  // Remove this client from both regular and chat client sets
   sessionState.clients.delete(ws)
+  sessionState.chatClients?.delete(ws)
 
   console.log(`[PTY] Client disconnected from ${sessionName} (${reason}). Remaining clients: ${sessionState.clients.size}`)
 
@@ -896,6 +1112,91 @@ async function startServer(handleRequest) {
       return
     }
 
+    // ── Chat-only WebSocket connection ─────────────────────────────────
+    // Lightweight connection that only participates in chat:* protocol.
+    // Skips PTY attach, history capture, and raw terminal broadcast.
+    if (query.chatOnly === '1') {
+      console.log(`[Chat] Chat-only client connected for ${sessionName}`)
+
+      // Get or create minimal session state for chatClients
+      let sessionState = terminalSessions.get(sessionName)
+      if (!sessionState) {
+        // No terminal session exists — create a stub for chat-only clients
+        sessionState = {
+          clients: new Set(),
+          chatClients: new Set(),
+          ptyProcess: null,
+          logStream: null,
+          loggingEnabled: false,
+          cleanupTimer: null,
+          terminalBuffer: null,
+          jsonlWatcher: null,
+          jsonlFileSize: 0,
+          jsonlFilePath: null,
+        }
+        terminalSessions.set(sessionName, sessionState)
+      }
+
+      // Initialize chatClients if missing (existing sessions before this change)
+      if (!sessionState.chatClients) {
+        sessionState.chatClients = new Set()
+      }
+
+      sessionState.chatClients.add(ws)
+
+      ws.on('message', async (data) => {
+        try {
+          const parsed = JSON.parse(data.toString())
+          if (parsed.type === 'chat:requestHistory') {
+            try {
+              const history = await getChatHistory(sessionName, parsed.agentId)
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:history', data: history }))
+              }
+            } catch (err) {
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:error', error: err.message }))
+              }
+            }
+            startJsonlWatcher(sessionName, sessionState, parsed.agentId)
+          } else if (parsed.type === 'chat:send') {
+            if (parsed.message && sessionState.ptyProcess) {
+              sessionState.ptyProcess.write(parsed.message + '\r')
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:sent' }))
+              }
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+            } else if (parsed.message) {
+              // No PTY — try to send via tmux send-keys as fallback
+              try {
+                execSync(`tmux send-keys -t "${sessionName}" -l ${JSON.stringify(parsed.message)}`, { timeout: 3000 })
+                execSync(`tmux send-keys -t "${sessionName}" Enter`, { timeout: 3000 })
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: 'chat:sent' }))
+                }
+              } catch (err) {
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: no PTY connection' }))
+                }
+              }
+            }
+          }
+        } catch { /* not JSON, ignore */ }
+      })
+
+      ws.on('close', () => {
+        sessionState.chatClients?.delete(ws)
+        console.log(`[Chat] Chat-only client disconnected from ${sessionName}`)
+      })
+
+      ws.on('error', () => {
+        sessionState.chatClients?.delete(ws)
+      })
+
+      return // Skip all PTY/terminal setup below
+    }
+
     // Check if this is a remote host connection
     if (query.host && typeof query.host === 'string') {
       try {
@@ -1052,11 +1353,15 @@ async function startServer(handleRequest) {
 
       sessionState = {
         clients: new Set(),
+        chatClients: new Set(), // WebSocket clients subscribed to chat events
         ptyProcess,
         logStream,
         loggingEnabled: true, // Default to enabled (but only works if globalLoggingEnabled is true)
         cleanupTimer: null, // Timer for cleaning up PTY when no clients connected
-        terminalBuffer: getOrCreateBuffer(sessionName) // Cerebellum terminal buffer for voice subsystem
+        terminalBuffer: getOrCreateBuffer(sessionName), // Cerebellum terminal buffer for voice subsystem
+        jsonlWatcher: null, // fs.watchFile cleanup handle for JSONL file watching
+        jsonlFileSize: 0,   // Track file size for incremental reads
+        jsonlFilePath: null, // Path to the watched JSONL file
       }
       terminalSessions.set(sessionName, sessionState)
 
@@ -1176,7 +1481,7 @@ async function startServer(handleRequest) {
     }, 150)
 
     // Handle client input
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       try {
         const message = data.toString()
 
@@ -1192,6 +1497,42 @@ async function startServer(handleRequest) {
           if (parsed.type === 'set-logging') {
             sessionState.loggingEnabled = parsed.enabled
             console.log(`Logging ${parsed.enabled ? 'enabled' : 'disabled'} for session: ${sessionName}`)
+            return
+          }
+
+          // ── Chat protocol messages ────────────────────────────────
+          if (parsed.type === 'chat:subscribe') {
+            sessionState.chatClients.add(ws)
+            console.log(`[Chat] Client subscribed to chat for ${sessionName}`)
+            return
+          }
+
+          if (parsed.type === 'chat:requestHistory') {
+            try {
+              const history = await getChatHistory(sessionName, parsed.agentId)
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:history', data: history }))
+              }
+            } catch (err) {
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:error', error: err.message }))
+              }
+            }
+            // Start JSONL file watcher for this session if not already watching
+            startJsonlWatcher(sessionName, sessionState, parsed.agentId)
+            return
+          }
+
+          if (parsed.type === 'chat:send') {
+            if (parsed.message && sessionState.ptyProcess) {
+              sessionState.ptyProcess.write(parsed.message + '\r')
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'chat:sent' }))
+              }
+              // Burst re-read of JSONL after a short delay to catch the response
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+            }
             return
           }
         } catch {

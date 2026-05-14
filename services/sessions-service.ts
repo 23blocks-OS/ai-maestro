@@ -33,7 +33,7 @@ import { getHosts, getSelfHost, getSelfHostId, isSelf, getHostById } from '@/lib
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, broadcastStatusUpdate } from '@/services/shared-state'
+import { sessionActivity, agentActivity, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
@@ -549,13 +549,20 @@ export function broadcastActivityUpdate(
   status: string,
   hookStatus?: string,
   notificationType?: string,
-  agentId?: string
+  agentId?: string,
+  hookState?: any
 ): ServiceResult<{ success: boolean }> {
   if (!sessionName && !agentId) {
     return missingField('sessionName')
   }
 
   broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)
+
+  // Push hookState to chat-subscribed WebSocket clients in real-time
+  if (hookState && sessionName) {
+    broadcastChatEvent(sessionName, 'chat:hookState', { data: hookState })
+  }
+
   return { data: { success: true }, status: 200 }
 }
 

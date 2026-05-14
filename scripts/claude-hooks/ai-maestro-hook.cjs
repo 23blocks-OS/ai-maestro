@@ -84,6 +84,19 @@ async function broadcastStatusUpdate(cwd, state) {
         const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
         if (!sessionName) return;
 
+        // Build hookState payload for events that produce meaningful state
+        const hookStateData = (state.status === 'permission_request' || state.notificationType)
+            ? {
+                status: state.status,
+                toolName: state.toolName,
+                toolInput: state.toolInput,
+                description: state.description,
+                options: state.options,
+                message: state.message,
+                notificationType: state.notificationType,
+              }
+            : undefined;
+
         // Broadcast the status update
         await fetch('http://localhost:23000/api/sessions/activity/update', {
             method: 'POST',
@@ -93,7 +106,8 @@ async function broadcastStatusUpdate(cwd, state) {
                 agentId: agent.id,
                 status: state.status,
                 hookStatus: state.status,
-                notificationType: state.notificationType
+                notificationType: state.notificationType,
+                ...(hookStateData && { hookState: hookStateData })
             })
         });
 

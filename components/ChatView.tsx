@@ -96,8 +96,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     const sessionName = agent.name || agent.alias || agent.id
-    return `${protocol}//${host}/term?name=${encodeURIComponent(sessionName)}&chatOnly=1`
-  }, [agent.name, agent.alias, agent.id])
+    let url = `${protocol}//${host}/term?name=${encodeURIComponent(sessionName)}&chatOnly=1`
+    // Route through remote host proxy when agent lives on a different machine
+    if (agent.hostId && agent.hostId !== 'local') {
+      url += `&host=${encodeURIComponent(agent.hostId)}`
+    }
+    return url
+  }, [agent.name, agent.alias, agent.id, agent.hostId])
 
   const sendChatMessage = useCallback((type: string, payload?: Record<string, any>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

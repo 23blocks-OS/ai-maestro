@@ -209,6 +209,14 @@ export function useWebSocket({
             onChatMessageRef.current?.(parsed.type, parsed)
             return
           }
+
+          // Any other JSON with a 'type' field is a protocol message we don't
+          // recognize — drop it silently instead of leaking raw JSON into the
+          // terminal (this prevents {"type":"ping"} / pong / etc. from appearing
+          // as visible text if a new message type is added or a proxy relays it)
+          if (parsed.type) {
+            return
+          }
         } catch {
           // Not JSON, treat as terminal data
         }

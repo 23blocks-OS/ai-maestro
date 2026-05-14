@@ -249,11 +249,14 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const [error, setError] = useState<string | null>(null)
   const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
 
+  const [chatWsConnected, setChatWsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const prevMessageCountRef = useRef(0)
   const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectAttemptsRef = useRef(0)
 
   // The session name to use for the WebSocket URL
   const wsSessionName = sessionNameProp || agentName
@@ -279,11 +282,18 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
     const connect = () => {
       if (wsRef.current?.readyState === WebSocket.OPEN) return
+      // Close zombie sockets stuck in CONNECTING
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
 
       const ws = new WebSocket(getChatWsUrl())
 
       ws.onopen = () => {
         console.log(`[MobileChatView] Connected to chat WS for ${wsSessionName}`)
+        setChatWsConnected(true)
+        reconnectAttemptsRef.current = 0
         ws.send(JSON.stringify({ type: 'chat:requestHistory', agentId }))
         setError(null)
       }
@@ -323,9 +333,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             }
 
             case 'chat:sent': {
-              setTimeout(() => {
-                setPendingMessages(prev => prev.length > 0 ? prev.slice(1) : prev)
-              }, 2000)
+              // Server confirmed delivery to PTY — keep pending visible
+              // until chat:messages arrives with the user message from JSONL
               break
             }
 
@@ -340,12 +349,20 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
       }
 
       ws.onclose = () => {
+        setChatWsConnected(false)
+        // Guard against stale closures
+        if (wsRef.current !== ws) return
         wsRef.current = null
+
+        // Auto-reconnect with backoff
+        if (reconnectAttemptsRef.current < 5) {
+          reconnectAttemptsRef.current++
+          reconnectTimeoutRef.current = setTimeout(connect, 3000)
+        }
       }
 
       ws.onerror = () => {
-        setError('Chat connection error')
-        wsRef.current = null
+        // onclose will fire after — reconnect handled there
       }
 
       wsRef.current = ws
@@ -353,20 +370,33 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
     connect()
 
-    // Reconnect on visibility change (mobile tab switching)
+    // Reconnect on visibility change (mobile tab switching / background recovery)
     const handleVisibility = () => {
-      if (!document.hidden && !wsRef.current) {
-        connect()
+      if (document.visibilityState === 'visible') {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          reconnectAttemptsRef.current = 0
+          if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+            wsRef.current.close()
+          }
+        }
+      } else {
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+        }
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
       }
+      setChatWsConnected(false)
     }
   }, [agentId, wsSessionName, getChatWsUrl])
 
@@ -383,6 +413,16 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     const text = input.trim()
     if (!text || sending) return
 
+    // Check connection BEFORE clearing input
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      setError('Not connected — reconnecting...')
+      reconnectAttemptsRef.current = 0
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        wsRef.current.close()
+      }
+      return
+    }
+
     setSending(true)
     setInput('')
 
@@ -396,7 +436,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
     const sent = sendChatWs('chat:send', { message: text })
     if (!sent) {
-      setError('Not connected')
+      setError('Failed to send — try again')
       setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
       setInput(text)
     }
@@ -643,6 +683,12 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
       {/* Input area */}
       <div className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-3 py-2">
+        {!chatWsConnected && (
+          <div className="mb-2 px-2 py-1.5 bg-yellow-900/20 border border-yellow-800/50 rounded-lg text-xs text-yellow-400 flex items-center gap-1.5">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Reconnecting...
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}

@@ -266,9 +266,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           return
         }
 
-        // If we got here, it's a JSON message but not a known control type
-        // This might be terminal data that happens to be valid JSON (rare)
-        // Fall through to write it to terminal
+        // Any other JSON with a 'type' field is a protocol message — drop it
+        // so raw JSON like {"type":"ping"} never appears in the terminal
+        if (parsed.type) {
+          return
+        }
+        // JSON without a 'type' field is likely terminal output (e.g., CLI tool
+        // printing JSON) — fall through to write it
       } catch {
         // Not JSON - it's terminal data, continue processing
       }

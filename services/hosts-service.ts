@@ -352,6 +352,19 @@ export async function listHosts(): Promise<ServiceResult<{ hosts: any[] }>> {
           },
         }
       }
+
+      // Add online/offline/unknown status based on cached sync data
+      if (host.isSelf) {
+        (host as any).status = 'online'
+      } else if (host.lastSyncSuccess) {
+        const syncAge = Date.now() - new Date(host.lastSyncSuccess).getTime();
+        // 5 minute threshold for considering a host online
+        (host as any).status = syncAge < 300000 ? 'online' : 'offline'
+      } else if (host.lastSyncError) {
+        (host as any).status = 'offline'
+      } else {
+        (host as any).status = 'unknown'
+      }
     }
 
     return { data: { hosts: hostsWithSelf }, status: 200 }

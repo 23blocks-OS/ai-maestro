@@ -31,6 +31,12 @@ export interface Host {
   /** Whether this host is enabled */
   enabled?: boolean
 
+  /** Reason the host was disabled (e.g. "circuit-breaker: 3 consecutive failures") */
+  offlineReason?: string
+
+  /** ISO timestamp when the host was disabled */
+  offlineSince?: string
+
   /** Whether this host is accessed via Tailscale VPN */
   tailscale?: boolean
 

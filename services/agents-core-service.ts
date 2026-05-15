@@ -56,7 +56,7 @@ import {
   unlinkSession,
 } from '@/lib/agent-registry'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
-import { getHosts, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
+import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/lib/hosts-config'
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
@@ -73,6 +73,39 @@ import {
 } from '@/lib/container-utils'
 import type { Host } from '@/types/host'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout } from '@/services/service-errors'
+
+// ---------------------------------------------------------------------------
+// Circuit breaker — auto-disable hosts after consecutive failures
+// ---------------------------------------------------------------------------
+
+const hostFailureCounts = new Map<string, number>()
+const CIRCUIT_BREAKER_THRESHOLD = parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD || '3', 10)
+
+function recordHostSuccess(hostId: string): void {
+  hostFailureCounts.delete(hostId)
+}
+
+function recordHostFailure(host: Host): void {
+  if (isSelf(host.id)) return
+
+  const count = (hostFailureCounts.get(host.id) || 0) + 1
+  hostFailureCounts.set(host.id, count)
+
+  if (count >= CIRCUIT_BREAKER_THRESHOLD) {
+    console.warn(`[Circuit Breaker] Host '${host.id}' hit ${count} consecutive failures — disabling`)
+    updateHostRaw(host.id, {
+      enabled: false,
+      offlineReason: `circuit-breaker: ${count} consecutive failures`,
+      offlineSince: new Date().toISOString(),
+      lastSyncError: `Disabled after ${count} consecutive failures`,
+    })
+    hostFailureCounts.delete(host.id)
+  }
+}
+
+export function resetCircuitBreaker(hostId: string): void {
+  hostFailureCounts.delete(hostId)
+}
 
 interface DiscoveredSession {
   name: string
@@ -531,6 +564,7 @@ function createOrphanAgent(
         platform: os.platform(),
       }
     },
+    runtime: 'tmux',
     tools: {},
     status: 'active',
     createdAt: session.createdAt,
@@ -1165,6 +1199,7 @@ export async function getUnifiedAgents(params: UnifiedAgentsParams): Promise<Ser
       clearTimeout(timeoutId)
 
       if (!response.ok) {
+        recordHostFailure(host)
         return {
           host,
           success: false,
@@ -1175,6 +1210,10 @@ export async function getUnifiedAgents(params: UnifiedAgentsParams): Promise<Ser
       }
 
       const data: HostAgentResponse = await response.json()
+      recordHostSuccess(host.id)
+      if (!isSelf(host.id)) {
+        updateHostRaw(host.id, { lastSyncSuccess: new Date().toISOString() })
+      }
       return {
         host,
         success: true,
@@ -1185,6 +1224,10 @@ export async function getUnifiedAgents(params: UnifiedAgentsParams): Promise<Ser
       const errorMessage = error instanceof Error
         ? error.name === 'AbortError' ? 'Request timeout' : error.message
         : 'Unknown error'
+      recordHostFailure(host)
+      if (!isSelf(host.id)) {
+        updateHostRaw(host.id, { lastSyncError: errorMessage })
+      }
       return {
         host,
         success: false,

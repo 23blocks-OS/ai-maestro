@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.6] - 2026-05-15
+
+### Added
+- **Host circuit breaker** — Automatically disables unreachable remote hosts after 3 consecutive failures in `getUnifiedAgents()`, eliminating 3s timeout delays per dead host on every poll cycle. Configurable via `CIRCUIT_BREAKER_THRESHOLD` env var.
+- **`POST /api/hosts/:id/reactivate`** — New endpoint to manually re-enable a circuit-broken host. Also registered in headless router.
+- **Mesh self-healing** — `registerPeer()` auto-re-enables circuit-broken hosts when they come back online and re-register.
+- **Disabled hosts in `GET /api/hosts`** — `listHosts()` now appends disabled hosts with `status: 'disabled'` so the settings UI can show them with a "Reactivate" button.
+- `offlineReason` and `offlineSince` fields on the `Host` type for tracking circuit breaker metadata.
+- `loadAllHostsRaw()` and `updateHostRaw()` in `hosts-config.ts` to operate on the unfiltered host list (bypasses `enabled` filtering).
+- `lastSyncSuccess` now populated on every successful remote host fetch.
+
 ## [0.35.5] - 2026-05-14
 
 ### Fixed

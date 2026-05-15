@@ -1202,24 +1202,25 @@ async function startServer(handleRequest) {
             }
             startJsonlWatcher(sessionName, sessionState, parsed.agentId)
           } else if (parsed.type === 'chat:send') {
-            if (parsed.message && sessionState.ptyProcess) {
-              sessionState.ptyProcess.write(parsed.message + '\r')
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: 'chat:sent' }))
-              }
-              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
-              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
-            } else if (parsed.message) {
-              // No PTY — try to send via tmux send-keys as fallback
+            if (parsed.message) {
+              // Always use tmux send-keys -l with proper escaping and delay.
+              // Direct ptyProcess.write() bypasses tmux input handling and
+              // doesn't give Claude Code the 100ms gap it needs between text
+              // and Enter to process the input.
               try {
-                execSync(`tmux send-keys -t "${sessionName}" -l ${JSON.stringify(parsed.message)}`, { timeout: 3000 })
+                const escaped = parsed.message.replace(/'/g, "'\\''")
+                execSync(`tmux send-keys -t "${sessionName}" -l '${escaped}'`, { timeout: 3000 })
+                // 100ms delay so Claude Code processes the literal text before Enter
+                await new Promise(r => setTimeout(r, 100))
                 execSync(`tmux send-keys -t "${sessionName}" Enter`, { timeout: 3000 })
                 if (ws.readyState === 1) {
                   ws.send(JSON.stringify({ type: 'chat:sent' }))
                 }
+                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
               } catch (err) {
                 if (ws.readyState === 1) {
-                  ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: no PTY connection' }))
+                  ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: ' + err.message }))
                 }
               }
             }
@@ -1572,14 +1573,23 @@ async function startServer(handleRequest) {
           }
 
           if (parsed.type === 'chat:send') {
-            if (parsed.message && sessionState.ptyProcess) {
-              sessionState.ptyProcess.write(parsed.message + '\r')
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: 'chat:sent' }))
+            if (parsed.message) {
+              try {
+                const escaped = parsed.message.replace(/'/g, "'\\''")
+                execSync(`tmux send-keys -t "${sessionName}" -l '${escaped}'`, { timeout: 3000 })
+                await new Promise(r => setTimeout(r, 100))
+                execSync(`tmux send-keys -t "${sessionName}" Enter`, { timeout: 3000 })
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: 'chat:sent' }))
+                }
+                // Burst re-read of JSONL after a short delay to catch the response
+                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+              } catch (err) {
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: ' + err.message }))
+                }
               }
-              // Burst re-read of JSONL after a short delay to catch the response
-              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
-              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
             }
             return
           }

@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.35.6] - 2026-05-15
 
+### Fixed
+- **Chat messages not reaching agents** — WebSocket chat handlers in `server.mjs` used `ptyProcess.write()` which bypassed tmux input handling and failed silently when no terminal tab was open (`ptyProcess: null`). Replaced both handlers (chat-only and full-terminal) with `tmux send-keys -l` using proper single-quote escaping and a 100ms delay before Enter, matching the proven `agent-runtime.ts` pattern.
+
 ### Added
 - **Host circuit breaker** — Automatically disables unreachable remote hosts after 3 consecutive failures in `getUnifiedAgents()`, eliminating 3s timeout delays per dead host on every poll cycle. Configurable via `CIRCUIT_BREAKER_THRESHOLD` env var.
 - **`POST /api/hosts/:id/reactivate`** — New endpoint to manually re-enable a circuit-broken host. Also registered in headless router.

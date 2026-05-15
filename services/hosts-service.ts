@@ -38,6 +38,8 @@ import {
   getOrganizationInfo,
   hasOrganization,
   adoptOrganization,
+  loadAllHostsRaw,
+  updateHostRaw,
 } from '@/lib/hosts-config'
 import { addHostWithSync, syncWithAllPeers, getPublicUrl, hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import type { Host } from '@/types/host'
@@ -50,6 +52,7 @@ import type {
   HostIdentityResponse,
 } from '@/types/host-sync'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed, invalidRequest } from '@/services/service-errors'
+import { resetCircuitBreaker } from '@/services/agents-core-service'
 
 const execAsync = promisify(exec)
 
@@ -367,7 +370,18 @@ export async function listHosts(): Promise<ServiceResult<{ hosts: any[] }>> {
       }
     }
 
-    return { data: { hosts: hostsWithSelf }, status: 200 }
+    // Append disabled (circuit-broken) hosts so the UI can show them
+    const allRaw = loadAllHostsRaw()
+    const enabledIds = new Set(hostsWithSelf.map(h => h.id.toLowerCase()))
+    const disabledHosts = allRaw
+      .filter(h => h.enabled === false && !enabledIds.has(h.id.toLowerCase()))
+      .map(h => ({
+        ...h,
+        isSelf: false,
+        status: 'disabled' as const,
+      }))
+
+    return { data: { hosts: [...hostsWithSelf, ...disabledHosts] }, status: 200 }
   } catch (error) {
     console.error('[Hosts API] Failed to fetch hosts:', error)
     return operationFailed('fetch hosts')
@@ -828,6 +842,38 @@ export async function registerPeer(body: PeerRegistrationRequest): Promise<Servi
       }
     }
 
+    // Check if this peer was circuit-broken — re-enable it
+    const allRaw = loadAllHostsRaw()
+    const circuitBroken = allRaw.find(
+      h => h.id.toLowerCase() === body.host.id.toLowerCase() && h.enabled === false
+    )
+    if (circuitBroken) {
+      console.log(`[Host Sync] Re-enabling circuit-broken host '${circuitBroken.id}' via peer registration`)
+      updateHostRaw(circuitBroken.id, {
+        enabled: true,
+        offlineReason: undefined,
+        offlineSince: undefined,
+        lastSyncError: undefined,
+        url: body.host.url,
+        aliases: body.host.aliases || circuitBroken.aliases,
+        syncedAt: new Date().toISOString(),
+        syncSource: body.source?.initiator || 'peer-registration',
+      })
+      resetCircuitBreaker(circuitBroken.id)
+      clearHostsCache()
+      return {
+        data: {
+          success: true,
+          registered: false,
+          alreadyKnown: true,
+          host: getLocalHostIdentity(),
+          knownHosts: getKnownHostIdentities(body.host.id),
+          ...getOrgInfo(),
+        },
+        status: 200,
+      }
+    }
+
     // Build list of all identifiers to check for duplicates
     const incomingIdentifiers: string[] = [
       body.host.id,
@@ -937,6 +983,49 @@ export async function registerPeer(body: PeerRegistrationRequest): Promise<Servi
       },
       status: 500,
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/hosts/:id/reactivate — re-enable a circuit-broken host
+// ---------------------------------------------------------------------------
+
+export async function reactivateHost(id: string): Promise<ServiceResult<{ success: boolean; host?: Host }>> {
+  try {
+    if (!id) {
+      return missingField('id')
+    }
+
+    const allHosts = loadAllHostsRaw()
+    const host = allHosts.find(h => h.id.toLowerCase() === id.toLowerCase())
+
+    if (!host) {
+      return notFound('Host', id)
+    }
+
+    if (host.enabled !== false) {
+      return invalidRequest(`Host '${id}' is already enabled`)
+    }
+
+    const result = updateHostRaw(id, {
+      enabled: true,
+      offlineReason: undefined,
+      offlineSince: undefined,
+      lastSyncError: undefined,
+    })
+
+    if (!result.success) {
+      return operationFailed('reactivate host', result.error)
+    }
+
+    resetCircuitBreaker(id)
+    clearHostsCache()
+
+    console.log(`[Hosts] Reactivated circuit-broken host: ${id}`)
+    return { data: { success: true, host: result.host }, status: 200 }
+  } catch (error) {
+    console.error(`[Hosts] Failed to reactivate host '${id}':`, error)
+    return operationFailed('reactivate host')
   }
 }
 

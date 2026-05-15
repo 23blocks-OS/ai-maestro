@@ -861,6 +861,65 @@ export function updateHost(
 }
 
 /**
+ * Load ALL hosts from hosts.json without filtering by enabled status.
+ * Used by circuit breaker reactivation flow where we need to find disabled hosts.
+ */
+export function loadAllHostsRaw(): Host[] {
+  try {
+    if (!fs.existsSync(HOSTS_CONFIG_PATH)) {
+      return [getDefaultSelfHost()]
+    }
+    const fileContent = fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')
+    const config = JSON.parse(fileContent) as HostsConfig
+    return config.hosts.map(migrateHost)
+  } catch (error) {
+    console.error('[Hosts] Failed to load raw hosts:', error)
+    return []
+  }
+}
+
+/**
+ * Update a host in the raw (unfiltered) host list.
+ * Unlike updateHost(), this can find and update disabled hosts.
+ * Refuses to disable the self host.
+ */
+export function updateHostRaw(
+  hostId: string,
+  updates: Partial<Host>
+): { success: boolean; host?: Host; error?: string } {
+  try {
+    const allHosts = loadAllHostsRaw()
+    const hostIndex = allHosts.findIndex(
+      h => h.id.toLowerCase() === hostId.toLowerCase()
+    )
+    if (hostIndex === -1) {
+      return { success: false, error: `Host '${hostId}' not found` }
+    }
+
+    // Prevent disabling self host
+    if (isSelf(allHosts[hostIndex].id) && updates.enabled === false) {
+      return { success: false, error: 'Cannot disable self host' }
+    }
+
+    const updatedHost = { ...allHosts[hostIndex], ...updates, id: allHosts[hostIndex].id }
+    allHosts[hostIndex] = updatedHost
+
+    const result = saveHosts(allHosts)
+    if (!result.success) {
+      return result
+    }
+
+    return { success: true, host: updatedHost }
+  } catch (error) {
+    console.error('[Hosts] Failed to update host (raw):', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update host',
+    }
+  }
+}
+
+/**
  * Delete a host
  */
 export function deleteHost(hostId: string): { success: boolean; error?: string } {

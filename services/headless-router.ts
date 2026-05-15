@@ -167,6 +167,7 @@ import {
   getMeshStatus,
   registerPeer,
   exchangePeers,
+  reactivateHost,
 } from '@/services/hosts-service'
 
 import {
@@ -1003,6 +1004,9 @@ const routes: Route[] = [
   { method: 'PUT', pattern: /^\/api\/hosts\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await updateExistingHost(params.id, body))
+  }},
+  { method: 'POST', pattern: /^\/api\/hosts\/([^/]+)\/reactivate$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await reactivateHost(params.id))
   }},
   { method: 'DELETE', pattern: /^\/api\/hosts\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await deleteExistingHost(params.id))

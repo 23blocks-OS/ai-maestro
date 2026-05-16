@@ -322,6 +322,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
   }, [messages, pendingMessages])
 
+  // Auto-scroll when permission prompt appears
+  useEffect(() => {
+    if (hookState?.status === 'permission_request') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [hookState])
+
   // Send quick response (assisted mode — for permission buttons)
   const sendQuickResponse = (text: string) => {
     setIsSending(true)

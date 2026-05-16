@@ -653,6 +653,7 @@ export async function registerAgent(
           model: 'Claude',
           taskDescription: body.metadata?.description as string || `AMP-registered agent: ${normalizedName}`,
           workingDirectory: body.metadata?.working_directory as string || undefined,
+          runtime: 'api',
           createSession: false,
           metadata: {
             amp: {

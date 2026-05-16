@@ -119,6 +119,31 @@ function ensureAgentsDir() {
 }
 
 /**
+ * Backfill the runtime field for agents that predate it.
+ * Infers runtime from deployment type and AMP metadata.
+ * Returns true if any agents were updated.
+ */
+function backfillRuntime(agents: Agent[]): boolean {
+  let changed = false
+  for (const agent of agents) {
+    if (agent.runtime) continue
+    if (agent.deployment?.type === 'cloud') {
+      agent.runtime = 'docker'
+    } else if (
+      agent.ampRegistered &&
+      (agent.sessions || []).length === 0 &&
+      !agent.metadata?.autoRegistered
+    ) {
+      agent.runtime = 'api'
+    } else {
+      agent.runtime = 'tmux'
+    }
+    changed = true
+  }
+  return changed
+}
+
+/**
  * Load all agents from registry
  */
 // mtime-based cache to avoid redundant disk reads within the same tick
@@ -158,6 +183,12 @@ export function loadAgents(): Agent[] {
     if (needsMigration) {
       saveAgents(agents)
       console.log('[Agent Registry] Migrated claudeArgs → programArgs')
+    }
+
+    // Backfill runtime for agents that predate the runtime field
+    if (backfillRuntime(agents)) {
+      saveAgents(agents)
+      console.log('[Agent Registry] Backfilled runtime field on existing agents')
     }
 
     _cachedAgents = agents
@@ -419,6 +450,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     model: request.model,
     taskDescription: request.taskDescription,
     programArgs: request.programArgs || '',
+    runtime: request.runtime || 'tmux',
     launchCount: 0,
     tags: normalizeTags(request.tags),
     capabilities: [],

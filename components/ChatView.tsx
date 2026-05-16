@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, Zap, Shield, Brain, X } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Brain, X } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import type { Agent } from '@/types/agent'
 
@@ -502,7 +502,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       case 'Bash':
         return (
           <div className="px-3 pb-3">
-            <pre className="text-xs bg-gray-950/50 p-2 rounded overflow-x-auto max-h-48 overflow-y-auto font-mono text-green-300">
+            <pre className="text-xs bg-gray-950/50 p-2 rounded whitespace-pre-wrap break-all max-h-48 overflow-y-auto font-mono text-green-300">
               {input.command || ''}
             </pre>
           </div>
@@ -611,12 +611,12 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             onClick={toggleChatMode}
             className={`p-2 rounded-lg transition-colors ${
               chatMode === 'power'
-                ? 'text-amber-400 hover:bg-gray-700'
-                : 'text-blue-400 hover:bg-gray-700'
+                ? 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
+                : 'text-gray-500 hover:bg-gray-700 hover:text-gray-300'
             }`}
-            title={chatMode === 'power' ? 'Power mode — switch to Assisted' : 'Assisted mode — switch to Power'}
+            title={chatMode === 'power' ? 'X-Ray on — click to turn off' : 'X-Ray off — click to see thinking & tools'}
           >
-            {chatMode === 'power' ? <Zap className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+            <ScanEye className="w-4 h-4" />
           </button>
           <button
             onClick={requestHistory}
@@ -854,7 +854,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
                 {/* Command preview for Bash */}
                 {hookState.toolName === 'Bash' && hookState.toolInput?.command && (
-                  <div className="text-xs bg-gray-950/50 p-2 rounded font-mono overflow-x-auto max-h-32 overflow-y-auto mb-3">
+                  <div className="text-xs bg-gray-950/50 p-2 rounded font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto mb-3">
                     {hookState.toolInput.command}
                   </div>
                 )}
@@ -866,8 +866,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   </div>
                 )}
 
-                {/* Action buttons (assisted mode) */}
-                {chatMode === 'assisted' && hookState.options && hookState.options.length > 0 ? (
+                {/* Action buttons — always shown so user can respond from chat */}
+                {hookState.options && hookState.options.length > 0 ? (
                   <div className="space-y-1.5">
                     {hookState.options.map((option, idx) => (
                       <button
@@ -883,7 +883,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       </button>
                     ))}
                   </div>
-                ) : chatMode === 'assisted' ? (
+                ) : (
                   /* Yes/No fallback */
                   <div className="flex gap-2">
                     <button onClick={() => sendQuickResponse('y')} disabled={isSending}
@@ -895,7 +895,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       No
                     </button>
                   </div>
-                ) : null}
+                )}
               </div>
             </div>
           </div>

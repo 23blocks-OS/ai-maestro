@@ -34,6 +34,7 @@ import {
   Search,
   X,
   Brain,
+  Star,
 } from 'lucide-react'
 import Link from 'next/link'
 import AgentCreationWizard from './AgentCreationWizard'
@@ -48,7 +49,7 @@ import TeamListView from './sidebar/TeamListView'
 import MeetingListView from './sidebar/MeetingListView'
 import { useToast } from '@/contexts/ToastContext'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
-import { computeHash } from '@/lib/hash-utils'
+import { computeHash, getAvatarUrl } from '@/lib/hash-utils'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -203,6 +204,27 @@ export default function AgentList({
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Favorites state (persisted in localStorage)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = localStorage.getItem('agent-favorites')
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch { return new Set() }
+  })
+
+  useEffect(() => {
+    localStorage.setItem('agent-favorites', JSON.stringify([...favoriteIds]))
+  }, [favoriteIds])
+
+  const toggleFavorite = (agentId: string) => {
+    setFavoriteIds(prev => {
+      const next = new Set(prev)
+      next.has(agentId) ? next.delete(agentId) : next.add(agentId)
+      return next
+    })
+  }
 
   // Sidebar view state (agents / teams / meetings)
   const [sidebarView, setSidebarView] = useState<SidebarView>(() => {
@@ -760,6 +782,74 @@ export default function AgentList({
           )}
         </div>
 
+        {/* Favorites Speed Dial */}
+        {(() => {
+          const favoriteAgents = agents.filter(a => favoriteIds.has(a.id))
+          if (favoriteAgents.length === 0) return null
+          return (
+            <div className="mt-3 px-2">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <span className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Favorites</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {favoriteAgents.map(agent => {
+                  const isActive = activeAgentId === agent.id
+                  const session = agent.sessions?.[0]
+                  const isOnline = session?.status === 'online' || agent.session?.status === 'online'
+                  const avatarUrl = agent.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/'))
+                    ? agent.avatar
+                    : getAvatarUrl(agent.id)
+                  const isEmoji = agent.avatar && !agent.avatar.startsWith('http') && !agent.avatar.startsWith('/') && agent.avatar.length <= 8
+
+                  return (
+                    <div
+                      key={agent.id}
+                      className="relative flex flex-col items-center flex-shrink-0 group/fav cursor-pointer"
+                      onClick={() => onAgentSelect(agent)}
+                      title={agent.label || agent.name}
+                    >
+                      <div className={`relative w-9 h-9 rounded-full overflow-hidden ring-2 transition-all ${
+                        isActive ? 'ring-blue-500 shadow-lg shadow-blue-500/30' : 'ring-slate-600 hover:ring-slate-400'
+                      }`}>
+                        {isEmoji ? (
+                          <div className="w-full h-full bg-slate-700 flex items-center justify-center">
+                            <span className="text-lg">{agent.avatar}</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={avatarUrl}
+                            alt={agent.label || agent.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        {/* Online dot */}
+                        {isOnline && (
+                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full ring-2 ring-slate-900" />
+                        )}
+                      </div>
+                      {/* Remove button on hover */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleFavorite(agent.id)
+                        }}
+                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-slate-400 hover:bg-red-500/80 hover:text-white items-center justify-center text-[10px] hidden group-hover/fav:flex transition-colors"
+                        title="Remove from favorites"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                      <span className="mt-1 text-[10px] text-gray-400 truncate max-w-[44px] text-center leading-tight">
+                        {agent.label || agent.name}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Host List - Collapsible */}
         <div className="mt-3">
           <button
@@ -1021,6 +1111,8 @@ export default function AgentList({
                                             onOpenTerminal={isOnline ? () => handleAgentClick(agent) : undefined}
                                             onSendMessage={() => {/* TODO: Implement send message dialog */}}
                                             onCopyId={() => navigator.clipboard.writeText(agent.id)}
+                                            isFavorite={favoriteIds.has(agent.id)}
+                                            onToggleFavorite={(a) => toggleFavorite(a.id)}
                                           />
                                         )
                                       })}
@@ -1303,6 +1395,21 @@ export default function AgentList({
 
                                           {/* Action buttons - show on hover */}
                                           <div className="hidden group-hover/agent:flex items-center gap-1">
+                                            {/* Favorite toggle */}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                toggleFavorite(agent.id)
+                                              }}
+                                              className={`p-1 rounded transition-all duration-200 ${
+                                                favoriteIds.has(agent.id)
+                                                  ? 'text-yellow-400 hover:bg-yellow-500/20'
+                                                  : 'text-gray-400 hover:bg-yellow-500/20 hover:text-yellow-400'
+                                              }`}
+                                              title={favoriteIds.has(agent.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                            >
+                                              <Star className={`w-3 h-3 ${favoriteIds.has(agent.id) ? 'fill-yellow-400' : ''}`} />
+                                            </button>
                                             {/* Hibernate button - show when agent is online */}
                                             {isOnline && (
                                               <button

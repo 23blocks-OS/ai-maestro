@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.9] - 2026-05-16
+
+### Added
+- **Favorites / Speed Dial** — Pin frequently-used agents to a horizontal strip at the top of the sidebar for one-click access. Toggle via context menu ("Add to Favorites" / "Remove from Favorites") or star button on hover in list view. Persisted in localStorage.
+- **Chat permission prompts** — When an agent requests permission (e.g., to run a Bash command), the full prompt now appears in the chat with the command preview and clickable option buttons (Yes, Yes and don't ask again, No). Previously only visible in the terminal view.
+- **Real-time activity indicators in meeting chat** — Meeting chat now shows "Agent is working..." (spinner) and "Agent is waiting for input" (pulse) using WebSocket-backed session activity instead of naive heuristics.
+
+### Changed
+- **X-Ray mode** — Renamed Power/Assisted chat mode to "X-Ray". Single `ScanEye` icon toggles on (amber glow) / off (gray) instead of swapping between two different icons.
+- **Permission buttons always visible** — Chat permission action buttons now render in both X-Ray on and off modes. Previously gated to assisted-only, leaving no way to respond in power mode.
+
+### Fixed
+- **Hook not sending full hookState** — The `ai-maestro-hook.cjs` was writing permission details (toolName, toolInput, options) to a file but only sending `status` via the WebSocket broadcast. Now includes the full `hookState` object in the payload.
+- **Headless router missing hookState** — The headless router's activity update endpoint was not forwarding `body.hookState` to `broadcastActivityUpdate`.
+- **Bash commands overflow in chat** — Long commands rendered as a single line overflowing off-screen. Now uses `whitespace-pre-wrap` + `break-all` to wrap within the chat bubble.
+- **Meeting chat messages behind textarea** — Added `min-h-0` to the messages container for proper flex overflow constraint.
+- **No auto-scroll on permission prompt** — Added scroll trigger when `hookState` changes to `permission_request`.
+
 ## [0.35.7] - 2026-05-15
 
 ### Added

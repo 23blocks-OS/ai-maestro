@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Users, User, X } from 'lucide-react'
+import { Send, Users, User, X, Loader2 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 
 interface ChatMessage {
   id: string
@@ -35,6 +36,7 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
   const [inputText, setInputText] = useState('')
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { getSessionActivity } = useSessionActivity()
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -126,7 +128,7 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
         {filteredMessages.length === 0 && (
           <p className="text-[11px] text-gray-600 text-center py-8">
             No messages yet. Send a message to get started.
@@ -154,6 +156,44 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
             </span>
           </div>
         ))}
+        {/* Activity indicators - show real-time agent processing status */}
+        {(() => {
+          // Determine which agents to show status for
+          const targetAgents = recipient === 'all' ? agents : agents.filter(a => a.id === recipient)
+          const activeAgents = targetAgents.filter(a => {
+            const info = getSessionActivity(a.name, a.id)
+            return info?.status === 'active'
+          })
+          const waitingAgents = targetAgents.filter(a => {
+            const info = getSessionActivity(a.name, a.id)
+            return info?.status === 'waiting'
+          })
+
+          return (
+            <>
+              {activeAgents.map(a => (
+                <div key={`activity-${a.id}`} className="flex flex-col items-start">
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-gray-800/50 text-gray-400">
+                    <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                    <span className={isOverlay ? 'text-sm' : 'text-[11px]'}>
+                      {a.label || a.name} is working...
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {waitingAgents.map(a => (
+                <div key={`waiting-${a.id}`} className="flex flex-col items-start">
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-gray-800/50 text-gray-400">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className={isOverlay ? 'text-sm' : 'text-[11px]'}>
+                      {a.label || a.name} is waiting for input
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </>
+          )
+        })()}
         <div ref={messagesEndRef} />
       </div>
 

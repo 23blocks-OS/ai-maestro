@@ -487,6 +487,7 @@ export async function createCloudAgent(body: CloudCreateRequest): Promise<Servic
         type: 'cloud',
         cloud: cloudMeta as unknown as Agent['deployment']['cloud'],
       } as Agent['deployment'],
+      runtime: 'docker',
       tags: body.tags,
     }
 

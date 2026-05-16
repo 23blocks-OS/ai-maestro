@@ -1348,6 +1348,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
       programArgs: body.programArgs,
       taskDescription: body.prompt || '',
       workingDirectory: workDir,
+      runtime: 'docker',
       createSession: true,
       deploymentType: 'cloud',
       hostId: body.hostId,

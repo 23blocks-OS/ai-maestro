@@ -490,6 +490,7 @@ export interface CreateAgentRequest {
   programArgs?: string          // CLI arguments passed to the program on launch
   tags?: string[]
   workingDirectory?: string
+  runtime?: 'tmux' | 'docker' | 'api' | 'direct'
   createSession?: boolean       // Auto-create tmux session
   sessionIndex?: number         // Session index to create (default 0)
   deploymentType?: DeploymentType // Where to deploy (local or cloud)

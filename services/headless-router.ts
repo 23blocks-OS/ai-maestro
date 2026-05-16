@@ -492,7 +492,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType, body.agentId)
+    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType, body.agentId, body.hookState)
     sendServiceResult(res, result)
   }},
 

@@ -190,17 +190,52 @@ function extractText(msg: ChatMessage): string {
   return ''
 }
 
+// Shorten a file path to last 3 segments
+function shortenPath(p: string): string {
+  const parts = p.split('/')
+  if (parts.length <= 3) return p
+  return '.../' + parts.slice(-3).join('/')
+}
+
+// Get a tool-specific preview string
+function getToolPreviewText(name: string, input: any): string {
+  if (!input) return ''
+  switch (name) {
+    case 'Bash':
+      return (input.command || '').slice(0, 60) + ((input.command?.length || 0) > 60 ? '...' : '')
+    case 'Read': case 'Write': case 'Edit': case 'MultiEdit':
+      return input.file_path ? shortenPath(input.file_path) : ''
+    case 'Glob':
+      return input.pattern || ''
+    case 'Grep':
+      return `/${input.pattern || ''}/${input.path ? ' ' + shortenPath(input.path) : ''}`
+    case 'Task':
+      return (input.description || '').slice(0, 60)
+    case 'WebSearch':
+      return input.query || ''
+    case 'WebFetch':
+      return input.url || ''
+    default: {
+      const keys = Object.keys(input)
+      if (keys.length === 0) return ''
+      const k = keys[0]
+      const v = typeof input[k] === 'string' ? input[k] : JSON.stringify(input[k])
+      const preview = `${k}: ${v}`
+      return preview.slice(0, 60) + (preview.length > 60 ? '...' : '')
+    }
+  }
+}
+
 // Extract tool use info from a message
-function extractToolUses(msg: ChatMessage): { name: string; target: string }[] {
+function extractToolUses(msg: ChatMessage): { name: string; preview: string }[] {
   const content = msg.message?.content
   if (!Array.isArray(content)) return []
   return content
     .filter(b => b.type === 'tool_use' && b.name)
-    .map(b => {
-      const target = b.input?.file_path || b.input?.command || b.input?.pattern || b.input?.query || ''
-      const shortTarget = target.length > 60 ? '...' + target.slice(-57) : target
-      return { name: b.name!, target: shortTarget }
-    })
+    .map(b => ({
+      name: b.name!,
+      preview: getToolPreviewText(b.name!, b.input)
+    }))
 }
 
 function ThinkingBlock({ text }: { text: string }) {
@@ -217,7 +252,7 @@ function ThinkingBlock({ text }: { text: string }) {
         <span className="italic">Thinking</span>
       </div>
       {expanded ? (
-        <p className="text-xs text-gray-400 mt-1 whitespace-pre-wrap select-text">{text}</p>
+        <p className="text-xs text-gray-400 mt-1 whitespace-pre-wrap select-text max-h-48 overflow-y-auto">{text}</p>
       ) : (
         <p className="text-xs text-gray-500 mt-0.5 truncate">{preview}</p>
       )}
@@ -324,7 +359,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                     !m.uuid || !existingUuids.has(m.uuid)
                   )
                   if (uniqueNew.length === 0) return prev
-                  return [...prev, ...uniqueNew].slice(-100)
+                  return [...prev, ...uniqueNew].slice(-200)
                 })
                 setPendingMessages([])
               }
@@ -510,6 +545,19 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             return <ThinkingBlock key={key} text={msg.thinking} />
           }
 
+          // Summary divider
+          if (msg.type === 'summary') {
+            return (
+              <div key={key} className="flex items-center gap-3 my-2 mx-3">
+                <div className="flex-1 border-t border-gray-700/50" />
+                <span className="text-xs text-gray-500 italic whitespace-nowrap">
+                  {(msg as any).summary || 'Conversation compacted'}
+                </span>
+                <div className="flex-1 border-t border-gray-700/50" />
+              </div>
+            )
+          }
+
           // Human/user message
           if (msg.type === 'human' || msg.type === 'user') {
             const text = extractText(msg)
@@ -560,8 +608,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                     <div key={j} className="flex items-center gap-1.5 text-xs text-gray-500 italic py-0.5">
                       <Wrench className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">
-                        Used <span className="text-gray-400">{tool.name}</span>
-                        {tool.target && <span className="text-gray-600"> on {tool.target}</span>}
+                        <span className="text-gray-400">{tool.name}</span>
+                        {tool.preview && <span className="text-gray-600 font-mono"> {tool.preview}</span>}
                       </span>
                     </div>
                   ))}
@@ -633,6 +681,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               <pre className="text-xs bg-gray-950/50 p-2 rounded font-mono overflow-x-auto max-h-20 overflow-y-auto mb-2 text-gray-300">
                 {hookState.toolInput.command}
               </pre>
+            )}
+            {hookState?.toolName !== 'Bash' && (hookState?.toolInput?.file_path || hookState?.toolInput?.path) && (
+              <div className="text-xs opacity-80 font-mono bg-gray-950/30 px-2 py-1 rounded mb-2 text-gray-300 truncate">
+                {hookState.toolInput.file_path || hookState.toolInput.path}
+              </div>
             )}
             {hookState?.options && hookState.options.length > 0 ? (
               <div className="space-y-1.5">

@@ -106,6 +106,21 @@ export async function getConversationMessages(
         if (msgTime <= sinceTime) continue
       }
 
+      // Skip tool-result user messages (invisible in chat, waste message budget)
+      if (message.type === 'user' && message.toolUseResult) continue
+
+      // Convert compact_boundary system messages to summary type
+      if (message.type === 'system' &&
+          (message.subtype === 'compact_boundary' || message.subtype === 'microcompact_boundary')) {
+        messages.push({
+          type: 'summary',
+          summary: message.content || 'Conversation compacted',
+          timestamp: message.timestamp,
+          uuid: message.uuid,
+        })
+        continue
+      }
+
       // Extract thinking blocks from assistant messages
       if (message.type === 'assistant' && message.message?.content) {
         const content = message.message.content

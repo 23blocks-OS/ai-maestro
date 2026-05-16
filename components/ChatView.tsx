@@ -1,9 +1,47 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, Zap, Shield } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, Zap, Shield, Brain, X } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import type { Agent } from '@/types/agent'
+
+// Collapsible thinking block
+function ThinkingBlock({ text, timestamp }: { text: string; timestamp?: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const preview = text.slice(0, 120) + (text.length > 120 ? '...' : '')
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%]">
+        <div
+          className="rounded-2xl px-4 py-3 bg-purple-900/20 border border-purple-700/30 cursor-pointer transition-colors hover:bg-purple-900/30"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            {expanded ? (
+              <ChevronDown className="w-3.5 h-3.5 text-purple-400" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-purple-400" />
+            )}
+            <span className="text-xs text-purple-400 italic">Thinking</span>
+            {timestamp && (
+              <span className="text-xs text-purple-500/50 ml-auto">
+                {new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+          {expanded ? (
+            <div className="text-sm text-purple-200/80 whitespace-pre-wrap italic max-h-64 overflow-y-auto select-text">
+              {text}
+            </div>
+          ) : (
+            <p className="text-sm text-purple-300/50 truncate italic">{preview}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type ChatMode = 'power' | 'assisted'
 
@@ -13,7 +51,7 @@ interface ChatViewProps {
 }
 
 interface Message {
-  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'thinking' | 'summary' | 'queue-operation'
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'thinking' | 'summary' | 'system' | 'queue-operation'
   timestamp?: string
   uuid?: string
   message?: {
@@ -48,6 +86,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [memorizeTarget, setMemorizeTarget] = useState<{ index: number; content: string } | null>(null)
+  const [memorizeNote, setMemorizeNote] = useState('')
   const [hookState, setHookState] = useState<{
     status: string;
     message?: string;
@@ -170,7 +210,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     !m.uuid || !existingUuids.has(m.uuid)
                   )
                   if (uniqueNew.length === 0) return prev
-                  return [...prev, ...uniqueNew].slice(-100) // Keep last 100
+                  return [...prev, ...uniqueNew].slice(-200) // Keep last 200
                 })
                 // Clear pending messages when new activity arrives
                 setPendingMessages([])
@@ -409,6 +449,122 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return content.filter(block => block.type === 'tool_use')
   }
 
+  // Shorten a file path to last 3 segments
+  const shortenPath = (p: string): string => {
+    const parts = p.split('/')
+    if (parts.length <= 3) return p
+    return '.../' + parts.slice(-3).join('/')
+  }
+
+  // Get a one-line contextual preview for a tool
+  const getToolPreview = (tool: ContentBlock): string => {
+    const input = tool.input
+    if (!input) return ''
+    const name = tool.name || ''
+
+    switch (name) {
+      case 'Bash':
+        return (input.command || '').slice(0, 80) + ((input.command?.length || 0) > 80 ? '...' : '')
+      case 'Read':
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+        return input.file_path ? shortenPath(input.file_path) : ''
+      case 'Glob':
+        return input.pattern || ''
+      case 'Grep':
+        return `/${input.pattern || ''}/${input.path ? ' ' + shortenPath(input.path) : ''}`
+      case 'Task':
+        return (input.description || '').slice(0, 80)
+      case 'WebSearch':
+        return input.query || ''
+      case 'WebFetch':
+        return input.url || ''
+      default: {
+        // First key=value from input
+        const keys = Object.keys(input)
+        if (keys.length === 0) return ''
+        const k = keys[0]
+        const v = typeof input[k] === 'string' ? input[k] : JSON.stringify(input[k])
+        const preview = `${k}: ${v}`
+        return preview.slice(0, 80) + (preview.length > 80 ? '...' : '')
+      }
+    }
+  }
+
+  // Render tool-specific expanded content
+  const renderToolExpanded = (tool: ContentBlock) => {
+    const input = tool.input
+    if (!input) return null
+    const name = tool.name || ''
+
+    switch (name) {
+      case 'Bash':
+        return (
+          <div className="px-3 pb-3">
+            <pre className="text-xs bg-gray-950/50 p-2 rounded overflow-x-auto max-h-48 overflow-y-auto font-mono text-green-300">
+              {input.command || ''}
+            </pre>
+          </div>
+        )
+      case 'Read':
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+        return (
+          <div className="px-3 pb-3 space-y-1">
+            {input.file_path && (
+              <div className="text-xs font-mono bg-gray-950/50 px-2 py-1.5 rounded text-blue-300">
+                {input.file_path}
+              </div>
+            )}
+            {input.description && (
+              <p className="text-xs text-gray-400 italic">{input.description}</p>
+            )}
+            {input.old_string && (
+              <pre className="text-xs bg-red-950/30 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto text-red-300 border border-red-900/30">
+                {input.old_string}
+              </pre>
+            )}
+            {input.new_string && (
+              <pre className="text-xs bg-green-950/30 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto text-green-300 border border-green-900/30">
+                {input.new_string}
+              </pre>
+            )}
+            {input.content && name === 'Write' && (
+              <pre className="text-xs bg-gray-950/50 p-2 rounded overflow-x-auto max-h-48 overflow-y-auto text-gray-300">
+                {typeof input.content === 'string' ? input.content.slice(0, 500) + (input.content.length > 500 ? '\n...' : '') : ''}
+              </pre>
+            )}
+          </div>
+        )
+      case 'Grep':
+        return (
+          <div className="px-3 pb-3">
+            <div className="text-xs font-mono bg-gray-950/50 px-2 py-1.5 rounded text-yellow-300">
+              /{input.pattern || ''}/{input.path ? ` in ${input.path}` : ''}
+            </div>
+          </div>
+        )
+      case 'Glob':
+        return (
+          <div className="px-3 pb-3">
+            <div className="text-xs font-mono bg-gray-950/50 px-2 py-1.5 rounded text-yellow-300">
+              {input.pattern || ''}
+            </div>
+          </div>
+        )
+      default:
+        return (
+          <div className="px-3 pb-3">
+            <pre className="text-xs bg-gray-950/50 p-2 rounded overflow-x-auto max-h-48 overflow-y-auto text-gray-300">
+              {JSON.stringify(input, null, 2)}
+            </pre>
+          </div>
+        )
+    }
+  }
+
   const isOnline = agent.sessions?.some(s => s.status === 'online')
 
   // Activity state derived from hookState + messages + pending
@@ -500,19 +656,48 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           const isUser = message.type === 'user'
           const isQueued = message.type === 'queue-operation' && message.operation === 'enqueue'
           const isThinking = message.type === 'thinking'
+          const isSummary = message.type === 'summary'
           const content = getMessageContent(message)
           const tools = getToolsFromMessage(message)
+
+          // Skip system messages with no meaningful content
+          if (message.type === 'system') return null
 
           // Skip empty messages and dequeue operations
           if (!content && tools.length === 0) return null
           if (message.type === 'queue-operation' && message.operation !== 'enqueue') return null
+
+          // Assisted mode: only show user↔agent conversation (hide thinking, tools-only, summaries)
+          if (chatMode === 'assisted') {
+            if (isThinking || isSummary) return null
+            // Skip tool-only assistant messages (no text content)
+            if (message.type === 'assistant' && !content && tools.length > 0) return null
+          }
+
+          // Summary divider — centered horizontal rule with text (power mode only)
+          if (isSummary) {
+            return (
+              <div key={message.uuid || index} className="flex items-center gap-3 my-3 px-2">
+                <div className="flex-1 border-t border-gray-700/50" />
+                <span className="text-xs text-gray-500 italic whitespace-nowrap">
+                  {message.summary || 'Conversation compacted'}
+                </span>
+                <div className="flex-1 border-t border-gray-700/50" />
+              </div>
+            )
+          }
+
+          // Thinking block — collapsible (power mode only)
+          if (isThinking) {
+            return <ThinkingBlock key={message.uuid || index} text={content} timestamp={message.timestamp} />
+          }
 
           // Message grouping: check if previous message is same role within 60s
           const prevMsg = index > 0 ? messages[index - 1] : null
           const isSameRole = prevMsg && (
             (isUser && prevMsg.type === 'user') ||
             (isQueued && prevMsg.type === 'queue-operation' && prevMsg.operation === 'enqueue') ||
-            (!isUser && !isQueued && !isThinking && prevMsg.type === 'assistant')
+            (!isUser && !isQueued && prevMsg.type === 'assistant')
           )
           const isGrouped = isSameRole && message.timestamp && prevMsg?.timestamp &&
             Math.abs(new Date(message.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()) < 60000
@@ -530,8 +715,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       ? 'bg-yellow-600/80 text-white border border-yellow-500'
                       : isUser
                       ? 'bg-blue-600 text-white'
-                      : isThinking
-                      ? 'bg-purple-900/30 border border-purple-700/50 text-purple-200'
                       : 'bg-gray-800 text-gray-200'
                   }`}
                 >
@@ -542,13 +725,11 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : isUser ? (
                         <User className="w-3.5 h-3.5" />
-                      ) : isThinking ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <Bot className="w-3.5 h-3.5" />
                       )}
                       <span className="text-xs opacity-70">
-                        {isQueued ? 'Queued' : isUser ? 'You' : isThinking ? 'Thinking...' : (agent.label || agent.name || 'Agent')}
+                        {isQueued ? 'Queued' : isUser ? 'You' : (agent.label || agent.name || 'Agent')}
                       </span>
                       {message.timestamp && (
                         <span className="text-xs opacity-50 ml-auto">
@@ -558,10 +739,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     </div>
                   )}
 
-                  {/* Content — use markdown for assistant, plain for user/thinking */}
+                  {/* Content — use markdown for assistant, plain for user */}
                   {content && (
-                    (isUser || isQueued || isThinking) ? (
-                      <div className={`text-sm whitespace-pre-wrap break-words ${isThinking ? 'italic' : ''}`}>
+                    (isUser || isQueued) ? (
+                      <div className="text-sm whitespace-pre-wrap break-words">
                         {content}
                       </div>
                     ) : (
@@ -569,12 +750,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     )
                   )}
 
-                  {/* Tools */}
-                  {tools.length > 0 && (
+                  {/* Tools — with contextual previews (power mode only) */}
+                  {chatMode === 'power' && tools.length > 0 && (
                     <div className="mt-2 space-y-2">
                       {tools.map((tool, toolIdx) => {
                         const toolId = `${index}-${toolIdx}`
                         const isExpanded = expandedTools.has(toolId)
+                        const preview = getToolPreview(tool)
 
                         return (
                           <div
@@ -585,24 +767,24 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                               onClick={() => toggleTool(toolId)}
                               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-orange-900/20 transition-colors rounded-lg"
                             >
-                              <Wrench className="w-3.5 h-3.5 text-orange-400" />
-                              <span className="text-xs text-orange-300 font-medium flex-1">
+                              <Wrench className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                              <span className="text-xs text-orange-300 font-medium">
                                 {tool.name || 'Tool'}
                               </span>
+                              {preview && !isExpanded && (
+                                <span className="text-xs text-orange-400/60 font-mono truncate flex-1 ml-1">
+                                  {preview}
+                                </span>
+                              )}
+                              {!preview && <span className="flex-1" />}
                               {isExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-orange-400" />
+                                <ChevronDown className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-orange-400" />
+                                <ChevronRight className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
                               )}
                             </button>
 
-                            {isExpanded && tool.input && (
-                              <div className="px-3 pb-3">
-                                <pre className="text-xs bg-gray-950/50 p-2 rounded overflow-x-auto text-gray-300">
-                                  {JSON.stringify(tool.input, null, 2)}
-                                </pre>
-                              </div>
-                            )}
+                            {isExpanded && tool.input && renderToolExpanded(tool)}
                           </div>
                         )
                       })}
@@ -610,23 +792,38 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   )}
                 </div>
 
-                {/* Copy button */}
+                {/* Action buttons */}
                 {content && (
-                  <button
-                    onClick={() => copyToClipboard(content, index)}
-                    className={`mt-1 p-1 rounded text-xs transition-colors ${
-                      isUser
-                        ? 'text-blue-300 hover:text-white'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                    title="Copy message"
-                  >
-                    {copiedIndex === index ? (
-                      <Check className="w-3 h-3" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
+                  <div className={`mt-1 flex items-center gap-1 ${(isUser || isQueued) ? 'justify-end' : ''}`}>
+                    <button
+                      onClick={() => copyToClipboard(content, index)}
+                      className={`p-1 rounded text-xs transition-colors ${
+                        isUser
+                          ? 'text-blue-300 hover:text-white'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                      title="Copy message"
+                    >
+                      {copiedIndex === index ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                    {/* Memorize — only for assistant messages */}
+                    {message.type === 'assistant' && (
+                      <button
+                        onClick={() => {
+                          setMemorizeTarget({ index, content })
+                          setMemorizeNote('')
+                        }}
+                        className="p-1 rounded text-xs transition-colors text-gray-500 hover:text-purple-400"
+                        title="Save to memory"
+                      >
+                        <Brain className="w-3 h-3" />
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -724,6 +921,71 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Memorize popup */}
+      {memorizeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setMemorizeTarget(null)}>
+          <div
+            className="bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-full max-w-lg mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-purple-400" />
+                <h3 className="text-sm font-medium text-gray-200">Save to Memory</h3>
+              </div>
+              <button
+                onClick={() => setMemorizeTarget(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content preview */}
+            <div className="px-4 pt-3">
+              <label className="text-xs text-gray-400 mb-1 block">Agent response</label>
+              <div className="text-xs text-gray-300 bg-gray-900/50 rounded-lg p-3 max-h-32 overflow-y-auto whitespace-pre-wrap border border-gray-700/50">
+                {memorizeTarget.content.slice(0, 500)}{memorizeTarget.content.length > 500 ? '...' : ''}
+              </div>
+            </div>
+
+            {/* Instructions textarea */}
+            <div className="px-4 pt-3">
+              <label className="text-xs text-gray-400 mb-1 block">Additional instructions (optional)</label>
+              <textarea
+                value={memorizeNote}
+                onChange={e => setMemorizeNote(e.target.value)}
+                placeholder="Add context, corrections, or notes for the agent to remember..."
+                className="w-full bg-gray-900 text-gray-200 text-sm rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500"
+                rows={3}
+                autoFocus
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2 px-4 py-3">
+              <button
+                onClick={() => setMemorizeTarget(null)}
+                className="px-3 py-1.5 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: save to agent memory files + database
+                  console.log('[ChatView] Memorize:', { content: memorizeTarget.content, note: memorizeNote, agentId: agent.id })
+                  setMemorizeTarget(null)
+                }}
+                className="px-4 py-1.5 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+              >
+                Save to Memory
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Input Area */}
       <div className="border-t border-gray-700 bg-gray-800 p-4 flex-shrink-0">

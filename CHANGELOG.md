@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.7] - 2026-05-15
+
+### Added
+- **Tool-specific previews in chat** — Collapsed tool headers now show contextual one-line previews: Bash shows the command, Read/Write/Edit show the file path, Grep shows the pattern, Task shows the description. Expanding a tool shows styled content (green mono for Bash, red/green diff for Edit) instead of raw JSON dumps.
+- **Collapsible thinking blocks (desktop)** — Thinking blocks render as collapsible purple-tinted cards with 120-char preview. Click to expand/collapse with max-h-64 scroll.
+- **Summary dividers** — `compact_boundary` and `microcompact_boundary` system messages now render as centered horizontal-rule dividers instead of being invisible.
+- **Power mode / Assisted mode** — The zap/shield toggle now controls chat verbosity. Assisted mode (default) shows only the clean user-agent conversation. Power mode shows the full train of thought: thinking blocks, tool calls, summary dividers.
+- **Save to Memory button** — Brain icon on assistant messages opens a popup form to save responses to agent memory with optional instructions (UI only, backend TBD).
+- **Tool-result filtering** — JSONL parser now skips invisible `toolUseResult` user messages, effectively doubling the useful message history within the 200-message budget.
+
+### Changed
+- **MobileChatView tool badges** — Tool badges now show tool-specific preview text (`Bash ls -la`) instead of generic `Used Bash on ls -la`.
+
 ## [0.35.6] - 2026-05-15
 
 ### Fixed

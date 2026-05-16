@@ -225,6 +225,22 @@ function parseJsonlLines(lines, limit = 100) {
     if (!line.trim()) continue
     try {
       const message = JSON.parse(line)
+
+      // Skip tool-result user messages (invisible in chat, waste message budget)
+      if (message.type === 'user' && message.toolUseResult) continue
+
+      // Convert compact_boundary system messages to summary type
+      if (message.type === 'system' &&
+          (message.subtype === 'compact_boundary' || message.subtype === 'microcompact_boundary')) {
+        messages.push({
+          type: 'summary',
+          summary: message.content || 'Conversation compacted',
+          timestamp: message.timestamp,
+          uuid: message.uuid,
+        })
+        continue
+      }
+
       // Extract thinking blocks from assistant messages
       if (message.type === 'assistant' && message.message?.content) {
         const content = message.message.content
@@ -266,7 +282,7 @@ async function getChatHistory(sessionName, agentId) {
 
   const fileContent = fs.readFileSync(file.path, 'utf-8')
   const lines = fileContent.split('\n')
-  const messages = parseJsonlLines(lines, 25)
+  const messages = parseJsonlLines(lines, 200)
 
   const workingDir = agent.workingDirectory ||
                      agent.sessions?.[0]?.workingDirectory ||

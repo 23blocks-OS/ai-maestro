@@ -1454,8 +1454,15 @@ async function startServer(handleRequest) {
         // Use isSelf() to determine if this is a local or remote host
         // This is more reliable than checking host.type which may be undefined
         if (!isSelf(host.id)) {
+          // Forward original query params (cols, rows, socket) so remote PTY
+          // spawns with the correct terminal dimensions
+          const forwardParams = []
+          if (query.cols) forwardParams.push(`cols=${query.cols}`)
+          if (query.rows) forwardParams.push(`rows=${query.rows}`)
+          if (query.socket) forwardParams.push(`socket=${encodeURIComponent(query.socket)}`)
+          const extraParams = forwardParams.length > 0 ? `&${forwardParams.join('&')}` : ''
           console.log(`🌐 [REMOTE] Routing ${sessionName} to host ${host.id} (${host.url})`)
-          handleRemoteWorker(ws, sessionName, host.url)
+          handleRemoteWorker(ws, sessionName, host.url, extraParams)
           return
         }
         // If isSelf(host.id) is true, fall through to local tmux handling
@@ -1492,8 +1499,14 @@ async function startServer(handleRequest) {
           .replace(/^ws:/, 'http:')
           .replace(/^wss:/, 'https:')
         const containerSessionName = cloudAgent.name || sessionName
+        // Forward terminal dimensions to cloud container
+        const cloudParams = []
+        if (query.cols) cloudParams.push(`cols=${query.cols}`)
+        if (query.rows) cloudParams.push(`rows=${query.rows}`)
+        if (query.socket) cloudParams.push(`socket=${encodeURIComponent(query.socket)}`)
+        const cloudExtraParams = cloudParams.length > 0 ? `&${cloudParams.join('&')}` : ''
         console.log(`☁️  [CLOUD] Routing ${sessionName} (resolved to ${containerSessionName}) to container at ${containerBaseUrl}`)
-        handleRemoteWorker(ws, containerSessionName, containerBaseUrl)
+        handleRemoteWorker(ws, containerSessionName, containerBaseUrl, cloudExtraParams)
         return
       }
     } catch (error) {

@@ -17,6 +17,28 @@ export type { AgentSkillsConfig, AgentMarketplaceSkill, AgentCustomSkill } from 
 import type { AgentSkillsConfig } from './marketplace'
 
 // ============================================================================
+// Permission Mode (Trust Levels)
+// ============================================================================
+
+/**
+ * Agent permission mode — controls how much autonomy the agent has.
+ * Maps to Claude Code's --permission-mode CLI flag.
+ */
+export type AgentPermissionMode = 'supervised' | 'planOnly' | 'trustEdits' | 'smartAuto' | 'fullAutonomy'
+
+/**
+ * Maps internal permission mode IDs to Claude Code CLI --permission-mode values.
+ * Only applied when the program is 'claude'.
+ */
+export const PERMISSION_MODE_TO_CLI: Record<AgentPermissionMode, string> = {
+  supervised:   'default',
+  planOnly:     'plan',
+  trustEdits:   'acceptEdits',
+  smartAuto:    'auto',
+  fullAutonomy: 'bypassPermissions',
+}
+
+// ============================================================================
 // AMP Identity Types (Cryptographic Identity for Messaging)
 // ============================================================================
 
@@ -134,6 +156,21 @@ export function computeSessionName(agentName: string, index: number): string {
 }
 
 /**
+ * Compute tmux session name for a companion call fork.
+ * Uses double underscore to avoid collision with multi-brain `_N` suffix.
+ */
+export function computeCallSessionName(agentName: string): string {
+  return `${agentName}__call`
+}
+
+/**
+ * Check if a tmux session name is a companion call fork.
+ */
+export function isCallSession(tmuxName: string): boolean {
+  return tmuxName.endsWith('__call')
+}
+
+/**
  * Derive display info from agent name for UI hierarchy
  * Splits on hyphens to create tags + shortName
  * Examples:
@@ -202,6 +239,7 @@ export interface Agent {
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
   taskDescription: string       // What this agent is working on
   programArgs?: string          // CLI arguments passed to the program on launch (e.g., "--continue --chrome")
+  permissionMode?: AgentPermissionMode  // Trust level for agent autonomy (default: 'supervised')
   launchCount?: number          // Number of times agent has been woken/launched (0 = never launched)
   tags?: string[]               // Optional tags (e.g., ["backend", "api", "typescript"])
   capabilities?: string[]       // Technical capabilities (e.g., ["typescript", "postgres"])
@@ -488,6 +526,7 @@ export interface CreateAgentRequest {
   model?: string
   taskDescription: string
   programArgs?: string          // CLI arguments passed to the program on launch
+  permissionMode?: AgentPermissionMode  // Trust level (default: 'supervised')
   tags?: string[]
   workingDirectory?: string
   runtime?: 'tmux' | 'docker' | 'api' | 'direct'
@@ -516,6 +555,7 @@ export interface UpdateAgentRequest {
   model?: string
   taskDescription?: string
   programArgs?: string          // CLI arguments passed to the program on launch
+  permissionMode?: AgentPermissionMode  // Update trust level
   tags?: string[]
   owner?: string
   role?: AgentRole              // Update messaging role

@@ -165,6 +165,31 @@ export class VoiceSubsystem implements Subsystem {
     }
   }
 
+  /**
+   * Cancel in-progress speech generation (barge-in support).
+   * Called when mobile sends voice:interrupt.
+   */
+  cancelCurrentSpeech(): void {
+    if (!this.running || !this.context) return
+
+    // Abort in-progress summarization
+    this.isSummarizing = false
+
+    // Clear buffer so no pending output triggers a new speech event
+    if (this.buffer) {
+      this.buffer.clear()
+    }
+
+    // Notify companion clients to stop any in-progress TTS playback
+    this.context.emit({
+      type: 'voice:interrupt',
+      agentId: this.context.agentId,
+      payload: {},
+    })
+
+    console.log('[Cerebellum:Voice] Speech cancelled (barge-in)')
+  }
+
   onActivityStateChange(state: ActivityState): void {
     if (state === 'idle') {
       this.maybeSummarizeAndSpeak()

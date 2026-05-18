@@ -17,6 +17,8 @@ import { generateKeyPair, saveKeyPair } from '@/lib/amp-keys'
 import { registerAgent } from '@/services/amp-service'
 import { type ServiceResult, missingField, operationFailed, invalidRequest, invalidState, notFound, gone, serviceError } from '@/services/service-errors'
 import type { Agent, SandboxMount } from '@/types/agent'
+import { PERMISSION_MODE_TO_CLI } from '@/types/agent'
+import type { AgentPermissionMode } from '@/types/agent'
 import { CONTAINER_CWD_GEMINI_PROJECT } from '@/lib/container-utils'
 
 const execAsync = promisify(exec)
@@ -26,7 +28,9 @@ export interface DockerCreateRequest {
   workingDirectory?: string
   hostId?: string
   program?: string
+  /** @deprecated Use permissionMode: 'fullAutonomy' instead */
   yolo?: boolean
+  permissionMode?: import('@/types/agent').AgentPermissionMode
   model?: string
   programArgs?: string
   prompt?: string
@@ -69,6 +73,37 @@ const CONTAINER_HOME = '/home/claude'
 // creation by the dashboard or a host operator). If this ever becomes user-
 // controlled (an agent mutating its own mounts, unprivileged operators), add
 // realpath + prefix-check against an allow-list of host roots before shelling.
+
+/**
+ * Build the AI_TOOL command string for a Docker agent.
+ * Extracted from createDockerAgent for testability.
+ *
+ * Resolution order for permission mode:
+ *   1. body.permissionMode (explicit new field)
+ *   2. body.yolo (legacy backward compat, maps to fullAutonomy)
+ *   3. 'supervised' (default, no flag injected)
+ */
+export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | 'permissionMode' | 'yolo' | 'programArgs' | 'model' | 'prompt'>): string {
+  const program = body.program || 'claude'
+  let aiTool = program
+  const effectivePermMode: AgentPermissionMode = body.permissionMode || (body.yolo ? 'fullAutonomy' : 'supervised')
+  if (effectivePermMode !== 'supervised' && (program === 'claude' || program === 'claude-code')) {
+    aiTool += ` --permission-mode ${PERMISSION_MODE_TO_CLI[effectivePermMode]}`
+  }
+  if (body.programArgs) {
+    const sanitizedArgs = body.programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
+    if (sanitizedArgs) aiTool += ` ${sanitizedArgs}`
+  }
+  if (body.model) {
+    aiTool += ` --model ${body.model}`
+  }
+  if (body.prompt) {
+    const escapedPrompt = body.prompt.replace(/'/g, "'\\''")
+    aiTool += ` -p '${escapedPrompt}'`
+  }
+  return aiTool
+}
+
 export function validateMounts(mounts: SandboxMount[] | undefined): string | null {
   if (!mounts) return null
   for (const [i, m] of mounts.entries()) {
@@ -1180,22 +1215,8 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   }
 
   // Build the AI_TOOL environment variable
+  const aiTool = buildAiToolCommand(body)
   const program = body.program || 'claude'
-  let aiTool = program
-  if (body.yolo) {
-    aiTool += ' --dangerously-skip-permissions'
-  }
-  if (body.programArgs) {
-    const sanitizedArgs = body.programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
-    if (sanitizedArgs) aiTool += ` ${sanitizedArgs}`
-  }
-  if (body.model) {
-    aiTool += ` --model ${body.model}`
-  }
-  if (body.prompt) {
-    const escapedPrompt = body.prompt.replace(/'/g, "'\\''")
-    aiTool += ` -p '${escapedPrompt}'`
-  }
 
   const containerName = `aim-${name}`
   const workDir = body.workingDirectory || '/tmp'
@@ -1441,6 +1462,7 @@ export const RECREATE_PRESERVED_FIELDS = [
   'preferences',
   'meshAware',
   'owner',
+  'permissionMode',
 ] as const
 
 /**

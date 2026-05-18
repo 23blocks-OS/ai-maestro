@@ -25,6 +25,7 @@ export async function POST(
   let program: string | undefined
   let hostUrl: string | undefined
   let projectDirectory: string | undefined
+  let permissionMode: string | undefined
   let allowHostFallback = false
   try {
     const body = await request.json()
@@ -43,6 +44,9 @@ export async function POST(
     }
     if (typeof body.projectDirectory === 'string') {
       projectDirectory = body.projectDirectory
+    }
+    if (typeof body.permissionMode === 'string') {
+      permissionMode = body.permissionMode
     }
     if (body.allowHostFallback === true) {
       allowHostFallback = true
@@ -69,7 +73,7 @@ export async function POST(
       const response = await fetch(`${remoteHostUrl}/api/agents/${id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startProgram, sessionIndex, program, projectDirectory, allowHostFallback }),
+        body: JSON.stringify({ startProgram, sessionIndex, program, projectDirectory, permissionMode, allowHostFallback }),
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
@@ -85,6 +89,6 @@ export async function POST(
     }
   }
 
-  const result = await wakeAgent(id, { startProgram, sessionIndex, program, projectDirectory, allowHostFallback })
+  const result = await wakeAgent(id, { startProgram, sessionIndex, program, projectDirectory, permissionMode: permissionMode as any, allowHostFallback })
   return toResponse(result)
 }

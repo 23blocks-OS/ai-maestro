@@ -54,6 +54,7 @@ export interface CloudCreateRequest {
   label?: string
   avatar?: string
   tags?: string[]
+  permissionMode?: import('@/types/agent').AgentPermissionMode
 }
 
 interface TerraformOutputs {

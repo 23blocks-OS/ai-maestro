@@ -484,7 +484,7 @@ export default function DashboardPage() {
   }
 
   // Performs the actual wake with selected program
-  const handleWakeConfirm = async (program: string) => {
+  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string }) => {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
@@ -495,10 +495,14 @@ export default function DashboardPage() {
 
     try {
       // Always call local server — the route proxies to remote hosts server-side
+      const body: Record<string, unknown> = { program, hostUrl: agent.hostUrl }
+      if (options?.permissionMode && options.permissionMode !== 'supervised') {
+        body.permissionMode = options.permissionMode
+      }
       const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program, hostUrl: agent.hostUrl }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -1122,6 +1126,7 @@ export default function DashboardPage() {
           onConfirm={handleWakeConfirm}
           agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
           agentAlias={wakeDialogAgent?.alias}
+          defaultPermissionMode={(wakeDialogAgent as any)?.permissionMode}
         />
 
         {/* Help Panel */}

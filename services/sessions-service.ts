@@ -31,7 +31,7 @@ import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBy
 import { loadAgents } from '@/lib/agent-registry'
 import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
-import { parseNameForDisplay } from '@/types/agent'
+import { parseNameForDisplay, isCallSession } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { sessionActivity, agentActivity, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
@@ -198,6 +198,9 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
     const sessions: Session[] = []
 
     for (const disc of discovered) {
+      // Skip companion call forks — they are temporary and should not appear in the dashboard
+      if (isCallSession(disc.name)) continue
+
       const activityTimestamp = sessionActivity.get(disc.name)
       let lastActivity: string
       let status: 'active' | 'idle' | 'disconnected'

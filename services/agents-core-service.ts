@@ -41,6 +41,8 @@ import {
   parseSessionName,
   parseNameForDisplay,
   computeSessionName,
+  isCallSession,
+  PERMISSION_MODE_TO_CLI,
 } from '@/types/agent'
 import {
   loadAgents,
@@ -163,6 +165,7 @@ export interface WakeAgentParams {
   sessionIndex?: number
   program?: string
   projectDirectory?: string  // Runtime: where the agent works (Lane 2)
+  permissionMode?: import('@/types/agent').AgentPermissionMode  // Override trust level for this session
   /**
    * Opt-in: for cloud (containerized) agents, allow falling back to a host-native
    * tmux wake when the container is unavailable (missing / docker daemon down).
@@ -492,7 +495,9 @@ async function discoverLocalSessions(): Promise<DiscoveredSession[]> {
     const runtime = getRuntime()
     const discovered = await runtime.listSessions()
 
-    return discovered.map(disc => {
+    // Filter out temporary call session forks (e.g. "foo__call") —
+    // these are disposable YOLO sessions for companion voice calls
+    return discovered.filter(d => !isCallSession(d.name)).map(disc => {
       const activityTimestamp = sessionActivity.get(disc.name)
 
       let lastActivity: string
@@ -1782,6 +1787,15 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         }
         if (agent.model) {
           fullCommand = `${fullCommand} --model ${agent.model}`
+        }
+
+        // Inject --permission-mode for claude-based programs
+        if (startCommand === 'claude') {
+          const effectiveMode = params.permissionMode || agent.permissionMode || 'supervised'
+          if (effectiveMode !== 'supervised') {
+            const cliMode = PERMISSION_MODE_TO_CLI[effectiveMode]
+            fullCommand = `${fullCommand} --permission-mode ${cliMode}`
+          }
         }
 
         // Small delay to let the session initialize

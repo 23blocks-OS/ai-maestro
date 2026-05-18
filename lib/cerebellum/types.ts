@@ -27,6 +27,7 @@ export interface Subsystem {
   onCompanionConnectionChange?(connected: boolean): void
   addUserMessage?(text: string): void
   repeatLast?(): void
+  cancelCurrentSpeech?(): void
 }
 
 export interface CerebellumEvent {

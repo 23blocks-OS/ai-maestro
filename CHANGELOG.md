@@ -14,6 +14,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **Call session integration test** — `scripts/test-call-session.sh` validates the full lifecycle: spawn, sidebar hiding, orphan prevention, transcript routing, disconnect cleanup, multi-client.
 - **12 unit tests for call session** — Covers helpers, `parseSessionName` non-collision, `__call` filtering in both `/api/sessions` and `/api/agents` discovery paths.
 
+### Improved
+- **Trust level descriptions** — Each permission mode now shows a clear explanation of what it does (e.g., "Asks before every file edit and shell command") plus a detail blurb when selected explaining when to use it.
+- **Permission mode only for Claude Code** — The trust level selector in the Wake Agent dialog is now hidden when waking non-Claude programs (Aider, Codex, Cursor, Terminal), since `--permission-mode` is a Claude Code-only flag.
+- **Reordered permission modes** — Plan Only now appears second (after Supervised) instead of last, so the list flows from most restrictive to least restrictive.
+
 ### Fixed
 - **Command injection risk in companion-ws** — Replaced all `execSync` shell-string tmux commands with `execFileSync`/`execFile` (array args, no shell). Agent names validated against `[a-zA-Z0-9_-]+` before use.
 - **Event loop blocking on transcript delivery** — Transcript routing now uses async `execFile` instead of blocking `execSync`, preventing WebSocket/HTTP stalls during rapid speech.

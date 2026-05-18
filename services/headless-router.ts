@@ -113,6 +113,13 @@ import {
 } from '@/services/agents-docs-service'
 
 import {
+  listCanvasFiles,
+  getCanvasFile,
+  submitInteraction,
+  listInteractions,
+} from '@/services/agents-canvas-service'
+
+import {
   getSkillsConfig,
   updateSkills,
   addSkill,
@@ -772,6 +779,35 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await clearDocs(params.id, query.project))
+  }},
+
+  // Canvas interactions (must come before /canvas catch-all)
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/canvas\/interactions$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await submitInteraction(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/canvas\/interactions$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, listInteractions(params.id, parseInt(query.limit || '50', 10)))
+  }},
+
+  // Canvas
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/canvas$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    if (query.file) {
+      const result = getCanvasFile(params.id, query.file)
+      if (result.status !== 200 || !result.data || ('error' in result.data && 'message' in result.data)) {
+        sendServiceResult(res, result)
+        return
+      }
+      const { content, fileName } = result.data as { content: string; fileName: string; size: number }
+      const buf = Buffer.from(content, 'utf-8')
+      sendBinary(res, 200, buf, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': String(buf.length),
+        'X-Canvas-File': fileName,
+      })
+    } else {
+      sendServiceResult(res, listCanvasFiles(params.id))
+    }
   }},
 
   // Skills

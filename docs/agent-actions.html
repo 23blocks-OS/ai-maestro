@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Actions Protocol (AAP) &mdash; Structured UI-to-Agent Interactions | agentactions.org</title>
+    <meta name="description" content="Open protocol for delivering structured user interactions from agent-rendered UIs back to AI agents. Canvas clicks, form submissions, and custom actions — captured, stored, and delivered.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://agentactions.org">
+    <meta property="og:title" content="Agent Actions Protocol (AAP) — Structured UI-to-Agent Interactions">
+    <meta property="og:description" content="Open protocol for delivering structured user interactions from agent-rendered UIs back to AI agents. Canvas clicks, forms, and custom actions.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Agent Actions Protocol (AAP)">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="Agent Actions Protocol">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Agent Actions Protocol (AAP) — UI-to-Agent Interactions">
+    <meta name="twitter:description" content="Open protocol for structured user interactions from agent-rendered UIs back to AI agents.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="author" content="Juan Pel&aacute;ez">
+    <meta name="keywords" content="agent actions protocol, AAP, canvas interactions, agent UI, AI agent actions, user-to-agent communication, agent-rendered UI, structured interactions">
+    <link rel="canonical" href="https://agentactions.org">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#10b981">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#10b981">
+    <meta name="msapplication-TileColor" content="#10b981">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AAP">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="Agent Actions Protocol">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareFeature",
+      "name": "Agent Actions Protocol (AAP)",
+      "description": "Open protocol for delivering structured user interactions from agent-rendered UIs back to AI agents",
+      "featureList": [
+        "Structured canvas interactions via postMessage",
+        "Standard action vocabulary (click, submit, change, select, toggle, dismiss, navigate)",
+        "Immutable JSON interaction records",
+        "File-per-interaction storage",
+        "Real-time agent notification via terminal",
+        "REST API for submitting and listing interactions",
+        "Sandboxed iframe security model",
+        "Bridge script injection pattern"
+      ],
+      "isPartOf": {
+        "@type": "SoftwareApplication",
+        "name": "AI Maestro",
+        "url": "https://ai-maestro.23blocks.com"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Agent Actions Protocol (AAP) v1.0 Specification",
+      "description": "Open protocol specification for structured UI-to-agent interactions in AI agent systems",
+      "author": {
+        "@type": "Person",
+        "name": "Juan Pel\u00e1ez",
+        "url": "https://x.com/jkpelaez"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "23blocks"
+      },
+      "datePublished": "2026-05-18",
+      "dateModified": "2026-05-18",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://agentactions.org"
+      }
+    }
+    </script>
+
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        emerald: {
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text - emerald theme */
+        .gradient-text {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Code blocks */
+        .code-block {
+            background: #0d1117;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        /* Flow diagram */
+        .flow-step {
+            transition: all 0.3s ease;
+        }
+        .flow-step:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.1);
+        }
+
+        /* Spec table */
+        .spec-table th {
+            background: #131c31;
+        }
+        .spec-table td, .spec-table th {
+            border: 1px solid #1e293b;
+            padding: 10px 14px;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-emerald-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-emerald-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AAP</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="#why" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">WHY</a>
+                    <a href="#how-it-works" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">HOW IT WORKS</a>
+                    <a href="#specification" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">SPECIFICATION</a>
+                    <a href="#implementers" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">FOR IMPLEMENTERS</a>
+                    <a href="https://github.com/agentmessaging/agent-actions" target="_blank" class="text-slate-400 no-underline hover:text-emerald-400 transition-colors duration-200" title="View on GitHub">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    </a>
+                    <a href="https://github.com/agentmessaging/agent-actions#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-emerald-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-emerald-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/agentmessaging/agent-actions#readme" class="px-3 py-2 rounded bg-emerald-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="#why" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">Why AAP</a>
+                <a href="#how-it-works" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">How It Works</a>
+                <a href="#specification" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">Specification</a>
+                <a href="#implementers" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">For Implementers</a>
+                <a href="https://github.com/agentmessaging/agent-actions" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="relative py-20 md:py-32 px-4 md:px-8 overflow-hidden">
+        <div class="max-w-7xl mx-auto text-center">
+            <div class="inline-block px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 mb-6">
+                <span class="font-mono text-xs text-emerald-400 tracking-widest">AAP v1.0</span>
+            </div>
+            <h1 class="font-display text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+                Actions for <span class="gradient-text">AI Agents</span>
+            </h1>
+            <p class="text-slate-400 text-lg md:text-xl max-w-3xl mx-auto mb-10">
+                Your agents render UIs. Your users interact with them. AAP delivers those interactions &mdash; structured, stored, and ready to process.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#specification" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-emerald-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-emerald-400 transition-all duration-200 no-underline">
+                    READ THE SPEC
+                </a>
+                <a href="https://github.com/agentmessaging/agent-actions" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-sm tracking-wide hover:bg-slate-700 transition-all duration-200 no-underline border border-slate-700">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GITHUB
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why AAP Section -->
+    <section id="why" class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50">
+        <div class="max-w-7xl mx-auto">
+            <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">THE PROBLEM</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6 text-center">Why AAP?</h2>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12 text-center">
+                Agents render rich HTML. Users click things. How do those clicks get back to the agent?
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- console.log scraping -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <div class="text-3xl mb-4">📋</div>
+                    <h3 class="font-display font-bold text-white text-lg mb-2">console.log scraping</h3>
+                    <p class="text-slate-400 text-sm">Fragile, no structure, lost on refresh. Depends on browser dev tools being open.</p>
+                    <span class="inline-block mt-3 text-xs text-red-400 font-mono">Brittle</span>
+                </div>
+
+                <!-- Polling the DOM -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <div class="text-3xl mb-4">🔄</div>
+                    <h3 class="font-display font-bold text-white text-lg mb-2">Polling the DOM</h3>
+                    <p class="text-slate-400 text-sm">Complex, race conditions, not sandboxed. Breaks when the HTML changes.</p>
+                    <span class="inline-block mt-3 text-xs text-red-400 font-mono">Fragile</span>
+                </div>
+
+                <!-- Custom WebSocket -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <div class="text-3xl mb-4">🔌</div>
+                    <h3 class="font-display font-bold text-white text-lg mb-2">Custom WebSocket</h3>
+                    <p class="text-slate-400 text-sm">Over-engineered for button clicks. Security nightmare with open socket per page.</p>
+                    <span class="inline-block mt-3 text-xs text-red-400 font-mono">Overkill</span>
+                </div>
+
+                <!-- AAP -->
+                <div class="bg-emerald-500/5 border border-emerald-500/30 rounded-xl p-6">
+                    <div class="text-3xl mb-4">🎯</div>
+                    <h3 class="font-display font-bold text-emerald-400 text-lg mb-2">AAP</h3>
+                    <p class="text-slate-300 text-sm">Structured actions via postMessage. Stored as JSON. Agent notified instantly.</p>
+                    <span class="inline-block mt-3 text-xs text-emerald-400 font-mono">Just right</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">THE FLOW</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6 text-center">How It Works</h2>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12 text-center">
+                Seven steps from agent HTML to structured interaction record.
+            </p>
+
+            <!-- Flow diagram -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <div class="code-block p-6 font-mono text-sm text-slate-300 leading-relaxed">
+<pre class="text-emerald-400">Agent writes HTML  &rarr;  Dashboard renders in iframe  &rarr;  User clicks button
+                                                              &darr;
+Agent reads JSON   &larr;  File written + notification   &larr;  postMessage to parent
+                                                              &darr;
+                                                         HTTP POST to API</pre>
+                </div>
+            </div>
+
+            <!-- Steps -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="flow-step bg-slate-850 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">1</span>
+                        <h4 class="font-display font-bold text-white text-sm">Agent creates HTML</h4>
+                    </div>
+                    <p class="text-slate-400 text-xs">Writes an HTML page with <code class="text-emerald-400 bg-slate-800 px-1 rounded">maestro.send()</code> calls on interactive elements.</p>
+                </div>
+                <div class="flow-step bg-slate-850 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">2</span>
+                        <h4 class="font-display font-bold text-white text-sm">Bridge injected</h4>
+                    </div>
+                    <p class="text-slate-400 text-xs">Dashboard injects the AAP bridge script and renders in a sandboxed iframe.</p>
+                </div>
+                <div class="flow-step bg-slate-850 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">3</span>
+                        <h4 class="font-display font-bold text-white text-sm">User interacts</h4>
+                    </div>
+                    <p class="text-slate-400 text-xs">Click, submit, select, toggle. Bridge calls <code class="text-emerald-400 bg-slate-800 px-1 rounded">postMessage</code> with structured data.</p>
+                </div>
+                <div class="flow-step bg-slate-850 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">4</span>
+                        <h4 class="font-display font-bold text-white text-sm">Stored &amp; notified</h4>
+                    </div>
+                    <p class="text-slate-400 text-xs">Server stores interaction as JSON file and notifies agent via terminal.</p>
+                </div>
+            </div>
+
+            <!-- Bridge script example -->
+            <div class="max-w-4xl mx-auto">
+                <h3 class="font-display text-xl font-bold text-white mb-4">The Bridge Script</h3>
+                <div class="code-block p-6">
+                    <p class="font-mono text-xs text-slate-500 mb-3">// Injected into every canvas HTML by the provider</p>
+<pre class="font-mono text-sm text-slate-300"><span class="text-emerald-400">window</span>.maestro = {
+  <span class="text-amber-400">send</span>: <span class="text-slate-500">function</span>(action, element, data) {
+    <span class="text-emerald-400">window</span>.parent.<span class="text-amber-400">postMessage</span>({
+      type: <span class="text-emerald-300">'canvas:interaction'</span>,
+      action: action,
+      element: element || <span class="text-slate-500">null</span>,
+      data: data || <span class="text-slate-500">null</span>
+    }, <span class="text-emerald-300">'*'</span>);
+  }
+};</pre>
+                </div>
+
+                <h3 class="font-display text-xl font-bold text-white mb-4 mt-8">Usage in Canvas HTML</h3>
+                <div class="code-block p-6">
+<pre class="font-mono text-sm text-slate-300"><span class="text-slate-500">&lt;</span><span class="text-emerald-400">button</span> <span class="text-amber-400">onclick</span>=<span class="text-emerald-300">"maestro.send('click', 'approve-btn', { approved: true })"</span><span class="text-slate-500">&gt;</span>
+  Approve
+<span class="text-slate-500">&lt;/</span><span class="text-emerald-400">button</span><span class="text-slate-500">&gt;</span></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Specification Section -->
+    <section id="specification" class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50">
+        <div class="max-w-7xl mx-auto">
+            <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">THE PROTOCOL</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-12 text-center">Specification</h2>
+
+            <!-- Version -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Version</h3>
+                <p class="text-slate-400"><code class="text-emerald-400 bg-slate-800 px-2 py-1 rounded">aap/1.0</code></p>
+            </div>
+
+            <!-- Action Message Format -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Action Message Format</h3>
+                <p class="text-slate-400 mb-4">The postMessage payload sent from the canvas iframe to the parent window:</p>
+                <div class="code-block p-6 mb-6">
+<pre class="font-mono text-sm text-slate-300">{
+  <span class="text-emerald-300">"type"</span>: <span class="text-emerald-300">"canvas:interaction"</span>,
+  <span class="text-emerald-300">"action"</span>: <span class="text-emerald-300">"submit"</span>,
+  <span class="text-emerald-300">"element"</span>: <span class="text-emerald-300">"approve-button"</span>,
+  <span class="text-emerald-300">"data"</span>: { <span class="text-emerald-300">"comments"</span>: <span class="text-emerald-300">"Looks good"</span>, <span class="text-emerald-300">"rating"</span>: <span class="text-amber-400">5</span> }
+}</pre>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="spec-table w-full text-sm text-left">
+                        <thead>
+                            <tr>
+                                <th class="font-mono text-emerald-400">Field</th>
+                                <th class="font-mono text-emerald-400">Type</th>
+                                <th class="font-mono text-emerald-400">Required</th>
+                                <th class="font-mono text-emerald-400">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <tr><td class="font-mono">type</td><td>string</td><td>Yes</td><td>Always <code class="text-emerald-400">"canvas:interaction"</code></td></tr>
+                            <tr><td class="font-mono">action</td><td>string</td><td>Yes</td><td>Action verb (see Standard Actions)</td></tr>
+                            <tr><td class="font-mono">element</td><td>string</td><td>No</td><td>Element identifier (id, name, label)</td></tr>
+                            <tr><td class="font-mono">data</td><td>object</td><td>No</td><td>Arbitrary key-value payload</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Standard Action Vocabulary -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Standard Action Vocabulary</h3>
+                <div class="overflow-x-auto">
+                    <table class="spec-table w-full text-sm text-left">
+                        <thead>
+                            <tr>
+                                <th class="font-mono text-emerald-400">Action</th>
+                                <th class="font-mono text-emerald-400">Use case</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <tr><td class="font-mono">click</td><td>Button press, link activation</td></tr>
+                            <tr><td class="font-mono">submit</td><td>Form submission</td></tr>
+                            <tr><td class="font-mono">change</td><td>Input value changed</td></tr>
+                            <tr><td class="font-mono">select</td><td>Option selected from dropdown/list</td></tr>
+                            <tr><td class="font-mono">toggle</td><td>Boolean switch toggled</td></tr>
+                            <tr><td class="font-mono">dismiss</td><td>Modal/notification dismissed</td></tr>
+                            <tr><td class="font-mono">navigate</td><td>In-canvas navigation (tab switch, page change)</td></tr>
+                            <tr><td class="font-mono">custom</td><td>Application-specific (use <code class="text-emerald-400">data</code> for details)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-slate-500 text-sm mt-3">Custom actions beyond this vocabulary are allowed &mdash; the <code class="text-emerald-400">action</code> field is freeform.</p>
+            </div>
+
+            <!-- Interaction Record Format -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Interaction Record Format</h3>
+                <p class="text-slate-400 mb-4">The stored interaction (server-side):</p>
+                <div class="code-block p-6 mb-6">
+<pre class="font-mono text-sm text-slate-300">{
+  <span class="text-emerald-300">"id"</span>: <span class="text-emerald-300">"a1b2c3d4-e5f6-7890-abcd-ef1234567890"</span>,
+  <span class="text-emerald-300">"timestamp"</span>: <span class="text-emerald-300">"2026-05-18T15:30:00.000Z"</span>,
+  <span class="text-emerald-300">"canvasFile"</span>: <span class="text-emerald-300">"reports/dashboard.html"</span>,
+  <span class="text-emerald-300">"action"</span>: <span class="text-emerald-300">"submit"</span>,
+  <span class="text-emerald-300">"element"</span>: <span class="text-emerald-300">"approve-button"</span>,
+  <span class="text-emerald-300">"data"</span>: { <span class="text-emerald-300">"comments"</span>: <span class="text-emerald-300">"Looks good"</span> },
+  <span class="text-emerald-300">"summary"</span>: <span class="text-emerald-300">"User submit 'approve-button' on reports/dashboard.html with data: {comments: Looks good}"</span>
+}</pre>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="spec-table w-full text-sm text-left">
+                        <thead>
+                            <tr>
+                                <th class="font-mono text-emerald-400">Field</th>
+                                <th class="font-mono text-emerald-400">Type</th>
+                                <th class="font-mono text-emerald-400">Required</th>
+                                <th class="font-mono text-emerald-400">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <tr><td class="font-mono">id</td><td>UUID</td><td>Yes</td><td>Unique interaction identifier</td></tr>
+                            <tr><td class="font-mono">timestamp</td><td>ISO 8601</td><td>Yes</td><td>When the interaction occurred</td></tr>
+                            <tr><td class="font-mono">canvasFile</td><td>string</td><td>Yes</td><td>Relative path of the canvas HTML file</td></tr>
+                            <tr><td class="font-mono">action</td><td>string</td><td>Yes</td><td>The action verb</td></tr>
+                            <tr><td class="font-mono">element</td><td>string</td><td>No</td><td>Element identifier</td></tr>
+                            <tr><td class="font-mono">data</td><td>object</td><td>No</td><td>Arbitrary payload</td></tr>
+                            <tr><td class="font-mono">summary</td><td>string</td><td>Yes</td><td>Human-readable summary for the agent</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Storage -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Storage</h3>
+                <div class="bg-slate-850 border border-slate-800 rounded-xl p-6">
+                    <ul class="space-y-3 text-slate-300 text-sm">
+                        <li><span class="text-emerald-400 font-mono">Path:</span> <code class="bg-slate-800 px-2 py-0.5 rounded text-xs">~/.aimaestro/agents/&lt;agentId&gt;/canvas/interactions/</code></li>
+                        <li><span class="text-emerald-400 font-mono">Filename:</span> <code class="bg-slate-800 px-2 py-0.5 rounded text-xs">&lt;ISO-timestamp&gt;-&lt;UUID&gt;.json</code> (with <code class="text-amber-400">:</code> and <code class="text-amber-400">.</code> replaced by <code class="text-amber-400">-</code>)</li>
+                        <li><span class="text-emerald-400 font-mono">Strategy:</span> One file per interaction (append-only, immutable)</li>
+                        <li><span class="text-emerald-400 font-mono">Ordering:</span> Sorted by filename = sorted by time</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Transport -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Transport</h3>
+                <div class="code-block p-6">
+<pre class="font-mono text-sm text-slate-300"><span class="text-emerald-400">Canvas iframe</span>
+  | window.parent.postMessage()
+  v
+<span class="text-amber-400">Parent window</span> (Dashboard)
+  | POST /api/agents/:id/canvas/interactions
+  v
+<span class="text-emerald-400">Provider API</span>
+  | Write JSON file + tmux notification
+  v
+<span class="text-amber-400">Agent</span></pre>
+                </div>
+            </div>
+
+            <!-- API Endpoints -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">API Endpoints</h3>
+
+                <!-- Submit -->
+                <div class="mb-6">
+                    <h4 class="font-mono text-lg text-emerald-400 mb-3">Submit Interaction</h4>
+                    <div class="code-block p-6 mb-4">
+<pre class="font-mono text-sm text-slate-300"><span class="text-amber-400">POST</span> /api/agents/:id/canvas/interactions
+<span class="text-slate-500">Content-Type: application/json</span>
+
+{ <span class="text-emerald-300">"action"</span>: <span class="text-emerald-300">"submit"</span>, <span class="text-emerald-300">"element"</span>: <span class="text-emerald-300">"btn"</span>, <span class="text-emerald-300">"canvasFile"</span>: <span class="text-emerald-300">"page.html"</span>, <span class="text-emerald-300">"data"</span>: {} }
+
+<span class="text-emerald-400">&rarr; 201</span> { <span class="text-emerald-300">"id"</span>: <span class="text-emerald-300">"uuid"</span>, <span class="text-emerald-300">"summary"</span>: <span class="text-emerald-300">"User submit 'btn' on page.html"</span> }
+<span class="text-red-400">&rarr; 400</span> { <span class="text-emerald-300">"error"</span>: <span class="text-emerald-300">"missing_field"</span>, <span class="text-emerald-300">"message"</span>: <span class="text-emerald-300">"action is required"</span> }
+<span class="text-red-400">&rarr; 404</span> { <span class="text-emerald-300">"error"</span>: <span class="text-emerald-300">"not_found"</span>, <span class="text-emerald-300">"message"</span>: <span class="text-emerald-300">"Agent 'xyz' not found"</span> }</pre>
+                    </div>
+                </div>
+
+                <!-- List -->
+                <div>
+                    <h4 class="font-mono text-lg text-emerald-400 mb-3">List Interactions</h4>
+                    <div class="code-block p-6">
+<pre class="font-mono text-sm text-slate-300"><span class="text-amber-400">GET</span> /api/agents/:id/canvas/interactions?limit=50
+
+<span class="text-emerald-400">&rarr; 200</span> { <span class="text-emerald-300">"interactions"</span>: [ { ... }, { ... } ] }</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Notification -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Agent Notification</h3>
+                <p class="text-slate-400 mb-4">When an interaction is stored, the provider SHOULD notify the agent:</p>
+                <div class="code-block p-6">
+<pre class="font-mono text-sm text-emerald-400">[CANVAS] reports/dashboard.html: User submit 'approve-button' on reports/dashboard.html with data: {comments: Looks good}</pre>
+                </div>
+                <p class="text-slate-500 text-sm mt-3">Notification is fire-and-forget. Failure does not affect interaction storage.</p>
+            </div>
+
+            <!-- Security -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-2xl font-bold text-white mb-4">Security Considerations</h3>
+                <div class="bg-slate-850 border border-slate-800 rounded-xl p-6">
+                    <ul class="space-y-3 text-slate-300 text-sm">
+                        <li>Canvas HTML runs in <code class="text-emerald-400 bg-slate-800 px-1 rounded">sandbox="allow-scripts"</code> iframe (no same-origin, no forms, no popups)</li>
+                        <li>Bridge uses <code class="text-emerald-400 bg-slate-800 px-1 rounded">postMessage('*')</code> &mdash; parent validates <code class="text-emerald-400 bg-slate-800 px-1 rounded">event.data.type</code> before processing</li>
+                        <li>No credentials, tokens, or authentication data should be sent via <code class="text-emerald-400 bg-slate-800 px-1 rounded">data</code> payload</li>
+                        <li><code class="text-emerald-400 bg-slate-800 px-1 rounded">data</code> is stored as-is &mdash; providers SHOULD sanitize before displaying</li>
+                        <li>Canvas files are read-only to the user &mdash; only the agent can write them</li>
+                        <li>Path traversal protection: canvas file paths must not contain <code class="text-emerald-400 bg-slate-800 px-1 rounded">..</code> or be absolute</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- For Implementers Section -->
+    <section id="implementers" class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">BUILD IT</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6 text-center">For Implementers</h2>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12 text-center">
+                Building an AAP-compatible provider? Here is what you need.
+            </p>
+
+            <div class="max-w-4xl mx-auto">
+                <!-- Checklist -->
+                <div class="bg-slate-850 border border-slate-800 rounded-xl p-8 mb-12">
+                    <h3 class="font-display text-xl font-bold text-white mb-6">Implementation Checklist</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">1</span>
+                            <p class="text-slate-300 text-sm">Inject bridge script into canvas HTML before rendering in iframe</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">2</span>
+                            <p class="text-slate-300 text-sm">Listen for <code class="text-emerald-400 bg-slate-800 px-1 rounded">postMessage</code> with <code class="text-emerald-400 bg-slate-800 px-1 rounded">type: 'canvas:interaction'</code></p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">3</span>
+                            <p class="text-slate-300 text-sm">Validate <code class="text-emerald-400 bg-slate-800 px-1 rounded">action</code> field is present and non-empty</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">4</span>
+                            <p class="text-slate-300 text-sm">Generate UUID and ISO 8601 timestamp for each interaction</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">5</span>
+                            <p class="text-slate-300 text-sm">Build human-readable summary string</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">6</span>
+                            <p class="text-slate-300 text-sm">Store interaction as JSON (recommended: file-per-interaction, append-only)</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">7</span>
+                            <p class="text-slate-300 text-sm">Notify agent (optional, provider-specific mechanism)</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-6 h-6 rounded border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 text-emerald-400 text-xs">8</span>
+                            <p class="text-slate-300 text-sm">Expose API for listing interactions (optional)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Relationship to AMP & AID -->
+                <div class="bg-slate-850 border border-slate-800 rounded-xl p-8 mb-12">
+                    <h3 class="font-display text-xl font-bold text-white mb-4">Relationship to AMP &amp; AID</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center">
+                            <div class="text-3xl mb-2">🎯</div>
+                            <h4 class="font-display font-bold text-emerald-400 mb-1">AAP</h4>
+                            <p class="text-slate-400 text-xs">User &rarr; Agent<br>UI interactions</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl mb-2">📬</div>
+                            <h4 class="font-display font-bold text-purple-400 mb-1">AMP</h4>
+                            <p class="text-slate-400 text-xs">Agent &rarr; Agent<br>Signed messages</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl mb-2">🔑</div>
+                            <h4 class="font-display font-bold text-green-400 mb-1">AID</h4>
+                            <p class="text-slate-400 text-xs">Agent identity<br>Cryptographic auth</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mt-6 text-center">All three are independent but complementary. They share the same agent directory structure.</p>
+                </div>
+
+                <!-- Roadmap -->
+                <div class="bg-slate-850 border border-slate-800 rounded-xl p-8">
+                    <h3 class="font-display text-xl font-bold text-white mb-4">Roadmap</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-4">
+                            <span class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold">v1.0</span>
+                            <p class="text-slate-300 text-sm">One-way canvas interactions (user &rarr; agent) <span class="text-emerald-400">&mdash; current</span></p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 font-mono text-xs font-bold">v1.1</span>
+                            <p class="text-slate-400 text-sm">Bidirectional &mdash; agents push updates back to canvas</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 font-mono text-xs font-bold">v1.2</span>
+                            <p class="text-slate-400 text-sm">Interaction acknowledgment &mdash; agent confirms receipt</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 font-mono text-xs font-bold">v2.0</span>
+                            <p class="text-slate-400 text-sm">Agent-defined UI components (widgets, forms, controls)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 md:py-28 px-4 md:px-8 text-center bg-slate-950/50">
+        <div class="max-w-3xl mx-auto">
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6">
+                Let Your Agents <span class="gradient-text">See the Clicks</span>
+            </h2>
+            <p class="text-slate-400 text-lg mb-10">
+                Open protocol. MIT licensed. Works with any agent dashboard.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://github.com/agentmessaging/agent-actions#readme" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-emerald-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-emerald-400 transition-all duration-200 no-underline">
+                    GET STARTED FREE
+                </a>
+                <a href="index.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-sm tracking-wide hover:bg-slate-700 transition-all duration-200 no-underline border border-slate-700">
+                    BACK TO AI MAESTRO
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The OS for AI-first organizations. Orchestrate any AI agent with persistent memory, messaging, and multi-machine support.</p>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">PROTOCOLS</h4>
+                    <a href="https://agentactions.org" class="block text-slate-400 no-underline mb-2 hover:text-emerald-400 transition-colors text-sm">AAP &mdash; Agent Actions Protocol</a>
+                    <a href="https://agentmessaging.org" class="block text-slate-400 no-underline mb-2 hover:text-emerald-400 transition-colors text-sm">AMP &mdash; Agent Messaging Protocol</a>
+                    <a href="https://agentids.org" class="block text-slate-400 no-underline mb-2 hover:text-emerald-400 transition-colors text-sm">AID &mdash; Agent Identity Protocol</a>
+                    <a href="https://github.com/agentmessaging/agent-actions" class="block text-slate-400 no-underline mb-2 hover:text-emerald-400 transition-colors text-sm">GitHub</a>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h4>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-emerald-400 transition-colors">Juan Pel&aacute;ez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-emerald-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">&#9829;</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">&copy; 2026 Juan Pel&aacute;ez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- GSAP Animations -->
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Fade in sections on scroll
+        gsap.utils.toArray("section").forEach((section) => {
+            gsap.from(section, {
+                opacity: 0,
+                y: 50,
+                duration: 0.8,
+                ease: "power2.out",
+                scrollTrigger: {
+                    trigger: section,
+                    start: "top 80%",
+                    end: "top 50%",
+                    toggleActions: "play none none none"
+                }
+            });
+        });
+    </script>
+
+    <!-- Copy for AI functionality -->
+    <script src="copy-for-ai.js"></script>
+</body>
+</html>

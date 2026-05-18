@@ -450,6 +450,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     model: request.model,
     taskDescription: request.taskDescription,
     programArgs: request.programArgs || '',
+    permissionMode: request.permissionMode || 'supervised',
     runtime: request.runtime || 'tmux',
     launchCount: 0,
     tags: normalizeTags(request.tags),

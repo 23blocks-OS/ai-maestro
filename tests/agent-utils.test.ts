@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
-import { parseSessionName, computeSessionName, parseNameForDisplay } from '@/types/agent'
+import { parseSessionName, computeSessionName, computeCallSessionName, isCallSession, parseNameForDisplay, PERMISSION_MODE_TO_CLI } from '@/types/agent'
+import type { AgentPermissionMode } from '@/types/agent'
 
 // ============================================================================
 // agentToSession
@@ -136,6 +137,67 @@ describe('computeSessionName', () => {
 })
 
 // ============================================================================
+// computeCallSessionName
+// ============================================================================
+
+describe('computeCallSessionName', () => {
+  it('appends __call suffix', () => {
+    expect(computeCallSessionName('website')).toBe('website__call')
+  })
+
+  it('handles hyphenated agent names', () => {
+    expect(computeCallSessionName('23blocks-apps-backend')).toBe('23blocks-apps-backend__call')
+  })
+})
+
+// ============================================================================
+// isCallSession
+// ============================================================================
+
+describe('isCallSession', () => {
+  it('returns true for call session names', () => {
+    expect(isCallSession('website__call')).toBe(true)
+    expect(isCallSession('23blocks-apps-backend__call')).toBe(true)
+  })
+
+  it('returns false for regular session names', () => {
+    expect(isCallSession('website')).toBe(false)
+    expect(isCallSession('website_0')).toBe(false)
+    expect(isCallSession('website_1')).toBe(false)
+  })
+
+  it('returns false for names that contain but do not end with __call', () => {
+    expect(isCallSession('__call_agent')).toBe(false)
+  })
+
+  it('is consistent with computeCallSessionName', () => {
+    const names = ['website', 'my-agent', '23blocks-apps-backend']
+    for (const name of names) {
+      expect(isCallSession(computeCallSessionName(name))).toBe(true)
+    }
+  })
+})
+
+// ============================================================================
+// parseSessionName does NOT collide with __call suffix
+// ============================================================================
+
+describe('parseSessionName with __call sessions', () => {
+  it('does not extract agent name "foo" from "foo__call"', () => {
+    const result = parseSessionName('foo__call')
+    // __call is NOT the _N multi-brain pattern, so it should NOT match
+    expect(result.agentName).toBe('foo__call')
+    expect(result.index).toBe(0)
+  })
+
+  it('does not match multi-brain pattern for hyphenated call sessions', () => {
+    const result = parseSessionName('my-agent__call')
+    expect(result.agentName).toBe('my-agent__call')
+    expect(result.index).toBe(0)
+  })
+})
+
+// ============================================================================
 // parseNameForDisplay
 // ============================================================================
 
@@ -158,5 +220,41 @@ describe('parseNameForDisplay', () => {
   it('handles many segments', () => {
     const result = parseNameForDisplay('org-team-service-worker')
     expect(result).toEqual({ tags: ['org', 'team', 'service'], shortName: 'worker' })
+  })
+})
+
+// ============================================================================
+// PERMISSION_MODE_TO_CLI
+// ============================================================================
+
+describe('PERMISSION_MODE_TO_CLI', () => {
+  it('maps supervised to default', () => {
+    expect(PERMISSION_MODE_TO_CLI.supervised).toBe('default')
+  })
+
+  it('maps planOnly to plan', () => {
+    expect(PERMISSION_MODE_TO_CLI.planOnly).toBe('plan')
+  })
+
+  it('maps trustEdits to acceptEdits', () => {
+    expect(PERMISSION_MODE_TO_CLI.trustEdits).toBe('acceptEdits')
+  })
+
+  it('maps smartAuto to auto', () => {
+    expect(PERMISSION_MODE_TO_CLI.smartAuto).toBe('auto')
+  })
+
+  it('maps fullAutonomy to bypassPermissions', () => {
+    expect(PERMISSION_MODE_TO_CLI.fullAutonomy).toBe('bypassPermissions')
+  })
+
+  it('covers all 5 permission modes', () => {
+    const modes: AgentPermissionMode[] = ['supervised', 'planOnly', 'trustEdits', 'smartAuto', 'fullAutonomy']
+    expect(Object.keys(PERMISSION_MODE_TO_CLI).sort()).toEqual(modes.sort())
+  })
+
+  it('has no duplicate CLI values', () => {
+    const cliValues = Object.values(PERMISSION_MODE_TO_CLI)
+    expect(new Set(cliValues).size).toBe(cliValues.length)
   })
 })

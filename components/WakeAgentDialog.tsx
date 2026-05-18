@@ -3,14 +3,17 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Terminal, Cpu, Code2, Sparkles, Play } from 'lucide-react'
+import { X, Terminal, Cpu, Code2, Sparkles, Play, ChevronRight } from 'lucide-react'
+import TrustLevelSelector from './TrustLevelSelector'
+import type { AgentPermissionMode } from '@/types/agent'
 
 interface WakeAgentDialogProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (program: string) => void
+  onConfirm: (program: string, options?: { permissionMode?: AgentPermissionMode }) => void
   agentName: string
   agentAlias?: string
+  defaultPermissionMode?: AgentPermissionMode
 }
 
 const CLI_OPTIONS = [
@@ -56,9 +59,12 @@ export default function WakeAgentDialog({
   onClose,
   onConfirm,
   agentName,
-  agentAlias
+  agentAlias,
+  defaultPermissionMode
 }: WakeAgentDialogProps) {
   const [selectedProgram, setSelectedProgram] = useState<string>('claude')
+  const [permissionMode, setPermissionMode] = useState<AgentPermissionMode>(defaultPermissionMode || 'supervised')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [isWaking, setIsWaking] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -69,17 +75,19 @@ export default function WakeAgentDialog({
     setMounted(true)
   }, [])
 
-  // Reset isWaking state when dialog closes or opens
+  // Reset state when dialog closes or opens
   useEffect(() => {
     if (!isOpen) {
       setIsWaking(false)
       setSelectedProgram('claude')
+      setPermissionMode(defaultPermissionMode || 'supervised')
+      setShowAdvanced(false)
     }
-  }, [isOpen])
+  }, [isOpen, defaultPermissionMode])
 
   const handleConfirm = () => {
     setIsWaking(true)
-    onConfirm(selectedProgram)
+    onConfirm(selectedProgram, { permissionMode })
     // Dialog will be closed by parent after wake completes
   }
 
@@ -196,6 +204,24 @@ export default function WakeAgentDialog({
                     )
                   })}
                 </div>
+              </div>
+
+              {/* Advanced Options */}
+              <div className="px-6 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <ChevronRight className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
+                  Advanced Options
+                </button>
+                {showAdvanced && (
+                  <div className="mt-3">
+                    <p className="text-xs text-zinc-400 mb-2">Trust Level:</p>
+                    <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact />
+                  </div>
+                )}
               </div>
 
               {/* Footer */}

@@ -886,25 +886,39 @@ yarn headless:prod   # Production
 6. Kill session: `tmux kill-session -t test1`
 7. Verify: Session removed after refresh
 
-### AMP Messaging Test Suites
+### Unit Tests (CI — runs in GitHub Actions)
 
-Two test scripts exist for validating the Agent Messaging Protocol:
+Unit tests use vitest and run on every push/PR via `.github/workflows/ci.yml`:
 
 ```bash
-# Local routing tests (single host)
+yarn test          # Run all unit tests
+yarn test:watch    # Watch mode
+```
+
+Tests cover: agent utilities, session service, agents-core service, AMP auth/address/canonical-json, task registry, team registry, document registry, container utils, meeting inject, content security. All service tests mock the runtime layer — no tmux/network required.
+
+### Integration Test Suites (Manual — requires running AI Maestro)
+
+These scripts test end-to-end behavior against a live AI Maestro instance with tmux:
+
+```bash
+# AMP local routing tests (single host)
 # Tests: health, registration, internal→internal, external polling, federation, acknowledgment
 ./scripts/test-amp-routing.sh
 
-# Cross-host mesh tests (multi-host via Tailscale)
+# AMP cross-host mesh tests (multi-host via Tailscale)
 # Tests: host health, agent registration on each host, cross-host delivery, replies, inbox counts
 ./scripts/test-amp-cross-host.sh              # Auto-detect hosts from ~/.aimaestro/hosts.json
 ./scripts/test-amp-cross-host.sh --local-only  # Only test local→remote
 ./scripts/test-amp-cross-host.sh --skip-inbox  # Skip inbox verification
+
+# Companion call session fork tests
+# Tests: __call session spawn, sidebar/agent hiding, transcript routing, disconnect cleanup, multi-client
+./scripts/test-call-session.sh               # Auto-picks first online agent
+./scripts/test-call-session.sh <agent-id>    # Specific agent
 ```
 
-**Prerequisites:** AI Maestro running on localhost:23000, jq installed, AMP scripts installed (`./install-plugin.sh -y`).
-
-**No other automated tests yet.** Phase 1 focuses on getting the core working.
+**Prerequisites:** AI Maestro running on localhost:23000, jq installed, tmux installed. AMP tests also require AMP scripts (`./install-plugin.sh -y`).
 
 ## Documentation References
 

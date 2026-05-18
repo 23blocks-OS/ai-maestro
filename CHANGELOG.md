@@ -3,6 +3,31 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Call mode session fork** — When a companion voice call starts, the server auto-spawns a temporary `{agentName}__call` tmux session with `--permission-mode bypassPermissions` (full autonomy). Voice transcripts route to this YOLO fork instead of the primary supervised session, so tool-call permission prompts don't block conversational flow. Same agent identity, workdir, and skills — just a disposable autonomous session.
+- **Multi-client call session sharing** — Multiple companion clients connecting to the same agent share a single `__call` session. The session is only killed when the last client disconnects.
+- **`user_message` routing to call session** — Typed text from the companion UI now also routes to the `__call` session when active, matching `voice:transcript` behavior.
+- **Stale call session cleanup** — Orphaned `__call` tmux sessions from server crashes are automatically killed on startup.
+- **`computeCallSessionName()` / `isCallSession()` helpers** — Centralized naming convention (`__call` suffix) in `types/agent.ts`, used across all files.
+- **Call session integration test** — `scripts/test-call-session.sh` validates the full lifecycle: spawn, sidebar hiding, orphan prevention, transcript routing, disconnect cleanup, multi-client.
+- **12 unit tests for call session** — Covers helpers, `parseSessionName` non-collision, `__call` filtering in both `/api/sessions` and `/api/agents` discovery paths.
+
+### Fixed
+- **Command injection risk in companion-ws** — Replaced all `execSync` shell-string tmux commands with `execFileSync`/`execFile` (array args, no shell). Agent names validated against `[a-zA-Z0-9_-]+` before use.
+- **Event loop blocking on transcript delivery** — Transcript routing now uses async `execFile` instead of blocking `execSync`, preventing WebSocket/HTTP stalls during rapid speech.
+- **Voice buffer timing race** — Changed `getBuffer()` to `getOrCreateBuffer()` for voice subsystem attachment, ensuring the buffer exists regardless of PTY observer timing.
+- **`__call` sessions leaking into agent discovery** — Added `isCallSession()` filter to both `fetchLocalSessions()` (sessions-service) and `discoverLocalSessions()` (agents-core-service). Without this, `__call` sessions would auto-register as orphan agents in the registry.
+
+## [0.35.11] - 2026-05-17
+
+### Added
+- **voice:transcript upstream handler** — Mobile companion can now send spoken text to agents via `/companion-ws`. Transcripts route through the same `sendChatMessage()` pipeline as typed /chat messages, so session resolution, copy-mode cancellation, and tmux key sending all work identically.
+- **voice:interrupt upstream handler** — Mobile companion can send barge-in interrupts to cancel in-progress speech generation. The voice subsystem aborts LLM summarization, clears the terminal buffer, and broadcasts a stop signal to all companion clients.
+- **Server-initiated interrupt on web companion** — `useCompanionWebSocket` now handles `{type: 'interrupt'}` messages from the server and calls `tts.stop()`, so the web FaceTime UI stops TTS playback when another client (e.g. mobile) triggers a barge-in.
+- **`cancelCurrentSpeech()` on VoiceSubsystem** — New method for barge-in support: aborts summarization, clears buffer, emits `voice:interrupt` downstream.
+
 ## [0.35.9] - 2026-05-16
 
 ### Added

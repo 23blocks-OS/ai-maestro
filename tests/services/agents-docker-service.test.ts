@@ -34,6 +34,7 @@ import {
   mergeMounts,
   mergeEnv,
   buildRecreateBody,
+  buildAiToolCommand,
   RECREATE_PRESERVED_FIELDS,
 } from '@/services/agents-docker-service'
 import type { Agent, SandboxMount } from '@/types/agent'
@@ -1570,6 +1571,7 @@ describe('RECREATE_PRESERVED_FIELDS', () => {
       'preferences',
       'meshAware',
       'owner',
+      'permissionMode',
     ])
   })
 
@@ -1585,5 +1587,63 @@ describe('RECREATE_PRESERVED_FIELDS', () => {
     for (const field of mustNotInclude) {
       expect(RECREATE_PRESERVED_FIELDS).not.toContain(field)
     }
+  })
+})
+
+// --- buildAiToolCommand --- permission mode → AI_TOOL env var ---
+
+describe('buildAiToolCommand', () => {
+  it('uses --permission-mode auto for permissionMode smartAuto (not --dangerously-skip-permissions)', () => {
+    const result = buildAiToolCommand({ program: 'claude', permissionMode: 'smartAuto' })
+    expect(result).toBe('claude --permission-mode auto')
+    expect(result).not.toContain('--dangerously-skip-permissions')
+  })
+
+  it('maps yolo: true to --permission-mode bypassPermissions (backward compat)', () => {
+    const result = buildAiToolCommand({ program: 'claude', yolo: true })
+    expect(result).toBe('claude --permission-mode bypassPermissions')
+  })
+
+  it('does NOT add --permission-mode for supervised (default behavior)', () => {
+    const result = buildAiToolCommand({ program: 'claude', permissionMode: 'supervised' })
+    expect(result).toBe('claude')
+    expect(result).not.toContain('--permission-mode')
+  })
+
+  it('permissionMode wins over yolo when both are provided', () => {
+    const result = buildAiToolCommand({ program: 'claude', yolo: true, permissionMode: 'trustEdits' })
+    expect(result).toBe('claude --permission-mode acceptEdits')
+    expect(result).not.toContain('bypassPermissions')
+  })
+
+  it('does NOT add --permission-mode for non-claude programs even with permissionMode set', () => {
+    const result = buildAiToolCommand({ program: 'codex', permissionMode: 'fullAutonomy' })
+    expect(result).toBe('codex')
+    expect(result).not.toContain('--permission-mode')
+  })
+
+  it('defaults to claude when no program specified', () => {
+    const result = buildAiToolCommand({ permissionMode: 'planOnly' })
+    expect(result).toBe('claude --permission-mode plan')
+  })
+
+  it('defaults to supervised when neither permissionMode nor yolo are set', () => {
+    const result = buildAiToolCommand({ program: 'claude' })
+    expect(result).toBe('claude')
+  })
+
+  it('appends programArgs after permission-mode flag', () => {
+    const result = buildAiToolCommand({ program: 'claude', permissionMode: 'smartAuto', programArgs: '--continue' })
+    expect(result).toBe('claude --permission-mode auto --continue')
+  })
+
+  it('appends model after programArgs', () => {
+    const result = buildAiToolCommand({ program: 'claude', permissionMode: 'fullAutonomy', model: 'claude-sonnet-4-6' })
+    expect(result).toBe('claude --permission-mode bypassPermissions --model claude-sonnet-4-6')
+  })
+
+  it('treats claude-code program name as claude-compatible (receives permission flags)', () => {
+    const result = buildAiToolCommand({ program: 'claude-code', permissionMode: 'trustEdits' })
+    expect(result).toBe('claude-code --permission-mode acceptEdits')
   })
 })

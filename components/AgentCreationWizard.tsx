@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, ArrowLeft, ChevronRight, Monitor, Server, Cloud, Lock, Wifi, WifiOff, Box } from 'lucide-react'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import DirectoryPicker from './DirectoryPicker'
+import TrustLevelSelector from './TrustLevelSelector'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
+import type { AgentPermissionMode } from '@/types/agent'
 import { getRandomAlias } from '@/lib/agent-utils'
 
 // --- Types ---
@@ -208,7 +210,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [dockerOnWake, setDockerOnWake] = useState('')
   const [dockerOnHibernate, setDockerOnHibernate] = useState('')
   const [dockerGithubToken, setDockerGithubToken] = useState('')
-  const [dockerYolo, setDockerYolo] = useState(false)
+  const [permissionMode, setPermissionMode] = useState<AgentPermissionMode>('supervised')
   const [dockerMeshAware, setDockerMeshAware] = useState(false)
   const [dockerAutoRemove, setDockerAutoRemove] = useState(false)
 
@@ -402,7 +404,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
             dockerPayload.hooks = hooks
           }
           if (dockerGithubToken) dockerPayload.githubToken = dockerGithubToken
-          if (dockerYolo) dockerPayload.yolo = true
+          if (permissionMode !== 'supervised') dockerPayload.permissionMode = permissionMode
           if (dockerMeshAware) dockerPayload.meshAware = true
           if (dockerAutoRemove) dockerPayload.autoRemove = true
         }
@@ -440,7 +442,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, dockerYolo, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken])
+  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, permissionMode, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken])
 
   // Animation timer
   const isCloudRuntime = runtime === 'ec2' || runtime === 'ecs'
@@ -608,7 +610,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                         dockerMounts, setDockerMounts, dockerEnvVars, setDockerEnvVars,
                         dockerOnWake, setDockerOnWake, dockerOnHibernate, setDockerOnHibernate,
                         dockerGithubToken, setDockerGithubToken,
-                        dockerYolo, setDockerYolo, dockerMeshAware, setDockerMeshAware,
+                        permissionMode, setPermissionMode, dockerMeshAware, setDockerMeshAware,
                         dockerAutoRemove, setDockerAutoRemove,
                         cloudEcrImageOverride, setCloudEcrImageOverride,
                         cloudDomain, setCloudDomain, cloudSslEmail, setCloudSslEmail,
@@ -688,7 +690,7 @@ interface BubbleState {
   dockerOnWake: string; setDockerOnWake: (v: string) => void
   dockerOnHibernate: string; setDockerOnHibernate: (v: string) => void
   dockerGithubToken: string; setDockerGithubToken: (v: string) => void
-  dockerYolo: boolean; setDockerYolo: (v: boolean) => void
+  permissionMode: AgentPermissionMode; setPermissionMode: (v: AgentPermissionMode) => void
   dockerMeshAware: boolean; setDockerMeshAware: (v: boolean) => void
   dockerAutoRemove: boolean; setDockerAutoRemove: (v: boolean) => void
   cloudEcrImageOverride: string; setCloudEcrImageOverride: (v: string) => void
@@ -1073,12 +1075,14 @@ function SummaryCard({
                     <button onClick={() => state.setDockerEnvVars([...state.dockerEnvVars, { key: '', value: '' }])} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">+ Add variable</button>
                   </div>
 
+                  {/* Trust Level */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-gray-500 font-medium">Trust Level</label>
+                    <TrustLevelSelector value={state.permissionMode} onChange={state.setPermissionMode} compact />
+                  </div>
+
                   {/* Toggles */}
                   <div className="space-y-1">
-                    <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                      <input type="checkbox" checked={state.dockerYolo} onChange={(e) => state.setDockerYolo(e.target.checked)} className="rounded border-gray-600" />
-                      Skip permission prompts (yolo)
-                    </label>
                     <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
                       <input type="checkbox" checked={state.dockerMeshAware} onChange={(e) => state.setDockerMeshAware(e.target.checked)} className="rounded border-gray-600" />
                       Mesh networking

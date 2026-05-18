@@ -5,6 +5,7 @@ import { useEffect, useRef, useCallback } from 'react'
 interface UseCompanionWebSocketOptions {
   agentId: string | null
   onSpeech: (text: string) => void
+  onInterrupt?: () => void
 }
 
 /**
@@ -12,9 +13,11 @@ interface UseCompanionWebSocketOptions {
  * Connects to /companion-ws?agent={agentId}, receives speech events,
  * and can send user messages back to the voice subsystem.
  */
-export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSocketOptions) {
+export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCompanionWebSocketOptions) {
   const onSpeechRef = useRef(onSpeech)
   onSpeechRef.current = onSpeech
+  const onInterruptRef = useRef(onInterrupt)
+  onInterruptRef.current = onInterrupt
 
   const wsRef = useRef<WebSocket | null>(null)
 
@@ -61,6 +64,8 @@ export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSock
           const data = JSON.parse(event.data)
           if (data.type === 'speech' && data.text) {
             onSpeechRef.current(data.text)
+          } else if (data.type === 'interrupt') {
+            onInterruptRef.current?.()
           }
         } catch {
           // Ignore non-JSON messages

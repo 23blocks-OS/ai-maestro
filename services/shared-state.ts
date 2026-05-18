@@ -34,6 +34,15 @@ export interface StatusUpdate {
   timestamp: string
 }
 
+export interface CallSessionState {
+  agentId: string
+  agentName: string
+  callSessionName: string
+  workingDirectory: string
+  createdAt: number
+  ptyObserver?: any  // node-pty read-only PTY feeding voice buffer
+}
+
 // ---------------------------------------------------------------------------
 // Shared globalThis initialization
 // ---------------------------------------------------------------------------
@@ -46,6 +55,7 @@ declare global {
     terminalSessions: Map<string, PTYSessionState>
     statusSubscribers: Set<WebSocket>
     companionClients: Map<string, Set<WebSocket>>
+    callSessions: Map<string, CallSessionState>
   } | undefined
 }
 
@@ -56,10 +66,15 @@ if (!globalThis._sharedState) {
     terminalSessions: new Map<string, PTYSessionState>(),
     statusSubscribers: new Set<WebSocket>(),
     companionClients: new Map<string, Set<WebSocket>>(),
+    callSessions: new Map<string, CallSessionState>(),
   }
 }
+// Ensure callSessions exists for hot-reload / late initialization
+if (!globalThis._sharedState.callSessions) {
+  globalThis._sharedState.callSessions = new Map()
+}
 
-const state = globalThis._sharedState
+const state = globalThis._sharedState!
 
 // ---------------------------------------------------------------------------
 // Exports — all backed by globalThis._sharedState
@@ -79,6 +94,9 @@ export const statusSubscribers: Set<WebSocket> = state.statusSubscribers
 
 /** agentId -> connected /companion-ws clients. */
 export const companionClients: Map<string, Set<WebSocket>> = state.companionClients
+
+/** agentId -> active call session state. Populated by companion-ws handler in server.mjs. */
+export const callSessions: Map<string, CallSessionState> = state.callSessions
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session

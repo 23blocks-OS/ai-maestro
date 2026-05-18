@@ -62,6 +62,7 @@ function CompanionContent() {
   const { send: sendToCompanion } = useCompanionWebSocket({
     agentId: activeAgentId,
     onSpeech: (text) => tts.speak(text),
+    onInterrupt: () => tts.stop(),
   })
 
   // Forward user messages to voice subsystem for conversation context

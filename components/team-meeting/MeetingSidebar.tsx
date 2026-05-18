@@ -76,17 +76,21 @@ export default function MeetingSidebar({
     setWakeDialogAgent(agent)
   }
 
-  const handleWakeConfirm = async (program: string) => {
+  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string }) => {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
     setWakingAgents(prev => new Set(prev).add(agent.id))
 
     try {
+      const body: Record<string, unknown> = { program, hostUrl: agent.hostUrl }
+      if (options?.permissionMode && options.permissionMode !== 'supervised') {
+        body.permissionMode = options.permissionMode
+      }
       const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program, hostUrl: agent.hostUrl }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -393,6 +397,7 @@ export default function MeetingSidebar({
         onConfirm={handleWakeConfirm}
         agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
         agentAlias={wakeDialogAgent?.label || wakeDialogAgent?.alias}
+        defaultPermissionMode={(wakeDialogAgent as any)?.permissionMode}
       />
     </div>
   )

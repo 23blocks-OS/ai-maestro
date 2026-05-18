@@ -206,6 +206,36 @@ describe('listAgents', () => {
     expect(mockAgentRegistry.saveAgents).toHaveBeenCalled()
   })
 
+  it('does NOT create orphan agents for __call sessions', async () => {
+    mockAgentRegistry.loadAgents.mockReturnValue([])
+    mockRuntime.listSessions.mockResolvedValue([
+      { name: 'my-agent__call', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+    ])
+
+    const result = await listAgents()
+
+    expect((result.data as any)?.agents).toHaveLength(0)
+    expect((result.data as any)?.stats.orphans).toBe(0)
+    expect(mockAgentRegistry.saveAgents).not.toHaveBeenCalled()
+  })
+
+  it('filters __call sessions while keeping real sessions', async () => {
+    const agent = makeAgent({ name: 'my-agent' })
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    mockRuntime.listSessions.mockResolvedValue([
+      { name: 'my-agent', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+      { name: 'my-agent__call', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+    ])
+
+    const result = await listAgents()
+
+    // Should only see the real agent, not the call fork
+    expect((result.data as any)?.agents).toHaveLength(1)
+    expect((result.data as any)?.agents[0].name).toBe('my-agent')
+    expect((result.data as any)?.agents[0].status).toBe('active')
+    expect((result.data as any)?.stats.orphans).toBe(0)
+  })
+
   it('marks agents offline when no matching tmux session', async () => {
     const agent = makeAgent({ name: 'offline-agent', sessions: [makeAgentSession()] })
     mockAgentRegistry.loadAgents.mockReturnValue([agent])
@@ -657,6 +687,87 @@ describe('wakeAgent', () => {
     const result = await wakeAgent('agent-1', { startProgram: false })
 
     expect(result.status).toBe(500)
+  })
+
+  it('sends --permission-mode auto when agent.permissionMode is smartAuto', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', permissionMode: 'smartAuto' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+
+    const result = await wakeAgent('agent-1', {})
+
+    expect(result.status).toBe(200)
+    // Find the sendKeys call that launches the program (the one with { enter: true })
+    const programCall = mockRuntime.sendKeys.mock.calls.find(
+      (call: any[]) => call[2]?.enter === true
+    )
+    expect(programCall).toBeDefined()
+    expect(programCall![1]).toContain('--permission-mode auto')
+  })
+
+  it('does NOT send --permission-mode flag when permissionMode is supervised', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', permissionMode: 'supervised' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+
+    const result = await wakeAgent('agent-1', {})
+
+    expect(result.status).toBe(200)
+    const programCall = mockRuntime.sendKeys.mock.calls.find(
+      (call: any[]) => call[2]?.enter === true
+    )
+    expect(programCall).toBeDefined()
+    expect(programCall![1]).not.toContain('--permission-mode')
+  })
+
+  it('params.permissionMode overrides agent.permissionMode', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', permissionMode: 'supervised' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+
+    const result = await wakeAgent('agent-1', { permissionMode: 'trustEdits' })
+
+    expect(result.status).toBe(200)
+    const programCall = mockRuntime.sendKeys.mock.calls.find(
+      (call: any[]) => call[2]?.enter === true
+    )
+    expect(programCall).toBeDefined()
+    expect(programCall![1]).toContain('--permission-mode acceptEdits')
+  })
+
+  it('does NOT inject --permission-mode for non-claude programs', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'codex', permissionMode: 'fullAutonomy' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+
+    const result = await wakeAgent('agent-1', {})
+
+    expect(result.status).toBe(200)
+    const programCall = mockRuntime.sendKeys.mock.calls.find(
+      (call: any[]) => call[2]?.enter === true
+    )
+    expect(programCall).toBeDefined()
+    expect(programCall![1]).not.toContain('--permission-mode')
+  })
+
+  it('sends --permission-mode bypassPermissions for fullAutonomy', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', permissionMode: 'fullAutonomy' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+
+    const result = await wakeAgent('agent-1', {})
+
+    expect(result.status).toBe(200)
+    const programCall = mockRuntime.sendKeys.mock.calls.find(
+      (call: any[]) => call[2]?.enter === true
+    )
+    expect(programCall).toBeDefined()
+    expect(programCall![1]).toContain('--permission-mode bypassPermissions')
   })
 })
 

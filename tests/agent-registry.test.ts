@@ -388,6 +388,19 @@ describe('createAgent', () => {
     } as CreateAgentRequest)
     expect(agent.name).toBe('legacy-alias')
   })
+
+  it('stores permissionMode when provided', () => {
+    const agent = createAgent(makeCreateRequest({
+      name: 'perm-mode-agent',
+      permissionMode: 'smartAuto',
+    }))
+    expect(agent.permissionMode).toBe('smartAuto')
+  })
+
+  it('defaults permissionMode to supervised when not provided', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'default-perm-agent' }))
+    expect(agent.permissionMode).toBe('supervised')
+  })
 })
 
 // ============================================================================
@@ -452,6 +465,15 @@ describe('updateAgent', () => {
     const updated = updateAgent(agent.id, { preferences: { notificationLevel: 'urgent' } })
     expect(updated!.preferences?.autoStart).toBe(true)
     expect(updated!.preferences?.notificationLevel).toBe('urgent')
+  })
+
+  it('updates permissionMode', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'perm-update-agent' }))
+    expect(agent.permissionMode).toBe('supervised')
+
+    const updated = updateAgent(agent.id, { permissionMode: 'fullAutonomy' })
+    expect(updated).not.toBeNull()
+    expect(updated!.permissionMode).toBe('fullAutonomy')
   })
 })
 

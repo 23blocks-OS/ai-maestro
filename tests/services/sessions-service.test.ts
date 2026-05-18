@@ -231,6 +231,28 @@ describe('listLocalSessions', () => {
 
     expect(result.sessions[0].agentId).toBe('uuid-123')
   })
+
+  it('filters out __call sessions from discovery', async () => {
+    mockRuntime.listSessions.mockResolvedValue([
+      { name: 'my-agent', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+      { name: 'my-agent__call', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+    ])
+
+    const result = await listLocalSessions()
+
+    expect(result.sessions).toHaveLength(1)
+    expect(result.sessions[0].name).toBe('my-agent')
+  })
+
+  it('returns empty when only __call sessions exist', async () => {
+    mockRuntime.listSessions.mockResolvedValue([
+      { name: 'orphan__call', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+    ])
+
+    const result = await listLocalSessions()
+
+    expect(result.sessions).toHaveLength(0)
+  })
 })
 
 // ============================================================================

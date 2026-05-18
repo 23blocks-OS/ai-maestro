@@ -85,9 +85,18 @@ export default function WakeAgentDialog({
     }
   }, [isOpen, defaultPermissionMode])
 
+  // Reset permission mode when switching away from Claude Code
+  const handleProgramChange = (program: string) => {
+    setSelectedProgram(program)
+    if (program !== 'claude') {
+      setPermissionMode(defaultPermissionMode || 'supervised')
+      setShowAdvanced(false)
+    }
+  }
+
   const handleConfirm = () => {
     setIsWaking(true)
-    onConfirm(selectedProgram, { permissionMode })
+    onConfirm(selectedProgram, selectedProgram === 'claude' ? { permissionMode } : undefined)
     // Dialog will be closed by parent after wake completes
   }
 
@@ -160,7 +169,7 @@ export default function WakeAgentDialog({
                     return (
                       <button
                         key={option.id}
-                        onClick={() => setSelectedProgram(option.id)}
+                        onClick={() => handleProgramChange(option.id)}
                         disabled={isWaking}
                         className={`w-full flex items-center gap-4 p-3 rounded-lg border transition-all ${
                           isSelected
@@ -206,23 +215,24 @@ export default function WakeAgentDialog({
                 </div>
               </div>
 
-              {/* Advanced Options */}
-              <div className="px-6 pb-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                  <ChevronRight className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
-                  Advanced Options
-                </button>
-                {showAdvanced && (
-                  <div className="mt-3">
-                    <p className="text-xs text-zinc-400 mb-2">Trust Level:</p>
-                    <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact />
-                  </div>
-                )}
-              </div>
+              {/* Advanced Options — only for Claude Code */}
+              {selectedProgram === 'claude' && (
+                <div className="px-6 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    <ChevronRight className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
+                    Permission Mode
+                  </button>
+                  {showAdvanced && (
+                    <div className="mt-3">
+                      <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Footer */}
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-700 bg-zinc-800/50">

@@ -14,6 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **Call session integration test** — `scripts/test-call-session.sh` validates the full lifecycle: spawn, sidebar hiding, orphan prevention, transcript routing, disconnect cleanup, multi-client.
 - **12 unit tests for call session** — Covers helpers, `parseSessionName` non-collision, `__call` filtering in both `/api/sessions` and `/api/agents` discovery paths.
 
+### Fixed (v0.35.14)
+- **Remote terminal blank screen** — Fixed WebSocket proxy not forwarding `cols`, `rows`, and `socket` query parameters to remote hosts. The remote PTY was spawning at default 80x24 instead of the client's actual terminal dimensions, causing blank or broken terminal rendering. Same fix applied to cloud agent container connections.
+
 ### Improved
 - **Trust level descriptions** — Each permission mode now shows a clear explanation of what it does (e.g., "Asks before every file edit and shell command") plus a detail blurb when selected explaining when to use it.
 - **Permission mode only for Claude Code** — The trust level selector in the Wake Agent dialog is now hidden when waking non-Claude programs (Aider, Codex, Cursor, Terminal), since `--permission-mode` is a Claude Code-only flag.

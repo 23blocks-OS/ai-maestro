@@ -194,6 +194,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               setMessages(history.messages || [])
               setHookState(history.hookState || null)
               setLastModified(history.lastModified || null)
+              setPendingMessages([]) // Clear pending — full history includes sent messages
               hasLoadedRef.current = true
               setIsLoading(false)
               break
@@ -304,6 +305,23 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [isActive])
+
+  // Poll for updates every 3s while on the chat tab.
+  // The WebSocket push (JSONL watcher + hookState broadcast) is unreliable in
+  // the browser — connections silently drop. Polling chat:requestHistory through
+  // the existing WS is lightweight (server re-reads the JSONL) and guarantees
+  // both new messages and permission prompts arrive.
+  useEffect(() => {
+    if (!isActive) return
+
+    const interval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'chat:requestHistory', agentId: agent.id }))
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [isActive, agent.id])
 
   // Auto-scroll to bottom when new messages or pending messages arrive
   useEffect(() => {

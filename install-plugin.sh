@@ -42,10 +42,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --migrate          Migrate from old messaging system only"
             echo "  -h, --help         Show this help message"
             echo ""
-            echo "This installer sets up the Agent Messaging Protocol (AMP) which provides:"
-            echo "  - Local messaging between agents (works immediately)"
-            echo "  - Federation with external providers (CrabMail, etc.)"
-            echo "  - Cryptographic message signing (Ed25519)"
+            echo "This installer sets up the AI Maestro plugin which provides:"
+            echo "  - Agent Messaging Protocol (AMP) — local + federated messaging"
+            echo "  - Agent Identity Protocol (AID) — OAuth 2.0 with Ed25519 keys"
+            echo "  - Agent Actions Protocol (AAP) — canvas interactions and UI actions"
+            echo "  - Memory search, code graph, docs search, agent management tools"
             echo ""
             exit 0
             ;;
@@ -892,16 +893,18 @@ fi
 if [ "$INSTALL_SKILL" = true ]; then
     echo "5️⃣  Or use natural language with Claude Code:"
     echo ""
-    echo "   > \"Check my messages\""
-    echo "   > \"Send a message to backend-api about the deployment\""
-    echo "   > \"Reply to the last message\""
+    echo "   > \"Check my messages\"              (AMP messaging)"
+    echo "   > \"Show me a test results dashboard\" (AAP canvas)"
+    echo "   > \"Visualize the API coverage\"       (AAP canvas)"
     echo ""
 fi
 
 echo "📖 Documentation:"
 echo ""
+echo "   AI Maestro:   https://ai-maestro.23blocks.com"
 echo "   AMP Protocol: https://agentmessaging.org"
-echo "   AI Maestro:   https://github.com/23blocks-OS/ai-maestro"
+echo "   AID Protocol: https://agentids.org"
+echo "   AAP Protocol: https://agentactions.org"
 echo ""
 
 # External provider registration (optional)

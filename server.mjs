@@ -1451,6 +1451,10 @@ async function startServer(handleRequest) {
           return
         }
 
+        if (host.enabled === false) {
+          console.warn(`🌐 [REMOTE] Host disabled, attempting anyway: ${query.host} (${host.offlineReason || 'no reason'})`)
+        }
+
         // Use isSelf() to determine if this is a local or remote host
         // This is more reliable than checking host.type which may be undefined
         if (!isSelf(host.id)) {

@@ -622,6 +622,13 @@ export function getRemoteHosts(): Host[] {
 export function clearHostsCache(): void {
   cachedHosts = null
   loadStoredSelfAliases()
+
+  // Also clear the .mjs twin's cache. Both modules cache hosts.json independently
+  // (different module systems), so when the .ts side writes hosts.json (circuit
+  // breaker, sync, manual edit), the .mjs side must also invalidate.
+  if (typeof (globalThis as any)._clearMjsHostsCache === 'function') {
+    ;(globalThis as any)._clearMjsHostsCache()
+  }
 }
 
 /**

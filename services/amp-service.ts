@@ -768,7 +768,7 @@ export async function routeMessage(
 
     if (!auth.authenticated && forwardedFrom) {
       const forwardingHost = getHostById(forwardedFrom)
-      if (forwardingHost) {
+      if (forwardingHost && forwardingHost.enabled !== false) {
         auth = {
           authenticated: true,
           agentId: `mesh-${forwardedFrom}`,

@@ -224,8 +224,12 @@ export function useAgents() {
     try {
       setError(null)
 
-      const localHosts = hosts.filter(h => h.isSelf || isLocalhostUrl(h.url))
-      const remoteHosts = hosts.filter(h => !h.isSelf && !isLocalhostUrl(h.url))
+      // Skip disabled hosts entirely — they're offline/unreachable and fetching
+      // from them causes timeouts, AbortErrors, and React re-render cascades
+      const enabledHosts = hosts.filter(h => h.enabled !== false)
+
+      const localHosts = enabledHosts.filter(h => h.isSelf || isLocalhostUrl(h.url))
+      const remoteHosts = enabledHosts.filter(h => !h.isSelf && !isLocalhostUrl(h.url))
 
       // Fetch local host first (fast) so the UI can render immediately
       const localResults = await Promise.all(
@@ -259,7 +263,8 @@ export function useAgents() {
       // Log summary
       const successCount = allResults.filter(r => r.success).length
       const fromCacheCount = allResults.filter(r => r.fromCache).length
-      console.log(`[useAgents] Loaded ${allAgents.length} agent(s) from ${successCount}/${hosts.length} host(s) (${fromCacheCount} from cache)`)
+      const disabledCount = hosts.length - enabledHosts.length
+      console.log(`[useAgents] Loaded ${allAgents.length} agent(s) from ${successCount}/${enabledHosts.length} host(s)${disabledCount > 0 ? ` (${disabledCount} disabled, skipped)` : ''}${fromCacheCount > 0 ? ` (${fromCacheCount} from cache)` : ''}`)
 
     } catch (err) {
       console.error('[useAgents] Failed to load agents:', err)

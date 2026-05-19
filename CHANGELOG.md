@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.21] - 2026-05-19
+
+### Fixed
+- **Mesh host cache desync causing lost agents** — The `.mjs` host config module cached hosts forever and filtered disabled hosts at the cache level. When the circuit breaker disabled a host or a host was re-enabled, `server.mjs` never learned about it, causing persistent "Host not found" errors and broken terminal connections for remote agents (e.g., mini-lola).
+- **Cross-module cache invalidation** — When the circuit breaker writes to `hosts.json`, both the TypeScript and ESM host config caches are now cleared via a `globalThis` bridge. Previously only the `.ts` cache was invalidated, leaving `server.mjs` with stale data until restart.
+- **AMP messages silently routing to disabled hosts** — `message-send.ts` now rejects routing to disabled hosts with a clear error instead of silently timing out.
+- **AMP mesh auth trusting disabled hosts** — Disabled forwarding hosts no longer receive automatic authentication trust in `amp-service.ts`.
+- **Dead code in websocket-proxy.mjs** — Replaced `host.type === 'local'` (never triggers, property not set in ESM module) with `isSelf(host.id)`.
+- **Frontend AbortError cascade** — `useAgents.ts` now skips disabled hosts entirely, preventing timeout-triggered React re-render storms.
+
+### Added
+- **TTL cache for host config (30s)** — `hosts-config-server.mjs` re-reads `hosts.json` every 30 seconds instead of caching forever. Hosts re-enabled by sync or manual edit are picked up automatically without server restart.
+- **Disabled host visibility in getHostById** — `getHostById()` now finds disabled hosts so callers can give proper error messages ("host is disabled") instead of generic "host not found". `getHosts()` still returns only enabled hosts for backward compatibility.
+
 ## [Unreleased]
 
 ### Added

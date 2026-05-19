@@ -162,7 +162,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     isFromVerified = true
   } else if (options.fromHost && !isSelf(options.fromHost)) {
     const remoteFromHost = getHostById(options.fromHost)
-    isFromVerified = !!remoteFromHost
+    isFromVerified = !!remoteFromHost && remoteFromHost.enabled !== false
   } else {
     isFromVerified = false
   }
@@ -245,6 +245,9 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     const remoteHost = getHostById(targetHostId)
     if (!remoteHost) {
       throw new Error(`Target host '${targetHostId}' not found. Ensure the host is registered in ~/.aimaestro/hosts.json`)
+    }
+    if (remoteHost.enabled === false) {
+      throw new Error(`Target host '${targetHostId}' is disabled (${(remoteHost as any).offlineReason || 'circuit breaker'}). Re-enable or wait for it to come back online.`)
     }
     recipientIsRemote = true
     remoteHostUrl = remoteHost.url
@@ -438,6 +441,9 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
     const remoteHost = getHostById(targetHostId)
     if (!remoteHost) {
       throw new Error(`Target host '${targetHostId}' not found. Ensure the host is registered in ~/.aimaestro/hosts.json`)
+    }
+    if (remoteHost.enabled === false) {
+      throw new Error(`Target host '${targetHostId}' is disabled (${(remoteHost as any).offlineReason || 'circuit breaker'}). Re-enable or wait for it to come back online.`)
     }
     recipientIsRemote = true
     remoteHostUrl = remoteHost.url

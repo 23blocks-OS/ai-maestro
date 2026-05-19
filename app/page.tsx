@@ -21,7 +21,7 @@ import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { useToast } from '@/contexts/ToastContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 
@@ -82,6 +82,12 @@ const DocumentationPanel = dynamic(
   { ssr: false }
 )
 
+// Only shown on canvas tab
+const CanvasPanel = dynamic(
+  () => import('@/components/CanvasPanel'),
+  { ssr: false }
+)
+
 export default function DashboardPage() {
   const { addToast } = useToast()
   // Agent-centric: Primary hook is useAgents
@@ -111,7 +117,7 @@ export default function DashboardPage() {
     setLayoutOverride(next)
     localStorage.setItem('aimaestro-layout-mode', next)
   }
-  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>(() => {
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'search' | 'export' | 'playback'>(() => {
     if (typeof window === 'undefined') return 'chat'
     return (localStorage.getItem('aimaestro-active-tab') as any) || 'chat'
   })
@@ -832,6 +838,17 @@ export default function DashboardPage() {
                       Docs
                     </button>
                     <button
+                      onClick={() => setActiveTab('canvas')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'canvas'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <PanelTop className="w-4 h-4" />
+                      Canvas
+                    </button>
+                    <button
                       onClick={() => setActiveTab('search')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'search'
@@ -1025,6 +1042,12 @@ export default function DashboardPage() {
                         sessionName={session.id}
                         agentId={agent.id}
                         workingDirectory={session.workingDirectory}
+                        hostUrl={getAgentBaseUrl(agent)}
+                        isActive={true}
+                      />
+                    ) : activeTab === 'canvas' ? (
+                      <CanvasPanel
+                        agentId={agent.id}
                         hostUrl={getAgentBaseUrl(agent)}
                         isActive={true}
                       />

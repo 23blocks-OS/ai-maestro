@@ -49,8 +49,6 @@
 
     <!-- Theme Colors -->
     <meta name="theme-color" content="#10b981">
-    <meta name="msapplication-TileColor" content="#10b981">
-    <meta name="msapplication-config" content="browserconfig.xml">
 
     <!-- Apple Mobile Web App -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -76,7 +74,9 @@
         "Real-time agent notification via terminal",
         "REST API for submitting and listing interactions",
         "Sandboxed iframe security model",
-        "Bridge script injection pattern"
+        "Bridge script injection pattern",
+        "Data-driven interactive canvas with embedded JSON",
+        "Claude Code plugin with canvas-actions skill"
       ],
       "isPartOf": {
         "@type": "SoftwareApplication",
@@ -268,8 +268,8 @@
     <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
         <div class="max-w-7xl mx-auto px-4 md:px-8">
             <div class="flex justify-between items-center py-4">
-                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <span class="text-2xl">🎯</span>
                     <span class="font-display font-bold text-lg md:text-xl tracking-tight">AAP</span>
                 </a>
 
@@ -277,8 +277,9 @@
                 <div class="hidden md:flex gap-8 items-center">
                     <a href="#why" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">WHY</a>
                     <a href="#how-it-works" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">HOW IT WORKS</a>
-                    <a href="#specification" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">SPECIFICATION</a>
-                    <a href="#implementers" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">FOR IMPLEMENTERS</a>
+                    <a href="#data-driven" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">DATA-DRIVEN</a>
+                    <a href="#specification" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">SPEC</a>
+                    <a href="#plugin" class="text-slate-400 no-underline font-medium hover:text-emerald-400 transition-colors duration-200 text-sm tracking-wide">PLUGIN</a>
                     <a href="https://github.com/agentmessaging/agent-actions" target="_blank" class="text-slate-400 no-underline hover:text-emerald-400 transition-colors duration-200" title="View on GitHub">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                     </a>
@@ -302,8 +303,9 @@
             <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
                 <a href="#why" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">Why AAP</a>
                 <a href="#how-it-works" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">How It Works</a>
+                <a href="#data-driven" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">Data-Driven Canvas</a>
                 <a href="#specification" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">Specification</a>
-                <a href="#implementers" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">For Implementers</a>
+                <a href="#plugin" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">Claude Code Plugin</a>
                 <a href="https://github.com/agentmessaging/agent-actions" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-emerald-400 hover:bg-slate-800/50">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                     GitHub
@@ -484,8 +486,90 @@ Agent reads JSON   &larr;  File written + notification   &larr;  postMessage to 
         </div>
     </section>
 
+    <!-- Data-Driven Canvas Section -->
+    <section id="data-driven" class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50">
+        <div class="max-w-7xl mx-auto">
+            <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">BEST PRACTICE</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6 text-center">Data-Driven Canvas</h2>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12 text-center">
+                Canvas pages should embed structured data and render it dynamically. This enables sorting, filtering, search, and real-time interaction.
+            </p>
+
+            <!-- Pattern -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-xl font-bold text-white mb-4">The Pattern: Embedded JSON + JS Rendering</h3>
+                <div class="code-block p-6">
+<pre class="font-mono text-sm text-slate-300"><span class="text-slate-500">&lt;!-- Data block &mdash; structured, parseable, separate from presentation --&gt;</span>
+<span class="text-slate-500">&lt;</span><span class="text-emerald-400">script</span> <span class="text-amber-400">type</span>=<span class="text-emerald-300">"application/json"</span> <span class="text-amber-400">id</span>=<span class="text-emerald-300">"page-data"</span><span class="text-slate-500">&gt;</span>
+{
+  <span class="text-emerald-300">"tests"</span>: [
+    { <span class="text-emerald-300">"name"</span>: <span class="text-emerald-300">"auth-login"</span>, <span class="text-emerald-300">"status"</span>: <span class="text-emerald-300">"passed"</span>, <span class="text-emerald-300">"duration"</span>: <span class="text-amber-400">1.2</span> },
+    { <span class="text-emerald-300">"name"</span>: <span class="text-emerald-300">"api-users"</span>, <span class="text-emerald-300">"status"</span>: <span class="text-emerald-300">"failed"</span>, <span class="text-emerald-300">"duration"</span>: <span class="text-amber-400">0.8</span> }
+  ],
+  <span class="text-emerald-300">"summary"</span>: { <span class="text-emerald-300">"total"</span>: <span class="text-amber-400">142</span>, <span class="text-emerald-300">"passed"</span>: <span class="text-amber-400">135</span>, <span class="text-emerald-300">"failed"</span>: <span class="text-amber-400">7</span> }
+}
+<span class="text-slate-500">&lt;/</span><span class="text-emerald-400">script</span><span class="text-slate-500">&gt;</span>
+
+<span class="text-slate-500">&lt;!-- Rendering logic &mdash; reads data, builds interactive UI --&gt;</span>
+<span class="text-slate-500">&lt;</span><span class="text-emerald-400">script</span><span class="text-slate-500">&gt;</span>
+  <span class="text-slate-500">const</span> DATA = <span class="text-emerald-400">JSON</span>.parse(
+    document.getElementById(<span class="text-emerald-300">'page-data'</span>).textContent
+  );
+  <span class="text-slate-500">// Build tables, charts, filters from DATA</span>
+  <span class="text-slate-500">// Attach maestro.send() to interactive elements</span>
+<span class="text-slate-500">&lt;/</span><span class="text-emerald-400">script</span><span class="text-slate-500">&gt;</span></pre>
+                </div>
+            </div>
+
+            <!-- Why this pattern -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h3 class="font-display text-xl font-bold text-white mb-4">Why Embedded JSON?</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                        <h4 class="font-mono text-red-400 text-sm mb-2">Static HTML Tables</h4>
+                        <p class="text-slate-400 text-xs">No sorting, filtering, or search. Data locked in markup. Dead on arrival.</p>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                        <h4 class="font-mono text-red-400 text-sm mb-2">Fetch from External API</h4>
+                        <p class="text-slate-400 text-xs">Violates sandbox. Requires CORS. Adds latency. Breaks offline.</p>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                        <h4 class="font-mono text-red-400 text-sm mb-2">Inline JS Literals</h4>
+                        <p class="text-slate-400 text-xs">Hard to parse. No separation of data and presentation. Messy.</p>
+                    </div>
+                    <div class="bg-emerald-500/5 border border-emerald-500/30 rounded-xl p-5">
+                        <h4 class="font-mono text-emerald-400 text-sm mb-2">Embedded JSON</h4>
+                        <p class="text-slate-300 text-xs">Clean separation. Parseable. Enables full interactivity. Works in sandbox.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive features by data type -->
+            <div class="max-w-4xl mx-auto">
+                <h3 class="font-display text-xl font-bold text-white mb-4">Interactive Features by Data Type</h3>
+                <div class="overflow-x-auto">
+                    <table class="spec-table w-full text-sm text-left">
+                        <thead>
+                            <tr>
+                                <th class="font-mono text-emerald-400">Data Type</th>
+                                <th class="font-mono text-emerald-400">Interactive Features</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <tr><td>Tables / lists</td><td>Sort by column, filter by status, search, pagination</td></tr>
+                            <tr><td>Metrics / KPIs</td><td>Expand details on click, compare periods</td></tr>
+                            <tr><td>Forms / config</td><td>Validation, submit via <code class="text-emerald-400">maestro.send('submit', ...)</code></td></tr>
+                            <tr><td>Workflows</td><td>Step navigation, approve/reject actions</td></tr>
+                            <tr><td>Trees / hierarchies</td><td>Expand/collapse, drill-down</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Specification Section -->
-    <section id="specification" class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50">
+    <section id="specification" class="py-16 md:py-24 px-4 md:px-8">
         <div class="max-w-7xl mx-auto">
             <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">THE PROTOCOL</p>
             <h2 class="font-display text-3xl md:text-5xl font-bold mb-12 text-center">Specification</h2>
@@ -779,8 +863,86 @@ Agent reads JSON   &larr;  File written + notification   &larr;  postMessage to 
         </div>
     </section>
 
+    <!-- Claude Code Plugin Section -->
+    <section id="plugin" class="py-16 md:py-24 px-4 md:px-8 bg-slate-950/50">
+        <div class="max-w-7xl mx-auto">
+            <p class="font-mono text-xs text-emerald-400 tracking-widest mb-4 text-center">FOR AI AGENTS</p>
+            <h2 class="font-display text-3xl md:text-5xl font-bold mb-6 text-center">Claude Code Plugin</h2>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12 text-center">
+                The <strong class="text-white">canvas-actions</strong> skill teaches Claude Code agents how to create, manage, and interact with canvas pages.
+            </p>
+
+            <div class="max-w-4xl mx-auto">
+                <!-- What agents learn -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                    <div class="bg-slate-850 border border-slate-800 rounded-xl p-6">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-4">
+                            <span class="text-emerald-400 font-bold text-lg">1</span>
+                        </div>
+                        <h4 class="font-display font-bold text-white mb-2">When to Create</h4>
+                        <p class="text-slate-400 text-sm">Proactive triggers: "show me", "visualize", "dashboard for", "let me approve". When in doubt, create a canvas.</p>
+                    </div>
+                    <div class="bg-slate-850 border border-slate-800 rounded-xl p-6">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-4">
+                            <span class="text-emerald-400 font-bold text-lg">2</span>
+                        </div>
+                        <h4 class="font-display font-bold text-white mb-2">How to Build</h4>
+                        <p class="text-slate-400 text-sm">Data-driven interactive HTML with embedded JSON. Sort, filter, search built in. Actions via <code class="text-emerald-400 bg-slate-800 px-1 rounded text-xs">maestro.send()</code>.</p>
+                    </div>
+                    <div class="bg-slate-850 border border-slate-800 rounded-xl p-6">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-4">
+                            <span class="text-emerald-400 font-bold text-lg">3</span>
+                        </div>
+                        <h4 class="font-display font-bold text-white mb-2">How to React</h4>
+                        <p class="text-slate-400 text-sm">Process <code class="text-emerald-400 bg-slate-800 px-1 rounded text-xs">[CANVAS]</code> notifications, read interaction JSON, respond to user actions in real time.</p>
+                    </div>
+                </div>
+
+                <!-- Installation -->
+                <div class="mb-12">
+                    <h3 class="font-display text-xl font-bold text-white mb-4">Installation</h3>
+                    <div class="code-block p-6 mb-4">
+<pre class="font-mono text-sm text-slate-300"><span class="text-slate-500"># Install via AI Maestro plugin (includes AAP + AMP + AID)</span>
+git clone https://github.com/23blocks-OS/ai-maestro-plugins.git
+<span class="text-emerald-400">cd</span> ai-maestro-plugins
+./build-plugin.sh --clean
+./install-plugin.sh -y</pre>
+                    </div>
+                    <p class="text-slate-400 text-sm">Or add AAP as a git source in your own <code class="text-emerald-400 bg-slate-800 px-1 rounded">plugin.manifest.json</code>:</p>
+                    <div class="code-block p-6 mt-4">
+<pre class="font-mono text-sm text-slate-300">{
+  <span class="text-emerald-300">"name"</span>: <span class="text-emerald-300">"agent-actions"</span>,
+  <span class="text-emerald-300">"type"</span>: <span class="text-emerald-300">"git"</span>,
+  <span class="text-emerald-300">"repo"</span>: <span class="text-emerald-300">"https://github.com/agentmessaging/agent-actions.git"</span>,
+  <span class="text-emerald-300">"ref"</span>: <span class="text-emerald-300">"main"</span>,
+  <span class="text-emerald-300">"map"</span>: {
+    <span class="text-emerald-300">"skills/canvas-actions"</span>: <span class="text-emerald-300">"skills/canvas-actions"</span>
+  }
+}</pre>
+                    </div>
+                </div>
+
+                <!-- Skill triggers -->
+                <div class="bg-slate-850 border border-slate-800 rounded-xl p-8">
+                    <h3 class="font-display text-xl font-bold text-white mb-4">Proactive Trigger Keywords</h3>
+                    <p class="text-slate-400 text-sm mb-4">When users say any of these, agents create a canvas page instead of plain text output:</p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"show me"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"display"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"visualize"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"report on"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"dashboard for"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"let me configure"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"let me approve"</span>
+                        <span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">"compare"</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- CTA Section -->
-    <section class="py-20 md:py-28 px-4 md:px-8 text-center bg-slate-950/50">
+    <section class="py-20 md:py-28 px-4 md:px-8 text-center">
         <div class="max-w-3xl mx-auto">
             <h2 class="font-display text-3xl md:text-5xl font-bold mb-6">
                 Let Your Agents <span class="gradient-text">See the Clicks</span>
@@ -792,8 +954,8 @@ Agent reads JSON   &larr;  File written + notification   &larr;  postMessage to 
                 <a href="https://github.com/agentmessaging/agent-actions#readme" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-emerald-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-emerald-400 transition-all duration-200 no-underline">
                     GET STARTED FREE
                 </a>
-                <a href="index.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-sm tracking-wide hover:bg-slate-700 transition-all duration-200 no-underline border border-slate-700">
-                    BACK TO AI MAESTRO
+                <a href="https://ai-maestro.23blocks.com" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-sm tracking-wide hover:bg-slate-700 transition-all duration-200 no-underline border border-slate-700">
+                    AI MAESTRO
                 </a>
             </div>
         </div>
@@ -805,7 +967,7 @@ Agent reads JSON   &larr;  File written + notification   &larr;  postMessage to 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
                 <div>
                     <div class="flex items-center gap-3 mb-4">
-                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="text-2xl">🎯</span>
                         <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
                     </div>
                     <p class="text-slate-400 text-sm">The OS for AI-first organizations. Orchestrate any AI agent with persistent memory, messaging, and multi-machine support.</p>
@@ -854,6 +1016,16 @@ Agent reads JSON   &larr;  File written + notification   &larr;  postMessage to 
     </script>
 
     <!-- Copy for AI functionality -->
-    <script src="copy-for-ai.js"></script>
+    <script>
+    function copyForAI() {
+        const text = document.body.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.querySelector('[onclick="copyForAI()"]');
+            const original = btn.innerHTML;
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> COPIED';
+            setTimeout(() => { btn.innerHTML = original; }, 2000);
+        });
+    }
+    </script>
 </body>
 </html>

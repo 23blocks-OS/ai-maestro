@@ -289,7 +289,65 @@ For building an AAP-compatible provider:
 
 ---
 
-## 14. Relationship to AMP & AID
+## 14. Data-Driven Interactive Canvas (Best Practice)
+
+Canvas pages SHOULD embed structured data and render it dynamically with JavaScript. This enables sorting, filtering, search, and real-time interaction — all within the sandboxed iframe.
+
+### Pattern: Embedded JSON + JS Rendering
+
+```html
+<!-- Data block — structured, parseable, separate from presentation -->
+<script type="application/json" id="page-data">
+{
+  "tests": [
+    { "name": "auth-login", "status": "passed", "duration": 1.2 },
+    { "name": "api-users", "status": "failed", "duration": 0.8, "error": "timeout" }
+  ],
+  "summary": { "total": 142, "passed": 135, "failed": 7 }
+}
+</script>
+
+<!-- Rendering logic — reads data, builds interactive UI -->
+<script>
+    const DATA = JSON.parse(document.getElementById('page-data').textContent);
+    // Build tables, charts, filters from DATA
+    // Attach maestro.send() to interactive elements
+</script>
+```
+
+### Why This Pattern
+
+| Approach | Problem |
+|----------|---------|
+| Static HTML tables | No sorting, filtering, or search; data locked in markup |
+| Fetch from external API | Violates sandbox; requires CORS; adds latency |
+| Inline JS literals | Hard to parse; no separation of data and presentation |
+| **Embedded JSON** | Clean separation; parseable; enables full interactivity |
+
+### Data Types
+
+Different data types call for different interactive features:
+
+| Data Type | Interactive Features |
+|-----------|---------------------|
+| Tables / lists | Sort by column, filter by status, search, pagination |
+| Metrics / KPIs | Expand details on click, compare periods |
+| Forms / config | Validation, submit via `maestro.send('submit', ...)` |
+| Workflows | Step navigation, approve/reject actions |
+| Trees / hierarchies | Expand/collapse, drill-down |
+
+### Canvas File Storage
+
+Canvas HTML files are stored at:
+```
+~/.aimaestro/agents/<agentId>/canvas/<filename>.html
+```
+
+Subdirectories are allowed (e.g., `reports/q1-summary.html`). The agent writes files here; the provider reads and renders them.
+
+---
+
+## 15. Relationship to AMP & AID
 
 - **AAP is independent** — does not require AMP or AID
 - **Complementary**: AAP handles user-to-agent UI actions; AMP handles agent-to-agent messaging; AID handles agent authentication

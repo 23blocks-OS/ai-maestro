@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.22] - 2026-05-19
+
+### Fixed
+- **Chat not auto-refreshing** — Messages and agent responses only appeared after switching tabs. Added 3-second WebSocket polling as a reliable fallback when real-time pushes are missed.
+- **Pending message disappearing** — The poll was clearing the user's "sent" message bubble before the agent had processed it. Now only clears when the server response actually contains the sent message text.
+- **Auto-scroll broken after first load** — Was comparing `messages.length` (always 200 after cap), so new messages never triggered scroll. Now tracks the last message UUID to detect genuinely new content.
+
 ## [0.35.21] - 2026-05-19
 
 ### Fixed

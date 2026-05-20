@@ -210,23 +210,17 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               // Incremental new messages from JSONL watcher (only fires on real file changes)
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
-                let hadNew = false
                 setMessages(prev => {
-                  // Deduplicate by uuid/timestamp
                   const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
                   const uniqueNew = newMsgs.filter((m: Message) =>
                     !m.uuid || !existingUuids.has(m.uuid)
                   )
                   if (uniqueNew.length === 0) return prev
-                  hadNew = true
-                  return [...prev, ...uniqueNew].slice(-200) // Keep last 200
+                  return [...prev, ...uniqueNew].slice(-200)
                 })
-                // Any genuinely new messages means the agent moved past our input.
-                // Safe to clear because chat:messages only fires on JSONL file changes
-                // (no polling), so this won't prematurely wipe pending bubbles.
-                if (hadNew) {
-                  setPendingMessages([])
-                }
+                // New JSONL data means the agent moved past our input — clear pending.
+                // Safe because chat:messages only fires on real file changes (no polling).
+                setPendingMessages([])
               }
               break
             }
@@ -751,7 +745,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               key={message.uuid || index}
               className={`flex ${(isUser || isQueued) ? 'justify-end' : 'justify-start'} ${isGrouped ? '!mt-1' : ''}`}
             >
-              <div className={`max-w-[85%] ${(isUser || isQueued) ? 'order-1' : ''}`}>
+              <div className={`max-w-[85%] min-w-0 overflow-hidden ${(isUser || isQueued) ? 'order-1' : ''}`}>
                 {/* Message bubble */}
                 <div
                   className={`rounded-2xl px-4 py-3 ${

@@ -33,7 +33,7 @@ import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { sessionActivity, agentActivity, terminalSessions, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
@@ -570,8 +570,26 @@ export function broadcastActivityUpdate(
   broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)
 
   // Push hookState to chat-subscribed WebSocket clients in real-time
-  if (hookState && sessionName) {
-    broadcastChatEvent(sessionName, 'chat:hookState', { data: hookState })
+  if (hookState) {
+    let delivered = false
+    // Try the provided sessionName first
+    if (sessionName) {
+      const session = terminalSessions.get(sessionName)
+      const chatClients = (session as any)?.chatClients as Set<import('ws').WebSocket> | undefined
+      if (chatClients && chatClients.size > 0) {
+        broadcastChatEvent(sessionName, 'chat:hookState', { data: hookState })
+        delivered = true
+      }
+    }
+    // Fallback: if agentId is provided and sessionName didn't deliver,
+    // resolve the agent's name and try that as the session key
+    if (!delivered && agentId) {
+      const agent = getAgent(agentId)
+      const resolvedName = agent?.name
+      if (resolvedName && resolvedName !== sessionName) {
+        broadcastChatEvent(resolvedName, 'chat:hookState', { data: hookState })
+      }
+    }
   }
 
   return { data: { success: true }, status: 200 }

@@ -73,11 +73,11 @@ function CopyButton({ text, className = '' }: { text: string; className?: string
 // Code block with copy button
 function CodeBlock({ code }: { code: string }) {
   return (
-    <div className="relative group my-1">
+    <div className="relative group my-1 overflow-hidden">
       <div className="absolute top-1 right-1 z-10">
         <CopyButton text={code} />
       </div>
-      <pre className="bg-gray-900 rounded-md px-3 py-2 pr-9 overflow-x-auto text-xs font-mono text-gray-200 select-text">
+      <pre className="bg-gray-900 rounded-md px-3 py-2 pr-9 overflow-x-auto max-w-full text-xs font-mono text-gray-200 select-text">
         {code}
       </pre>
     </div>
@@ -126,7 +126,7 @@ function renderMarkdown(text: string): JSX.Element {
     // Regular line
     if (line.trim()) {
       elements.push(
-        <p key={i} className="whitespace-pre-wrap">
+        <p key={i} className="whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>
           {renderInline(line)}
         </p>
       )
@@ -354,19 +354,15 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             case 'chat:messages': {
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
-                let hadNew = false
                 setMessages(prev => {
                   const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
                   const uniqueNew = newMsgs.filter((m: ChatMessage) =>
                     !m.uuid || !existingUuids.has(m.uuid)
                   )
                   if (uniqueNew.length === 0) return prev
-                  hadNew = true
                   return [...prev, ...uniqueNew].slice(-200)
                 })
-                if (hadNew) {
-                  setPendingMessages([])
-                }
+                setPendingMessages([])
               }
               break
             }
@@ -662,8 +658,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                       ))}
                     </div>
                   )}
-                  <div className="max-w-[90%] relative">
-                    <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-gray-800 text-gray-200 text-sm select-text">
+                  <div className="max-w-[90%] min-w-0 overflow-hidden relative">
+                    <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-gray-800 text-gray-200 text-sm select-text overflow-hidden">
                       {renderMarkdown(text)}
                     </div>
                     <div className="flex justify-end mt-0.5 mr-1">

@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.23] - 2026-05-19
+
+### Fixed
+- **Chat: remove 3s polling, restore pure WebSocket push** — Eliminated the `chat:requestHistory` polling interval that was causing pending message flicker, unnecessary server load, and premature clearing of sent message bubbles. Chat now relies entirely on the server's JSONL watcher push (`chat:messages`) and hook state broadcast (`chat:hookState`).
+- **Chat: smart pending message clearing** — Pending "sent" bubbles are no longer blindly wiped on every WebSocket event. `chat:messages` only clears pending when the incoming JSONL data contains a user message matching the pending text. `chat:hookState` no longer clears pending at all. `chat:history` only clears on initial load.
+- **Chat: auto-scroll tracking** — Fixed auto-scroll using UUID-based tracking instead of message count (which was always 200 after the server cap, making `hasNewMessages` permanently false).
+
 ## [0.35.21] - 2026-05-19
 
 ### Fixed

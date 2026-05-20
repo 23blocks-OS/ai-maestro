@@ -121,8 +121,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
   // Track if we've done initial load
   const hasLoadedRef = useRef(false)
-  // Track previous message count for scroll behavior
-  const prevMessageCountRef = useRef(0)
+  // Track last message ID for scroll behavior
+  const prevLastMsgIdRef = useRef<string | null>(null)
 
   // Persist chat mode
   const toggleChatMode = () => {
@@ -191,10 +191,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           switch (data.type) {
             case 'chat:history': {
               const history = data.data || {}
-              setMessages(history.messages || [])
+              const newMessages = history.messages || []
+              setMessages(newMessages)
               setHookState(history.hookState || null)
               setLastModified(history.lastModified || null)
-              setPendingMessages([]) // Clear pending — full history includes sent messages
+              // Only clear pending on initial load (server history includes sent msgs)
+              if (!hasLoadedRef.current) {
+                setPendingMessages([])
+              }
               hasLoadedRef.current = true
               setIsLoading(false)
               break
@@ -213,8 +217,22 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   if (uniqueNew.length === 0) return prev
                   return [...prev, ...uniqueNew].slice(-200) // Keep last 200
                 })
-                // Clear pending messages when new activity arrives
-                setPendingMessages([])
+                // Only clear pending when a user message appears that matches what we sent
+                const incomingUserMsgs = newMsgs.filter((m: Message) => m.type === 'user')
+                if (incomingUserMsgs.length > 0) {
+                  setPendingMessages(prev => {
+                    if (prev.length === 0) return prev
+                    const lastUserText = (() => {
+                      const last = incomingUserMsgs[incomingUserMsgs.length - 1]
+                      const content = last?.message?.content
+                      if (typeof content === 'string') return content
+                      if (Array.isArray(content)) return content.map((b: any) => b.text || '').join('')
+                      return ''
+                    })()
+                    const matched = prev.some(p => lastUserText.includes(p.text))
+                    return matched ? [] : prev
+                  })
+                }
               }
               break
             }
@@ -223,8 +241,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               // Real-time hook state update (permission requests, status changes)
               const newState = data.data || null
               setHookState(newState)
-              // Clear pending when hookState changes (message was processed)
-              setPendingMessages([])
+              // Don't clear pending here — let chat:messages confirm with content match
               break
             }
 
@@ -306,31 +323,15 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [isActive])
 
-  // Poll for updates every 3s while on the chat tab.
-  // The WebSocket push (JSONL watcher + hookState broadcast) is unreliable in
-  // the browser — connections silently drop. Polling chat:requestHistory through
-  // the existing WS is lightweight (server re-reads the JSONL) and guarantees
-  // both new messages and permission prompts arrive.
-  useEffect(() => {
-    if (!isActive) return
-
-    const interval = setInterval(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'chat:requestHistory', agentId: agent.id }))
-      }
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [isActive, agent.id])
-
   // Auto-scroll to bottom when new messages or pending messages arrive
   useEffect(() => {
     if (messages.length === 0 && pendingMessages.length === 0) return
 
-    const hasNewMessages = messages.length > prevMessageCountRef.current
-    const isInitialLoad = prevMessageCountRef.current === 0
-
-    prevMessageCountRef.current = messages.length
+    const lastMsg = messages[messages.length - 1]
+    const lastId = lastMsg?.uuid || lastMsg?.timestamp || null
+    const isInitialLoad = prevLastMsgIdRef.current === null
+    const hasNewMessages = lastId !== prevLastMsgIdRef.current
+    prevLastMsgIdRef.current = lastId
 
     // Scroll on initial load (instant) or new messages/pending messages (smooth)
     if (isInitialLoad) {

@@ -361,10 +361,26 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
     fs.readSync(fd, buffer, 0, buffer.length, readStart)
     fs.closeSync(fd)
 
-    sessionState.jsonlFileSize = currentSize
-
     const newContent = buffer.toString('utf-8')
-    const lines = newContent.split('\n').filter(l => l.trim())
+
+    // Handle partial lines: if content doesn't end with \n, the last line
+    // is incomplete (Claude is still writing). Save it for the next read.
+    const allLines = newContent.split('\n')
+    let partial = ''
+    if (!newContent.endsWith('\n') && allLines.length > 0) {
+      partial = allLines.pop()
+    }
+
+    // Prepend any partial line saved from the previous read
+    if (sessionState.jsonlPartialLine && allLines.length > 0) {
+      allLines[0] = sessionState.jsonlPartialLine + allLines[0]
+    }
+    sessionState.jsonlPartialLine = partial
+
+    // Advance file position, but don't count the partial bytes we deferred
+    sessionState.jsonlFileSize = currentSize - Buffer.byteLength(partial, 'utf-8')
+
+    const lines = allLines.filter(l => l.trim())
     if (lines.length === 0) return
 
     const messages = parseJsonlLines(lines, 50)
@@ -1379,6 +1395,10 @@ async function startServer(handleRequest) {
 
       sessionState.chatClients.add(ws)
 
+      // Protocol-level heartbeat tracking
+      ws._isAlive = true
+      ws.on('pong', () => { ws._isAlive = true })
+
       ws.on('message', async (data) => {
         try {
           const parsed = JSON.parse(data.toString())
@@ -1838,6 +1858,24 @@ async function startServer(handleRequest) {
   server.timeout = 15 * 60 * 1000
   server.keepAliveTimeout = 15 * 60 * 1000
   server.headersTimeout = 15 * 60 * 1000 + 1000
+
+  // ── Chat WebSocket heartbeat sweeper ────────────────────────────
+  // Every 30s, send a protocol-level ping to all chat clients.
+  // If a client missed the previous ping (didn't pong), it's dead — terminate it.
+  setInterval(() => {
+    terminalSessions.forEach((sessionState, sessionName) => {
+      sessionState.chatClients?.forEach(ws => {
+        if (ws._isAlive === false) {
+          console.log(`[Chat] Terminating zombie chat client for ${sessionName}`)
+          ws.terminate()
+          sessionState.chatClients.delete(ws)
+          return
+        }
+        ws._isAlive = false
+        ws.ping() // RFC 6455 protocol ping — browser auto-responds with pong
+      })
+    })
+  }, 30000)
 
   server.listen(port, hostname, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)

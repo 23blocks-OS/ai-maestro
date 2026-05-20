@@ -123,6 +123,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const hasLoadedRef = useRef(false)
   // Track last message ID for scroll behavior
   const prevLastMsgIdRef = useRef<string | null>(null)
+  // Track last pong for dead connection detection
+  const lastPongRef = useRef<number>(Date.now())
 
   // Persist chat mode
   const toggleChatMode = () => {
@@ -205,9 +207,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             }
 
             case 'chat:messages': {
-              // Incremental new messages from JSONL watcher
+              // Incremental new messages from JSONL watcher (only fires on real file changes)
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
+                let hadNew = false
                 setMessages(prev => {
                   // Deduplicate by uuid/timestamp
                   const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
@@ -215,23 +218,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     !m.uuid || !existingUuids.has(m.uuid)
                   )
                   if (uniqueNew.length === 0) return prev
+                  hadNew = true
                   return [...prev, ...uniqueNew].slice(-200) // Keep last 200
                 })
-                // Only clear pending when a user message appears that matches what we sent
-                const incomingUserMsgs = newMsgs.filter((m: Message) => m.type === 'user')
-                if (incomingUserMsgs.length > 0) {
-                  setPendingMessages(prev => {
-                    if (prev.length === 0) return prev
-                    const lastUserText = (() => {
-                      const last = incomingUserMsgs[incomingUserMsgs.length - 1]
-                      const content = last?.message?.content
-                      if (typeof content === 'string') return content
-                      if (Array.isArray(content)) return content.map((b: any) => b.text || '').join('')
-                      return ''
-                    })()
-                    const matched = prev.some(p => lastUserText.includes(p.text))
-                    return matched ? [] : prev
-                  })
+                // Any genuinely new messages means the agent moved past our input.
+                // Safe to clear because chat:messages only fires on JSONL file changes
+                // (no polling), so this won't prematurely wipe pending bubbles.
+                if (hadNew) {
+                  setPendingMessages([])
                 }
               }
               break
@@ -249,6 +243,11 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               // Server confirmed message was written to PTY — keep pending visible
               // until we see the user message appear in chat:messages (JSONL watcher)
               // Don't clear on a timer; let chat:messages handle it
+              break
+            }
+
+            case 'pong': {
+              lastPongRef.current = Date.now()
               break
             }
 
@@ -321,6 +320,25 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isActive])
+
+  // Heartbeat: send ping every 15s, force reconnect if no pong for 45s
+  useEffect(() => {
+    if (!isActive) return
+
+    const interval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        // If no pong received in 45s, connection is dead — force reconnect
+        if (Date.now() - lastPongRef.current > 45000) {
+          console.log('[ChatView] No pong in 45s — forcing reconnect')
+          wsRef.current.close() // triggers onclose → reconnect
+          return
+        }
+        wsRef.current.send(JSON.stringify({ type: 'ping' }))
+      }
+    }, 15000)
+
+    return () => clearInterval(interval)
   }, [isActive])
 
   // Auto-scroll to bottom when new messages or pending messages arrive

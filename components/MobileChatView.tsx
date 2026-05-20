@@ -289,7 +289,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const prevMessageCountRef = useRef(0)
+  const prevLastMsgIdRef = useRef<string | null>(null)
+  const lastPongRef = useRef<number>(Date.now())
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
   const reconnectAttemptsRef = useRef(0)
@@ -353,28 +354,37 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             case 'chat:messages': {
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
+                let hadNew = false
                 setMessages(prev => {
                   const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
                   const uniqueNew = newMsgs.filter((m: ChatMessage) =>
                     !m.uuid || !existingUuids.has(m.uuid)
                   )
                   if (uniqueNew.length === 0) return prev
+                  hadNew = true
                   return [...prev, ...uniqueNew].slice(-200)
                 })
-                setPendingMessages([])
+                if (hadNew) {
+                  setPendingMessages([])
+                }
               }
               break
             }
 
             case 'chat:hookState': {
               setHookState(data.data || null)
-              setPendingMessages([])
+              // Don't clear pending here — let chat:messages confirm with content match
               break
             }
 
             case 'chat:sent': {
               // Server confirmed delivery to PTY — keep pending visible
               // until chat:messages arrives with the user message from JSONL
+              break
+            }
+
+            case 'pong': {
+              lastPongRef.current = Date.now()
               break
             }
 
@@ -440,13 +450,32 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     }
   }, [agentId, wsSessionName, getChatWsUrl])
 
+  // Heartbeat: send ping every 15s, force reconnect if no pong for 45s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        if (Date.now() - lastPongRef.current > 45000) {
+          console.log('[MobileChatView] No pong in 45s — forcing reconnect')
+          wsRef.current.close()
+          return
+        }
+        wsRef.current.send(JSON.stringify({ type: 'ping' }))
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Auto-scroll when new messages or pending messages arrive
   useEffect(() => {
-    if (messages.length > prevMessageCountRef.current || pendingMessages.length > 0) {
+    const lastMsg = messages[messages.length - 1]
+    const lastId = lastMsg?.uuid || lastMsg?.timestamp || null
+    const hasNewMessages = lastId !== prevLastMsgIdRef.current
+    prevLastMsgIdRef.current = lastId
+
+    if (hasNewMessages || pendingMessages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-    prevMessageCountRef.current = messages.length
-  }, [messages.length, pendingMessages])
+  }, [messages, pendingMessages])
 
   // Send message via WebSocket
   const sendMessage = () => {

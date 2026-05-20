@@ -121,8 +121,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
   // Track if we've done initial load
   const hasLoadedRef = useRef(false)
-  // Track previous message count for scroll behavior
-  const prevMessageCountRef = useRef(0)
+  // Track previous last message id for scroll behavior
+  const prevLastMsgIdRef = useRef<string | null>(null)
 
   // Persist chat mode
   const toggleChatMode = () => {
@@ -191,10 +191,29 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           switch (data.type) {
             case 'chat:history': {
               const history = data.data || {}
-              setMessages(history.messages || [])
+              const newMessages = history.messages || []
+              setMessages(newMessages)
               setHookState(history.hookState || null)
               setLastModified(history.lastModified || null)
-              setPendingMessages([]) // Clear pending — full history includes sent messages
+              // Only clear pending messages if the JSONL now contains a user
+              // message that wasn't there before (i.e. the agent has seen it).
+              // This prevents the poll from wiping the pending bubble before
+              // Claude has processed the input.
+              setPendingMessages(prev => {
+                if (prev.length === 0) return prev
+                // Check if any new user message matches pending text
+                const userMsgs = newMessages.filter((m: Message) => m.type === 'user')
+                const lastUserMsg = userMsgs[userMsgs.length - 1]
+                if (!lastUserMsg) return prev
+                const lastUserText = typeof lastUserMsg.message?.content === 'string'
+                  ? lastUserMsg.message.content
+                  : Array.isArray(lastUserMsg.message?.content)
+                    ? lastUserMsg.message.content.map((b: any) => b.text || '').join('')
+                    : ''
+                // If any pending message text is found in the JSONL, clear all pending
+                const matched = prev.some(p => lastUserText.includes(p.text))
+                return matched ? [] : prev
+              })
               hasLoadedRef.current = true
               setIsLoading(false)
               break
@@ -327,10 +346,12 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   useEffect(() => {
     if (messages.length === 0 && pendingMessages.length === 0) return
 
-    const hasNewMessages = messages.length > prevMessageCountRef.current
-    const isInitialLoad = prevMessageCountRef.current === 0
+    const lastMsg = messages[messages.length - 1]
+    const lastId = lastMsg?.uuid || lastMsg?.timestamp || null
+    const isInitialLoad = prevLastMsgIdRef.current === null
+    const hasNewMessages = lastId !== prevLastMsgIdRef.current
 
-    prevMessageCountRef.current = messages.length
+    prevLastMsgIdRef.current = lastId
 
     // Scroll on initial load (instant) or new messages/pending messages (smooth)
     if (isInitialLoad) {

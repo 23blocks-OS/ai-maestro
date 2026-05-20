@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.26] - 2026-05-20
+
+### Fixed
+- **Chat: hookState/permission prompts not appearing** — The hook's agent resolution used `find()` on `/api/agents` by working directory, which returned the wrong agent when multiple agents share the same cwd. Now uses a 3-tier resolution: (1) `AIM_AGENT_ID`/`AIM_AGENT_NAME` env vars, (2) `/api/sessions` for active tmux sessions, (3) fallback cwd match. Server-side `broadcastActivityUpdate` also tries agentId-based session lookup when the primary sessionName has no chat clients.
+- **Chat: messages overflowing viewport** — Long messages broke out of chat bubbles. Added `min-w-0 overflow-hidden` on bubble containers, `max-w-full` on code blocks, and `overflow-wrap: anywhere` on paragraphs.
+- **Chat: duplicate pending messages** — Sent message appeared twice (pending + real) because the `hadNew` flag was set inside React's deferred `setMessages` callback and was always false when checked synchronously. Fixed by clearing pending unconditionally on new JSONL data.
+
 ## [0.35.24] - 2026-05-20
 
 ### Fixed

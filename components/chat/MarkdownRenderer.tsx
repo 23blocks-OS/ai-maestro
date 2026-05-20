@@ -43,7 +43,7 @@ function CopyButton({ text, className = '' }: { text: string; className?: string
 
 function CodeBlock({ code, language }: { code: string; language?: string }) {
   return (
-    <div className="relative group my-1">
+    <div className="relative group my-1 overflow-hidden">
       <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
         {language && (
           <span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">
@@ -52,7 +52,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
         )}
         <CopyButton text={code} />
       </div>
-      <pre className="bg-gray-900 rounded-md px-3 py-2 pr-9 overflow-x-auto text-xs font-mono text-gray-200 select-text">
+      <pre className="bg-gray-900 rounded-md px-3 py-2 pr-9 overflow-x-auto max-w-full text-xs font-mono text-gray-200 select-text">
         {code}
       </pre>
     </div>
@@ -162,7 +162,7 @@ function renderMarkdown(text: string): JSX.Element {
     // Regular line
     if (line.trim()) {
       elements.push(
-        <p key={i} className="whitespace-pre-wrap">
+        <p key={i} className="whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>
           {renderInline(line)}
         </p>
       )
@@ -181,5 +181,5 @@ function renderMarkdown(text: string): JSX.Element {
 }
 
 export function MarkdownContent({ text }: { text: string }) {
-  return <div className="text-sm break-words">{renderMarkdown(text)}</div>
+  return <div className="text-sm break-words overflow-hidden min-w-0">{renderMarkdown(text)}</div>
 }

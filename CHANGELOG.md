@@ -3,12 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.35.23] - 2026-05-19
+## [0.35.24] - 2026-05-20
 
 ### Fixed
-- **Chat: remove 3s polling, restore pure WebSocket push** — Eliminated the `chat:requestHistory` polling interval that was causing pending message flicker, unnecessary server load, and premature clearing of sent message bubbles. Chat now relies entirely on the server's JSONL watcher push (`chat:messages`) and hook state broadcast (`chat:hookState`).
-- **Chat: smart pending message clearing** — Pending "sent" bubbles are no longer blindly wiped on every WebSocket event. `chat:messages` only clears pending when the incoming JSONL data contains a user message matching the pending text. `chat:hookState` no longer clears pending at all. `chat:history` only clears on initial load.
-- **Chat: auto-scroll tracking** — Fixed auto-scroll using UUID-based tracking instead of message count (which was always 200 after the server cap, making `hasNewMessages` permanently false).
+- **Chat: production-grade WebSocket reliability** — Replaced 3s polling hack with proper WebSocket architecture based on production best practices: server-side dead connection sweeping (RFC 6455 protocol ping + `_isAlive` flag), client-side pong verification with 45s timeout and forced reconnect, 15s heartbeat on both desktop and mobile.
+- **Chat: permission button clicks not working** — Button actions ("y", "1", etc.) were never clearing from pending because permission responses don't appear as `user` messages in the JSONL. Now clears pending on any genuinely new messages from the JSONL watcher.
+- **Chat: partial JSONL line race condition** — `broadcastJsonlUpdates` now handles incomplete lines when Claude is mid-write, preventing silently dropped messages.
+- **Chat: auto-scroll tracking** — UUID-based tracking instead of message count (always 200 after server cap).
+- **MobileChatView: no heartbeat** — Mobile was missing all keepalive/reconnect logic. Now has 15s heartbeat, pong verification, and same pending/scroll fixes as desktop.
 
 ## [0.35.21] - 2026-05-19
 

@@ -144,7 +144,7 @@ import {
   controlPlayback,
 } from '@/services/agents-playback-service'
 
-import { createDockerAgent, recreateDockerAgent } from '@/services/agents-docker-service'
+import { createDockerAgent, recreateDockerAgent, getDockerStats } from '@/services/agents-docker-service'
 import { createCloudAgent, destroyCloudAgent, getCloudAgentStatus } from '@/services/agents-cloud-service'
 
 import {
@@ -427,6 +427,9 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/docker\/info$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getDockerInfo())
+  }},
+  { method: 'GET', pattern: /^\/api\/docker\/stats$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await getDockerStats())
   }},
   { method: 'POST', pattern: /^\/api\/conversations\/parse$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

@@ -77,36 +77,67 @@ import type { Host } from '@/types/host'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
-// Circuit breaker — auto-disable hosts after consecutive failures
+// Circuit breaker — half-open pattern with exponential backoff
 // ---------------------------------------------------------------------------
 
-const hostFailureCounts = new Map<string, number>()
+interface CircuitBreakerState {
+  failureCount: number
+  openUntil: number    // timestamp (ms) when to allow next probe; 0 = closed
+  backoffMs: number    // current backoff duration
+}
+
+const circuitStates = new Map<string, CircuitBreakerState>()
 const CIRCUIT_BREAKER_THRESHOLD = parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD || '3', 10)
+const INITIAL_BACKOFF_MS = 30_000   // 30 seconds
+const MAX_BACKOFF_MS = 300_000      // 5 minutes
+
+export function isCircuitOpen(hostId: string): boolean {
+  const state = circuitStates.get(hostId)
+  if (!state || state.openUntil === 0) return false
+  // If cooldown expired → half-open, allow one probe
+  if (Date.now() >= state.openUntil) return false
+  return true
+}
 
 function recordHostSuccess(hostId: string): void {
-  hostFailureCounts.delete(hostId)
+  const had = circuitStates.has(hostId)
+  circuitStates.delete(hostId)
+  if (had) {
+    // Clear error metadata when recovering from circuit-broken state
+    updateHostRaw(hostId, {
+      offlineReason: undefined,
+      offlineSince: undefined,
+      lastSyncError: undefined,
+    })
+    console.log(`[Circuit Breaker] Host '${hostId}' recovered — circuit closed`)
+  }
 }
 
 function recordHostFailure(host: Host): void {
   if (isSelf(host.id)) return
 
-  const count = (hostFailureCounts.get(host.id) || 0) + 1
-  hostFailureCounts.set(host.id, count)
+  const prev = circuitStates.get(host.id) || { failureCount: 0, openUntil: 0, backoffMs: INITIAL_BACKOFF_MS }
+  const failureCount = prev.failureCount + 1
 
-  if (count >= CIRCUIT_BREAKER_THRESHOLD) {
-    console.warn(`[Circuit Breaker] Host '${host.id}' hit ${count} consecutive failures — disabling`)
+  if (failureCount >= CIRCUIT_BREAKER_THRESHOLD) {
+    const backoffMs = Math.min(prev.backoffMs * (prev.openUntil > 0 ? 2 : 1), MAX_BACKOFF_MS)
+    const openUntil = Date.now() + backoffMs
+    circuitStates.set(host.id, { failureCount, openUntil, backoffMs })
+
+    const retryInSec = Math.round(backoffMs / 1000)
+    console.warn(`[Circuit Breaker] Host '${host.id}' hit ${failureCount} consecutive failures — open for ${retryInSec}s`)
     updateHostRaw(host.id, {
-      enabled: false,
-      offlineReason: `circuit-breaker: ${count} consecutive failures`,
-      offlineSince: new Date().toISOString(),
-      lastSyncError: `Disabled after ${count} consecutive failures`,
+      offlineReason: `circuit-breaker: ${failureCount} consecutive failures (retry in ${retryInSec}s)`,
+      offlineSince: prev.openUntil > 0 ? undefined : new Date().toISOString(),
+      lastSyncError: `${failureCount} consecutive failures — auto-retry in ${retryInSec}s`,
     })
-    hostFailureCounts.delete(host.id)
+  } else {
+    circuitStates.set(host.id, { ...prev, failureCount })
   }
 }
 
 export function resetCircuitBreaker(hostId: string): void {
-  hostFailureCounts.delete(hostId)
+  circuitStates.delete(hostId)
 }
 
 interface DiscoveredSession {
@@ -1187,6 +1218,19 @@ export async function getUnifiedAgents(params: UnifiedAgentsParams): Promise<Ser
 
   // Fetch agents from all hosts in parallel
   const fetchPromises: Promise<HostFetchResult>[] = hosts.map(async (host) => {
+    // Skip hosts with open circuit breaker (cooldown not yet expired)
+    if (!isSelf(host.id) && isCircuitOpen(host.id)) {
+      const state = circuitStates.get(host.id)
+      const retryInSec = state ? Math.max(0, Math.round((state.openUntil - Date.now()) / 1000)) : 0
+      return {
+        host,
+        success: false,
+        agents: [],
+        stats: null,
+        error: `Circuit breaker open — retry in ${retryInSec}s`,
+      }
+    }
+
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), timeout)

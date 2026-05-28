@@ -280,7 +280,7 @@ export class VoiceSubsystem implements Subsystem {
 
       // Derive the Claude projects directory path (same as chat route.ts)
       const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-      const projectDirName = workingDir.replace(/\//g, '-')
+      const projectDirName = workingDir.replace(/[/_]/g, '-')
       const conversationDir = path.join(claudeProjectsDir, projectDirName)
 
       if (!fs.existsSync(conversationDir)) return []

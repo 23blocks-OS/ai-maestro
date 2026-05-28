@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
+import MobileToolBurstGroup from '@/components/chat/MobileToolBurstGroup'
+import { groupMessages, getToolPreviewText, type ToolBurst } from '@/lib/chat-utils'
 
 interface MobileChatViewProps {
   agentId: string
@@ -188,42 +190,6 @@ function extractText(msg: ChatMessage): string {
     return msg.content
   }
   return ''
-}
-
-// Shorten a file path to last 3 segments
-function shortenPath(p: string): string {
-  const parts = p.split('/')
-  if (parts.length <= 3) return p
-  return '.../' + parts.slice(-3).join('/')
-}
-
-// Get a tool-specific preview string
-function getToolPreviewText(name: string, input: any): string {
-  if (!input) return ''
-  switch (name) {
-    case 'Bash':
-      return (input.command || '').slice(0, 60) + ((input.command?.length || 0) > 60 ? '...' : '')
-    case 'Read': case 'Write': case 'Edit': case 'MultiEdit':
-      return input.file_path ? shortenPath(input.file_path) : ''
-    case 'Glob':
-      return input.pattern || ''
-    case 'Grep':
-      return `/${input.pattern || ''}/${input.path ? ' ' + shortenPath(input.path) : ''}`
-    case 'Task':
-      return (input.description || '').slice(0, 60)
-    case 'WebSearch':
-      return input.query || ''
-    case 'WebFetch':
-      return input.url || ''
-    default: {
-      const keys = Object.keys(input)
-      if (keys.length === 0) return ''
-      const k = keys[0]
-      const v = typeof input[k] === 'string' ? input[k] : JSON.stringify(input[k])
-      const preview = `${k}: ${v}`
-      return preview.slice(0, 60) + (preview.length > 60 ? '...' : '')
-    }
-  }
 }
 
 // Extract tool use info from a message
@@ -539,6 +505,9 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     }
   }
 
+  // Group consecutive tool-only messages into collapsible bursts
+  const groupedItems = useMemo(() => groupMessages(messages as any[], 'power'), [messages])
+
   // Determine status
   const isPermission = hookState?.status === 'permission_request'
   const isWaiting = hookState?.status === 'waiting_for_input'
@@ -562,7 +531,19 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           </div>
         )}
 
-        {messages.map((msg, i) => {
+        {groupedItems.map((item, i) => {
+          // Tool burst — render collapsible group
+          if ('_isBurst' in item) {
+            const burst = item as ToolBurst
+            return (
+              <MobileToolBurstGroup
+                key={`burst-${burst.startTimestamp || i}`}
+                burst={burst}
+              />
+            )
+          }
+
+          const msg = item as ChatMessage
           const key = msg.uuid ? `${msg.uuid}-${i}` : `msg-${i}`
 
           // Thinking block
@@ -625,7 +606,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             const text = extractText(msg)
             const tools = extractToolUses(msg)
 
-            // Tool-only message (no text content)
+            // Tool-only message (no text content) — not in a burst (1-2 consecutive)
             if (!text && tools.length > 0) {
               return (
                 <div key={key} className="mx-3 my-1">

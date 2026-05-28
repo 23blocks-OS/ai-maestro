@@ -32,12 +32,13 @@ interface TerminalViewProps {
   onConnectionStatusChange?: (isConnected: boolean) => void  // Callback for connection status changes
 }
 
-export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
   const { addToast } = useToast()
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
-  const [historyLoaded, setHistoryLoaded] = useState(false) // Gate for input handler
   const messageBufferRef = useRef<string[]>([])
+  const historyCompleteRef = useRef(false)
+  const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null)
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const { isTouch } = useDeviceType()
@@ -198,23 +199,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     socketPath: session.socketPath,  // Custom tmux socket (e.g., OpenClaw agents)
     initialCols: terminal?.cols,   // Pass actual terminal dimensions so PTY spawns at correct size
     initialRows: terminal?.rows,
-    autoConnect: isVisible && isReady,  // Wait for terminal init so PTY gets correct dimensions
+    autoConnect: isReady,  // Connect once terminal is ready — stay connected across tab switches
     onOpen: () => {
-      // Reset historyLoaded - server will send new history on each connect
-      setHistoryLoaded(false)
-      // Report activity when WebSocket connects
       reportActivity(session.id)
-      // Notify parent of connection status change
       onConnectionStatusChange?.(true)
-
-      // Send initial resize immediately so PTY/tmux starts at the correct size
-      // instead of defaulting to 80×24 (which corrupts TUI layouts like /plan mode)
-      const term = terminalInstanceRef.current
-      if (term) {
-        fitTerminal()
-        const resizeMsg = createResizeMessage(term.cols, term.rows)
-        sendMessage(resizeMsg)
-      }
+      // Reset history gate — server will send history then history-complete
+      historyCompleteRef.current = false
+      lastSentSizeRef.current = null
     },
     onClose: () => {
       // Notify parent of connection status change
@@ -227,36 +218,18 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          setHistoryLoaded(true)
-          if (terminalInstanceRef.current) {
-            // Wait for xterm.js to finish processing history
-            setTimeout(() => {
-              const t = terminalInstanceRef.current
-              if (!t) return
-
-              // 1. CRITICAL: Refit terminal to ensure correct dimensions
-              fitTerminal()
-
-              // 2. Send resize to PTY to sync tmux with correct dimensions
-              // This also triggers a redraw which helps with color issues
-              const resizeMsg = createResizeMessage(t.cols, t.rows)
-              sendMessage(resizeMsg)
-
-              // 3. Scroll to bottom and focus
-              // try-catch guards against xterm.js renderer being undefined
-              // (WebGL context loss leaves RenderService.dimensions broken)
-              setTimeout(() => {
-                try {
-                  if (terminalInstanceRef.current) {
-                    terminalInstanceRef.current.scrollToBottom()
-                    terminalInstanceRef.current.focus()
-                  }
-                } catch {
-                  // Renderer not ready — safe to ignore, terminal will recover
-                }
-              }, 50)
-            }, 100)
+          try {
+            const term = terminalInstanceRef.current
+            if (term) {
+              term.scrollToBottom()
+              term.focus()
+            }
+          } catch {
+            // Renderer not ready
           }
+          // Unlock resize forwarding — from now on, only real user-initiated
+          // resizes (browser window drag, notes panel toggle) will be sent.
+          historyCompleteRef.current = true
           return
         }
 
@@ -392,19 +365,18 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   // WebGL is now loaded inline during initializeTerminal() - no toggle needed.
   // Only one terminal is mounted at a time, so no GPU context exhaustion concern.
 
-  // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
+  // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height).
+  // Use a longer delay (300ms) so CSS transitions fully settle before refitting.
   useEffect(() => {
     if (isReady && terminal) {
-      // Notes state or footer tab changed, terminal height changed
       const timeout = setTimeout(() => {
         fitTerminal()
-      }, 150)
+      }, 300)
       return () => clearTimeout(timeout)
     }
-  }, [notesCollapsed, footerTab, isReady, terminal, fitTerminal, session.id])
+  }, [notesCollapsed, footerTab, isReady, terminal, fitTerminal])
 
   // Handle terminal input
-  // Note: Removed historyLoaded gate - it was preventing typing until ESC was pressed
   useEffect(() => {
     if (!terminal || !isConnected) {
       return
@@ -461,13 +433,17 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [isConnected, sendMessage])
 
-  // Handle terminal resize
+  // Handle terminal resize — only forward to server after history is loaded
+  // and only if dimensions actually changed (prevents tmux redraw storms)
   useEffect(() => {
     if (!terminal || !isConnected) return
 
     const disposable = terminal.onResize(({ cols, rows }) => {
-      const message = createResizeMessage(cols, rows)
-      sendMessage(message)
+      if (!historyCompleteRef.current) return
+      const last = lastSentSizeRef.current
+      if (last && last.cols === cols && last.rows === rows) return
+      lastSentSizeRef.current = { cols, rows }
+      sendMessage(createResizeMessage(cols, rows))
     })
 
     return () => {

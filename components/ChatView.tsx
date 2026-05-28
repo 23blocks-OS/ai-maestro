@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Brain, X } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
+import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
+import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
 import type { Agent } from '@/types/agent'
 
 // Collapsible thinking block
@@ -487,49 +489,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return content.filter(block => block.type === 'tool_use')
   }
 
-  // Shorten a file path to last 3 segments
-  const shortenPath = (p: string): string => {
-    const parts = p.split('/')
-    if (parts.length <= 3) return p
-    return '.../' + parts.slice(-3).join('/')
-  }
-
-  // Get a one-line contextual preview for a tool
-  const getToolPreview = (tool: ContentBlock): string => {
-    const input = tool.input
-    if (!input) return ''
-    const name = tool.name || ''
-
-    switch (name) {
-      case 'Bash':
-        return (input.command || '').slice(0, 80) + ((input.command?.length || 0) > 80 ? '...' : '')
-      case 'Read':
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-        return input.file_path ? shortenPath(input.file_path) : ''
-      case 'Glob':
-        return input.pattern || ''
-      case 'Grep':
-        return `/${input.pattern || ''}/${input.path ? ' ' + shortenPath(input.path) : ''}`
-      case 'Task':
-        return (input.description || '').slice(0, 80)
-      case 'WebSearch':
-        return input.query || ''
-      case 'WebFetch':
-        return input.url || ''
-      default: {
-        // First key=value from input
-        const keys = Object.keys(input)
-        if (keys.length === 0) return ''
-        const k = keys[0]
-        const v = typeof input[k] === 'string' ? input[k] : JSON.stringify(input[k])
-        const preview = `${k}: ${v}`
-        return preview.slice(0, 80) + (preview.length > 80 ? '...' : '')
-      }
-    }
-  }
-
   // Render tool-specific expanded content
   const renderToolExpanded = (tool: ContentBlock) => {
     const input = tool.input
@@ -604,6 +563,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   }
 
   const isOnline = agent.sessions?.some(s => s.status === 'online')
+
+  // Group consecutive tool-only messages into collapsible bursts
+  const groupedItems = useMemo(() => groupMessages(messages, chatMode), [messages, chatMode])
 
   // Activity state derived from hookState + messages + pending
   const activityState = useMemo(() => {
@@ -690,7 +652,22 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           </div>
         )}
 
-        {messages.map((message, index) => {
+        {groupedItems.map((item, index) => {
+          // Tool burst — render collapsible group
+          if ('_isBurst' in item) {
+            const burst = item as ToolBurst
+            return (
+              <ToolBurstGroup
+                key={`burst-${burst.startTimestamp || index}`}
+                burst={burst}
+                expandedTools={expandedTools}
+                onToggleTool={toggleTool}
+                renderToolExpanded={renderToolExpanded}
+              />
+            )
+          }
+
+          const message = item as Message
           const isUser = message.type === 'user'
           const isQueued = message.type === 'queue-operation' && message.operation === 'enqueue'
           const isThinking = message.type === 'thinking'
@@ -730,8 +707,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             return <ThinkingBlock key={message.uuid || index} text={content} timestamp={message.timestamp} />
           }
 
-          // Message grouping: check if previous message is same role within 60s
-          const prevMsg = index > 0 ? messages[index - 1] : null
+          // Message grouping: check if previous item is same role within 60s
+          const prevItem = index > 0 ? groupedItems[index - 1] : null
+          const prevMsg = prevItem && !('_isBurst' in prevItem) ? prevItem as Message : null
           const isSameRole = prevMsg && (
             (isUser && prevMsg.type === 'user') ||
             (isQueued && prevMsg.type === 'queue-operation' && prevMsg.operation === 'enqueue') ||

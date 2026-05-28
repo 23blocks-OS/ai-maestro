@@ -148,6 +148,18 @@ import { createDockerAgent, recreateDockerAgent, getDockerStats } from '@/servic
 import { createCloudAgent, destroyCloudAgent, getCloudAgentStatus } from '@/services/agents-cloud-service'
 
 import {
+  getAllSchedules,
+  getAgentSchedules,
+  getScheduleById,
+  createAgentSchedule,
+  updateAgentSchedule,
+  deleteAgentSchedule,
+  triggerSchedule,
+  getScheduleExecutions,
+  getAllExecutions,
+} from '@/services/agents-schedule-service'
+
+import {
   listSessions,
   listLocalSessions,
   createSession,
@@ -834,6 +846,48 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+  }},
+
+  // Schedules (per-agent)
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/schedules\/([^/]+)$/, paramNames: ['id', 'scheduleId'], handler: async (_req, res, params, query) => {
+    if (query.executions === 'true') {
+      const limit = parseInt(query.limit || '20', 10)
+      sendServiceResult(res, getScheduleExecutions(params.scheduleId, limit))
+    } else {
+      sendServiceResult(res, getScheduleById(params.scheduleId))
+    }
+  }},
+  { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/schedules\/([^/]+)$/, paramNames: ['id', 'scheduleId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateAgentSchedule(params.scheduleId, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/schedules\/([^/]+)$/, paramNames: ['id', 'scheduleId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, deleteAgentSchedule(params.scheduleId))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/schedules$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getAgentSchedules(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/schedules$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, createAgentSchedule(params.id, body))
+  }},
+
+  // Schedules (global)
+  { method: 'GET', pattern: /^\/api\/schedules$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    if (query.executions === 'true') {
+      const limit = parseInt(query.limit || '50', 10)
+      sendServiceResult(res, getAllExecutions(limit))
+    } else {
+      sendServiceResult(res, getAllSchedules())
+    }
+  }},
+  { method: 'POST', pattern: /^\/api\/schedules\/([^/]+)\/trigger$/, paramNames: ['scheduleId'], handler: async (req, res, params) => {
+    let triggeredBy: 'manual' | 'webhook' = 'manual'
+    try {
+      const body = await readJsonBody(req)
+      if (body.triggeredBy === 'webhook') triggeredBy = 'webhook'
+    } catch {}
+    sendServiceResult(res, await triggerSchedule(params.scheduleId, triggeredBy))
   }},
 
   // Subconscious

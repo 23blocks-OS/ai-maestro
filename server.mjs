@@ -1998,11 +1998,27 @@ async function startServer(handleRequest) {
 
     // Start periodic orphaned PTY cleanup to prevent leaks
     startOrphanedPtyCleanup()
+
+    // Start the agent schedule executor (checks due schedules every 60s)
+    setTimeout(async () => {
+      try {
+        const { startScheduler } = await import('./lib/schedule-executor.ts')
+        startScheduler()
+      } catch (error) {
+        console.error('[Scheduler] Failed to start schedule executor:', error.message)
+      }
+    }, 10000) // Wait 10 seconds for all services to be ready
   })
 
   // Graceful shutdown - kill PTYs FIRST before closing server
-  const gracefulShutdown = (signal) => {
+  const gracefulShutdown = async (signal) => {
     console.log(`[Server] Received ${signal}, shutting down gracefully...`)
+
+    // Stop the scheduler
+    try {
+      const { stopScheduler } = await import('./lib/schedule-executor.ts')
+      stopScheduler()
+    } catch { /* ignore */ }
 
     // Kill all PTY processes FIRST and synchronously
     const sessionCount = terminalSessions.size

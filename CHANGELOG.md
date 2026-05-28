@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.30] - 2026-05-27
+
+### Fixed
+- **Terminal resize storm causing content to jump/rewrite** — Multiple independent systems (onOpen, history-complete, ResizeObserver, notes toggle) all triggered `fit()` → resize message → PTY resize → tmux full-screen redraw simultaneously. Now: no resize on connect (PTY spawns at correct size via URL params), no resize on history-complete, resize messages gated until history is loaded, deduplicated by tracking last sent cols/rows. Only real user actions (browser window resize, notes panel toggle) trigger a resize.
+- **Tab switching causing terminal re-render** — Switching between Terminal and Chat tabs disconnected/reconnected the WebSocket, causing a full history reload + resize storm on return. WebSocket now stays connected across tab switches.
+- **ResizeObserver debounce too short** — Increased from 150ms to 300ms so CSS transitions fully settle before refitting, preventing redundant fit→resize cascades.
+
+### Added
+- **Agent scheduling system** — Cron-based task scheduling for agents. Schedules stored in `~/.aimaestro/schedules.json`, checked every 60s by a timer in server.mjs. Supports creating tmux sessions for offline agents and sending prompts via send-keys. API: `GET/POST /api/agents/{id}/schedules`, `PATCH/DELETE /api/agents/{id}/schedules/{scheduleId}`, `GET /api/schedules` (global), `POST /api/schedules/{id}/trigger` (manual/webhook). Execution history tracked per schedule.
+
 ## [0.35.28] - 2026-05-27
 
 ### Fixed

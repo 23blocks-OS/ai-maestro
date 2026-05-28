@@ -55,6 +55,7 @@
     "@xterm/xterm": "^6.0.0",
     "archiver": "^7.0.1",
     "cozo-node": "^0.7.6",
+    "cron-parser": "^5.5.0",
     "cytoscape": "^3.33.1",
     "cytoscape-dagre": "^2.5.0",
     "form-data": "^4.0.5",

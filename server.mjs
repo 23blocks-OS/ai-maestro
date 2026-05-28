@@ -177,7 +177,7 @@ function resolveJsonlPath(agent) {
   if (!workingDir) return null
 
   const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-  const projectDirName = workingDir.replace(/\//g, '-')
+  const projectDirName = workingDir.replace(/[/_]/g, '-')
   const conversationDir = path.join(claudeProjectsDir, projectDirName)
 
   if (!fs.existsSync(conversationDir)) return null

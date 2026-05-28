@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.31] - 2026-05-27
+
+### Fixed
+- **Chat view empty for agents with underscores in working directory** — Claude Code converts both `/` and `_` to `-` when naming project directories (e.g., `rag_ingestion` → `rag-ingestion`), but our JSONL path resolution only replaced `/`. Any agent with underscores in its path couldn't find its conversation files. Fixed in `server.mjs`, `agents-chat-service.ts`, and `voice-subsystem.ts`.
+
 ## [0.35.30] - 2026-05-27
 
 ### Fixed

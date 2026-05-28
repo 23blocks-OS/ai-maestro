@@ -1334,6 +1334,10 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     'docker run -d',
     `--name "${containerName}"`,
     '--add-host=host.docker.internal:host-gateway',
+    '--cap-drop=ALL',
+    '--cap-add=NET_BIND_SERVICE --cap-add=SETGID --cap-add=SETUID --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER',
+    '--security-opt no-new-privileges',
+    '--tmpfs /tmp:noexec,nosuid,size=100m',
     body.autoRemove ? '' : '--restart unless-stopped',
     ...buildEnvFlags(mergedEnv),
     `-v "${workDir}:/workspace"`,
@@ -1595,5 +1599,84 @@ export async function recreateDockerAgent(
       preservedFields: RECREATE_PRESERVED_FIELDS.filter(f => (oldAgent as unknown as Record<string, unknown>)[f] !== undefined),
     },
     status: result.status,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/docker/stats — resource usage for all running agent containers
+// ---------------------------------------------------------------------------
+
+export interface ContainerStats {
+  containerName: string
+  agentId?: string
+  cpu: number         // percentage (0-100+)
+  memoryUsageMb: number
+  memoryLimitMb: number
+  memoryPercent: number
+  netInputMb: number
+  netOutputMb: number
+  pids: number
+}
+
+export async function getDockerStats(): Promise<ServiceResult<{ containers: ContainerStats[] }>> {
+  try {
+    const { stdout } = await execAsync(
+      'docker stats --no-stream --format \'{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","memUsage":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","netIO":"{{.NetIO}}","pids":"{{.PIDs}}"}\'',
+      { timeout: 10000 }
+    )
+
+    if (!stdout.trim()) {
+      return { data: { containers: [] }, status: 200 }
+    }
+
+    const agents = loadAgents()
+    const agentByContainer = new Map<string, string>()
+    for (const a of agents) {
+      const cn = a.deployment?.cloud?.containerName
+      if (cn) agentByContainer.set(cn, a.id)
+    }
+
+    const containers: ContainerStats[] = []
+
+    for (const line of stdout.trim().split('\n')) {
+      try {
+        const raw = JSON.parse(line)
+        if (!raw.name?.startsWith('aim-')) continue
+
+        const parseMb = (s: string): number => {
+          const m = s.match(/([\d.]+)\s*(GiB|MiB|KiB|GB|MB|KB|B)/i)
+          if (!m) return 0
+          const val = parseFloat(m[1])
+          const unit = m[2].toLowerCase()
+          if (unit === 'gib' || unit === 'gb') return val * 1024
+          if (unit === 'mib' || unit === 'mb') return val
+          if (unit === 'kib' || unit === 'kb') return val / 1024
+          return val / (1024 * 1024)
+        }
+
+        const memParts = raw.memUsage.split('/')
+        containers.push({
+          containerName: raw.name,
+          agentId: agentByContainer.get(raw.name),
+          cpu: parseFloat(raw.cpu) || 0,
+          memoryUsageMb: parseMb(memParts[0] || ''),
+          memoryLimitMb: parseMb(memParts[1] || ''),
+          memoryPercent: parseFloat(raw.memPerc) || 0,
+          netInputMb: parseMb((raw.netIO.split('/')[0]) || ''),
+          netOutputMb: parseMb((raw.netIO.split('/')[1]) || ''),
+          pids: parseInt(raw.pids, 10) || 0,
+        })
+      } catch {
+        // skip malformed lines
+      }
+    }
+
+    return { data: { containers }, status: 200 }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    if (msg.includes('not found') || msg.includes('Cannot connect')) {
+      return { data: { containers: [] }, status: 200 }
+    }
+    return operationFailed('get docker stats', msg)
   }
 }

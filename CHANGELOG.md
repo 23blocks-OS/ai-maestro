@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.28] - 2026-05-27
+
+### Fixed
+- **Circuit breaker permanently disabling remote hosts** — When a remote host became temporarily unreachable, the circuit breaker tripped after 3 failures and set `enabled: false` in `hosts.json`, permanently disabling the host until manual config editing + server restart. Replaced with a proper half-open circuit breaker pattern: state is now in-memory with exponential backoff (30s → 60s → 120s → 240s → 5min cap). When cooldown expires, the next UI poll probes the host automatically. Success resets everything. `hosts.json` is never modified by the circuit breaker.
+- **Reactivate endpoint rejecting circuit-broken hosts** — `/api/hosts/[id]/reactivate` only handled `enabled: false` hosts. Now also handles in-memory circuit-broken hosts (enabled but with open circuit).
+
+### Added
+- **Container hardening flags** — Agent Docker containers now launch with `--cap-drop=ALL` (selective `--cap-add` for 6 required capabilities), `--security-opt no-new-privileges`, and `--tmpfs /tmp:noexec,nosuid,size=100m`. Existing containers get these on next `/recreate`.
+- **`GET /api/docker/stats`** — New endpoint returning real-time CPU %, memory usage/limit/%, network I/O, and PID count for all running agent containers, mapped to agent IDs.
+
 ## [0.35.26] - 2026-05-20
 
 ### Fixed

@@ -52,7 +52,7 @@ import type {
   HostIdentityResponse,
 } from '@/types/host-sync'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed, invalidRequest } from '@/services/service-errors'
-import { resetCircuitBreaker } from '@/services/agents-core-service'
+import { resetCircuitBreaker, isCircuitOpen } from '@/services/agents-core-service'
 
 const execAsync = promisify(exec)
 
@@ -885,6 +885,8 @@ export async function registerPeer(body: PeerRegistrationRequest): Promise<Servi
     const existingHostById = getHostById(body.host.id)
     if (existingHostById) {
       console.log(`[Host Sync] Peer ${body.host.name} (${body.host.id}) already known by ID`)
+      // Peer is alive — reset circuit breaker if it was tripped
+      resetCircuitBreaker(body.host.id)
       return {
         data: {
           success: true,
@@ -1003,26 +1005,37 @@ export async function reactivateHost(id: string): Promise<ServiceResult<{ succes
       return notFound('Host', id)
     }
 
-    if (host.enabled !== false) {
-      return invalidRequest(`Host '${id}' is already enabled`)
+    const isDisabled = host.enabled === false
+    const isCircuitBroken = isCircuitOpen(host.id)
+
+    if (!isDisabled && !isCircuitBroken) {
+      return invalidRequest(`Host '${id}' is already enabled and circuit is closed`)
     }
 
-    const result = updateHostRaw(id, {
-      enabled: true,
-      offlineReason: undefined,
-      offlineSince: undefined,
-      lastSyncError: undefined,
-    })
-
-    if (!result.success) {
-      return operationFailed('reactivate host', result.error)
+    if (isDisabled) {
+      const result = updateHostRaw(id, {
+        enabled: true,
+        offlineReason: undefined,
+        offlineSince: undefined,
+        lastSyncError: undefined,
+      })
+      if (!result.success) {
+        return operationFailed('reactivate host', result.error)
+      }
+    } else {
+      // Host is enabled but circuit-broken — just clear error metadata
+      updateHostRaw(id, {
+        offlineReason: undefined,
+        offlineSince: undefined,
+        lastSyncError: undefined,
+      })
     }
 
     resetCircuitBreaker(id)
     clearHostsCache()
 
-    console.log(`[Hosts] Reactivated circuit-broken host: ${id}`)
-    return { data: { success: true, host: result.host }, status: 200 }
+    console.log(`[Hosts] Reactivated host: ${id} (was ${isDisabled ? 'disabled' : 'circuit-broken'})`)
+    return { data: { success: true, host }, status: 200 }
   } catch (error) {
     console.error(`[Hosts] Failed to reactivate host '${id}':`, error)
     return operationFailed('reactivate host')

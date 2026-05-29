@@ -126,7 +126,7 @@ async function broadcastStatusUpdate(cwd, state) {
     }
 }
 
-// Write state to file
+// Write state to file. Returns the broadcast promise so callers can await if needed.
 function writeState(cwd, state) {
     const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');
     fs.mkdirSync(stateDir, { recursive: true });
@@ -152,8 +152,8 @@ function writeState(cwd, state) {
     index[cwd] = cwdHash;
     fs.writeFileSync(indexFile, JSON.stringify(index, null, 2));
 
-    // Broadcast status update via WebSocket (fire and forget)
-    broadcastStatusUpdate(cwd, state).catch(() => {});
+    // Broadcast status update via WebSocket
+    return broadcastStatusUpdate(cwd, state).catch(() => {});
 }
 
 // Log to debug file
@@ -358,43 +358,87 @@ async function main() {
                 description = `Search in ${toolInput.path}?`;
             }
 
-            // Build options array similar to Claude's terminal UI
+            // Build options matching Claude Code source (Qv2/Vd5 functions).
+            // Structure is always: [Yes] + [middle from suggestions] + [No]
             const options = [
-                { key: '1', label: 'Yes', action: 'allow_once' }
+                { key: '1', label: 'Yes', value: 'yes' }
             ];
 
-            // Add session-scoped option if available
-            const sessionSuggestion = permissionSuggestions.find(s => s.destination === 'session');
-            if (sessionSuggestion && sessionSuggestion.rules && sessionSuggestion.rules[0]) {
-                const rule = sessionSuggestion.rules[0];
+            // Middle options — built from permission_suggestions using Vd5 logic.
+            // Categorize suggestions into read rules, bash rules, and directories.
+            if (permissionSuggestions.length > 0) {
+                const readPaths = [];
+                const bashCmds = [];
+                const dirs = [];
+
+                for (const s of permissionSuggestions) {
+                    if (s.type === 'addDirectories' && s.directories) {
+                        dirs.push(...s.directories.map(d => d.split('/').pop() || d));
+                    } else if (s.type === 'addRules' && s.rules) {
+                        for (const r of s.rules) {
+                            if (r.toolName === 'Read') {
+                                readPaths.push(r.ruleContent || '');
+                            } else if (r.toolName === 'Bash') {
+                                bashCmds.push(r.ruleContent || '');
+                            }
+                        }
+                    }
+                }
+
+                // Build label following Vd5 logic from Claude Code source
+                let middleLabel = '';
+                const allPaths = [...dirs, ...readPaths.map(p => p.split('/').pop() || p)].filter(Boolean);
+
+                if (allPaths.length > 0 && bashCmds.length > 0) {
+                    middleLabel = `Yes, and allow ${allPaths.join(', ')} access and ${bashCmds.join(', ')} commands`;
+                } else if (allPaths.length > 0) {
+                    middleLabel = readPaths.length > 0
+                        ? `Yes, allow reading from ${allPaths.join(', ')} from this project`
+                        : `Yes, and always allow access to ${allPaths.join(', ')} from this project`;
+                } else if (bashCmds.length > 0) {
+                    middleLabel = `Yes, and don't ask again for ${bashCmds.join(', ')} commands in this project`;
+                } else {
+                    // Generic fallback for other suggestion types
+                    middleLabel = `Yes, and don't ask again for ${toolName} in this project`;
+                }
+
                 options.push({
                     key: '2',
-                    label: `Yes, allow ${rule.toolName || toolName} from ${rule.ruleContent || 'this location'} during this session`,
-                    action: 'allow_session',
-                    rule: rule.ruleContent
+                    label: middleLabel,
+                    value: 'yes-apply-suggestions',
+                    suggestions: permissionSuggestions
                 });
-            }
-
-            // Add local settings option if available
-            const localSuggestion = permissionSuggestions.find(s => s.destination === 'localSettings');
-            if (localSuggestion && localSuggestion.rules && localSuggestion.rules[0]) {
-                const rule = localSuggestion.rules[0];
+            } else if (['Edit', 'Write', 'MultiEdit'].includes(toolName)) {
+                // File operations always get a session-scoped option per dx2 logic
+                const filePath = toolInput.file_path || toolInput.path || '';
+                const isInCwd = filePath.startsWith(cwd);
+                const label = isInCwd
+                    ? 'Yes, allow all edits during this session'
+                    : `Yes, allow all edits in ${filePath.replace(/\/[^/]+$/, '/')} during this session`;
                 options.push({
-                    key: String(options.length + 1),
-                    label: `Yes, always allow this command`,
-                    action: 'allow_always',
-                    rule: rule.ruleContent
+                    key: '2',
+                    label,
+                    value: 'yes-session'
+                });
+            } else if (toolName === 'Read') {
+                options.push({
+                    key: '2',
+                    label: 'Yes, during this session',
+                    value: 'yes-session'
                 });
             }
 
-            // Always add the "type to respond" option
+            // Last option is always No with feedback
             options.push({
                 key: String(options.length + 1),
-                label: 'Type here to tell Claude what to do differently',
-                action: 'custom'
+                label: 'No, and tell Claude what to do differently',
+                value: 'no'
             });
 
-            writeState(cwd, {
+            // Await the HTTP broadcast for permission_request — this is the critical
+            // path for the chat UI. Other hooks fire-and-forget, but permissions must
+            // reach WebSocket clients before process.exit() kills pending fetches.
+            await writeState(cwd, {
                 status: 'permission_request',
                 toolName,
                 toolInput,
@@ -431,7 +475,10 @@ async function main() {
                     hookResponse = buildContextResponse(agent, rawEvent, combined);
                 }
             } else if (notificationType === 'permission_prompt') {
-                // For permission prompts, preserve existing tool info if we have it
+                // Notification(permission_prompt) fires ~6s AFTER PermissionRequest.
+                // If PermissionRequest already wrote the state with full tool data,
+                // do NOT overwrite it — just skip. The permission_request state is
+                // strictly more informative than waiting_for_input.
                 const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');
                 const cwdHash = hashCwd(cwd);
                 const stateFile = path.join(stateDir, `${cwdHash}.json`);
@@ -440,25 +487,22 @@ async function main() {
                 try {
                     if (fs.existsSync(stateFile)) {
                         existingState = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-                        // Only preserve if it's a recent permission_request (within 10 seconds)
                         const age = Date.now() - new Date(existingState.updatedAt).getTime();
-                        if (existingState.status !== 'permission_request' || age > 10000) {
-                            existingState = {};
+                        if (existingState.status === 'permission_request' && age < 30000) {
+                            // PermissionRequest hook already wrote the good state — don't touch it
+                            debugLog({ event: 'notification_skipped', reason: 'permission_request already active', age });
+                            break;
                         }
                     }
                 } catch (e) {}
 
+                // No existing permission_request — write what we have
                 writeState(cwd, {
                     status: 'waiting_for_input',
                     message: input.message || 'Waiting for your input...',
                     notificationType,
                     sessionId,
-                    transcriptPath,
-                    // Preserve tool info from PermissionRequest if we have it
-                    toolName: existingState.toolName,
-                    toolInput: existingState.toolInput,
-                    options: existingState.options,
-                    description: existingState.description || input.message
+                    transcriptPath
                 });
             }
             break;

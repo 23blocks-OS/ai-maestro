@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.44] - 2026-05-29
+
+### Added
+- **Chat: AskUserQuestion interactive rendering** — Claude Code's multiple-choice questions (AskUserQuestion tool_use) now render as interactive numbered buttons in the chat UI, matching the terminal experience. Users can click options directly instead of typing numbers. Includes "Other" option that focuses the chat input. Buttons disable immediately after selection. Works in both assisted and power modes, desktop and mobile.
+- **Chat: live activity indicator from PTY** — Parses real-time PTY output to show what the agent is doing while working. Detects spinner status ("Thinking…", "Reading...", "Searching..."), thinking step progress ([1/418], [2/418]), and tool execution patterns (Running, Writing, Editing). Shows in the chat header (replaces generic "Agent is working...") and as an animated inline bubble at the bottom of the message list. Throttled to 500ms, clears when assistant messages arrive. Works for local agents; remote agents get this with deployment of the same version.
+
+### Fixed
+- **Chat: AskUserQuestion messages hidden in assisted mode** — Messages containing only an AskUserQuestion tool_use were incorrectly filtered as "tool-only" messages. Now excluded from tool burst grouping and always visible since they require user interaction.
+
 ## [0.35.31] - 2026-05-27
 
 ### Fixed

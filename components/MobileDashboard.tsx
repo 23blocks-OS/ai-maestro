@@ -223,7 +223,7 @@ export default function MobileDashboard({
                         <MobileChatView
                           agentId={agent.id}
                           agentName={getAgentDisplayName(agent)}
-                          sessionName={agent.name || agent.alias}
+                          sessionName={(agent as any).session?.tmuxSessionName || agent.name || agent.alias}
                           hostId={agent.hostId}
                         />
                       </div>

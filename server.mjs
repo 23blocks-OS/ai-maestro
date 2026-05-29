@@ -288,7 +288,17 @@ async function getChatHistory(sessionName, agentId) {
   const workingDir = agent.workingDirectory ||
                      agent.sessions?.[0]?.workingDirectory ||
                      agent.preferences?.defaultWorkingDirectory
-  const hookState = readHookState(workingDir)
+  let hookState = readHookState(workingDir)
+
+  // If the file no longer has permission_request but the server remembers one
+  // from this session (agent is still waiting for approval), use the stored state.
+  // This handles tab-switching: component unmounts/remounts while permission is pending.
+  if (hookState?.status !== 'permission_request') {
+    const sessionState = terminalSessions.get(sessionName)
+    if (sessionState?._lastPermission) {
+      hookState = sessionState._lastPermission
+    }
+  }
 
   return {
     messages,
@@ -325,6 +335,7 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
     // Poll every 1s — low overhead, reliable on macOS where fs.watch is flaky
     fs.watchFile(file.path, { interval: 1000 }, (curr, prev) => {
       if (curr.size > sessionState.jsonlFileSize) {
+        console.log(`[Chat] JSONL change detected for ${sessionName}: ${sessionState.jsonlFileSize} → ${curr.size} (${sessionState.chatClients?.size || 0} clients)`)
         broadcastJsonlUpdates(sessionName, sessionState)
       }
       // Handle file truncation (new conversation started)
@@ -335,17 +346,67 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
     })
     sessionState.jsonlWatcher = true
     console.log(`[Chat] Started JSONL watcher for ${sessionName}: ${file.path}`)
+
+    // Watch hook state file for real-time permission/status updates
+    const workingDir = agent.workingDirectory ||
+                       agent.sessions?.[0]?.workingDirectory ||
+                       agent.preferences?.defaultWorkingDirectory
+    if (workingDir) {
+      sessionState._hookStateWorkingDir = workingDir
+      const cwdHash = crypto.createHash('md5').update(workingDir).digest('hex').substring(0, 16)
+      const hookStateFile = path.join(os.homedir(), '.aimaestro', 'chat-state', `${cwdHash}.json`)
+      sessionState._hookStateFile = hookStateFile
+
+      // Use fs.watchFile (1s poll) instead of setInterval — same reliability as JSONL watcher
+      fs.watchFile(hookStateFile, { interval: 1000 }, () => {
+        broadcastHookState(sessionName, sessionState)
+      })
+      sessionState._hookStateWatcher = true
+      console.log(`[Chat] Started hookState watcher for ${sessionName}: ${hookStateFile}`)
+    }
   }).catch(err => {
     console.error(`[Chat] Failed to start JSONL watcher for ${sessionName}:`, err.message)
   })
 }
 
 /**
+ * Read hookState and broadcast to chat clients if changed.
+ * Extracted so it can be called from the file watcher AND from broadcastJsonlUpdates
+ * (on tool_use messages that precede permission prompts).
+ */
+function broadcastHookState(sessionName, sessionState) {
+  if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
+  const workingDir = sessionState._hookStateWorkingDir
+  if (!workingDir) return
+  const state = readHookState(workingDir)
+  // Remember permission_request states so we can serve them on history re-requests
+  if (state?.status === 'permission_request') {
+    sessionState._lastPermission = state
+  }
+  const stateJson = JSON.stringify(state)
+  if (stateJson !== sessionState._lastHookState) {
+    sessionState._lastHookState = stateJson
+    const msg = JSON.stringify({ type: 'chat:hookState', data: state })
+    sessionState.chatClients.forEach(ws => {
+      if (ws.readyState === 1) ws.send(msg)
+    })
+    if (state?.status) {
+      console.log(`[Chat] hookState broadcast for ${sessionName}: ${state.status}`)
+    }
+  }
+}
+
+/**
  * Read new JSONL lines since last read and broadcast to chat clients.
  */
 function broadcastJsonlUpdates(sessionName, sessionState) {
-  if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
-  if (!sessionState.jsonlFilePath) return
+  if (!sessionState.chatClients || sessionState.chatClients.size === 0) {
+    return
+  }
+  if (!sessionState.jsonlFilePath) {
+    console.log(`[Chat] No JSONL path for ${sessionName}, skipping broadcast`)
+    return
+  }
 
   try {
     const stat = fs.statSync(sessionState.jsonlFilePath)
@@ -386,12 +447,39 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
     const messages = parseJsonlLines(lines, 50)
     if (messages.length === 0) return
 
+    // Clear stored permission when assistant responds (permission cycle is over)
+    if (messages.some(m => m.type === 'assistant') && sessionState._lastPermission) {
+      sessionState._lastPermission = null
+    }
+
+    // Clear activity indicator when new messages arrive (tool completed, response started)
+    if (messages.length > 0 && sessionState._lastActivityLabel) {
+      sessionState._lastActivityLabel = null
+      const clearMsg = JSON.stringify({ type: 'chat:activity', data: null })
+      sessionState.chatClients.forEach(ws => {
+        if (ws.readyState === 1) try { ws.send(clearMsg) } catch {}
+      })
+    }
+
     const msg = JSON.stringify({ type: 'chat:messages', data: messages })
+    let sentCount = 0
     sessionState.chatClients.forEach(ws => {
-      if (ws.readyState === 1) ws.send(msg)
+      if (ws.readyState === 1) {
+        ws.send(msg)
+        sentCount++
+      }
     })
+    console.log(`[Chat] Broadcast ${messages.length} messages to ${sentCount}/${sessionState.chatClients.size} clients for ${sessionName}`)
+
+    // When tool_use messages appear, permission prompts follow shortly after.
+    // Schedule rapid hookState reads to catch them before the file watcher's next poll.
+    const hasToolUse = lines.some(l => l.includes('"tool_use"'))
+    if (hasToolUse && sessionState._hookStateWorkingDir) {
+      for (const delay of [200, 600, 1200, 2000, 3500]) {
+        setTimeout(() => broadcastHookState(sessionName, sessionState), delay)
+      }
+    }
   } catch (err) {
-    // File may not exist yet or be in the middle of being written
     console.error(`[Chat] Error reading JSONL updates for ${sessionName}:`, err.message)
   }
 }
@@ -448,6 +536,14 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
       fs.unwatchFile(sessionState.jsonlFilePath)
     } catch { /* ignore */ }
     sessionState.jsonlWatcher = null
+  }
+
+  // Stop hook state file watcher
+  if (sessionState._hookStateWatcher && sessionState._hookStateFile) {
+    try {
+      fs.unwatchFile(sessionState._hookStateFile)
+    } catch { /* ignore */ }
+    sessionState._hookStateWatcher = null
   }
 
   // Close all remaining client connections
@@ -570,6 +666,43 @@ function getAgentIdForSession(sessionName) {
   } catch {
     // Agent directory doesn't exist or error accessing it
   }
+  return null
+}
+
+/**
+ * Extract structured activity signals from raw PTY output.
+ * Returns { label, detail? } or null if no recognizable signal.
+ */
+function extractPtyActivity(cleanedData) {
+  const trimmed = cleanedData.replace(/[\r\n]/g, ' ').trim()
+  if (!trimmed || trimmed.length < 2) return null
+
+  // Thinking step progress: [1/418], [2/418], etc.
+  const stepMatch = trimmed.match(/\[(\d+)\/(\d+)\]/)
+  if (stepMatch) {
+    return { label: 'Thinking', detail: `step ${stepMatch[1]}/${stepMatch[2]}` }
+  }
+
+  // Spinner status: "✳ Forming...", "· Thinking…", "· Reading..."
+  const spinnerMatch = trimmed.match(/[✳·⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s*(\w+ing)[\.\…]*/i)
+  if (spinnerMatch) {
+    return { label: spinnerMatch[1] }
+  }
+
+  // Tool execution patterns from Claude Code TUI
+  const toolPatterns = [
+    { re: /(?:Running|Executing)\s+`([^`]{1,60})`/i, label: 'Running', detail: (m) => m[1] },
+    { re: /(?:Reading|Read)\s+([^\s]{1,80})/i, label: 'Reading', detail: (m) => m[1] },
+    { re: /(?:Writing|Wrote)\s+([^\s]{1,80})/i, label: 'Writing', detail: (m) => m[1] },
+    { re: /(?:Editing|Edited)\s+([^\s]{1,80})/i, label: 'Editing', detail: (m) => m[1] },
+    { re: /(?:Searching|Searched|Grep)\s+(.{1,60})/i, label: 'Searching', detail: (m) => m[1] },
+    { re: /Compacting conversation/i, label: 'Compacting' },
+  ]
+  for (const { re, label, detail } of toolPatterns) {
+    const m = trimmed.match(re)
+    if (m) return { label, detail: detail ? detail(m) : undefined }
+  }
+
   return null
 }
 
@@ -1367,10 +1500,10 @@ async function startServer(handleRequest) {
         }
       }
 
-      console.log(`[Chat] Chat-only client connected for ${sessionName}`)
-
       // Get or create minimal session state for chatClients
       let sessionState = terminalSessions.get(sessionName)
+      const isStub = !sessionState
+      console.log(`[Chat] Chat-only client connected for ${sessionName} (${isStub ? 'new stub' : 'existing session, hasPTY=' + !!sessionState?.ptyProcess + ', chatClients=' + (sessionState?.chatClients?.size ?? 0)})`)
       if (!sessionState) {
         // No terminal session exists — create a stub for chat-only clients
         sessionState = {
@@ -1436,8 +1569,10 @@ async function startServer(handleRequest) {
                 if (ws.readyState === 1) {
                   ws.send(JSON.stringify({ type: 'chat:sent' }))
                 }
-                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
-                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+                // Burst-read JSONL to catch user message echo and early response
+                for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
+                  setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
+                }
               } catch (err) {
                 if (ws.readyState === 1) {
                   ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: ' + err.message }))
@@ -1542,7 +1677,8 @@ async function startServer(handleRequest) {
     // Get or create session state (for traditional local tmux sessions)
     let sessionState = terminalSessions.get(sessionName)
 
-    if (!sessionState) {
+    // Also create PTY if sessionState exists but has no ptyProcess (chatOnly stub)
+    if (!sessionState || !sessionState.ptyProcess) {
       let ptyProcess
 
       // Spawn PTY with tmux attach, with retry logic for transient failures.
@@ -1615,9 +1751,51 @@ async function startServer(handleRequest) {
         }
       }
 
-      // If another client created session state during retry, skip creation
-      if (sessionState) {
+      // If another client created session state during retry (with PTY), skip creation
+      if (sessionState && sessionState.ptyProcess) {
         // Fall through to add client to existing session
+      } else if (sessionState && !sessionState.ptyProcess && ptyProcess) {
+        // chatOnly stub exists — attach PTY and set up streaming/exit handlers
+        sessionState.ptyProcess = ptyProcess
+        sessionState.loggingEnabled = true
+        sessionState.terminalBuffer = getOrCreateBuffer(sessionName)
+        if (globalLoggingEnabled && !sessionState.logStream) {
+          const logFilePath = path.join(logsDir, `${sessionName}.txt`)
+          sessionState.logStream = fs.createWriteStream(logFilePath, { flags: 'a' })
+        }
+
+        ptyProcess.onData((data) => {
+          try {
+            const cleanedData = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+            const isStatusPattern =
+              /[✳·]\s*\w+ing[\.…]/.test(cleanedData) ||
+              cleanedData.includes('esc to interrupt') ||
+              cleanedData.includes('? for shortcuts') ||
+              /Tip:/.test(cleanedData) ||
+              /^[─>]+\s*$/.test(cleanedData.replace(/[\r\n]/g, '')) ||
+              /\[\d+\/\d+\]/.test(cleanedData) ||
+              /^\d{2}:\d{2}:\d{2}\s+\[\d+\/\d+\]/.test(cleanedData)
+            if (globalLoggingEnabled && sessionState.logStream && sessionState.loggingEnabled && !isStatusPattern) {
+              try { sessionState.logStream.write(data) } catch {}
+            }
+            const hasSubstantialContent = data.length >= 3 &&
+              !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
+            if (hasSubstantialContent) trackSessionActivity(sessionName)
+            if (sessionState.terminalBuffer && hasSubstantialContent) sessionState.terminalBuffer.write(data)
+            sessionState.clients.forEach((client) => {
+              if (client.readyState === 1) {
+                try { client.send(data) } catch {}
+              }
+            })
+          } catch (error) {
+            console.error(`[PTY] Error in onData handler for ${sessionName}:`, error)
+          }
+        })
+
+        ptyProcess.onExit(({ exitCode, signal }) => {
+          console.log(`[PTY] Process exited for ${sessionName} (code: ${exitCode}, signal: ${signal})`)
+          cleanupSession(sessionName, sessionState, `pty_exit_${exitCode || signal}`, true)
+        })
       } else if (!ptyProcess) {
         // Should not happen, but guard against it
         ws.close(1011, 'PTY spawn failed unexpectedly')
@@ -1681,6 +1859,24 @@ async function startServer(handleRequest) {
 
           if (hasSubstantialContent) {
             trackSessionActivity(sessionName)
+          }
+
+          // Extract activity signals for chat clients
+          if (sessionState.chatClients?.size > 0 && hasSubstantialContent) {
+            const activity = extractPtyActivity(cleanedData)
+            if (activity) {
+              const now = Date.now()
+              const lastBroadcast = sessionState._lastActivityBroadcast || 0
+              // Throttle: max once per 500ms unless the label changed
+              if (now - lastBroadcast > 500 || activity.label !== sessionState._lastActivityLabel) {
+                sessionState._lastActivityBroadcast = now
+                sessionState._lastActivityLabel = activity.label
+                const msg = JSON.stringify({ type: 'chat:activity', data: activity })
+                sessionState.chatClients.forEach(ws => {
+                  if (ws.readyState === 1) try { ws.send(msg) } catch {}
+                })
+              }
+            }
           }
 
           // Feed data to cerebellum terminal buffer (for voice subsystem)
@@ -1819,9 +2015,9 @@ async function startServer(handleRequest) {
                 if (ws.readyState === 1) {
                   ws.send(JSON.stringify({ type: 'chat:sent' }))
                 }
-                // Burst re-read of JSONL after a short delay to catch the response
-                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
-                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 1500)
+                for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
+                  setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
+                }
               } catch (err) {
                 if (ws.readyState === 1) {
                   ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to send: ' + err.message }))
@@ -1835,7 +2031,9 @@ async function startServer(handleRequest) {
         }
 
         // Send input to PTY
-        sessionState.ptyProcess.write(message)
+        if (sessionState.ptyProcess) {
+          sessionState.ptyProcess.write(message)
+        }
       } catch (error) {
         console.error('Error processing message:', error)
       }

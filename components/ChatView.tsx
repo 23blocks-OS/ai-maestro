@@ -87,6 +87,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [error, setError] = useState<string | null>(null)
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [memorizeTarget, setMemorizeTarget] = useState<{ index: number; content: string } | null>(null)
   const [memorizeNote, setMemorizeNote] = useState('')
@@ -110,6 +111,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     notificationType?: string;
     updatedAt?: string;
   } | null>(null)
+  const [liveActivity, setLiveActivity] = useState<{ label: string; detail?: string } | null>(null)
   const [chatMode, setChatMode] = useState<ChatMode>(() => {
     if (typeof window === 'undefined') return 'assisted'
     return (localStorage.getItem('aimaestro-chat-mode') as ChatMode) || 'assisted'
@@ -136,17 +138,21 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   }
 
   // ── WebSocket connection for chat ─────────────────────────────────
+  // Stable session name: computed once per agent identity, not on every agent object refresh
+  const chatSessionName = useMemo(() =>
+    (agent as any).session?.tmuxSessionName || agent.name || agent.alias || agent.id,
+    [agent.id, agent.name, agent.alias, (agent as any).session?.tmuxSessionName]
+  )
+
   const getChatWsUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    const sessionName = agent.name || agent.alias || agent.id
-    let url = `${protocol}//${host}/term?name=${encodeURIComponent(sessionName)}&chatOnly=1`
-    // Route through remote host proxy when agent lives on a different machine
+    let url = `${protocol}//${host}/term?name=${encodeURIComponent(chatSessionName)}&chatOnly=1`
     if (agent.hostId && agent.hostId !== 'local') {
       url += `&host=${encodeURIComponent(agent.hostId)}`
     }
     return url
-  }, [agent.name, agent.alias, agent.id, agent.hostId])
+  }, [chatSessionName, agent.hostId])
 
   const sendChatMessage = useCallback((type: string, payload?: Record<string, any>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -220,25 +226,45 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   if (uniqueNew.length === 0) return prev
                   return [...prev, ...uniqueNew].slice(-200)
                 })
-                // New JSONL data means the agent moved past our input — clear pending.
-                // Safe because chat:messages only fires on real file changes (no polling).
-                setPendingMessages([])
+                // Only clear pending when we see the user's message echoed back or
+                // an assistant response — metadata (system, attachment) shouldn't clear it
+                const hasUserOrAssistant = newMsgs.some((m: Message) =>
+                  m.type === 'user' || m.type === 'assistant'
+                )
+                if (hasUserOrAssistant) {
+                  setPendingMessages([])
+                }
+                // Assistant response means the agent moved on — clear sticky permission + activity
+                if (newMsgs.some((m: Message) => m.type === 'assistant')) {
+                  setHookState(null)
+                  setLiveActivity(null)
+                }
               }
               break
             }
 
             case 'chat:hookState': {
-              // Real-time hook state update (permission requests, status changes)
+              // Permission prompts are "sticky" — once we have a permission_request,
+              // only replace it with another permission_request. Null or waiting_for_input
+              // cannot clear it. Only explicit user action (sendQuickResponse → setHookState(null))
+              // or an assistant message (chat:messages handler) can clear it.
               const newState = data.data || null
-              setHookState(newState)
-              // Don't clear pending here — let chat:messages confirm with content match
+              setHookState(prev => {
+                if (prev?.status === 'permission_request') {
+                  if (newState?.status === 'permission_request') return newState
+                  return prev
+                }
+                return newState
+              })
               break
             }
 
             case 'chat:sent': {
-              // Server confirmed message was written to PTY — keep pending visible
-              // until we see the user message appear in chat:messages (JSONL watcher)
-              // Don't clear on a timer; let chat:messages handle it
+              break
+            }
+
+            case 'chat:activity': {
+              setLiveActivity(data.data || null)
               break
             }
 
@@ -291,7 +317,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       }
       setChatWsConnected(false)
     }
-  }, [agent?.id, agent?.name, agent?.alias, isActive, getChatWsUrl])
+  }, [agent.id, isActive, getChatWsUrl])
 
   // Reconnect chat WS when page becomes visible (mobile background recovery)
   useEffect(() => {
@@ -365,6 +391,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // Send quick response (assisted mode — for permission buttons)
   const sendQuickResponse = (text: string) => {
     setIsSending(true)
+    setHookState(null)
 
     // Show pending bubble so user sees their click did something
     const pendingMsg = { text, timestamp: new Date().toISOString() }
@@ -489,6 +516,25 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return content.filter(block => block.type === 'tool_use')
   }
 
+  // Extract AskUserQuestion tool_use from a message (if any)
+  const getAskUserQuestion = (message: Message): ContentBlock | null => {
+    const content = message.message?.content
+    if (!Array.isArray(content)) return null
+    return content.find(block => block.type === 'tool_use' && block.name === 'AskUserQuestion') || null
+  }
+
+  // Check if an AskUserQuestion tool_use has been answered
+  const isQuestionAnswered = (toolUseId: string): boolean => {
+    if (answeredQuestions.has(toolUseId)) return true
+    return messages.some(m =>
+      m.type === 'user' &&
+      Array.isArray(m.message?.content) &&
+      m.message!.content.some((block: ContentBlock) =>
+        block.type === 'tool_result' && block.tool_use_id === toolUseId
+      )
+    )
+  }
+
   // Render tool-specific expanded content
   const renderToolExpanded = (tool: ContentBlock) => {
     const input = tool.input
@@ -567,14 +613,20 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // Group consecutive tool-only messages into collapsible bursts
   const groupedItems = useMemo(() => groupMessages(messages, chatMode), [messages, chatMode])
 
-  // Activity state derived from hookState + messages + pending
+  // Activity state derived from hookState + messages + pending.
+  // "thinking" = user sent something and no assistant text response yet.
+  // We scan backwards from the end: metadata messages (system, attachment, etc.)
+  // are invisible — keep looking until we find user or assistant.
   const activityState = useMemo(() => {
     if (hookState?.status === 'permission_request') return 'permission' as const
     if (hookState?.status === 'waiting_for_input') return 'waiting' as const
     if (pendingMessages.length > 0 || isSending) return 'thinking' as const
     if (messages.length > 0) {
-      const last = messages[messages.length - 1]
-      if (last.type === 'user' || last.type === 'queue-operation') return 'thinking' as const
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const t = messages[i].type
+        if (t === 'user' || t === 'queue-operation') return 'thinking' as const
+        if (t === 'assistant') return 'idle' as const
+      }
     }
     return 'idle' as const
   }, [hookState, pendingMessages.length, isSending, messages])
@@ -594,7 +646,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           <div>
             <h3 className="text-sm font-medium text-gray-200">
               {!isOnline ? 'Offline'
-              : activityState === 'thinking' ? 'Agent is working...'
+              : activityState === 'thinking'
+                ? (liveActivity
+                  ? `${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}...`
+                  : 'Agent is working...')
               : activityState === 'permission' ? 'Permission needed'
               : activityState === 'waiting' ? 'Ready for input'
               : agent.label || agent.name || agent.alias || 'Chat'}
@@ -678,15 +733,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           // Skip system messages with no meaningful content
           if (message.type === 'system') return null
 
-          // Skip empty messages and dequeue operations
-          if (!content && tools.length === 0) return null
+          // Skip empty messages and dequeue operations (keep AskUserQuestion even without text)
+          if (!content && tools.length === 0 && !getAskUserQuestion(message)) return null
           if (message.type === 'queue-operation' && message.operation !== 'enqueue') return null
 
           // Assisted mode: only show user↔agent conversation (hide thinking, tools-only, summaries)
           if (chatMode === 'assisted') {
             if (isThinking || isSummary) return null
-            // Skip tool-only assistant messages (no text content)
-            if (message.type === 'assistant' && !content && tools.length > 0) return null
+            // Skip tool-only assistant messages (no text content) — except AskUserQuestion
+            const hasAskQuestion = getAskUserQuestion(message) !== null
+            if (message.type === 'assistant' && !content && tools.length > 0 && !hasAskQuestion) return null
           }
 
           // Summary divider — centered horizontal rule with text (power mode only)
@@ -769,7 +825,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   {/* Tools — with contextual previews (power mode only) */}
                   {chatMode === 'power' && tools.length > 0 && (
                     <div className="mt-2 space-y-2">
-                      {tools.map((tool, toolIdx) => {
+                      {tools.filter(t => t.name !== 'AskUserQuestion').map((tool, toolIdx) => {
                         const toolId = `${index}-${toolIdx}`
                         const isExpanded = expandedTools.has(toolId)
                         const preview = getToolPreview(tool)
@@ -806,6 +862,77 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       })}
                     </div>
                   )}
+
+                  {/* AskUserQuestion — interactive options (shown in both modes) */}
+                  {(() => {
+                    const askTool = getAskUserQuestion(message)
+                    if (!askTool?.input?.questions) return null
+                    const answered = askTool.id ? isQuestionAnswered(askTool.id) : false
+                    const questions = askTool.input.questions as Array<{
+                      question: string
+                      header?: string
+                      options: Array<{ label: string; description?: string }>
+                      multiSelect?: boolean
+                    }>
+
+                    return (
+                      <div className="mt-3 space-y-3">
+                        {questions.map((q, qIdx) => (
+                          <div key={qIdx} className="bg-cyan-900/30 rounded-lg border border-cyan-700/40 p-3">
+                            {q.header && (
+                              <div className="text-xs font-medium text-cyan-400 mb-1">{q.header}</div>
+                            )}
+                            <div className="text-sm text-cyan-100 mb-2">{q.question}</div>
+                            <div className="space-y-1.5">
+                              {q.options.map((opt, optIdx) => (
+                                <button
+                                  key={optIdx}
+                                  onClick={() => {
+                                    if (!answered && askTool.id) {
+                                      setAnsweredQuestions(prev => new Set(prev).add(askTool.id!))
+                                      sendQuickResponse(String(optIdx + 1))
+                                    }
+                                  }}
+                                  disabled={answered || isSending}
+                                  className={`flex items-start gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+                                    answered
+                                      ? 'opacity-50 cursor-default bg-gray-800/30'
+                                      : 'bg-cyan-800/20 hover:bg-cyan-700/30 border border-cyan-600/30 hover:border-cyan-500/50'
+                                  }`}
+                                >
+                                  <span className="text-cyan-400 font-bold w-5 text-center flex-shrink-0 mt-0.5">
+                                    {optIdx + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-sm text-cyan-200">{opt.label}</span>
+                                    {opt.description && (
+                                      <p className="text-xs text-cyan-400/60 mt-0.5">{opt.description}</p>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                              {/* "Other" option — always present, matches terminal behavior */}
+                              {!answered && (
+                                <button
+                                  onClick={() => {
+                                    const input = document.querySelector<HTMLTextAreaElement>('[data-chat-input]')
+                                    input?.focus()
+                                  }}
+                                  disabled={isSending}
+                                  className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg bg-gray-800/30 hover:bg-gray-700/40 border border-gray-600/30 hover:border-gray-500/50 transition-all"
+                                >
+                                  <span className="text-gray-400 font-bold w-5 text-center flex-shrink-0">
+                                    {q.options.length + 1}
+                                  </span>
+                                  <span className="text-sm text-gray-300">Other</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* Action buttons */}
@@ -846,14 +973,24 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           )
         })}
 
-        {/* ============================================================
-            AGENT SIGNAL — hookState is the primary source of truth.
-
-            Signals drive the UI (and eventually an avatar):
-            - permission_request → show what tool, what it wants, action buttons
-            - waiting_for_input  → (no bubble, just header dot)
-            - active/idle        → (no bubble, just header dot)
-           ============================================================ */}
+        {/* Live activity indicator — shows what the agent is doing right now */}
+        {activityState === 'thinking' && liveActivity && hookState?.status !== 'permission_request' && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gray-800/60 border border-gray-700/50">
+              <div className="flex gap-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-gray-300">
+                {liveActivity.label}
+                {liveActivity.detail && (
+                  <span className="text-gray-500 font-mono ml-1">{liveActivity.detail}</span>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* PERMISSION REQUEST — always from hookState */}
         {hookState?.status === 'permission_request' && (
@@ -882,34 +1019,35 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   </div>
                 )}
 
-                {/* Action buttons — always shown so user can respond from chat */}
-                {hookState.options && hookState.options.length > 0 ? (
+                {/* Action buttons matching Claude Code terminal options */}
+                {hookState.options && hookState.options.length > 0 && (
                   <div className="space-y-1.5">
-                    {hookState.options.map((option, idx) => (
+                    {hookState.options.map((option: any, idx: number) => (
                       <button
                         key={idx}
-                        onClick={() => sendQuickResponse(option.key)}
+                        onClick={() => {
+                          if (option.value === 'no') {
+                            // Focus the chat input for typing feedback
+                            const input = document.querySelector<HTMLTextAreaElement>('[data-chat-input]')
+                            input?.focus()
+                          } else {
+                            sendQuickResponse(option.key)
+                          }
+                        }}
                         disabled={isSending}
-                        className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg
-                          bg-amber-800/30 hover:bg-amber-700/40 border border-amber-600/30
-                          hover:border-amber-500/50 transition-all disabled:opacity-50"
+                        className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg
+                          transition-all disabled:opacity-50 ${
+                          option.value === 'no'
+                            ? 'bg-gray-800/50 hover:bg-gray-700/50 border border-gray-600/30 hover:border-gray-500/50'
+                            : 'bg-amber-800/30 hover:bg-amber-700/40 border border-amber-600/30 hover:border-amber-500/50'
+                        }`}
                       >
                         <span className="text-amber-400 font-bold w-5 text-center">{option.key}</span>
-                        <span className="text-amber-200 text-sm flex-1">{option.label}</span>
+                        <span className={`text-sm flex-1 ${option.value === 'no' ? 'text-gray-300' : 'text-amber-200'}`}>
+                          {option.label}
+                        </span>
                       </button>
                     ))}
-                  </div>
-                ) : (
-                  /* Yes/No fallback */
-                  <div className="flex gap-2">
-                    <button onClick={() => sendQuickResponse('y')} disabled={isSending}
-                      className="px-4 py-1.5 text-xs font-medium rounded-md bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
-                      Yes
-                    </button>
-                    <button onClick={() => sendQuickResponse('n')} disabled={isSending}
-                      className="px-4 py-1.5 text-xs font-medium rounded-md bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50">
-                      No
-                    </button>
                   </div>
                 )}
               </div>
@@ -1020,6 +1158,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         <div className="flex items-end gap-3">
           <textarea
             ref={inputRef}
+            data-chat-input
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

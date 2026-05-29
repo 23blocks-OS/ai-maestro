@@ -72,11 +72,13 @@ function getTextContent(message: Message): string {
   return ''
 }
 
-/** Returns true if the message is an assistant message with tools but no text content */
+/** Returns true if the message is an assistant message with tools but no text content.
+ *  AskUserQuestion messages are excluded — they need interactive rendering. */
 export function isToolOnlyMessage(msg: Message): boolean {
   if (msg.type !== 'assistant') return false
   const tools = getToolsFromContent(msg)
   if (tools.length === 0) return false
+  if (tools.some(t => t.name === 'AskUserQuestion')) return false
   const text = getTextContent(msg)
   return !text
 }

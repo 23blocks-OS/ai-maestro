@@ -23,8 +23,10 @@ interface ChatMessage {
       type: string
       text?: string
       name?: string
-      input?: { command?: string; file_path?: string; pattern?: string; query?: string }
+      id?: string
+      input?: { command?: string; file_path?: string; pattern?: string; query?: string; questions?: any[]; [key: string]: any }
       thinking?: string
+      tool_use_id?: string
     }>
   }
   // For queue-operation type
@@ -204,6 +206,15 @@ function extractToolUses(msg: ChatMessage): { name: string; preview: string }[] 
     }))
 }
 
+// Extract AskUserQuestion tool_use from a message
+function extractAskUserQuestion(msg: ChatMessage): { id?: string; questions: Array<{ question: string; header?: string; options: Array<{ label: string; description?: string }>; multiSelect?: boolean }> } | null {
+  const content = msg.message?.content
+  if (!Array.isArray(content)) return null
+  const block = content.find(b => b.type === 'tool_use' && b.name === 'AskUserQuestion')
+  if (!block?.input?.questions) return null
+  return { id: block.id, questions: block.input.questions }
+}
+
 function ThinkingBlock({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false)
   const preview = text.slice(0, 80) + (text.length > 80 ? '...' : '')
@@ -250,6 +261,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
+  const [liveActivity, setLiveActivity] = useState<{ label: string; detail?: string } | null>(null)
 
   const [chatWsConnected, setChatWsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -329,6 +342,9 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                   return [...prev, ...uniqueNew].slice(-200)
                 })
                 setPendingMessages([])
+                if (newMsgs.some((m: ChatMessage) => m.type === 'assistant')) {
+                  setLiveActivity(null)
+                }
               }
               break
             }
@@ -340,8 +356,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             }
 
             case 'chat:sent': {
-              // Server confirmed delivery to PTY — keep pending visible
-              // until chat:messages arrives with the user message from JSONL
+              break
+            }
+
+            case 'chat:activity': {
+              setLiveActivity(data.data || null)
               break
             }
 
@@ -489,6 +508,19 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     setSending(false)
   }
 
+  // Check if an AskUserQuestion has been answered
+  const isQuestionAnswered = (toolUseId?: string): boolean => {
+    if (!toolUseId) return false
+    if (answeredQuestions.has(toolUseId)) return true
+    return messages.some(m =>
+      m.type === 'user' &&
+      Array.isArray(m.message?.content) &&
+      m.message!.content!.some(block =>
+        block.type === 'tool_result' && block.tool_use_id === toolUseId
+      )
+    )
+  }
+
   // Auto-grow textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
@@ -605,12 +637,64 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           if (msg.type === 'assistant') {
             const text = extractText(msg)
             const tools = extractToolUses(msg)
+            const askQ = extractAskUserQuestion(msg)
+            const answered = askQ ? isQuestionAnswered(askQ.id) : false
+
+            // AskUserQuestion-only message (no text, just the question)
+            if (!text && askQ) {
+              return (
+                <div key={key} className="mx-3 my-1.5">
+                  <div className="max-w-[90%] min-w-0 overflow-hidden">
+                    {askQ.questions.map((q, qIdx) => (
+                      <div key={qIdx} className="bg-cyan-900/30 rounded-xl border border-cyan-700/40 p-3 mb-2">
+                        {q.header && (
+                          <div className="text-xs font-medium text-cyan-400 mb-1">{q.header}</div>
+                        )}
+                        <div className="text-sm text-cyan-100 mb-2">{q.question}</div>
+                        <div className="space-y-1.5">
+                          {q.options.map((opt, optIdx) => (
+                            <button
+                              key={optIdx}
+                              onClick={() => { if (!answered && askQ?.id) { setAnsweredQuestions(prev => new Set(prev).add(askQ.id!)); sendQuickResponse(String(optIdx + 1)) } }}
+                              disabled={answered || sending}
+                              className={`flex items-start gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+                                answered
+                                  ? 'opacity-50 cursor-default bg-gray-800/30'
+                                  : 'bg-cyan-800/20 hover:bg-cyan-700/30 border border-cyan-600/30 active:bg-cyan-600/40'
+                              }`}
+                            >
+                              <span className="text-cyan-400 font-bold w-5 text-center flex-shrink-0 mt-0.5">{optIdx + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm text-cyan-200">{opt.label}</span>
+                                {opt.description && (
+                                  <p className="text-xs text-cyan-400/60 mt-0.5">{opt.description}</p>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                          {!answered && (
+                            <button
+                              onClick={() => textareaRef.current?.focus()}
+                              disabled={sending}
+                              className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg bg-gray-800/30 active:bg-gray-700/40 border border-gray-600/30 transition-all"
+                            >
+                              <span className="text-gray-400 font-bold w-5 text-center flex-shrink-0">{q.options.length + 1}</span>
+                              <span className="text-sm text-gray-300">Other</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
 
             // Tool-only message (no text content) — not in a burst (1-2 consecutive)
             if (!text && tools.length > 0) {
               return (
                 <div key={key} className="mx-3 my-1">
-                  {tools.map((tool, j) => (
+                  {tools.filter(t => t.name !== 'AskUserQuestion').map((tool, j) => (
                     <div key={j} className="flex items-center gap-1.5 text-xs text-gray-500 italic py-0.5">
                       <Wrench className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">
@@ -623,13 +707,13 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               )
             }
 
-            // Text message (may also include tools)
-            if (text) {
+            // Text message (may also include tools and/or AskUserQuestion)
+            if (text || askQ) {
               return (
                 <div key={key} className="mx-3 my-1.5">
                   {tools.length > 0 && (
                     <div className="mb-1">
-                      {tools.map((tool, j) => (
+                      {tools.filter(t => t.name !== 'AskUserQuestion').map((tool, j) => (
                         <div key={j} className="flex items-center gap-1.5 text-xs text-gray-500 italic py-0.5">
                           <Wrench className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">
@@ -639,14 +723,60 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                       ))}
                     </div>
                   )}
-                  <div className="max-w-[90%] min-w-0 overflow-hidden relative">
-                    <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-gray-800 text-gray-200 text-sm select-text overflow-hidden">
-                      {renderMarkdown(text)}
+                  {text && (
+                    <div className="max-w-[90%] min-w-0 overflow-hidden relative">
+                      <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-gray-800 text-gray-200 text-sm select-text overflow-hidden">
+                        {renderMarkdown(text)}
+                      </div>
+                      <div className="flex justify-end mt-0.5 mr-1">
+                        <CopyButton text={text} />
+                      </div>
                     </div>
-                    <div className="flex justify-end mt-0.5 mr-1">
-                      <CopyButton text={text} />
+                  )}
+                  {askQ && (
+                    <div className="max-w-[90%] mt-2">
+                      {askQ.questions.map((q, qIdx) => (
+                        <div key={qIdx} className="bg-cyan-900/30 rounded-xl border border-cyan-700/40 p-3 mb-2">
+                          {q.header && (
+                            <div className="text-xs font-medium text-cyan-400 mb-1">{q.header}</div>
+                          )}
+                          <div className="text-sm text-cyan-100 mb-2">{q.question}</div>
+                          <div className="space-y-1.5">
+                            {q.options.map((opt, optIdx) => (
+                              <button
+                                key={optIdx}
+                                onClick={() => { if (!answered && askQ?.id) { setAnsweredQuestions(prev => new Set(prev).add(askQ.id!)); sendQuickResponse(String(optIdx + 1)) } }}
+                                disabled={answered || sending}
+                                className={`flex items-start gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+                                  answered
+                                    ? 'opacity-50 cursor-default bg-gray-800/30'
+                                    : 'bg-cyan-800/20 hover:bg-cyan-700/30 border border-cyan-600/30 active:bg-cyan-600/40'
+                                }`}
+                              >
+                                <span className="text-cyan-400 font-bold w-5 text-center flex-shrink-0 mt-0.5">{optIdx + 1}</span>
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-sm text-cyan-200">{opt.label}</span>
+                                  {opt.description && (
+                                    <p className="text-xs text-cyan-400/60 mt-0.5">{opt.description}</p>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                            {!answered && (
+                              <button
+                                onClick={() => textareaRef.current?.focus()}
+                                disabled={sending}
+                                className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg bg-gray-800/30 active:bg-gray-700/40 border border-gray-600/30 transition-all"
+                              >
+                                <span className="text-gray-400 font-bold w-5 text-center flex-shrink-0">{q.options.length + 1}</span>
+                                <span className="text-sm text-gray-300">Other</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
               )
             }
@@ -672,6 +802,25 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             </div>
           </div>
         ))}
+
+        {/* Live activity indicator */}
+        {liveActivity && !isPermission && (
+          <div className="mx-3 my-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800/60 border border-gray-700/50">
+              <div className="flex gap-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-gray-300">
+                {liveActivity.label}
+                {liveActivity.detail && (
+                  <span className="text-gray-500 font-mono ml-1">{liveActivity.detail}</span>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -738,7 +887,10 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               }`}
             />
             <span className="text-xs text-gray-400">
-              {isWaiting ? 'Ready for input' : isWorking ? 'Working...' : 'Idle'}
+              {isWaiting ? 'Ready for input'
+               : isWorking
+                 ? (liveActivity ? `${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}` : 'Working...')
+                 : 'Idle'}
             </span>
             {isWorking && <Loader2 className="w-3 h-3 text-amber-500 animate-spin" />}
           </div>

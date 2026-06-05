@@ -3,14 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.35.53] - 2026-06-04
+## [0.35.54] - 2026-06-05
 
-### Added
-- **Terminal: headless xterm.js for lossless state reconstruction** — Server now maintains a headless xterm.js instance (`@xterm/headless` + `@xterm/addon-serialize`) per PTY session, receiving all PTY data in parallel. On client connect/reconnect, the full terminal state (scrollback, cursor position, colors, alternate screen buffer, TUI layout) is serialized and sent as a `terminal-state` message. Client deserializes into its own xterm.js for perfect reconstruction. This is the same approach VS Code uses for remote terminal reconnection. Falls back to `tmux capture-pane` for sessions without a headless terminal. Fixes the long-standing issue where Claude Code's green status bar and TUI layout were missing on initial load.
-
-### Changed
-- **Terminal: parallel addon loading** — All 6 xterm.js addon imports (`xterm`, `fit`, `web-links`, `clipboard`, `unicode11`, `serialize`) now load via `Promise.all()` instead of sequential `await`s. Combined with reducing the server-side state delay from 200ms to 100ms, this cuts first-render time significantly.
-- **Dependencies: node-pty 1.1.0, ws 8.21.0** — Updated `node-pty` from 1.0.0 to 1.1.0 and `ws` from 8.18.3 to 8.21.0 for latest bug fixes and performance improvements.
+### Reverted
+- **Terminal: revert headless xterm.js and parallel addon loading (v0.35.52–v0.35.53)** — The headless xterm.js approach (server-side serialized terminal state) caused terminal initialization failures, broken scrolling, and multi-minute load times on agent switch. Reverted `server.mjs`, `useTerminal.ts`, and `TerminalView.tsx` to the stable v0.35.50 behavior (tmux capture-pane for history, sequential addon loading, blocking WebGL init). Dependencies (node-pty 1.1.0, ws 8.21.0) remain updated.
 
 ## [0.35.50] - 2026-06-04
 

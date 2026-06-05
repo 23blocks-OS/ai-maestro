@@ -2035,7 +2035,7 @@ async function startServer(handleRequest) {
     }
 
     // Delay before sending state and adding client to broadcast.
-    // 200ms lets the initial tmux redraw arrive and be processed by the headless
+    // 100ms lets the initial tmux redraw arrive and be processed by the headless
     // terminal, so serialization captures the full screen state.
     setTimeout(() => {
       if (ws.readyState !== 1) return
@@ -2066,7 +2066,7 @@ async function startServer(handleRequest) {
 
       sessionState.clients.add(ws)
       ws.send(JSON.stringify({ type: 'history-complete' }))
-    }, 200)
+    }, 100)
 
     // Handle client input
     ws.on('message', async (data) => {

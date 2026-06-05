@@ -45,15 +45,26 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       container.removeChild(container.firstChild)
     }
 
-    // Dynamic imports for browser-only code
-    const { Terminal } = await import('@xterm/xterm')
-    const { FitAddon } = await import('@xterm/addon-fit')
-    const { WebLinksAddon } = await import('@xterm/addon-web-links')
+    // Load all xterm.js modules in parallel (was sequential — each await blocked the next)
+    const [
+      { Terminal },
+      { FitAddon },
+      { WebLinksAddon },
+      clipboardMod,
+      unicodeMod,
+      serializeMod,
+    ] = await Promise.all([
+      import('@xterm/xterm'),
+      import('@xterm/addon-fit'),
+      import('@xterm/addon-web-links'),
+      import('@xterm/addon-clipboard').catch(() => null),
+      import('@xterm/addon-unicode11').catch(() => null),
+      import('@xterm/addon-serialize').catch(() => null),
+    ])
 
     const fontSize = optionsRef.current.fontSize || 16
     const fontFamily = optionsRef.current.fontFamily || '"SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", "Courier New", monospace'
 
-    // Create terminal instance - let FitAddon handle sizing
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize,
@@ -65,13 +76,13 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         background: '#1e1e1e',
         foreground: '#d4d4d4',
         cursor: '#aeafad',
-        selectionBackground: '#3a3d41',    // Visible selection background
-        selectionForeground: '#ffffff',     // White text when selected
-        selectionInactiveBackground: '#3a3d41', // Selection when terminal not focused
+        selectionBackground: '#3a3d41',
+        selectionForeground: '#ffffff',
+        selectionInactiveBackground: '#3a3d41',
         black: '#000000',
         red: '#cd3131',
         green: '#0dbc79',
-        yellow: '#dcdcaa',  // Softer yellow (VS Code default)
+        yellow: '#dcdcaa',
         blue: '#2472c8',
         magenta: '#bc3fbc',
         cyan: '#11a8cd',
@@ -79,27 +90,21 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightBlack: '#666666',
         brightRed: '#f14c4c',
         brightGreen: '#23d18b',
-        brightYellow: '#dcdcaa',  // Match normal yellow for consistency
+        brightYellow: '#dcdcaa',
         brightBlue: '#3b8eea',
         brightMagenta: '#d670d6',
         brightCyan: '#29b8db',
         brightWhite: '#ffffff',
       },
-      scrollback: 10000,  // Reasonable buffer for conversation context
-      // CRITICAL: Must be false for PTY connections
-      // PTY and tmux handle line endings correctly - setting this to true causes
-      // Claude Code status updates (using \r) to create new lines instead of overwriting
+      scrollback: 10000,
       convertEol: false,
       allowTransparency: false,
       scrollSensitivity: 1,
       fastScrollSensitivity: 5,
-      // Ensure scrollback works in all modes
       altClickMovesCursor: false,
-      // Support alternate screen buffer (used by Claude Code, vim, etc.)
       windowOptions: {
         setWinLines: true,
       },
-      // Disable screen reader mode - accessibility tree handled via CSS pointer-events
       screenReaderMode: false,
       disableStdin: false,
       customGlyphs: true,
@@ -107,47 +112,27 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       rightClickSelectsWord: true,
     })
 
-    // Initialize addons
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
 
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(webLinksAddon)
 
-    // Load clipboard addon for OSC 52 support (terminal programs accessing clipboard)
-    try {
-      const { ClipboardAddon } = await import('@xterm/addon-clipboard')
-      const clipboardAddon = new ClipboardAddon()
-      terminal.loadAddon(clipboardAddon)
-    } catch (e) {
-      console.warn(`[Terminal] ClipboardAddon not available for session ${optionsRef.current.sessionId}:`, e)
+    if (clipboardMod) {
+      terminal.loadAddon(new clipboardMod.ClipboardAddon())
     }
 
-    // Load Unicode 11 addon for proper wide character / emoji width calculation.
-    // Without this, TUI layouts (Claude Code /plan mode, box-drawing) are corrupted
-    // because xterm.js miscalculates character widths for CJK and emoji.
-    try {
-      const { Unicode11Addon } = await import('@xterm/addon-unicode11')
-      const unicode11Addon = new Unicode11Addon()
-      terminal.loadAddon(unicode11Addon)
+    if (unicodeMod) {
+      terminal.loadAddon(new unicodeMod.Unicode11Addon())
       terminal.unicode.activeVersion = '11'
-    } catch (e) {
-      console.warn(`[Terminal] Unicode11Addon not available for session ${optionsRef.current.sessionId}:`, e)
     }
 
-    // Load serialize addon for lossless terminal state restore from server.
-    // The server maintains a headless xterm.js per session and sends serialized
-    // state on connect — this addon deserializes it for perfect reconstruction.
-    try {
-      const { SerializeAddon } = await import('@xterm/addon-serialize')
-      const serializeAddon = new SerializeAddon()
+    if (serializeMod) {
+      const serializeAddon = new serializeMod.SerializeAddon()
       terminal.loadAddon(serializeAddon)
       serializeAddonRef.current = serializeAddon
-    } catch (e) {
-      console.warn(`[Terminal] SerializeAddon not available for session ${optionsRef.current.sessionId}:`, e)
     }
 
-    // Open terminal in container
     terminal.open(container)
 
     // NOTE: No MutationObserver or JS-based accessibility tree hiding.

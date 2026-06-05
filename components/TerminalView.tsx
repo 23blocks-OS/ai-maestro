@@ -92,7 +92,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  const { terminal, initializeTerminal, fitTerminal, setSendData } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal, setSendData, deserializeState } = useTerminal({
     sessionId: session.id,
     disableWebGL: isTouch,  // MOBILE FIX: WebGL context loss on backgrounding causes blank terminals
     onRegister: (fitAddon) => {
@@ -226,6 +226,16 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       // Check if this is a control message (JSON)
       try {
         const parsed = JSON.parse(data)
+
+        // Handle lossless terminal state from server's headless xterm.js.
+        // This replaces the old capture-pane text dump with perfect state
+        // reconstruction including scrollback, cursor, colors, and TUI layout.
+        if (parsed.type === 'terminal-state') {
+          if (parsed.data && deserializeState) {
+            deserializeState(parsed.data)
+          }
+          return
+        }
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {

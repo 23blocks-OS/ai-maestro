@@ -12,6 +12,13 @@ import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import {
+  getOrCreateHeadlessTerminal,
+  writeToHeadlessTerminal,
+  serializeTerminalState,
+  resizeHeadlessTerminal,
+  disposeHeadlessTerminal,
+} from './lib/headless-terminal.mjs'
+import {
   sessionActivity,
   terminalSessions,
   statusSubscribers,
@@ -529,6 +536,9 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
   if (sessionState.ptyProcess) {
     killPtyProcess(sessionState.ptyProcess, sessionName, ptyAlreadyExited)
   }
+
+  // Dispose headless terminal (lossless state tracker)
+  disposeHeadlessTerminal(sessionName)
 
   // Stop JSONL file watcher
   if (sessionState.jsonlWatcher) {
@@ -1847,6 +1857,7 @@ async function startServer(handleRequest) {
         sessionState.ptyProcess = ptyProcess
         sessionState.loggingEnabled = true
         sessionState.terminalBuffer = getOrCreateBuffer(sessionName)
+        getOrCreateHeadlessTerminal(sessionName, ptyProcess.cols || 80, ptyProcess.rows || 24)
         if (globalLoggingEnabled && !sessionState.logStream) {
           const logFilePath = path.join(logsDir, `${sessionName}.txt`)
           sessionState.logStream = fs.createWriteStream(logFilePath, { flags: 'a' })
@@ -1870,6 +1881,7 @@ async function startServer(handleRequest) {
               !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
             if (hasSubstantialContent) trackSessionActivity(sessionName)
             if (sessionState.terminalBuffer && hasSubstantialContent) sessionState.terminalBuffer.write(data)
+            writeToHeadlessTerminal(sessionName, data)
             sessionState.clients.forEach((client) => {
               if (client.readyState === 1) {
                 try { client.send(data) } catch {}
@@ -1896,6 +1908,8 @@ async function startServer(handleRequest) {
         const logFilePath = path.join(logsDir, `${sessionName}.txt`)
         logStream = fs.createWriteStream(logFilePath, { flags: 'a' }) // 'a' for append mode
       }
+
+      getOrCreateHeadlessTerminal(sessionName, ptyProcess.cols || 80, ptyProcess.rows || 24)
 
       sessionState = {
         clients: new Set(),
@@ -1972,6 +1986,9 @@ async function startServer(handleRequest) {
             sessionState.terminalBuffer.write(data)
           }
 
+          // Feed ALL data to headless terminal (lossless state tracking)
+          writeToHeadlessTerminal(sessionName, data)
+
           // Send data to all connected clients synchronously
           sessionState.clients.forEach((client) => {
             if (client.readyState === 1) { // WebSocket.OPEN
@@ -2006,23 +2023,6 @@ async function startServer(handleRequest) {
       console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, e.message)
     }
 
-    // Capture FULL pane content (scrollback + visible area) with ANSI color codes.
-    // We send this as a single snapshot and intentionally DON'T add the client to the
-    // PTY broadcast set yet — the PTY's initial `tmux attach` redraw would duplicate
-    // the visible area. By delaying broadcast join, the redraw is discarded.
-    try {
-      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
-      const paneContent = execSync(
-        `${tmuxBase} capture-pane -t "${sessionName}" -e -p -S -5000 2>/dev/null`,
-        { encoding: 'utf8', timeout: 3000 }
-      )
-      if (paneContent && paneContent.trim() && ws.readyState === 1) {
-        ws.send(paneContent.replace(/\n/g, '\r\n'))
-      }
-    } catch (e) {
-      // capture failed — client will get content once added to broadcast
-    }
-
     // Track connection as activity (so newly opened sessions show as active)
     trackSessionActivity(sessionName)
     console.log(`[ACTIVITY-TRACK] Set activity for ${sessionName}, map size: ${sessionActivity.size}`)
@@ -2034,15 +2034,39 @@ async function startServer(handleRequest) {
       sessionState.cleanupTimer = null
     }
 
-    // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
-    // 150ms is enough for the tmux attach redraw to fire and be ignored.
-    // After this, the client receives all live PTY output going forward.
+    // Delay before sending state and adding client to broadcast.
+    // 200ms lets the initial tmux redraw arrive and be processed by the headless
+    // terminal, so serialization captures the full screen state.
     setTimeout(() => {
-      sessionState.clients.add(ws)
-      if (ws.readyState === 1) {
-        ws.send(JSON.stringify({ type: 'history-complete' }))
+      if (ws.readyState !== 1) return
+
+      // Send lossless terminal state from headless xterm.js instance.
+      // This replaces tmux capture-pane (which was lossy — flat text without cursor
+      // positioning, alternate screen, or TUI layout). The client deserializes this
+      // for perfect state reconstruction including scrollback, cursor, and TUI layout.
+      const serialized = serializeTerminalState(sessionName)
+      if (serialized) {
+        ws.send(JSON.stringify({ type: 'terminal-state', data: serialized }))
+        console.log(`[HeadlessTerm] Sent serialized state for ${sessionName} (${serialized.length} bytes)`)
+      } else {
+        // Fall back to capture-pane for sessions where headless terminal isn't ready
+        try {
+          const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
+          const paneContent = execSync(
+            `${tmuxBase} capture-pane -t "${sessionName}" -e -p -S -5000 2>/dev/null`,
+            { encoding: 'utf8', timeout: 3000 }
+          )
+          if (paneContent && paneContent.trim()) {
+            ws.send(paneContent.replace(/\n/g, '\r\n'))
+          }
+        } catch (e) {
+          // capture failed — client will get content once added to broadcast
+        }
       }
-    }, 150)
+
+      sessionState.clients.add(ws)
+      ws.send(JSON.stringify({ type: 'history-complete' }))
+    }, 200)
 
     // Handle client input
     ws.on('message', async (data) => {
@@ -2061,6 +2085,7 @@ async function startServer(handleRequest) {
 
           if (parsed.type === 'resize' && parsed.cols && parsed.rows) {
             sessionState.ptyProcess.resize(parsed.cols, parsed.rows)
+            resizeHeadlessTerminal(sessionName, parsed.cols, parsed.rows)
             return
           }
 

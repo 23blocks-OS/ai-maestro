@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { WebglAddon } from '@xterm/addon-webgl'
+import type { SerializeAddon } from '@xterm/addon-serialize'
 
 export interface UseTerminalOptions {
   fontSize?: number
@@ -21,6 +22,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const webglAddonRef = useRef<WebglAddon | null>(null)
+  const serializeAddonRef = useRef<SerializeAddon | null>(null)
   const optionsRef = useRef(options)
   // Ref for sending data to PTY via WebSocket - set by TerminalView which has WebSocket access
   const sendDataRef = useRef<((data: string) => void) | null>(null)
@@ -131,6 +133,18 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       terminal.unicode.activeVersion = '11'
     } catch (e) {
       console.warn(`[Terminal] Unicode11Addon not available for session ${optionsRef.current.sessionId}:`, e)
+    }
+
+    // Load serialize addon for lossless terminal state restore from server.
+    // The server maintains a headless xterm.js per session and sends serialized
+    // state on connect — this addon deserializes it for perfect reconstruction.
+    try {
+      const { SerializeAddon } = await import('@xterm/addon-serialize')
+      const serializeAddon = new SerializeAddon()
+      terminal.loadAddon(serializeAddon)
+      serializeAddonRef.current = serializeAddon
+    } catch (e) {
+      console.warn(`[Terminal] SerializeAddon not available for session ${optionsRef.current.sessionId}:`, e)
     }
 
     // Open terminal in container
@@ -369,6 +383,22 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     }
   }, [])
 
+  // Deserialize full terminal state from server's headless xterm.js.
+  // Clears the terminal first, then writes the serialized state which
+  // restores scrollback, cursor position, colors, and alternate screen.
+  const deserializeState = useCallback((serializedData: string) => {
+    const term = terminalRef.current
+    if (!term) return false
+    try {
+      term.reset()
+      term.write(serializedData)
+      return true
+    } catch (e) {
+      console.warn('[Terminal] Failed to deserialize state:', e)
+      return false
+    }
+  }, [])
+
   // Allow TerminalView to set the WebSocket send function for paste support
   const setSendData = useCallback((fn: ((data: string) => void) | null) => {
     sendDataRef.current = fn
@@ -381,6 +411,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     fitTerminal,
     clearTerminal,
     writeToTerminal,
+    deserializeState,
     setSendData,
   }
 }

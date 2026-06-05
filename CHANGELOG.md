@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.52] - 2026-06-04
+
+### Added
+- **Terminal: headless xterm.js for lossless state reconstruction** — Server now maintains a headless xterm.js instance (`@xterm/headless` + `@xterm/addon-serialize`) per PTY session, receiving all PTY data in parallel. On client connect/reconnect, the full terminal state (scrollback, cursor position, colors, alternate screen buffer, TUI layout) is serialized and sent as a `terminal-state` message. Client deserializes into its own xterm.js for perfect reconstruction. This is the same approach VS Code uses for remote terminal reconnection. Falls back to `tmux capture-pane` for sessions without a headless terminal. Fixes the long-standing issue where Claude Code's green status bar and TUI layout were missing on initial load.
+
+### Changed
+- **Dependencies: node-pty 1.1.0, ws 8.21.0** — Updated `node-pty` from 1.0.0 to 1.1.0 and `ws` from 8.18.3 to 8.21.0 for latest bug fixes and performance improvements.
+
 ## [0.35.50] - 2026-06-04
 
 ### Fixed

@@ -265,17 +265,29 @@ cmd_install() {
         return 1
     fi
 
-    # Stage files
+    # Stage files. aimaestro-agent.sh sources 6 modules at runtime via
+    # _source_module(): agent-helper, agent-core, agent-commands,
+    # agent-session, agent-skill, agent-plugin. All 6 must land next to
+    # aimaestro-agent.sh in INSTALL_DIR or the CLI errors with
+    # "agent-core.sh not found" on first invocation.
+    local modules=(
+        aimaestro-agent.sh
+        agent-helper.sh
+        agent-core.sh
+        agent-commands.sh
+        agent-session.sh
+        agent-skill.sh
+        agent-plugin.sh
+    )
+
     echo "Staging files..."
-    cp "${source_dir}/aimaestro-agent.sh" "${STAGING_DIR}/" || {
-        print_error "Failed to stage aimaestro-agent.sh"
-        return 1
-    }
-    cp "${source_dir}/agent-helper.sh" "${STAGING_DIR}/" || {
-        print_error "Failed to stage agent-helper.sh"
-        return 1
-    }
-    print_success "Staged 2 files"
+    for module in "${modules[@]}"; do
+        cp "${source_dir}/${module}" "${STAGING_DIR}/" || {
+            print_error "Failed to stage ${module}"
+            return 1
+        }
+    done
+    print_success "Staged ${#modules[@]} files"
     echo ""
 
     # Create directories
@@ -310,16 +322,39 @@ cmd_install() {
         print_warning "Could not create convenience symlink (non-fatal)"
     }
 
-    # Install helper
+    # Install all sourced modules alongside aimaestro-agent.sh in INSTALL_DIR
+    # (where _source_module() looks for them). HELPERS_DIR is preserved as a
+    # secondary copy for backward compatibility with older callers.
+    local sourced_modules=(
+        agent-helper.sh
+        agent-core.sh
+        agent-commands.sh
+        agent-session.sh
+        agent-skill.sh
+        agent-plugin.sh
+    )
+    for module in "${sourced_modules[@]}"; do
+        cp "${STAGING_DIR}/${module}" "${INSTALL_DIR}/${module}" || {
+            print_error "Failed to install ${module} to ${INSTALL_DIR}"
+            return 1
+        }
+        chmod +x "${INSTALL_DIR}/${module}" || {
+            print_error "Failed to set executable permission on ${INSTALL_DIR}/${module}"
+            return 1
+        }
+        print_success "${INSTALL_DIR}/${module}"
+    done
+
+    # Mirror agent-helper.sh into HELPERS_DIR for backward compatibility
     cp "${STAGING_DIR}/agent-helper.sh" "${HELPERS_DIR}/agent-helper.sh" || {
-        print_error "Failed to install agent-helper.sh"
+        print_error "Failed to install agent-helper.sh to ${HELPERS_DIR}"
         return 1
     }
     chmod +x "${HELPERS_DIR}/agent-helper.sh" || {
-        print_error "Failed to set executable permission on agent-helper.sh"
+        print_error "Failed to set executable permission on ${HELPERS_DIR}/agent-helper.sh"
         return 1
     }
-    print_success "${HELPERS_DIR}/agent-helper.sh"
+    print_success "${HELPERS_DIR}/agent-helper.sh (backward-compat mirror)"
     echo ""
 
     # Configure PATH

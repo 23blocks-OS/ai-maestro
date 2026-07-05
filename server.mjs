@@ -7,10 +7,16 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import crypto from 'crypto'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
+import {
+  resolveJsonlPath,
+  getAgentWorkingDir,
+  parseJsonlLines,
+  readHookState,
+  hookStateFilePath,
+} from './lib/chat-transcript.mjs'
 import {
   sessionActivity,
   terminalSessions,
@@ -166,103 +172,8 @@ function killPtyProcess(ptyProcess, sessionName, alreadyExited = false) {
 // CHAT PROTOCOL HELPERS — getChatHistory, JSONL watcher, broadcast updates
 // =============================================================================
 
-/**
- * Resolve the JSONL conversation file path for an agent.
- * Returns null if not found.
- */
-function resolveJsonlPath(agent) {
-  const workingDir = agent?.workingDirectory ||
-                     agent?.sessions?.[0]?.workingDirectory ||
-                     agent?.preferences?.defaultWorkingDirectory
-  if (!workingDir) return null
-
-  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-  const projectDirName = workingDir.replace(/[/_]/g, '-')
-  const conversationDir = path.join(claudeProjectsDir, projectDirName)
-
-  if (!fs.existsSync(conversationDir)) return null
-
-  const files = fs.readdirSync(conversationDir)
-    .filter(f => f.endsWith('.jsonl'))
-    .map(f => ({
-      name: f,
-      path: path.join(conversationDir, f),
-      mtime: fs.statSync(path.join(conversationDir, f)).mtime
-    }))
-    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
-
-  return files.length > 0 ? files[0] : null
-}
-
-/**
- * Read hook state file for an agent's working directory.
- */
-function readHookState(workingDir) {
-  if (!workingDir) return null
-  const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
-  const cwdHash = crypto.createHash('md5').update(workingDir || '').digest('hex').substring(0, 16)
-  const stateFile = path.join(stateDir, `${cwdHash}.json`)
-  try {
-    if (fs.existsSync(stateFile)) {
-      const content = fs.readFileSync(stateFile, 'utf-8')
-      const state = JSON.parse(content)
-      const isWaitingState = state.status === 'waiting_for_input' || state.status === 'permission_request'
-      if (!isWaitingState) {
-        const stateAge = Date.now() - new Date(state.updatedAt).getTime()
-        if (stateAge > 60000) return null
-      }
-      return state
-    }
-  } catch { /* ignore */ }
-  return null
-}
-
-/**
- * Parse JSONL lines into message objects (same logic as agents-chat-service).
- */
-function parseJsonlLines(lines, limit = 100) {
-  const messages = []
-  for (const line of lines) {
-    if (!line.trim()) continue
-    try {
-      const message = JSON.parse(line)
-
-      // Skip tool-result user messages (invisible in chat, waste message budget)
-      if (message.type === 'user' && message.toolUseResult) continue
-
-      // Convert compact_boundary system messages to summary type
-      if (message.type === 'system' &&
-          (message.subtype === 'compact_boundary' || message.subtype === 'microcompact_boundary')) {
-        messages.push({
-          type: 'summary',
-          summary: message.content || 'Conversation compacted',
-          timestamp: message.timestamp,
-          uuid: message.uuid,
-        })
-        continue
-      }
-
-      // Extract thinking blocks from assistant messages
-      if (message.type === 'assistant' && message.message?.content) {
-        const content = message.message.content
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === 'thinking' && block.thinking) {
-              messages.push({
-                type: 'thinking',
-                thinking: block.thinking,
-                timestamp: message.timestamp,
-                uuid: message.uuid
-              })
-            }
-          }
-        }
-      }
-      messages.push(message)
-    } catch { /* skip malformed */ }
-  }
-  return messages.slice(-limit)
-}
+// resolveJsonlPath / parseJsonlLines / readHookState now live in
+// lib/chat-transcript.mjs (shared with the TypeScript services — do not fork).
 
 /**
  * Get chat history for a session (messages + hookState).
@@ -285,9 +196,7 @@ async function getChatHistory(sessionName, agentId) {
   const lines = fileContent.split('\n')
   const messages = parseJsonlLines(lines, 200)
 
-  const workingDir = agent.workingDirectory ||
-                     agent.sessions?.[0]?.workingDirectory ||
-                     agent.preferences?.defaultWorkingDirectory
+  const workingDir = getAgentWorkingDir(agent)
   let hookState = readHookState(workingDir)
 
   // If the file no longer has permission_request but the server remembers one
@@ -321,40 +230,61 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
     const agent = (agentId && getAgent(agentId)) || getAgentByName(sessionName)
     if (!agent) return
 
-    const file = resolveJsonlPath(agent)
-    if (!file) return
-
-    sessionState.jsonlFilePath = file.path
-    try {
-      const stat = fs.statSync(file.path)
-      sessionState.jsonlFileSize = stat.size
-    } catch {
-      sessionState.jsonlFileSize = 0
+    const watchJsonlFile = (filePath) => {
+      sessionState.jsonlFilePath = filePath
+      sessionState.jsonlPartialLine = ''
+      try {
+        sessionState.jsonlFileSize = fs.statSync(filePath).size
+      } catch {
+        sessionState.jsonlFileSize = 0
+      }
+      // Poll every 1s — low overhead, reliable on macOS where fs.watch is flaky
+      fs.watchFile(filePath, { interval: 1000 }, (curr) => {
+        if (curr.size > sessionState.jsonlFileSize) {
+          broadcastJsonlUpdates(sessionName, sessionState)
+        }
+        // Handle file truncation (conversation rewritten in place)
+        if (curr.size < sessionState.jsonlFileSize) {
+          sessionState.jsonlFileSize = 0
+          broadcastJsonlUpdates(sessionName, sessionState)
+        }
+      })
+      console.log(`[Chat] Started JSONL watcher for ${sessionName}: ${filePath}`)
     }
 
-    // Poll every 1s — low overhead, reliable on macOS where fs.watch is flaky
-    fs.watchFile(file.path, { interval: 1000 }, (curr, prev) => {
-      if (curr.size > sessionState.jsonlFileSize) {
-        console.log(`[Chat] JSONL change detected for ${sessionName}: ${sessionState.jsonlFileSize} → ${curr.size} (${sessionState.chatClients?.size || 0} clients)`)
-        broadcastJsonlUpdates(sessionName, sessionState)
+    const file = resolveJsonlPath(agent)
+    if (file) watchJsonlFile(file.path)
+
+    // Re-resolve the transcript path periodically: Claude Code starts a NEW
+    // .jsonl file on /clear or new conversations. The old watcher would keep
+    // watching the stale file forever and chat silently stopped updating.
+    // On rotation: unwatch old file, send full fresh history, watch new file.
+    sessionState.jsonlRotationTimer = setInterval(() => {
+      if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
+      const current = resolveJsonlPath(agent)
+      if (!current || current.path === sessionState.jsonlFilePath) return
+
+      console.log(`[Chat] Conversation rotated for ${sessionName}: ${sessionState.jsonlFilePath} → ${current.path}`)
+      if (sessionState.jsonlFilePath) {
+        try { fs.unwatchFile(sessionState.jsonlFilePath) } catch { /* ignore */ }
       }
-      // Handle file truncation (new conversation started)
-      if (curr.size < sessionState.jsonlFileSize) {
-        sessionState.jsonlFileSize = 0
-        broadcastJsonlUpdates(sessionName, sessionState)
-      }
-    })
+      watchJsonlFile(current.path)
+
+      getChatHistory(sessionName, agentId).then((history) => {
+        const msg = JSON.stringify({ type: 'chat:history', data: history })
+        sessionState.chatClients.forEach(ws => {
+          if (ws.readyState === 1) { try { ws.send(msg) } catch { /* ignore */ } }
+        })
+      }).catch(() => { /* next tick will retry */ })
+    }, 10000)
+
     sessionState.jsonlWatcher = true
-    console.log(`[Chat] Started JSONL watcher for ${sessionName}: ${file.path}`)
 
     // Watch hook state file for real-time permission/status updates
-    const workingDir = agent.workingDirectory ||
-                       agent.sessions?.[0]?.workingDirectory ||
-                       agent.preferences?.defaultWorkingDirectory
+    const workingDir = getAgentWorkingDir(agent)
     if (workingDir) {
       sessionState._hookStateWorkingDir = workingDir
-      const cwdHash = crypto.createHash('md5').update(workingDir).digest('hex').substring(0, 16)
-      const hookStateFile = path.join(os.homedir(), '.aimaestro', 'chat-state', `${cwdHash}.json`)
+      const hookStateFile = hookStateFilePath(workingDir)
       sessionState._hookStateFile = hookStateFile
 
       // Use fs.watchFile (1s poll) instead of setInterval — same reliability as JSONL watcher
@@ -530,13 +460,21 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
     killPtyProcess(sessionState.ptyProcess, sessionName, ptyAlreadyExited)
   }
 
-  // Stop JSONL file watcher
+  // Stop JSONL file watcher + rotation re-resolve timer
   if (sessionState.jsonlWatcher) {
     try {
       fs.unwatchFile(sessionState.jsonlFilePath)
     } catch { /* ignore */ }
     sessionState.jsonlWatcher = null
   }
+  if (sessionState.jsonlRotationTimer) {
+    clearInterval(sessionState.jsonlRotationTimer)
+    sessionState.jsonlRotationTimer = null
+  }
+
+  // Release the cerebellum ring buffer for this session (was a map-key leak:
+  // entries were only ever removed for __call voice sessions)
+  try { removeBuffer(sessionName) } catch { /* ignore */ }
 
   // Stop hook state file watcher
   if (sessionState._hookStateWatcher && sessionState._hookStateFile) {
@@ -1995,33 +1933,19 @@ async function startServer(handleRequest) {
       }
     }
 
+    // Helper: prepend custom-socket args for tmux invocations on this session
+    const tmuxArgs = (args) => (socketPath ? ['-S', socketPath, ...args] : args)
+
     // Disable tmux mouse mode per-session so xterm.js handles mouse natively.
     // Without this, ~/.tmux.conf "set -g mouse on" causes tmux to intercept
-    // click-drag (yellow copy-mode selection instead of browser clipboard) and
-    // wheel events (tmux copy-mode instead of app-native scrolling).
-    try {
-      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
-      execSync(`${tmuxBase} set-option -t "${sessionName}" mouse off`, { timeout: 2000, stdio: 'pipe' })
-    } catch (e) {
-      console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, e.message)
-    }
-
-    // Capture FULL pane content (scrollback + visible area) with ANSI color codes.
-    // We send this as a single snapshot and intentionally DON'T add the client to the
-    // PTY broadcast set yet — the PTY's initial `tmux attach` redraw would duplicate
-    // the visible area. By delaying broadcast join, the redraw is discarded.
-    try {
-      const tmuxBase = socketPath ? `tmux -S "${socketPath}"` : 'tmux'
-      const paneContent = execSync(
-        `${tmuxBase} capture-pane -t "${sessionName}" -e -p -S -5000 2>/dev/null`,
-        { encoding: 'utf8', timeout: 3000 }
-      )
-      if (paneContent && paneContent.trim() && ws.readyState === 1) {
-        ws.send(paneContent.replace(/\n/g, '\r\n'))
-      }
-    } catch (e) {
-      // capture failed — client will get content once added to broadcast
-    }
+    // click-drag (yellow copy-mode selection instead of browser clipboard).
+    // Alt-screen wheel scrolling is handled via the 'tmux-scroll' control
+    // message below, which drives tmux copy-mode server-side.
+    // Async execFile: these used to be execSync and blocked the event loop —
+    // and therefore every other session's output — for up to 5s per connect.
+    execFile('tmux', tmuxArgs(['set-option', '-t', sessionName, 'mouse', 'off']), { timeout: 2000 }, (err) => {
+      if (err) console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, err.message)
+    })
 
     // Track connection as activity (so newly opened sessions show as active)
     trackSessionActivity(sessionName)
@@ -2034,15 +1958,31 @@ async function startServer(handleRequest) {
       sessionState.cleanupTimer = null
     }
 
-    // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
-    // 150ms is enough for the tmux attach redraw to fire and be ignored.
-    // After this, the client receives all live PTY output going forward.
-    setTimeout(() => {
-      sessionState.clients.add(ws)
-      if (ws.readyState === 1) {
-        ws.send(JSON.stringify({ type: 'history-complete' }))
+    // Capture FULL pane content (scrollback + visible area) with ANSI color codes.
+    // We send this as a single snapshot and intentionally DON'T add the client to the
+    // PTY broadcast set yet — the PTY's initial `tmux attach` redraw would duplicate
+    // the visible area. By delaying broadcast join, the redraw is discarded.
+    execFile(
+      'tmux',
+      tmuxArgs(['capture-pane', '-t', sessionName, '-e', '-p', '-S', '-5000']),
+      { encoding: 'utf8', timeout: 3000, maxBuffer: 32 * 1024 * 1024 },
+      (err, paneContent) => {
+        if (err) {
+          console.warn(`[PTY] History capture failed for ${sessionName}:`, err.message)
+        } else if (paneContent && paneContent.trim() && ws.readyState === 1) {
+          try { ws.send(paneContent.replace(/\n/g, '\r\n')) } catch { /* client gone */ }
+        }
+        // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
+        // 150ms is enough for the tmux attach redraw to fire and be ignored.
+        // After this, the client receives all live PTY output going forward.
+        setTimeout(() => {
+          sessionState.clients.add(ws)
+          if (ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'history-complete' }))
+          }
+        }, 150)
       }
-    }, 150)
+    )
 
     // Handle client input
     ws.on('message', async (data) => {
@@ -2061,6 +2001,25 @@ async function startServer(handleRequest) {
 
           if (parsed.type === 'resize' && parsed.cols && parsed.rows) {
             sessionState.ptyProcess.resize(parsed.cols, parsed.rows)
+            return
+          }
+
+          // Alt-screen scrollback: the client sends wheel deltas while the app
+          // is on the alternate screen (Claude Code, vim, less). xterm.js has no
+          // alt-screen scrollback — the real history lives in tmux. Enter
+          // copy-mode (-e = auto-exit when scrolled back to the bottom) and
+          // scroll there. Negative lines = up (into history).
+          if (parsed.type === 'tmux-scroll' && typeof parsed.lines === 'number' && parsed.lines !== 0) {
+            const n = String(Math.min(Math.abs(Math.trunc(parsed.lines)), 100))
+            if (parsed.lines < 0) {
+              execFile('tmux', tmuxArgs(['copy-mode', '-e', '-t', sessionName]), { timeout: 2000 }, () => {
+                execFile('tmux', tmuxArgs(['send-keys', '-t', sessionName, '-X', '-N', n, 'scroll-up']), { timeout: 2000 }, () => { /* ignore */ })
+              })
+            } else {
+              // scroll-down is only meaningful inside copy-mode; if the pane is
+              // already at the live view the command fails harmlessly.
+              execFile('tmux', tmuxArgs(['send-keys', '-t', sessionName, '-X', '-N', n, 'scroll-down']), { timeout: 2000 }, () => { /* ignore */ })
+            }
             return
           }
 

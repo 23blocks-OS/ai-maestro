@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Brain, X } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
@@ -78,9 +78,36 @@ interface ContentBlock {
   [key: string]: any
 }
 
+interface PendingMessage {
+  id: string
+  text: string
+  timestamp: string
+  status: 'sending' | 'failed'
+}
+
+/** Extract the plain text of a message for pending-echo matching. */
+function messageText(m: Message): string {
+  if (m.type === 'queue-operation' && m.content) return m.content
+  const content = m.message?.content
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content.filter(b => b.type === 'text' && b.text).map(b => b.text).join('\n\n')
+  }
+  return ''
+}
+
+/** Dedup key: uuid when present, otherwise a content-derived fallback so
+ *  uuid-less messages (synthesized/summary) can't duplicate on overlapping reads. */
+function messageKey(m: Message): string {
+  if (m.uuid) return m.uuid
+  return `${m.type}|${m.timestamp || ''}|${messageText(m).slice(0, 120)}`
+}
+
+const PENDING_EXPIRY_MS = 30000
+
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -89,8 +116,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
-  const [memorizeTarget, setMemorizeTarget] = useState<{ index: number; content: string } | null>(null)
-  const [memorizeNote, setMemorizeNote] = useState('')
   const [hookState, setHookState] = useState<{
     status: string;
     message?: string;
@@ -118,10 +143,18 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   })
   const [chatWsConnected, setChatWsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
   const reconnectAttemptsRef = useRef(0)
+  // Latest connect() from the WS effect, callable from the visibility handler
+  // (which previously reset the attempt counter but never actually reconnected
+  // once the socket was gone — chat stayed dead until an agent switch)
+  const connectRef = useRef<(() => void) | null>(null)
+  // Scroll-stick: only autoscroll when the user is already near the bottom
+  const stickToBottomRef = useRef(true)
+  const [hasUnseenMessages, setHasUnseenMessages] = useState(false)
 
   // Track if we've done initial load
   const hasLoadedRef = useRef(false)
@@ -205,6 +238,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               setMessages(newMessages)
               setHookState(history.hookState || null)
               setLastModified(history.lastModified || null)
+              setError(null)
               // Only clear pending on initial load (server history includes sent msgs)
               if (!hasLoadedRef.current) {
                 setPendingMessages([])
@@ -218,21 +252,32 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               // Incremental new messages from JSONL watcher (only fires on real file changes)
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
+                setError(null)
                 setMessages(prev => {
-                  const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
-                  const uniqueNew = newMsgs.filter((m: Message) =>
-                    !m.uuid || !existingUuids.has(m.uuid)
-                  )
+                  const existingKeys = new Set(prev.map(messageKey))
+                  const uniqueNew = newMsgs.filter((m: Message) => !existingKeys.has(messageKey(m)))
                   if (uniqueNew.length === 0) return prev
                   return [...prev, ...uniqueNew].slice(-200)
                 })
-                // Only clear pending when we see the user's message echoed back or
-                // an assistant response — metadata (system, attachment) shouldn't clear it
-                const hasUserOrAssistant = newMsgs.some((m: Message) =>
-                  m.type === 'user' || m.type === 'assistant'
-                )
-                if (hasUserOrAssistant) {
-                  setPendingMessages([])
+                // Clear a pending bubble ONLY when ITS OWN echo appears in the
+                // transcript (user message or queued enqueue with matching text).
+                // Previously ANY user/assistant message cleared ALL pending
+                // bubbles — unrelated agent output made your message look
+                // delivered when it might not be.
+                const echoedTexts = newMsgs
+                  .filter((m: Message) => m.type === 'user' ||
+                    (m.type === 'queue-operation' && m.operation === 'enqueue'))
+                  .map((m: Message) => messageText(m).trim())
+                  .filter(Boolean)
+                if (echoedTexts.length > 0) {
+                  setPendingMessages(prev => {
+                    const remaining = [...prev]
+                    for (const text of echoedTexts) {
+                      const idx = remaining.findIndex(p => p.text.trim() === text)
+                      if (idx !== -1) remaining.splice(idx, 1)
+                    }
+                    return remaining.length === prev.length ? prev : remaining
+                  })
                 }
                 // Assistant response means the agent moved on — clear sticky permission + activity
                 if (newMsgs.some((m: Message) => m.type === 'assistant')) {
@@ -305,9 +350,11 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       wsRef.current = ws
     }
 
+    connectRef.current = connect
     connect()
 
     return () => {
+      connectRef.current = null
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
@@ -327,9 +374,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       if (document.visibilityState === 'visible') {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
           reconnectAttemptsRef.current = 0 // Reset for fresh retries
-          // Trigger reconnect by closing any zombie socket
           if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+            // Zombie socket — closing it triggers onclose → reconnect
             wsRef.current.close()
+          } else {
+            // No socket at all (retries exhausted while backgrounded) —
+            // reconnect directly; closing nothing reconnects nothing
+            connectRef.current?.()
           }
         }
       } else {
@@ -363,6 +414,23 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return () => clearInterval(interval)
   }, [isActive])
 
+  // Track whether the user is near the bottom of the message list.
+  // Autoscroll only sticks when they are — scrolling up to read history no
+  // longer gets yanked back down by every incoming message.
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    stickToBottomRef.current = nearBottom
+    if (nearBottom) setHasUnseenMessages(false)
+  }, [])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    stickToBottomRef.current = true
+    setHasUnseenMessages(false)
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
+
   // Auto-scroll to bottom when new messages or pending messages arrive
   useEffect(() => {
     if (messages.length === 0 && pendingMessages.length === 0) return
@@ -373,20 +441,44 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     const hasNewMessages = lastId !== prevLastMsgIdRef.current
     prevLastMsgIdRef.current = lastId
 
-    // Scroll on initial load (instant) or new messages/pending messages (smooth)
     if (isInitialLoad) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+      scrollToBottom('instant' as ScrollBehavior)
     } else if (hasNewMessages || pendingMessages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      if (stickToBottomRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      } else if (hasNewMessages) {
+        setHasUnseenMessages(true)
+      }
     }
-  }, [messages, pendingMessages])
+  }, [messages, pendingMessages, scrollToBottom])
 
-  // Auto-scroll when permission prompt appears
+  // Auto-scroll when permission prompt appears (needs action — always surface it)
   useEffect(() => {
     if (hookState?.status === 'permission_request') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      scrollToBottom()
     }
-  }, [hookState])
+  }, [hookState, scrollToBottom])
+
+  // Expire stuck pending bubbles into a visible "failed" state with retry.
+  // Without this, a lost message spins "Sending..." forever.
+  useEffect(() => {
+    if (pendingMessages.length === 0) return
+    const timer = setInterval(() => {
+      const now = Date.now()
+      setPendingMessages(prev => {
+        let changed = false
+        const next = prev.map(p => {
+          if (p.status === 'sending' && now - new Date(p.timestamp).getTime() > PENDING_EXPIRY_MS) {
+            changed = true
+            return { ...p, status: 'failed' as const }
+          }
+          return p
+        })
+        return changed ? next : prev
+      })
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [pendingMessages.length])
 
   // Send quick response (assisted mode — for permission buttons)
   const sendQuickResponse = (text: string) => {
@@ -394,16 +486,38 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     setHookState(null)
 
     // Show pending bubble so user sees their click did something
-    const pendingMsg = { text, timestamp: new Date().toISOString() }
+    const pendingMsg: PendingMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text,
+      timestamp: new Date().toISOString(),
+      status: 'sending',
+    }
     setPendingMessages(prev => [...prev, pendingMsg])
 
     const sent = sendChatMessage('chat:send', { message: text })
     if (!sent) {
       setError('Not connected — try refreshing')
-      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
+      setPendingMessages(prev => prev.filter(p => p.id !== pendingMsg.id))
     }
 
     setIsSending(false)
+  }
+
+  // Retry a failed pending message (re-sends and resets its expiry clock)
+  const retryPendingMessage = (id: string) => {
+    const pending = pendingMessages.find(p => p.id === id)
+    if (!pending) return
+    const sent = sendChatMessage('chat:send', { message: pending.text })
+    setPendingMessages(prev => prev.map(p =>
+      p.id === id
+        ? { ...p, status: sent ? 'sending' as const : 'failed' as const, timestamp: new Date().toISOString() }
+        : p
+    ))
+    if (!sent) setError('Not connected — reconnecting...')
+  }
+
+  const dismissPendingMessage = (id: string) => {
+    setPendingMessages(prev => prev.filter(p => p.id !== id))
   }
 
   // Send message via WebSocket
@@ -431,13 +545,18 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
 
     // Add to pending messages immediately for instant feedback
-    const pendingMsg = { text: messageToSend, timestamp: new Date().toISOString() }
+    const pendingMsg: PendingMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: messageToSend,
+      timestamp: new Date().toISOString(),
+      status: 'sending',
+    }
     setPendingMessages(prev => [...prev, pendingMsg])
 
     const sent = sendChatMessage('chat:send', { message: messageToSend })
     if (!sent) {
       setError('Failed to send — try again')
-      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
+      setPendingMessages(prev => prev.filter(p => p.id !== pendingMsg.id))
       setInput(messageToSend)
     }
 
@@ -688,7 +807,12 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+        style={{ minHeight: 0 }}
+      >
         {isLoading && messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
@@ -956,19 +1080,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                         <Copy className="w-3 h-3" />
                       )}
                     </button>
-                    {/* Memorize — only for assistant messages */}
-                    {message.type === 'assistant' && (
-                      <button
-                        onClick={() => {
-                          setMemorizeTarget({ index, content })
-                          setMemorizeNote('')
-                        }}
-                        className="p-1 rounded text-xs transition-colors text-gray-500 hover:text-purple-400"
-                        title="Save to memory"
-                      >
-                        <Brain className="w-3 h-3" />
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -1058,19 +1169,45 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           </div>
         )}
 
-        {/* Pending messages (sent via Chat but not yet in JSONL) */}
-        {pendingMessages.map((pending, idx) => (
-          <div key={`pending-${idx}`} className="flex justify-end">
+        {/* Pending messages (sent via Chat but not yet echoed in the transcript) */}
+        {pendingMessages.map((pending) => (
+          <div key={pending.id} className="flex justify-end">
             <div className="max-w-[85%]">
-              <div className="rounded-2xl px-4 py-3 bg-blue-600/70 text-white border border-blue-500/50">
+              <div className={`rounded-2xl px-4 py-3 text-white border ${
+                pending.status === 'failed'
+                  ? 'bg-red-900/60 border-red-600/60'
+                  : 'bg-blue-600/70 border-blue-500/50'
+              }`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="text-xs opacity-70">Sending...</span>
+                  {pending.status === 'failed' ? (
+                    <AlertCircle className="w-3.5 h-3.5 text-red-300" />
+                  ) : (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  )}
+                  <span className="text-xs opacity-70">
+                    {pending.status === 'failed' ? 'Not confirmed — may not have reached the agent' : 'Sending...'}
+                  </span>
                   <span className="text-xs opacity-50 ml-auto">
                     {formatTimestamp(pending.timestamp)}
                   </span>
                 </div>
                 <div className="text-sm">{pending.text}</div>
+                {pending.status === 'failed' && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => retryPendingMessage(pending.id)}
+                      className="px-2 py-1 text-xs rounded bg-red-700/60 hover:bg-red-600/60 border border-red-500/50 transition-colors"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => dismissPendingMessage(pending.id)}
+                      className="px-2 py-1 text-xs rounded bg-gray-800/60 hover:bg-gray-700/60 border border-gray-600/50 transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1079,68 +1216,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Memorize popup */}
-      {memorizeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setMemorizeTarget(null)}>
-          <div
-            className="bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-full max-w-lg mx-4"
-            onClick={e => e.stopPropagation()}
+      {/* New-messages pill — shown when messages arrive while scrolled up */}
+      {hasUnseenMessages && (
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => scrollToBottom()}
+            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow-lg flex items-center gap-1.5 transition-colors"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-              <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-purple-400" />
-                <h3 className="text-sm font-medium text-gray-200">Save to Memory</h3>
-              </div>
-              <button
-                onClick={() => setMemorizeTarget(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Content preview */}
-            <div className="px-4 pt-3">
-              <label className="text-xs text-gray-400 mb-1 block">Agent response</label>
-              <div className="text-xs text-gray-300 bg-gray-900/50 rounded-lg p-3 max-h-32 overflow-y-auto whitespace-pre-wrap border border-gray-700/50">
-                {memorizeTarget.content.slice(0, 500)}{memorizeTarget.content.length > 500 ? '...' : ''}
-              </div>
-            </div>
-
-            {/* Instructions textarea */}
-            <div className="px-4 pt-3">
-              <label className="text-xs text-gray-400 mb-1 block">Additional instructions (optional)</label>
-              <textarea
-                value={memorizeNote}
-                onChange={e => setMemorizeNote(e.target.value)}
-                placeholder="Add context, corrections, or notes for the agent to remember..."
-                className="w-full bg-gray-900 text-gray-200 text-sm rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500"
-                rows={3}
-                autoFocus
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-2 px-4 py-3">
-              <button
-                onClick={() => setMemorizeTarget(null)}
-                className="px-3 py-1.5 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: save to agent memory files + database
-                  console.log('[ChatView] Memorize:', { content: memorizeTarget.content, note: memorizeNote, agentId: agent.id })
-                  setMemorizeTarget(null)
-                }}
-                className="px-4 py-1.5 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-colors"
-              >
-                Save to Memory
-              </button>
-            </div>
-          </div>
+            <ChevronDown className="w-3.5 h-3.5" />
+            New messages
+          </button>
         </div>
       )}
 

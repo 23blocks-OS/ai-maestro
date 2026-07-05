@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { WebSocketMessage, WebSocketStatus } from '@/types/websocket'
 
-const WS_RECONNECT_DELAY = 3000
-const WS_MAX_RECONNECT_ATTEMPTS = 5
+// Exponential backoff: quick first retry (transient blips), spaced-out later
+// attempts (server restarts take a few seconds). Was a fixed 3s × 5 attempts,
+// which burned all retries in 15s and left the terminal permanently dead.
+const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000]
+const WS_MAX_RECONNECT_ATTEMPTS = WS_RECONNECT_DELAYS.length
 const WS_HEARTBEAT_INTERVAL = 30000  // Send ping every 30s
 const WS_HEARTBEAT_TIMEOUT = 10000   // Expect pong within 10s
 
@@ -249,13 +252,14 @@ export function useWebSocket({
           return
         }
 
-        // Attempt reconnection for transient failures
+        // Attempt reconnection for transient failures (exponential backoff)
         if (reconnectAttemptsRef.current < WS_MAX_RECONNECT_ATTEMPTS) {
+          const delay = WS_RECONNECT_DELAYS[Math.min(reconnectAttemptsRef.current, WS_RECONNECT_DELAYS.length - 1)]
           reconnectAttemptsRef.current++
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
-          }, WS_RECONNECT_DELAY)
+          }, delay)
         } else {
           setConnectionError(
             new Error('Failed to connect after maximum reconnection attempts')

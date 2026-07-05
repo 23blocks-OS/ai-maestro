@@ -14,16 +14,10 @@ import {
   wrapAsBracketedPaste,
 } from '@/lib/meeting-inject-queue'
 import * as fs from 'fs'
-import * as path from 'path'
-import * as crypto from 'crypto'
-import os from 'os'
 import { type ServiceResult, notFound, invalidRequest, missingField } from '@/services/service-errors'
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function hashCwd(cwd: string): string {
-  return crypto.createHash('md5').update(cwd || '').digest('hex').substring(0, 16)
-}
+// Shared transcript logic — single source of truth with server.mjs (do not fork;
+// the underscore path-encoding bug had to be fixed in 3 copies once already)
+import { resolveJsonlPathForDir, parseJsonlLines, readHookState } from '@/lib/chat-transcript.mjs'
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -49,127 +43,36 @@ export async function getConversationMessages(
     return invalidRequest('Agent has no working directory configured')
   }
 
-  // Find the Claude conversation directory for this project
-  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-  const projectDirName = workingDir.replace(/[/_]/g, '-')
-  const conversationDir = path.join(claudeProjectsDir, projectDirName)
-
-  if (!fs.existsSync(conversationDir)) {
+  // Find the current conversation JSONL (shared logic with server.mjs)
+  const currentConversation = resolveJsonlPathForDir(workingDir)
+  if (!currentConversation) {
     return {
       data: {
         success: true,
         messages: [],
         conversationFile: null,
-        message: 'No conversation directory found for this project'
+        message: 'No conversation found for this project'
       },
       status: 200
     }
   }
-
-  // Find the most recently modified .jsonl file
-  const files = fs.readdirSync(conversationDir)
-    .filter(f => f.endsWith('.jsonl'))
-    .map(f => ({
-      name: f,
-      path: path.join(conversationDir, f),
-      mtime: fs.statSync(path.join(conversationDir, f)).mtime
-    }))
-    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
-
-  if (files.length === 0) {
-    return {
-      data: {
-        success: true,
-        messages: [],
-        conversationFile: null,
-        message: 'No conversation files found'
-      },
-      status: 200
-    }
-  }
-
-  const currentConversation = files[0]
 
   // Read and parse the JSONL file
   const fileContent = fs.readFileSync(currentConversation.path, 'utf-8')
-  const lines = fileContent.split('\n').filter(line => line.trim())
+  const lines = fileContent.split('\n')
 
-  const sinceTime = since ? new Date(since).getTime() : 0
-  const messages: any[] = []
-
-  for (const line of lines) {
-    try {
-      const message = JSON.parse(line)
-
-      if (since && message.timestamp) {
-        const msgTime = new Date(message.timestamp).getTime()
-        if (msgTime <= sinceTime) continue
-      }
-
-      // Skip tool-result user messages (invisible in chat, waste message budget)
-      if (message.type === 'user' && message.toolUseResult) continue
-
-      // Convert compact_boundary system messages to summary type
-      if (message.type === 'system' &&
-          (message.subtype === 'compact_boundary' || message.subtype === 'microcompact_boundary')) {
-        messages.push({
-          type: 'summary',
-          summary: message.content || 'Conversation compacted',
-          timestamp: message.timestamp,
-          uuid: message.uuid,
-        })
-        continue
-      }
-
-      // Extract thinking blocks from assistant messages
-      if (message.type === 'assistant' && message.message?.content) {
-        const content = message.message.content
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === 'thinking' && block.thinking) {
-              messages.push({
-                type: 'thinking',
-                thinking: block.thinking,
-                timestamp: message.timestamp,
-                uuid: message.uuid
-              })
-            }
-          }
-        }
-      }
-
-      messages.push(message)
-    } catch {
-      // Skip malformed lines
-    }
+  let messages: any[] = parseJsonlLines(lines, Number.MAX_SAFE_INTEGER)
+  if (since) {
+    const sinceTime = new Date(since).getTime()
+    messages = messages.filter(m =>
+      !m.timestamp || new Date(m.timestamp).getTime() > sinceTime
+    )
   }
 
   const limitedMessages = messages.slice(-limit)
 
-  // Read hook state file
-  let hookState: any = null
-  if (workingDir) {
-    const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
-    const cwdHash = hashCwd(workingDir)
-    const stateFile = path.join(stateDir, `${cwdHash}.json`)
-
-    try {
-      if (fs.existsSync(stateFile)) {
-        const stateContent = fs.readFileSync(stateFile, 'utf-8')
-        hookState = JSON.parse(stateContent)
-
-        const isWaitingState = hookState.status === 'waiting_for_input' || hookState.status === 'permission_request'
-        if (!isWaitingState) {
-          const stateAge = Date.now() - new Date(hookState.updatedAt).getTime()
-          if (stateAge > 60000) {
-            hookState = null
-          }
-        }
-      }
-    } catch {
-      // Ignore state read errors
-    }
-  }
+  // Read hook state file (shared logic with server.mjs)
+  const hookState: any = readHookState(workingDir)
 
   // Capture tmux to detect prompts waiting for input
   let terminalPrompt: string | null = null

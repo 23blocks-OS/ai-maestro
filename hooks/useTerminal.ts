@@ -274,20 +274,19 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         }
       }
 
-      // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard into PTY via WebSocket
+      // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard
       if ((event.metaKey && event.key === 'v') || (event.ctrlKey && event.shiftKey && event.key === 'V')) {
         if (event.type === 'keydown') {
           // preventDefault stops the browser from ALSO firing a 'paste' event on the
           // hidden textarea, which xterm would process via onData — causing double paste.
           event.preventDefault()
           navigator.clipboard.readText().then((text) => {
-            if (text && sendDataRef.current) {
-              // Use bracketed paste mode so multi-line content is handled correctly by the shell
-              const PASTE_START = '\x1b[200~'
-              const PASTE_END = '\x1b[201~'
-              // Normalize line endings: convert \r\n and \n to \r (what PTY expects)
-              const normalized = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
-              sendDataRef.current(PASTE_START + normalized + PASTE_END)
+            if (text) {
+              // terminal.paste() normalizes line endings and applies bracketed
+              // paste ONLY if the running app enabled it (DECSET 2004). Manual
+              // \x1b[200~ wrapping printed literal "200~" into programs that
+              // never enabled bracketed paste (bare REPLs, cat, password prompts).
+              terminal.paste(text)
             }
           }).catch((err) => {
             console.warn('Clipboard read denied:', err)
@@ -299,9 +298,12 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       return true
     })
 
-    // Auto-copy selection to clipboard when user selects 3+ characters
-    // Threshold of 3 chars prevents accidental clipboard overwrites from stray clicks
+    // Auto-copy selection to clipboard — OPT-IN via the header toggle.
+    // Was always-on: any 3-char selection silently overwrote the clipboard,
+    // destroying whatever the user was about to paste.
     terminal.onSelectionChange(() => {
+      if (typeof window === 'undefined') return
+      if (window.localStorage.getItem('terminal-copy-on-select') !== 'true') return
       const sel = terminal.getSelection()
       if (sel && sel.length >= 3) {
         navigator.clipboard.writeText(sel).catch(() => {
@@ -310,22 +312,44 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       }
     })
 
-    // Wheel handler: intercept mouse wheel at the DOM level (capture phase) to
-    // scroll xterm.js buffer directly. Without this, xterm.js may convert wheel
-    // events to cursor key sequences (sent to shell/app as arrow up/down) instead
-    // of scrolling the terminal buffer. We always intercept because tmux mouse is
-    // disabled per-session, so there's no app that needs the raw wheel events.
+    // Wheel handler: intercept mouse wheel at the DOM level (capture phase).
+    // - Normal buffer: scroll xterm.js scrollback directly (as before).
+    // - Alternate screen (Claude Code, vim, less): xterm has NO alt-screen
+    //   scrollback — the history lives in tmux. Send an accumulated
+    //   'tmux-scroll' control message; the server drives tmux copy-mode
+    //   (auto-exiting when scrolled back to the bottom). tmux mouse stays off,
+    //   so native browser selection keeps working.
+    let pendingTmuxScroll = 0
+    let tmuxScrollTimer: ReturnType<typeof setTimeout> | null = null
+    const flushTmuxScroll = () => {
+      tmuxScrollTimer = null
+      if (pendingTmuxScroll !== 0 && sendDataRef.current) {
+        sendDataRef.current(JSON.stringify({ type: 'tmux-scroll', lines: pendingTmuxScroll }))
+      }
+      pendingTmuxScroll = 0
+    }
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
       const lines = Math.round(e.deltaY / 25) || (e.deltaY > 0 ? 1 : -1)
-      terminal.scrollLines(lines)
+      if (terminal.buffer.active.type === 'alternate' && sendDataRef.current) {
+        // Accumulate deltas for 80ms so fast scrolling doesn't flood the
+        // server with one tmux command per wheel tick
+        pendingTmuxScroll += lines
+        if (!tmuxScrollTimer) tmuxScrollTimer = setTimeout(flushTmuxScroll, 80)
+      } else {
+        terminal.scrollLines(lines)
+      }
     }
     container.addEventListener('wheel', handleWheel, { passive: false, capture: true })
 
     // Cleanup function
     return () => {
       container.removeEventListener('wheel', handleWheel, { capture: true } as EventListenerOptions)
+      if (tmuxScrollTimer) {
+        clearTimeout(tmuxScrollTimer)
+        tmuxScrollTimer = null
+      }
       resizeObserver.disconnect()
       // Dispose WebGL addon before terminal to free GPU context cleanly
       if (webglAddonRef.current) {

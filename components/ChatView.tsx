@@ -14,7 +14,7 @@ function ThinkingBlock({ text, timestamp }: { text: string; timestamp?: string }
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%]">
+      <div className="max-w-[85%] min-w-0 overflow-hidden">
         <div
           className="rounded-2xl px-4 py-3 bg-purple-900/20 border border-purple-700/30 cursor-pointer transition-colors hover:bg-purple-900/30"
           onClick={() => setExpanded(!expanded)}
@@ -33,7 +33,7 @@ function ThinkingBlock({ text, timestamp }: { text: string; timestamp?: string }
             )}
           </div>
           {expanded ? (
-            <div className="text-sm text-purple-200/80 whitespace-pre-wrap italic max-h-64 overflow-y-auto select-text">
+            <div className="text-sm text-purple-200/80 whitespace-pre-wrap break-words italic max-h-64 overflow-y-auto select-text" style={{ overflowWrap: 'anywhere' }}>
               {text}
             </div>
           ) : (
@@ -810,7 +810,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 relative"
         style={{ minHeight: 0 }}
       >
         {isLoading && messages.length === 0 && (
@@ -941,7 +941,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   {/* Content — use markdown for assistant, plain for user */}
                   {content && (
                     (isUser || isQueued) ? (
-                      <div className="text-sm whitespace-pre-wrap break-words">
+                      <div className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>
                         {content}
                       </div>
                     ) : (
@@ -1109,7 +1109,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         {/* PERMISSION REQUEST — always from hookState */}
         {hookState?.status === 'permission_request' && (
           <div className="flex justify-start">
-            <div className="max-w-[85%]">
+            <div className="max-w-[85%] min-w-0 overflow-hidden">
               <div className="rounded-2xl px-4 py-3 bg-amber-900/40 border border-amber-600/50 text-amber-200">
                 {/* Header: what tool is asking */}
                 <div className="flex items-center gap-2 mb-2">
@@ -1172,7 +1172,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         {/* Pending messages (sent via Chat but not yet echoed in the transcript) */}
         {pendingMessages.map((pending) => (
           <div key={pending.id} className="flex justify-end">
-            <div className="max-w-[85%]">
+            <div className="max-w-[85%] min-w-0 overflow-hidden">
               <div className={`rounded-2xl px-4 py-3 text-white border ${
                 pending.status === 'failed'
                   ? 'bg-red-900/60 border-red-600/60'
@@ -1191,7 +1191,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     {formatTimestamp(pending.timestamp)}
                   </span>
                 </div>
-                <div className="text-sm">{pending.text}</div>
+                <div className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>{pending.text}</div>
                 {pending.status === 'failed' && (
                   <div className="flex items-center gap-2 mt-2">
                     <button

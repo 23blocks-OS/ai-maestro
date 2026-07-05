@@ -136,12 +136,13 @@ function renderMarkdown(text: string): JSX.Element {
       continue
     }
 
-    // Bullet list items
+    // Bullet list items — min-w-0 lets the flex item shrink so long unbroken
+    // content (paths, inline code, URLs) wraps instead of overflowing the bubble
     if (line.match(/^[-*]\s/)) {
       elements.push(
         <div key={i} className="flex gap-1.5 ml-2">
           <span className="text-gray-500 flex-shrink-0">&#x2022;</span>
-          <span>{renderInline(line.replace(/^[-*]\s/, ''))}</span>
+          <span className="min-w-0 break-words">{renderInline(line.replace(/^[-*]\s/, ''))}</span>
         </div>
       )
       continue
@@ -153,7 +154,7 @@ function renderMarkdown(text: string): JSX.Element {
       elements.push(
         <div key={i} className="flex gap-1.5 ml-2">
           <span className="text-gray-500 flex-shrink-0">{numberedMatch[1]}.</span>
-          <span>{renderInline(numberedMatch[2])}</span>
+          <span className="min-w-0 break-words">{renderInline(numberedMatch[2])}</span>
         </div>
       )
       continue
@@ -181,5 +182,13 @@ function renderMarkdown(text: string): JSX.Element {
 }
 
 export function MarkdownContent({ text }: { text: string }) {
-  return <div className="text-sm break-words overflow-hidden min-w-0">{renderMarkdown(text)}</div>
+  // overflowWrap:anywhere inherits to ALL inline descendants (headers, list
+  // items, inline code) so no single unbroken token can exceed the bubble.
+  // Code blocks are exempt by design: <pre> is white-space:pre with its own
+  // overflow-x-auto scrollbar.
+  return (
+    <div className="text-sm break-words overflow-hidden min-w-0" style={{ overflowWrap: 'anywhere' }}>
+      {renderMarkdown(text)}
+    </div>
+  )
 }

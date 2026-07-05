@@ -133,6 +133,7 @@ export function useWebSocket({
       }
 
       // Send a ping
+      const pingSentAt = Date.now()
       try {
         ws.send(JSON.stringify({ type: 'ping' }))
       } catch {
@@ -142,9 +143,14 @@ export function useWebSocket({
         return
       }
 
-      // Set a per-ping timeout: if no data arrives within WS_HEARTBEAT_TIMEOUT, connection is dead
+      // Dead-connection check: close only if NO data arrived since this ping.
+      // The old check (`now - lastData > TIMEOUT`) compared against the same
+      // 10s the timer itself waits — on an idle terminal the pong lands ~5ms
+      // after the ping while the timer fires ≥10s after it, so every healthy
+      // idle connection "timed out" and force-reconnected every ~40s (the
+      // periodic terminal clear/refresh users saw).
       pongTimeoutRef.current = setTimeout(() => {
-        if (Date.now() - lastDataRef.current > WS_HEARTBEAT_TIMEOUT) {
+        if (lastDataRef.current < pingSentAt) {
           console.warn('[WS] Heartbeat timeout — no pong received, forcing reconnect')
           stopHeartbeat()
           ws.close()

@@ -264,6 +264,18 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
       const current = resolveJsonlPath(agent)
       if (!current || current.path === sessionState.jsonlFilePath) return
 
+      // Flap guard: sibling .jsonl files (subagent/sidechain transcripts) can
+      // out-mtime the main conversation while BOTH are being written. Only
+      // rotate when the watched file has gone quiet (no writes for 60s) —
+      // a real /clear or new conversation, not a busy sidechain.
+      if (sessionState.jsonlFilePath) {
+        try {
+          const watchedMtime = fs.statSync(sessionState.jsonlFilePath).mtimeMs
+          if (Date.now() - watchedMtime < 60000) return
+          if (current.mtime.getTime() <= watchedMtime) return
+        } catch { /* watched file deleted — rotate */ }
+      }
+
       console.log(`[Chat] Conversation rotated for ${sessionName}: ${sessionState.jsonlFilePath} → ${current.path}`)
       if (sessionState.jsonlFilePath) {
         try { fs.unwatchFile(sessionState.jsonlFilePath) } catch { /* ignore */ }
@@ -1945,6 +1957,17 @@ async function startServer(handleRequest) {
     // and therefore every other session's output — for up to 5s per connect.
     execFile('tmux', tmuxArgs(['set-option', '-t', sessionName, 'mouse', 'off']), { timeout: 2000 }, (err) => {
       if (err) console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, err.message)
+    })
+
+    // Disable the alternate screen for agent sessions. Claude Code runs on the
+    // alt screen, and tmux keeps ZERO history for alt-screen panes — so there
+    // was nothing to scroll into (copy-mode blocked after a few lines) and
+    // capture-pane replays were one screenful. With alternate-screen off, the
+    // transcript accumulates in tmux history like a normal terminal (iTerm2
+    // behaves this way by default). Takes effect the next time the app enters
+    // the alt screen — i.e. after the claude process in the session restarts.
+    execFile('tmux', tmuxArgs(['set-option', '-w', '-t', sessionName, 'alternate-screen', 'off']), { timeout: 2000 }, (err) => {
+      if (err) console.warn(`[PTY] Failed to set alternate-screen off for ${sessionName}:`, err.message)
     })
 
     // Track connection as activity (so newly opened sessions show as active)

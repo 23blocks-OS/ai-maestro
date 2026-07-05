@@ -473,6 +473,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
     if (!isMobile || !terminal || !terminalRef.current) return
 
     let touchStartY = 0
+    let touchTmuxDepth = 0 // approx. lines scrolled into tmux copy-mode
     let isTouchingTerminal = false
     const terminalElement = terminalRef.current
 
@@ -500,10 +501,20 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       const linesToScroll = Math.round(deltaY / 30) // 30px per line (slower scroll)
 
       if (Math.abs(linesToScroll) > 0) {
-        if (terminal.buffer.active.type === 'alternate') {
-          // Alt-screen (Claude Code): real scrollback lives in tmux — drive
-          // copy-mode server-side (same protocol as the desktop wheel handler)
+        // Two-tier scrollback (mirrors the desktop wheel handler): local xterm
+        // buffer first; when exhausted (or alt screen), forward to tmux
+        // copy-mode server-side. Depth tracks how far we've scrolled into tmux.
+        const buf = terminal.buffer.active
+        if (linesToScroll < 0) {
+          if (buf.type === 'alternate' || buf.viewportY <= 0) {
+            sendMessage(JSON.stringify({ type: 'tmux-scroll', lines: linesToScroll }))
+            touchTmuxDepth = Math.min(touchTmuxDepth - linesToScroll, 100000)
+          } else {
+            terminal.scrollLines(linesToScroll)
+          }
+        } else if (touchTmuxDepth > 0) {
           sendMessage(JSON.stringify({ type: 'tmux-scroll', lines: linesToScroll }))
+          touchTmuxDepth = Math.max(0, touchTmuxDepth - linesToScroll)
         } else {
           terminal.scrollLines(linesToScroll)
         }

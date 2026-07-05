@@ -313,13 +313,19 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     })
 
     // Wheel handler: intercept mouse wheel at the DOM level (capture phase).
-    // - Normal buffer: scroll xterm.js scrollback directly (as before).
-    // - Alternate screen (Claude Code, vim, less): xterm has NO alt-screen
-    //   scrollback — the history lives in tmux. Send an accumulated
-    //   'tmux-scroll' control message; the server drives tmux copy-mode
-    //   (auto-exiting when scrolled back to the bottom). tmux mouse stays off,
-    //   so native browser selection keeps working.
+    // Seamless two-tier scrollback:
+    // - Scrolling UP uses xterm's local scrollback first; when it's exhausted
+    //   (or the app is on the alternate screen, which has none), the deltas are
+    //   forwarded as 'tmux-scroll' messages and the server drives tmux
+    //   copy-mode — the real server-side history. NOTE: the client buffer type
+    //   can't be trusted as the only signal — after a reconnect the capture
+    //   replay never includes the alt-screen-enter sequence, so the client
+    //   sits in the normal buffer even when the tmux pane is alternate.
+    // - Scrolling DOWN unwinds tmux copy-mode first (server auto-exits it at
+    //   the bottom via `copy-mode -e`), then scrolls the local viewport.
+    // tmux mouse stays off, so native browser selection keeps working.
     let pendingTmuxScroll = 0
+    let tmuxCopyDepth = 0 // approx. lines we've scrolled into tmux copy-mode
     let tmuxScrollTimer: ReturnType<typeof setTimeout> | null = null
     const flushTmuxScroll = () => {
       tmuxScrollTimer = null
@@ -328,17 +334,37 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       }
       pendingTmuxScroll = 0
     }
+    const queueTmuxScroll = (lines: number) => {
+      // Accumulate deltas for 80ms so fast scrolling doesn't flood the
+      // server with one tmux command per wheel tick
+      pendingTmuxScroll += lines
+      if (!tmuxScrollTimer) tmuxScrollTimer = setTimeout(flushTmuxScroll, 80)
+    }
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
       const lines = Math.round(e.deltaY / 25) || (e.deltaY > 0 ? 1 : -1)
-      if (terminal.buffer.active.type === 'alternate' && sendDataRef.current) {
-        // Accumulate deltas for 80ms so fast scrolling doesn't flood the
-        // server with one tmux command per wheel tick
-        pendingTmuxScroll += lines
-        if (!tmuxScrollTimer) tmuxScrollTimer = setTimeout(flushTmuxScroll, 80)
+      const buf = terminal.buffer.active
+      const canForward = !!sendDataRef.current
+      if (lines < 0) {
+        // Scrolling up: local first, tmux when local can't go further
+        const localExhausted = buf.viewportY <= 0
+        if (canForward && (buf.type === 'alternate' || localExhausted)) {
+          queueTmuxScroll(lines)
+          tmuxCopyDepth = Math.min(tmuxCopyDepth - lines, 100000)
+        } else {
+          terminal.scrollLines(lines)
+        }
       } else {
-        terminal.scrollLines(lines)
+        // Scrolling down: unwind tmux copy-mode first, then local viewport.
+        // Depth is approximate (copy-mode may have hit the top of history);
+        // over-forwarded scroll-downs fail harmlessly server-side.
+        if (canForward && tmuxCopyDepth > 0) {
+          queueTmuxScroll(lines)
+          tmuxCopyDepth = Math.max(0, tmuxCopyDepth - lines)
+        } else {
+          terminal.scrollLines(lines)
+        }
       }
     }
     container.addEventListener('wheel', handleWheel, { passive: false, capture: true })

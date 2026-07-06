@@ -369,6 +369,19 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               break
             }
 
+            case 'chat:sendFailed': {
+              // Server refused/failed the send — remove the matching pending
+              // bubble so it doesn't sit on "sending" forever; the chat:error
+              // banner (sent alongside) explains what happened
+              const failedText = (data.message || '').trim()
+              setPendingMessages(prev => {
+                const idx = prev.findIndex(p => p.text.trim() === failedText)
+                if (idx === -1) return prev
+                return prev.filter((_, i) => i !== idx)
+              })
+              break
+            }
+
             case 'chat:error': {
               setError(data.error || 'Unknown error')
               break

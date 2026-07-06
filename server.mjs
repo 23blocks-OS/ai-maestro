@@ -626,7 +626,8 @@ function getAgentIdForSession(sessionName) {
  * 2. Capture pane baseline.
  * 3. Write text to a temp file, load into tmux buffer, paste into pane.
  * 4. Poll until the tail of the text appears in the pane (paste-probe).
- * 5. Send Enter only after verification (or after timeout).
+ * 5. Send Enter ONLY after verification. On probe timeout: clear the staged
+ *    text (C-u) and fail — never Enter-anyway (risked truncated submissions).
  *
  * Returns { ok, error? }
  */
@@ -695,18 +696,33 @@ async function sendChatMessage(sessionName, message) {
 
   // 5. Paste-probe: poll until text tail appears in pane
   const probe = pasteTailProbe(message)
+  let verified = true
   if (probe) {
-    const baselineCount = (baseline.match(new RegExp(probe.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
+    verified = false
+    const probeRe = new RegExp(probe.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+    const baselineCount = (baseline.match(probeRe) || []).length
     const deadline = Date.now() + PASTE_PROBE_TIMEOUT_MS
     while (Date.now() < deadline) {
       const captured = capturePaneCompact(sessionName)
-      const currentCount = (captured.match(new RegExp(probe.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
-      if (currentCount > baselineCount) break
+      const currentCount = (captured.match(probeRe) || []).length
+      if (currentCount > baselineCount) { verified = true; break }
       await new Promise(r => setTimeout(r, PASTE_PROBE_INTERVAL_MS))
     }
   }
 
-  // 6. Send Enter (C-m is more reliable than Enter through tmux)
+  // 6. If the paste never appeared, DO NOT press Enter. Pressing it anyway
+  // (the old behavior) could submit a truncated message or confirm whatever
+  // dialog is actually on screen — silently. Clear the staged text (C-u
+  // deletes to line start in both Claude Code's input box and readline) so a
+  // retry doesn't double the text, and report failure so the client shows
+  // the pending bubble as failed with a Retry button.
+  if (!verified) {
+    try { execSync(`tmux send-keys -t "${sessionName}" C-u`, { timeout: 2000 }) } catch { /* best effort */ }
+    console.warn(`[Chat] Paste-probe failed for ${sessionName} — message NOT submitted`)
+    return { ok: false, error: 'Message could not be confirmed in the terminal — nothing was sent. The agent may be busy or showing a dialog; check the Terminal tab, then retry.' }
+  }
+
+  // 7. Send Enter (C-m is more reliable than Enter through tmux)
   try {
     execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
   } catch (err) {
@@ -1613,6 +1629,9 @@ async function startServer(handleRequest) {
                 }
               } else {
                 if (ws.readyState === 1) {
+                  // sendFailed carries the original text so the client can mark
+                  // the exact pending bubble as failed (with Retry) immediately
+                  ws.send(JSON.stringify({ type: 'chat:sendFailed', message: parsed.message, error: result.error }))
                   ws.send(JSON.stringify({ type: 'chat:error', error: result.error }))
                 }
               }
@@ -2087,6 +2106,9 @@ async function startServer(handleRequest) {
                 }
               } else {
                 if (ws.readyState === 1) {
+                  // sendFailed carries the original text so the client can mark
+                  // the exact pending bubble as failed (with Retry) immediately
+                  ws.send(JSON.stringify({ type: 'chat:sendFailed', message: parsed.message, error: result.error }))
                   ws.send(JSON.stringify({ type: 'chat:error', error: result.error }))
                 }
               }

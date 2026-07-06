@@ -318,6 +318,21 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               break
             }
 
+            case 'chat:sendFailed': {
+              // Server refused/failed the send (permission prompt up, paste
+              // unverified, etc.) — mark the matching pending bubble failed
+              // NOW instead of letting it spin until the 30s expiry
+              const failedText = (data.message || '').trim()
+              setPendingMessages(prev => {
+                const idx = prev.findIndex(p => p.status === 'sending' && p.text.trim() === failedText)
+                if (idx === -1) return prev
+                const next = [...prev]
+                next[idx] = { ...next[idx], status: 'failed' }
+                return next
+              })
+              break
+            }
+
             case 'chat:error': {
               setError(data.error || 'Unknown error')
               setIsLoading(false)

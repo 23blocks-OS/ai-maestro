@@ -13,6 +13,10 @@ export interface UseTerminalOptions {
   disableWebGL?: boolean  // Skip WebGL on touch devices (context loss causes blank terminals)
   onRegister?: (fitAddon: FitAddon) => void
   onUnregister?: () => void
+  /** Whether the END server (local/remote/container) advertised tmux-scroll
+   *  support via a server-caps frame. Old servers type unknown protocol
+   *  frames into the PTY as literal text — never send without this. */
+  getTmuxScrollSupported?: () => boolean
 }
 
 import { debounce } from '@/lib/utils'
@@ -345,7 +349,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       e.stopPropagation()
       const lines = Math.round(e.deltaY / 25) || (e.deltaY > 0 ? 1 : -1)
       const buf = terminal.buffer.active
-      const canForward = !!sendDataRef.current
+      const canForward = !!sendDataRef.current &&
+        optionsRef.current.getTmuxScrollSupported?.() === true
       if (lines < 0) {
         // Scrolling up: local first, tmux when local can't go further
         const localExhausted = buf.viewportY <= 0

@@ -1967,6 +1967,16 @@ async function startServer(handleRequest) {
     // Helper: prepend custom-socket args for tmux invocations on this session
     const tmuxArgs = (args) => (socketPath ? ['-S', socketPath, ...args] : args)
 
+    // Capability handshake: clients must NOT send new protocol frames (like
+    // tmux-scroll) to servers that don't understand them — old servers write
+    // unknown messages straight into the PTY, typing literal JSON into the
+    // agent's prompt. This frame reaches the client through proxies too, so
+    // the client learns the capabilities of the END server (remote hosts on
+    // old versions simply never send it → client falls back gracefully).
+    if (ws.readyState === 1) {
+      try { ws.send(JSON.stringify({ type: 'server-caps', tmuxScroll: true })) } catch { /* ignore */ }
+    }
+
     // Disable tmux mouse mode per-session so xterm.js handles mouse natively.
     // Without this, ~/.tmux.conf "set -g mouse on" causes tmux to intercept
     // click-drag (yellow copy-mode selection instead of browser clipboard).
@@ -2113,6 +2123,14 @@ async function startServer(handleRequest) {
                 }
               }
             }
+            return
+          }
+
+          // Unknown protocol frame (JSON with a type field we don't handle):
+          // DROP it — never write it to the PTY. Old servers typed frames like
+          // {"type":"tmux-scroll"} into the agent's prompt as literal text.
+          if (parsed && typeof parsed.type === 'string') {
+            console.warn(`[WS] Dropping unknown protocol frame '${parsed.type}' for ${sessionName}`)
             return
           }
         } catch {

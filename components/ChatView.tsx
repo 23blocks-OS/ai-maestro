@@ -33,7 +33,7 @@ function ThinkingBlock({ text, timestamp }: { text: string; timestamp?: string }
             )}
           </div>
           {expanded ? (
-            <div className="text-sm text-purple-200/80 whitespace-pre-wrap break-words italic max-h-64 overflow-y-auto select-text" style={{ overflowWrap: 'anywhere' }}>
+            <div className="text-sm text-purple-200/80 whitespace-pre-wrap break-words italic max-h-64 overflow-y-auto select-text">
               {text}
             </div>
           ) : (
@@ -956,7 +956,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   {/* Content — use markdown for assistant, plain for user */}
                   {content && (
                     (isUser || isQueued) ? (
-                      <div className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>
+                      <div className="text-sm whitespace-pre-wrap break-words">
                         {content}
                       </div>
                     ) : (
@@ -1206,7 +1206,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                     {formatTimestamp(pending.timestamp)}
                   </span>
                 </div>
-                <div className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>{pending.text}</div>
+                <div className="text-sm whitespace-pre-wrap break-words">{pending.text}</div>
                 {pending.status === 'failed' && (
                   <div className="flex items-center gap-2 mt-2">
                     <button

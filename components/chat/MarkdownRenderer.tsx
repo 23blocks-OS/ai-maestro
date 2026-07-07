@@ -163,7 +163,7 @@ function renderMarkdown(text: string): JSX.Element {
     // Regular line
     if (line.trim()) {
       elements.push(
-        <p key={i} className="whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>
+        <p key={i} className="whitespace-pre-wrap break-words">
           {renderInline(line)}
         </p>
       )
@@ -182,12 +182,13 @@ function renderMarkdown(text: string): JSX.Element {
 }
 
 export function MarkdownContent({ text }: { text: string }) {
-  // overflowWrap:anywhere inherits to ALL inline descendants (headers, list
-  // items, inline code) so no single unbroken token can exceed the bubble.
-  // Code blocks are exempt by design: <pre> is white-space:pre with its own
-  // overflow-x-auto scrollbar.
+  // `break-words` (overflow-wrap: break-word) wraps long unbroken tokens
+  // (paths, URLs) so they can't overflow the bubble — WITHOUT the min-content
+  // collapse that `overflow-wrap: anywhere` caused (bubbles shrank to ~1char
+  // wide, wrapping every character). Code blocks keep their own horizontal
+  // scrollbar (<pre> is white-space: pre).
   return (
-    <div className="text-sm break-words overflow-hidden min-w-0" style={{ overflowWrap: 'anywhere' }}>
+    <div className="text-sm break-words overflow-hidden min-w-0">
       {renderMarkdown(text)}
     </div>
   )

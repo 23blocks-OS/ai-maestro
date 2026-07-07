@@ -219,6 +219,19 @@ export function useWebSocket({
             return
           }
 
+          // Terminal protocol frames the VIEW layer must see — forward to
+          // onMessage, whose own JSON handling consumes them:
+          //   history-complete → scroll-to-bottom + unlocks resize forwarding
+          //   server-caps      → gates the tmux-scroll feature
+          //   connected        → container attach logging
+          // This blanket typed-JSON drop below used to swallow these too,
+          // leaving TerminalView's handlers dead (resize gate never opened,
+          // caps never learned).
+          if (parsed.type === 'history-complete' || parsed.type === 'server-caps' || parsed.type === 'connected') {
+            onMessageRef.current?.(event.data)
+            return
+          }
+
           // Any other JSON with a 'type' field is a protocol message we don't
           // recognize — drop it silently instead of leaking raw JSON into the
           // terminal (this prevents {"type":"ping"} / pong / etc. from appearing

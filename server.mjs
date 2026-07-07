@@ -694,35 +694,27 @@ async function sendChatMessage(sessionName, message) {
   }
   try { fs.unlinkSync(tmpFile) } catch {}
 
-  // 5. Paste-probe: poll until text tail appears in pane
+  // 5. Paste-probe: best-effort wait for the text tail to appear in the pane.
+  // This is ADVISORY ONLY — the probe has false negatives (Claude Code's input
+  // box renders pasted text in ways capture-pane doesn't always match), so we
+  // must NOT gate submission on it. We wait up to the timeout to let the paste
+  // settle before Enter, then send Enter regardless. (A previous version failed
+  // the send on an unverified probe, which silently dropped messages that had
+  // actually pasted fine.)
   const probe = pasteTailProbe(message)
-  let verified = true
   if (probe) {
-    verified = false
     const probeRe = new RegExp(probe.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
     const baselineCount = (baseline.match(probeRe) || []).length
     const deadline = Date.now() + PASTE_PROBE_TIMEOUT_MS
     while (Date.now() < deadline) {
       const captured = capturePaneCompact(sessionName)
       const currentCount = (captured.match(probeRe) || []).length
-      if (currentCount > baselineCount) { verified = true; break }
+      if (currentCount > baselineCount) break
       await new Promise(r => setTimeout(r, PASTE_PROBE_INTERVAL_MS))
     }
   }
 
-  // 6. If the paste never appeared, DO NOT press Enter. Pressing it anyway
-  // (the old behavior) could submit a truncated message or confirm whatever
-  // dialog is actually on screen — silently. Clear the staged text (C-u
-  // deletes to line start in both Claude Code's input box and readline) so a
-  // retry doesn't double the text, and report failure so the client shows
-  // the pending bubble as failed with a Retry button.
-  if (!verified) {
-    try { execSync(`tmux send-keys -t "${sessionName}" C-u`, { timeout: 2000 }) } catch { /* best effort */ }
-    console.warn(`[Chat] Paste-probe failed for ${sessionName} — message NOT submitted`)
-    return { ok: false, error: 'Message could not be confirmed in the terminal — nothing was sent. The agent may be busy or showing a dialog; check the Terminal tab, then retry.' }
-  }
-
-  // 7. Send Enter (C-m is more reliable than Enter through tmux)
+  // 6. Send Enter (C-m is more reliable than Enter through tmux)
   try {
     execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
   } catch (err) {

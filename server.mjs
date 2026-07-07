@@ -666,7 +666,25 @@ function isAgentAtPermissionPrompt(sessionName) {
   } catch { return false }
 }
 
+/** Exit tmux copy-mode if the pane is in it. The terminal scroll feature
+ *  (tmux-scroll → copy-mode) can leave a pane in copy-mode; while there,
+ *  paste-buffer shows text but Enter (C-m) is consumed by copy-mode instead
+ *  of submitting to the program. Safe to call when not in copy-mode. */
+function exitCopyMode(sessionName) {
+  try {
+    const inMode = execSync(`tmux display-message -p -t "${sessionName}" '#{pane_in_mode}'`,
+      { timeout: 2000, encoding: 'utf-8' }).trim()
+    if (inMode === '1') {
+      execSync(`tmux send-keys -t "${sessionName}" -X cancel`, { timeout: 2000 })
+    }
+  } catch { /* best effort */ }
+}
+
 async function sendChatMessage(sessionName, message) {
+  // 0. Ensure the pane isn't in copy-mode (scrolling leaves it there) — else
+  // the paste shows but Enter never submits.
+  exitCopyMode(sessionName)
+
   // 1. Check hookState first (fast path)
   const sessionState = terminalSessions.get(sessionName)
   if (sessionState?._lastPermission?.status === 'permission_request') {

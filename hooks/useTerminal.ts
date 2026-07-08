@@ -13,10 +13,6 @@ export interface UseTerminalOptions {
   disableWebGL?: boolean  // Skip WebGL on touch devices (context loss causes blank terminals)
   onRegister?: (fitAddon: FitAddon) => void
   onUnregister?: () => void
-  /** Whether the END server (local/remote/container) advertised tmux-scroll
-   *  support via a server-caps frame. Old servers type unknown protocol
-   *  frames into the PTY as literal text — never send without this. */
-  getTmuxScrollSupported?: () => boolean
 }
 
 import { debounce } from '@/lib/utils'
@@ -316,71 +312,25 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       }
     })
 
-    // Wheel handler: intercept mouse wheel at the DOM level (capture phase).
-    // Seamless two-tier scrollback:
-    // - Scrolling UP uses xterm's local scrollback first; when it's exhausted
-    //   (or the app is on the alternate screen, which has none), the deltas are
-    //   forwarded as 'tmux-scroll' messages and the server drives tmux
-    //   copy-mode — the real server-side history. NOTE: the client buffer type
-    //   can't be trusted as the only signal — after a reconnect the capture
-    //   replay never includes the alt-screen-enter sequence, so the client
-    //   sits in the normal buffer even when the tmux pane is alternate.
-    // - Scrolling DOWN unwinds tmux copy-mode first (server auto-exits it at
-    //   the bottom via `copy-mode -e`), then scrolls the local viewport.
-    // tmux mouse stays off, so native browser selection keeps working.
-    let pendingTmuxScroll = 0
-    let tmuxCopyDepth = 0 // approx. lines we've scrolled into tmux copy-mode
-    let tmuxScrollTimer: ReturnType<typeof setTimeout> | null = null
-    const flushTmuxScroll = () => {
-      tmuxScrollTimer = null
-      if (pendingTmuxScroll !== 0 && sendDataRef.current) {
-        sendDataRef.current(JSON.stringify({ type: 'tmux-scroll', lines: pendingTmuxScroll }))
-      }
-      pendingTmuxScroll = 0
-    }
-    const queueTmuxScroll = (lines: number) => {
-      // Accumulate deltas for 80ms so fast scrolling doesn't flood the
-      // server with one tmux command per wheel tick
-      pendingTmuxScroll += lines
-      if (!tmuxScrollTimer) tmuxScrollTimer = setTimeout(flushTmuxScroll, 80)
-    }
+    // Wheel handler: intercept mouse wheel at the DOM level (capture phase) and
+    // scroll xterm's local buffer. We do NOT drive tmux copy-mode: Claude Code
+    // runs on tmux's alternate screen, which keeps zero history, so copy-mode
+    // just showed an empty "0/0" and stranded the pane (breaking Enter/typing).
+    // Real scrollback comes instead from `alternate-screen off` (set per session
+    // on the server) — Claude's output then accumulates in xterm's normal-buffer
+    // scrollback and this plain scroll handles it. Takes effect after the agent's
+    // claude process restarts. tmux mouse stays off, so native selection works.
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
       const lines = Math.round(e.deltaY / 25) || (e.deltaY > 0 ? 1 : -1)
-      const buf = terminal.buffer.active
-      const canForward = !!sendDataRef.current &&
-        optionsRef.current.getTmuxScrollSupported?.() === true
-      if (lines < 0) {
-        // Scrolling up: local first, tmux when local can't go further
-        const localExhausted = buf.viewportY <= 0
-        if (canForward && (buf.type === 'alternate' || localExhausted)) {
-          queueTmuxScroll(lines)
-          tmuxCopyDepth = Math.min(tmuxCopyDepth - lines, 100000)
-        } else {
-          terminal.scrollLines(lines)
-        }
-      } else {
-        // Scrolling down: unwind tmux copy-mode first, then local viewport.
-        // Depth is approximate (copy-mode may have hit the top of history);
-        // over-forwarded scroll-downs fail harmlessly server-side.
-        if (canForward && tmuxCopyDepth > 0) {
-          queueTmuxScroll(lines)
-          tmuxCopyDepth = Math.max(0, tmuxCopyDepth - lines)
-        } else {
-          terminal.scrollLines(lines)
-        }
-      }
+      terminal.scrollLines(lines)
     }
     container.addEventListener('wheel', handleWheel, { passive: false, capture: true })
 
     // Cleanup function
     return () => {
       container.removeEventListener('wheel', handleWheel, { capture: true } as EventListenerOptions)
-      if (tmuxScrollTimer) {
-        clearTimeout(tmuxScrollTimer)
-        tmuxScrollTimer = null
-      }
       resizeObserver.disconnect()
       // Dispose WebGL addon before terminal to free GPU context cleanly
       if (webglAddonRef.current) {

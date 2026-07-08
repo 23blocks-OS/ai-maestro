@@ -36,9 +36,6 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
   const messageBufferRef = useRef<string[]>([])
   const historyCompleteRef = useRef(false)
   const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null)
-  // True only after the END server (local/remote/container) advertises
-  // tmux-scroll support — old servers type unknown frames into the prompt
-  const tmuxScrollCapsRef = useRef(false)
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const { isTouch } = useDeviceType()
@@ -108,7 +105,6 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
   const { terminal, initializeTerminal, fitTerminal, setSendData } = useTerminal({
     sessionId: session.id,
     disableWebGL: isTouch,  // MOBILE FIX: WebGL context loss on backgrounding causes blank terminals
-    getTmuxScrollSupported: () => tmuxScrollCapsRef.current,
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
       registerTerminal(session.id, fitAddon)
@@ -221,8 +217,6 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       // Reset history gate — server will send history then history-complete
       historyCompleteRef.current = false
       lastSentSizeRef.current = null
-      // Re-learn server capabilities on every (re)connect
-      tmuxScrollCapsRef.current = false
       // On reconnect, clear the terminal before fresh history arrives.
       // Without this, the 5000-line history dump from the server is appended
       // to existing content, causing visible duplication every reconnect cycle.
@@ -266,10 +260,10 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
           return
         }
 
-        // Server capability advertisement (passes through proxies, so this
-        // reflects the END server — old remote hosts never send it)
+        // Server capability advertisement — consumed (currently unused; the
+        // tmux copy-mode scroll feature was removed). Drop so it isn't written
+        // to the terminal.
         if (parsed.type === 'server-caps') {
-          tmuxScrollCapsRef.current = parsed.tmuxScroll === true
           return
         }
 
@@ -486,7 +480,6 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
     if (!isMobile || !terminal || !terminalRef.current) return
 
     let touchStartY = 0
-    let touchTmuxDepth = 0 // approx. lines scrolled into tmux copy-mode
     let isTouchingTerminal = false
     const terminalElement = terminalRef.current
 
@@ -514,26 +507,9 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       const linesToScroll = Math.round(deltaY / 30) // 30px per line (slower scroll)
 
       if (Math.abs(linesToScroll) > 0) {
-        // Two-tier scrollback (mirrors the desktop wheel handler): local xterm
-        // buffer first; when exhausted (or alt screen), forward to tmux
-        // copy-mode server-side. Depth tracks how far we've scrolled into tmux.
-        // Only forward when the END server advertised support (server-caps) —
-        // old hosts type unknown frames into the prompt as literal text.
-        const buf = terminal.buffer.active
-        const canForward = tmuxScrollCapsRef.current
-        if (linesToScroll < 0) {
-          if (canForward && (buf.type === 'alternate' || buf.viewportY <= 0)) {
-            sendMessage(JSON.stringify({ type: 'tmux-scroll', lines: linesToScroll }))
-            touchTmuxDepth = Math.min(touchTmuxDepth - linesToScroll, 100000)
-          } else {
-            terminal.scrollLines(linesToScroll)
-          }
-        } else if (canForward && touchTmuxDepth > 0) {
-          sendMessage(JSON.stringify({ type: 'tmux-scroll', lines: linesToScroll }))
-          touchTmuxDepth = Math.max(0, touchTmuxDepth - linesToScroll)
-        } else {
-          terminal.scrollLines(linesToScroll)
-        }
+        // Plain xterm scroll (see the desktop wheel handler note): tmux
+        // copy-mode forwarding was removed — alt-screen panes have no history.
+        terminal.scrollLines(linesToScroll)
         touchStartY = touchY
       }
 

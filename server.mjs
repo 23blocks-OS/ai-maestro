@@ -1538,6 +1538,24 @@ async function startServer(handleRequest) {
     const env = { ...process.env }
     delete env.ANTHROPIC_API_KEY
 
+    // HEADLESS AUTH (macOS): a background server (pm2 daemon) cannot reach the
+    // macOS Keychain where the interactive `claude /login` stores subscription
+    // credentials — so a spawned claude reports "Not logged in". The reliable
+    // headless path is a long-lived token from `claude setup-token`, injected
+    // as CLAUDE_CODE_OAUTH_TOKEN. Read it from the env, or from a file the user
+    // drops at ~/.aimaestro/claude-oauth-token. (Same mechanism avogado-backend
+    // uses; on Linux the ~/.claude/.credentials.json file works without this.)
+    if (!env.CLAUDE_CODE_OAUTH_TOKEN) {
+      try {
+        const tokenFile = path.join(os.homedir(), '.aimaestro', 'claude-oauth-token')
+        if (fs.existsSync(tokenFile)) {
+          const t = fs.readFileSync(tokenFile, 'utf-8').trim()
+          if (t) env.CLAUDE_CODE_OAUTH_TOKEN = t
+        }
+      } catch { /* ignore */ }
+    }
+    const hasHeadlessToken = !!env.CLAUDE_CODE_OAUTH_TOKEN
+
     let proc
     try {
       proc = spawn('claude', [
@@ -1554,8 +1572,8 @@ async function startServer(handleRequest) {
       return
     }
 
-    console.log(`[StreamChat] Spawned claude (pid ${proc.pid}) in ${workingDir}`)
-    try { ws.send(JSON.stringify({ type: 'stream:ready', cwd: workingDir })) } catch {}
+    console.log(`[StreamChat] Spawned claude (pid ${proc.pid}) in ${workingDir} (headlessToken: ${hasHeadlessToken})`)
+    try { ws.send(JSON.stringify({ type: 'stream:ready', cwd: workingDir, hasToken: hasHeadlessToken })) } catch {}
 
     // Parse NDJSON from stdout, forward each event to the browser
     let buf = ''

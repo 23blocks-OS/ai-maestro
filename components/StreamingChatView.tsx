@@ -40,6 +40,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
   const [connected, setConnected] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [noToken, setNoToken] = useState(false)
   const [meta, setMeta] = useState<Meta>({})
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -88,6 +89,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
       switch (msg.type) {
         case 'stream:ready':
           setConnected(true)
+          setNoToken(msg.hasToken === false)
           break
         case 'stream:error':
           setError(msg.error || 'Stream error')
@@ -111,10 +113,16 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
               appendText(inner.delta.text || '')
             }
           } else if (ev.type === 'assistant') {
-            // full assistant message — use it ONLY for tool_use blocks
-            // (text already streamed via deltas above)
+            // full assistant message — authoritative. Set text from its text
+            // blocks (covers responses that arrive with NO deltas, e.g. the
+            // "Not logged in" error), and add tool_use cards.
             const content = ev.message?.content
             if (Array.isArray(content)) {
+              const text = content.filter((b: any) => b.type === 'text' && b.text).map((b: any) => b.text).join('')
+              if (text) {
+                const id = ensureAssistant()
+                setTurns(prev => prev.map(t => t.id === id ? { ...t, text } : t))
+              }
               for (const block of content) {
                 if (block.type === 'tool_use') addTool(block.name || 'tool', block.input)
               }
@@ -185,6 +193,12 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4" style={{ minHeight: 0 }}>
+        {noToken && (
+          <div className="px-4 py-3 bg-amber-900/20 border border-amber-800 rounded-lg text-xs text-amber-300">
+            <p className="font-medium mb-1">⚠️ No headless auth token found</p>
+            <p className="text-amber-300/80">This server can’t use your Keychain login. Run <code className="bg-gray-950/50 px-1 rounded font-mono">claude setup-token</code> in a terminal, then save the token to <code className="bg-gray-950/50 px-1 rounded font-mono">~/.aimaestro/claude-oauth-token</code> and restart. Until then the agent will reply “Not logged in”.</p>
+          </div>
+        )}
         {error && (
           <div className="flex items-center gap-2 px-4 py-3 bg-red-900/20 border border-red-800 rounded-lg text-sm text-red-400">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}

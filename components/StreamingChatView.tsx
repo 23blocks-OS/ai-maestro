@@ -88,9 +88,26 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
 
       switch (msg.type) {
         case 'stream:ready':
+          // Fresh connect OR reconnect to a live session: reset and rebuild
+          // purely from the server's replayed buffer (single source of truth).
           setConnected(true)
           setNoToken(msg.hasToken === false)
+          setTurns([])
+          curAssistantId.current = null
+          setThinking(false)
+          setError(null)
+          setMeta({})
           break
+        case 'stream:replay-done':
+          break
+        case 'stream:user': {
+          // A user turn (this client's or another's) — rebuild it. Server
+          // echoes every send here so live + replay share one code path.
+          curAssistantId.current = null
+          setTurns(prev => [...prev, { id: nextId(), role: 'user', text: msg.text || '', tools: [], done: true }])
+          setThinking(true)
+          break
+        }
         case 'stream:error':
           setError(msg.error || 'Stream error')
           setThinking(false)
@@ -156,7 +173,8 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
     const text = input.trim()
     if (!text || !connected || thinking) return
     if (wsRef.current?.readyState !== WebSocket.OPEN) { setError('Not connected'); return }
-    setTurns(prev => [...prev, { id: nextId(), role: 'user', text, tools: [], done: true }])
+    // No optimistic add — the server echoes a stream:user event that renders
+    // the turn, so live and replay-on-reconnect share one path (no duplicates).
     wsRef.current.send(JSON.stringify({ type: 'send', text }))
     setInput('')
     setThinking(true)

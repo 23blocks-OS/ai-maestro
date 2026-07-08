@@ -1,6 +1,6 @@
 import { createServer } from 'http'
 import { parse } from 'url'
-import { execSync, execFileSync, execFile } from 'child_process'
+import { execSync, execFileSync, execFile, spawn } from 'child_process'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -1512,10 +1512,113 @@ async function startServer(handleRequest) {
     })
   })
 
+  // ── Streaming chat PoC ────────────────────────────────────────────────
+  // Experimental: drives Claude Code in stream-json mode (NOT tmux). One
+  // persistent `claude` process per connection, in the agent's working dir,
+  // on the user's subscription. Send = JSON to stdin; receive = NDJSON events
+  // forwarded to the browser. Completely isolated from the /term path.
+  const streamChatWss = new WebSocketServer({ noServer: true })
+  streamChatWss.on('connection', async (ws, query) => {
+    let workingDir = null
+    try {
+      const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+      const agent = (query.agentId && getAgent(query.agentId)) ||
+        (query.name && getAgentByName(query.name))
+      workingDir = getAgentWorkingDir(agent)
+    } catch { /* fall through */ }
+
+    if (!workingDir) {
+      try { ws.send(JSON.stringify({ type: 'stream:error', error: 'Agent has no working directory' })) } catch {}
+      ws.close(1008, 'no working directory')
+      return
+    }
+
+    // Subscription auth: never pass ANTHROPIC_API_KEY (it silently overrides
+    // the subscription and bills the API). Strip it defensively.
+    const env = { ...process.env }
+    delete env.ANTHROPIC_API_KEY
+
+    let proc
+    try {
+      proc = spawn('claude', [
+        '--input-format', 'stream-json',
+        '--output-format', 'stream-json',
+        '--verbose',
+        '--include-partial-messages',  // token-by-token text deltas
+        '-p',
+        '--permission-mode', 'acceptEdits',
+      ], { cwd: workingDir, env, stdio: ['pipe', 'pipe', 'pipe'] })
+    } catch (err) {
+      try { ws.send(JSON.stringify({ type: 'stream:error', error: 'Failed to launch claude: ' + err.message })) } catch {}
+      ws.close(1011, 'spawn failed')
+      return
+    }
+
+    console.log(`[StreamChat] Spawned claude (pid ${proc.pid}) in ${workingDir}`)
+    try { ws.send(JSON.stringify({ type: 'stream:ready', cwd: workingDir })) } catch {}
+
+    // Parse NDJSON from stdout, forward each event to the browser
+    let buf = ''
+    proc.stdout.on('data', (chunk) => {
+      buf += chunk.toString()
+      let nl
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!line) continue
+        let event
+        try { event = JSON.parse(line) } catch { continue }
+        if (ws.readyState === 1) {
+          try { ws.send(JSON.stringify({ type: 'stream:event', event })) } catch {}
+        }
+      }
+    })
+    proc.stderr.on('data', (chunk) => {
+      const msg = chunk.toString().trim()
+      if (msg) console.warn(`[StreamChat pid ${proc.pid}] stderr: ${msg.slice(0, 200)}`)
+    })
+    proc.on('exit', (code, signal) => {
+      console.log(`[StreamChat] claude exited (pid ${proc.pid}, code ${code}, signal ${signal})`)
+      if (ws.readyState === 1) {
+        try { ws.send(JSON.stringify({ type: 'stream:exit', code, signal })) } catch {}
+      }
+    })
+
+    ws.on('message', (data) => {
+      let msg
+      try { msg = JSON.parse(data.toString()) } catch { return }
+      if (msg.type === 'ping') {
+        if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong' }))
+        return
+      }
+      if (msg.type === 'send' && typeof msg.text === 'string' && msg.text.trim()) {
+        // Write a stream-json user message to the persistent process's stdin
+        const userMsg = { type: 'user', message: { role: 'user', content: msg.text } }
+        try {
+          proc.stdin.write(JSON.stringify(userMsg) + '\n')
+        } catch (err) {
+          if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'stream:error', error: 'Write to claude failed: ' + err.message }))
+        }
+      }
+    })
+
+    const cleanup = () => {
+      try { proc.stdin.end() } catch {}
+      try { proc.kill('SIGTERM') } catch {}
+      setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 2000)
+    }
+    ws.on('close', () => { console.log(`[StreamChat] WS closed, killing pid ${proc.pid}`); cleanup() })
+    ws.on('error', () => cleanup())
+  })
+
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
 
-    if (pathname === '/term') {
+    if (pathname === '/stream-chat') {
+      streamChatWss.handleUpgrade(request, socket, head, (ws) => {
+        streamChatWss.emit('connection', ws, query)
+      })
+    } else if (pathname === '/term') {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request, query)
       })

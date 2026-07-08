@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import ChatView from '@/components/ChatView'
+import StreamingChatView from '@/components/StreamingChatView'
 import MessageCenter from '@/components/MessageCenter'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
@@ -21,7 +22,7 @@ import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { useToast } from '@/contexts/ToastContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop, Zap } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 
@@ -117,7 +118,7 @@ export default function DashboardPage() {
     setLayoutOverride(next)
     localStorage.setItem('aimaestro-layout-mode', next)
   }
-  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'search' | 'export' | 'playback'>(() => {
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'streaming' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'search' | 'export' | 'playback'>(() => {
     if (typeof window === 'undefined') return 'chat'
     const saved = localStorage.getItem('aimaestro-active-tab')
     const validTabs = ['terminal', 'chat', 'messages', 'worktree', 'graph', 'memory', 'docs', 'canvas', 'search', 'export', 'playback']
@@ -769,6 +770,17 @@ export default function DashboardPage() {
                       Chat
                     </button>
                     <button
+                      onClick={() => setActiveTab('streaming')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'streaming'
+                          ? 'text-amber-400 border-b-2 border-amber-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Zap className="w-4 h-4" />
+                      Streaming
+                    </button>
+                    <button
                       onClick={() => setActiveTab('terminal')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'terminal'
@@ -998,6 +1010,16 @@ export default function DashboardPage() {
                       ) : (
                         <ErrorBoundary fallbackLabel="Chat">
                           <ChatView agent={agent} isActive={true} />
+                        </ErrorBoundary>
+                      )
+                    ) : activeTab === 'streaming' ? (
+                      isHibernated ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                          Wake this agent to use streaming chat.
+                        </div>
+                      ) : (
+                        <ErrorBoundary fallbackLabel="Streaming">
+                          <StreamingChatView agent={agent} isActive={true} />
                         </ErrorBoundary>
                       )
                     ) : activeTab === 'messages' ? (

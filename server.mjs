@@ -1,6 +1,6 @@
 import { createServer } from 'http'
 import { parse } from 'url'
-import { execSync, execFileSync, execFile, spawn } from 'child_process'
+import { execSync, execFileSync, execFile } from 'child_process'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -17,6 +17,10 @@ import {
   readHookState,
   hookStateFilePath,
 } from './lib/chat-transcript.mjs'
+import {
+  getOrCreateStreamSession,
+  destroyAllStreamSessions,
+} from './lib/streaming-runtime.mjs'
 import {
   sessionActivity,
   terminalSessions,
@@ -1512,52 +1516,29 @@ async function startServer(handleRequest) {
     })
   })
 
-  // ── Streaming chat PoC ────────────────────────────────────────────────
-  // Experimental: drives Claude Code in stream-json mode (NOT tmux). One
-  // persistent `claude` process per connection, in the agent's working dir,
-  // on the user's subscription. Send = JSON to stdin; receive = NDJSON events
-  // forwarded to the browser. Completely isolated from the /term path.
-  // Persistent per-agent streaming sessions: one claude process kept alive per
-  // agent, its full event stream buffered so a returning client replays the
-  // whole conversation and continues the SAME live session (context intact).
-  // agentKey -> { proc, cwd, hasToken, events:[envelopeStrings], clients:Set,
-  //              idleTimer, exited, stdoutBuf }
-  const streamSessions = new Map()
-  const STREAM_IDLE_MS = 15 * 60 * 1000  // kill a session 15 min after the last client leaves
-  const STREAM_BUFFER_MAX = 5000         // cap buffered events (older ones drop)
-
-  function streamResolveToken() {
-    const env = { ...process.env }
-    delete env.ANTHROPIC_API_KEY  // never let an API key silently override the subscription
-    if (!env.CLAUDE_CODE_OAUTH_TOKEN) {
-      try {
-        const tokenFile = path.join(os.homedir(), '.aimaestro', 'claude-oauth-token')
-        if (fs.existsSync(tokenFile)) {
-          const t = fs.readFileSync(tokenFile, 'utf-8').trim()
-          if (t) env.CLAUDE_CODE_OAUTH_TOKEN = t
-        }
-      } catch { /* ignore */ }
-    }
-    return env
-  }
-
-  function streamBufferAndBroadcast(session, envelope, exceptWs = null) {
-    session.events.push(envelope)
-    if (session.events.length > STREAM_BUFFER_MAX) session.events.shift()
-    session.clients.forEach((c) => {
-      if (c !== exceptWs && c.readyState === 1) { try { c.send(envelope) } catch { /* client gone */ } }
-    })
-  }
-
+  // ── Streaming chat (Agent SDK runtime) ───────────────────────────────
+  // Drives Claude via the Agent SDK in stream-json mode (NOT tmux). One
+  // persistent per-agent SDK session (lib/streaming-runtime.mjs): resume-aware,
+  // subscription auth, canUseTool permission cards. Isolated from /term.
   const streamChatWss = new WebSocketServer({ noServer: true })
   streamChatWss.on('connection', async (ws, query) => {
     const agentKey = (query.agentId || query.name || '').toString()
-    let workingDir = null
+    let workingDir = null, agentName = null, resumeSessionId = null
     try {
       const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
-      const agent = (query.agentId && getAgent(query.agentId)) ||
-        (query.name && getAgentByName(query.name))
+      const agent = (query.agentId && getAgent(query.agentId)) || (query.name && getAgentByName(query.name))
       workingDir = getAgentWorkingDir(agent)
+      agentName = agent?.name || agent?.alias || (query.name || null)
+      // Phase 1: resume the agent's latest conversation so streaming continues
+      // whatever it was doing — BUT only if it is NOT currently live in tmux
+      // (resuming an active terminal session would put two processes on one
+      // session_id). If a live tmux session exists, start fresh.
+      let terminalLive = false
+      try { execFileSync('tmux', ['has-session', '-t', agentName || agentKey], { stdio: 'ignore', timeout: 2000 }); terminalLive = true } catch { /* not live */ }
+      if (!terminalLive) {
+        const latest = resolveJsonlPath(agent)
+        if (latest && latest.name.endsWith('.jsonl')) resumeSessionId = latest.name.slice(0, -6)
+      }
     } catch { /* fall through */ }
 
     if (!workingDir || !agentKey) {
@@ -1566,115 +1547,39 @@ async function startServer(handleRequest) {
       return
     }
 
-    let session = streamSessions.get(agentKey)
-    if (session && session.exited) { streamSessions.delete(agentKey); session = null }
-
-    // ── New session: spawn the persistent claude process ──────────────────
-    if (!session) {
-      const env = streamResolveToken()
-      let proc
-      try {
-        proc = spawn('claude', [
-          '--input-format', 'stream-json',
-          '--output-format', 'stream-json',
-          '--verbose',
-          '--include-partial-messages',  // token-by-token text deltas
-          '-p',
-          '--permission-mode', 'acceptEdits',
-        ], { cwd: workingDir, env, stdio: ['pipe', 'pipe', 'pipe'] })
-      } catch (err) {
-        try { ws.send(JSON.stringify({ type: 'stream:error', error: 'Failed to launch claude: ' + err.message })) } catch {}
-        ws.close(1011, 'spawn failed')
-        return
-      }
-
-      session = {
-        proc, cwd: workingDir, hasToken: !!env.CLAUDE_CODE_OAUTH_TOKEN,
-        events: [], clients: new Set(), idleTimer: null, exited: false, stdoutBuf: '',
-      }
-      streamSessions.set(agentKey, session)
-      console.log(`[StreamChat] Spawned persistent claude (pid ${proc.pid}) for ${agentKey} in ${workingDir} (token: ${session.hasToken})`)
-
-      // Wire stdout ONCE — buffer + broadcast to all clients of this session
-      proc.stdout.on('data', (chunk) => {
-        session.stdoutBuf += chunk.toString()
-        let nl
-        while ((nl = session.stdoutBuf.indexOf('\n')) !== -1) {
-          const line = session.stdoutBuf.slice(0, nl).trim()
-          session.stdoutBuf = session.stdoutBuf.slice(nl + 1)
-          if (!line) continue
-          let event
-          try { event = JSON.parse(line) } catch { continue }
-          streamBufferAndBroadcast(session, JSON.stringify({ type: 'stream:event', event }))
-        }
+    let session
+    try {
+      session = getOrCreateStreamSession(agentKey, {
+        cwd: workingDir,
+        agentId: query.agentId || null,
+        agentName,
+        resumeSessionId,
       })
-      proc.stderr.on('data', (chunk) => {
-        const msg = chunk.toString().trim()
-        if (msg) console.warn(`[StreamChat pid ${proc.pid}] stderr: ${msg.slice(0, 200)}`)
-      })
-      proc.on('exit', (code, signal) => {
-        console.log(`[StreamChat] claude exited (pid ${proc.pid}, ${agentKey}, code ${code}, signal ${signal})`)
-        session.exited = true
-        streamBufferAndBroadcast(session, JSON.stringify({ type: 'stream:exit', code, signal }))
-      })
-    } else if (session.idleTimer) {
-      // Returning client — cancel the pending idle-kill
-      clearTimeout(session.idleTimer)
-      session.idleTimer = null
+    } catch (err) {
+      try { ws.send(JSON.stringify({ type: 'stream:error', error: 'Failed to start streaming session: ' + (err && err.message || err) })) } catch {}
+      ws.close(1011, 'runtime error')
+      return
     }
 
-    // Register this client and send ready + full replay so the UI rebuilds
-    session.clients.add(ws)
-    const resumed = session.events.length > 0
-    if (ws.readyState === 1) {
-      try {
-        ws.send(JSON.stringify({ type: 'stream:ready', cwd: session.cwd, hasToken: session.hasToken, resumed }))
-        for (const envelope of session.events) ws.send(envelope)
-        ws.send(JSON.stringify({ type: 'stream:replay-done' }))
-      } catch { /* client gone */ }
-    }
+    session.attach(ws)
 
     ws.on('message', (data) => {
       let msg
       try { msg = JSON.parse(data.toString()) } catch { return }
-      if (msg.type === 'ping') {
-        if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong' }))
+      if (msg.type === 'ping') { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong' })); return }
+      if (msg.type === 'send' && typeof msg.text === 'string' && msg.text.trim()) {
+        if (session.exited) { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'stream:error', error: 'Session ended — reopen to start a new one' })); return }
+        session.push(msg.text)
         return
       }
-      if (msg.type === 'send' && typeof msg.text === 'string' && msg.text.trim()) {
-        if (session.exited) {
-          if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'stream:error', error: 'Session ended — reopen to start a new one' }))
-          return
-        }
-        // Record the user turn in the buffer + mirror to OTHER clients, so
-        // returning/second clients rebuild it (claude's stdout doesn't echo
-        // the user's own input). Then feed it to the live process.
-        streamBufferAndBroadcast(session, JSON.stringify({ type: 'stream:user', text: msg.text }))
-        const userMsg = { type: 'user', message: { role: 'user', content: msg.text } }
-        try {
-          session.proc.stdin.write(JSON.stringify(userMsg) + '\n')
-        } catch (err) {
-          if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'stream:error', error: 'Write to claude failed: ' + err.message }))
-        }
+      if (msg.type === 'permissionDecision' && msg.requestId) {
+        session.resolvePermission(msg.requestId, msg.decision, msg.message)
+        return
       }
     })
 
-    const detach = () => {
-      session.clients.delete(ws)
-      // Last client left — keep the process alive briefly, then idle-kill so
-      // switching tabs preserves the session but abandoned ones don't leak.
-      if (session.clients.size === 0 && !session.idleTimer && !session.exited) {
-        session.idleTimer = setTimeout(() => {
-          console.log(`[StreamChat] Idle-killing ${agentKey} (pid ${session.proc.pid})`)
-          try { session.proc.stdin.end() } catch {}
-          try { session.proc.kill('SIGTERM') } catch {}
-          setTimeout(() => { try { session.proc.kill('SIGKILL') } catch {} }, 2000)
-          streamSessions.delete(agentKey)
-        }, STREAM_IDLE_MS)
-      }
-    }
-    ws.on('close', detach)
-    ws.on('error', detach)
+    ws.on('close', () => session.detach(ws))
+    ws.on('error', () => session.detach(ws))
   })
 
   server.on('upgrade', (request, socket, head) => {
@@ -2503,6 +2408,9 @@ async function startServer(handleRequest) {
       const { stopScheduler } = await import('./lib/schedule-executor.ts')
       stopScheduler()
     } catch { /* ignore */ }
+
+    // Kill all streaming (SDK) sessions
+    try { destroyAllStreamSessions() } catch { /* ignore */ }
 
     // Kill all PTY processes FIRST and synchronously
     const sessionCount = terminalSessions.size

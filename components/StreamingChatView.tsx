@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle, ShieldAlert } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import type { Agent } from '@/types/agent'
 
@@ -31,6 +31,12 @@ interface Meta {
   turns?: number
 }
 
+interface PermReq {
+  requestId: string
+  toolName: string
+  input: any
+}
+
 let idCounter = 0
 const nextId = () => `t${++idCounter}`
 
@@ -42,6 +48,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
   const [error, setError] = useState<string | null>(null)
   const [noToken, setNoToken] = useState(false)
   const [meta, setMeta] = useState<Meta>({})
+  const [permissions, setPermissions] = useState<PermReq[]>([])
 
   const wsRef = useRef<WebSocket | null>(null)
   const curAssistantId = useRef<string | null>(null)
@@ -97,8 +104,20 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
           setThinking(false)
           setError(null)
           setMeta({})
+          setPermissions([])
           break
         case 'stream:replay-done':
+          break
+        case 'stream:permission':
+          // Claude wants to use a tool that needs approval → show a card
+          setPermissions(prev =>
+            prev.some(p => p.requestId === msg.requestId)
+              ? prev
+              : [...prev, { requestId: msg.requestId, toolName: msg.toolName, input: msg.input }]
+          )
+          break
+        case 'stream:permission-resolved':
+          setPermissions(prev => prev.filter(p => p.requestId !== msg.requestId))
           break
         case 'stream:user': {
           // A user turn (this client's or another's) — rebuild it. Server
@@ -167,7 +186,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
     return () => { ws.close(); wsRef.current = null }
   }, [agent.id, agent.name, agent.alias, isActive, appendText, addTool])
 
-  useEffect(() => { scrollToBottom() }, [turns])
+  useEffect(() => { scrollToBottom() }, [turns, permissions])
 
   const send = () => {
     const text = input.trim()
@@ -184,6 +203,17 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+  }
+
+  const respondPermission = (requestId: string, decision: 'allow' | 'deny') => {
+    wsRef.current?.send(JSON.stringify({ type: 'permissionDecision', requestId, decision }))
+    setPermissions(prev => prev.filter(p => p.requestId !== requestId))  // optimistic
+  }
+
+  // One-line preview of what a tool wants to do
+  const permPreview = (p: PermReq): string => {
+    const i = p.input || {}
+    return i.command || i.file_path || i.path || i.pattern || i.url || (Object.keys(i).length ? JSON.stringify(i).slice(0, 120) : '')
   }
 
   return (
@@ -267,6 +297,42 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
             </div>
           )
         })}
+
+        {/* Permission cards — Claude wants to do something that needs approval */}
+        {permissions.map((p) => (
+          <div key={p.requestId} className="flex justify-start">
+            <div className="max-w-[85%] min-w-0 overflow-hidden">
+              <div className="rounded-2xl px-4 py-3 bg-amber-900/40 border border-amber-600/50 text-amber-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span className="text-xs font-medium text-amber-300">
+                    Allow <span className="font-mono">{p.toolName}</span>?
+                  </span>
+                </div>
+                {permPreview(p) && (
+                  <pre className="text-xs bg-gray-950/50 p-2 rounded font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto mb-3">
+                    {permPreview(p)}
+                  </pre>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => respondPermission(p.requestId, 'allow')}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-700/60 hover:bg-amber-600/60 border border-amber-500/50 transition-colors"
+                  >
+                    Allow
+                  </button>
+                  <button
+                    onClick={() => respondPermission(p.requestId, 'deny')}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-800/60 hover:bg-gray-700/60 border border-gray-600/50 transition-colors"
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
         <div ref={endRef} />
       </div>
 

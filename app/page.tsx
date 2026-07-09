@@ -793,10 +793,17 @@ export default function DashboardPage() {
                     >
                       <Zap className="w-4 h-4" />
                       Streaming
+                      {agentMode === 'streaming' && (
+                        <span className="ml-0.5 text-[9px] uppercase tracking-wide bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded px-1 py-0.5">
+                          active mode
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveTab('terminal')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        agentMode === 'streaming' ? 'opacity-50' : ''
+                      } ${
                         activeTab === 'terminal'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'

@@ -6,6 +6,7 @@ import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import ChatView from '@/components/ChatView'
 import StreamingChatView from '@/components/StreamingChatView'
+import { getRuntimeMode, setRuntimeMode } from '@/lib/runtime-mode'
 import MessageCenter from '@/components/MessageCenter'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
@@ -493,13 +494,25 @@ export default function DashboardPage() {
   }
 
   // Performs the actual wake with selected program
-  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string }) => {
+  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string; execMode?: 'terminal' | 'streaming' }) => {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
 
     // Close dialog immediately so UI isn't blocked
     setWakeDialogAgent(null)
+
+    // Streaming mode: no tmux wake. The SDK session spawns when the Streaming
+    // tab connects and resumes the agent's latest conversation. Just record the
+    // mode and open the tab.
+    if (options?.execMode === 'streaming') {
+      setRuntimeMode(agent.id, 'streaming')
+      setActiveAgentId(agent.id)
+      setActiveTab('streaming')
+      return
+    }
+    setRuntimeMode(agent.id, 'terminal')
+
     setWakingAgentId(agent.id)
 
     try {
@@ -750,6 +763,7 @@ export default function DashboardPage() {
               const isActive = true  // We only render the active agent
               const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
               const session = agentToSession(agent)
+              const agentMode = getRuntimeMode(agent.id)  // 'terminal' | 'streaming'
 
               return (
                 <div
@@ -926,7 +940,24 @@ export default function DashboardPage() {
                   {/* Tab Content */}
                   <div className="flex-1 flex overflow-hidden min-h-0">
                     {activeTab === 'terminal' ? (
-                      isHibernated ? (
+                      agentMode === 'streaming' ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-400">
+                          <div className="text-center max-w-md">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-900/30 flex items-center justify-center">
+                              <Zap className="w-10 h-10 text-amber-400" />
+                            </div>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
+                            <p className="text-sm mb-2 text-gray-500">Terminal is disabled while this agent runs in streaming mode</p>
+                            <p className="text-xs text-gray-600 mb-4">Use the Streaming tab. To get the terminal back, hibernate and wake the agent in Terminal mode.</p>
+                            <button
+                              onClick={() => setActiveTab('streaming')}
+                              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-all flex items-center gap-2 mx-auto"
+                            >
+                              <Zap className="w-4 h-4" /> Go to Streaming
+                            </button>
+                          </div>
+                        </div>
+                      ) : isHibernated ? (
                         <div className="flex-1 flex items-center justify-center text-gray-400">
                           <div className="text-center max-w-md">
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
@@ -1013,15 +1044,12 @@ export default function DashboardPage() {
                         </ErrorBoundary>
                       )
                     ) : activeTab === 'streaming' ? (
-                      isHibernated ? (
-                        <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
-                          Wake this agent to use streaming chat.
-                        </div>
-                      ) : (
-                        <ErrorBoundary fallbackLabel="Streaming">
-                          <StreamingChatView agent={agent} isActive={true} />
-                        </ErrorBoundary>
-                      )
+                      // Streaming is self-sufficient: the SDK session spawns on
+                      // connect and resumes the agent's latest conversation —
+                      // no tmux/wake needed, works even when tmux-hibernated.
+                      <ErrorBoundary fallbackLabel="Streaming">
+                        <StreamingChatView agent={agent} isActive={true} />
+                      </ErrorBoundary>
                     ) : activeTab === 'messages' ? (
                       <ErrorBoundary fallbackLabel="Messages">
                         <MessageCenter

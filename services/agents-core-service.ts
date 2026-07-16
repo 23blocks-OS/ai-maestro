@@ -1840,6 +1840,18 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
             const cliMode = PERMISSION_MODE_TO_CLI[effectiveMode]
             fullCommand = `${fullCommand} --permission-mode ${cliMode}`
           }
+
+          // Force the inline renderer so terminal SCROLLBACK works. Claude Code's
+          // fullscreen/alternate-screen renderer (rolled out as default across
+          // 2.1.11x→2.1.20x) keeps ZERO tmux history — the pane shows
+          // alternate_on=1, history_size=0, so there is nothing to scroll and
+          // capture-pane returns one screenful. Setting this env var returns
+          // Claude's output to the normal buffer, restoring scrollback in the
+          // web terminal. (Escape hatch: AIMAESTRO_KEEP_ALT_SCREEN=true keeps
+          // fullscreen for users who don't need scroll.)
+          if (process.env.AIMAESTRO_KEEP_ALT_SCREEN !== 'true') {
+            fullCommand = `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 ${fullCommand}`
+          }
         }
 
         // Small delay to let the session initialize

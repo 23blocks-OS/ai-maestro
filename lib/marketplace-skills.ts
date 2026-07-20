@@ -21,7 +21,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
-import matter from 'gray-matter'
+import { safeMatter } from '@/lib/safe-matter'
 import type {
   Marketplace,
   MarketplacePlugin,
@@ -160,7 +160,7 @@ async function findSkillFiles(dir: string): Promise<string[]> {
  */
 function parseSkillFrontmatter(content: string): SkillFrontmatter {
   try {
-    const parsed = matter(content)
+    const parsed = safeMatter(content)
     return parsed.data as SkillFrontmatter
   } catch {
     return {}

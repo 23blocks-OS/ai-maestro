@@ -316,6 +316,40 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
 }
 
 /**
+ * Detect a permission / choice menu directly from the tmux pane, as a fallback
+ * for when the Claude Code hook doesn't surface it (many prompts were never
+ * showing in chat because they relied solely on the hook). Parses the numbered
+ * menu into the same shape as hookState so the chat renders a card either way.
+ */
+function detectPermissionFromPane(sessionName) {
+  try {
+    const raw = execSync(`tmux capture-pane -p -t "${sessionName}" -S -30`,
+      { timeout: 2000, encoding: 'utf-8' })
+    const lines = raw.split('\n').map(l => l.replace(/\s+$/, ''))
+    const tail = lines.slice(-18)
+    const text = tail.join('\n')
+    const looksLikePrompt =
+      /do you want to proceed|do you want to|would you like|yes, and don'?t ask|esc to (cancel|interrupt)/i.test(text) ||
+      /❯\s*\d+\.\s/.test(text)
+    if (!looksLikePrompt) return null
+    // Extract numbered options, tolerating box-drawing borders Claude Code
+    // draws around the menu (e.g. "│ ❯ 1. Yes │", "│   2. No │").
+    const options = []
+    for (const l of tail) {
+      const m = l.match(/^[\s❯>▶*│┃|]*(\d+)\.\s+(.+?)\s*[│┃|]?\s*$/)
+      if (m) {
+        const label = m[2].replace(/[│┃|╮╯╰╭]/g, '').replace(/\s+/g, ' ').trim()
+        if (label) options.push({ key: m[1], label, value: /^no\b|decline|cancel/i.test(label) ? 'no' : 'yes' })
+      }
+    }
+    if (options.length === 0) return null
+    const qMatch = text.match(/((?:Do you want|Would you like)[^\n?]*\??)/i)
+    const question = qMatch ? qMatch[1].trim() : 'The agent is asking for permission'
+    return { status: 'permission_request', message: question, description: question, options, source: 'pane' }
+  } catch { return null }
+}
+
+/**
  * Read hookState and broadcast to chat clients if changed.
  * Extracted so it can be called from the file watcher AND from broadcastJsonlUpdates
  * (on tool_use messages that precede permission prompts).
@@ -324,7 +358,13 @@ function broadcastHookState(sessionName, sessionState) {
   if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
   const workingDir = sessionState._hookStateWorkingDir
   if (!workingDir) return
-  const state = readHookState(workingDir)
+  let state = readHookState(workingDir)
+  // Fallback: if the hook didn't surface a permission prompt but the pane is
+  // clearly showing one, build a card from the pane so it ALWAYS shows in chat.
+  if (state?.status !== 'permission_request') {
+    const fromPane = detectPermissionFromPane(sessionName)
+    if (fromPane) state = fromPane
+  }
   // Remember permission_request states so we can serve them on history re-requests
   if (state?.status === 'permission_request') {
     sessionState._lastPermission = state
@@ -743,6 +783,37 @@ async function sendChatMessage(sessionName, message) {
     return { ok: false, error: 'Text pasted but Enter failed: ' + err.message }
   }
 
+  return { ok: true }
+}
+
+/**
+ * Answer a permission / choice menu (a single key like "1", "2", "3", "y").
+ *
+ * This is DIFFERENT from sendChatMessage on purpose:
+ *  - It does NOT refuse when a prompt is pending — it IS the answer to the
+ *    prompt (sendChatMessage's guard was silently swallowing button clicks).
+ *  - It sends the RAW KEYSTROKE via send-keys, not a paste-buffer line. A
+ *    Claude Code menu selects on the keypress of the digit; pasting "1\n" does
+ *    not reliably select option 1.
+ * A multi-character answer (typed feedback) falls back to sendChatMessage.
+ */
+async function sendPermissionResponse(sessionName, key) {
+  const k = String(key ?? '').trim()
+  if (!/^[0-9a-z]$/i.test(k)) {
+    // Not a single menu key — treat as typed feedback via the normal path.
+    return sendChatMessage(sessionName, key)
+  }
+  exitCopyMode(sessionName)
+  try {
+    // Raw keypress — what a human presses at the menu. Number selects+confirms.
+    execSync(`tmux send-keys -t "${sessionName}" -l "${k}"`, { timeout: 3000 })
+  } catch (err) {
+    return { ok: false, error: 'Failed to send response: ' + err.message }
+  }
+  // The prompt is answered — clear the remembered permission so normal sends
+  // (and the sticky card) release.
+  const sessionState = terminalSessions.get(sessionName)
+  if (sessionState) sessionState._lastPermission = null
   return { ok: true }
 }
 
@@ -1701,6 +1772,19 @@ async function startServer(handleRequest) {
               }
             }
             startJsonlWatcher(sessionName, sessionState, parsed.agentId)
+          } else if (parsed.type === 'chat:permissionResponse') {
+            // Answer a pending permission/choice menu with a raw keystroke.
+            // Bypasses the send guard (this IS the answer) and clears the card.
+            if (parsed.key != null) {
+              const result = await sendPermissionResponse(sessionName, parsed.key)
+              if (ws.readyState === 1) {
+                if (result.ok) ws.send(JSON.stringify({ type: 'chat:permissionAnswered', key: parsed.key }))
+                else ws.send(JSON.stringify({ type: 'chat:error', error: result.error }))
+              }
+              for (const delay of [400, 1000, 2000, 4000, 8000]) {
+                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
+              }
+            }
           } else if (parsed.type === 'chat:send') {
             if (parsed.message) {
               const result = await sendChatMessage(sessionName, parsed.message)
@@ -2185,6 +2269,20 @@ async function startServer(handleRequest) {
             }
             // Start JSONL file watcher for this session if not already watching
             startJsonlWatcher(sessionName, sessionState, parsed.agentId)
+            return
+          }
+
+          if (parsed.type === 'chat:permissionResponse') {
+            if (parsed.key != null) {
+              const result = await sendPermissionResponse(sessionName, parsed.key)
+              if (ws.readyState === 1) {
+                if (result.ok) ws.send(JSON.stringify({ type: 'chat:permissionAnswered', key: parsed.key }))
+                else ws.send(JSON.stringify({ type: 'chat:error', error: result.error }))
+              }
+              for (const delay of [400, 1000, 2000, 4000, 8000]) {
+                setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
+              }
+            }
             return
           }
 

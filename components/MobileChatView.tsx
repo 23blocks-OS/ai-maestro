@@ -508,17 +508,12 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   }
 
   // Send quick response (for permission prompts)
+  // Answer a permission / choice menu via the dedicated raw-keystroke path
+  // (bypasses the send guard that swallowed clicks; selects the menu option).
   const sendQuickResponse = (text: string) => {
-    setSending(true)
-    const pendingMsg = { text, timestamp: new Date().toISOString() }
-    setPendingMessages(prev => [...prev, pendingMsg])
-
-    const sent = sendChatWs('chat:send', { message: text })
-    if (!sent) {
-      setError('Not connected')
-      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
-    }
-    setSending(false)
+    setHookState(null)  // clear the card optimistically
+    const sent = sendChatWs('chat:permissionResponse', { key: text })
+    if (!sent) setError('Not connected — reopen the agent and try again')
   }
 
   // Check if an AskUserQuestion has been answered

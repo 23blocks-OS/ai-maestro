@@ -495,27 +495,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return () => clearInterval(timer)
   }, [pendingMessages.length])
 
-  // Send quick response (assisted mode — for permission buttons)
+  // Answer a permission / choice menu (a single key like "1"/"2"/"3").
+  // Uses the dedicated permission path: the server sends it as a RAW KEYSTROKE
+  // that actually selects the menu option, and bypasses the send guard that was
+  // silently swallowing these clicks (the "response never lands" bug).
   const sendQuickResponse = (text: string) => {
-    setIsSending(true)
-    setHookState(null)
-
-    // Show pending bubble so user sees their click did something
-    const pendingMsg: PendingMessage = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      text,
-      timestamp: new Date().toISOString(),
-      status: 'sending',
-    }
-    setPendingMessages(prev => [...prev, pendingMsg])
-
-    const sent = sendChatMessage('chat:send', { message: text })
-    if (!sent) {
-      setError('Not connected — try refreshing')
-      setPendingMessages(prev => prev.filter(p => p.id !== pendingMsg.id))
-    }
-
-    setIsSending(false)
+    setHookState(null)  // clear the sticky card optimistically
+    const sent = sendChatMessage('chat:permissionResponse', { key: text })
+    if (!sent) setError('Not connected — reopen the agent and try again')
   }
 
   // Retry a failed pending message (re-sends and resets its expiry clock)

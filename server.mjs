@@ -336,28 +336,43 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
  */
 function detectPermissionFromPane(sessionName) {
   try {
-    const raw = execSync(`tmux capture-pane -p -t "${sessionName}" -S -30`,
+    const raw = execSync(`tmux capture-pane -p -t "${sessionName}" -S -60`,
       { timeout: 2000, encoding: 'utf-8' })
-    const lines = raw.split('\n').map(l => l.replace(/\s+$/, ''))
-    const tail = lines.slice(-18)
-    const text = tail.join('\n')
-    const looksLikePrompt =
-      /do you want to proceed|do you want to|would you like|yes, and don'?t ask|esc to (cancel|interrupt)/i.test(text) ||
-      /❯\s*\d+\.\s/.test(text)
-    if (!looksLikePrompt) return null
-    // Extract numbered options, tolerating box-drawing borders Claude Code
-    // draws around the menu (e.g. "│ ❯ 1. Yes │", "│   2. No │").
-    const options = []
-    for (const l of tail) {
-      const m = l.match(/^[\s❯>▶*│┃|]*(\d+)\.\s+(.+?)\s*[│┃|]?\s*$/)
-      if (m) {
-        const label = m[2].replace(/[│┃|╮╯╰╭]/g, '').replace(/\s+/g, ' ').trim()
-        if (label) options.push({ key: m[1], label, value: /^no\b|decline|cancel/i.test(label) ? 'no' : 'yes' })
-      }
+    // Strip box-drawing borders Claude Code wraps the menu in, and trailing ws.
+    const lines = raw.split('\n').map(l => l.replace(/[│┃╎╏┆┇]/g, ' ').replace(/\s+$/, ''))
+    // Scan a generous lower region (the live prompt sits near the bottom, but a
+    // long message + the task list can push it up ~30+ lines). Anchor on
+    // STRUCTURE, not a fixed line count.
+    const region = lines.slice(-45)
+    const text = region.join('\n')
+
+    // An ACTIVE permission/choice prompt is identified by permission-SPECIFIC
+    // signals — its footer, the exact "do you want to proceed" phrasing, or the
+    // ❯ selector on a numbered option. Generic "would you like…?" is NOT used
+    // (it appears in ordinary prose and caused false positives). "esc to
+    // interrupt" is excluded — that means Claude is just working.
+    const activeMarker =
+      /tab to amend|ctrl\+e to explain|esc to cancel|do you want to proceed|would you like to proceed|yes, and don'?t ask/i
+    const hasSelector = /[❯▶]\s*\d+\.\s/.test(text)
+    if (!activeMarker.test(text) && !hasSelector) return null
+
+    // Collect SHORT numbered options (a real menu, not prose "1. Long sentence…").
+    const optRe = /^[\s❯>▶*]*(\d+)\.\s+(.+?)\s*$/
+    const byKey = new Map()
+    for (const l of region) {
+      const m = l.match(optRe)
+      if (!m) continue
+      const key = m[1]
+      const label = m[2].replace(/\s+/g, ' ').trim()
+      if (!label || label.length > 90) continue  // skip prose
+      // Keep the LAST occurrence (the live menu, not an old one in history)
+      byKey.set(key, { key, label, value: /^no\b|decline|cancel|don'?t/i.test(label) ? 'no' : 'yes' })
     }
-    if (options.length === 0) return null
+    const options = Array.from(byKey.values()).sort((a, b) => Number(a.key) - Number(b.key))
+    if (options.length < 2) return null  // a genuine menu has ≥2 choices
+
     const qMatch = text.match(/((?:Do you want|Would you like)[^\n?]*\??)/i)
-    const question = qMatch ? qMatch[1].trim() : 'The agent is asking for permission'
+    const question = qMatch ? qMatch[1].trim() : 'The agent is asking to run a tool'
     return { status: 'permission_request', message: question, description: question, options, source: 'pane' }
   } catch { return null }
 }

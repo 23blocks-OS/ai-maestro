@@ -3,6 +3,31 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.6] – [0.36.10] - 2026-07-24 — Permission reliability, terminal scrollback, security
+
+### Security
+- **RCE via gray-matter JavaScript frontmatter (GHSA-g7qj-fhxp-6chc)** [0.36.7] — `gray-matter` evaluates `---js`/`---javascript`/`---coffee` frontmatter as executable code. Parsing untrusted `SKILL.md` (from the unauthenticated `POST /api/plugin-builder/scan-repo`, or installed marketplace plugins) with plain `matter()` was a remote-code-execution vector (CWE-94, high severity). Added `lib/safe-matter.ts` which overrides those engines to throw, and replaced both call sites (`plugin-builder-service.ts`, `marketplace-skills.ts`). Reported by tonghuaroot.
+
+### Fixed
+- **Chat: permission prompts now show reliably AND button responses land** [0.36.8–0.36.10] — Three stacked bugs that forced users to bounce between chat and terminal to see/answer tool-permission prompts:
+  - *Responses never landed:* permission button clicks went through `sendChatMessage`, whose guard **refuses to send while a prompt is pending** — so the answer to the prompt was blocked by the prompt. New `sendPermissionResponse()` bypasses the guard and sends the **raw keystroke** (`chat:permissionResponse` frame) that actually selects a Claude Code menu option, instead of pasting a line.
+  - *Session torn down under the chat:* cleanup counted only terminal (PTY) clients, so with the chat open and no terminal attached, the 30s grace cleanup destroyed the session — killing the permission watchers and orphaning the chat ("message sending forever"). Cleanup now fires only when **both** terminal and chat clients are gone; a 2.5s permission poll surfaces prompts regardless of hook/JSONL timing.
+  - *Prompts buried under output missed:* the pane detector scanned only the last 18 lines. Rewrote `detectPermissionFromPane()` to anchor on menu **structure** (footer/`❯` selector/"do you want to proceed" + ≥2 short numbered options) over a 45-line region — finds buried menus and AskUserQuestion pickers, rejects prose lists and "working" states. Fixes apply to desktop, mobile, and tablet chat (server-side detection + shared response path).
+- **Terminal: scrollback restored** [0.36.6] — Claude Code rolled out its fullscreen/alternate-screen renderer as default (2.1.11x→2.1.20x); on the alt screen nothing is written to the normal buffer, so tmux keeps zero history and scroll does nothing. Agents now launch with `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` (Anthropic's documented opt-out) so output returns to the normal buffer and scrollback works. Verified: plain claude → `alt=1 hist=0`; with the var → `alt=0`, history grows. Escape hatch: `AIMAESTRO_KEEP_ALT_SCREEN=true`. Takes effect on agents woken after the change.
+
+## [0.36.0] – [0.36.5] - 2026-07-23 — Streaming execution mode (Agent SDK)
+
+### Added
+- **Streaming agents — Claude via the Agent SDK, no tmux** — A per-agent `stream-json` runtime (`lib/streaming-runtime.mjs`, `@anthropic-ai/claude-agent-sdk`) as an alternative to the terminal: structured chat with token-level streaming, **permission cards** via the SDK `canUseTool` callback (risky tools prompt, safe ones auto-run), native session **resume** (continues the agent's latest conversation), persistent per-agent sessions with buffered replay across reconnects, and identity injection. Runs on the user's subscription (headless token from `~/.aimaestro/claude-oauth-token`).
+- **Wake-dialog execution mode** — Choose **Terminal** or **Streaming** when waking a Claude agent; streaming needs no tmux (spawns on connect and resumes the latest conversation). The Terminal tab is disabled with a jump-to-Streaming affordance while an agent runs in streaming mode; a mode badge shows the active mode. Additive — no changes to tmux online-detection; terminal agents untouched.
+
+## [0.35.55] – [0.35.64] - 2026-07-05 — Terminal + chat UX (phase 0)
+
+### Fixed
+- **Chat reliability** — Messages wrap inside the viewport (no clipped/overflowing bubbles); send never submits unverified text silently (fails visibly with retry, then reverted the over-strict gate so verified sends aren't dropped); pending bubbles clear only when their own echo lands and expire to a retryable failed state; dedup no longer drops thinking blocks; scroll-stick keeps you in place while reading with a "new messages" pill; reconnect after backgrounding actually reconnects; transcript path handles `.` in project dirs and re-resolves after `/clear`.
+- **Terminal reliability** — Fixed an idle-heartbeat false positive that force-reconnected healthy terminals every ~40s (the periodic refresh/flash); unified paste through `terminal.paste()` (no more literal `200~` leaks); copy-on-select is opt-in; async tmux calls on connect (no event-loop stalls); exponential reconnect backoff. Removed a mis-designed tmux copy-mode scroll experiment (`0/0`, swallowed Enter) in favor of plain xterm scrolling.
+- **Consolidated** the triplicated JSONL transcript logic into `lib/chat-transcript.mjs`; released the cerebellum ring-buffer on session cleanup.
+
 ## [0.35.54] - 2026-06-05
 
 ### Reverted

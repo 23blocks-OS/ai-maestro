@@ -310,6 +310,19 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
       sessionState._hookStateWatcher = true
       console.log(`[Chat] Started hookState watcher for ${sessionName}: ${hookStateFile}`)
     }
+
+    // Periodic permission poll: the hook file / post-tool_use bursts miss many
+    // prompts (a permission menu appears BEFORE any JSONL tool_use is written),
+    // so poll the pane directly while a chat client is watching. broadcastHookState
+    // reads the hook AND falls back to the pane, and dedupes, so this only pushes
+    // on an actual change. Guarantees prompts surface within ~2.5s.
+    if (!sessionState._permissionPollTimer) {
+      sessionState._permissionPollTimer = setInterval(() => {
+        if (sessionState.chatClients && sessionState.chatClients.size > 0) {
+          broadcastHookState(sessionName, sessionState)
+        }
+      }, 2500)
+    }
   }).catch(err => {
     console.error(`[Chat] Failed to start JSONL watcher for ${sessionName}:`, err.message)
   })
@@ -523,6 +536,10 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
     } catch { /* ignore */ }
     sessionState.jsonlWatcher = null
   }
+  if (sessionState._permissionPollTimer) {
+    clearInterval(sessionState._permissionPollTimer)
+    sessionState._permissionPollTimer = null
+  }
   if (sessionState.jsonlRotationTimer) {
     clearInterval(sessionState.jsonlRotationTimer)
     sessionState.jsonlRotationTimer = null
@@ -584,24 +601,30 @@ function handleClientDisconnect(ws, sessionName, sessionState, reason = 'close')
   sessionState.clients.delete(ws)
   sessionState.chatClients?.delete(ws)
 
-  console.log(`[PTY] Client disconnected from ${sessionName} (${reason}). Remaining clients: ${sessionState.clients.size}`)
+  const chatCount = sessionState.chatClients?.size || 0
+  console.log(`[PTY] Client disconnected from ${sessionName} (${reason}). Remaining clients: ${sessionState.clients.size} (chat: ${chatCount})`)
 
-  // If no clients remain, schedule cleanup
-  if (sessionState.clients.size === 0) {
-    console.log(`[PTY] Last client disconnected from ${sessionName}, scheduling cleanup in ${PTY_CLEANUP_GRACE_MS / 1000}s`)
+  // Only schedule cleanup when NO clients of ANY kind remain. A chat-only
+  // client (no terminal attached) must keep the session alive — otherwise the
+  // hookState/permission watchers get torn down under an open chat and
+  // permission prompts stop reaching it.
+  if (sessionState.clients.size === 0 && chatCount === 0) {
+    console.log(`[PTY] Last client (terminal+chat) disconnected from ${sessionName}, scheduling cleanup in ${PTY_CLEANUP_GRACE_MS / 1000}s`)
 
-    // Clear any existing cleanup timer
     if (sessionState.cleanupTimer) {
       clearTimeout(sessionState.cleanupTimer)
     }
 
-    // Schedule cleanup after grace period
     sessionState.cleanupTimer = setTimeout(() => {
-      // Double-check no clients reconnected
-      if (sessionState.clients.size === 0) {
+      // Double-check nothing reconnected (terminal OR chat)
+      if (sessionState.clients.size === 0 && (sessionState.chatClients?.size || 0) === 0) {
         cleanupSession(sessionName, sessionState, 'no_clients_after_grace_period')
       }
     }, PTY_CLEANUP_GRACE_MS)
+  } else if (sessionState.cleanupTimer) {
+    // A client (e.g. chat) is still here — cancel any pending cleanup.
+    clearTimeout(sessionState.cleanupTimer)
+    sessionState.cleanupTimer = null
   }
 }
 
@@ -619,9 +642,9 @@ function startOrphanedPtyCleanup() {
         return
       }
 
-      // Check for sessions with no clients and no pending cleanup timer
-      // These are orphaned - they have a PTY but no way to clean it up
-      if (sessionState.clients.size === 0 && !sessionState.cleanupTimer) {
+      // Check for sessions with no clients (terminal OR chat) and no pending
+      // cleanup timer. A live chat client keeps the session alive.
+      if (sessionState.clients.size === 0 && (sessionState.chatClients?.size || 0) === 0 && !sessionState.cleanupTimer) {
         console.log(`[PTY] Found orphaned session: ${sessionName}`)
         cleanupSession(sessionName, sessionState, 'orphan_cleanup', false)
         orphanedCount++
@@ -1809,12 +1832,14 @@ async function startServer(handleRequest) {
       })
 
       ws.on('close', () => {
-        sessionState.chatClients?.delete(ws)
         console.log(`[Chat] Chat-only client disconnected from ${sessionName}`)
+        // Route through the shared disconnect so cleanup is scheduled only when
+        // BOTH terminal and chat clients are gone (and the permission poll stops).
+        handleClientDisconnect(ws, sessionName, sessionState, 'chat-close')
       })
 
       ws.on('error', () => {
-        sessionState.chatClients?.delete(ws)
+        handleClientDisconnect(ws, sessionName, sessionState, 'chat-error')
       })
 
       return // Skip all PTY/terminal setup below

@@ -10,9 +10,6 @@ import MobileKeyToolbar from './MobileKeyToolbar'
 import type { Session } from '@/types/session'
 import { useToast } from '@/contexts/ToastContext'
 
-const BRACKETED_PASTE_START = '\u001b[200~'
-const BRACKETED_PASTE_END = '\u001b[201~'
-
 // PERFORMANCE: Hoist static JSX to avoid recreation on every render
 const LoadingSpinner = (
   <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">
@@ -79,6 +76,19 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
   })
 
   const [globalLoggingEnabled, setGlobalLoggingEnabled] = useState(false)
+
+  // Copy-on-select: opt-in (global setting). useTerminal reads the same
+  // localStorage key on each selection, so no re-init is needed on toggle.
+  const [copyOnSelect, setCopyOnSelect] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('terminal-copy-on-select') === 'true'
+  })
+  const toggleCopyOnSelect = () => {
+    setCopyOnSelect(prev => {
+      localStorage.setItem('terminal-copy-on-select', String(!prev))
+      return !prev
+    })
+  }
 
   // Copy/paste handlers defined after useTerminal below
 
@@ -250,6 +260,13 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
           return
         }
 
+        // Server capability advertisement — consumed (currently unused; the
+        // tmux copy-mode scroll feature was removed). Drop so it isn't written
+        // to the terminal.
+        if (parsed.type === 'server-caps') {
+          return
+        }
+
         // Any other JSON with a 'type' field is a protocol message — drop it
         // so raw JSON like {"type":"ping"} never appears in the terminal
         if (parsed.type) {
@@ -416,22 +433,18 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
     }
   }, [terminal])
 
-  // Paste from clipboard (with user gesture - required for mobile)
+  // Paste from clipboard (with user gesture - required for mobile).
+  // Routed through terminal.paste() — the single paste path — which normalizes
+  // line endings and applies bracketed paste only when the app enabled it.
   const pasteFromClipboard = useCallback(async () => {
     if (!isConnected) return
 
     try {
       const text = await navigator.clipboard.readText()
-      if (text) {
-        // Send as bracketed paste to handle multi-line content properly
-        const carriageAdjusted = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
-        const bracketedPayload = `${BRACKETED_PASTE_START}${carriageAdjusted}${BRACKETED_PASTE_END}`
-        sendMessage(bracketedPayload)
-        console.log('[Terminal] Pasted from clipboard')
-        // Focus terminal after paste
-        if (terminalInstanceRef.current) {
-          terminalInstanceRef.current.focus()
-        }
+      const term = terminalInstanceRef.current
+      if (text && term) {
+        term.paste(text)
+        term.focus()
       }
     } catch (err) {
       console.error('[Terminal] Failed to paste:', err)
@@ -442,7 +455,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
         message: 'Unable to access clipboard. Try using the Prompt Builder tab to paste text.',
       })
     }
-  }, [isConnected, sendMessage])
+  }, [isConnected, addToast])
 
   // Handle terminal resize — only forward to server after history is loaded
   // and only if dimensions actually changed (prevents tmux redraw storms)
@@ -494,6 +507,8 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       const linesToScroll = Math.round(deltaY / 30) // 30px per line (slower scroll)
 
       if (Math.abs(linesToScroll) > 0) {
+        // Plain xterm scroll (see the desktop wheel handler note): tmux
+        // copy-mode forwarding was removed — alt-screen panes have no history.
         terminal.scrollLines(linesToScroll)
         touchStartY = touchY
       }
@@ -521,7 +536,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       document.removeEventListener('touchend', handleTouchEnd, true)
       document.removeEventListener('touchcancel', handleTouchEnd, true)
     }
-  }, [isMobile, terminal])
+  }, [isMobile, terminal, sendMessage])
 
   // Load notes from localStorage ONCE on mount
   // Tab-based architecture: notes stay in memory, no need to reload on session switch
@@ -611,14 +626,15 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
 
       const normalized = promptDraft.replace(/\r\n?/g, '\n')
       const withoutEscape = normalized.replace(/\u001b/g, '')
-      const carriageAdjusted = withoutEscape.replace(/\n/g, '\r')
-      const bracketedPayload = `${BRACKETED_PASTE_START}${carriageAdjusted}${BRACKETED_PASTE_END}`
-
-      const staged = sendMessage(bracketedPayload)
-      if (!staged) {
-        console.warn('[PromptBuilder] Failed to send staged text via WebSocket')
+      // Stage via terminal.paste() — the single paste path. It normalizes line
+      // endings and applies bracketed paste only if the app enabled it (manual
+      // ESC[200~ wrapping leaked literal "200~" into non-bracketed programs).
+      const term = terminalInstanceRef.current
+      if (!term || !isConnected) {
+        console.warn('[PromptBuilder] Terminal not connected, cannot stage text')
         return
       }
+      term.paste(withoutEscape)
 
       if (mode === 'send') {
         const executed = sendMessage('\r')
@@ -630,7 +646,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
         focusTerminal()
       }
     },
-    [focusTerminal, promptDraft, sendMessage]
+    [focusTerminal, promptDraft, sendMessage, isConnected]
   )
 
   const handlePromptKeyDown = useCallback(
@@ -694,7 +710,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
                 {terminal.cols}x{terminal.rows}
               </span>
               <span className="text-gray-500 hidden md:inline">|</span>
-              <span className="hidden md:inline" title={`Buffer: ${terminal.buffer.active.length} lines (max: 50000)`}>
+              <span className="hidden md:inline" title={`Buffer: ${terminal.buffer.active.length} lines (scrollback: 10000)`}>
                 📜 {terminal.buffer.active.length} lines
               </span>
               <span className="text-gray-500 hidden md:inline">|</span>
@@ -729,6 +745,19 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
                 title="Copy selected text to clipboard"
               >
                 📋 <span className="hidden md:inline">Copy</span>
+              </button>
+              <button
+                onClick={toggleCopyOnSelect}
+                className={`px-2 py-1 rounded transition-colors text-xs hidden md:inline-block ${
+                  copyOnSelect
+                    ? 'bg-green-700 hover:bg-green-600 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                }`}
+                title={copyOnSelect
+                  ? 'Copy-on-select ON: selecting text copies it automatically — click to disable'
+                  : 'Copy-on-select OFF: selection leaves your clipboard alone — click to enable'}
+              >
+                ✂️ <span className="hidden md:inline">{copyOnSelect ? 'Auto-copy' : 'Auto-copy off'}</span>
               </button>
               <button
                 onClick={pasteFromClipboard}

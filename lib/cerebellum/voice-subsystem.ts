@@ -278,9 +278,11 @@ export class VoiceSubsystem implements Subsystem {
         || registryAgent?.sessions?.[0]?.workingDirectory
       if (!workingDir) return []
 
-      // Derive the Claude projects directory path (same as chat route.ts)
+      // Derive the Claude projects directory path. Claude Code replaces
+      // `/`, `_` AND `.` with `-` — keep in sync with lib/chat-transcript.mjs
+      // (encodeProjectDirName); this CJS-style method can't import that ESM module.
       const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-      const projectDirName = workingDir.replace(/[/_]/g, '-')
+      const projectDirName = workingDir.replace(/[/_.]/g, '-')
       const conversationDir = path.join(claudeProjectsDir, projectDirName)
 
       if (!fs.existsSync(conversationDir)) return []

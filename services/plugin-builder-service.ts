@@ -17,7 +17,7 @@ import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
 import { randomUUID } from 'crypto'
-import matter from 'gray-matter'
+import { safeMatter } from '@/lib/safe-matter'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
 import type {
   PluginBuildConfig,
@@ -630,7 +630,7 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
         const fullPath = path.join(currentDir, entry.name)
         if (entry.isFile() && entry.name === 'SKILL.md') {
           const content = await fs.readFile(fullPath, 'utf-8')
-          const parsed = matter(content)
+          const parsed = safeMatter(content)
           const frontmatter = parsed.data as Record<string, unknown>
           const skillFolder = path.basename(path.dirname(fullPath))
           const relativePath = path.relative(dir, path.dirname(fullPath))

@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { WebSocketMessage, WebSocketStatus } from '@/types/websocket'
 
-const WS_RECONNECT_DELAY = 3000
-const WS_MAX_RECONNECT_ATTEMPTS = 5
+// Exponential backoff: quick first retry (transient blips), spaced-out later
+// attempts (server restarts take a few seconds). Was a fixed 3s × 5 attempts,
+// which burned all retries in 15s and left the terminal permanently dead.
+const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000]
+const WS_MAX_RECONNECT_ATTEMPTS = WS_RECONNECT_DELAYS.length
 const WS_HEARTBEAT_INTERVAL = 30000  // Send ping every 30s
 const WS_HEARTBEAT_TIMEOUT = 10000   // Expect pong within 10s
 
@@ -130,6 +133,7 @@ export function useWebSocket({
       }
 
       // Send a ping
+      const pingSentAt = Date.now()
       try {
         ws.send(JSON.stringify({ type: 'ping' }))
       } catch {
@@ -139,9 +143,14 @@ export function useWebSocket({
         return
       }
 
-      // Set a per-ping timeout: if no data arrives within WS_HEARTBEAT_TIMEOUT, connection is dead
+      // Dead-connection check: close only if NO data arrived since this ping.
+      // The old check (`now - lastData > TIMEOUT`) compared against the same
+      // 10s the timer itself waits — on an idle terminal the pong lands ~5ms
+      // after the ping while the timer fires ≥10s after it, so every healthy
+      // idle connection "timed out" and force-reconnected every ~40s (the
+      // periodic terminal clear/refresh users saw).
       pongTimeoutRef.current = setTimeout(() => {
-        if (Date.now() - lastDataRef.current > WS_HEARTBEAT_TIMEOUT) {
+        if (lastDataRef.current < pingSentAt) {
           console.warn('[WS] Heartbeat timeout — no pong received, forcing reconnect')
           stopHeartbeat()
           ws.close()
@@ -210,6 +219,19 @@ export function useWebSocket({
             return
           }
 
+          // Terminal protocol frames the VIEW layer must see — forward to
+          // onMessage, whose own JSON handling consumes them:
+          //   history-complete → scroll-to-bottom + unlocks resize forwarding
+          //   server-caps      → gates the tmux-scroll feature
+          //   connected        → container attach logging
+          // This blanket typed-JSON drop below used to swallow these too,
+          // leaving TerminalView's handlers dead (resize gate never opened,
+          // caps never learned).
+          if (parsed.type === 'history-complete' || parsed.type === 'server-caps' || parsed.type === 'connected') {
+            onMessageRef.current?.(event.data)
+            return
+          }
+
           // Any other JSON with a 'type' field is a protocol message we don't
           // recognize — drop it silently instead of leaking raw JSON into the
           // terminal (this prevents {"type":"ping"} / pong / etc. from appearing
@@ -249,13 +271,14 @@ export function useWebSocket({
           return
         }
 
-        // Attempt reconnection for transient failures
+        // Attempt reconnection for transient failures (exponential backoff)
         if (reconnectAttemptsRef.current < WS_MAX_RECONNECT_ATTEMPTS) {
+          const delay = WS_RECONNECT_DELAYS[Math.min(reconnectAttemptsRef.current, WS_RECONNECT_DELAYS.length - 1)]
           reconnectAttemptsRef.current++
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
-          }, WS_RECONNECT_DELAY)
+          }, delay)
         } else {
           setConnectionError(
             new Error('Failed to connect after maximum reconnection attempts')

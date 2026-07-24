@@ -274,20 +274,19 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         }
       }
 
-      // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard into PTY via WebSocket
+      // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard
       if ((event.metaKey && event.key === 'v') || (event.ctrlKey && event.shiftKey && event.key === 'V')) {
         if (event.type === 'keydown') {
           // preventDefault stops the browser from ALSO firing a 'paste' event on the
           // hidden textarea, which xterm would process via onData — causing double paste.
           event.preventDefault()
           navigator.clipboard.readText().then((text) => {
-            if (text && sendDataRef.current) {
-              // Use bracketed paste mode so multi-line content is handled correctly by the shell
-              const PASTE_START = '\x1b[200~'
-              const PASTE_END = '\x1b[201~'
-              // Normalize line endings: convert \r\n and \n to \r (what PTY expects)
-              const normalized = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
-              sendDataRef.current(PASTE_START + normalized + PASTE_END)
+            if (text) {
+              // terminal.paste() normalizes line endings and applies bracketed
+              // paste ONLY if the running app enabled it (DECSET 2004). Manual
+              // \x1b[200~ wrapping printed literal "200~" into programs that
+              // never enabled bracketed paste (bare REPLs, cat, password prompts).
+              terminal.paste(text)
             }
           }).catch((err) => {
             console.warn('Clipboard read denied:', err)
@@ -299,9 +298,12 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       return true
     })
 
-    // Auto-copy selection to clipboard when user selects 3+ characters
-    // Threshold of 3 chars prevents accidental clipboard overwrites from stray clicks
+    // Auto-copy selection to clipboard — OPT-IN via the header toggle.
+    // Was always-on: any 3-char selection silently overwrote the clipboard,
+    // destroying whatever the user was about to paste.
     terminal.onSelectionChange(() => {
+      if (typeof window === 'undefined') return
+      if (window.localStorage.getItem('terminal-copy-on-select') !== 'true') return
       const sel = terminal.getSelection()
       if (sel && sel.length >= 3) {
         navigator.clipboard.writeText(sel).catch(() => {
@@ -310,11 +312,14 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       }
     })
 
-    // Wheel handler: intercept mouse wheel at the DOM level (capture phase) to
-    // scroll xterm.js buffer directly. Without this, xterm.js may convert wheel
-    // events to cursor key sequences (sent to shell/app as arrow up/down) instead
-    // of scrolling the terminal buffer. We always intercept because tmux mouse is
-    // disabled per-session, so there's no app that needs the raw wheel events.
+    // Wheel handler: intercept mouse wheel at the DOM level (capture phase) and
+    // scroll xterm's local buffer. We do NOT drive tmux copy-mode: Claude Code
+    // runs on tmux's alternate screen, which keeps zero history, so copy-mode
+    // just showed an empty "0/0" and stranded the pane (breaking Enter/typing).
+    // Real scrollback comes instead from `alternate-screen off` (set per session
+    // on the server) — Claude's output then accumulates in xterm's normal-buffer
+    // scrollback and this plain scroll handles it. Takes effect after the agent's
+    // claude process restarts. tmux mouse stays off, so native selection works.
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()

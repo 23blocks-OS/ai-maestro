@@ -10,7 +10,7 @@ import type { AgentPermissionMode } from '@/types/agent'
 interface WakeAgentDialogProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (program: string, options?: { permissionMode?: AgentPermissionMode }) => void
+  onConfirm: (program: string, options?: { permissionMode?: AgentPermissionMode; execMode?: 'terminal' | 'streaming' }) => void
   agentName: string
   agentAlias?: string
   defaultPermissionMode?: AgentPermissionMode
@@ -64,6 +64,7 @@ export default function WakeAgentDialog({
 }: WakeAgentDialogProps) {
   const [selectedProgram, setSelectedProgram] = useState<string>('claude')
   const [permissionMode, setPermissionMode] = useState<AgentPermissionMode>(defaultPermissionMode || 'supervised')
+  const [execMode, setExecMode] = useState<'terminal' | 'streaming'>('terminal')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isWaking, setIsWaking] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -81,6 +82,7 @@ export default function WakeAgentDialog({
       setIsWaking(false)
       setSelectedProgram('claude')
       setPermissionMode(defaultPermissionMode || 'supervised')
+      setExecMode('terminal')
       setShowAdvanced(false)
     }
   }, [isOpen, defaultPermissionMode])
@@ -96,7 +98,7 @@ export default function WakeAgentDialog({
 
   const handleConfirm = () => {
     setIsWaking(true)
-    onConfirm(selectedProgram, selectedProgram === 'claude' ? { permissionMode } : undefined)
+    onConfirm(selectedProgram, selectedProgram === 'claude' ? { permissionMode, execMode } : undefined)
     // Dialog will be closed by parent after wake completes
   }
 
@@ -214,6 +216,42 @@ export default function WakeAgentDialog({
                   })}
                 </div>
               </div>
+
+              {/* Execution mode — only for Claude Code */}
+              {selectedProgram === 'claude' && (
+                <div className="px-6 pb-1">
+                  <p className="text-xs text-zinc-500 mb-2">Execution mode</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExecMode('terminal')}
+                      disabled={isWaking}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        execMode === 'terminal' ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${execMode === 'terminal' ? 'text-emerald-400' : 'text-zinc-200'}`}>Terminal</div>
+                      <div className="text-[11px] text-zinc-500">tmux TUI · full terminal</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExecMode('streaming')}
+                      disabled={isWaking}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        execMode === 'streaming' ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${execMode === 'streaming' ? 'text-amber-400' : 'text-zinc-200'}`}>Streaming</div>
+                      <div className="text-[11px] text-zinc-500">clean chat · no terminal</div>
+                    </button>
+                  </div>
+                  {execMode === 'streaming' && (
+                    <p className="text-[11px] text-amber-400/70 mt-2">
+                      Continues the agent’s latest conversation. No terminal view. Needs a headless token.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Advanced Options — only for Claude Code */}
               {selectedProgram === 'claude' && (

@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.11] - 2026-07-30 — Reliable AMP message delivery (Stop-hook + streaming push)
+
+### Fixed
+- **AMP notifications now reach agents without manual "check your inbox"** — The single most common daily annoyance: a message would arrive, but the agent wouldn't act on it until the operator manually typed "check your inbox." Root cause: inbox delivery relied on injecting `additionalContext` at the `idle_prompt` notification, which **cannot start a turn on an already-idle agent** — so the nudge sat there unseen. Two fixes:
+  - *Terminal agents — Stop-hook block delivery* (`plugin` submodule, `ai-maestro-hook.cjs`): the Stop hook now returns `{ decision: "block", reason }` when genuinely-new unread messages exist, forcing the agent to read and respond via the agent-messaging skill **before** it goes idle. Loop-safe: honors `stop_hook_active` (never blocks twice in a row) and dedups on message IDs in a per-cwd store so each message nudges exactly once. Claude-only (`decision:block` is a Claude Code capability); codex/gemini fall through to idle state as before. This is the reliable path — it fires at a clean turn boundary, not mid-render.
+  - *Streaming agents — direct SDK push* (`lib/message-delivery.ts`, `lib/streaming-bridge.mjs`): streaming (Agent SDK) agents have no tmux pane to notify, so an AMP message routed to a streaming agent is now pushed straight into the live SDK input stream via `session.push()`. Reliable regardless of TUI state. The streaming-runtime session map is now backed by `globalThis` so the Next delivery layer and the raw-ESM server share one map (same pattern as `shared-state-bridge`).
+
+### Notes
+- The idle unattended-tmux fallback (two-call `send-keys`: text, 150 ms pause, then Enter) was already in place (`notification-service.ts`) and is unchanged.
+- Scheduling: AI Maestro already ships its own cron scheduler (`lib/schedule-registry.ts` + `lib/schedule-executor.ts`, standard cron expressions, per-agent prompt on a cadence, full REST API). It is **not** wired to Anthropic's cloud "Routines" or the local `cron_*` tools — those remain a separate, future integration. No UI yet.
+
 ## [0.36.6] – [0.36.10] - 2026-07-24 — Permission reliability, terminal scrollback, security
 
 ### Security

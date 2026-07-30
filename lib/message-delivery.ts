@@ -15,6 +15,7 @@ import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
 import { notifyAgent } from '@/lib/notification-service'
 import { applyContentSecurity } from '@/lib/content-security'
 import { deliverViaWebSocket, isAgentConnectedViaWS } from '@/lib/amp-websocket'
+import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
 import { getAgent } from '@/lib/agent-registry'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 
@@ -80,6 +81,24 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     if (wsOk) {
       console.log(`[Delivery] Also pushed ${envelope.id} via WebSocket to ${recipientAddress}`)
     }
+  }
+
+  // 1d. Push into a live streaming (Agent SDK) session, if the recipient runs
+  // in streaming mode. Streaming agents have no tmux pane to notify, so this is
+  // their delivery channel — the message lands directly in the SDK input stream
+  // and wakes the agent reliably regardless of TUI state. Non-fatal.
+  try {
+    const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
+    const body = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
+    const streamText =
+      `[AMP] New message from ${sender}${subject ? ` — "${subject}"` : ''}:\n` +
+      `${body}\n\n` +
+      `(Reply using the agent-messaging skill, then continue.)`
+    if (pushToStreamSession(recipientAgentId, streamText)) {
+      console.log(`[Delivery] Pushed ${envelope.id} into streaming session for ${recipientAgentName}`)
+    }
+  } catch (err) {
+    console.warn('[Delivery] Streaming push failed (non-fatal):', err)
   }
 
   // 2. Send tmux notification (non-fatal)

@@ -316,6 +316,68 @@ async function drainMeetingInjectQueue(cwd) {
     }
 }
 
+// ── Stop-hook AMP delivery ──────────────────────────────────────────────────
+// Fetch raw unread messages (with IDs) for dedup on the Stop-hook block path.
+// Returns { agentId, messages } or null.
+async function fetchUnreadMessages(cwd) {
+    const agentsResponse = await fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(2500) });
+    if (!agentsResponse.ok) return null;
+    const agentsData = await agentsResponse.json();
+    const agent = resolveAgent(cwd, agentsData.agents || []);
+    if (!agent) { debugLog({ event: 'no_agent_for_cwd', cwd }); return null; }
+
+    const messagesResponse = await fetch(
+        `http://localhost:23000/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
+        { signal: AbortSignal.timeout(2500) }
+    );
+    if (!messagesResponse.ok) return null;
+    const messagesData = await messagesResponse.json();
+    const messages = messagesData.messages || [];
+    if (messages.length === 0) return null;
+    return { agentId: agent.id, messages };
+}
+
+function formatMessageSender(msg) {
+    const name = msg.fromAlias || (msg.from ? msg.from.substring(0, 8) : 'unknown');
+    const host = msg.fromHost ? ` (${msg.fromHost})` : '';
+    return `${name}${host}`;
+}
+
+// Per-cwd dedup so each message triggers the Stop-hook block exactly once.
+function notifiedIdsFile(cwd) {
+    return path.join(os.homedir(), '.aimaestro', 'chat-state', `${hashCwd(cwd)}.notified.json`);
+}
+function loadNotifiedIds(cwd) {
+    try { const a = JSON.parse(fs.readFileSync(notifiedIdsFile(cwd), 'utf8')); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+}
+function saveNotifiedIds(cwd, ids) {
+    try {
+        fs.mkdirSync(path.join(os.homedir(), '.aimaestro', 'chat-state'), { recursive: true });
+        fs.writeFileSync(notifiedIdsFile(cwd), JSON.stringify(ids.slice(-200)));
+    } catch (e) { debugLog({ event: 'save_notified_ids_failed', error: e.message }); }
+}
+
+// Multi-line reason handed back to Claude on a Stop-hook block — its instruction
+// to read + respond before going idle.
+function buildAmpBlockReason(messages) {
+    const urgentCount = messages.filter(m => m.priority === 'urgent').length;
+    const header = messages.length === 1
+        ? `[AMP] You have 1 unread message in your inbox:`
+        : `[AMP] You have ${messages.length} unread messages in your inbox${urgentCount > 0 ? ` (${urgentCount} urgent)` : ''}:`;
+    const lines = messages.slice(0, 10).map((m, i) => {
+        const urgent = m.priority === 'urgent' ? '[URGENT] ' : '';
+        const subj = m.subject ? ` — "${m.subject}"` : '';
+        return `  ${i + 1}. ${urgent}from ${formatMessageSender(m)}${subj}`;
+    });
+    const more = messages.length > 10 ? `  …and ${messages.length - 10} more` : '';
+    return [
+        header, ...lines, more, '',
+        'Read and respond to these now using the agent-messaging skill',
+        '(amp-inbox.sh, amp-read.sh <id>, amp-reply.sh <id> "..."), then continue.',
+    ].filter(Boolean).join('\n');
+}
+
 // Main
 async function main() {
     const input = await readStdin();
@@ -507,16 +569,39 @@ async function main() {
             }
             break;
 
-        case 'Stop':
-            // Claude finished responding - keep this fast (no API calls)
-            // Inbox check happens on idle_prompt notification which fires shortly after
+        case 'Stop': {
+            // The reliable AMP delivery slot. Injecting context on idle_prompt /
+            // UserPromptSubmit cannot start a turn on an already-idle agent — the
+            // failure that forced operators to manually type "check your inbox".
+            // Returning { decision: "block", reason } forces the agent to read +
+            // respond before it goes idle. Loop-safe: honor stop_hook_active
+            // (never block twice in a row) and dedup on message IDs.
+            let blocked = false;
+            if (agent === 'claude' && !input.stop_hook_active) {
+                try {
+                    const unread = await fetchUnreadMessages(cwd);
+                    if (unread && unread.messages.length > 0) {
+                        const already = new Set(loadNotifiedIds(cwd));
+                        const fresh = unread.messages.filter(m => m.id && !already.has(m.id));
+                        if (fresh.length > 0) {
+                            saveNotifiedIds(cwd, [...already, ...fresh.map(m => m.id)]);
+                            debugLog({ event: 'stop_block_delivery', cwd, count: fresh.length });
+                            hookResponse = { decision: 'block', reason: buildAmpBlockReason(fresh) };
+                            blocked = true;
+                        }
+                    }
+                } catch (err) {
+                    debugLog({ event: 'stop_block_check_failed', error: err.message });
+                }
+            }
             writeState(cwd, {
-                status: 'idle',
+                status: blocked ? 'active' : 'idle',
                 message: null,
                 sessionId,
                 transcriptPath
             });
             break;
+        }
 
         case 'SessionStart':
             // Session started - record the session info

@@ -378,6 +378,27 @@ function buildAmpBlockReason(messages) {
     ].filter(Boolean).join('\n');
 }
 
+// Drop messages we've already surfaced (dedup) and those lacking an id.
+function filterFreshMessages(messages, alreadyIds) {
+    const already = new Set(alreadyIds || []);
+    return (messages || []).filter(m => m && m.id && !already.has(m.id));
+}
+
+// Pure Stop-hook decision — no I/O, unit-testable. Returns:
+//   { block: false, freshIds: [] }                        → let the agent go idle
+//   { block: true, response: {...}, freshIds: [...] }     → force a continuation
+function decideStopDelivery({ agent, stopHookActive, messages, alreadyIds }) {
+    // decision:block is a Claude Code capability; never loop (stop_hook_active).
+    if (agent !== 'claude' || stopHookActive) return { block: false, freshIds: [] };
+    const fresh = filterFreshMessages(messages, alreadyIds);
+    if (fresh.length === 0) return { block: false, freshIds: [] };
+    return {
+        block: true,
+        response: { decision: 'block', reason: buildAmpBlockReason(fresh) },
+        freshIds: fresh.map(m => m.id),
+    };
+}
+
 // Main
 async function main() {
     const input = await readStdin();
@@ -580,15 +601,18 @@ async function main() {
             if (agent === 'claude' && !input.stop_hook_active) {
                 try {
                     const unread = await fetchUnreadMessages(cwd);
-                    if (unread && unread.messages.length > 0) {
-                        const already = new Set(loadNotifiedIds(cwd));
-                        const fresh = unread.messages.filter(m => m.id && !already.has(m.id));
-                        if (fresh.length > 0) {
-                            saveNotifiedIds(cwd, [...already, ...fresh.map(m => m.id)]);
-                            debugLog({ event: 'stop_block_delivery', cwd, count: fresh.length });
-                            hookResponse = { decision: 'block', reason: buildAmpBlockReason(fresh) };
-                            blocked = true;
-                        }
+                    const alreadyIds = loadNotifiedIds(cwd);
+                    const decision = decideStopDelivery({
+                        agent,
+                        stopHookActive: input.stop_hook_active,
+                        messages: unread ? unread.messages : [],
+                        alreadyIds,
+                    });
+                    if (decision.block) {
+                        saveNotifiedIds(cwd, [...alreadyIds, ...decision.freshIds]);
+                        debugLog({ event: 'stop_block_delivery', cwd, count: decision.freshIds.length });
+                        hookResponse = decision.response;
+                        blocked = true;
                     }
                 } catch (err) {
                     debugLog({ event: 'stop_block_check_failed', error: err.message });
@@ -655,7 +679,18 @@ async function main() {
     process.exit(0);
 }
 
-main().catch(err => {
-    console.error('[ai-maestro-hook] Error:', err);
-    process.exit(0); // Don't block Claude
-});
+// Only run when invoked directly (node ai-maestro-hook.cjs). When require()'d
+// by the test suite, export the pure decision helpers instead of executing.
+if (require.main === module) {
+    main().catch(err => {
+        console.error('[ai-maestro-hook] Error:', err);
+        process.exit(0); // Don't block Claude
+    });
+}
+
+module.exports = {
+    buildAmpBlockReason,
+    filterFreshMessages,
+    decideStopDelivery,
+    formatMessageSender,
+};

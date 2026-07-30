@@ -3,7 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.36.11] - 2026-07-30 — Reliable AMP message delivery (Stop-hook + streaming push)
+## [0.36.11] – [0.36.12] - 2026-07-30 — Reliable AMP message delivery (Stop-hook + streaming push)
+
+### Tests & hardening [0.36.12]
+- Extracted the Stop-hook delivery decision into a pure `decideStopDelivery()` (+ `filterFreshMessages`, `buildAmpBlockReason`) so the core logic is unit-testable without stdin/fetch plumbing; guarded `main()` behind `require.main === module`. Added `tests/ai-maestro-hook.test.ts` (loop guard, claude-only gate, dedup, urgent formatting, 10-message cap) and `tests/streaming-bridge.test.ts` (push into live session, skip closed/exited, error-swallow). Suite: 812 passing.
+- Fixed `scripts/bump-version.sh`: the `package.json` update keyed on the *previous* version string, so once `package.json` drifted it was silently skipped on every bump (it had sat at 0.29.16 for many releases). Now sets the root version via `node` regardless of prior value — never touches dependency versions.
+
 
 ### Fixed
 - **AMP notifications now reach agents without manual "check your inbox"** — The single most common daily annoyance: a message would arrive, but the agent wouldn't act on it until the operator manually typed "check your inbox." Root cause: inbox delivery relied on injecting `additionalContext` at the `idle_prompt` notification, which **cannot start a turn on an already-idle agent** — so the nudge sat there unseen. Two fixes:

@@ -1,0 +1,26 @@
+{
+  "name": "aimaestro-channels",
+  "owner": {
+    "name": "23blocks",
+    "email": "hello@23blocks.com"
+  },
+  "metadata": {
+    "description": "AI Maestro channel plugins — reliable idle-agent wake via MCP turn-injection (no tmux keystrokes).",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "amp",
+      "source": "./amp-plugin",
+      "description": "AMP channel — injects inbox messages straight into an idle agent's Claude Code session so it wakes and processes them.",
+      "version": "0.1.0",
+      "author": {
+        "name": "23blocks"
+      },
+      "homepage": "https://github.com/23blocks-OS/ai-maestro",
+      "license": "MIT",
+      "keywords": ["channel", "amp", "notifications", "wake"],
+      "category": "productivity"
+    }
+  ]
+}

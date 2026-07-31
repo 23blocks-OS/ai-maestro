@@ -1,0 +1,10 @@
+{
+  "name": "amp",
+  "version": "0.1.0",
+  "description": "AI Maestro AMP channel — injects inbox messages into a running Claude Code session so an idle agent wakes and processes them, with no tmux keystrokes.",
+  "author": {
+    "name": "23blocks"
+  },
+  "homepage": "https://github.com/23blocks-OS/ai-maestro",
+  "license": "MIT"
+}

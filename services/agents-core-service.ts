@@ -1841,6 +1841,20 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
             fullCommand = `${fullCommand} --permission-mode ${cliMode}`
           }
 
+          // Channels: reliable idle-agent wake via MCP turn-injection. When
+          // AIMAESTRO_CHANNEL_FLAG is set, the agent boots with the amp channel so
+          // deliver() can inject messages straight into the session (no fragile
+          // tmux send-keys wake). Two forms:
+          //   production:  "--channels plugin:amp@ai-maestro-marketplace"
+          //                (after the amp channel plugin is published + the org
+          //                 admin allowlists it — no interactive dialog)
+          //   local dev:   "--dangerously-load-development-channels server:amp"
+          //                (shows a one-time consent dialog — not for the fleet)
+          // Off by default: the fleet is unaffected until this env var is set.
+          if (process.env.AIMAESTRO_CHANNEL_FLAG) {
+            fullCommand = `${fullCommand} ${process.env.AIMAESTRO_CHANNEL_FLAG}`
+          }
+
           // Force the inline renderer so terminal SCROLLBACK works. Claude Code's
           // fullscreen/alternate-screen renderer (rolled out as default across
           // 2.1.11x→2.1.20x) keeps ZERO tmux history — the pane shows

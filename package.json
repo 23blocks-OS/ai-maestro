@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.36.12",
+  "version": "0.36.14",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -48,6 +48,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.205",
     "@anthropic-ai/sdk": "^0.82.0",
     "@huggingface/transformers": "^3.8.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@wterm/core": "^0.3.0",
     "@wterm/dom": "^0.3.0",
     "@wterm/react": "^0.3.0",

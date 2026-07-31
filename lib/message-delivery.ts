@@ -16,6 +16,7 @@ import { notifyAgent } from '@/lib/notification-service'
 import { applyContentSecurity } from '@/lib/content-security'
 import { deliverViaWebSocket, isAgentConnectedViaWS } from '@/lib/amp-websocket'
 import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
+import { pushToChannel } from '@/lib/channel-bridge.mjs'
 import { getAgent } from '@/lib/agent-registry'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 
@@ -83,40 +84,61 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     }
   }
 
+  // The wake text used by both the streaming and channel injection paths.
+  const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
+  const injectBody = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
+  const injectText =
+    `[AMP] New message from ${sender}${subject ? ` — "${subject}"` : ''}:\n` +
+    `${injectBody}\n\n` +
+    `(Reply using the agent-messaging skill, then continue.)`
+
   // 1d. Push into a live streaming (Agent SDK) session, if the recipient runs
-  // in streaming mode. Streaming agents have no tmux pane to notify, so this is
-  // their delivery channel — the message lands directly in the SDK input stream
-  // and wakes the agent reliably regardless of TUI state. Non-fatal.
+  // in streaming mode. Streaming agents have no tmux pane to notify. Non-fatal.
   try {
-    const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
-    const body = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
-    const streamText =
-      `[AMP] New message from ${sender}${subject ? ` — "${subject}"` : ''}:\n` +
-      `${body}\n\n` +
-      `(Reply using the agent-messaging skill, then continue.)`
-    if (pushToStreamSession(recipientAgentId, streamText)) {
+    if (pushToStreamSession(recipientAgentId, injectText)) {
       console.log(`[Delivery] Pushed ${envelope.id} into streaming session for ${recipientAgentName}`)
     }
   } catch (err) {
     console.warn('[Delivery] Streaming push failed (non-fatal):', err)
   }
 
-  // 2. Send tmux notification (non-fatal)
-  let notified = false
+  // 1e. Push into the agent's Channel (MCP turn-injection) if it has one.
+  // This is the RELIABLE last-mile: it injects a real turn even on an idle
+  // agent, with no tmux keystrokes (no dropped Enter). Every gateway (Slack,
+  // Discord, Email, WhatsApp) and agent-to-agent AMP funnels through here, so
+  // this one hop makes them all reliable. Falls back to tmux below if the agent
+  // has no channel registered (e.g. not relaunched with --channels yet). Non-fatal.
+  let channelDelivered = false
   try {
-    const result = await notifyAgent({
-      agentId: recipientAgentId,
-      agentName: recipientAgentName,
-      fromName: senderName,
-      fromHost: senderHost || 'unknown',
-      subject,
-      messageId: envelope.id,
-      priority,
-      messageType,
-    })
-    notified = result.notified
+    if (recipientAgentId) {
+      channelDelivered = await pushToChannel(recipientAgentId, injectText)
+      if (channelDelivered) {
+        console.log(`[Delivery] Injected ${envelope.id} via Channel for ${recipientAgentName}`)
+      }
+    }
   } catch (err) {
-    console.warn('[Delivery] Notification failed (non-fatal):', err)
+    console.warn('[Delivery] Channel push failed (non-fatal):', err)
+  }
+
+  // 2. Send tmux notification — FALLBACK only. Skipped when the Channel already
+  // injected the turn (no redundant, fragile keystroke wake).
+  let notified = channelDelivered
+  if (!channelDelivered) {
+    try {
+      const result = await notifyAgent({
+        agentId: recipientAgentId,
+        agentName: recipientAgentName,
+        fromName: senderName,
+        fromHost: senderHost || 'unknown',
+        subject,
+        messageId: envelope.id,
+        priority,
+        messageType,
+      })
+      notified = result.notified
+    } catch (err) {
+      console.warn('[Delivery] Notification failed (non-fatal):', err)
+    }
   }
 
   // 3. Webhook delivery (non-fatal, best-effort)

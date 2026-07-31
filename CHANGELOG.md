@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.13] - 2026-07-31 — Reliable idle-agent wake via Claude Code Channels
+
+### Added
+- **`amp-channel` — the reliable last-mile that fixes idle-agent notifications.** The long-standing failure (a message arriving while an agent sits idle never wakes it, because tmux `send-keys` silently drops the Enter) is solved by **injecting a real turn through the Claude Code Channels MCP contract instead of keystrokes.**
+  - `lib/amp-channel-server.mjs` — a self-registering MCP "channel" server (one per agent session): declares the `claude/channel` capability, binds a free localhost port, writes `~/.aimaestro/channels/<agentId>.json`, and cleans up on exit. An HTTP POST to it pushes a `notifications/claude/channel` event → Claude Code injects a turn, even on a fully idle agent.
+  - `lib/channel-bridge.mjs` (`pushToChannel`) — the delivery side: reads the registry and POSTs the message into the agent's channel. File-based IPC (the channel server runs in the agent's CLI process, separate from the AI Maestro server).
+- **One-hop integration in `deliver()`** (`lib/message-delivery.ts`): every path — the Slack / Discord / Email / WhatsApp gateways **and** agent-to-agent AMP — funnels through `deliver()`, so a single insertion makes them all reliable. The channel push runs alongside the streaming push, and **tmux `send-keys` is now a fallback** used only when the agent has no channel registered (fully backward compatible).
+- Verified end-to-end on the production path: an idle agent received a `deliver() → pushToChannel` message, woke with **zero keystrokes**, loaded the agent-messaging skill, and ran `amp-inbox.sh` on its own. Runs on the user's Claude Max subscription, Node (no Bun).
+
+### Notes
+- Fleet rollout is the next step: launch agents with `--channels` + the `amp` MCP server. Packaging `amp-channel` as a channel plugin and adding it to the org's `allowedChannelPlugins` drops the `--dangerously-load-development-channels` dev flag (and its interactive warning) for unattended launch.
+
 ## [0.36.11] – [0.36.12] - 2026-07-30 — Reliable AMP message delivery (Stop-hook + streaming push)
 
 ### Tests & hardening [0.36.12]

@@ -121,11 +121,17 @@ _sed_inplace "$VERSION_FILE" "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$
 echo -e "  ${GREEN}✓${NC} version.json"
 FILES_UPDATED=$((FILES_UPDATED + 1))
 
-# 2. package.json
-update_file "$PROJECT_ROOT/package.json" \
-    "\"version\": \"$CURRENT_VERSION\"" \
-    "\"version\": \"$NEW_VERSION\"" \
-    "package.json"
+# 2. package.json — set the ROOT version regardless of its prior value.
+# (The old string-match approach keyed on CURRENT_VERSION, so once package.json
+# drifted from version.json it was silently skipped on every subsequent bump —
+# it sat at 0.29.16 for many releases. node preserves structure + only touches
+# the top-level version field, never dependency versions.)
+if [ -f "$PROJECT_ROOT/package.json" ]; then
+    node -e "const f=process.argv[1];const fs=require('fs');const p=JSON.parse(fs.readFileSync(f,'utf8'));p.version=process.argv[2];fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n');" \
+        "$PROJECT_ROOT/package.json" "$NEW_VERSION"
+    echo -e "  ${GREEN}✓${NC} package.json"
+    FILES_UPDATED=$((FILES_UPDATED + 1))
+fi
 
 # 3. remote-install.sh
 update_file "$PROJECT_ROOT/scripts/remote-install.sh" \

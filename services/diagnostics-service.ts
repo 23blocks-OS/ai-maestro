@@ -136,6 +136,46 @@ function checkAgentRegistry(): DiagnosticCheck {
   }
 }
 
+// Invariant: every AMP-registered agent must have a UNIQUE cryptographic identity.
+// A shared fingerprint or address means two agents can sign/receive as each other —
+// the contamination bug where a machine keypair was copied into many agent dirs
+// (root-caused in lib/amp-inbox-writer.ts). This runs at every startup so drift can
+// never sit silently again; scripts/amp-identity-audit.mjs is the deep on-disk check.
+function checkAMPIdentityIntegrity(): DiagnosticCheck {
+  try {
+    const agents = loadAgents().filter((a: any) => !a.deletedAt && a.metadata?.amp?.fingerprint)
+    const byFp = new Map<string, string[]>()
+    const byAddr = new Map<string, string[]>()
+    for (const a of agents) {
+      const fp = a.metadata!.amp!.fingerprint as string
+      const addr = (a.metadata!.amp!.address as string) || ''
+      ;(byFp.get(fp) || byFp.set(fp, []).get(fp)!).push(a.name)
+      if (addr) (byAddr.get(addr.toLowerCase()) || byAddr.set(addr.toLowerCase(), []).get(addr.toLowerCase())!).push(a.name)
+    }
+    const sharedFps = [...byFp.entries()].filter(([, n]) => n.length > 1)
+    const sharedAddrs = [...byAddr.entries()].filter(([, n]) => n.length > 1)
+    if (sharedFps.length || sharedAddrs.length) {
+      return {
+        name: 'amp-identity-integrity',
+        status: 'fail',
+        message: `SHARED IDENTITY detected: ${sharedFps.length} key(s) and ${sharedAddrs.length} address(es) reused across agents — run scripts/amp-identity-repair.mjs`,
+        details: {
+          sharedFingerprints: sharedFps.map(([fp, n]) => ({ fingerprint: fp.slice(0, 24), agents: n })),
+          sharedAddresses: sharedAddrs.map(([addr, n]) => ({ address: addr, agents: n })),
+        },
+      }
+    }
+    return {
+      name: 'amp-identity-integrity',
+      status: 'pass',
+      message: `${agents.length} AMP agents, all identities unique`,
+      details: { ampAgents: agents.length },
+    }
+  } catch (error: any) {
+    return { name: 'amp-identity-integrity', status: 'warn', message: `Could not verify: ${error.message}` }
+  }
+}
+
 function checkNodeVersion(): DiagnosticCheck {
   const version = process.version
   const major = parseInt(version.slice(1).split('.')[0], 10)
@@ -287,6 +327,7 @@ export async function runDiagnostics(): Promise<ServiceResult<DiagnosticReport>>
 
   checks.push(tmux, nodePty)
   checks.push(checkAgentRegistry())
+  checks.push(checkAMPIdentityIntegrity())
   checks.push(checkNodeVersion())
   checks.push(diskSpace)
 

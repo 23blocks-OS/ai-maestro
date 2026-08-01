@@ -709,6 +709,26 @@ export async function registerAgent(
       ? `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${providerDomain}`
       : `${normalizedName}@${providerDomain}`
 
+    // STRUCTURAL GUARD: an AMP address must belong to exactly one agent. Reject if
+    // a *different* agent already owns it. Together with the duplicate-key check
+    // above, this makes shared identity impossible via the registration path — the
+    // contamination that scripts/amp-identity-audit.mjs was built to catch entered
+    // by copying key files underneath this layer, never through here.
+    const addressOwner = getAMPRegisteredAgents().find((a: any) =>
+      ((a.metadata?.amp?.address as string) || '').toLowerCase() === fullAddress.toLowerCase() &&
+      a.id !== agent.id
+    )
+    if (addressOwner) {
+      return {
+        data: {
+          error: 'address_already_registered',
+          message: `AMP address '${fullAddress}' is already owned by a different agent`,
+          details: { address: fullAddress, ownerId: addressOwner.id }
+        },
+        status: 409
+      }
+    }
+
     markAgentAsAMPRegistered(agent.id, {
       address: fullAddress,
       tenant,

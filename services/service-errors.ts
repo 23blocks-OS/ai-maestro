@@ -38,6 +38,7 @@ export type ServiceErrorCode =
   | 'missing_header'
   | 'duplicate_message'
   | 'key_already_registered'
+  | 'address_already_registered'
   // Generic codes (12)
   | 'already_exists'
   | 'gone'

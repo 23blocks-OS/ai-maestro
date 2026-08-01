@@ -110,8 +110,13 @@ const bakReg = `${REGISTRY}.bak-${stamp}`
 if (!fs.existsSync(bakDir)) { fs.cpSync(B, bakDir, { recursive: true }); console.log(`\nBackup (store):    ${bakDir}`) }
 if (!fs.existsSync(bakReg)) { fs.copyFileSync(REGISTRY, bakReg); console.log(`Backup (registry): ${bakReg}`) }
 
-// writes on-disk config + registry entry to a given fingerprint + address
-const writeIdentity = (p, fp) => {
+// The SERVER verifies signatures against ~/.aimaestro/agents/<id>/keys/public.pem
+// (lib/amp-keys.ts loadKeyPair), a SEPARATE store from the client's signing keys
+// in ~/.agent-messaging. Both must hold the same keypair or every signature fails.
+const SERVER_KEYS = (id) => path.join(HOME, '.aimaestro', 'agents', id, 'keys')
+
+// writes on-disk config + registry entry + SERVER public key to a given fingerprint
+const writeIdentity = (p, fp, pubPem) => {
   const cfg = readCfg(p.dir) || {}
   if (cfg.agent) { cfg.agent.address = p.correctAddr; cfg.agent.fingerprint = fp }
   cfg.address = p.correctAddr
@@ -122,6 +127,12 @@ const writeIdentity = (p, fp) => {
   ra.metadata.amp = ra.metadata.amp || {}
   ra.metadata.amp.fingerprint = fp
   if (!p.registryHadAddr) { ra.metadata.amp.address = p.correctAddr; ra.metadata.amp.tenant = ra.metadata.amp.tenant || TENANT }
+  // sync the server-side verification key to the agent's new public key
+  if (pubPem) {
+    const sk = SERVER_KEYS(p.id)
+    fs.mkdirSync(sk, { recursive: true })
+    fs.writeFileSync(path.join(sk, 'public.pem'), pubPem)
+  }
 }
 
 let ok = 0, fail = 0
@@ -134,13 +145,15 @@ for (const p of remintList) {
     execFileSync('openssl', ['genpkey', '-algorithm', 'ed25519', '-out', priv])   // fresh unique keypair
     execFileSync('openssl', ['pkey', '-in', priv, '-pubout', '-out', pub])
     fs.chmodSync(priv, 0o600)
-    writeIdentity(p, fpOfPub(fs.readFileSync(pub)))
+    const pubPem = fs.readFileSync(pub)
+    writeIdentity(p, fpOfPub(pubPem), pubPem)
     ok++; console.log(`  ✓ re-mint    ${p.name}`)
   } catch (e) { fail++; console.log(`  ✗ ${p.name}: ${String(e.message || e).slice(0, 140)}`) }
 }
 for (const p of normalizeList) {
   try {
-    writeIdentity(p, p.diskFp)   // keep the (already unique) key; align address + registry fp
+    const pubPem = fs.existsSync(path.join(p.dir, 'keys', 'public.pem')) ? fs.readFileSync(path.join(p.dir, 'keys', 'public.pem')) : null
+    writeIdentity(p, p.diskFp, pubPem)   // keep the (already unique) key; align address + registry + server key
     ok++; console.log(`  ✓ normalize  ${p.name}`)
   } catch (e) { fail++; console.log(`  ✗ ${p.name}: ${String(e.message || e).slice(0, 140)}`) }
 }

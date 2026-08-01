@@ -857,6 +857,12 @@ export async function routeMessage(
       }
     }
 
+    // Strict identity mode: require a valid signature and reject mesh address
+    // spoofing outright. Default OFF for backward compatibility — enable with
+    // AMP_REQUIRE_SIGNATURES=1 once all senders sign. Invalid signatures are
+    // rejected regardless of this flag (see below).
+    const STRICT = process.env.AMP_REQUIRE_SIGNATURES === '1' || process.env.AMP_REQUIRE_SIGNATURES === 'true'
+
     // ── Sender Resolution ──────────────────────────────────────────────
     const isMeshForwarded = !!forwardedFrom && auth.agentId?.startsWith('mesh-')
     const senderAgent = isMeshForwarded ? null : getAgent(auth.agentId!)
@@ -878,7 +884,15 @@ export async function routeMessage(
         const fwdHost = getHostById(forwardedFrom!)
         const expectedHostName = fwdHost?.name || forwardedFrom
         if (senderParsed.tenant !== forwardedFrom && senderParsed.tenant !== expectedHostName) {
-          console.warn(`[AMP Route] Sender address tenant "${senderParsed.tenant}" does not match forwarding host "${forwardedFrom}" -- possible address spoofing`)
+          const spoofMsg = `Sender address tenant "${senderParsed.tenant}" does not match forwarding host "${forwardedFrom}" -- possible address spoofing`
+          if (STRICT) {
+            console.warn(`[AMP Route] REJECTED — ${spoofMsg}`)
+            return {
+              data: { error: 'unauthorized', message: spoofMsg, details: { senderTenant: senderParsed.tenant, forwardingHost: forwardedFrom } },
+              status: 403
+            }
+          }
+          console.warn(`[AMP Route] ${spoofMsg}`)
         }
       }
     }
@@ -914,7 +928,14 @@ export async function routeMessage(
       reply_to: senderAddress,
     }
 
-    // ── Signature Handling ─────────────────────────────────────────────
+    // ── Signature Verification ─────────────────────────────────────────
+    // A signature proves the sender holds the private key for its address. Rules:
+    //  • present + verifiable + INVALID  → REJECT (403). A bad signature is a
+    //    forgery/corruption, never a legit client — never deliver it (was warn-only).
+    //  • present + no local key to check → can't verify; reject in STRICT, else pass.
+    //  • absent                          → reject in STRICT, else pass (Phase-1 default).
+    // Mesh-forwarded messages carry no local keypair; they're gated by the
+    // trusted-host + address-tenant check above, not by this local key check.
     const senderKeyPair = isMeshForwarded ? null : loadKeyPair(auth.agentId!)
 
     if (body.signature) {
@@ -929,14 +950,28 @@ export async function routeMessage(
           body.priority || 'normal', body.in_reply_to || '', payloadHash
         ].join('|')
 
-        const isValid = verifySignature(signatureData, body.signature, senderKeyPair.publicHex)
-        if (!isValid) {
-          console.warn(`[AMP Route] Invalid signature from ${envelope.from}`)
-        } else {
-          console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+        if (!verifySignature(signatureData, body.signature, senderKeyPair.publicHex)) {
+          console.warn(`[AMP Route] REJECTED — invalid signature from ${envelope.from}`)
+          return {
+            data: { error: 'invalid_signature', message: 'Message signature failed verification', details: { from: envelope.from } },
+            status: 403
+          }
+        }
+        console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+      } else if (STRICT && !isMeshForwarded) {
+        console.warn(`[AMP Route] REJECTED — no registered key to verify signature from ${envelope.from}`)
+        return {
+          data: { error: 'invalid_signature', message: 'Cannot verify signature: no registered key for sender', details: { from: envelope.from } },
+          status: 403
         }
       }
       envelope.signature = body.signature
+    } else if (STRICT && !isMeshForwarded) {
+      console.warn(`[AMP Route] REJECTED — unsigned message from ${envelope.from} (AMP_REQUIRE_SIGNATURES enabled)`)
+      return {
+        data: { error: 'invalid_signature', message: 'A valid signature is required', details: { from: envelope.from } },
+        status: 403
+      }
     } else {
       console.log(`[AMP Route] No signature provided by ${envelope.from}`)
     }

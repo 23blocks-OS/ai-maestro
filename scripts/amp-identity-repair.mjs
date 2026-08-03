@@ -35,7 +35,12 @@ const addrOf = (c) => (c && (c.agent?.address || c.address)) || null
 // SHA256:base64 fingerprint of a PEM public key — matches the registry format.
 const fpOfPub = (pubPem) => {
   const der = execFileSync('openssl', ['pkey', '-pubin', '-outform', 'DER'], { input: pubPem })
-  const b64 = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: der })
+  // Hash the RAW 32-byte Ed25519 public key (last 32 bytes of the DER SPKI), NOT the
+  // full DER — this is what lib/amp-keys.ts calculateFingerprint does. Hashing the DER
+  // produces a different fingerprint the server never computes, which breaks conflict
+  // detection and the registration duplicate-key check.
+  const raw = der.subarray(-32)
+  const b64 = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: raw })
   return 'SHA256:' + Buffer.from(b64).toString('base64')
 }
 const diskFp = (dir) => {
@@ -115,7 +120,16 @@ if (!fs.existsSync(bakReg)) { fs.copyFileSync(REGISTRY, bakReg); console.log(`Ba
 // in ~/.agent-messaging. Both must hold the same keypair or every signature fails.
 const SERVER_KEYS = (id) => path.join(HOME, '.aimaestro', 'agents', id, 'keys')
 
-// writes on-disk config + registry entry + SERVER public key to a given fingerprint
+// Identity Conflict Detection ledger (lib/amp-known-keys.ts). A re-mint is an
+// AUTHORIZED key change, so we must update the ledger to the new fingerprint —
+// otherwise the running server would 409 (key_conflict) the re-minted agents on
+// their next message. Loaded once, saved once at the end.
+const LEDGER = path.join(HOME, '.aimaestro', 'amp', 'known-keys.json')
+const nowIso = new Date().toISOString()
+let ledger = {}
+try { ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8')) } catch { /* empty/absent = fine */ }
+
+// writes on-disk config + registry entry + SERVER public key + conflict ledger
 const writeIdentity = (p, fp, pubPem) => {
   const cfg = readCfg(p.dir) || {}
   if (cfg.agent) { cfg.agent.address = p.correctAddr; cfg.agent.fingerprint = fp }
@@ -133,6 +147,10 @@ const writeIdentity = (p, fp, pubPem) => {
     fs.mkdirSync(sk, { recursive: true })
     fs.writeFileSync(path.join(sk, 'public.pem'), pubPem)
   }
+  // authorized rotation: drop any stale ledger entry for this address so the
+  // server re-records it via TOFU (first_contact) with its OWN fingerprint format
+  // on the agent's next message. Deleting (vs writing a fp here) is format-proof.
+  delete ledger[p.correctAddr.toLowerCase()]
 }
 
 let ok = 0, fail = 0
@@ -162,6 +180,12 @@ const tmp = `${REGISTRY}.tmp-${stamp}`
 fs.writeFileSync(tmp, JSON.stringify(registry, null, 2))
 fs.renameSync(tmp, REGISTRY)
 
-console.log(`\nRe-minted: ${ok} ok, ${fail} failed.`)
+// write the conflict-detection ledger atomically (updated for every re-minted key)
+fs.mkdirSync(path.dirname(LEDGER), { recursive: true })
+const ltmp = `${LEDGER}.tmp-${stamp}`
+fs.writeFileSync(ltmp, JSON.stringify(ledger, null, 2))
+fs.renameSync(ltmp, LEDGER)
+
+console.log(`\nRe-minted: ${ok} ok, ${fail} failed. Conflict ledger pruned for re-minted agents (TOFU rebuilds; ${Object.keys(ledger).length} entries remain).`)
 console.log('Restart AI Maestro so it reloads the registry, then verify:')
 console.log('  pm2 restart ai-maestro && node scripts/amp-identity-audit.mjs')

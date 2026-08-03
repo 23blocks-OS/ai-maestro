@@ -37,6 +37,7 @@ import os from 'os'
 import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHost, updateAgent, deleteAgent, markAgentAsAMPRegistered, checkMeshAgentExists, getAMPRegisteredAgents } from '@/lib/agent-registry'
 import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader, revokeApiKey, rotateApiKey, revokeAllKeysForAgent } from '@/lib/amp-auth'
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
+import { checkKnownKey, recordKnownKey } from '@/lib/amp-known-keys'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
@@ -937,6 +938,28 @@ export async function routeMessage(
     // Mesh-forwarded messages carry no local keypair; they're gated by the
     // trusted-host + address-tenant check above, not by this local key check.
     const senderKeyPair = isMeshForwarded ? null : loadKeyPair(auth.agentId!)
+
+    // ── Identity Conflict Detection (AMP 07-security) ──────────────────
+    // The sender's registered key fingerprint must match what we've seen before
+    // for this address (TOFU). An unexplained change is a key-swap / contamination
+    // signal — refuse until resolved. This is the runtime control that would have
+    // caught the fleet-wide shared-key incident.
+    if (senderKeyPair?.publicHex && !isMeshForwarded) {
+      const senderFp = calculateFingerprint(senderKeyPair.publicHex)
+      const conflict = checkKnownKey(senderAddress, senderFp)
+      if (conflict.status === 'conflict') {
+        console.warn(`[AMP Route] REJECTED — key_conflict for ${senderAddress}: known ${conflict.knownFingerprint?.slice(0, 20)}…, presented ${senderFp.slice(0, 20)}…`)
+        return {
+          data: {
+            error: 'key_conflict',
+            message: `Sender ${senderAddress} public key changed from its known fingerprint; resolve the conflict (or rotate with proof) before messaging`,
+            details: { address: senderAddress, knownFingerprint: conflict.knownFingerprint, presentedFingerprint: senderFp }
+          },
+          status: 409
+        }
+      }
+      recordKnownKey(senderAddress, senderFp, now)
+    }
 
     if (body.signature) {
       if (senderKeyPair?.publicHex) {

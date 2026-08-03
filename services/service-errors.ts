@@ -40,6 +40,7 @@ export type ServiceErrorCode =
   | 'key_already_registered'
   | 'address_already_registered'
   | 'invalid_signature'
+  | 'key_conflict'
   // Generic codes (12)
   | 'already_exists'
   | 'gone'

@@ -43,6 +43,24 @@ const fpOfPub = (pubPem) => {
   const b64 = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: raw })
   return 'SHA256:' + Buffer.from(b64).toString('base64')
 }
+// did:key derivation (mirrors lib/amp-did.ts) — the canonical self-certifying id.
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+const base58btc = (bytes) => {
+  let zeros = 0; while (zeros < bytes.length && bytes[zeros] === 0) zeros++
+  const digits = [0]
+  for (let i = zeros; i < bytes.length; i++) {
+    let carry = bytes[i]
+    for (let j = 0; j < digits.length; j++) { carry += digits[j] << 8; digits[j] = carry % 58; carry = (carry / 58) | 0 }
+    while (carry) { digits.push(carry % 58); carry = (carry / 58) | 0 }
+  }
+  let out = '1'.repeat(zeros)
+  for (let k = digits.length - 1; k >= 0; k--) out += B58[digits[k]]
+  return out
+}
+const didOfPub = (pubPem) => {
+  const der = execFileSync('openssl', ['pkey', '-pubin', '-outform', 'DER'], { input: pubPem })
+  return 'did:key:z' + base58btc(Buffer.concat([Buffer.from([0xed, 0x01]), der.subarray(-32)]))
+}
 const diskFp = (dir) => {
   const f = path.join(dir, 'keys', 'public.pem')
   if (!fs.existsSync(f)) return null
@@ -89,9 +107,9 @@ for (const d of uuidDirs) {
   if (sharedKey || sharedRegFp || noKey || wrongAddrCI) {
     remintList.push({ id: d, name: ra.name, dir, correctAddr: correct, registryHadAddr,
       reason: [sharedKey && 'shared-key', sharedRegFp && 'shared-registry-fp', noKey && 'no-key', wrongAddrCI && `wrong-addr(${diskAddr})`].filter(Boolean).join(',') })
-  } else if (wrongAddrExact || !registryHadAddr || regFp(ra) !== dfp) {
+  } else if (wrongAddrExact || !registryHadAddr || regFp(ra) !== dfp || !ra.metadata?.amp?.did) {
     normalizeList.push({ id: d, name: ra.name, dir, correctAddr: correct, registryHadAddr, diskFp: dfp,
-      reason: [wrongAddrExact && 'addr-case', !registryHadAddr && 'registry-gap', regFp(ra) !== dfp && 'registry-fp-drift'].filter(Boolean).join(',') })
+      reason: [wrongAddrExact && 'addr-case', !registryHadAddr && 'registry-gap', regFp(ra) !== dfp && 'registry-fp-drift', !ra.metadata?.amp?.did && 'missing-did'].filter(Boolean).join(',') })
   }
 }
 
@@ -140,11 +158,12 @@ const writeIdentity = (p, fp, pubPem) => {
   ra.metadata.amp = ra.metadata.amp || {}
   ra.metadata.amp.fingerprint = fp
   if (!p.registryHadAddr) { ra.metadata.amp.address = p.correctAddr; ra.metadata.amp.tenant = ra.metadata.amp.tenant || TENANT }
-  // sync the server-side verification key to the agent's new public key
+  // sync the server-side verification key + stamp the canonical did:key
   if (pubPem) {
     const sk = SERVER_KEYS(p.id)
     fs.mkdirSync(sk, { recursive: true })
     fs.writeFileSync(path.join(sk, 'public.pem'), pubPem)
+    ra.metadata.amp.did = didOfPub(pubPem)   // self-certifying id, derived from the key
   }
   // authorized rotation: drop any stale ledger entry for this address so the
   // server re-records it via TOFU (first_contact) with its OWN fingerprint format

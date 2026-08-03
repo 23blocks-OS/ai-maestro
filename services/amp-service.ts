@@ -37,6 +37,7 @@ import os from 'os'
 import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHost, updateAgent, deleteAgent, markAgentAsAMPRegistered, checkMeshAgentExists, getAMPRegisteredAgents } from '@/lib/agent-registry'
 import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader, revokeApiKey, rotateApiKey, revokeAllKeysForAgent } from '@/lib/amp-auth'
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
+import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-keys'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
@@ -709,6 +710,26 @@ export async function registerAgent(
       ? `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${providerDomain}`
       : `${normalizedName}@${providerDomain}`
 
+    // STRUCTURAL GUARD: an AMP address must belong to exactly one agent. Reject if
+    // a *different* agent already owns it. Together with the duplicate-key check
+    // above, this makes shared identity impossible via the registration path — the
+    // contamination that scripts/amp-identity-audit.mjs was built to catch entered
+    // by copying key files underneath this layer, never through here.
+    const addressOwner = getAMPRegisteredAgents().find((a: any) =>
+      ((a.metadata?.amp?.address as string) || '').toLowerCase() === fullAddress.toLowerCase() &&
+      a.id !== agent.id
+    )
+    if (addressOwner) {
+      return {
+        data: {
+          error: 'address_already_registered',
+          message: `AMP address '${fullAddress}' is already owned by a different agent`,
+          details: { address: fullAddress, ownerId: addressOwner.id }
+        },
+        status: 409
+      }
+    }
+
     markAgentAsAMPRegistered(agent.id, {
       address: fullAddress,
       tenant,
@@ -837,6 +858,12 @@ export async function routeMessage(
       }
     }
 
+    // Strict identity mode: require a valid signature and reject mesh address
+    // spoofing outright. Default OFF for backward compatibility — enable with
+    // AMP_REQUIRE_SIGNATURES=1 once all senders sign. Invalid signatures are
+    // rejected regardless of this flag (see below).
+    const STRICT = process.env.AMP_REQUIRE_SIGNATURES === '1' || process.env.AMP_REQUIRE_SIGNATURES === 'true'
+
     // ── Sender Resolution ──────────────────────────────────────────────
     const isMeshForwarded = !!forwardedFrom && auth.agentId?.startsWith('mesh-')
     const senderAgent = isMeshForwarded ? null : getAgent(auth.agentId!)
@@ -858,7 +885,15 @@ export async function routeMessage(
         const fwdHost = getHostById(forwardedFrom!)
         const expectedHostName = fwdHost?.name || forwardedFrom
         if (senderParsed.tenant !== forwardedFrom && senderParsed.tenant !== expectedHostName) {
-          console.warn(`[AMP Route] Sender address tenant "${senderParsed.tenant}" does not match forwarding host "${forwardedFrom}" -- possible address spoofing`)
+          const spoofMsg = `Sender address tenant "${senderParsed.tenant}" does not match forwarding host "${forwardedFrom}" -- possible address spoofing`
+          if (STRICT) {
+            console.warn(`[AMP Route] REJECTED — ${spoofMsg}`)
+            return {
+              data: { error: 'unauthorized', message: spoofMsg, details: { senderTenant: senderParsed.tenant, forwardingHost: forwardedFrom } },
+              status: 403
+            }
+          }
+          console.warn(`[AMP Route] ${spoofMsg}`)
         }
       }
     }
@@ -894,8 +929,37 @@ export async function routeMessage(
       reply_to: senderAddress,
     }
 
-    // ── Signature Handling ─────────────────────────────────────────────
+    // ── Signature Verification ─────────────────────────────────────────
+    // A signature proves the sender holds the private key for its address. Rules:
+    //  • present + verifiable + INVALID  → REJECT (403). A bad signature is a
+    //    forgery/corruption, never a legit client — never deliver it (was warn-only).
+    //  • present + no local key to check → can't verify; reject in STRICT, else pass.
+    //  • absent                          → reject in STRICT, else pass (Phase-1 default).
+    // Mesh-forwarded messages carry no local keypair; they're gated by the
+    // trusted-host + address-tenant check above, not by this local key check.
     const senderKeyPair = isMeshForwarded ? null : loadKeyPair(auth.agentId!)
+
+    // ── Identity Conflict Detection (AMP 07-security) ──────────────────
+    // The sender's registered key fingerprint must match what we've seen before
+    // for this address (TOFU). An unexplained change is a key-swap / contamination
+    // signal — refuse until resolved. This is the runtime control that would have
+    // caught the fleet-wide shared-key incident.
+    if (senderKeyPair?.publicHex && !isMeshForwarded) {
+      const senderFp = calculateFingerprint(senderKeyPair.publicHex)
+      const conflict = checkKnownKey(senderAddress, senderFp)
+      if (conflict.status === 'conflict') {
+        console.warn(`[AMP Route] REJECTED — key_conflict for ${senderAddress}: known ${conflict.knownFingerprint?.slice(0, 20)}…, presented ${senderFp.slice(0, 20)}…`)
+        return {
+          data: {
+            error: 'key_conflict',
+            message: `Sender ${senderAddress} public key changed from its known fingerprint; resolve the conflict (or rotate with proof) before messaging`,
+            details: { address: senderAddress, knownFingerprint: conflict.knownFingerprint, presentedFingerprint: senderFp }
+          },
+          status: 409
+        }
+      }
+      recordKnownKey(senderAddress, senderFp, now)
+    }
 
     if (body.signature) {
       if (senderKeyPair?.publicHex) {
@@ -909,14 +973,28 @@ export async function routeMessage(
           body.priority || 'normal', body.in_reply_to || '', payloadHash
         ].join('|')
 
-        const isValid = verifySignature(signatureData, body.signature, senderKeyPair.publicHex)
-        if (!isValid) {
-          console.warn(`[AMP Route] Invalid signature from ${envelope.from}`)
-        } else {
-          console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+        if (!verifySignature(signatureData, body.signature, senderKeyPair.publicHex)) {
+          console.warn(`[AMP Route] REJECTED — invalid signature from ${envelope.from}`)
+          return {
+            data: { error: 'invalid_signature', message: 'Message signature failed verification', details: { from: envelope.from } },
+            status: 403
+          }
+        }
+        console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+      } else if (STRICT && !isMeshForwarded) {
+        console.warn(`[AMP Route] REJECTED — no registered key to verify signature from ${envelope.from}`)
+        return {
+          data: { error: 'invalid_signature', message: 'Cannot verify signature: no registered key for sender', details: { from: envelope.from } },
+          status: 403
         }
       }
       envelope.signature = body.signature
+    } else if (STRICT && !isMeshForwarded) {
+      console.warn(`[AMP Route] REJECTED — unsigned message from ${envelope.from} (AMP_REQUIRE_SIGNATURES enabled)`)
+      return {
+        data: { error: 'invalid_signature', message: 'A valid signature is required', details: { from: envelope.from } },
+        status: 403
+      }
     } else {
       console.log(`[AMP Route] No signature provided by ${envelope.from}`)
     }
@@ -1706,6 +1784,15 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
       amp: existingAmpMeta,
     }
   } as any)
+
+  // Keep the Identity Conflict Detection ledger in sync so this AUTHORIZED
+  // rotation (the old key signed the new one — verified above) is not later
+  // flagged as a key-swap. Without this, conflict detection would refuse the
+  // rotated agent's next message (the footgun this closes).
+  const rotatedAddress = (auth.address as string) || (existingAmpMeta.address as string)
+  if (rotatedAddress) {
+    try { rotateKnownKey(rotatedAddress, newKeyPair.fingerprint, new Date().toISOString()) } catch { /* best-effort */ }
+  }
 
   return {
     data: {

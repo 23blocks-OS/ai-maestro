@@ -251,42 +251,37 @@ export async function initAgentAMPHome(agentName: string, agentId?: string): Pro
       }
     }
   } catch {
-    // Agent config doesn't exist — create from machine config or defaults
-    const machineConfig = path.join(AMP_DIR, 'config.json')
+    // Agent config doesn't exist — create a CLEAN one. CRITICAL: do NOT inherit
+    // the machine's identity. Reuse only non-identity structure (version/tenant/
+    // provider); the agent's address + keypair are its OWN, minted by amp-init.
+    // Cloning the machine config's `address` is what stamped many agents with the
+    // machine/agents-web address (see scripts/amp-identity-audit.mjs).
+    let base: Record<string, unknown> = { version: 'amp/0.1' }
     try {
-      const configData = JSON.parse(await fs.readFile(machineConfig, 'utf-8'))
-      configData.agent = configData.agent || {}
-      configData.agent.name = agentName
-      if (agentId) configData.agent.id = agentId
-      await fs.writeFile(agentConfig, JSON.stringify(configData, null, 2))
-    } catch {
-      const minimalConfig: Record<string, unknown> = {
-        version: 'amp/0.1',
-        agent: { name: agentName, ...(agentId ? { id: agentId } : {}) },
-        created_at: new Date().toISOString()
+      const m = JSON.parse(await fs.readFile(path.join(AMP_DIR, 'config.json'), 'utf-8'))
+      base = {
+        version: m.version || 'amp/0.1',
+        ...(m.tenant ? { tenant: m.tenant } : {}),
+        ...(m.provider ? { provider: m.provider } : {}),
       }
-      await fs.writeFile(agentConfig, JSON.stringify(minimalConfig, null, 2))
-    }
-  }
-
-  // Copy machine-level keys if agent doesn't have them yet
-  try {
-    await fs.access(path.join(agentKeys, 'private.pem'))
-  } catch {
-    const machineKeys = path.join(AMP_DIR, 'keys')
-    try {
-      const privateKey = await fs.readFile(path.join(machineKeys, 'private.pem'))
-      const publicKey = await fs.readFile(path.join(machineKeys, 'public.pem'))
-      await fs.writeFile(path.join(agentKeys, 'private.pem'), privateKey)
-      await fs.writeFile(path.join(agentKeys, 'public.pem'), publicKey)
     } catch {
-      // No machine keys — agent will need to run amp-init
+      // No machine config — minimal is fine
     }
+    await fs.writeFile(agentConfig, JSON.stringify({
+      ...base,
+      // NO `address` here — a shared/inherited address is identity contamination.
+      // amp-init sets the agent's own address when it registers.
+      agent: { name: agentName, ...(agentId ? { id: agentId } : {}) },
+      created_at: new Date().toISOString(),
+    }, null, 2))
   }
 
-  // NOTE: Machine-level registrations are NOT copied to agents.
-  // Each agent gets its own registration via /api/v1/register with its own API key.
-  // Copying machine-level keys caused identity contamination (wrong sender addresses).
+  // CRITICAL: every agent MUST have its OWN unique Ed25519 keypair. We deliberately
+  // do NOT copy the machine keypair here. Copying it made N agents share ONE
+  // cryptographic identity (all signing as the machine/agents-web) — the exact bug
+  // scripts/amp-identity-audit.mjs detects. If the agent has no keys yet, that is
+  // correct: amp-init.sh mints a unique keypair and registers it. Inbox delivery
+  // only needs the directory, which exists by now — no keys required to receive.
 
   // Update the name→UUID index
   if (agentId) {

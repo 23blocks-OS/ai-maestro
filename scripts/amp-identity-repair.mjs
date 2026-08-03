@@ -188,11 +188,29 @@ for (const p of remintList) {
 }
 for (const p of normalizeList) {
   try {
-    const pubPem = fs.existsSync(path.join(p.dir, 'keys', 'public.pem')) ? fs.readFileSync(path.join(p.dir, 'keys', 'public.pem')) : null
-    writeIdentity(p, p.diskFp, pubPem)   // keep the (already unique) key; align address + registry + server key
+    // prefer the client signing key; fall back to the server verify-key so agents
+    // that have a registered key but no local client key still get a fingerprint + did
+    const clientPub = path.join(p.dir, 'keys', 'public.pem')
+    const serverPub = path.join(SERVER_KEYS(p.id), 'public.pem')
+    const pubPem = fs.existsSync(clientPub) ? fs.readFileSync(clientPub)
+                 : (fs.existsSync(serverPub) ? fs.readFileSync(serverPub) : null)
+    const fp = pubPem ? fpOfPub(pubPem) : p.diskFp   // fp from the actual key we found
+    writeIdentity(p, fp, pubPem)   // align address + registry fp + server key + did
     ok++; console.log(`  ✓ normalize  ${p.name}`)
   } catch (e) { fail++; console.log(`  ✗ ${p.name}: ${String(e.message || e).slice(0, 140)}`) }
 }
+// Registry-based did backfill: catch agents that have a registered key but no
+// client AMP dir (system/test agents) — the dir-based loops above never see them.
+for (const ra of registry) {
+  if (ra?.metadata?.amp?.fingerprint && !ra?.metadata?.amp?.did) {
+    const sp = path.join(SERVER_KEYS(ra.id), 'public.pem')
+    if (fs.existsSync(sp)) {
+      try { ra.metadata.amp.did = didOfPub(fs.readFileSync(sp)); ok++; console.log(`  ✓ did-backfill ${ra.name}`) }
+      catch (e) { console.log(`  ✗ did-backfill ${ra.name}: ${String(e.message || e).slice(0, 80)}`) }
+    }
+  }
+}
+
 // write registry back atomically
 const tmp = `${REGISTRY}.tmp-${stamp}`
 fs.writeFileSync(tmp, JSON.stringify(registry, null, 2))

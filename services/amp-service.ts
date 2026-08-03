@@ -924,6 +924,7 @@ export async function routeMessage(
       version: 'amp/0.1',
       id: messageId,
       from: senderAddress,
+      from_did: (senderAgent?.metadata?.amp?.did as string) || null,
       to: body.to,
       subject: body.subject,
       priority: body.priority || 'normal',
@@ -1621,6 +1622,7 @@ export function resolveAgentAddress(
         public_key: keyPair?.publicPem || '',
         key_algorithm: 'Ed25519',
         fingerprint: keyPair?.fingerprint || (byAddress.metadata?.amp?.fingerprint as string) || '',
+        did: deriveDidKey(keyPair?.publicHex) || (byAddress.metadata?.amp?.did as string) || null,
         online: byAddress.sessions?.some((s: any) => s.status === 'online') || false,
       } as AMPAgentResolveResponse,
       status: 200
@@ -1637,6 +1639,7 @@ export function resolveAgentAddress(
       public_key: keyPair?.publicPem || '',
       key_algorithm: 'Ed25519',
       fingerprint: keyPair?.fingerprint || (agent.metadata?.amp?.fingerprint as string) || '',
+      did: deriveDidKey(keyPair?.publicHex) || (agent.metadata?.amp?.did as string) || null,
       online: agent.sessions?.some((s: any) => s.status === 'online') || false,
     } as AMPAgentResolveResponse,
     status: 200

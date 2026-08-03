@@ -30,6 +30,18 @@ else
     echo "[AI Maestro] ℹ Tmux server not running (will use correct config when started)"
 fi
 
+# Step 3b: Ensure Node >= 18 (the claude-agent-sdk crash-loops on older node).
+# No-op where the ambient node is already >= 18; only reaches for nvm if it's too old.
+NODE_MAJOR=$(node -v 2>/dev/null | sed 's/v\([0-9]*\).*/\1/')
+if [ -z "$NODE_MAJOR" ] || [ "$NODE_MAJOR" -lt 18 ] 2>/dev/null; then
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        echo "[AI Maestro] Node $(node -v 2>/dev/null || echo missing) too old — switching to nvm default/LTS"
+        . "$HOME/.nvm/nvm.sh"
+        nvm use default >/dev/null 2>&1 || nvm use --lts >/dev/null 2>&1 || nvm use node >/dev/null 2>&1
+    fi
+fi
+echo "[AI Maestro] Node: $(node -v 2>/dev/null || echo missing)"
+
 # Step 4: Start the actual server
 echo "[AI Maestro] Starting server..."
 exec ./node_modules/.bin/tsx server.mjs

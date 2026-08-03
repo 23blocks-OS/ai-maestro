@@ -38,6 +38,7 @@ import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHos
 import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader, revokeApiKey, rotateApiKey, revokeAllKeysForAgent } from '@/lib/amp-auth'
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
 import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-keys'
+import { deriveDidKey } from '@/lib/amp-did'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
@@ -565,8 +566,11 @@ export async function registerAgent(
       }
     }
 
-    // Calculate fingerprint
+    // Calculate fingerprint + canonical did:key. The did is DERIVED from the key
+    // by the server (never client-supplied), so an agent's identity cannot drift
+    // from its key — the structural guarantee the UUID never had.
     const fingerprint = calculateFingerprint(publicKeyHex)
+    const did = deriveDidKey(publicKeyHex)
 
     // Get host info
     const selfHost = getSelfHost()
@@ -662,6 +666,7 @@ export async function registerAgent(
               scope: body.scope,
               delivery: body.delivery,
               fingerprint,
+              did,
               registeredVia: 'amp-v1-api',
               registeredAt: new Date().toISOString()
             },
@@ -734,6 +739,7 @@ export async function registerAgent(
       address: fullAddress,
       tenant,
       fingerprint,
+      did,
       registeredAt,
       apiKeyHash: hashApiKey(apiKey)
     })

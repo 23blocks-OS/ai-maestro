@@ -24,6 +24,8 @@ import path from 'path'
 import os from 'os'
 import { getHosts, isSelf } from '@/lib/hosts-config'
 import { loadAgents } from '@/lib/agent-registry'
+import { loadKeyPair } from '@/lib/amp-keys'
+import { deriveDidKey } from '@/lib/amp-did'
 import { type ServiceResult } from '@/services/service-errors'
 
 const execAsync = promisify(exec)
@@ -146,30 +148,44 @@ function checkAMPIdentityIntegrity(): DiagnosticCheck {
     const agents = loadAgents().filter((a: any) => !a.deletedAt && a.metadata?.amp?.fingerprint)
     const byFp = new Map<string, string[]>()
     const byAddr = new Map<string, string[]>()
+    const byDid = new Map<string, string[]>()
+    const didKeyDrift: string[] = []   // did ≠ deriveDidKey(registered key) — the structural violation
+    let missingDid = 0
     for (const a of agents) {
       const fp = a.metadata!.amp!.fingerprint as string
       const addr = (a.metadata!.amp!.address as string) || ''
+      const did = a.metadata!.amp!.did as string | undefined
       ;(byFp.get(fp) || byFp.set(fp, []).get(fp)!).push(a.name)
       if (addr) (byAddr.get(addr.toLowerCase()) || byAddr.set(addr.toLowerCase(), []).get(addr.toLowerCase())!).push(a.name)
+      if (!did) { missingDid++; continue }
+      ;(byDid.get(did) || byDid.set(did, []).get(did)!).push(a.name)
+      // structural invariant: the stored did MUST equal the did derived from the
+      // agent's registered public key. A mismatch means identity decoupled from key.
+      const kp = loadKeyPair(a.id)
+      if (kp?.publicHex && deriveDidKey(kp.publicHex) !== did) didKeyDrift.push(a.name)
     }
     const sharedFps = [...byFp.entries()].filter(([, n]) => n.length > 1)
     const sharedAddrs = [...byAddr.entries()].filter(([, n]) => n.length > 1)
-    if (sharedFps.length || sharedAddrs.length) {
+    const sharedDids = [...byDid.entries()].filter(([, n]) => n.length > 1)
+    if (sharedFps.length || sharedAddrs.length || sharedDids.length || didKeyDrift.length) {
       return {
         name: 'amp-identity-integrity',
         status: 'fail',
-        message: `SHARED IDENTITY detected: ${sharedFps.length} key(s) and ${sharedAddrs.length} address(es) reused across agents — run scripts/amp-identity-repair.mjs`,
+        message: `IDENTITY VIOLATION: ${sharedFps.length} shared key(s), ${sharedAddrs.length} shared address(es), ${sharedDids.length} shared did(s), ${didKeyDrift.length} did↔key mismatch(es) — run scripts/amp-identity-repair.mjs`,
         details: {
           sharedFingerprints: sharedFps.map(([fp, n]) => ({ fingerprint: fp.slice(0, 24), agents: n })),
           sharedAddresses: sharedAddrs.map(([addr, n]) => ({ address: addr, agents: n })),
+          sharedDids: sharedDids.map(([did, n]) => ({ did, agents: n })),
+          didKeyDrift,
         },
       }
     }
+    const didStamped = agents.length - missingDid
     return {
       name: 'amp-identity-integrity',
       status: 'pass',
-      message: `${agents.length} AMP agents, all identities unique`,
-      details: { ampAgents: agents.length },
+      message: `${agents.length} AMP agents, all identities unique; ${didStamped} did:key-bound${missingDid ? `, ${missingDid} pending did backfill` : ''}`,
+      details: { ampAgents: agents.length, didBound: didStamped, missingDid },
     }
   } catch (error: any) {
     return { name: 'amp-identity-integrity', status: 'warn', message: `Could not verify: ${error.message}` }

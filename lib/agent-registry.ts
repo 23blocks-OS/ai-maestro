@@ -2444,6 +2444,7 @@ export function markAgentAsAMPRegistered(
     address: string
     tenant: string
     fingerprint: string
+    did?: string | null
     registeredAt: string
     apiKeyHash?: string
   }
@@ -2464,6 +2465,7 @@ export function markAgentAsAMPRegistered(
       address: ampData.address,
       tenant: ampData.tenant,
       fingerprint: ampData.fingerprint,
+      ...(ampData.did ? { did: ampData.did } : {}),
       registeredAt: ampData.registeredAt,
       apiKeyHash: ampData.apiKeyHash
     }

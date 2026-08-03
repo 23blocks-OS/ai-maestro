@@ -37,7 +37,7 @@ import os from 'os'
 import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHost, updateAgent, deleteAgent, markAgentAsAMPRegistered, checkMeshAgentExists, getAMPRegisteredAgents } from '@/lib/agent-registry'
 import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader, revokeApiKey, rotateApiKey, revokeAllKeysForAgent } from '@/lib/amp-auth'
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
-import { checkKnownKey, recordKnownKey } from '@/lib/amp-known-keys'
+import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-keys'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
@@ -1784,6 +1784,15 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
       amp: existingAmpMeta,
     }
   } as any)
+
+  // Keep the Identity Conflict Detection ledger in sync so this AUTHORIZED
+  // rotation (the old key signed the new one — verified above) is not later
+  // flagged as a key-swap. Without this, conflict detection would refuse the
+  // rotated agent's next message (the footgun this closes).
+  const rotatedAddress = (auth.address as string) || (existingAmpMeta.address as string)
+  if (rotatedAddress) {
+    try { rotateKnownKey(rotatedAddress, newKeyPair.fingerprint, new Date().toISOString()) } catch { /* best-effort */ }
+  }
 
   return {
     data: {

@@ -34,10 +34,15 @@ function ledgerPath(base?: string): string {
 function load(base?: string): Ledger {
   try { return JSON.parse(fs.readFileSync(ledgerPath(base), 'utf8')) } catch { return {} }
 }
+let saveSeq = 0
 function save(l: Ledger, base?: string): void {
   const p = ledgerPath(base)
   fs.mkdirSync(path.dirname(p), { recursive: true })
-  fs.writeFileSync(p, JSON.stringify(l, null, 2))
+  // atomic write: temp file + rename, so a concurrent reader never sees a
+  // half-written ledger. (pid+counter keeps the temp name unique without a clock.)
+  const tmp = `${p}.tmp-${process.pid}-${saveSeq++}`
+  fs.writeFileSync(tmp, JSON.stringify(l, null, 2))
+  fs.renameSync(tmp, p)
 }
 
 /** Pure classification — testable without the filesystem. */
@@ -53,18 +58,17 @@ export function checkKnownKey(address: string, fingerprint: string, base?: strin
 }
 
 /**
- * Record a fingerprint for an address. Records on first contact and refreshes
- * lastSeen when unchanged. Refuses to silently overwrite a DIFFERENT fingerprint
- * (that is a conflict — use rotateKnownKey after verifying rotation proof).
- * Returns the status that applied.
+ * Record a fingerprint for an address. Persists only on first contact (TOFU); the
+ * `ok` path is a no-op write to keep this off the per-message hot path. Refuses to
+ * silently overwrite a DIFFERENT fingerprint (that is a conflict — use
+ * rotateKnownKey after verifying rotation proof). Returns the status that applied.
  */
 export function recordKnownKey(address: string, fingerprint: string, now: string, base?: string): KeyStatus {
   const l = load(base)
   const k = address.toLowerCase()
-  const e = l[k]
-  const status = classifyKey(e?.fingerprint, fingerprint)
+  const status = classifyKey(l[k]?.fingerprint, fingerprint)
   if (status === 'first_contact') { l[k] = { fingerprint, firstSeen: now, lastSeen: now }; save(l, base) }
-  else if (status === 'ok') { e!.lastSeen = now; save(l, base) }
+  // 'ok'       → already known, no write (avoid a disk write on every message)
   // 'conflict' → do NOT overwrite; caller handles (refuse + alert)
   return status
 }

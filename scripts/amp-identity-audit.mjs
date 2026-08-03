@@ -24,7 +24,9 @@ const fpOf = (f) => {
   if (!fs.existsSync(f)) return null
   try {
     const der = execFileSync('openssl', ['pkey', '-pubin', '-in', f, '-outform', 'DER'])
-    const bin = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: der })
+    // Hash the RAW 32-byte Ed25519 key (not the DER) to match lib/amp-keys
+    // calculateFingerprint and the registry's canonical fingerprint format.
+    const bin = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: der.subarray(-32) })
     return 'SHA256:' + Buffer.from(bin).toString('base64')
   } catch { return null }
 }

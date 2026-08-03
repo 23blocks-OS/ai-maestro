@@ -117,6 +117,11 @@ export interface AMPEnvelope {
   /** Sender's AMP address: name@tenant.provider */
   from: string
 
+  /** Sender's canonical self-certifying identity (did:key), derived from its
+   *  public key. Lets the recipient bind the message to the sender's key-identity
+   *  independently of the mutable address. */
+  from_did?: string | null
+
   /** Recipient's AMP address: name@tenant.provider */
   to: string
 
@@ -572,6 +577,8 @@ export interface AMPAgentResolveResponse {
   public_key: string
   key_algorithm: 'Ed25519' | 'RSA' | 'ECDSA'
   fingerprint: string
+  /** Canonical self-certifying identity (did:key) derived from public_key. */
+  did?: string | null
   online: boolean
 }
 

@@ -125,7 +125,6 @@ const SERVER_KEYS = (id) => path.join(HOME, '.aimaestro', 'agents', id, 'keys')
 // otherwise the running server would 409 (key_conflict) the re-minted agents on
 // their next message. Loaded once, saved once at the end.
 const LEDGER = path.join(HOME, '.aimaestro', 'amp', 'known-keys.json')
-const nowIso = new Date().toISOString()
 let ledger = {}
 try { ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8')) } catch { /* empty/absent = fine */ }
 

@@ -39,6 +39,8 @@ import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader,
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
 import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-keys'
 import { deriveDidKey } from '@/lib/amp-did'
+import { revokeFingerprint, isRevoked } from '@/lib/amp-revocation'
+import { checkReplay } from '@/lib/amp-replay'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
@@ -953,6 +955,15 @@ export async function routeMessage(
     // caught the fleet-wide shared-key incident.
     if (senderKeyPair?.publicHex && !isMeshForwarded) {
       const senderFp = calculateFingerprint(senderKeyPair.publicHex)
+      // Revoked-key check (AMP 07-security §Key Revocation) — a rotated/compromised
+      // key is dead even if the signature would otherwise verify.
+      if (isRevoked(senderFp)) {
+        console.warn(`[AMP Route] REJECTED — key_revoked for ${senderAddress}: ${senderFp.slice(0, 20)}…`)
+        return {
+          data: { error: 'key_revoked', message: 'Message signed with a revoked key', details: { fingerprint: senderFp } },
+          status: 403
+        }
+      }
       const conflict = checkKnownKey(senderAddress, senderFp)
       if (conflict.status === 'conflict') {
         console.warn(`[AMP Route] REJECTED — key_conflict for ${senderAddress}: known ${conflict.knownFingerprint?.slice(0, 20)}…, presented ${senderFp.slice(0, 20)}…`)
@@ -1456,30 +1467,37 @@ export function getAgentCard(authHeader: string | null): ServiceResult<any> {
   const address = auth.address || `${agent.name}@${getAMPProviderDomain(getOrganization() || undefined)}`
   const signedAt = new Date().toISOString()
 
-  // Build the card
+  // Build the card. `did` is the canonical self-certifying id (derived from the
+  // public key); address/fingerprint remain for compatibility.
   const card: Record<string, unknown> = {
+    did: deriveDidKey(keyPair.publicHex),
     address,
     name: agent.name,
     alias: agent.alias || agent.label || null,
     public_key: keyPair.publicPem,
+    key_algorithm: 'Ed25519',
     fingerprint: keyPair.fingerprint,
     provider: getAMPProviderDomain(getOrganization() || undefined),
     capabilities: ['messaging', 'read_receipts'],
     signed_at: signedAt,
   }
 
-  // Sign: address|public_key_pem|signed_at
-  try {
-    const signable = `${address}|${keyPair.publicPem}|${signedAt}`
-    const privateKey = crypto.createPrivateKey(keyPair.privatePem)
-    const signature = crypto.sign(null, Buffer.from(signable), privateKey)
-    card.signature = signature.toString('base64')
-  } catch (err) {
-    console.error('[AMP] Failed to sign agent card:', err)
-    return {
-      data: { error: 'internal_error', message: 'Failed to sign card' },
-      status: 500
+  // The server holds only the agent's PUBLIC key (private keys never leave the
+  // agent — the core custody rule), so it cannot sign the card. Return it UNSIGNED
+  // and provider-asserted over the authenticated channel; a cryptographically
+  // signed card is generated client-side where the private key lives.
+  if (keyPair.privatePem && keyPair.privatePem.trim()) {
+    try {
+      const signable = `${address}|${keyPair.publicPem}|${signedAt}`
+      const privateKey = crypto.createPrivateKey(keyPair.privatePem)
+      card.signature = crypto.sign(null, Buffer.from(signable), privateKey).toString('base64')
+    } catch (err) {
+      console.warn('[AMP] Agent card returned unsigned (signing failed):', err)
+      card.signature = null
     }
+  } else {
+    card.signature = null
+    card.provider_asserted = true   // authenticity relies on the authenticated channel, not a card signature
   }
 
   return { data: card, status: 200 }
@@ -1786,6 +1804,7 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
 
   // Update agent metadata with new fingerprint
   const existingAmpMeta = (agent.metadata?.amp || {}) as Record<string, unknown>
+  const oldFp = (existingAmpMeta.fingerprint as string) || ''   // capture BEFORE overwrite (for revocation)
   existingAmpMeta.fingerprint = newKeyPair.fingerprint
   updateAgent(auth.agentId!, {
     metadata: {
@@ -1799,8 +1818,14 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
   // flagged as a key-swap. Without this, conflict detection would refuse the
   // rotated agent's next message (the footgun this closes).
   const rotatedAddress = (auth.address as string) || (existingAmpMeta.address as string)
+  const rotNow = new Date().toISOString()
   if (rotatedAddress) {
-    try { rotateKnownKey(rotatedAddress, newKeyPair.fingerprint, new Date().toISOString()) } catch { /* best-effort */ }
+    try { rotateKnownKey(rotatedAddress, newKeyPair.fingerprint, rotNow) } catch { /* best-effort */ }
+  }
+  // Revoke the superseded key (AMP 07-security §Key Revocation): the old fingerprint
+  // is added to the revocation list so messages signed with it are rejected.
+  if (oldFp && oldFp !== newKeyPair.fingerprint) {
+    try { revokeFingerprint(oldFp, rotatedAddress || '', 'key_rotation', newKeyPair.fingerprint, rotNow) } catch { /* best-effort */ }
   }
 
   return {
@@ -1852,11 +1877,12 @@ export async function deliverFederated(
       }
     }
 
-    // ── Replay Protection ───────────────────────────────────────────────
-    if (!trackMessageId(envelope.id)) {
+    // ── Replay Protection (AMP 07-security): dedup by id + timestamp freshness ──
+    const replay = checkReplay(envelope.id, envelope.timestamp, { nowMs: Date.now() })
+    if (!replay.ok) {
       return {
-        data: { error: 'duplicate_message', message: `Message ${envelope.id} has already been delivered` },
-        status: 409
+        data: { error: replay.reason!, message: `Replay rejected: ${replay.reason}` },
+        status: replay.reason === 'duplicate_message' ? 409 : 400
       }
     }
 

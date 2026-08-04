@@ -41,6 +41,9 @@ export type ServiceErrorCode =
   | 'address_already_registered'
   | 'invalid_signature'
   | 'key_conflict'
+  | 'key_revoked'
+  | 'timestamp_expired'
+  | 'timestamp_future'
   // Generic codes (12)
   | 'already_exists'
   | 'gone'

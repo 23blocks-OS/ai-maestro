@@ -77,4 +77,24 @@ describe('parsePermissionMenu (pane scraper)', () => {
     expect(r!.options.map((o: any) => o.key)).toEqual(['1', '2'])
     expect(r!.options[1].label).toContain('No, tell Claude')
   })
+
+  it('detects a menu whose ❯ selector is the only active signal (no footer phrase)', () => {
+    const t = ['  1. Yes', '❯ 2. No, tell Claude'].join('\n')
+    const r = parsePermissionMenu(t)
+    expect(r).not.toBeNull()
+    expect(r!.options.map((o: any) => o.key)).toEqual(['1', '2'])
+  })
+
+  it('tolerates wrapped label / continuation lines between options', () => {
+    const t = [
+      'Do you want to proceed?',
+      '❯ 1. Yes, run the command',
+      '     (this executes the full script)',
+      '  2. No, tell Claude what to do differently',
+      '  esc to cancel',
+    ].join('\n')
+    const r = parsePermissionMenu(t)
+    expect(r!.options.map((o: any) => o.key)).toEqual(['1', '2'])
+    expect(r!.options[0].label).toBe('Yes, run the command')
+  })
 })

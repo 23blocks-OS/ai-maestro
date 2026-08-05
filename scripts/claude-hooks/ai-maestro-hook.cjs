@@ -63,10 +63,23 @@ function resolveAgent(cwd, agents) {
             return byName;
         }
     }
-    return agents.find(a => {
+    // cwd match — but ONLY when it uniquely identifies one agent. Many agents can
+    // share a working directory (a dev dir, /private/tmp, or $HOME), so returning the
+    // FIRST match silently misattributes a session to the wrong agent — e.g. every
+    // detached session started from $HOME becoming "piano-instructor", or a session
+    // in the dev dir picking a random one of the agents that live there. When the cwd
+    // is ambiguous we refuse to guess and return null: the session shows no identity
+    // rather than a wrong one. To identify such a session, launch it with AIM_AGENT_ID
+    // or AIM_AGENT_NAME (AI Maestro's launcher sets these; manual sessions don't).
+    const cwdMatches = agents.filter(a => {
         const agentWd = a.workingDirectory || a.session?.workingDirectory;
         return agentWd && agentWd === cwd;
-    }) || null;
+    });
+    if (cwdMatches.length === 1) return cwdMatches[0];
+    if (cwdMatches.length > 1) {
+        debugLog({ event: 'ambiguous_cwd_no_guess', cwd, count: cwdMatches.length });
+    }
+    return null;
 }
 
 // Broadcast status update via WebSocket (non-blocking)

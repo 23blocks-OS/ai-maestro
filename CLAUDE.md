@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ The Claude Code hook has ONE source of truth
+
+`ai-maestro-hook.cjs` ships from three byte-identical locations. **Edit only the canonical one, then run the sync script:**
+
+```bash
+# 1. Edit the canonical hook:
+scripts/claude-hooks/ai-maestro-hook.cjs        # used by install.sh + docker cloud agents
+# 2. Propagate to the plugin copies:
+bash scripts/sync-plugin-hook.sh                # -> plugin/src + plugin/plugins/.../scripts
+```
+
+`tests/plugin-hook-sync.test.ts` fails in CI if the three copies drift. They previously diverged into two implementations and every fix had to be applied twice — do not hand-edit the plugin copies. (The AMP shell scripts — `amp-*.sh`, `amp-statusline.sh`, `amp-helper.sh` — have their own upstream source at `agentmessaging/claude-plugin`, pulled by the plugin builder at `ref: main`; never hand-edit those downstream either.)
+
 ## Project Overview
 
 **Claude Code Dashboard** - A browser-based terminal dashboard for managing multiple Claude Code agents running in tmux on macOS. The application auto-discovers agents from tmux sessions and provides a unified web interface with real-time terminal streaming.

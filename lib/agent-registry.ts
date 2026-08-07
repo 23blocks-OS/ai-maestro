@@ -1019,10 +1019,11 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
     agents[index].preferences.defaultWorkingDirectory = workingDirectory
   }
 
-  const ok = saveAgents(agents)
-  // Keep the detached-session identity hint in sync with the new dir.
-  writeAgentDirHint(agents[index].name, workingDirectory)
-  return ok
+  // NOTE: intentionally do NOT write the detached-session identity hint here.
+  // This runs on transient tmux pwd sync (index-delta), so an agent that cd's
+  // around would scatter/churn settings.local.json hints across subdirs. The
+  // hint is written only at stable provisioning points: createAgent + linkSession.
+  return saveAgents(agents)
 }
 
 /**

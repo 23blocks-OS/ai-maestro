@@ -222,6 +222,49 @@ export function saveAgents(agents: Agent[]): boolean {
 }
 
 /**
+ * Write a per-project identity hint so DETACHED Claude Code sessions (started
+ * manually in a directory, not via tmux/AI Maestro) can self-identify.
+ *
+ * Claude Code injects `env` from `<dir>/.claude/settings.local.json` into the
+ * shell, and the AMP CLI + statusline resolve identity from CLAUDE_AGENT_NAME.
+ * Without this hint, a detached session in a dir claimed by many agents cannot
+ * tell which agent it is, so AMP refuses to run ("Multiple AMP agents found").
+ *
+ * Merges into any existing settings.local.json (never clobbers permissions or
+ * other keys). Best-effort: failures are logged, never thrown — provisioning an
+ * agent must not fail because a project dir is read-only or missing.
+ */
+export function writeAgentDirHint(agentName: string, workingDirectory?: string | null): void {
+  try {
+    if (!agentName || !workingDirectory) return
+    // Only real, absolute local dirs — skip root and ephemeral scratch dirs.
+    if (!path.isAbsolute(workingDirectory)) return
+    if (workingDirectory === '/' || workingDirectory === os.homedir()) return
+    if (workingDirectory.includes('/claude-501/') || workingDirectory.startsWith('/private/tmp/') || workingDirectory.startsWith('/tmp/')) return
+    if (!fs.existsSync(workingDirectory)) return
+
+    const claudeDir = path.join(workingDirectory, '.claude')
+    const settingsFile = path.join(claudeDir, 'settings.local.json')
+    let settings: any = {}
+    if (fs.existsSync(settingsFile)) {
+      try {
+        settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8')) || {}
+      } catch {
+        // Corrupt/unreadable settings — don't overwrite a file we can't parse.
+        console.warn(`[Agent Registry] Skipping dir hint; unparseable ${settingsFile}`)
+        return
+      }
+    }
+    if (settings.env && settings.env.CLAUDE_AGENT_NAME === agentName) return // already correct
+    settings.env = { ...(settings.env || {}), CLAUDE_AGENT_NAME: agentName }
+    fs.mkdirSync(claudeDir, { recursive: true })
+    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+  } catch (error) {
+    console.warn('[Agent Registry] writeAgentDirHint failed (non-fatal):', error)
+  }
+}
+
+/**
  * Get agent by ID.
  * By default excludes soft-deleted agents. Pass includeDeleted=true to include them.
  */
@@ -494,6 +537,9 @@ export function createAgent(request: CreateAgentRequest): Agent {
   agents.push(agent)
   saveAgents(agents)
   invalidateAgentCache()
+
+  // Let detached sessions in this dir self-identify (statusline + AMP).
+  writeAgentDirHint(agent.name, agent.workingDirectory)
 
   return agent
 }
@@ -929,6 +975,8 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
 
   const saved = saveAgents(agents)
   if (saved) invalidateAgentCache()
+  // Let detached sessions in this dir self-identify (statusline + AMP).
+  writeAgentDirHint(agents[index].name, agents[index].workingDirectory)
   return saved
 }
 
@@ -971,7 +1019,10 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
     agents[index].preferences.defaultWorkingDirectory = workingDirectory
   }
 
-  return saveAgents(agents)
+  const ok = saveAgents(agents)
+  // Keep the detached-session identity hint in sync with the new dir.
+  writeAgentDirHint(agents[index].name, workingDirectory)
+  return ok
 }
 
 /**

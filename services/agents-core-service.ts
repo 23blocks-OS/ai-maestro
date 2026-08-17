@@ -59,6 +59,7 @@ import {
 } from '@/lib/agent-registry'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/lib/hosts-config'
+import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
@@ -1840,6 +1841,11 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
             const cliMode = PERMISSION_MODE_TO_CLI[effectiveMode]
             fullCommand = `${fullCommand} --permission-mode ${cliMode}`
           }
+
+          // Give Claude Code the agent's native session name (opt-in via
+          // AIMAESTRO_SESSION_NAME). Surfaces in the statusline session_name
+          // field, terminal title, and `claude --resume <name>`.
+          fullCommand = `${fullCommand}${claudeSessionNameFlag(agentName, startCommand)}`
 
           // Channels: reliable idle-agent wake via MCP turn-injection. When
           // AIMAESTRO_CHANNEL_FLAG is set, the agent boots with the amp channel so

@@ -1632,6 +1632,34 @@ describe('buildAiToolCommand', () => {
     expect(result).toBe('claude')
   })
 
+  describe('native session name (AIMAESTRO_SESSION_NAME)', () => {
+    const ORIG = process.env.AIMAESTRO_SESSION_NAME
+    afterEach(() => {
+      if (ORIG === undefined) delete process.env.AIMAESTRO_SESSION_NAME
+      else process.env.AIMAESTRO_SESSION_NAME = ORIG
+    })
+
+    it('does NOT add --name when the flag is off (default)', () => {
+      delete process.env.AIMAESTRO_SESSION_NAME
+      const result = buildAiToolCommand({ name: 'my-agent', program: 'claude' })
+      expect(result).toBe('claude')
+      expect(result).not.toContain('--name')
+    })
+
+    it('adds --name <name> for claude when the flag is on', () => {
+      process.env.AIMAESTRO_SESSION_NAME = '1'
+      const result = buildAiToolCommand({ name: 'my-agent', program: 'claude', model: 'opus' })
+      expect(result).toBe('claude --name my-agent --model opus')
+    })
+
+    it('does NOT add --name for non-claude programs', () => {
+      process.env.AIMAESTRO_SESSION_NAME = '1'
+      const result = buildAiToolCommand({ name: 'my-agent', program: 'codex' })
+      expect(result).toBe('codex')
+      expect(result).not.toContain('--name')
+    })
+  })
+
   it('appends programArgs after permission-mode flag', () => {
     const result = buildAiToolCommand({ program: 'claude', permissionMode: 'smartAuto', programArgs: '--continue' })
     expect(result).toBe('claude --permission-mode auto --continue')

@@ -20,6 +20,7 @@ import type { Agent, SandboxMount } from '@/types/agent'
 import { PERMISSION_MODE_TO_CLI } from '@/types/agent'
 import type { AgentPermissionMode } from '@/types/agent'
 import { CONTAINER_CWD_GEMINI_PROJECT } from '@/lib/container-utils'
+import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 
 const execAsync = promisify(exec)
 
@@ -83,13 +84,16 @@ const CONTAINER_HOME = '/home/claude'
  *   2. body.yolo (legacy backward compat, maps to fullAutonomy)
  *   3. 'supervised' (default, no flag injected)
  */
-export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | 'permissionMode' | 'yolo' | 'programArgs' | 'model' | 'prompt'>): string {
+export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | 'permissionMode' | 'yolo' | 'programArgs' | 'model' | 'prompt'> & { name?: string }): string {
   const program = body.program || 'claude'
   let aiTool = program
   const effectivePermMode: AgentPermissionMode = body.permissionMode || (body.yolo ? 'fullAutonomy' : 'supervised')
   if (effectivePermMode !== 'supervised' && (program === 'claude' || program === 'claude-code')) {
     aiTool += ` --permission-mode ${PERMISSION_MODE_TO_CLI[effectivePermMode]}`
   }
+  // Give Claude Code the agent's native session name (opt-in). Surfaces in the
+  // statusline session_name field, terminal title, and `claude --resume <name>`.
+  aiTool += claudeSessionNameFlag(body.name, program)
   if (body.programArgs) {
     const sanitizedArgs = body.programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
     if (sanitizedArgs) aiTool += ` ${sanitizedArgs}`

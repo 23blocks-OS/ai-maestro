@@ -188,6 +188,15 @@ else
     git pull origin main
     print_success "Code updated"
 
+    # Check out the submodule content the new pointer references. `git pull` moves
+    # the gitlink but does NOT update the submodule working tree — without this,
+    # install-plugin.sh below reinstalls STALE scripts (old statusline/hook/amp-*)
+    # from the previous submodule commit. --force to override any local drift.
+    print_step "$DOWNLOAD" "Updating plugin submodule..."
+    git submodule update --init --recursive --force \
+        && print_success "Plugin submodule updated" \
+        || print_warning "Submodule update had issues (plugin scripts may be stale)"
+
     # Detect ecosystem.config.js changes that require PM2 config reload
     if ! git diff --quiet "$BEFORE_SHA" HEAD -- ecosystem.config.js ecosystem.config.cjs 2>/dev/null; then
         ECOSYSTEM_CHANGED=true

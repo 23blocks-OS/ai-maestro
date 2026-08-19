@@ -222,6 +222,11 @@ export interface Agent {
   // Working Directory (agent-level default)
   workingDirectory?: string     // Default working directory for sessions
 
+  // Claude Code native session id (from the hook payload on SessionStart).
+  // Enables transcript lookup (~/.claude/projects/<proj>/<id>.jsonl), native
+  // `claude --resume <id>`, and OTLP/session telemetry correlation.
+  claudeSessionId?: string
+
   // Sessions (zero or more, Phase 1: max 1)
   sessions: AgentSession[]      // Active/historical sessions for this agent
 

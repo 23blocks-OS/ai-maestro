@@ -27,7 +27,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import type { Session } from '@/types/session'
-import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession } from '@/lib/agent-registry'
+import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession, updateAgent } from '@/lib/agent-registry'
 import { loadAgents } from '@/lib/agent-registry'
 import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
@@ -599,12 +599,17 @@ export function broadcastActivityUpdate(
  * Record a heartbeat for a standalone agent (no tmux session).
  * Makes the agent appear in the dashboard session list.
  */
-export function heartbeat(agentId: string, status?: string): ServiceResult<{ success: boolean }> {
+export function heartbeat(agentId: string, status?: string, claudeSessionId?: string): ServiceResult<{ success: boolean }> {
   if (!agentId) return missingField('agentId')
   // Resolve: agentId could be a UUID or a name. Store heartbeat under the UUID.
   const agent = getAgent(agentId) || getAgentByName(agentId)
   const resolvedId = agent?.id || agentId
   agentActivity.set(resolvedId, Date.now())
+  // Capture Claude Code's native session id (sent by the hook on SessionStart)
+  // when it changes — enables transcript lookup, native resume, telemetry.
+  if (agent && claudeSessionId && agent.claudeSessionId !== claudeSessionId) {
+    updateAgent(agent.id, { claudeSessionId } as any)
+  }
   broadcastStatusUpdate('', status || 'active', undefined, undefined, resolvedId)
   return { data: { success: true }, status: 200 }
 }

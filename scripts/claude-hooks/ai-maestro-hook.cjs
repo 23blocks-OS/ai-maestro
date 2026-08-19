@@ -19,6 +19,10 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 
+// Claude Code's native session id for this invocation (from the hook payload).
+// Single-shot process, so a module-level value set once in main() is sufficient.
+let currentSessionId = null;
+
 // Read stdin as JSON
 async function readStdin() {
     return new Promise((resolve, reject) => {
@@ -124,12 +128,14 @@ async function broadcastStatusUpdate(cwd, state) {
             })
         });
 
-        // Also send heartbeat so standalone agents appear in dashboard
+        // Also send heartbeat so standalone agents appear in dashboard. Include
+        // Claude Code's native session id (present in the hook payload) so the
+        // registry can link the agent to its transcript / support native resume.
         if (agent.id) {
             await fetch(`http://localhost:23000/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: state.status })
+                body: JSON.stringify({ status: state.status, claudeSessionId: currentSessionId })
             }).catch(() => {});
         }
 
@@ -415,6 +421,7 @@ function decideStopDelivery({ agent, stopHookActive, messages, alreadyIds }) {
 // Main
 async function main() {
     const input = await readStdin();
+    currentSessionId = input.session_id || null;
 
     // Log all input for debugging
     debugLog({ event: 'hook_received', input });

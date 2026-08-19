@@ -83,10 +83,18 @@ This script updates ALL version references across the codebase:
 □ 1. TESTS PASS: yarn test
 □ 2. BUMP VERSION: ./scripts/bump-version.sh patch
 □ 3. BUILD PASSES: yarn build
-□ 4. COMMIT version bump with your changes
+□ 4. PROPAGATE PLUGIN (if you touched claude-plugin scripts, amp-*.sh, or the hook):
+       cd plugin && ./build-plugin.sh --clean       # rebuild built output from upstream
+       git -C plugin commit -am "build: rebuild plugin" && git -C plugin push
+       git add plugin                                # bump the submodule pointer
+     (Skipping this ships STALE scripts — fresh installs (install-plugin.sh) and host
+      updates (update-aimaestro.sh) read the built submodule, NOT claude-plugin directly.)
+□ 5. COMMIT version bump with your changes
 ```
 
 **This is NON-NEGOTIABLE.** Every PR to main MUST include a version bump. No exceptions.
+
+**Deploy to hosts via `update-aimaestro.sh`** (git pull + submodule update + build + install-hooks.sh + install-plugin.sh + pm2 restart) — NOT a raw `git reset + build + restart`, which skips the hook/statusline install steps and forces manual syncing.
 
 ---
 

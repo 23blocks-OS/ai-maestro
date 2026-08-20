@@ -80,10 +80,18 @@ export function ingestClaudeMetrics(body: any): { sessions: number; updated: num
     const agent = getAgentByClaudeSessionId(sid)
     if (!agent) { unmatched++; continue }
     const { tokens, cost, activeSeconds } = bySession[sid]
+    // Only write metrics that actually changed. These are cumulative counters,
+    // so an idle agent re-exports identical totals — skipping unchanged values
+    // means idle agents cause ZERO registry writes (no perf cost at fleet scale).
+    const cur = agent.metrics || {}
     const metrics: Record<string, number> = {}
-    if (tokens > 0) metrics.totalTokensUsed = Math.round(tokens)
-    if (cost > 0) metrics.estimatedCost = cost
-    if (activeSeconds > 0) metrics.uptimeHours = activeSeconds / 3600
+    const newTokens = Math.round(tokens)
+    if (tokens > 0 && newTokens !== (cur.totalTokensUsed || 0)) metrics.totalTokensUsed = newTokens
+    if (cost > 0 && cost !== (cur.estimatedCost || 0)) metrics.estimatedCost = cost
+    if (activeSeconds > 0) {
+      const hours = activeSeconds / 3600
+      if (hours !== (cur.uptimeHours || 0)) metrics.uptimeHours = hours
+    }
     if (Object.keys(metrics).length > 0) {
       updateAgentMetrics(agent.id, metrics as any)
       updated++

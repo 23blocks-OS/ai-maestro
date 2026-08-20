@@ -94,6 +94,9 @@ temp
 # Session logs
 logs/
 *.log
+# ...but NOT the Next.js OTLP-logs API route (the `logs/` dir above is a URL segment)
+!app/api/telemetry/v1/logs/
+!app/api/telemetry/v1/logs/**
 
 # Configuration
 .aimaestro/hosts.json

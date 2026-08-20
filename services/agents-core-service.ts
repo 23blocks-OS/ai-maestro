@@ -60,6 +60,7 @@ import {
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/lib/hosts-config'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
+import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
@@ -1872,6 +1873,10 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
           if (process.env.AIMAESTRO_KEEP_ALT_SCREEN !== 'true') {
             fullCommand = `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 ${fullCommand}`
           }
+
+          // Opt-in OTLP telemetry: export claude_code.* metrics to AI Maestro's
+          // receiver, correlated to this agent via session.id (off by default).
+          fullCommand = `${claudeTelemetryEnvPrefix(startCommand)}${fullCommand}`
         }
 
         // Small delay to let the session initialize

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.33] - 2026-08-19 — Total API Calls tile (OTLP logs)
+
+### Added
+- **Total API Calls telemetry** — completes the metrics tiles. With `AIMAESTRO_TELEMETRY`, agents now also export OTLP *logs* (`OTEL_LOGS_EXPORTER=otlp`); a receiver at `POST /api/telemetry/v1/logs` counts `claude_code.api_request` events per `session.id` and increments the matching agent's `totalApiCalls` (`services/telemetry-service.ts` `parseApiRequestCounts`/`ingestClaudeLogs`). Log batches are deltas, so this increments rather than sets. Verified live end-to-end.
+
 ## [0.36.25] – [0.36.32] - 2026-08-19 — Detached-session identity, native Claude Code integration & telemetry
 
 ### Added

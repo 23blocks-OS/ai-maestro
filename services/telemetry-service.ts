@@ -12,7 +12,7 @@
  * Both are cumulative counters, so the latest export's per-session sum IS the
  * running total — we SET (not accumulate) on the agent.
  */
-import { getAgentByClaudeSessionId, updateAgentMetrics } from '@/lib/agent-registry'
+import { getAgentByClaudeSessionId, updateAgentMetrics, incrementAgentMetric } from '@/lib/agent-registry'
 
 interface OtlpAttr {
   key: string
@@ -86,4 +86,54 @@ export function ingestClaudeMetrics(body: any): { sessions: number; updated: num
     }
   }
   return { sessions: sessionIds.length, updated, unmatched }
+}
+
+// ── Logs: claude_code.api_request events → Total API Calls ──────────────────
+// Unlike metrics (cumulative counters), each OTLP logs export is a BATCH of new
+// events since the last export, so we INCREMENT the agent's call count rather
+// than set it. Each record carries event.name + session.id (standard attribute).
+
+const API_REQUEST_EVENTS = new Set(['api_request', 'claude_code.api_request'])
+
+/**
+ * Pure parse: OTLP logs JSON → per-session count of api_request events in this
+ * export (a delta, not a cumulative total).
+ */
+export function parseApiRequestCounts(body: any): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const rl of (body?.resourceLogs || [])) {
+    for (const sl of (rl?.scopeLogs || [])) {
+      for (const rec of (sl?.logRecords || [])) {
+        const attrs = rec?.attributes as OtlpAttr[] | undefined
+        const evt = attrString(attrs, 'event.name')
+        // Some exporters put the event name in the record body instead.
+        const bodyVal = rec?.body?.stringValue
+        if (!API_REQUEST_EVENTS.has(evt || '') && !API_REQUEST_EVENTS.has(bodyVal || '')) continue
+        const sid = attrString(attrs, 'session.id')
+        if (!sid) continue
+        counts[sid] = (counts[sid] || 0) + 1
+      }
+    }
+  }
+  return counts
+}
+
+/**
+ * Increment each matching agent's totalApiCalls by the number of api_request
+ * events in this export.
+ */
+export function ingestClaudeLogs(body: any): { sessions: number; updated: number; unmatched: number; apiCalls: number } {
+  const counts = parseApiRequestCounts(body)
+  const sessionIds = Object.keys(counts)
+  let updated = 0
+  let unmatched = 0
+  let apiCalls = 0
+  for (const sid of sessionIds) {
+    apiCalls += counts[sid]
+    const agent = getAgentByClaudeSessionId(sid)
+    if (!agent) { unmatched++; continue }
+    incrementAgentMetric(agent.id, 'totalApiCalls', counts[sid])
+    updated++
+  }
+  return { sessions: sessionIds.length, updated, unmatched, apiCalls }
 }

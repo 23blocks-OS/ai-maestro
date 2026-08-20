@@ -44,6 +44,9 @@ export function claudeTelemetryEnvPrefix(program: string): string {
   const pairs: Record<string, string> = {
     CLAUDE_CODE_ENABLE_TELEMETRY: '1',
     OTEL_METRICS_EXPORTER: 'otlp',
+    // Logs carry the per-request `claude_code.api_request` events (each with a
+    // session.id) — the source for the agent's Total API Calls tile.
+    OTEL_LOGS_EXPORTER: 'otlp',
     OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
     OTEL_EXPORTER_OTLP_ENDPOINT: telemetryEndpoint(),
     // session.id is included by default; keep metric cardinality per-session so

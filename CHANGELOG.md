@@ -3,6 +3,42 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.25] – [0.36.32] - 2026-08-19 — Detached-session identity, native Claude Code integration & telemetry
+
+### Added
+- **Native Claude Code session names** [0.36.28] — agents launch with `claude --name <agent>` (opt-in `AIMAESTRO_SESSION_NAME`), so Claude Code natively knows the agent's name. It surfaces in the status-line `session_name`, the terminal title, and `claude --resume <name>`. `lib/claude-session-name.ts`, injected into both launch builders (tmux wake + docker).
+- **Claude Code `session_id` capture** [0.36.29] — the hook forwards Claude's native `session_id` on the heartbeat and the registry stores it as `Agent.claudeSessionId`, linking an agent to its transcript and enabling native resume + telemetry correlation.
+- **OTLP telemetry receiver** [0.36.32] — agents launched with `AIMAESTRO_TELEMETRY` export `claude_code.*` OpenTelemetry metrics to `POST /api/telemetry/v1/metrics`. The receiver attributes token/cost usage to an agent via the `session.id` on each data point (→ `Agent.claudeSessionId`), filling the long-unfed **Tokens Used** and **API Cost** tiles. `lib/claude-telemetry.ts` + `services/telemetry-service.ts`. Cost is also reported live from the status line.
+
+### Fixed
+- **Detached (non-tmux) sessions self-identify** [0.36.25–0.36.27] — a Claude Code session started manually (not via tmux) could not tell which agent it was, so the status bar showed a wrong/bogus name and the AMP CLI refused to run ("Multiple AMP agents found"), leaving detached agents unreachable over AMP. AI Maestro now writes a per-project `.claude/settings.local.json` `env.CLAUDE_AGENT_NAME` when it provisions an agent (`createAgent` + `linkSession`), and `amp-helper.sh` / `amp-statusline.sh` resolve identity from it (or the registry's unique owner of the cwd). The status line also stopped scraping `CLAUDE_AGENT_NAME=` out of permission allow-rules.
+- **Hook single source of truth** [0.36.27] — `ai-maestro-hook.cjs` shipped from two drifting copies; consolidated to one canonical file + `scripts/sync-plugin-hook.sh` + a CI drift test.
+
+### Build / Pipeline
+- **Plugin propagation fixed** [0.36.30–0.36.31] — fresh installs and host updates read the *built* plugin submodule, which had drifted behind upstream `claude-plugin`. Rebuilt it (`build-plugin.sh --clean`) and fixed `update-aimaestro.sh` to run `git submodule update` after `git pull` (it was reinstalling stale scripts). Added a mandatory "propagate plugin" step to the Pre-PR checklist.
+
+### Notes
+- Everything above is **off by default** (per-host opt-in env flags) — the fleet is unaffected until enabled.
+- **Total API Calls** still needs the OTLP *logs* exporter (`api_request` is an event, not a metric) — a follow-on.
+
+## [0.36.16] – [0.36.24] - 2026-08-04 — AMP identity integrity, DID conformance & security hardening
+
+### Security & Fixed
+- **Eliminated shared AMP identities** [0.36.16–0.36.18] — agents had been copying the machine's keypair/address into their own dirs, so dozens of agents shared one Ed25519 identity and signed as the same key. Stopped copying the machine keypair into agent dirs, repaired affected agents, and added structural guards so each agent gets a unique per-agent identity. Enforced AMP signature verification server-side and fixed server-side key contamination.
+- **Fingerprint format** — key fingerprints must hash the raw 32-byte Ed25519 key, not the full DER; repair/audit paths corrected.
+- **Identity Conflict Detection** [0.36.19–0.36.20] — a key-swap / TOFU (trust-on-first-use) ledger detects when an address's key changes unexpectedly; hardened the ledger and closed a conflict-detection footgun.
+
+### Added
+- **AID / DID conformance** [0.36.22–0.36.23] — the runtime adopts a key-derived `did:key` identity and exposes it on the wire; added key revocation lists, replay protection, and an Agent Card `did`, completing DID coverage for the Agent Identity + Messaging protocols.
+
+### Fixed
+- **Permission menu drops option 1** [0.36.24] — on tall permission prompts the pane scraper dropped the first option ("Yes"); the parser now finds prompts buried under output and keeps every option. `lib/pane-permission.mjs` + tests.
+
+## [0.36.14] – [0.36.15] - 2026-07-31 — Idle-agent delivery via Channels (fleet rollout)
+
+### Added
+- **Fleet rollout of `amp-channel`** [0.36.14] — reliable idle-agent delivery via the Claude Code Channels MCP contract (see [0.36.13]); added the `aimaestro-channels` marketplace manifest so agents can launch with the channel plugin instead of the dev `--dangerously-load-development-channels` flag.
+
 ## [0.36.13] - 2026-07-31 — Reliable idle-agent wake via Claude Code Channels
 
 ### Added

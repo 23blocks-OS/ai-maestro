@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   User, Building2, Briefcase, Code2, Cpu, Tag,
-  Activity, MessageSquare, CheckCircle, Clock, Zap,
+  Activity, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Trash2,
   Cloud, Monitor, Wifi, WifiOff, Folder, Download, Send,
@@ -660,24 +660,14 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
           {expandedSections.metrics && agent.metrics && (
             <div className="grid grid-cols-2 gap-4">
               <MetricCard
-                icon={<MessageSquare className="w-5 h-5 text-blue-400" />}
-                value={agent.metrics.totalMessages || 0}
-                label="Messages"
-              />
-              <MetricCard
-                icon={<CheckCircle className="w-5 h-5 text-green-400" />}
-                value={agent.metrics.totalTasksCompleted || 0}
-                label="Tasks"
+                icon={<Activity className="w-5 h-5 text-orange-400" />}
+                value={agent.metrics.totalSessions || agent.launchCount || 0}
+                label="Sessions"
               />
               <MetricCard
                 icon={<Clock className="w-5 h-5 text-purple-400" />}
                 value={`${(agent.metrics.uptimeHours || 0).toFixed(1)}h`}
-                label="Uptime"
-              />
-              <MetricCard
-                icon={<Activity className="w-5 h-5 text-orange-400" />}
-                value={agent.metrics.totalSessions || 0}
-                label="Sessions"
+                label="Active Time"
               />
               <MetricCard
                 icon={<Zap className="w-5 h-5 text-yellow-400" />}

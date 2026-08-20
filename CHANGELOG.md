@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.35] - 2026-08-19 — Honest agent metrics overview
+
+### Changed
+- **Agent profile "Metrics Overview" now shows only real data.** Five of the eight tiles (Messages, Tasks, Uptime, Sessions, Avg Response) had no writer anywhere and were permanently `0`/`N/A` across every agent. Fixed:
+  - **Sessions** ← `launchCount` (tracked on every wake; falls back live so existing agents populate immediately).
+  - **Active Time** (was "Uptime") ← telemetry `claude_code.active_time.total` — real active time, not calendar age.
+  - **Avg Response** ← telemetry `api_request.duration_ms` (running average in the OTLP logs receiver).
+  - **Removed Messages and Tasks** — a message counter belongs in a dedicated AMP view (per-agent disk I/O on render or under-counting history), and Tasks is team-meeting-scoped. Both applied to `AgentProfileTab` and `AgentProfile`.
+- Result: 6 honest tiles — Sessions, Active Time, Avg Response, API Cost, Tokens Used, API Calls (the last four fill when telemetry is enabled). Verified live end-to-end.
+
 ## [0.36.33] - 2026-08-19 — Total API Calls tile (OTLP logs)
 
 ### Added

@@ -714,6 +714,9 @@ function updateAgentSessionInRegistry(
 
   if (incrementLaunch) {
     agents[index].launchCount = (agents[index].launchCount || 0) + 1
+    // Mirror launch count into metrics so the profile's "Sessions" tile is fed.
+    if (!agents[index].metrics) agents[index].metrics = {}
+    agents[index].metrics!.totalSessions = agents[index].launchCount
   }
 
   saveAgents(agents)

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { isTelemetryEnabled, telemetryEndpoint, claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
-import { parseClaudeMetrics, parseApiRequestCounts } from '@/services/telemetry-service'
+import { parseClaudeMetrics, parseApiRequests } from '@/services/telemetry-service'
 
 const ORIG = { ...process.env }
 afterEach(() => {
@@ -68,8 +68,8 @@ describe('parseClaudeMetrics (OTLP JSON)', () => {
 
   it('sums tokens across type series per session and reads cost', () => {
     const r = parseClaudeMetrics(body)
-    expect(r.s1).toEqual({ tokens: 1250, cost: 0.42 })
-    expect(r.s2).toEqual({ tokens: 0, cost: 1.5 })
+    expect(r.s1).toEqual({ tokens: 1250, cost: 0.42, activeSeconds: 0 })
+    expect(r.s2).toEqual({ tokens: 0, cost: 1.5, activeSeconds: 0 })
   })
   it('ignores data points without a session.id', () => {
     const r = parseClaudeMetrics(body)
@@ -83,15 +83,15 @@ describe('parseClaudeMetrics (OTLP JSON)', () => {
   })
 })
 
-describe('parseApiRequestCounts (OTLP logs)', () => {
+describe('parseApiRequests (OTLP logs)', () => {
   const body = {
     resourceLogs: [{
       scopeLogs: [{
         logRecords: [
-          // two api_request events for s1
-          { attributes: [{ key: 'event.name', value: { stringValue: 'api_request' } }, { key: 'session.id', value: { stringValue: 's1' } }] },
-          { attributes: [{ key: 'event.name', value: { stringValue: 'api_request' } }, { key: 'session.id', value: { stringValue: 's1' } }] },
-          // one for s2, with the full event name form
+          // two api_request events for s1, with duration_ms (int + double forms)
+          { attributes: [{ key: 'event.name', value: { stringValue: 'api_request' } }, { key: 'session.id', value: { stringValue: 's1' } }, { key: 'duration_ms', value: { intValue: '100' } }] },
+          { attributes: [{ key: 'event.name', value: { stringValue: 'api_request' } }, { key: 'session.id', value: { stringValue: 's1' } }, { key: 'duration_ms', value: { doubleValue: 200 } }] },
+          // one for s2, with the full event name form, no duration
           { attributes: [{ key: 'event.name', value: { stringValue: 'claude_code.api_request' } }, { key: 'session.id', value: { stringValue: 's2' } }] },
           // a different event → ignored
           { attributes: [{ key: 'event.name', value: { stringValue: 'user_prompt' } }, { key: 'session.id', value: { stringValue: 's1' } }] },
@@ -102,15 +102,17 @@ describe('parseApiRequestCounts (OTLP logs)', () => {
     }],
   }
 
-  it('counts api_request events per session (this export = a delta)', () => {
-    expect(parseApiRequestCounts(body)).toEqual({ s1: 2, s2: 1 })
+  it('counts api_request events + sums duration_ms per session', () => {
+    expect(parseApiRequests(body)).toEqual({
+      s1: { count: 2, durationSumMs: 300 },
+      s2: { count: 1, durationSumMs: 0 },
+    })
   })
   it('ignores non-api_request events and records without session.id', () => {
-    const r = parseApiRequestCounts(body)
-    expect(r.s1).toBe(2) // the user_prompt + session-less api_request did not count
+    expect(parseApiRequests(body).s1.count).toBe(2)
   })
   it('handles empty / malformed bodies', () => {
-    expect(parseApiRequestCounts({})).toEqual({})
-    expect(parseApiRequestCounts(null)).toEqual({})
+    expect(parseApiRequests({})).toEqual({})
+    expect(parseApiRequests(null)).toEqual({})
   })
 })

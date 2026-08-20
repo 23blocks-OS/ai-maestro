@@ -401,6 +401,17 @@ export function getAgentBySession(sessionName: string, hostId?: string): Agent |
 }
 
 /**
+ * Find the agent whose current Claude Code session matches this session id.
+ * Used to correlate OTLP telemetry (each metric carries a `session.id`) back to
+ * an agent. Returns null when no agent owns the session.
+ */
+export function getAgentByClaudeSessionId(sessionId: string): Agent | null {
+  if (!sessionId) return null
+  const agents = loadAgents()
+  return agents.find(a => !a.deletedAt && a.claudeSessionId === sessionId) || null
+}
+
+/**
  * Create a new agent
  */
 export function createAgent(request: CreateAgentRequest): Agent {

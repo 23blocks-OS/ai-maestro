@@ -21,6 +21,7 @@ import { PERMISSION_MODE_TO_CLI } from '@/types/agent'
 import type { AgentPermissionMode } from '@/types/agent'
 import { CONTAINER_CWD_GEMINI_PROJECT } from '@/lib/container-utils'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
+import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 
 const execAsync = promisify(exec)
 
@@ -105,7 +106,8 @@ export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | '
     const escapedPrompt = body.prompt.replace(/'/g, "'\\''")
     aiTool += ` -p '${escapedPrompt}'`
   }
-  return aiTool
+  // Opt-in OTLP telemetry env prefix (off by default; no-op for non-claude).
+  return claudeTelemetryEnvPrefix(program) + aiTool
 }
 
 export function validateMounts(mounts: SandboxMount[] | undefined): string | null {

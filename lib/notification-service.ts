@@ -11,10 +11,14 @@ import { getAgent, getAgentByName } from '@/lib/agent-registry'
 import { computeSessionName } from '@/types/agent'
 import { getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
+import { hasHookReport } from '@/lib/session-idle'
 
 // Configuration (can be overridden via environment variables)
 const NOTIFICATIONS_ENABLED = process.env.NOTIFICATIONS_ENABLED !== 'false'
-const NOTIFICATION_FORMAT = process.env.NOTIFICATION_FORMAT || '[MESSAGE] From: {from} - {subject} - check your inbox'
+// Subject FIRST: these lines stack up in an agent's transcript, and with the
+// sender leading, consecutive notifications were visually indistinguishable —
+// the differentiator sat far right and got truncated.
+const NOTIFICATION_FORMAT = process.env.NOTIFICATION_FORMAT || '[MESSAGE] {subject} — from {from}'
 const NOTIFICATION_SKIP_TYPES = (process.env.NOTIFICATION_SKIP_TYPES || 'system,heartbeat').split(',')
 
 export interface NotificationOptions {
@@ -76,9 +80,20 @@ interface PaneDeliveryResult {
   unverifiable: boolean
 }
 
-/** Short, stable per-message token used as the readback needle. */
+/**
+ * Short, stable, PER-MESSAGE token used as the readback needle.
+ *
+ * Takes the TAIL of the id, not the head. Ids look like
+ * `msg-<timestamp>-<random>`, so the leading characters are near-constant:
+ * slicing the front gave every message sent within ~27 hours the identical ref
+ * (`msg17878`). That broke two things at once — the pane readback could be
+ * satisfied by a STALE ref left on screen from an earlier message, making
+ * `confirmed` a false positive, and every notification looked like the same
+ * message repeating to anyone reading the pane.
+ */
 export function messageRef(messageId: string): string {
-  return (messageId || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'nomsgid'
+  const alnum = (messageId || '').replace(/[^a-zA-Z0-9]/g, '')
+  return alnum.slice(-8) || 'nomsgid'
 }
 
 /** Collapse to one line so send-keys can't submit early on an embedded newline. */
@@ -118,12 +133,23 @@ async function sendTmuxNotification(
   // Target the first pane of the first window
   const target = `${sessionName}:0.0`
 
-  // Wrap in echo so shells still render the notification at an idle prompt.
-  const escapedMessage = message.replace(/'/g, "'\\''")
+  // A TUI agent takes the text as a prompt, so send it plainly. A bare shell
+  // would try to EXECUTE it, so there the text is wrapped in `echo`.
+  //
+  // We can tell them apart now: a hook report for this session means a Claude
+  // Code (or Codex/Gemini) agent is live in the pane. Before v0.36.42 there was
+  // no such signal, so everything got the echo wrapper and every notification
+  // landed in the agent's transcript looking like a shell command.
+  //
+  // No report ⇒ assume shell and keep the wrapper. That is the safe default:
+  // an unnecessary `echo` is ugly, an unquoted message at a shell prompt is a
+  // command.
+  const isTui = hasHookReport(sessionName)
+  const payload = isTui ? message : `echo '${message.replace(/'/g, "'\\''")}'`
   let sawPane = false
 
   for (let send = 1; send <= NOTIFICATION_MAX_SENDS; send++) {
-    await runtime.sendKeys(target, `echo '${escapedMessage}'`, { literal: true })
+    await runtime.sendKeys(target, payload, { literal: true })
     await new Promise(resolve => setTimeout(resolve, NOTIFICATION_SUBMIT_DELAY_MS))
     await runtime.sendKeys(target, 'Enter')
 

@@ -89,6 +89,17 @@ export function isSessionIdle(sessionName: string): boolean {
   return since > IDLE_THRESHOLD_MS
 }
 
+/**
+ * True if the Claude Code hook has reported for this session recently — i.e. an
+ * agent TUI is live in the pane rather than a bare shell. Used to decide
+ * whether a notification can be sent as plain text or must be wrapped in
+ * `echo` so a shell does not try to execute it.
+ */
+export function hasHookReport(sessionName: string): boolean {
+  const reported = hookStatus?.get(sessionName)
+  return !!reported && Date.now() - reported.at < HOOK_STATUS_TTL_MS
+}
+
 /** Which signal answered, for logging and the operator surface. */
 export function idleSource(sessionName: string): 'hook' | 'pty' | 'none' {
   const reported = hookStatus?.get(sessionName)

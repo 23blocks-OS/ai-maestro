@@ -46,6 +46,9 @@ vi.mock('@/types/agent', () => ({
   computeSessionName: vi.fn((name: string) => name),
 }))
 
+const mockIdle = vi.hoisted(() => ({ hasHookReport: vi.fn(() => false) }))
+vi.mock('@/lib/session-idle', () => mockIdle)
+
 import { notifyAgent, messageRef, toSingleLine } from '@/lib/notification-service'
 
 const BASE = {
@@ -66,11 +69,21 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockRuntime.sendKeys.mockResolvedValue(undefined)
   mockRuntime.sessionExists.mockResolvedValue(true)
+  mockIdle.hasHookReport.mockReturnValue(false)
 })
 
 describe('messageRef', () => {
-  it('derives a short alphanumeric token from the message id', () => {
-    expect(messageRef('abc12345-dead-beef')).toBe('abc12345')
+  it('derives the token from the TAIL of the id, where the entropy is', () => {
+    // Ids are `msg-<timestamp>-<random>`; slicing the head gave every message
+    // in a ~27h window the same ref, which both broke readback confirmation
+    // and made every notification look like the same message repeating.
+    expect(messageRef('msg-1787802846153-bk2096t')).toBe('3bk2096t')
+  })
+
+  it('is DISTINCT for messages sent moments apart', () => {
+    const a = messageRef('msg_1787805728539_j782cvq')
+    const b = messageRef('msg_1787805890480_pi3wqxz')
+    expect(a).not.toBe(b)
   })
 
   it('is stable for the same id', () => {
@@ -177,6 +190,36 @@ describe('notifyAgent — pane readback', () => {
 
     const sent = mockRuntime.sendKeys.mock.calls[0][1] as string
     expect(sent).toContain(`[#${messageRef(BASE.messageId)}]`)
+  })
+
+  it('sends PLAIN text when an agent TUI is live in the pane', async () => {
+    mockIdle.hasHookReport.mockReturnValue(true)
+    mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+
+    await notifyAgent(BASE)
+
+    const sent = mockRuntime.sendKeys.mock.calls[0][1] as string
+    expect(sent.startsWith('echo ')).toBe(false)
+    expect(sent).toContain('[MESSAGE]')
+  })
+
+  it('wraps in echo for a bare shell so the text is not EXECUTED', async () => {
+    mockIdle.hasHookReport.mockReturnValue(false)
+    mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+
+    await notifyAgent(BASE)
+
+    const sent = mockRuntime.sendKeys.mock.calls[0][1] as string
+    expect(sent.startsWith("echo '")).toBe(true)
+  })
+
+  it('leads with the subject so stacked notifications are distinguishable', async () => {
+    mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+
+    await notifyAgent(BASE)
+
+    const sent = mockRuntime.sendKeys.mock.calls[0][1] as string
+    expect(sent.indexOf('deploy failed')).toBeLessThan(sent.indexOf('sender'))
   })
 
   it('skips cleanly when the session is gone', async () => {

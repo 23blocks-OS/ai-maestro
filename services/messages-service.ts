@@ -226,6 +226,13 @@ export async function sendMessage(params: SendMessageParams): Promise<ServiceRes
       data: {
         message: result.message,
         notified: result.notified,
+        // Wake outcome: `notified` only means a route accepted it. `verified`
+        // means a route PROVED the agent received it. Surface both so callers
+        // can tell the difference instead of assuming.
+        verified: result.verified ?? false,
+        ...(result.verifiedBy ? { verifiedBy: result.verifiedBy } : {}),
+        ...(result.deferred ? { deferred: true } : {}),
+        ...(result.wakeAttempts ? { wakeAttempts: result.wakeAttempts } : {}),
       },
       status: 201,
     }

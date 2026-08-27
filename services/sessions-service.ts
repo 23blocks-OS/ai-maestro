@@ -34,6 +34,7 @@ import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/s
 import { parseNameForDisplay, isCallSession } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { sessionActivity, agentActivity, terminalSessions, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
@@ -83,7 +84,6 @@ const packageJson = JSON.parse(
 const AI_MAESTRO_VERSION: string = packageJson.version
 
 // Idle threshold in milliseconds (30 seconds) — for command endpoint
-const IDLE_THRESHOLD_MS = 30 * 1000
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -167,13 +167,6 @@ function getHookState(workingDir: string): { status: string; notificationType?: 
   }
 
   return null
-}
-
-/** Check if a session is idle based on activity threshold */
-function isSessionIdle(sessionName: string): boolean {
-  const activity = sessionActivity.get(sessionName)
-  if (!activity) return true
-  return (Date.now() - activity) > IDLE_THRESHOLD_MS
 }
 
 /** Fetch sessions from a remote host */

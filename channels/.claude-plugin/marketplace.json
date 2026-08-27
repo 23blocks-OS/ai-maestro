@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "AI Maestro channel plugins — reliable idle-agent wake via MCP turn-injection (no tmux keystrokes).",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
       "name": "amp",
       "source": "./amp-plugin",
       "description": "AMP channel — injects inbox messages straight into an idle agent's Claude Code session so it wakes and processes them.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "23blocks"
       },

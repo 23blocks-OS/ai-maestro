@@ -12,7 +12,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // vi.mock is hoisted above const declarations, so the mock objects have to be
 // hoisted too or the factories close over an uninitialised binding.
-const { mockChannel, mockStream, mockNotify } = vi.hoisted(() => ({
+const { mockChannel, mockStream, mockNotify, mockIdle, mockQueue } = vi.hoisted(() => ({
+  mockIdle: { isSessionIdle: vi.fn(), msSinceActivity: vi.fn(), IDLE_THRESHOLD_MS: 30000 },
+  mockQueue: { enqueueWake: vi.fn(() => 1) },
   mockChannel: {
     pushToChannel: vi.fn(),
     isChannelVerified: vi.fn(),
@@ -27,6 +29,8 @@ const { mockChannel, mockStream, mockNotify } = vi.hoisted(() => ({
 vi.mock('@/lib/channel-bridge.mjs', () => mockChannel)
 vi.mock('@/lib/streaming-bridge.mjs', () => mockStream)
 vi.mock('@/lib/notification-service', () => mockNotify)
+vi.mock('@/lib/session-idle', () => mockIdle)
+vi.mock('@/lib/wake-queue', () => mockQueue)
 
 import {
   runWakeChain,
@@ -69,6 +73,8 @@ beforeEach(() => {
   mockChannel.pushToChannel.mockResolvedValue(false)
   mockChannel.isChannelVerified.mockReturnValue(false)
   mockNotify.notifyAgent.mockResolvedValue({ success: true, notified: false, reason: 'No sessions' })
+  mockIdle.isSessionIdle.mockReturnValue(true)
+  mockQueue.enqueueWake.mockReturnValue(1)
 })
 
 describe('runWakeChain — stopping rules', () => {
@@ -230,6 +236,41 @@ describe('paneAdapter', () => {
     expect(mockNotify.notifyAgent).toHaveBeenCalledWith(
       expect.objectContaining({ body: 'the body', messageId: CTX.messageId })
     )
+  })
+})
+
+describe('paneAdapter — idle gate', () => {
+  it('defers instead of typing into a busy pane', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(false)
+
+    const out = await paneAdapter.deliver(CTX)
+
+    expect(out.status).toBe('deferred')
+    expect(out.detail).toMatch(/busy/i)
+    // The whole point: nothing was typed into the churn.
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+    expect(mockQueue.enqueueWake).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: CTX.messageId, injectBody: CTX.injectBody })
+    )
+  })
+
+  it('sends normally when the pane is idle', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockNotify.notifyAgent.mockResolvedValue({ success: true, notified: true, verified: true })
+
+    expect((await paneAdapter.deliver(CTX)).status).toBe('confirmed')
+    expect(mockQueue.enqueueWake).not.toHaveBeenCalled()
+  })
+
+  it('a deferred wake is never counted as notified', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(false)
+    mockChannel.pushToChannel.mockResolvedValue(false)
+
+    const res = await runWakeChain(CTX)
+
+    expect(res.deferred).toBe(true)
+    expect(res.confirmed).toBe(false)
+    expect(res.notified).toBe(false)
   })
 })
 

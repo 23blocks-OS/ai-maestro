@@ -21,22 +21,27 @@
  * is dropped silently. "Sent" looked like "arrived", and the pane notification
  * that would have saved it was skipped.
  *
- * Hence four statuses rather than a boolean:
+ * Hence five statuses rather than a boolean:
  *
  *   confirmed   — something downstream of the transport proved arrival
  *   sent        — handed off successfully; arrival unknown
+ *   deferred    — queued for a better moment; NOT delivered yet
  *   unavailable — this route does not apply to this agent
  *   failed      — the route applies and did not work
  *
- * Only `confirmed` stops the chain. `sent` keeps going, because an unproven
- * wake is worth exactly as much as no wake when the agent is waiting on it.
+ * Only `confirmed` stops the chain. `sent` and `deferred` keep going, because
+ * an unproven or postponed wake is worth exactly as much as no wake when the
+ * agent is waiting on it.
  */
 
 import { pushToChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
 import { pushToStreamSession, hasStreamSession } from '@/lib/streaming-bridge.mjs'
 import { notifyAgent } from '@/lib/notification-service'
+import { isSessionIdle } from '@/lib/session-idle'
+import { enqueueWake } from '@/lib/wake-queue'
+import { computeSessionName } from '@/types/agent'
 
-export type WakeStatus = 'confirmed' | 'sent' | 'unavailable' | 'failed'
+export type WakeStatus = 'confirmed' | 'sent' | 'deferred' | 'unavailable' | 'failed'
 
 export interface WakeContext {
   agentId: string
@@ -71,6 +76,8 @@ export interface WakeResult {
   confirmed: boolean
   /** At least one adapter handed the message off (proven or not). */
   notified: boolean
+  /** A route queued the wake for later instead of delivering it now. */
+  deferred: boolean
   /** The adapter that confirmed, if any. */
   confirmedBy?: string
   /** Every route tried, in order — the record for surfacing/retry. */
@@ -140,11 +147,37 @@ export const channelAdapter: WakeAdapter = {
  * notifyAgent() reads the pane back after sending and looks for a per-message
  * ref, so `confirmed` here means the message was observed on the pane — not
  * merely that send-keys returned.
+ *
+ * Idle-gated: typing into a pane that is mid-render is precisely when the text
+ * gets eaten, so a busy pane defers to lib/wake-queue instead of sending into
+ * the churn. Deferred is reported as its own status — a queued wake has not
+ * been delivered and must never be counted as one.
  */
 export const paneAdapter: WakeAdapter = {
   name: 'pane',
   proof: 'message read back off the pane via capture',
   async deliver(ctx) {
+    const sessionName = computeSessionName(ctx.agentName, 0)
+    if (!isSessionIdle(sessionName)) {
+      const depth = enqueueWake({
+        agentId: ctx.agentId,
+        agentName: ctx.agentName,
+        sessionName,
+        injectBody: ctx.injectBody,
+        senderName: ctx.senderName,
+        senderHost: ctx.senderHost,
+        subject: ctx.subject,
+        messageId: ctx.messageId,
+        priority: ctx.priority,
+        messageType: ctx.messageType,
+      })
+      return {
+        adapter: 'pane',
+        status: 'deferred',
+        detail: `pane busy — queued for idle (depth ${depth})`,
+      }
+    }
+
     const res = await notifyAgent({
       agentId: ctx.agentId,
       agentName: ctx.agentName,
@@ -181,9 +214,9 @@ export const DEFAULT_WAKE_CHAIN: WakeAdapter[] = [streamAdapter, channelAdapter,
 /**
  * Run adapters in order, stopping at the first CONFIRMED one.
  *
- * `sent` deliberately does not stop the chain: an unproven wake is worth
- * nothing to an agent that is waiting, and a duplicate nudge is far cheaper
- * than a lost message. A thrown adapter is recorded as `failed` and the chain
+ * `sent` and `deferred` deliberately do not stop the chain: an unproven or
+ * postponed wake is worth nothing to an agent that is waiting, and a duplicate
+ * nudge is far cheaper than a lost message. A thrown adapter is recorded as `failed` and the chain
  * continues — one broken route must never strand a message that another route
  * could still carry.
  */
@@ -207,13 +240,20 @@ export async function runWakeChain(
     attempts.push(outcome)
 
     if (outcome.status === 'confirmed') {
-      return { confirmed: true, notified: true, confirmedBy: adapter.name, attempts }
+      return {
+        confirmed: true,
+        notified: true,
+        deferred: false,
+        confirmedBy: adapter.name,
+        attempts,
+      }
     }
   }
 
   return {
     confirmed: false,
     notified: attempts.some((a) => a.status === 'sent'),
+    deferred: attempts.some((a) => a.status === 'deferred'),
     attempts,
   }
 }

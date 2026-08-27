@@ -49,6 +49,8 @@ export interface DeliveryResult {
   verified?: boolean
   /** Which route proved it, when one did. */
   verifiedBy?: string
+  /** A wake was queued for the agent's idle transition rather than sent now. */
+  deferred?: boolean
   /** Every wake route tried, in order, with its outcome. */
   wakeAttempts?: WakeOutcome[]
   error?: string
@@ -134,6 +136,13 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     console.log(
       `[Delivery] ${envelope.id} → ${recipientAgentName} confirmed via ${wake.confirmedBy} (${describeWakeResult(wake)})`
     )
+  } else if (wake.deferred) {
+    // The pane was mid-render, so the wake is queued for the idle transition
+    // rather than typed into the churn. Not a loss — a delay — but not an
+    // arrival either.
+    console.log(
+      `[Delivery] ${envelope.id} → ${recipientAgentName} deferred to idle (${describeWakeResult(wake)})`
+    )
   } else {
     // Nothing could prove it landed. The message is safely on disk, but no
     // agent is known to have seen it — log loudly enough to be actionable.
@@ -158,6 +167,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     notified,
     verified,
     ...(wake.confirmedBy ? { verifiedBy: wake.confirmedBy } : {}),
+    ...(wake.deferred ? { deferred: true } : {}),
     wakeAttempts: wake.attempts,
   }
 }

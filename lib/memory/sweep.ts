@@ -124,10 +124,19 @@ export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepRe
         conversationsDiscovered: r.new_conversations_discovered || 0,
         ms: Date.now() - t0,
       }
+      // runIndexDelta RETURNS {success:false} on failure rather than throwing,
+      // so catching exceptions alone counted broken runs as successes. That is
+      // how a host whose embedding provider was misconfigured reported
+      // "17 indexed, 0 failed, 0 messages" for months.
+      if (r.success === false) {
+        entry.error = (r as { error?: string }).error || 'index-delta reported failure'
+        failed++
+      } else {
+        indexed++
+      }
       agents.push(entry)
       markSwept(agentId, entry)
       messagesProcessed += entry.messagesProcessed
-      indexed++
     } catch (err) {
       const entry: SweepAgentResult = {
         agentId,

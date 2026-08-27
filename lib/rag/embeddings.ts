@@ -33,7 +33,22 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
 
     const ext = await pipeline('feature-extraction', MODEL, {
       dtype: 'q8',  // Quantized for speed (was: quantized: true)
-      device: 'auto',  // Let it choose best available (CPU in Node.js)
+      // CPU explicitly — NOT 'auto'.
+      //
+      // On Linux, transformers.js 'auto' offers ONNX Runtime the cuda execution
+      // provider first. onnxruntime-node ships CPU-only, so session creation
+      // throws `sessionOptions.executionProviders[0] is unsupported: 'cuda'`
+      // for EVERY batch. The model still downloads and logs "Loading... 100%",
+      // which makes it look healthy; nothing is ever embedded.
+      //
+      // Observed on a 4-CPU Linux host with no GPU: every agent reported
+      // "0 messages, success" for months while its conversations sat unindexed.
+      // macOS resolved 'auto' to CPU, so the same code worked there and the
+      // failure looked host-specific rather than like a bad default.
+      //
+      // Set AIMAESTRO_EMBEDDING_DEVICE to override on a host with a genuine
+      // CUDA-enabled onnxruntime build.
+      device: (process.env.AIMAESTRO_EMBEDDING_DEVICE as any) || 'cpu',
       progress_callback: (progress: any) => {
         if (progress.status === 'progress' && progress.progress) {
           console.log(`[Embeddings] Loading... ${Math.round(progress.progress)}%`);

@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.50] - 2026-08-27 — Embeddings run on CPU (a whole host had been silently unable to index)
+
+### Fixed
+- **`device: 'auto'` selected CUDA on Linux and failed every batch.** `lib/rag/embeddings.ts` passed `device: 'auto'` with a comment claiming *"CPU in Node.js"* — but on Linux, transformers.js offers ONNX Runtime the `cuda` execution provider first, and `onnxruntime-node` ships CPU-only. Session creation threw `sessionOptions.executionProviders[0] is unsupported: 'cuda'` for **every** batch. The model still downloaded and logged `Loading... 100%`, so the host looked healthy while indexing nothing. macOS resolved `'auto'` to CPU, so the identical code worked there and the failure looked host-specific rather than like a bad default. Now explicitly `cpu`, overridable via `AIMAESTRO_EMBEDDING_DEVICE` on a host with a genuine CUDA-enabled build.
+
+  Verified on the affected 4-CPU, no-GPU host: **2,916 messages indexed in 7 minutes**, database `64 KB → 29 MB`, having been empty for months.
+- **The memory sweep counted failed runs as successes.** `runIndexDelta` reports failure by *returning* `{success: false}` rather than throwing, so catching exceptions alone was not enough. That is how the broken host reported `17 indexed, 0 failed, 0 messages` — the number that looked fine and hid the outage. The sweep now inspects `success` and surfaces the underlying error.
+
+### Notes
+- This was the third distinct fault behind "memory isn't working", after stale project bindings (0.36.48) and ancestor-only bindings (0.36.49). Only the third one had any GPU involvement, and it was not a performance problem: nothing was slow, nothing ran at all. CPU embedding on 4 cores indexes roughly 7 messages/second, which is entirely adequate.
+
 ## [0.36.49] - 2026-08-27 — Ancestor bindings no longer count as valid
 
 ### Fixed

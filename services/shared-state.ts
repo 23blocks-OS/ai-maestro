@@ -34,6 +34,25 @@ export interface StatusUpdate {
   timestamp: string
 }
 
+/**
+ * Agent state as reported by the Claude Code hook.
+ *
+ * The hook fires on Stop / SessionStart / Notification and knows the agent's
+ * real state, which nothing else on the server does: PTY activity only exists
+ * while someone has the terminal open, and tmux's own activity timestamps were
+ * measured stale by 25 minutes on a visibly working agent.
+ *
+ *   idle              — Stop fired and did not block: turn over, safe to inject
+ *   active            — SessionStart, or a Stop that blocked to force an AMP read
+ *   waiting_for_input — a Notification; check notificationType before injecting
+ *   permission_request— a modal is up; typing would ANSWER IT. Never inject.
+ */
+export interface HookStatusState {
+  status: string
+  notificationType?: string
+  at: number
+}
+
 export interface CallSessionState {
   agentId: string
   agentName: string
@@ -56,6 +75,7 @@ declare global {
     statusSubscribers: Set<WebSocket>
     companionClients: Map<string, Set<WebSocket>>
     callSessions: Map<string, CallSessionState>
+    hookStatus: Map<string, HookStatusState>
   } | undefined
 }
 
@@ -67,11 +87,17 @@ if (!globalThis._sharedState) {
     statusSubscribers: new Set<WebSocket>(),
     companionClients: new Map<string, Set<WebSocket>>(),
     callSessions: new Map<string, CallSessionState>(),
+    hookStatus: new Map<string, HookStatusState>(),
   }
 }
-// Ensure callSessions exists for hot-reload / late initialization
+// Ensure late-added maps exist for hot-reload, and for whichever module graph
+// initialised _sharedState first (server.mjs via the bridge, or Next via this
+// file). A missing map here is an undefined deref at call time, not a warning.
 if (!globalThis._sharedState.callSessions) {
   globalThis._sharedState.callSessions = new Map()
+}
+if (!globalThis._sharedState.hookStatus) {
+  globalThis._sharedState.hookStatus = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -97,6 +123,9 @@ export const companionClients: Map<string, Set<WebSocket>> = state.companionClie
 
 /** agentId -> active call session state. Populated by companion-ws handler in server.mjs. */
 export const callSessions: Map<string, CallSessionState> = state.callSessions
+
+/** sessionName -> last state reported by the Claude Code hook. See HookStatusState. */
+export const hookStatus: Map<string, HookStatusState> = state.hookStatus
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session

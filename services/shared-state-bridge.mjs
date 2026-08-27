@@ -18,11 +18,16 @@ if (!globalThis._sharedState) {
     statusSubscribers: new Set(),    // Set<WebSocket> for /status subscribers
     companionClients: new Map(),     // agentId -> Set<WebSocket> for /companion-ws
     callSessions: new Map(),         // agentId -> CallSessionState for companion call forks
+    hookStatus: new Map(),           // sessionName -> { status, notificationType, at } from the Claude Code hook
   }
 }
-// Ensure callSessions exists for hot-reload / late initialization
+// Ensure late-added maps exist for hot-reload / late initialization, and for
+// whichever module graph initialised _sharedState first.
 if (!globalThis._sharedState.callSessions) {
   globalThis._sharedState.callSessions = new Map()
+}
+if (!globalThis._sharedState.hookStatus) {
+  globalThis._sharedState.hookStatus = new Map()
 }
 
 const state = globalThis._sharedState
@@ -33,6 +38,7 @@ export const terminalSessions = state.terminalSessions
 export const statusSubscribers = state.statusSubscribers
 export const companionClients = state.companionClients
 export const callSessions = state.callSessions
+export const hookStatus = state.hookStatus
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.

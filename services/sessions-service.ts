@@ -33,7 +33,7 @@ import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, terminalSessions, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
@@ -558,6 +558,19 @@ export function broadcastActivityUpdate(
 ): ServiceResult<{ success: boolean }> {
   if (!sessionName && !agentId) {
     return missingField('sessionName')
+  }
+
+  // Persist the hook's view of the agent's state, not just broadcast it. This
+  // is the only busy/idle signal that exists for an agent nobody is watching:
+  // sessionActivity is written by the PTY layer, which only runs while a
+  // terminal is attached. The wake path reads this via lib/session-idle.
+  const reported = hookStatus || status
+  if (sessionName && reported) {
+    hookStatusMap.set(sessionName, {
+      status: reported,
+      notificationType,
+      at: Date.now(),
+    })
   }
 
   broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)

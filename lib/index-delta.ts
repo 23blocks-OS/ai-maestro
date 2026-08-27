@@ -15,7 +15,7 @@ import { agentRegistry } from '@/lib/agent'
 import { AgentDatabase } from '@/lib/cozo-db'
 import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
-import { getAgent as getRegistryAgent, getAgentBySession, updateAgentWorkingDirectory } from '@/lib/agent-registry'
+import { getAgent as getRegistryAgent, getAgentBySession, updateAgentWorkingDirectory, listAgents } from '@/lib/agent-registry'
 import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -187,6 +187,57 @@ function getCachedProjectFiles(): CachedJsonlFile[] {
 // ============================================================================
 // AUTO-DISCOVER PROJECTS (uses global cache)
 // ============================================================================
+/**
+ * The top-level Claude project directory for a working directory.
+ *
+ * Claude Code encodes a cwd by replacing separators with '-', so
+ * /Users/me/repo lives at ~/.claude/projects/-Users-me-repo.
+ */
+function topLevelClaudeDir(projectPath: string): string {
+  return path.join(os.homedir(), '.claude', 'projects', projectPath.replace(/\//g, '-'))
+}
+
+/**
+ * Working directories of every OTHER registered agent, longest first.
+ *
+ * Used to resolve ownership when directories nest: if agent A works in
+ * /repo and agent B in /repo/service, a conversation started in
+ * /repo/service belongs to B, not both. Without this, prefix matching would
+ * let the outer agent swallow every inner agent's conversations.
+ */
+function otherAgentWorkingDirs(agentId: string): string[] {
+  try {
+    return listAgents()
+      .filter((a: any) => a.id !== agentId)
+      .flatMap((a: any) => [a.workingDirectory, a.sessions?.[0]?.workingDirectory])
+      .filter((d: any): d is string => typeof d === 'string' && d.length > 0)
+      .sort((a, b) => b.length - a.length)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Does `cwd` belong to an agent working in `agentWd`?
+ *
+ * Exact match, or a DESCENDANT of it — a subagent or a session started in a
+ * child directory has a deeper cwd (e.g. an agent in /repo and a subagent in
+ * /repo/packages/api), and exact-equality matching made those conversations
+ * invisible to the agent that owns them. Surveyed across the fleet, this and
+ * stale bindings accounted for 87 of 163 agents having wrong or incomplete
+ * memory.
+ *
+ * A descendant is NOT claimed when another agent sits closer to it.
+ */
+function cwdBelongsTo(cwd: string, agentWd: string, otherWds: string[]): boolean {
+  if (cwd === agentWd) return true
+  if (!cwd.startsWith(agentWd.endsWith('/') ? agentWd : agentWd + '/')) return false
+  // otherWds is sorted longest-first; a longer match is a more specific owner.
+  return !otherWds.some(
+    (o) => o.length > agentWd.length && (cwd === o || cwd.startsWith(o.endsWith('/') ? o : o + '/'))
+  )
+}
+
 async function autoDiscoverProjects(
   agentDb: AgentDatabase,
   agentId: string,
@@ -210,10 +261,13 @@ async function autoDiscoverProjects(
   const discoveredProjects = new Map<string, { projectName: string; claudeDir: string }>()
   let matchedConversations = 0
 
+  const otherWds = otherAgentWorkingDirs(agentId)
+  const ownWds = Array.from(workingDirectories)
+
   for (const file of allFiles) {
     const belongsToAgent =
       (file.sessionId && agentSessionIds.has(file.sessionId)) ||
-      (file.cwd && workingDirectories.has(file.cwd)) ||
+      (file.cwd && ownWds.some((wd) => cwdBelongsTo(file.cwd as string, wd, otherWds))) ||
       file.path.includes(agentId) ||
       (file.cwd && file.cwd.includes(agentId))
 
@@ -447,9 +501,46 @@ export async function runIndexDelta(
       throw error
     }
 
-    // AUTO-DISCOVER if no projects
-    if (projectsResult.rows.length === 0) {
-      console.log(`[Delta Index] No projects for agent ${agentId.substring(0, 8)} - auto-discovering`)
+    // AUTO-DISCOVER when there are no projects, OR when the recorded binding no
+    // longer reconciles with reality.
+    //
+    // Discovery used to run ONLY when zero projects were recorded, which made a
+    // wrong binding permanent: an agent bound to a directory it no longer works
+    // in kept reporting "0 messages, success" forever. pas-lola was bound to
+    // /home/jpelaez with four conversations that had not existed for months,
+    // while its real ones sat in -home-jpelaez-lola. Across the fleet, 87 of 163
+    // agents were mis-bound this way.
+    //
+    // "No longer reconciles" = every recorded project is unrelated to the
+    // agent's current working directory. That is cheap to check and cannot
+    // mistake a merely-idle agent for a broken one.
+    const boundPaths = projectsResult.rows.map((r: any[]) => String(r[0]))
+    const currentWds = Array.from(
+      new Set(
+        [
+          liveTmuxWd,
+          registryAgent?.workingDirectory,
+          registryAgent?.sessions?.[0]?.workingDirectory,
+          registryAgent?.preferences?.defaultWorkingDirectory,
+        ].filter((d): d is string => typeof d === 'string' && d.length > 0)
+      )
+    )
+    const bindingLooksStale =
+      boundPaths.length > 0 &&
+      currentWds.length > 0 &&
+      !boundPaths.some((b: string) =>
+        currentWds.some((wd) => b === wd || b.startsWith(wd + '/') || wd.startsWith(b + '/'))
+      )
+
+    if (bindingLooksStale) {
+      console.warn(
+        `[Delta Index] Agent ${agentId.substring(0, 8)} bound to [${boundPaths.join(', ')}] ` +
+        `but works in [${currentWds.join(', ')}] — re-discovering`
+      )
+    }
+
+    if (projectsResult.rows.length === 0 || bindingLooksStale) {
+      console.log(`[Delta Index] Re-discovering projects for agent ${agentId.substring(0, 8)}`)
 
       const workingDirectories = new Set<string>()
       if (registryAgent) {
@@ -481,7 +572,38 @@ export async function runIndexDelta(
 
     for (const projectRow of projectsResult.rows) {
       const projectPath = projectRow[0] as string
-      const claudeDir = projectRow[2] as string
+      let claudeDir = projectRow[2] as string
+
+      // Repair a claude_dir that points somewhere unusable instead of skipping
+      // the project forever.
+      //
+      // Older records stored a NESTED path — e.g. <project>/<session>/subagents
+      // — rather than the project root. Once that directory was rotated away,
+      // `continue` skipped the project on every run, so the agent could never
+      // discover its own conversations again and reported "0 new" indefinitely.
+      // Observed on the `maestro` agent: claude_dir pointed at a subagents
+      // directory that no longer existed, while 47 conversations sat unread in
+      // the project root.
+      //
+      // The correct directory is derivable from project_path, so derive it,
+      // persist the correction, and carry on.
+      const derived = topLevelClaudeDir(projectPath)
+      if ((!claudeDir || !fs.existsSync(claudeDir) || claudeDir !== derived) && fs.existsSync(derived)) {
+        console.warn(
+          `[Delta Index] Repairing claude_dir for ${projectPath}: ` +
+          `${claudeDir || '(unset)'} -> ${derived}`
+        )
+        try {
+          await recordProject(agentDb, {
+            project_path: projectPath,
+            project_name: projectPath.split('/').pop() || 'unknown',
+            claude_dir: derived,
+          })
+          claudeDir = derived
+        } catch (err) {
+          console.error(`[Delta Index] Failed to repair claude_dir for ${projectPath}:`, err)
+        }
+      }
 
       if (!claudeDir || !fs.existsSync(claudeDir)) continue
 
@@ -577,8 +699,15 @@ export async function runIndexDelta(
     // Phase 3: Filter — use file size cache to skip unchanged files (no file reads!)
     const conversationsNeedingIndex: Array<typeof conversations[0] & { currentLineCount: number }> = []
 
+    // Conversations whose file is gone: count them so a fully-dead binding is
+    // visible in the result instead of looking like a clean "0 to index" run.
+    let deadConversations = 0
+
     for (const conv of conversations) {
-      if (!fs.existsSync(conv.jsonl_file)) continue
+      if (!fs.existsSync(conv.jsonl_file)) {
+        deadConversations++
+        continue
+      }
 
       // Fast check: has the file size changed since last time?
       if (!hasFileChanged(conv.jsonl_file) && conv.last_indexed_message_count > 0) {
@@ -594,6 +723,12 @@ export async function runIndexDelta(
       }
     }
 
+    if (deadConversations > 0) {
+      console.warn(
+        `[Delta Index] ${deadConversations}/${conversations.length} recorded conversations no longer exist on disk` +
+        (deadConversations === conversations.length ? ' — the binding is entirely stale' : '')
+      )
+    }
     console.log(`[Delta Index] ${conversationsNeedingIndex.length} conversations need indexing`)
 
     if (dryRun) {

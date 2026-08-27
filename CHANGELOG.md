@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.48] - 2026-08-27 — Agent project bindings: agents can find their own conversations again
+
+A survey of 163 agents across three hosts found **87 with wrong or incomplete memory bindings**. Three defects in `lib/index-delta.ts`, each of which made an agent silently index nothing while reporting success.
+
+### Fixed
+- **A dead `claude_dir` skipped a project forever.** Phase 1 did `if (!claudeDir || !fs.existsSync(claudeDir)) continue`. Older records stored a *nested* path — `<project>/<session>/subagents` rather than the project root — and once that directory rotated away the project was skipped on every subsequent run. The agent could never rediscover its own conversations and reported `0 new` indefinitely. Observed on the `maestro` agent: `claude_dir` pointed at a subagents directory that no longer existed while **47 conversations sat unread in the project root**. The correct directory is derivable from `project_path`, so it is now derived, persisted, and used. That one agent went from 0 indexed messages to **3,403 across 47 conversations** on the first run after the fix.
+- **Conversations were matched to agents by exact `cwd` equality.** A subagent, or any session started in a child directory, has a deeper `cwd` and so was invisible to the agent that owns it. Matching is now prefix-based — with the nesting case handled: when an outer agent works in `/repo` and an inner one in `/repo/service`, a conversation in `/repo/service` belongs to the **closer** agent rather than being claimed by both.
+- **Auto-discovery only ran when an agent had zero projects recorded**, so a wrong binding was permanent. It now also re-runs when the recorded binding no longer reconciles with the agent's current working directory.
+- **Stale conversation records are now reported.** A run where recorded conversations no longer exist on disk logs `N/M recorded conversations no longer exist on disk — the binding is entirely stale`, instead of looking like a clean "0 to index".
+
+### Added
+- **`scripts/survey-agent-bindings.mjs`** — read-only audit reporting, per agent: working directory, bound project paths, dead conversation records, reachable `.jsonl` files under its own and child slugs, indexed message count, and a verdict (`OK` / `STALE_BINDING` / `UNBOUND` / `MISSING_CHILDREN` / `NO_WD` / `EMPTY`).
+
+### Survey results
+| host | agents | needing repair |
+|---|---|---|
+| local | 128 | 75 |
+| mini-lola | 17 | 5 |
+| mac-mini | 18 | 7 |
+
+`NO_WD=66` on local are mostly orphaned data directories for agents no longer in the registry — a cleanup opportunity, not a binding fault.
+
 ## [0.36.47] - 2026-08-27 — update-aimaestro.sh always syncs the submodule
 
 ### Fixed

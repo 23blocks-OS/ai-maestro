@@ -19,6 +19,17 @@
  * into queues their runtimes drain safely at a turn boundary, so they are
  * unaffected by TUI render state and are never deferred.
  *
+ * The queue does double duty. It holds two kinds of pending wake:
+ *
+ *   'busy'        — never attempted; the pane was mid-render
+ *   'unconfirmed' — attempted, and nothing could prove it landed
+ *
+ * Both want the same thing: try again when the agent is quiet. So rather than
+ * a second retry subsystem, an unconfirmed wake re-enters this queue with a
+ * backoff. Retries are bounded — after the last attempt we stop and say so,
+ * because a notification that has failed four times is not going to start
+ * working, and the message is in the inbox regardless.
+ *
  * HONESTY
  *
  * A queued wake has NOT been delivered. It is reported as `deferred`, never as
@@ -44,6 +55,18 @@ const QUEUE_TTL_MS = 10 * 60 * 1000
 /** Per-agent cap. Beyond this the OLDEST are dropped — recent context wins. */
 const MAX_PER_AGENT = 20
 
+/**
+ * Delay before each retry of an UNCONFIRMED wake, indexed by attempts already
+ * made. A 'busy' wake uses no backoff — it is waiting on idle, not on a timer.
+ */
+const RETRY_BACKOFF_MS = [0, 30_000, 120_000, 600_000]
+
+/** Attempts before giving up on an unconfirmed wake. */
+const MAX_ATTEMPTS = RETRY_BACKOFF_MS.length
+
+/** Why a wake is sitting in the queue. */
+export type WakeQueueReason = 'busy' | 'unconfirmed'
+
 export interface QueuedWake {
   agentId: string
   agentName: string
@@ -56,6 +79,12 @@ export interface QueuedWake {
   priority?: string
   messageType?: string
   queuedAt: number
+  /** Why it is queued: never attempted (busy) or attempted without proof. */
+  reason: WakeQueueReason
+  /** Delivery attempts made so far. */
+  attempts: number
+  /** Earliest timestamp at which to try again (backoff gate). */
+  notBefore: number
 }
 
 /** agentId -> FIFO of pending wakes. */
@@ -82,9 +111,17 @@ function stopTickerIfEmpty() {
  * Queue a wake for an agent whose pane is busy. Returns the queue depth for
  * that agent after insertion.
  */
-export function enqueueWake(item: Omit<QueuedWake, 'queuedAt'>): number {
+export function enqueueWake(
+  item: Omit<QueuedWake, 'queuedAt' | 'reason' | 'attempts' | 'notBefore'> & {
+    reason?: WakeQueueReason
+    attempts?: number
+  }
+): number {
   const queue = queues.get(item.agentId) || []
-  queue.push({ ...item, queuedAt: Date.now() })
+  const reason: WakeQueueReason = item.reason ?? 'busy'
+  const attempts = item.attempts ?? 0
+  const backoff = reason === 'unconfirmed' ? RETRY_BACKOFF_MS[Math.min(attempts, MAX_ATTEMPTS - 1)] : 0
+  queue.push({ ...item, reason, attempts, queuedAt: Date.now(), notBefore: Date.now() + backoff })
 
   if (queue.length > MAX_PER_AGENT) {
     const dropped = queue.splice(0, queue.length - MAX_PER_AGENT)
@@ -128,11 +165,17 @@ export async function flushDueWakes(): Promise<void> {
     queues.set(agentId, fresh)
 
     const next = fresh[0]
+    // Two gates: the agent must be quiet, and a retry must have served its
+    // backoff. Either one failing just means "not this tick".
     if (!isSessionIdle(next.sessionName)) continue
+    if (Date.now() < next.notBefore) continue
 
     fresh.shift()
     if (fresh.length === 0) queues.delete(agentId)
     else queues.set(agentId, fresh)
+
+    const waited = Math.round((Date.now() - next.queuedAt) / 1000)
+    const attempt = next.attempts + 1
 
     try {
       const res = await notifyAgent({
@@ -146,20 +189,44 @@ export async function flushDueWakes(): Promise<void> {
         messageType: next.messageType,
         body: next.injectBody,
       })
-      const waited = Math.round((Date.now() - next.queuedAt) / 1000)
+
       if (res.verified) {
-        console.log(`[WakeQueue] ${next.agentName}: flushed ${next.messageId} on idle after ${waited}s (verified)`)
-      } else {
-        console.warn(
-          `[WakeQueue] ${next.agentName}: flushed ${next.messageId} after ${waited}s but UNCONFIRMED (${res.reason || 'no reason'})`
+        console.log(
+          `[WakeQueue] ${next.agentName}: ${next.messageId} confirmed on attempt ${attempt} after ${waited}s`
         )
+        continue
       }
+
+      requeueUnconfirmed(next, attempt, res.reason || 'unconfirmed')
     } catch (err) {
-      console.warn(`[WakeQueue] ${next.agentName}: flush failed for ${next.messageId}:`, err)
+      requeueUnconfirmed(next, attempt, err instanceof Error ? err.message : String(err))
     }
   }
 
   stopTickerIfEmpty()
+}
+
+/**
+ * Put an unconfirmed attempt back in the queue with a backoff, or give up.
+ *
+ * Giving up is deliberate and loud. After MAX_ATTEMPTS the notification is not
+ * going to start working, and continuing to retype into the pane every ten
+ * minutes is worse than stopping. The message itself is never lost — it has
+ * been in the agent's inbox since before the first attempt.
+ */
+function requeueUnconfirmed(item: QueuedWake, attempt: number, why: string): void {
+  if (attempt >= MAX_ATTEMPTS) {
+    console.error(
+      `[WakeQueue] ${item.agentName}: GIVING UP on ${item.messageId} after ${attempt} attempts (${why}). ` +
+        `The message is still in the inbox; the agent was never confirmed to have seen it.`
+    )
+    return
+  }
+  const depth = enqueueWake({ ...item, reason: 'unconfirmed', attempts: attempt })
+  console.warn(
+    `[WakeQueue] ${item.agentName}: ${item.messageId} unconfirmed on attempt ${attempt} (${why}) — ` +
+      `retrying, queue depth ${depth}`
+  )
 }
 
 /** Pending wake count for an agent (0 if none). Exposed for status/UI. */
@@ -172,6 +239,48 @@ export function totalPendingWakes(): number {
   let total = 0
   for (const q of Array.from(queues.values())) total += q.length
   return total
+}
+
+export interface PendingWakeView {
+  agentId: string
+  agentName: string
+  messageId: string
+  subject: string
+  from: string
+  reason: WakeQueueReason
+  attempts: number
+  waitingMs: number
+  retryInMs: number
+}
+
+/**
+ * Snapshot of everything still waiting, newest state first.
+ *
+ * This is the operator-facing answer to "did that message actually get
+ * through?". A row here means the message is on disk but no route has proved
+ * the agent saw it yet — the state that used to be invisible.
+ */
+export function pendingWakes(): PendingWakeView[] {
+  const now = Date.now()
+  const rows: PendingWakeView[] = []
+  for (const queue of Array.from(queues.values())) {
+    for (const item of queue) {
+      rows.push({
+        agentId: item.agentId,
+        agentName: item.agentName,
+        messageId: item.messageId,
+        subject: item.subject,
+        from: item.senderHost && item.senderHost !== 'local'
+          ? `${item.senderName}@${item.senderHost}`
+          : item.senderName,
+        reason: item.reason,
+        attempts: item.attempts,
+        waitingMs: now - item.queuedAt,
+        retryInMs: Math.max(0, item.notBefore - now),
+      })
+    }
+  }
+  return rows.sort((a, b) => b.waitingMs - a.waitingMs)
 }
 
 /** Test seam: drop all queued state and stop the ticker. */

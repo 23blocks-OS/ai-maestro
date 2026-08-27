@@ -26,6 +26,7 @@ import {
   pendingWakeCount,
   totalPendingWakes,
   __resetWakeQueue,
+  pendingWakes,
 } from '@/lib/wake-queue'
 
 function wake(over: Partial<Parameters<typeof enqueueWake>[0]> = {}) {
@@ -152,12 +153,119 @@ describe('flushDueWakes', () => {
     enqueueWake(wake({ messageId: 'b' }))
 
     await expect(flushDueWakes()).resolves.toBeUndefined()
-    // 'a' was consumed by the failed attempt; 'b' survives for the next tick.
-    expect(pendingWakeCount('agent-1')).toBe(1)
+
+    // A throwing attempt is an unconfirmed attempt: 'a' goes back for retry
+    // rather than being dropped, and 'b' is untouched.
+    expect(pendingWakeCount('agent-1')).toBe(2)
+    const a = pendingWakes().find((r) => r.messageId === 'a')!
+    expect(a).toMatchObject({ reason: 'unconfirmed', attempts: 1 })
   })
 
   it('is a no-op with an empty queue', async () => {
     await expect(flushDueWakes()).resolves.toBeUndefined()
     expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+  })
+})
+
+describe('retry with backoff', () => {
+  it('re-queues an unconfirmed flush instead of dropping it', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockNotify.notifyAgent.mockResolvedValue({
+      success: true, notified: true, verified: false, reason: 'Not seen in pane after retries',
+    })
+    enqueueWake(wake())
+
+    await flushDueWakes()
+
+    // Attempted and unproven → back in the queue, not silently gone.
+    expect(pendingWakeCount('agent-1')).toBe(1)
+    expect(pendingWakes()[0]).toMatchObject({ reason: 'unconfirmed', attempts: 1 })
+  })
+
+  it('holds a retry until its backoff expires', async () => {
+    vi.useFakeTimers()
+    try {
+      mockIdle.isSessionIdle.mockReturnValue(true)
+      mockNotify.notifyAgent.mockResolvedValue({ success: true, notified: true, verified: false })
+      enqueueWake(wake())
+
+      await flushDueWakes()            // attempt 1 → requeued with 30s backoff
+      expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
+
+      await flushDueWakes()            // still inside the backoff window
+      expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(31_000)
+      await flushDueWakes()            // backoff served
+      expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up after the last attempt rather than retrying forever', async () => {
+    vi.useFakeTimers()
+    try {
+      mockIdle.isSessionIdle.mockReturnValue(true)
+      mockNotify.notifyAgent.mockResolvedValue({ success: true, notified: true, verified: false })
+      enqueueWake(wake())
+
+      // 4 backoff slots = 4 attempts total.
+      for (let i = 0; i < 6; i++) {
+        vi.advanceTimersByTime(11 * 60 * 1000 - 1) // past any backoff, under the TTL
+        await flushDueWakes()
+      }
+
+      expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(4)
+      expect(pendingWakeCount('agent-1')).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops retrying as soon as one attempt is confirmed', async () => {
+    vi.useFakeTimers()
+    try {
+      mockIdle.isSessionIdle.mockReturnValue(true)
+      mockNotify.notifyAgent
+        .mockResolvedValueOnce({ success: true, notified: true, verified: false })
+        .mockResolvedValue({ success: true, notified: true, verified: true })
+      enqueueWake(wake())
+
+      await flushDueWakes()
+      expect(pendingWakeCount('agent-1')).toBe(1)
+
+      vi.advanceTimersByTime(31_000) // serve the first retry backoff
+      await flushDueWakes()
+
+      expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(2)
+      expect(pendingWakeCount('agent-1')).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('pendingWakes — the operator surface', () => {
+  it('reports what is waiting and why', () => {
+    enqueueWake(wake({ messageId: 'm1', subject: 'hello' }))
+    enqueueWake(wake({ agentId: 'agent-2', agentName: 'other', messageId: 'm2', reason: 'unconfirmed', attempts: 2 }))
+
+    const rows = pendingWakes()
+
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.reason).sort()).toEqual(['busy', 'unconfirmed'])
+    const unconfirmed = rows.find((r) => r.reason === 'unconfirmed')!
+    expect(unconfirmed).toMatchObject({ agentName: 'other', messageId: 'm2', attempts: 2 })
+    expect(unconfirmed.retryInMs).toBeGreaterThan(0)
+  })
+
+  it('formats the sender with its host when remote', () => {
+    enqueueWake(wake({ senderName: 'alice', senderHost: 'mac-mini' }))
+    expect(pendingWakes()[0].from).toBe('alice@mac-mini')
+  })
+
+  it('is empty when nothing is waiting', () => {
+    expect(pendingWakes()).toEqual([])
   })
 })

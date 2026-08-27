@@ -16,6 +16,7 @@
 
 import crypto from 'crypto'
 import { deliver } from '@/lib/message-delivery'
+import type { DeliveryResult } from '@/lib/message-delivery'
 import { writeToAMPSent } from '@/lib/amp-inbox-writer'
 import { applyContentSecurity } from '@/lib/content-security'
 import { queueMessage as queueToAMPRelay } from '@/lib/amp-relay'
@@ -101,6 +102,22 @@ function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: A
 }
 
 // ============================================================================
+/**
+ * Result of a UI/API send.
+ *
+ * `notified` means a wake route accepted the message; `verified` means one
+ * PROVED the agent received it. They are deliberately separate — see
+ * lib/wake-chain.ts. Callers that report success to a human should surface
+ * `verified`, not `notified`.
+ */
+export interface SendOutcome {
+  message: Message
+  notified: boolean
+  verified?: boolean
+  verifiedBy?: string
+  deferred?: boolean
+  wakeAttempts?: DeliveryResult['wakeAttempts']
+}
 // sendFromUI
 // ============================================================================
 
@@ -126,7 +143,7 @@ export interface SendFromUIOptions {
   }
 }
 
-export async function sendFromUI(options: SendFromUIOptions): Promise<{ message: Message; notified: boolean }> {
+export async function sendFromUI(options: SendFromUIOptions): Promise<SendOutcome> {
   const { from, to, subject, content } = options
 
   // Parse qualified name (identifier@host-id)
@@ -236,6 +253,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
 
   // ── Routing ──────────────────────────────────────────────────────────
   let notified = false
+  let wake: Partial<DeliveryResult> = {}
 
   // Check for remote recipient
   let recipientIsRemote = false
@@ -324,6 +342,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
         throw new Error(`Message delivery failed for ${recipientName}: ${result.error || 'unknown error'}`)
       }
       notified = result.notified
+      wake = result
     }
   }
 
@@ -335,7 +354,14 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     await writeToAMPSent(sentEnvelope, sentPayload, senderName, senderUUID)
   }
 
-  return { message, notified }
+  return {
+    message,
+    notified,
+    verified: wake.verified,
+    verifiedBy: wake.verifiedBy,
+    deferred: wake.deferred,
+    wakeAttempts: wake.wakeAttempts,
+  }
 }
 
 // ============================================================================
@@ -350,7 +376,7 @@ export interface ForwardFromUIOptions {
   providedOriginalMessage?: Message
 }
 
-export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ message: Message; notified: boolean }> {
+export async function forwardFromUI(options: ForwardFromUIOptions): Promise<SendOutcome> {
   const { originalMessageId, fromAgent, toAgent, forwardNote, providedOriginalMessage } = options
 
   const { identifier: toIdentifier, hostId: targetHostId } = parseQualifiedName(toAgent)
@@ -433,6 +459,7 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
 
   // ── Routing ──────────────────────────────────────────────────────────
   let notified = false
+  let wake: Partial<DeliveryResult> = {}
 
   let recipientIsRemote = false
   let remoteHostUrl: string | null = null
@@ -516,6 +543,7 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
         throw new Error(`Forward delivery failed for ${recipientName}: ${result.error || 'unknown error'}`)
       }
       notified = result.notified
+      wake = result
     }
   }
 
@@ -526,5 +554,12 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
     await writeToAMPSent(sentEnvelope, sentPayload, senderName, fromResolved.agentId)
   }
 
-  return { message: forwardedMessage, notified }
+  return {
+    message: forwardedMessage,
+    notified,
+    verified: wake.verified,
+    verifiedBy: wake.verifiedBy,
+    deferred: wake.deferred,
+    wakeAttempts: wake.wakeAttempts,
+  }
 }

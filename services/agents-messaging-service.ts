@@ -232,7 +232,17 @@ export async function sendMessage(
       inReplyTo,
     })
 
-    return { data: { message: result.message, notified: result.notified }, status: 201 }
+    return {
+      data: {
+        message: result.message,
+        notified: result.notified,
+        verified: result.verified ?? false,
+        ...(result.verifiedBy ? { verifiedBy: result.verifiedBy } : {}),
+        ...(result.deferred ? { deferred: true } : {}),
+        ...(result.wakeAttempts ? { wakeAttempts: result.wakeAttempts } : {}),
+      },
+      status: 201,
+    }
   } catch (error) {
     console.error('Failed to send message:', error)
     return operationFailed('send message', (error as Error).message)

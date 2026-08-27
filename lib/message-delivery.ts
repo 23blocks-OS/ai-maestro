@@ -20,6 +20,8 @@ import { messageRef } from '@/lib/notification-service'
 import { applyContentSecurity } from '@/lib/content-security'
 import { deliverViaWebSocket, isAgentConnectedViaWS } from '@/lib/amp-websocket'
 import { runWakeChain, describeWakeResult } from '@/lib/wake-chain'
+import { enqueueWake } from '@/lib/wake-queue'
+import { computeSessionName } from '@/types/agent'
 import { getAgent } from '@/lib/agent-registry'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { WakeOutcome } from '@/lib/wake-chain'
@@ -145,10 +147,27 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     )
   } else {
     // Nothing could prove it landed. The message is safely on disk, but no
-    // agent is known to have seen it — log loudly enough to be actionable.
+    // agent is known to have seen it — so hand it to the wake queue, which
+    // retries on the agent's idle transitions with a backoff and gives up
+    // loudly rather than silently. Without this, an unconfirmed wake was
+    // simply the end of the story.
     console.warn(
-      `[Delivery] ${envelope.id} → ${recipientAgentName} UNCONFIRMED (${describeWakeResult(wake)})`
+      `[Delivery] ${envelope.id} → ${recipientAgentName} UNCONFIRMED (${describeWakeResult(wake)}) — queued for retry`
     )
+    enqueueWake({
+      agentId: recipientAgentId,
+      agentName: recipientAgentName,
+      sessionName: computeSessionName(recipientAgentName, 0),
+      injectBody,
+      senderName,
+      senderHost,
+      subject,
+      messageId: envelope.id,
+      priority,
+      messageType,
+      reason: 'unconfirmed',
+      attempts: 1,
+    })
   }
 
   // 3. Webhook delivery (non-fatal, best-effort)

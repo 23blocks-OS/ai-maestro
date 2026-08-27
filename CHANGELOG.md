@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.47] - 2026-08-27 — update-aimaestro.sh always syncs the submodule
+
+### Fixed
+- **`update-aimaestro.sh` skipped the plugin submodule sync whenever the parent repo was already current.** The sync lived inside the "new commits available" branch, which made submodule freshness conditional on *parent* freshness — two independent things. If the parent was at the right commit but the submodule had drifted (an interrupted run, a manual `git pull` beforehand, a failed fetch), the script printed *"You're already on the latest version!"* and skipped the sync entirely, then reinstalled **stale** scripts and skills with no warning.
+
+  Observed on mini-lola right after v0.36.46: parent at the correct commit, submodule three commits behind, old skill descriptions still installed. Reproduced by rolling the submodule back and re-running — the script reported success and changed nothing.
+
+  The sync now runs on every path, with `git submodule sync --recursive` first in case `.gitmodules` moved, and reports the resulting commit so a stale submodule is visible in the output rather than silent.
+
+### Notes
+- This is the same class of bug as the v0.36.31 fix (which *added* the submodule update after `git pull`) — that fix was correct but placed on only one of the two code paths.
+
 ## [0.36.46] - 2026-08-27 — Ship the proactive skill descriptions to hosts
 
 0.36.45 fixed the skill descriptions upstream but did not bump the submodule, so nothing reached hosts — installs read the *built* submodule, not the source repo.

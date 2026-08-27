@@ -7,6 +7,8 @@ interface ExtendedAgentSubconsciousStatus {
   exists: boolean
   initialized: boolean
   isRunning: boolean
+  /** Last time the subconscious wrote its status file (non-resident agents). */
+  lastUpdated?: number | null
   isWarmingUp: boolean
   status: {
     startedAt: number | null
@@ -54,6 +56,15 @@ function formatTimeAgo(timestamp: number | null): string {
 interface Props {
   agentId: string | undefined
   hostUrl?: string  // Base URL for remote hosts
+}
+
+/** Compact "3h ago" style relative time for the last-active line. */
+function formatAgo(ts: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+  if (s < 60) return `${s}s ago`
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return `${Math.floor(s / 86400)}d ago`
 }
 
 export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
@@ -190,6 +201,17 @@ export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
                     {isRunning ? 'Running' : isWarmingUp ? 'Warming Up' : 'Inactive'}
                   </span>
                 </div>
+
+                {/* An inactive agent is the normal case, not an error: the
+                    subconscious only runs while the agent is resident in the
+                    registry's LRU. Showing when it last ran distinguishes
+                    "never indexed" from "indexed an hour ago, since evicted". */}
+                {!isRunning && status.lastUpdated ? (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Last active</span>
+                    <span className="text-gray-400">{formatAgo(status.lastUpdated as number)}</span>
+                  </div>
+                ) : null}
 
                 {status.status && (
                   <>

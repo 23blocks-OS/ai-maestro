@@ -187,9 +187,10 @@ export async function ingestConversation(
         continue
       }
 
-      // Generate stable message ID
+      // Stable message ID — seeded by (conversation, text) so re-indexing the
+      // same message upserts instead of inserting a duplicate.
       const timestamp = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
-      const messageId = msgId.message(timestamp, Math.random().toString(36).substring(2, 10))
+      const messageId = msgId.message(timestamp, `${conversationFile}\n${text}`)
 
       // Extract terms and symbols
       const terms = extractTerms(text)
@@ -479,10 +480,10 @@ export async function indexConversationDelta(
         continue
       }
 
-      // Generate message ID
+      // Stable message ID — same seeding as full ingest above, so the delta
+      // path and the full path agree on an id for the same message.
       const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
-      const random = Math.random().toString(36).substring(7)
-      const id = msgId.message(ts, random)
+      const id = msgId.message(ts, `${conversationFile}\n${text}`)
 
       // Extract terms and symbols
       const terms = extractTerms(text)

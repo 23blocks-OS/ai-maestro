@@ -3,6 +3,33 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.44] - 2026-08-27 — Deterministic message IDs (agent memory was 8x duplicated)
+
+Investigating why agent memory and the subconscious "seemed to be ignored" led to a 36 GB pile of duplicated data and a one-line cause.
+
+### Fixed
+- **Message IDs were random, so nothing ever upserted.** `msgId.message()` built `msg-{ts}-{Math.random()}` (`lib/rag/ingest.ts:192,485`). `:put messages` upserts on `msg_id`, so a random component guaranteed an INSERT — every re-index stored a fresh copy of the message plus its ~26 `msg_terms` rows and its ~1.5 KB embedding. `index-delta` assumes indexing is idempotent; it never was. IDs are now seeded from `(conversation_file, text)` and hashed. Note `lib/rag/id.ts` is titled *"Ensures incremental updates don't create duplicate entries"* and every other generator in it was already content-hashed — messages were the sole exception.
+
+### Added
+- **`scripts/dedupe-agent-memory.mjs`** — collapses existing duplicates by their real identity `(conversation_file, ts, text)`, cascades to `msg_terms` / `msg_vec` / `code_symbols`, sweeps pre-existing orphans, then VACUUMs (SQLite frees pages to a freelist; the file only shrinks on VACUUM, which Cozo has no verb for). Dry run by default — the delete is not reversible.
+- **`lib/memory/dedupe.ts`** — the same operation callable in-process against an open `AgentDatabase`.
+
+### Measured
+On a copy of the worst agent (`8845dd17`):
+
+| | before | after |
+|---|---|---|
+| `messages` | 451,206 | 57,686 |
+| `msg_terms` | 11,914,032 | 1,896,521 |
+| file | 3,094.9 MB | **582 MB** |
+
+87% of message rows were duplicates; **81% of the file reclaimed**, VACUUM taking 2.8s. Duplication scales with how often an agent has been indexed — 1.7x on a small agent, 6.8x and 7.8x on long-lived ones.
+
+### Notes
+- This is very likely why the `AgentRegistry` LRU cap exists (`maxAgents = 10`, added Jan 2026 as *"prevent memory bloat"*). At post-dedupe sizes the cap may be revisitable, which in turn is what strands the subconscious and consolidation — both only run for resident agents.
+- CozoDB was evaluated and **kept**. Last release v0.7.6 (Dec 2023) so it is effectively unmaintained, but it is the only embedded store doing relational + recursive graph + HNSW vector + FTS in one file, the binding is N-API v6 (ABI-stable across Node majors, verified on Node 20), and it has no network surface. The 4 GB was our schema misuse, not the engine.
+- Cozo's native `::fts` was evaluated as a replacement for the hand-rolled `msg_terms` index. It works (stemming and stopwords verified) but **does not backfill existing rows** — it indexes on write only. Deferred: the duplication was inflating the per-message index ratio, so the case should be re-measured on deduplicated data.
+
 ## [0.36.43] - 2026-08-27 — Legible, uniquely-identified notifications
 
 Field report: an agent appeared to receive the same message over and over. It was eleven different messages — made to look identical by two defects introduced in 0.36.37.

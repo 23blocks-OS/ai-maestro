@@ -21,8 +21,21 @@ function sha1(...parts: string[]): string {
  * Generate stable IDs for message-related entities
  */
 export const msgId = {
-  /** Message ID: msg-{timestamp}-{random} */
-  message: (ts: number, random: string): string => `msg-${ts}-${random}`,
+  /**
+   * Message ID: msg-{timestamp}-{hash of seed}
+   *
+   * MUST be deterministic. `:put messages` upserts on msg_id, so a random
+   * component turns every re-index into an INSERT instead of an update — the
+   * message, its ~26 msg_terms rows and its 1.5 KB embedding are all
+   * duplicated. Measured before this was fixed: 9.5x duplication on a
+   * long-lived agent (451,206 rows for 47,414 real messages), and duplicates
+   * were the dominant cost in multi-GB agent databases.
+   *
+   * Callers pass a stable seed identifying the message within its
+   * conversation — see ingest.ts. Everything else in this module was already
+   * content-hashed; messages were the sole exception.
+   */
+  message: (ts: number, seed: string): string => `msg-${ts}-${sha1(seed).slice(0, 12)}`,
 
   /** Thread ID: thread-{session}-{timestamp} */
   thread: (sessionId: string, ts: number): string => `thread-${sessionId}-${ts}`,

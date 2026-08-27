@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.46] - 2026-08-27 — Ship the proactive skill descriptions to hosts
+
+0.36.45 fixed the skill descriptions upstream but did not bump the submodule, so nothing reached hosts — installs read the *built* submodule, not the source repo.
+
+### Changed
+- **Plugin submodule bumped** `b645bba` → `130508e`, delivering the restored `memory-search` / `graph-query` / `docs-search` descriptions to every host on the next `update-aimaestro.sh`.
+
+### Notes
+- The bump was not a fast-forward. The pin carried **four fixes never merged to plugins main** — `session_id` on heartbeat, the full-featured hook superset, cwd-based identity resolution for detached sessions, and the statusline `CLAUDE_AGENT_NAME` fix — while main carried the skill fix. Bumping straight to main would have regressed detached-session identity. Resolved by merging main *into* the pinned lineage ([plugins#30](https://github.com/23blocks-OS/ai-maestro-plugins/pull/30)) and rebuilding, so one commit has both. Diff of built output against the old pin is exactly four files: the three SKILL.md descriptions and a generated README line.
+- Plugins main is now ahead of the app's pin for the first time in a while, so future bumps should be clean fast-forwards.
+
 ## [0.36.45] - 2026-08-27 — Memory subsystem: honest status, residency-free maintenance, health check
 
 Follow-on to 0.36.44. The audit found three separate reasons memory, the graph and the subconscious "seemed to be ignored" — none of which were the subsystems being broken.

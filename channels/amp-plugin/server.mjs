@@ -15488,10 +15488,46 @@ var REG_FILE = AGENT_ID ? path.join(CHANNELS_DIR, `${AGENT_ID}.json`) : null;
 var mcp = new Server(
   { name: "amp", version: "0.1.0" },
   {
-    capabilities: { experimental: { "claude/channel": {} } },
-    instructions: 'Events from the "amp" channel arrive as <channel source="amp" ...>. They mean new AMP messages landed in your inbox while you were idle. Read and address them using the agent-messaging skill (amp-inbox.sh, amp-read.sh <id>, amp-reply.sh <id> "..."), then continue. One-way channel: no reply is expected back through it.'
+    capabilities: {
+      experimental: { "claude/channel": {} },
+      tools: {}
+      // enables discovery of amp_channel_ack (the delivery handshake)
+    },
+    instructions: 'Events from the "amp" channel arrive as <channel source="amp" ...>. They mean new AMP messages landed in your inbox. The event body already contains the message, so act on it directly; use the agent-messaging skill (amp-inbox.sh, amp-read.sh <id>, amp-reply.sh <id> "...") to read the full copy or reply, then continue. The FIRST time you see an <channel source="amp"> event in this session, also call the amp_channel_ack tool once. That confirms this session can actually receive channel events; until it is confirmed AI Maestro must keep sending a duplicate tmux notification as a safety net. One acknowledgement per session is enough \u2014 do not call it again.'
   }
 );
+var verified = false;
+function markVerified() {
+  if (verified || !REG_FILE) return;
+  verified = true;
+  try {
+    const info = JSON.parse(fs.readFileSync(REG_FILE, "utf8"));
+    info.verified = true;
+    info.verifiedAt = (/* @__PURE__ */ new Date()).toISOString();
+    fs.writeFileSync(REG_FILE, JSON.stringify(info));
+    process.stderr.write(`[amp-channel] verified \u2014 session receives channel events
+`);
+  } catch (e) {
+    process.stderr.write(`[amp-channel] verify write failed: ${e}
+`);
+  }
+}
+mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    {
+      name: "amp_channel_ack",
+      description: 'Confirm once per session that you received an <channel source="amp"> event. Call this the first time you see one and never again. It lets AI Maestro stop sending duplicate tmux notifications to this session.',
+      inputSchema: { type: "object", properties: {}, additionalProperties: false }
+    }
+  ]
+}));
+mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
+  if (req.params.name !== "amp_channel_ack") {
+    return { isError: true, content: [{ type: "text", text: `unknown tool: ${req.params.name}` }] };
+  }
+  markVerified();
+  return { content: [{ type: "text", text: "Channel delivery confirmed. Do not call this again." }] };
+});
 await mcp.connect(new StdioServerTransport());
 function cleanup() {
   try {

@@ -2,9 +2,13 @@
  * Message Delivery - Single local delivery function
  *
  * Both the AMP route (/api/v1/route) and the web UI (/api/messages)
- * call deliver() for local delivery. It does exactly 2 things:
- *   1. Write to the recipient's AMP inbox
- *   2. Send a tmux notification
+ * call deliver() for local delivery:
+ *   1. Write to the recipient's AMP inbox (persistence, source of truth)
+ *   2. Wake the agent over the best available route — channel, streaming
+ *      session, WebSocket, or the tmux pane — and CONFIRM it landed
+ *
+ * No route may report a delivery it cannot prove. See `verified` on
+ * DeliveryResult: a push that merely left our process is not an arrival.
  *
  * No routing. No resolution. No sent write. No remote. No relay.
  */
@@ -12,11 +16,11 @@
 import { createHmac } from 'crypto'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
-import { notifyAgent } from '@/lib/notification-service'
+import { notifyAgent, messageRef } from '@/lib/notification-service'
 import { applyContentSecurity } from '@/lib/content-security'
 import { deliverViaWebSocket, isAgentConnectedViaWS } from '@/lib/amp-websocket'
 import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
-import { pushToChannel } from '@/lib/channel-bridge.mjs'
+import { pushToChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
 import { getAgent } from '@/lib/agent-registry'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 
@@ -37,6 +41,12 @@ export interface DeliveryInput {
 export interface DeliveryResult {
   delivered: boolean
   notified: boolean
+  /**
+   * True only when the wake was PROVEN to reach the agent: an acknowledged
+   * channel, or the notification read back off the pane. `notified` without
+   * `verified` means "sent, unconfirmed" — never treat it as proof.
+   */
+  verified?: boolean
   error?: string
 }
 
@@ -84,11 +94,14 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     }
   }
 
-  // The wake text used by both the streaming and channel injection paths.
+  // The wake text used by the streaming and channel injection paths. The tmux
+  // path below carries the same sender/subject/body (via notifyAgent's `body`),
+  // so every delivery route hands the agent the actual message instead of a
+  // pointer to an inbox it has to choose to open.
   const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
   const injectBody = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
   const injectText =
-    `[AMP] New message from ${sender}${subject ? ` — "${subject}"` : ''}:\n` +
+    `[AMP #${messageRef(envelope.id)}] New message from ${sender}${subject ? ` — "${subject}"` : ''}:\n` +
     `${injectBody}\n\n` +
     `(Reply using the agent-messaging skill, then continue.)`
 
@@ -120,10 +133,24 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     console.warn('[Delivery] Channel push failed (non-fatal):', err)
   }
 
-  // 2. Send tmux notification — FALLBACK only. Skipped when the Channel already
-  // injected the turn (no redundant, fragile keystroke wake).
-  let notified = channelDelivered
-  if (!channelDelivered) {
+  // A successful push is NOT proof of delivery: Claude Code never acknowledges
+  // channel notifications and silently drops them when the session did not
+  // register us as a channel. Only suppress the fallback once the session has
+  // proven it receives events (isChannelVerified — see channel-bridge.mjs).
+  // Until then both fire; a duplicate nudge is cheap, a lost message is not.
+  const channelConfirmed =
+    channelDelivered && !!recipientAgentId && isChannelVerified(recipientAgentId)
+  if (channelDelivered && !channelConfirmed) {
+    console.log(
+      `[Delivery] Channel for ${recipientAgentName} is unverified — keeping tmux fallback for ${envelope.id}`
+    )
+  }
+
+  // 2. Send tmux notification — FALLBACK only. Skipped once the Channel is
+  // CONFIRMED to reach the model (no redundant, fragile keystroke wake).
+  let notified = channelConfirmed
+  let verified = channelConfirmed
+  if (!channelConfirmed) {
     try {
       const result = await notifyAgent({
         agentId: recipientAgentId,
@@ -134,8 +161,10 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
         messageId: envelope.id,
         priority,
         messageType,
+        body: injectBody,
       })
       notified = result.notified
+      verified = result.verified === true
     } catch (err) {
       console.warn('[Delivery] Notification failed (non-fatal):', err)
     }
@@ -152,7 +181,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     }
   }
 
-  return { delivered: true, notified }
+  return { delivered: true, notified, verified }
 }
 
 // ============================================================================

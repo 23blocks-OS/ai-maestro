@@ -5,17 +5,83 @@
  * Routes are thin wrappers that call these functions.
  */
 
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import { agentRegistry } from '@/lib/agent'
 import { type ServiceResult, notInitialized, invalidRequest } from '@/services/service-errors'
+
+/**
+ * Last status the agent's subconscious wrote to disk.
+ *
+ * Agent.writeStatusFile() exists to decouple the dashboard from loading agents,
+ * which is exactly what this read path needs — see getSubconsciousStatus.
+ */
+function readStatusFile(agentId: string): Record<string, unknown> | null {
+  try {
+    const p = path.join(os.homedir(), '.aimaestro', 'agents', agentId, 'status.json')
+    return JSON.parse(fs.readFileSync(p, 'utf-8'))
+  } catch {
+    return null
+  }
+}
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
 /**
- * Get the subconscious status for an agent.
- * This will initialize the agent if it doesn't exist yet.
+ * Get the subconscious status for an agent — WITHOUT starting it.
+ *
+ * This used to call agentRegistry.getAgent(), which loads the agent and starts
+ * its subconscious. That made the dashboard indicator self-fulfilling: opening
+ * the UI started the very thing it claimed to be observing, and every render
+ * evicted other agents from the 10-slot LRU to do it. A monitor must not create
+ * the state it reports.
+ *
+ * So: report the live object only if the agent is ALREADY resident. Otherwise
+ * fall back to the status file, which Agent.writeStatusFile() maintains for
+ * exactly this purpose — but force isRunning to false, because an agent absent
+ * from the registry is not running in this process no matter what the file's
+ * last write claimed. The historical counters stay useful, and `lastUpdated`
+ * lets the UI say how long ago it was last alive.
+ *
+ * Starting a subconscious is a POST (triggerSubconsciousAction) — an action,
+ * not an observation.
  */
 export async function getSubconsciousStatus(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
-  const agent = await agentRegistry.getAgent(agentId)
+  const agent = agentRegistry.getExistingAgent(agentId)
+
+  if (!agent) {
+    const file = readStatusFile(agentId)
+    return {
+      data: {
+        success: true,
+        exists: !!file,
+        initialized: false,
+        resident: false,
+        isRunning: false,
+        isWarmingUp: false,
+        lastUpdated: file?.lastUpdated ?? null,
+        status: file
+          ? {
+              startedAt: file.startedAt,
+              memoryCheckInterval: file.memoryCheckInterval,
+              messageCheckInterval: file.messageCheckInterval,
+              lastMemoryRun: file.lastMemoryRun,
+              lastMessageRun: file.lastMessageRun,
+              lastMemoryResult: file.lastMemoryResult,
+              lastMessageResult: file.lastMessageResult,
+              totalMemoryRuns: file.totalMemoryRuns,
+              totalMessageRuns: file.totalMessageRuns,
+              cumulativeMessagesIndexed: file.cumulativeMessagesIndexed,
+              cumulativeConversationsIndexed: file.cumulativeConversationsIndexed,
+            }
+          : null,
+        consolidation: (file?.consolidation as Record<string, unknown>) ?? null,
+        memoryStats: null,
+      },
+      status: 200,
+    }
+  }
 
   const subconscious = agent.getSubconscious()
   const status = subconscious?.getStatus() || null
@@ -36,6 +102,7 @@ export async function getSubconsciousStatus(agentId: string): Promise<ServiceRes
       success: true,
       exists: true,
       initialized: true,
+      resident: true,
       isRunning: status?.isRunning || false,
       isWarmingUp: false,
       status: status ? {

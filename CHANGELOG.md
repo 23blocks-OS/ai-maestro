@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.45] - 2026-08-27 — Memory subsystem: honest status, residency-free maintenance, health check
+
+Follow-on to 0.36.44. The audit found three separate reasons memory, the graph and the subconscious "seemed to be ignored" — none of which were the subsystems being broken.
+
+### Fixed
+- **The subconscious status endpoint started the subconscious it was reporting on.** `GET /api/agents/[id]/subconscious` called `agentRegistry.getAgent()`, which loads the agent and starts its timers — its own docstring said *"This will initialize the agent if it doesn't exist yet."* So the dashboard indicator was self-fulfilling (opening the UI made agents look active), and every render evicted other agents from the 10-slot LRU to render a badge. It now reports the live object only if the agent is **already** resident, otherwise falls back to the `status.json` that `Agent.writeStatusFile()` has been maintaining for exactly this purpose — with `isRunning` forced false, since an agent absent from the registry is not running whatever the file last claimed. Starting remains a POST: an action, not an observation.
+- **Skill descriptions no longer wait to be asked** (in `ai-maestro-plugins`, [PR #29](https://github.com/23blocks-OS/ai-maestro-plugins/pull/29)). `memory-search`, `graph-query` and `docs-search` had their descriptions rewritten during the v0.22.0 plugin refactor from imperatives into keyword matchers — *"Use when the user asks to 'search memory'"* rather than *"search BEFORE starting new work"*. A skill's description is the only thing deciding whether a model reaches for it, so agents stopped consulting memory on their own. Restored the imperative framing while keeping the explicit-request phrases.
+
+### Added
+- **`lib/memory/sweep.ts` + `POST /api/memory/sweep`** — maintenance that does not require residency. Indexing only ever needed an agent id (`runIndexDelta` opens the database itself), but it ran from an Agent object's timer, and Agent objects live in a 10-slot LRU. With 125 agents that meant an agent was indexed only if something loaded it, loading the 11th cancelled the 1st's timers, and consolidation — gated on being resident at 2 AM — essentially never ran. The sweep walks agent directories instead: no hydration, no eviction, no LRU pressure. Same shape as Letta's sleep-time agents, where maintenance runs on a lifecycle independent of the primary.
+- **`scripts/test-memory-systems.sh`** — the answer to "is there any way to test this?". Checks the things that were actually wrong rather than mere liveness: are ids deterministic, how many databases were written this week, does memory search return results, is the graph populated, **does querying status change status**, and can maintenance run off the LRU.
+- **UI**: the subconscious indicator now shows "last active" for inactive agents, distinguishing *never indexed* from *indexed an hour ago, since evicted*.
+
+### Notes
+- Running the health check on this host reports 10/127 databases indexed this week and a 4.3 GB database — both expected until the sweep is scheduled and `scripts/dedupe-agent-memory.mjs` is applied. The point is that these are now **visible** rather than silent.
+- The plugin submodule pointer is deliberately **not** bumped. The skill fix is merged upstream, but `ai-maestro-plugins` main has since diverged into a marketplace restructure with in-progress branches; adopting it is a reviewed decision, not a side effect of this change.
+
 ## [0.36.44] - 2026-08-27 — Deterministic message IDs (agent memory was 8x duplicated)
 
 Investigating why agent memory and the subconscious "seemed to be ignored" led to a 36 GB pile of duplicated data and a one-line cause.

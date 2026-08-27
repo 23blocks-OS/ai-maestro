@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.43] - 2026-08-27 — Legible, uniquely-identified notifications
+
+Field report: an agent appeared to receive the same message over and over. It was eleven different messages — made to look identical by two defects introduced in 0.36.37.
+
+### Fixed
+- **`messageRef` was not per-message.** It sliced the FIRST 8 characters of `msg-<timestamp>-<random>`, but all the entropy is at the end, so every message sent within roughly 27 hours produced the identical ref (`msg17878`). Two consequences: the pane readback needle was not unique, so `confirmed` could be satisfied by a **stale ref left on screen from an earlier message** — a false positive in the exact mechanism built to eliminate false positives — and every notification looked like the same message repeating. Now takes the tail of the id.
+- **Notifications no longer render as shell commands in an agent's transcript.** Every wake was wrapped in `echo '...'` so a bare shell would not execute it. With a TUI agent in the pane that wrapper is not just cosmetic — it puts `echo '[MESSAGE] ...'` into the agent's transcript on every message. 0.36.42's persisted hook status finally makes the two cases distinguishable: a live hook report means an agent TUI, so the text is sent plainly; no report still means `echo`, since an unnecessary `echo` is ugly but an unquoted message at a shell prompt is a command.
+- **Default notification format leads with the subject** (`[MESSAGE] {subject} — from {from}`). Stacked in a transcript, sender-first lines were visually identical with the differentiator truncated off the right edge. `NOTIFICATION_FORMAT` still overrides.
+
 ## [0.36.42] - 2026-08-27 — Hook status persistence (closes the idle-gate blind spot)
 
 Closes the known gap from 0.36.41: the idle gate only had a signal while a PTY was attached, so it worked for agents someone was watching in the dashboard and was inert for the rest.

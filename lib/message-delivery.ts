@@ -4,8 +4,8 @@
  * Both the AMP route (/api/v1/route) and the web UI (/api/messages)
  * call deliver() for local delivery:
  *   1. Write to the recipient's AMP inbox (persistence, source of truth)
- *   2. Wake the agent over the best available route — channel, streaming
- *      session, WebSocket, or the tmux pane — and CONFIRM it landed
+ *   2. Wake the agent via the wake chain (lib/wake-chain.ts) — streaming
+ *      session, Claude Code channel, or the tmux pane — and CONFIRM it landed
  *
  * No route may report a delivery it cannot prove. See `verified` on
  * DeliveryResult: a push that merely left our process is not an arrival.
@@ -16,13 +16,13 @@
 import { createHmac } from 'crypto'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
-import { notifyAgent, messageRef } from '@/lib/notification-service'
+import { messageRef } from '@/lib/notification-service'
 import { applyContentSecurity } from '@/lib/content-security'
 import { deliverViaWebSocket, isAgentConnectedViaWS } from '@/lib/amp-websocket'
-import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
-import { pushToChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
+import { runWakeChain, describeWakeResult } from '@/lib/wake-chain'
 import { getAgent } from '@/lib/agent-registry'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
+import type { WakeOutcome } from '@/lib/wake-chain'
 
 export interface DeliveryInput {
   envelope: AMPEnvelope
@@ -47,6 +47,10 @@ export interface DeliveryResult {
    * `verified` means "sent, unconfirmed" — never treat it as proof.
    */
   verified?: boolean
+  /** Which route proved it, when one did. */
+  verifiedBy?: string
+  /** Every wake route tried, in order, with its outcome. */
+  wakeAttempts?: WakeOutcome[]
   error?: string
 }
 
@@ -85,7 +89,9 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     return { delivered: false, notified: false, error: 'Failed to write to AMP inbox' }
   }
 
-  // 1c. Try WebSocket delivery (real-time push, supplementary to disk write)
+  // 1c. WebSocket fan-out. NOT a wake route and deliberately outside the chain:
+  // ws.send() carries no application-level ack, and these clients are dashboards
+  // and AMP libraries rather than the agent's reasoning loop. Always fires.
   const recipientAddress = envelope.to
   if (isAgentConnectedViaWS(recipientAddress)) {
     const wsOk = deliverViaWebSocket(recipientAddress, envelope, securedEnvelopePayload, senderPublicKeyHex)
@@ -94,10 +100,9 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     }
   }
 
-  // The wake text used by the streaming and channel injection paths. The tmux
-  // path below carries the same sender/subject/body (via notifyAgent's `body`),
-  // so every delivery route hands the agent the actual message instead of a
-  // pointer to an inbox it has to choose to open.
+  // The wake text. Every route in the chain carries the same sender/subject/
+  // body — the pane route re-wraps `injectBody` under its own header — so no
+  // route hands the agent a bare "check your inbox" pointer it could ignore.
   const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
   const injectBody = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
   const injectText =
@@ -105,69 +110,36 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     `${injectBody}\n\n` +
     `(Reply using the agent-messaging skill, then continue.)`
 
-  // 1d. Push into a live streaming (Agent SDK) session, if the recipient runs
-  // in streaming mode. Streaming agents have no tmux pane to notify. Non-fatal.
-  try {
-    if (pushToStreamSession(recipientAgentId, injectText)) {
-      console.log(`[Delivery] Pushed ${envelope.id} into streaming session for ${recipientAgentName}`)
-    }
-  } catch (err) {
-    console.warn('[Delivery] Streaming push failed (non-fatal):', err)
-  }
+  // 2. Wake the agent. The chain tries each route in preference order and stops
+  // at the first one that can PROVE arrival — see lib/wake-chain.ts for why an
+  // unproven "sent" must not stop it. Every route is attempted in-process; the
+  // chain itself is non-fatal, since the inbox write above already succeeded.
+  const wake = await runWakeChain({
+    agentId: recipientAgentId,
+    agentName: recipientAgentName,
+    injectText,
+    injectBody,
+    senderName,
+    senderHost,
+    subject,
+    messageId: envelope.id,
+    priority,
+    messageType,
+  })
 
-  // 1e. Push into the agent's Channel (MCP turn-injection) if it has one.
-  // This is the RELIABLE last-mile: it injects a real turn even on an idle
-  // agent, with no tmux keystrokes (no dropped Enter). Every gateway (Slack,
-  // Discord, Email, WhatsApp) and agent-to-agent AMP funnels through here, so
-  // this one hop makes them all reliable. Falls back to tmux below if the agent
-  // has no channel registered (e.g. not relaunched with --channels yet). Non-fatal.
-  let channelDelivered = false
-  try {
-    if (recipientAgentId) {
-      channelDelivered = await pushToChannel(recipientAgentId, injectText)
-      if (channelDelivered) {
-        console.log(`[Delivery] Injected ${envelope.id} via Channel for ${recipientAgentName}`)
-      }
-    }
-  } catch (err) {
-    console.warn('[Delivery] Channel push failed (non-fatal):', err)
-  }
+  const notified = wake.notified
+  const verified = wake.confirmed
 
-  // A successful push is NOT proof of delivery: Claude Code never acknowledges
-  // channel notifications and silently drops them when the session did not
-  // register us as a channel. Only suppress the fallback once the session has
-  // proven it receives events (isChannelVerified — see channel-bridge.mjs).
-  // Until then both fire; a duplicate nudge is cheap, a lost message is not.
-  const channelConfirmed =
-    channelDelivered && !!recipientAgentId && isChannelVerified(recipientAgentId)
-  if (channelDelivered && !channelConfirmed) {
+  if (wake.confirmed) {
     console.log(
-      `[Delivery] Channel for ${recipientAgentName} is unverified — keeping tmux fallback for ${envelope.id}`
+      `[Delivery] ${envelope.id} → ${recipientAgentName} confirmed via ${wake.confirmedBy} (${describeWakeResult(wake)})`
     )
-  }
-
-  // 2. Send tmux notification — FALLBACK only. Skipped once the Channel is
-  // CONFIRMED to reach the model (no redundant, fragile keystroke wake).
-  let notified = channelConfirmed
-  let verified = channelConfirmed
-  if (!channelConfirmed) {
-    try {
-      const result = await notifyAgent({
-        agentId: recipientAgentId,
-        agentName: recipientAgentName,
-        fromName: senderName,
-        fromHost: senderHost || 'unknown',
-        subject,
-        messageId: envelope.id,
-        priority,
-        messageType,
-        body: injectBody,
-      })
-      notified = result.notified
-      verified = result.verified === true
-    } catch (err) {
-      console.warn('[Delivery] Notification failed (non-fatal):', err)
-    }
+  } else {
+    // Nothing could prove it landed. The message is safely on disk, but no
+    // agent is known to have seen it — log loudly enough to be actionable.
+    console.warn(
+      `[Delivery] ${envelope.id} → ${recipientAgentName} UNCONFIRMED (${describeWakeResult(wake)})`
+    )
   }
 
   // 3. Webhook delivery (non-fatal, best-effort)
@@ -181,7 +153,13 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     }
   }
 
-  return { delivered: true, notified, verified }
+  return {
+    delivered: true,
+    notified,
+    verified,
+    ...(wake.confirmedBy ? { verifiedBy: wake.confirmedBy } : {}),
+    wakeAttempts: wake.attempts,
+  }
 }
 
 // ============================================================================

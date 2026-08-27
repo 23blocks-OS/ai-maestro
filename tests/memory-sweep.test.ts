@@ -66,6 +66,26 @@ describe('sweepAgentMemory', () => {
     expect(mockIndex.runIndexDelta).toHaveBeenCalledWith('agent-1')
   })
 
+  it('counts a returned {success:false} as failed, not indexed', async () => {
+    // runIndexDelta reports failure by RETURNING, not throwing. Catching only
+    // exceptions counted broken runs as successes — how a host with a
+    // misconfigured embedding provider reported "17 indexed, 0 failed,
+    // 0 messages" for months.
+    mockFs.readdirSync.mockReturnValue(['broken'])
+    mockIndex.runIndexDelta.mockResolvedValue({
+      success: false,
+      error: 'executionProviders[0] is unsupported: cuda',
+      total_messages_processed: 0,
+      new_conversations_discovered: 0,
+    })
+
+    const r = await sweepAgentMemory()
+
+    expect(r.indexed).toBe(0)
+    expect(r.failed).toBe(1)
+    expect(r.agents[0].error).toMatch(/cuda/)
+  })
+
   it('keeps going when one agent fails', async () => {
     mockFs.readdirSync.mockReturnValue(['good-1', 'bad', 'good-2'])
     mockIndex.runIndexDelta.mockImplementation(async (id: string) => {

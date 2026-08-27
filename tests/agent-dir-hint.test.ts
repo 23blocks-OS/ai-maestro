@@ -65,8 +65,9 @@ describe('writeAgentDirHint', () => {
     // root — never write
     writeAgentDirHint('x', '/')
     expect(fs.existsSync('/.claude/settings.local.json')).toBe(false)
-    // scratch under /private/tmp — skipped
-    const scratch = fs.mkdtempSync('/private/tmp/hint-')
+    // scratch under /tmp — skipped (/tmp exists on macOS and Linux; on macOS it
+    // resolves under /private/tmp. Both prefixes are guarded in agent-registry.)
+    const scratch = fs.mkdtempSync('/tmp/hint-')
     writeAgentDirHint('x', scratch)
     expect(readSettings(scratch)).toBeNull()
     fs.rmSync(scratch, { recursive: true, force: true })

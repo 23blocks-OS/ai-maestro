@@ -188,15 +188,6 @@ else
     git pull origin main
     print_success "Code updated"
 
-    # Check out the submodule content the new pointer references. `git pull` moves
-    # the gitlink but does NOT update the submodule working tree — without this,
-    # install-plugin.sh below reinstalls STALE scripts (old statusline/hook/amp-*)
-    # from the previous submodule commit. --force to override any local drift.
-    print_step "$DOWNLOAD" "Updating plugin submodule..."
-    git submodule update --init --recursive --force \
-        && print_success "Plugin submodule updated" \
-        || print_warning "Submodule update had issues (plugin scripts may be stale)"
-
     # Detect ecosystem.config.js changes that require PM2 config reload
     if ! git diff --quiet "$BEFORE_SHA" HEAD -- ecosystem.config.js ecosystem.config.cjs 2>/dev/null; then
         ECOSYSTEM_CHANGED=true
@@ -228,6 +219,33 @@ fi
 
 echo ""
 print_step "$ROCKET" "Reinstalling scripts and skills..."
+
+# Check out the submodule content the recorded pointer references, on EVERY
+# path — not only when the parent had new commits.
+#
+# `git pull` moves the gitlink but does NOT update the submodule working tree,
+# so install-plugin.sh below would reinstall STALE scripts (old
+# statusline/hook/amp-*, old skill descriptions) from the previous submodule
+# commit.
+#
+# This used to live inside the "new commits available" branch. That made
+# submodule freshness conditional on PARENT freshness, which are independent:
+# if the parent is already current but the submodule drifted — an interrupted
+# earlier run, a manual `git pull` beforehand, a failed fetch — the script
+# printed "You're already on the latest version!" and skipped the sync
+# entirely, leaving stale scripts installed with no warning. Observed on
+# mini-lola after v0.36.46: parent at the right commit, submodule 3 commits
+# behind, old skill descriptions still installed.
+#
+# --force overrides local drift; sync first in case .gitmodules moved.
+print_step "$DOWNLOAD" "Syncing plugin submodule..."
+git submodule sync --recursive >/dev/null 2>&1
+if git submodule update --init --recursive --force >/dev/null 2>&1; then
+    print_success "Plugin submodule at $(git submodule status plugin 2>/dev/null | awk '{print substr($1,1,8)}')"
+else
+    print_warning "Submodule update had issues (plugin scripts may be stale)"
+fi
+echo ""
 
 # ── v0.21.26 fix: delegate to component installers ──────────────────────
 # Previously this section iterated separate script directories.

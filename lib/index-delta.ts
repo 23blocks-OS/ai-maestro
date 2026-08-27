@@ -525,11 +525,17 @@ export async function runIndexDelta(
         ].filter((d): d is string => typeof d === 'string' && d.length > 0)
       )
     )
+    // A binding is only useful if it points AT the agent's working directory or
+    // BELOW it. An ancestor binding is too broad and indexes the wrong project:
+    // pas-lola was bound to /home/jpelaez while working in /home/jpelaez/lola,
+    // so it scanned ~/.claude/projects/-home-jpelaez (four conversations, all
+    // long deleted) and never touched -home-jpelaez-lola, where its real 23
+    // conversations live. Treating the ancestor as "related" kept it broken.
     const bindingLooksStale =
       boundPaths.length > 0 &&
       currentWds.length > 0 &&
       !boundPaths.some((b: string) =>
-        currentWds.some((wd) => b === wd || b.startsWith(wd + '/') || wd.startsWith(b + '/'))
+        currentWds.some((wd) => b === wd || b.startsWith(wd + '/'))
       )
 
     if (bindingLooksStale) {

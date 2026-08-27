@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.49] - 2026-08-27 — Ancestor bindings no longer count as valid
+
+### Fixed
+- **A binding pointing at an ANCESTOR of the agent's working directory was treated as valid**, so the re-discovery added in 0.36.48 never triggered for the most common real case. `pas-lola` is bound to `/home/jpelaez` while working in `/home/jpelaez/lola`: it scanned `~/.claude/projects/-home-jpelaez` (four conversations, all long deleted) and never touched `-home-jpelaez-lola`, where its real 23 conversations live. A fleet sweep after 0.36.48 confirmed it — 17 agents swept, **0 messages indexed**. A binding is now only considered valid if it points **at or below** the working directory.
+
 ## [0.36.48] - 2026-08-27 — Agent project bindings: agents can find their own conversations again
 
 A survey of 163 agents across three hosts found **87 with wrong or incomplete memory bindings**. Three defects in `lib/index-delta.ts`, each of which made an agent silently index nothing while reporting success.

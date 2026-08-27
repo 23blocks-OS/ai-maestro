@@ -16,7 +16,7 @@ const { mockFs, mockIndex } = vi.hoisted(() => ({
   mockFs: {
     readdirSync: vi.fn(() => [] as string[]),
     existsSync: vi.fn(() => true),
-    readFileSync: vi.fn(() => '{}'),
+    readFileSync: vi.fn((_p?: any) => '{}'),
     writeFileSync: vi.fn(),
   },
   mockIndex: { runIndexDelta: vi.fn() },

@@ -63,6 +63,10 @@ const {
     mockSharedState: {
       sessionActivity: new Map<string, number>(),
       agentActivity: new Map<string, number>(),
+      // Read by lib/session-idle, which sessions-service delegates its
+      // busy/idle question to. Omitting it makes isSessionIdle() deref
+      // undefined rather than fail a clear assertion.
+      hookStatus: new Map<string, { status: string; notificationType?: string; at: number }>(),
       broadcastStatusUpdate: vi.fn(),
     },
     mockFs: {
@@ -122,6 +126,7 @@ beforeEach(() => {
   resetFixtureCounter()
   mockSharedState.sessionActivity.clear()
   mockSharedState.agentActivity.clear()
+  mockSharedState.hookStatus.clear()
   // Reset runtime mock defaults
   mockRuntime.listSessions.mockResolvedValue([])
   mockRuntime.sessionExists.mockResolvedValue(false)

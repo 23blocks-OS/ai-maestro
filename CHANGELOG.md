@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.42] - 2026-08-27 — Hook status persistence (closes the idle-gate blind spot)
+
+Closes the known gap from 0.36.41: the idle gate only had a signal while a PTY was attached, so it worked for agents someone was watching in the dashboard and was inert for the rest.
+
+### Added
+- **The Claude Code hook's reported state is now persisted, not just broadcast.** The hook already fires on `Stop` / `SessionStart` / `Notification` and knows what the agent is actually doing, but `broadcastActivityUpdate()` only pushed it to WebSocket subscribers and dropped it. It now lands in `shared-state.hookStatus` (sessionName → `{status, notificationType, at}`), and `lib/session-idle.ts` prefers it over PTY recency. **This is the only busy/idle signal that exists for an agent with no attached terminal**, so the idle gate now covers every hooked agent.
+- **`idleSignals` on `GET /api/messages/pending-wakes`** — which agents we have a real signal for, what it says, how old it is, and which source answered (`hook` / `pty` / `none`). `source: "none"` is the remaining blind spot: no hook report and no attached terminal.
+
+### Fixed
+- **`/api/messages/pending-wakes` was returning a build-time snapshot** — the handler reads only in-memory maps and calls no dynamic API, so Next statically prerendered it at build time and served frozen zeros forever. An endpoint whose entire job is reporting live state reported nothing. Now `force-dynamic`; found while verifying this release rather than by a user.
+
+### Notes
+- **Injecting into a permission modal is now impossible by construction.** The two mistakes are not symmetric: deferring a genuinely idle agent delays a wake by one tick, while typing into a `permission_request` **answers the modal**. So only states positively recognised as waiting count as idle — `idle`, and `waiting_for_input` *only* when `notificationType === 'idle_prompt'`. `active`, `permission_request` and anything unrecognised defer.
+- Hook reports expire after 15 minutes. An agent that dies mid-turn would otherwise leave `active` as its last word forever and block its own wakes permanently; after the TTL we fall back to PTY recency.
+
 ## [0.36.37] – [0.36.41] - 2026-08-27 — Provable message delivery
 
 The long-standing "messages arrive but agents never read them" problem. Root cause was not transport — routing, signing and federation all worked. **Every wake route reported success it had not earned, and one of those false positives suppressed the fallback that would have worked.**
@@ -21,7 +36,7 @@ The long-standing "messages arrive but agents never read them" problem. Root cau
 - **End-to-end wake test** [0.36.41] — `./scripts/test-message-wake.sh` sends a real AMP message to a live local agent and asserts whether anything could prove it landed. Verified in production; the trace `stream:unavailable → channel:sent → pane:confirmed` is the original bug being caught and survived live.
 
 ### Notes
-- **Known gap: the idle gate is inert for unwatched agents.** `sessionActivity` is only stamped while a PTY is attached, so an agent nobody is watching in the dashboard always reads as idle. Two alternatives were measured and rejected: tmux `#{session_activity}` was 25 minutes stale on a visibly working agent, and diffing pane captures was backwards in both directions. The real fix is to persist the state the Claude Code hook already reports on `Stop`/`Notification(idle_prompt)`, which today is broadcast but never stored. Follow-on.
+- **Known gap: the idle gate is inert for unwatched agents.** `sessionActivity` is only stamped while a PTY is attached, so an agent nobody is watching in the dashboard always reads as idle. Two alternatives were measured and rejected: tmux `#{session_activity}` was 25 minutes stale on a visibly working agent, and diffing pane captures was backwards in both directions. **Closed in 0.36.42** by persisting the hook's reported state.
 - **Channels cannot carry the fleet.** `--channels` only accepts Anthropic-allowlisted plugins unless an admin sets `allowedChannelPlugins`, which is Team/Enterprise only; it is also Claude Code-only and Anthropic-auth-only. Treat it as an opportunistic fast path. The pane readback is the route that works everywhere.
 
 ## [0.36.35] - 2026-08-19 — Honest agent metrics overview

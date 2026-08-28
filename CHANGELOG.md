@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.4] - 2026-08-28 — Docs viewer behaves like a file browser
+
+### Changed
+- **Root-level files are no longer nested inside a pseudo-folder called "Root".** They render as plain top-level rows beneath the real folders, which is what Finder, VS Code and GitHub all do. The `(root)` bucket was an artefact of the grouping implementation leaking into the UI: it looked like a directory, had an expand arrow and a count badge, and did not correspond to anything on disk.
+- Folders are listed alphabetically, then root files — no wrapper, nothing to expand to reach a file that sits at the top of the project.
+- Dropped the 0.37.3 workaround that auto-expanded the `Root` bucket. It was compensating for the wrong shape rather than fixing it.
+
+### Notes
+- `(root)` remains an internal grouping key; it is simply never rendered as a folder. Tests assert it cannot leak into the folder list.
+
 ## [0.37.3] - 2026-08-28 — Docs tab: root-level files were hidden behind an absolute-path folder
 
 ### Fixed

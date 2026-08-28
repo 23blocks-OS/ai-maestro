@@ -141,11 +141,6 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
         // so a hidden remainder is disproportionately made up of stable files.
         // Report it rather than quietly showing a window.
         setDocTotal(typeof data.total === 'number' ? data.total : docs.length)
-
-        // Expand the root bucket by default. Every folder starts collapsed,
-        // and a single collapsed "Root" row is easy to scan past when there
-        // are a dozen sibling folders.
-        setExpandedTypes((prev) => (prev.size === 0 ? new Set(['folder:(root)']) : prev))
       }
     } catch (err) {
       console.error('Failed to fetch documents:', err)
@@ -327,12 +322,22 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
     return acc
   }, {} as Record<string, DocumentMeta[]>)
 
-  // Sort folder keys alphabetically
-  const sortedFolderKeys = Object.keys(documentsByFolder).sort((a, b) => {
-    if (a === '(root)') return -1
-    if (b === '(root)') return 1
-    return a.localeCompare(b)
-  })
+  // Real folders only, alphabetical. Root-level files are NOT a folder and are
+  // rendered separately below the folder list, the way any file browser does
+  // it — nesting them inside a pseudo-folder called "Root" is confusing and
+  // has no counterpart in Finder, VS Code or GitHub.
+  const sortedFolderKeys = Object.keys(documentsByFolder)
+    .filter((k) => k !== '(root)')
+    .sort((a, b) => a.localeCompare(b))
+
+  const sortByName = (a: DocumentMeta, b: DocumentMeta) => {
+    const nameA = (a.title || a.filePath.split('/').pop() || '').toLowerCase()
+    const nameB = (b.title || b.filePath.split('/').pop() || '').toLowerCase()
+    return nameA.localeCompare(nameB)
+  }
+
+  // Files sitting at the top level of the indexed directory.
+  const rootDocs = [...(documentsByFolder['(root)'] || [])].sort(sortByName)
 
   // Handle search on Enter
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -617,14 +622,11 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
             <div className="w-80 flex-shrink-0 border-r border-gray-800 overflow-y-auto">
               {groupBy === 'folder' ? (
                 /* Folder-based grouping */
-                sortedFolderKeys.map((folderPath) => {
-                  const docs = [...documentsByFolder[folderPath]].sort((a, b) => {
-                    const nameA = (a.title || a.filePath.split('/').pop() || '').toLowerCase()
-                    const nameB = (b.title || b.filePath.split('/').pop() || '').toLowerCase()
-                    return nameA.localeCompare(nameB)
-                  })
+                <>
+                {sortedFolderKeys.map((folderPath) => {
+                  const docs = [...documentsByFolder[folderPath]].sort(sortByName)
                   const isExpanded = expandedTypes.has(`folder:${folderPath}`)
-                  const displayPath = folderPath === '(root)' ? 'Root' : folderPath
+                  const displayPath = folderPath
 
                   return (
                     <div key={folderPath} className="border-b border-gray-800">
@@ -672,7 +674,29 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
                       )}
                     </div>
                   )
-                })
+                })}
+
+                {/* Root-level files, listed directly after the folders — the
+                    same shape a normal file browser uses. No wrapper, no
+                    pseudo-folder, nothing to expand. */}
+                {rootDocs.map((doc) => {
+                  const typeConfig = DOC_TYPE_CONFIG[doc.docType] || DOC_TYPE_CONFIG.doc
+                  const TypeIcon = typeConfig.icon
+                  return (
+                    <button
+                      key={doc.docId}
+                      onClick={() => fetchDocContent(doc)}
+                      className={`w-full flex items-center gap-2 px-4 py-2.5 text-left border-b border-gray-800 hover:bg-gray-800 transition-colors ${
+                        selectedDoc?.docId === doc.docId ? 'bg-gray-800 border-l-2 border-blue-500' : ''
+                      }`}
+                      title={doc.filePath}
+                    >
+                      <TypeIcon className="w-4 h-4 flex-shrink-0" style={{ color: typeConfig.color }} />
+                      <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
+                    </button>
+                  )
+                })}
+                </>
               ) : (
                 /* Type-based grouping */
                 Object.entries(documentsByType).map(([type, docs]) => {

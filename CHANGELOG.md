@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.5] - 2026-08-28 — Docs viewer shows file names
+
+### Fixed
+- **The browse list displayed markdown titles instead of file names.** The label was `doc.title || filename`, and `title` is the document's H1 — so a `CLAUDE.md` beginning `# GM — \`3m-gm\`` rendered as **"GM — 3m-gm"**. Observed across agents: `3m-gm` → `"GM — \`3m-gm\`"`, `3m-sales` → `"Sales Manager / BD — \`3m-sales\`"`. The same file looked like a different one in every agent, extensions were invisible, and there was no way to tell which file you were about to open. File names are now the label (monospace, with extension); the markdown title is shown beside them as secondary context, and omitted when it merely repeats the name.
+- **Sorting used the title too**, so files scattered unpredictably — `CLAUDE.md` sorted under "G" because its heading began with "GM". Now sorts by file name.
+- The open-document header leads with the file name; the markdown title sits underneath as context.
+
+### Notes
+- Search results still lead with the title, which is correct there — you are looking for content, not for a file. Only the browse tree changed.
+- Together with 0.37.3 and 0.37.4 this closes out the docs tab behaving like a file browser: real folder names, no pseudo-root, real file names.
+
 ## [0.37.4] - 2026-08-28 — Docs viewer behaves like a file browser
 
 ### Changed

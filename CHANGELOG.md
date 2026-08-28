@@ -3,7 +3,9 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.36.51] - 2026-08-27 — Agent-owned scheduled tasks
+## [0.37.0] - 2026-08-27 — Agent-owned scheduled tasks
+
+**Minor release.** Agents stop being terminal sessions that happen to be running and become standing entities that carry their own schedule between machines.
 
 Agents are meant to be autonomous entities that can move between machines. Their maintenance therefore has to be *theirs*, not the host's.
 

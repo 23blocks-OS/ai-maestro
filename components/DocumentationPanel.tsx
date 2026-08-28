@@ -40,6 +40,8 @@ interface DocumentMeta {
   filePath: string
   title: string
   docType: string
+  /** Directory this document was actually indexed under. */
+  projectPath?: string
   updatedAt?: number
 }
 
@@ -86,6 +88,7 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
   const [success, setSuccess] = useState<string | null>(null)
   const [stats, setStats] = useState<DocStats | null>(null)
   const [documents, setDocuments] = useState<DocumentMeta[]>([])
+  const [docTotal, setDocTotal] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -128,11 +131,21 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
     if (!agentId) return
 
     try {
-      const response = await fetch(`${baseUrl}/api/agents/${agentId}/docs?action=list&limit=200`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/docs?action=list&limit=500`)
       const data = await response.json()
 
       if (data.success) {
-        setDocuments(data.result || [])
+        const docs: DocumentMeta[] = data.result || []
+        setDocuments(docs)
+        // The listing is ordered by most-recently-updated and then truncated,
+        // so a hidden remainder is disproportionately made up of stable files.
+        // Report it rather than quietly showing a window.
+        setDocTotal(typeof data.total === 'number' ? data.total : docs.length)
+
+        // Expand the root bucket by default. Every folder starts collapsed,
+        // and a single collapsed "Root" row is easy to scan past when there
+        // are a dozen sibling folders.
+        setExpandedTypes((prev) => (prev.size === 0 ? new Set(['folder:(root)']) : prev))
       }
     } catch (err) {
       console.error('Failed to fetch documents:', err)
@@ -274,17 +287,40 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
     return acc
   }, {} as Record<string, DocumentMeta[]>)
 
-  // Group documents by folder (relative to working directory)
+  // Group documents by folder, relative to the directory each document was
+  // actually indexed under.
+  //
+  // This used to strip only the agent's registered workingDirectory. When that
+  // drifted from the indexed project_path — which happens, e.g. an agent
+  // registered at .../jarvis/api whose docs were indexed under .../jarvis/v2 —
+  // the prefix never matched, the path stayed ABSOLUTE, and since an absolute
+  // path always contains '/', the '(root)' bucket was never produced at all.
+  // Root files such as CLAUDE.md were then filed under a folder row literally
+  // named "/Users/.../jarvis/v2" instead of "Root", so they looked missing.
+  //
+  // Prefer the document's own project_path, fall back to the prop, and if
+  // neither matches use just the parent directory name — never an absolute
+  // path as a folder label.
   const documentsByFolder = documents.reduce((acc, doc) => {
-    // Get relative path from working directory
+    const base = doc.projectPath || workingDirectory
     let relativePath = doc.filePath
-    if (workingDirectory && doc.filePath.startsWith(workingDirectory)) {
-      relativePath = doc.filePath.slice(workingDirectory.length).replace(/^\//, '')
+    let matched = false
+    if (base && doc.filePath.startsWith(base)) {
+      relativePath = doc.filePath.slice(base.length).replace(/^\//, '')
+      matched = true
     }
 
-    // Extract folder path (everything except the filename)
     const parts = relativePath.split('/')
-    const folderPath = parts.length > 1 ? parts.slice(0, -1).join('/') : '(root)'
+    let folderPath: string
+    if (parts.length <= 1) {
+      folderPath = '(root)'
+    } else if (matched) {
+      folderPath = parts.slice(0, -1).join('/')
+    } else {
+      // Unknown base: show the immediate parent directory rather than an
+      // absolute path, so the list stays readable even when bindings drift.
+      folderPath = parts[parts.length - 2] || '(root)'
+    }
 
     if (!acc[folderPath]) acc[folderPath] = []
     acc[folderPath].push(doc)
@@ -386,6 +422,19 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
               <span className="text-gray-400">Docs:</span>
               <span className="font-medium">{stats.documents}</span>
             </div>
+            {/* The browse list is capped and ordered by most-recently-updated,
+                so anything hidden is disproportionately stable files. Say so
+                rather than presenting a window as the whole set. */}
+            {docTotal !== null && docTotal > documents.length && (
+              <div
+                className="flex items-center gap-1.5 px-2 py-1 bg-yellow-900/40 border border-yellow-700/50 rounded"
+                title={`Showing the ${documents.length} most recently updated of ${docTotal} documents. Re-index or narrow the project to see the rest.`}
+              >
+                <span className="text-yellow-300">
+                  Showing {documents.length} of {docTotal}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded">
               <BookOpen className="w-3.5 h-3.5 text-green-400" />
               <span className="text-gray-400">Sections:</span>

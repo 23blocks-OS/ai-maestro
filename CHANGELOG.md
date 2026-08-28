@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.3] - 2026-08-28 — Docs tab: root-level files were hidden behind an absolute-path folder
+
+### Fixed
+- **Root-level documents (CLAUDE.md, README.md…) appeared to be missing from the Docs tab.** They were indexed and present in the data the whole time. The folder grouping stripped only the agent's registered `workingDirectory` from each path; when that drifted from the `project_path` the documents were actually indexed under, the prefix never matched, the path stayed **absolute**, and because an absolute path always contains `/`, the `(root)` bucket was never produced at all. Root files were filed under a folder row literally named `/Users/.../jarvis/v2` instead of `Root`. Observed on `23blocks-api-jarvis`: registered at `.../jarvis/api`, docs indexed under `.../jarvis/v2`. Grouping now prefers each document's own `project_path`, falls back to the prop, and when neither matches uses the immediate parent directory name — **never an absolute path as a folder label**. Same stale-binding class as the memory faults fixed in 0.36.48–0.36.49.
+- **The browse list silently truncated.** `action=list` orders by `-updated_at` and applies a limit, so anything hidden was disproportionately *stable* files — precisely the ones a reader goes looking for. One agent has 340 documents against a 200 limit. The list endpoint now returns `total` and `truncated`, the UI requests 500, and shows a **"Showing N of M"** badge when the set is cut.
+
+### Changed
+- `action=list` returns `projectPath` per document.
+- The `Root` folder is expanded by default. Every folder started collapsed, and a single collapsed `Root` row is easy to scan past among a dozen siblings.
+
+### Notes
+- The indexer was never at fault: `**/*.md` matches root files under glob 10.3.10, and CLAUDE.md was present in the `documents` relation for every agent checked.
+- `23blocks-api-jarvis` still has a genuine binding drift — its registered working directory and its indexed project path disagree. The display now handles it correctly, but re-indexing that agent against its current directory is a separate cleanup.
+
 ## [0.37.2] - 2026-08-27 — Agents that were running come back after a server restart
 
 ### Fixed

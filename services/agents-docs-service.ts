@@ -100,30 +100,62 @@ export async function queryDocs(
     case 'list': {
       const listLimit = limit || 50
 
+      // project_path is returned so the UI can compute a path relative to the
+      // directory each document was actually indexed under. Relying on the
+      // agent's registered workingDirectory breaks whenever the two drift, and
+      // they do — see the note on the folder grouping in DocumentationPanel.
       let query = `
-        ?[doc_id, file_path, title, doc_type, updated_at] :=
-          *documents{doc_id, file_path, title, doc_type, updated_at}
+        ?[doc_id, file_path, title, doc_type, project_path, updated_at] :=
+          *documents{doc_id, file_path, title, doc_type, project_path, updated_at}
       `
 
       if (project) {
         query = `
-          ?[doc_id, file_path, title, doc_type, updated_at] :=
+          ?[doc_id, file_path, title, doc_type, project_path, updated_at] :=
             *documents{doc_id, file_path, title, doc_type, project_path, updated_at},
             project_path = '${project.replace(/'/g, "''")}'
         `
       }
 
+      // Count before truncating so the caller can tell that it is seeing a
+      // window rather than the whole set. Silently returning the N most
+      // recently updated docs hides stable files — exactly the ones a reader
+      // is most likely to go looking for.
+      let total = 0
+      try {
+        const countResult = await agentDb.run(
+          project
+            ? `?[count(doc_id)] := *documents{doc_id, project_path}, project_path = '${project.replace(/'/g, "''")}'`
+            : `?[count(doc_id)] := *documents{doc_id}`
+        )
+        total = (countResult.rows?.[0]?.[0] as number) ?? 0
+      } catch {
+        // Count is advisory; never fail the listing because of it.
+      }
+
       query += ` :order -updated_at :limit ${listLimit}`
 
       const docsResult = await agentDb.run(query)
-      result = docsResult.rows.map((row: any[]) => ({
+      const docs = docsResult.rows.map((row: any[]) => ({
         docId: row[0],
         filePath: row[1],
         title: row[2],
         docType: row[3],
-        updatedAt: row[4],
+        projectPath: row[4],
+        updatedAt: row[5],
       }))
-      break
+
+      return {
+        data: {
+          success: true,
+          agent_id: agentId,
+          action,
+          result: docs,
+          total: total || docs.length,
+          truncated: total > docs.length,
+        },
+        status: 200,
+      }
     }
 
     default:

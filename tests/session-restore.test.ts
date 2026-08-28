@@ -20,7 +20,7 @@ import type { PersistedSession } from '@/lib/session-persistence'
 
 const { mockFs } = vi.hoisted(() => ({
   mockFs: {
-    existsSync: vi.fn(() => true),
+    existsSync: vi.fn((_p?: any): boolean => true),
     readFileSync: vi.fn((_p?: any): string => '[]'),
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),

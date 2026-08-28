@@ -2388,6 +2388,35 @@ async function startServer(handleRequest) {
       }
     } catch { /* tmux not available or no sessions */ }
 
+    // Restore agents that were RUNNING when the server stopped.
+    //
+    // A server restart used to leave every agent offline: the intent was
+    // recorded (persistSession on wake, unpersistSession on hibernate) and
+    // restoreSessions() existed, but NOTHING ever called it, so it had to be
+    // triggered by hand and never was.
+    //
+    // Sleeping agents stay asleep — they are simply absent from the persisted
+    // list. Only sessions that were up come back.
+    //
+    // Delayed and non-blocking: waking agents spawns tmux sessions and launches
+    // programs, which must not hold up the HTTP server. Sequential inside
+    // restoreSessions so a dozen agents do not all launch at once.
+    setTimeout(async () => {
+      try {
+        const { restoreSessions } = await import('./services/sessions-service.ts')
+        const result = await restoreSessions({ all: true })
+        const s = result.data?.summary
+        if (s && (s.restored > 0 || s.failed > 0)) {
+          console.log(
+            `[Restore] ${s.restored} agent(s) restored, ${s.alreadyExisted} already running, ${s.failed} failed`
+          )
+        }
+      } catch (error) {
+        // Never let restore failure stop the server from serving.
+        console.error('[Restore] Startup restore failed:', error?.message || error)
+      }
+    }, 5000)
+
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {
       try {

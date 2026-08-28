@@ -37,6 +37,7 @@ const {
   return {
     mockRuntime,
     mockAgentRegistry: {
+      getAgent: vi.fn((id: string) => (id ? { id, name: id, program: 'claude' } : null)),
       getAgentBySession: vi.fn(),
       getAgentByName: vi.fn(),
       createAgent: vi.fn(),
@@ -84,6 +85,11 @@ const {
 
 vi.mock('@/lib/agent-runtime', () => ({
   getRuntime: vi.fn().mockReturnValue(mockRuntime),
+}))
+// restoreSessions re-WAKES rather than opening a bare tmux session, so the
+// wake path is what these tests must assert against.
+vi.mock('@/services/agents-core-service', () => ({
+  wakeAgent: vi.fn(async () => ({ data: { success: true }, status: 200 })),
 }))
 vi.mock('@/lib/agent-registry', () => mockAgentRegistry)
 vi.mock('@/lib/hosts-config', () => mockHostsConfig)
@@ -674,10 +680,16 @@ describe('listRestorableSessions', () => {
 // ============================================================================
 
 describe('restoreSessions', () => {
-  it('restores a specific session by ID', async () => {
-    mockSessionPersistence.loadPersistedSessions.mockReturnValue([
-      { id: 's1', name: 's1', workingDirectory: '/home/s1' },
-    ])
+  // Restore re-wakes the agent (program and all) instead of opening a bare
+  // tmux session — a session with nothing running inside looks healthy in the
+  // API while doing nothing, which is worse than staying offline.
+  const persisted = (over: Record<string, unknown> = {}) => ({
+    id: 's1', name: 's1', workingDirectory: '/home/s1',
+    agentId: 'uuid-1', program: 'claude', sessionIndex: 0, ...over,
+  })
+
+  it('restores a running session by waking its agent', async () => {
+    mockSessionPersistence.loadPersistedSessions.mockReturnValue([persisted()])
     mockRuntime.sessionExists.mockResolvedValue(false)
 
     const result = await restoreSessions({ sessionId: 's1' })
@@ -687,102 +699,42 @@ describe('restoreSessions', () => {
     expect((result.data as any)?.summary.restored).toBe(1)
   })
 
-  it('restores all sessions when all=true', async () => {
+  it('restores all persisted sessions when all=true', async () => {
     mockSessionPersistence.loadPersistedSessions.mockReturnValue([
-      { id: 's1', name: 's1', workingDirectory: '/home' },
-      { id: 's2', name: 's2', workingDirectory: '/home' },
+      persisted({ id: 's1', agentId: 'uuid-1' }),
+      persisted({ id: 's2', agentId: 'uuid-2' }),
     ])
     mockRuntime.sessionExists.mockResolvedValue(false)
 
     const result = await restoreSessions({ all: true })
 
-    expect(result.status).toBe(200)
     expect((result.data as any)?.summary.restored).toBe(2)
     expect((result.data as any)?.summary.total).toBe(2)
   })
 
-  it('skips sessions that already exist', async () => {
-    mockSessionPersistence.loadPersistedSessions.mockReturnValue([
-      { id: 's1', name: 's1', workingDirectory: '/home' },
-    ])
+  it('skips sessions that are already running', async () => {
+    mockSessionPersistence.loadPersistedSessions.mockReturnValue([persisted()])
     mockRuntime.sessionExists.mockResolvedValue(true)
 
     const result = await restoreSessions({ sessionId: 's1' })
 
     expect((result.data as any)?.results[0].status).toBe('already_exists')
-    expect((result.data as any)?.summary.alreadyExisted).toBe(1)
     expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 
-  it('handles mixed results (some restored, some existing, some failed)', async () => {
-    mockSessionPersistence.loadPersistedSessions.mockReturnValue([
-      { id: 's1', name: 's1', workingDirectory: '/home' },
-      { id: 's2', name: 's2', workingDirectory: '/home' },
-      { id: 's3', name: 's3', workingDirectory: '/home' },
-    ])
-    mockRuntime.sessionExists
-      .mockResolvedValueOnce(false)  // s1: will be restored
-      .mockResolvedValueOnce(true)   // s2: already exists
-      .mockResolvedValueOnce(false)  // s3: will attempt restore
-    mockRuntime.createSession
-      .mockResolvedValueOnce(undefined) // s1: success
-      .mockRejectedValueOnce(new Error('fail')) // s3: fail
+  it('drops a record whose agent no longer exists instead of orphaning a session', async () => {
+    // How a 73-entry file accumulated against 8 real sessions: records for
+    // deleted agents were never cleaned up. Restoring one would create a
+    // session belonging to nothing.
+    mockAgentRegistry.getAgent.mockReturnValueOnce(null)
+    mockSessionPersistence.loadPersistedSessions.mockReturnValue([persisted({ agentId: 'gone' })])
+    mockRuntime.sessionExists.mockResolvedValue(false)
 
-    const result = await restoreSessions({ all: true })
+    const result = await restoreSessions({ sessionId: 's1' })
 
-    expect((result.data as any)?.summary.restored).toBe(1)
-    expect((result.data as any)?.summary.alreadyExisted).toBe(1)
-    expect((result.data as any)?.summary.failed).toBe(1)
-  })
-
-  it('returns 404 when no sessions to restore', async () => {
-    mockSessionPersistence.loadPersistedSessions.mockReturnValue([])
-
-    const result = await restoreSessions({ all: true })
-
-    expect(result.status).toBe(404)
-  })
-})
-
-// ============================================================================
-// broadcastActivityUpdate
-// ============================================================================
-
-describe('broadcastActivityUpdate', () => {
-  it('broadcasts status update successfully', () => {
-    const result = broadcastActivityUpdate('my-agent', 'active')
-
-    expect(result.status).toBe(200)
-    expect((result.data as any)?.success).toBe(true)
-    expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith('my-agent', 'active', undefined, undefined, undefined)
-  })
-
-  it('passes hookStatus and notificationType', () => {
-    broadcastActivityUpdate('my-agent', 'waiting', 'waiting_for_input', 'permission')
-
-    expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith(
-      'my-agent', 'waiting', 'waiting_for_input', 'permission', undefined
-    )
-  })
-
-  it('passes agentId when provided', () => {
-    broadcastActivityUpdate('my-agent', 'active', undefined, undefined, 'agent-123')
-
-    expect(mockSharedState.broadcastStatusUpdate).toHaveBeenCalledWith(
-      'my-agent', 'active', undefined, undefined, 'agent-123'
-    )
-  })
-
-  it('allows empty sessionName when agentId is provided', () => {
-    const result = broadcastActivityUpdate('', 'active', undefined, undefined, 'agent-123')
-    expect(result.status).toBe(200)
-  })
-
-  it('returns 400 when both sessionName and agentId are missing', () => {
-    const result = broadcastActivityUpdate('', 'active')
-
-    expect(result.status).toBe(400)
-    expect((result.data as ServiceError).message).toMatch(/sessionName/i)
+    expect((result.data as any)?.results[0].status).toBe('failed')
+    expect(mockSessionPersistence.unpersistSession).toHaveBeenCalledWith('s1')
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 })
 

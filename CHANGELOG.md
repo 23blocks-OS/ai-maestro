@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.2] - 2026-08-27 — Agents that were running come back after a server restart
+
+### Fixed
+- **Nothing restored running agents after a restart.** The intent was already recorded correctly — `persistSession()` on wake means *"this should be running"*, `unpersistSession()` on hibernate means *"this should stay down"* — and `restoreSessions()` existed behind `POST /api/sessions/restore`. But **nothing ever called it**: zero automatic callers in `server.mjs`, the startup scripts, or the ecosystem config, so it had to be triggered by hand and never was. It now runs at server startup, 5s after listen, non-blocking.
+- **Restore would not have brought agents back anyway.** It called `runtime.createSession()`, which opens a **bare tmux session with no program running inside** — worse than staying offline, because the API then shows a healthy session doing nothing. It now re-wakes through the same path `wakeAgent()` uses, relaunching the agent's program.
+- **The record lacked what a relaunch needs.** `PersistedSession` held only `id`/`name`/`workingDirectory`. It now also records `program`, `permissionMode` and `sessionIndex` at wake time, falling back to the agent's own settings for pre-0.37.2 entries.
+- **Stale records are reconciled, not resurrected.** A record whose agent is no longer in the registry is dropped rather than restored as an orphan session. That is how 73 persisted entries had accumulated against 8 real sessions.
+
+### Changed
+- Persistence moved from `~/.ai-maestro/sessions.json` to `~/.aimaestro/sessions.json`, alongside the rest of AI Maestro state — the old path was one hyphen away and easy to confuse. `session-persistence.ts` is the only reader or writer of this file, so nothing else is affected. The legacy file is **deliberately not migrated**: its 73 entries were stale, `agentId`-less, and pointed at the wrong working directory, so importing them would have made boot restore spawn dozens of wrong sessions. It is left in place, untouched.
+
+### Verified live
+Woke a throwaway agent (record written with program/permissionMode/sessionIndex), killed its tmux session to simulate a machine restart, restarted the server → `[Restore] 1 agent(s) restored, 0 already running, 0 failed`, session back. Then hibernated it, restarted again → record absent, agent **stayed asleep**. Existing sessions untouched throughout.
+
 ## [0.37.1] - 2026-08-27 — Three agent-lifecycle bugs
 
 All three shared the shape that has recurred across this subsystem: an operation reported success it had not earned, so the failure was invisible until someone opened a terminal.

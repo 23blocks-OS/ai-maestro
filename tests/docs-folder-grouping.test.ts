@@ -123,3 +123,54 @@ describe('docs folder grouping', () => {
     expect(folderKeys).not.toContain('(root)')
   })
 })
+
+/**
+ * The browse list is a file browser, so it must show FILE NAMES.
+ *
+ * `title` is the document's markdown H1. Displaying it instead of the filename
+ * meant a CLAUDE.md beginning "# GM — `3m-gm`" rendered as "GM — 3m-gm": the
+ * same file looked like a different one in every agent, extensions vanished,
+ * and you could not tell which file you were about to open.
+ */
+describe('document labels', () => {
+  const fileName = (d: { filePath: string }) => d.filePath.split('/').pop() || d.filePath
+  const subtitleFor = (d: { filePath: string; title?: string }) => {
+    const name = fileName(d)
+    if (!d.title) return null
+    const t = d.title.trim()
+    return !t || t === name ? null : t
+  }
+
+  it('labels a document with its filename, including the extension', () => {
+    const doc = { filePath: '/repo/CLAUDE.md', title: 'GM — `3m-gm`' }
+    expect(fileName(doc)).toBe('CLAUDE.md')
+  })
+
+  it('keeps the markdown title only as secondary context', () => {
+    const doc = { filePath: '/repo/CLAUDE.md', title: 'GM — `3m-gm`' }
+    expect(subtitleFor(doc)).toBe('GM — `3m-gm`')
+  })
+
+  it('does not repeat the name when the title is just the filename', () => {
+    expect(subtitleFor({ filePath: '/repo/CLAUDE.md', title: 'CLAUDE.md' })).toBeNull()
+  })
+
+  it('handles a missing title', () => {
+    const doc = { filePath: '/repo/notes.md' }
+    expect(fileName(doc)).toBe('notes.md')
+    expect(subtitleFor(doc)).toBeNull()
+  })
+
+  it('sorts by filename, not by title', () => {
+    // Sorting by title scattered files unpredictably: "GM — 3m-gm" sorted
+    // under G while the file is CLAUDE.md.
+    const docs = [
+      { filePath: '/repo/ZEBRA.md', title: 'Aardvark' },
+      { filePath: '/repo/APPLE.md', title: 'Zulu' },
+    ]
+    const sorted = [...docs].sort((a, b) =>
+      fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase())
+    )
+    expect(sorted.map(fileName)).toEqual(['APPLE.md', 'ZEBRA.md'])
+  })
+})

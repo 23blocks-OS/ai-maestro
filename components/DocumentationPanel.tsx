@@ -330,11 +330,24 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
     .filter((k) => k !== '(root)')
     .sort((a, b) => a.localeCompare(b))
 
-  const sortByName = (a: DocumentMeta, b: DocumentMeta) => {
-    const nameA = (a.title || a.filePath.split('/').pop() || '').toLowerCase()
-    const nameB = (b.title || b.filePath.split('/').pop() || '').toLowerCase()
-    return nameA.localeCompare(nameB)
+  // A file browser shows FILE NAMES. `title` is the document's markdown H1,
+  // which is useful context but is not the file: a CLAUDE.md whose first
+  // heading is "# GM — `3m-gm`" was displayed as "GM — 3m-gm", so the same file
+  // looked like a different one in every agent and you could not tell what you
+  // were about to open. Name is primary; title is secondary detail.
+  const fileName = (doc: DocumentMeta) => doc.filePath.split('/').pop() || doc.filePath
+
+  /** Title worth showing beside the name — omit when it just repeats it. */
+  const subtitleFor = (doc: DocumentMeta) => {
+    const name = fileName(doc)
+    if (!doc.title) return null
+    const t = doc.title.trim()
+    if (!t || t === name) return null
+    return t
   }
+
+  const sortByName = (a: DocumentMeta, b: DocumentMeta) =>
+    fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase())
 
   // Files sitting at the top level of the indexed directory.
   const rootDocs = [...(documentsByFolder['(root)'] || [])].sort(sortByName)
@@ -666,7 +679,10 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
                                 }`}
                               >
                                 <TypeIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: typeConfig.color }} />
-                                <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
+                                <span className="text-sm truncate font-mono">{fileName(doc)}</span>
+                                {subtitleFor(doc) && (
+                                  <span className="text-xs text-gray-500 truncate">{subtitleFor(doc)}</span>
+                                )}
                               </button>
                             )
                           })}
@@ -692,7 +708,10 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
                       title={doc.filePath}
                     >
                       <TypeIcon className="w-4 h-4 flex-shrink-0" style={{ color: typeConfig.color }} />
-                      <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
+                      <span className="text-sm truncate font-mono">{fileName(doc)}</span>
+                      {subtitleFor(doc) && (
+                        <span className="text-xs text-gray-500 truncate">{subtitleFor(doc)}</span>
+                      )}
                     </button>
                   )
                 })}
@@ -733,7 +752,10 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
                               }`}
                             >
                               <File className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                              <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
+                              <span className="text-sm truncate font-mono">{fileName(doc)}</span>
+                              {subtitleFor(doc) && (
+                                <span className="text-xs text-gray-500 truncate">{subtitleFor(doc)}</span>
+                              )}
                             </button>
                           ))}
                         </div>
@@ -753,7 +775,16 @@ export default function DocumentationPanel({ sessionName, agentId, workingDirect
               ) : selectedDoc && docContent ? (
                 <div className="p-6">
                   <div className="mb-4">
-                    <h2 className="text-xl font-semibold mb-2">{docContent.title}</h2>
+                    {/* Filename leads, as in any file viewer. The markdown H1
+                        is shown under it as context, not as the identity of
+                        the file. */}
+                    <h2 className="text-xl font-semibold mb-1 font-mono">
+                      {docContent.filePath?.split('/').pop() || docContent.title}
+                    </h2>
+                    {docContent.title &&
+                      docContent.title !== docContent.filePath?.split('/').pop() && (
+                        <p className="text-sm text-gray-300 mb-2">{docContent.title}</p>
+                      )}
                     <div className="flex items-center gap-3 text-sm text-gray-400">
                       <span className="flex items-center gap-1">
                         <FileText className="w-4 h-4" />

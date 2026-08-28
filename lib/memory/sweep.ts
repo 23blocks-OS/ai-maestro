@@ -15,10 +15,16 @@
  * the previous 7 days, and two of three "running" agents reported
  * `lastMemoryRun: null`.
  *
- * The work itself never needed the Agent object. `runIndexDelta(agentId)` takes
- * an id and opens the database itself. So the sweep walks agent directories on
- * disk and calls it directly — no hydration, no eviction, no LRU pressure, and
- * no dependency on which ten agents happen to be loaded.
+ * The work itself never needed the Agent object. So the sweep walks agent
+ * directories on disk and runs each agent's OWN schedule — no hydration, no
+ * eviction, no LRU pressure, and no dependency on which ten agents happen to
+ * be loaded.
+ *
+ * Since v0.36.51 this is the FALLBACK path. The primary trigger is the agent's
+ * own idle transition (see lib/agent-schedule.ts), which is what makes
+ * scheduling agent-level and portable. The sweep exists for agents that stay
+ * busy long enough to miss that, and it executes the same agent-owned
+ * schedules rather than a host-owned list.
  *
  * This is the same shape as Letta's sleep-time agents: maintenance runs on a
  * lifecycle independent of the primary, rather than piggybacking on it.
@@ -107,7 +113,7 @@ export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepRe
   candidates.sort((a, b) => lastSweptAt(a) - lastSweptAt(b))
   if (limit) candidates = candidates.slice(0, limit)
 
-  const { runIndexDelta } = await import('@/lib/index-delta')
+  const { runDueTasks } = await import('@/lib/agent-schedule-runner')
 
   const agents: SweepAgentResult[] = []
   let indexed = 0
@@ -117,19 +123,24 @@ export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepRe
   for (const agentId of candidates) {
     const t0 = Date.now()
     try {
-      const r = await runIndexDelta(agentId)
+      // Run the agent's OWN schedule rather than a fixed action. The sweep is
+      // the fallback executor for agents that stay busy and never hit an idle
+      // transition; it still honours agent-owned schedules, so the host holds
+      // no list of its own and an agent that moves machines keeps its cadence.
+      const r = await runDueTasks(agentId)
+      const messages = r.ran
+        .filter((t) => t.action === 'index' && t.ok)
+        .reduce((n, t) => n + (parseInt(t.detail, 10) || 0), 0)
+      const failures = r.ran.filter((t) => !t.ok)
+
       const entry: SweepAgentResult = {
         agentId,
-        messagesProcessed: r.total_messages_processed || 0,
-        conversationsDiscovered: r.new_conversations_discovered || 0,
+        messagesProcessed: messages,
+        conversationsDiscovered: 0,
         ms: Date.now() - t0,
       }
-      // runIndexDelta RETURNS {success:false} on failure rather than throwing,
-      // so catching exceptions alone counted broken runs as successes. That is
-      // how a host whose embedding provider was misconfigured reported
-      // "17 indexed, 0 failed, 0 messages" for months.
-      if (r.success === false) {
-        entry.error = (r as { error?: string }).error || 'index-delta reported failure'
+      if (failures.length > 0) {
+        entry.error = failures.map((f) => `${f.taskId}: ${f.detail}`).join('; ')
         failed++
       } else {
         indexed++

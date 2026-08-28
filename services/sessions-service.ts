@@ -565,12 +565,34 @@ export function broadcastActivityUpdate(
   // sessionActivity is written by the PTY layer, which only runs while a
   // terminal is attached. The wake path reads this via lib/session-idle.
   const reported = hookStatus || status
+  const wasIdle = sessionName ? hookStatusMap.get(sessionName)?.status === 'idle' : false
   if (sessionName && reported) {
     hookStatusMap.set(sessionName, {
       status: reported,
       notificationType,
       at: Date.now(),
     })
+  }
+
+  // The agent just went idle — the moment to run whatever maintenance it owns.
+  //
+  // This is what makes scheduling agent-level rather than host-level: the
+  // agent's own lifecycle drives its maintenance, on whichever machine it
+  // happens to be running, with no per-host timer or cron entry. The schedule
+  // itself lives in the agent's directory and travels with it.
+  //
+  // Only on the TRANSITION into idle, so a burst of hook events does not
+  // re-trigger. Fire-and-forget: a scheduled task must never delay or fail the
+  // hook that reported the status.
+  if (agentId && reported === 'idle' && !wasIdle) {
+    import('@/lib/agent-schedule-runner')
+      .then(({ runDueTasks }) => runDueTasks(agentId))
+      .then((r) => {
+        if (r.ran.length > 0) {
+          console.log(`[Schedule] ${agentId.substring(0, 8)} ran ${r.ran.length} task(s) on idle`)
+        }
+      })
+      .catch((err) => console.warn('[Schedule] idle-triggered run failed:', err))
   }
 
   broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)

@@ -3,6 +3,27 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.51] - 2026-08-27 — Agent-owned scheduled tasks
+
+Agents are meant to be autonomous entities that can move between machines. Their maintenance therefore has to be *theirs*, not the host's.
+
+### Added
+- **`lib/agent-schedule.ts` — schedules live with the agent**, at `~/.aimaestro/agents/<id>/schedule.json`, beside its CozoDB, keys and canvas. Move that directory to another machine and the cadence moves with it; whichever host runs the agent honours it, with no per-machine setup. New agents are seeded with hourly indexing and 02:00 consolidation.
+- **The agent's own idle transition is the primary trigger.** The Stop hook already reports, per agent, on whichever host it runs — so when an agent goes idle the server runs whatever that agent is due for. No host timer owns the agent, and work lands exactly when the agent is free rather than competing with it.
+- **`lib/agent-schedule-runner.ts`** executes due tasks. Three actions today: `index` (memory delta), `consolidate` (long-term memory), and `prompt` — which delivers through the **wake chain**, so a scheduled instruction gets the same proof-of-arrival as any message: confirmed, deferred while the agent is mid-render, or queued for retry. A schedule that fires into the void would be worse than no schedule.
+- **`GET`/`POST /api/agents/[id]/schedule`** — read, replace, or `{"run": true}` to run due tasks now.
+- The memory sweep is now the **fallback** executor rather than the mechanism: it runs each agent's own schedule, for agents that stay busy long enough to miss an idle transition. The host still holds no list of its own.
+
+### Why not Claude Code's schedulers
+Measured against the requirement, none fit: **Cloud Routines** get a fresh clone with no local file access, but the subconscious must read `~/.claude/projects/*.jsonl` and the agent's local database. **`/loop` / `CronCreate`** are session-scoped and in-memory (*"nothing is written to disk"*, `durable` has no effect), expire after 7 days, and only fire while that one session is open. **Desktop scheduled tasks** persist with local access but are machine-level config — the schedule would not travel with the agent.
+
+### Two decisions worth noting
+- A never-run task is due **immediately**, so an agent arriving on a new host starts working instead of idling out a full interval first.
+- Daily tasks use a **23-hour window** rather than "today", so a machine asleep at 02:00 still consolidates when it wakes — the exact failure of the old resident-at-2am-or-never design.
+
+### Verified live
+Schedule seeded and persisted to the agent's directory; `run` indexed 24 messages; interval correctly suppressed the next run; and forcing a task due then firing the hook's idle transition produced `[Schedule] 633f6cdc ran 1 task(s) on idle`.
+
 ## [0.36.50] - 2026-08-27 — Embeddings run on CPU (a whole host had been silently unable to index)
 
 ### Fixed

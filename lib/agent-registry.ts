@@ -234,6 +234,54 @@ export function saveAgents(agents: Agent[]): boolean {
  * other keys). Best-effort: failures are logged, never thrown — provisioning an
  * agent must not fail because a project dir is read-only or missing.
  */
+/**
+ * Pre-accept Claude Code's "Do you trust the files in this folder?" prompt for
+ * an agent's working directory.
+ *
+ * A newly provisioned agent launches into that modal and stops there. It never
+ * reaches the point of running a hook, so nothing reports status, and the API
+ * shows a session that looks fine while the agent is doing nothing — the
+ * operator only finds out by opening the terminal.
+ *
+ * The trust flag lives per project in ~/.claude.json as
+ * `hasTrustDialogAccepted`. Setting it when AI Maestro provisions the agent is
+ * the same stance the docker path already takes for codex, which pre-trusts
+ * /workspace in config.toml for exactly this reason: the operator declared this
+ * working directory when they created the agent, so the trust decision has
+ * already been made by a human.
+ *
+ * Only ever sets the flag to true for a directory the operator named; never
+ * removes trust, and never touches any other project entry.
+ */
+export function trustProjectDirectory(workingDirectory?: string | null): boolean {
+  try {
+    if (!workingDirectory || !path.isAbsolute(workingDirectory)) return false
+    if (workingDirectory === '/' || workingDirectory === os.homedir()) return false
+    if (!fs.existsSync(workingDirectory)) return false
+
+    const claudeJson = path.join(os.homedir(), '.claude.json')
+    if (!fs.existsSync(claudeJson)) return false
+
+    const config = JSON.parse(fs.readFileSync(claudeJson, 'utf-8'))
+    config.projects = config.projects || {}
+    const entry = config.projects[workingDirectory]
+
+    // Already trusted — leave the file untouched rather than rewriting a large
+    // shared config for no reason.
+    if (entry && entry.hasTrustDialogAccepted === true) return true
+
+    config.projects[workingDirectory] = { ...(entry || {}), hasTrustDialogAccepted: true }
+    fs.writeFileSync(claudeJson, JSON.stringify(config, null, 2))
+    console.log(`[Registry] Pre-trusted working directory: ${workingDirectory}`)
+    return true
+  } catch (err) {
+    // Never block agent provisioning on this — worst case the operator sees
+    // the prompt once, which is the behaviour we had before.
+    console.warn('[Registry] Could not pre-trust working directory:', err)
+    return false
+  }
+}
+
 export function writeAgentDirHint(agentName: string, workingDirectory?: string | null): void {
   try {
     if (!agentName || !workingDirectory) return
@@ -551,6 +599,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
 
   // Let detached sessions in this dir self-identify (statusline + AMP).
   writeAgentDirHint(agent.name, agent.workingDirectory)
+  trustProjectDirectory(agent.workingDirectory)
 
   return agent
 }
@@ -988,6 +1037,7 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
   if (saved) invalidateAgentCache()
   // Let detached sessions in this dir self-identify (statusline + AMP).
   writeAgentDirHint(agents[index].name, agents[index].workingDirectory)
+  trustProjectDirectory(agents[index].workingDirectory)
   return saved
 }
 

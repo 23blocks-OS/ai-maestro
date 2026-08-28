@@ -100,6 +100,42 @@ export function hasHookReport(sessionName: string): boolean {
   return !!reported && Date.now() - reported.at < HOOK_STATUS_TTL_MS
 }
 
+/**
+ * Prompts that block an agent BEFORE it can run a hook.
+ *
+ * A session stuck on one of these looks healthy from the API's point of view:
+ * tmux reports the session alive, no hook has fired because the agent never
+ * started, and nothing anywhere says the agent is wedged. The operator only
+ * discovers it by opening the terminal.
+ */
+const STARTUP_BLOCK_PATTERNS: Array<{ pattern: RegExp; blocked: string }> = [
+  { pattern: /Do you trust the (files|contents)/i, blocked: 'awaiting_trust' },
+  { pattern: /trust the files in this folder/i, blocked: 'awaiting_trust' },
+]
+
+/**
+ * Detect a startup prompt holding a session hostage.
+ *
+ * Only worth calling when there is NO hook report — a session that has reported
+ * status has, by definition, got past startup. Returns null when nothing is
+ * blocking, so callers can treat it as "normal".
+ */
+export async function detectStartupBlock(
+  sessionName: string,
+  capture: (name: string, lines?: number) => Promise<string>
+): Promise<string | null> {
+  try {
+    const pane = await capture(sessionName, 60)
+    if (!pane) return null
+    for (const { pattern, blocked } of STARTUP_BLOCK_PATTERNS) {
+      if (pattern.test(pane)) return blocked
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 /** Which signal answered, for logging and the operator surface. */
 export function idleSource(sessionName: string): 'hook' | 'pty' | 'none' {
   const reported = hookStatus?.get(sessionName)

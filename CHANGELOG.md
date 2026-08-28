@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.1] - 2026-08-27 — Three agent-lifecycle bugs
+
+All three shared the shape that has recurred across this subsystem: an operation reported success it had not earned, so the failure was invisible until someone opened a terminal.
+
+### Fixed
+- **`${var,,}` broke agent creation on macOS** ([plugins#31](https://github.com/23blocks-OS/ai-maestro-plugins/pull/31)). macOS ships bash 3.2.57, where `${var,,}` is a runtime *"bad substitution"* error. Two sites used it, and because the scripts run `set -uo pipefail` (no `-e`) neither crashed — both produced a **wrong answer**. `agent-commands.sh:404`: `program_lower` stayed empty, the whitelist test failed, and `aimaestro-agent.sh create` aborted with *"Invalid program: claude"* for a valid program. `agent-helper.sh:790`: `check_agent_exists()` returned non-zero, so the caller read *"no collision"* and the duplicate-name check silently never fired on macOS at all. Both now use `tr '[:upper:]' '[:lower:]'`; verified under `/bin/bash` 3.2.57.
+- **`amp-send` reported success for a recipient with no identity directory.** `deliverLocally()` and the federation path both called `deliver()` and **discarded its result** — `grep -c "const .* = await deliver("` returned 0. `deliver()` reports failure by returning `{delivered: false, error}` (no recipient UUID, inbox write failed), so the route answered `200 {status: 'delivered'}` for a message that was never written, and `amp-send` printed a success line with an id it had generated locally. The result is now checked; a failed write returns **502 `delivery_failed`** with the underlying reason, and the success payload carries `verified`.
+- **New agents stopped at "Do you trust the files in this folder?" with nothing reporting it.** That prompt blocks before Claude Code can run a hook, so no status is ever reported: tmux shows the session alive, the API shows a healthy agent, and the operator only finds out by opening the terminal. Two changes: AI Maestro now **pre-accepts trust** for the working directory the operator declared when creating the agent (`hasTrustDialogAccepted` in `~/.claude.json`, alongside the existing `writeAgentDirHint` call) — the same stance the docker path already takes for codex; and `GET /api/messages/pending-wakes` now reports `blockedSessions`, detecting startup prompts on sessions that have no hook report.
+
 ## [0.37.0] - 2026-08-27 — Agent-owned scheduled tasks
 
 **Minor release.** Agents stop being terminal sessions that happen to be running and become standing entities that carry their own schedule between machines.

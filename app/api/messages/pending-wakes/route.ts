@@ -22,7 +22,8 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { pendingWakes, totalPendingWakes } from '@/lib/wake-queue'
 import { hookStatus } from '@/services/shared-state'
-import { isSessionIdle, idleSource } from '@/lib/session-idle'
+import { isSessionIdle, idleSource, detectStartupBlock } from '@/lib/session-idle'
+import { getRuntime } from '@/lib/agent-runtime'
 
 export async function GET() {
   const pending = pendingWakes()
@@ -40,7 +41,22 @@ export async function GET() {
     source: idleSource(sessionName),
   }))
 
+  // Sessions wedged on a startup prompt (e.g. "Do you trust the files in this
+  // folder?"). These never fire a hook, so they look healthy everywhere else.
+  const runtime = getRuntime()
+  const blocked: Array<{ sessionName: string; blockedBy: string }> = []
+  try {
+    for (const s of await runtime.listSessions()) {
+      if (hookStatus?.has(s.name)) continue // already past startup
+      const b = await detectStartupBlock(s.name, (n, l) => runtime.capturePane(n, l))
+      if (b) blocked.push({ sessionName: s.name, blockedBy: b })
+    }
+  } catch {
+    // Never fail the whole report because one pane could not be captured.
+  }
+
   return NextResponse.json({
+    blockedSessions: blocked,
     total: totalPendingWakes(),
     busy: pending.filter((p) => p.reason === 'busy').length,
     unconfirmed: pending.filter((p) => p.reason === 'unconfirmed').length,

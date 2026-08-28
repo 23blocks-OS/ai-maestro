@@ -2,6 +2,20 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
+/**
+ * A session that was RUNNING when it was recorded — the intent record used to
+ * bring agents back after a server restart.
+ *
+ * The intent semantics already existed and are correct: persistSession() on
+ * wake means "this should be running", unpersistSession() on hibernate or kill
+ * means "this should stay down". A sleeping agent stays asleep because it is
+ * simply not in this file.
+ *
+ * What was missing is enough detail to relaunch faithfully. The old record held
+ * only id/name/workingDirectory, so restore could create a bare tmux session
+ * but not start the agent's program — which would have been worse than staying
+ * offline: a session that looks alive in the API with nothing running inside.
+ */
 export interface PersistedSession {
   id: string
   name: string
@@ -9,9 +23,25 @@ export interface PersistedSession {
   createdAt: string
   lastSavedAt: string
   agentId?: string  // Link to agent (optional for backward compatibility)
+  /** Program to relaunch (claude, codex, ...). Absent on pre-0.37.2 records. */
+  program?: string
+  /** Permission mode the agent was woken with. */
+  permissionMode?: string
+  /** Session index for agents with more than one session. */
+  sessionIndex?: number
 }
 
-const PERSISTENCE_DIR = path.join(os.homedir(), '.ai-maestro')
+// Everything else in AI Maestro lives under ~/.aimaestro; this file used
+// ~/.ai-maestro, a separate directory one hyphen away. Moved in 0.37.2.
+//
+// The old file is deliberately NOT migrated. Its 73 entries were unusable —
+// stale, `agentId: none`, and working directories all wrongly defaulted to the
+// server's own repo. Carrying them over would preserve nothing and, now that
+// boot restore exists, would try to spawn ~73 wrong sessions on the next
+// restart. Starting clean is the safer state; the legacy file is left in place
+// untouched. session-persistence.ts is the only reader or writer of this file,
+// so nothing else is affected by the move.
+const PERSISTENCE_DIR = path.join(os.homedir(), '.aimaestro')
 const SESSIONS_FILE = path.join(PERSISTENCE_DIR, 'sessions.json')
 
 /**

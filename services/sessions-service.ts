@@ -957,17 +957,45 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
 
   const runtime = getRuntime()
   const results: RestoreResult[] = []
+  const { wakeAgent } = await import('@/services/agents-core-service')
 
   for (const session of sessionsToRestore) {
     try {
-      const exists = await runtime.sessionExists(session.id)
-      if (!exists) {
-        await runtime.createSession(session.id, session.workingDirectory)
-        results.push({ sessionId: session.id, status: 'restored' })
-      } else {
+      if (await runtime.sessionExists(session.id)) {
         results.push({ sessionId: session.id, status: 'already_exists' })
+        continue
       }
-    } catch {
+
+      // Reconcile before restoring. A record whose agent no longer exists is
+      // stale — restoring it would create an orphan session for a deleted
+      // agent, which is how a 73-entry file accumulated against 8 real
+      // sessions. Drop it instead.
+      const agent = session.agentId ? getAgent(session.agentId) : null
+      if (!agent) {
+        console.warn(`[Restore] Dropping stale record '${session.id}' — agent not in registry`)
+        unpersistSession(session.id)
+        results.push({ sessionId: session.id, status: 'failed' })
+        continue
+      }
+
+      // Re-WAKE rather than createSession(). A bare tmux session would look
+      // alive in the API with nothing running inside it — worse than staying
+      // offline. wakeAgent relaunches the program with the agent's own
+      // settings, falling back to what was recorded at wake time.
+      const wake = await wakeAgent(agent.id, {
+        startProgram: true,
+        sessionIndex: session.sessionIndex ?? 0,
+        program: session.program,
+        projectDirectory: session.workingDirectory,
+        permissionMode: session.permissionMode as any,
+      })
+
+      results.push({
+        sessionId: session.id,
+        status: wake.status === 200 ? 'restored' : 'failed',
+      })
+    } catch (err) {
+      console.warn(`[Restore] ${session.id} failed:`, err)
       results.push({ sessionId: session.id, status: 'failed' })
     }
   }

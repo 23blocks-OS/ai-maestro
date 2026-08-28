@@ -12,18 +12,20 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockFs, mockIndex } = vi.hoisted(() => ({
+const { mockFs, mockRunner } = vi.hoisted(() => ({
   mockFs: {
     readdirSync: vi.fn(() => [] as string[]),
     existsSync: vi.fn(() => true),
     readFileSync: vi.fn((_p?: any) => '{}'),
     writeFileSync: vi.fn(),
   },
-  mockIndex: { runIndexDelta: vi.fn() },
+  // The sweep runs each agent's OWN schedule (v0.37.0) rather than calling
+  // index-delta directly, so the runner is the boundary to mock.
+  mockRunner: { runDueTasks: vi.fn() },
 }))
 
 vi.mock('fs', () => ({ default: mockFs, ...mockFs }))
-vi.mock('@/lib/index-delta', () => mockIndex)
+vi.mock('@/lib/agent-schedule-runner', () => mockRunner)
 
 import { sweepAgentMemory, listIndexableAgents } from '@/lib/memory/sweep'
 
@@ -31,10 +33,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockFs.existsSync.mockReturnValue(true)
   mockFs.readFileSync.mockReturnValue('{}')
-  mockIndex.runIndexDelta.mockResolvedValue({
-    total_messages_processed: 3,
-    new_conversations_discovered: 1,
-  })
+  mockRunner.runDueTasks.mockImplementation(async (agentId: string) => ({
+    agentId,
+    ran: [{ taskId: 'memory-index', action: 'index', ok: true, detail: '3 messages', ms: 1 }],
+    skipped: 0,
+  }))
 })
 
 describe('listIndexableAgents', () => {
@@ -57,13 +60,13 @@ describe('sweepAgentMemory', () => {
 
     expect(r.scanned).toBe(125)
     expect(r.indexed).toBe(125)
-    expect(mockIndex.runIndexDelta).toHaveBeenCalledTimes(125)
+    expect(mockRunner.runDueTasks).toHaveBeenCalledTimes(125)
   })
 
   it('indexes by agent id, never hydrating an Agent object', async () => {
     mockFs.readdirSync.mockReturnValue(['agent-1'])
     await sweepAgentMemory()
-    expect(mockIndex.runIndexDelta).toHaveBeenCalledWith('agent-1')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('agent-1')
   })
 
   it('counts a returned {success:false} as failed, not indexed', async () => {
@@ -72,11 +75,13 @@ describe('sweepAgentMemory', () => {
     // misconfigured embedding provider reported "17 indexed, 0 failed,
     // 0 messages" for months.
     mockFs.readdirSync.mockReturnValue(['broken'])
-    mockIndex.runIndexDelta.mockResolvedValue({
-      success: false,
-      error: 'executionProviders[0] is unsupported: cuda',
-      total_messages_processed: 0,
-      new_conversations_discovered: 0,
+    mockRunner.runDueTasks.mockResolvedValue({
+      agentId: 'broken',
+      ran: [{
+        taskId: 'memory-index', action: 'index', ok: false,
+        detail: 'executionProviders[0] is unsupported: cuda', ms: 1,
+      }],
+      skipped: 0,
     })
 
     const r = await sweepAgentMemory()
@@ -88,9 +93,13 @@ describe('sweepAgentMemory', () => {
 
   it('keeps going when one agent fails', async () => {
     mockFs.readdirSync.mockReturnValue(['good-1', 'bad', 'good-2'])
-    mockIndex.runIndexDelta.mockImplementation(async (id: string) => {
+    mockRunner.runDueTasks.mockImplementation(async (id: string) => {
       if (id === 'bad') throw new Error('corrupt database')
-      return { total_messages_processed: 1, new_conversations_discovered: 0 }
+      return {
+        agentId: id,
+        ran: [{ taskId: 'memory-index', action: 'index', ok: true, detail: '1 messages', ms: 1 }],
+        skipped: 0,
+      }
     })
 
     const r = await sweepAgentMemory()
@@ -105,14 +114,14 @@ describe('sweepAgentMemory', () => {
     mockFs.readdirSync.mockReturnValue(Array.from({ length: 50 }, (_, i) => `a${i}`))
     const r = await sweepAgentMemory({ limit: 5 })
     expect(r.scanned).toBe(5)
-    expect(mockIndex.runIndexDelta).toHaveBeenCalledTimes(5)
+    expect(mockRunner.runDueTasks).toHaveBeenCalledTimes(5)
   })
 
   it('processes only the requested agents when told to', async () => {
     const r = await sweepAgentMemory({ only: ['x', 'y'] })
     expect(r.scanned).toBe(2)
-    expect(mockIndex.runIndexDelta).toHaveBeenCalledWith('x')
-    expect(mockIndex.runIndexDelta).toHaveBeenCalledWith('y')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('x')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('y')
   })
 
   it('skips agents swept more recently than minAgeMs', async () => {
@@ -126,7 +135,7 @@ describe('sweepAgentMemory', () => {
     const r = await sweepAgentMemory({ minAgeMs: 3_600_000 })
 
     expect(r.scanned).toBe(1)
-    expect(mockIndex.runIndexDelta).toHaveBeenCalledWith('stale')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('stale')
   })
 
   it('totals the work done', async () => {

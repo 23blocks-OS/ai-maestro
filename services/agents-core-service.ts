@@ -1800,13 +1800,24 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
       return operationFailed('create tmux session', (error as Error).message)
     }
 
-    // Persist session metadata
+    // Persist session metadata.
+    //
+    // This doubles as the intent record for boot restore: a session in this
+    // file was RUNNING, so it should come back after a server restart. It is
+    // removed on hibernate/kill, which is why a sleeping agent stays asleep.
+    //
+    // Record what is needed to relaunch FAITHFULLY. Before 0.37.2 only
+    // id/name/workingDirectory were stored, so a restore could open a bare
+    // tmux session but not start the agent's program.
     persistSession({
       id: sessionName,
       name: sessionName,
       workingDirectory,
       createdAt: new Date().toISOString(),
       agentId,
+      program: programOverride || agent.program || undefined,
+      permissionMode: params.permissionMode || agent.permissionMode || undefined,
+      sessionIndex,
     })
 
     // Set up AMP

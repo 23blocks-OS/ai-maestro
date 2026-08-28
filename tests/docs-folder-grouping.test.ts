@@ -101,14 +101,25 @@ describe('docs folder grouping', () => {
     expect(groupByFolder([{ filePath: 'CLAUDE.md' }], REPO)['(root)']).toEqual(['CLAUDE.md'])
   })
 
-  it('sorts (root) first', () => {
-    // Matches the component's sort: root is always the top row, so it can
-    // never be scrolled out of view.
-    const keys = ['zebra', '(root)', 'docs'].sort((a, b) => {
-      if (a === '(root)') return -1
-      if (b === '(root)') return 1
-      return a.localeCompare(b)
-    })
-    expect(keys[0]).toBe('(root)')
+  it('renders folders and root files separately, like a normal file browser', () => {
+    // Root-level files are NOT a folder. The list shows real folders
+    // (alphabetical) and then the root files as plain top-level rows — no
+    // pseudo-folder to expand, matching Finder / VS Code / GitHub.
+    const g = groupByFolder(
+      [
+        { filePath: `${REPO}/CLAUDE.md`, projectPath: REPO },
+        { filePath: `${REPO}/zebra/z.md`, projectPath: REPO },
+        { filePath: `${REPO}/docs/a.md`, projectPath: REPO },
+      ],
+      REPO
+    )
+
+    const folderKeys = Object.keys(g).filter((k) => k !== '(root)').sort()
+    const rootFiles = g['(root)'] || []
+
+    expect(folderKeys).toEqual(['docs', 'zebra'])
+    expect(rootFiles).toEqual(['CLAUDE.md'])
+    // No pseudo-folder leaks into the folder list.
+    expect(folderKeys).not.toContain('(root)')
   })
 })

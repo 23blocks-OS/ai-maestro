@@ -397,11 +397,18 @@ interface LocalDeliveryOptions {
 
 /**
  * Deliver a message to a local agent via unified deliver() function.
+ *
+ * RETURNS the result — callers must check it. deliver() reports failure by
+ * returning `{delivered: false, error}` (no recipient UUID, inbox write
+ * failed), and this used to discard that, so the route answered 200
+ * `{status: 'delivered'}` for a message that was never written. amp-send then
+ * printed a success line with an id it had generated locally, and the message
+ * went nowhere with nothing anywhere saying so.
  */
-async function deliverLocally(opts: LocalDeliveryOptions): Promise<void> {
+async function deliverLocally(opts: LocalDeliveryOptions): Promise<{ delivered: boolean; error?: string }> {
   const { envelope, payload, recipientAgentName, senderAgent, senderName, forwardedFrom, senderPublicKeyHex, body } = opts
 
-  await deliver({
+  const result = await deliver({
     envelope,
     payload,
     recipientAgentName,
@@ -413,6 +420,13 @@ async function deliverLocally(opts: LocalDeliveryOptions): Promise<void> {
     priority: body.priority,
     messageType: payload.type,
   })
+
+  if (!result.delivered) {
+    console.error(
+      `[AMP] Local delivery FAILED for ${recipientAgentName}: ${result.error || 'unknown'}`
+    )
+  }
+  return { delivered: result.delivered, error: result.error }
 }
 
 // ===========================================================================
@@ -1931,7 +1945,7 @@ export async function deliverFederated(
     }
 
     // ── Local Delivery ──────────────────────────────────────────────────
-    await deliver({
+    const localResult = await deliver({
       envelope,
       payload,
       recipientAgentName: localAgent.name || recipientName,
@@ -1944,12 +1958,29 @@ export async function deliverFederated(
       messageType: payload.type,
     })
 
+    // A failed inbox write is not a delivery. Reporting 200 'delivered' here is
+    // how a message to a recipient with no identity directory produced a
+    // success line and an id while going nowhere.
+    if (!localResult.delivered) {
+      console.error(
+        `[AMP] Local delivery FAILED for ${localAgent.name || recipientName}: ${localResult.error || 'unknown'}`
+      )
+      return {
+        data: {
+          error: 'delivery_failed',
+          message: `Could not deliver to '${recipientName}': ${localResult.error || 'inbox write failed'}`,
+        },
+        status: 502,
+      }
+    }
+
     return {
       data: {
         id: envelope.id,
         status: 'delivered',
         method: 'local',
         delivered_at: new Date().toISOString(),
+        verified: localResult.verified ?? false,
       },
       status: 200
     }

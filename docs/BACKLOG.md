@@ -2,8 +2,8 @@
 
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
-**Last Updated:** 2026-01-03
-**Current Version:** v0.29.16
+**Last Updated:** 2026-08-28
+**Current Version:** v0.37.6
 
 ---
 
@@ -691,6 +691,107 @@ Add "Memory" tab to AI Maestro dashboard:
 ---
 
 ## Next (v0.6.x)
+
+### 15. QR-Code Pairing for Mobile App → Host Registration
+
+**Status:** Planned
+**Priority:** High
+**Effort:** Medium (2-3 days)
+**Source:** Competitor analysis — Paseo (`docs/benchmark/paseo-comparison.md`)
+
+**Problem:**
+Registering a host with the mobile app means finding the machine's Tailscale IP, editing config, and typing it in. Hosts arrive through our discovery process, but the *app → host* association is still manual and is the onboarding cliff for anyone who has not already internalised the mesh.
+
+**Proposed Solution:**
+Take Paseo's pairing UX — **not** their relay. Render a pairing URL as a QR code with the host's public key **in the URL fragment** (fragments are never sent to the web server, so whatever serves the page never sees the key). The phone posts its public key, both sides derive a shared secret, and **the host accepts no commands until the handshake completes**.
+
+This is transport-agnostic: it runs over our existing Tailscale mesh and replaces "find the IP, edit config, type it in" with "scan this". Paseo documents Tailscale as a first-class alternative to their own relay, so the pairing layer and the transport layer are genuinely separable.
+
+**Explicitly out of scope:** replacing Tailscale with a relay. Tailscale gives real network identity, ACLs, and no third party in the data path.
+
+**Benefits:**
+- Removes the single hardest step in mobile onboarding — the surface we intend to monetise
+- Adds a real authorization boundary: an unpaired client cannot issue commands
+
+---
+
+### 16. Fresh-Context Scheduled Tasks (`fresh: true`)
+
+**Status:** Planned
+**Priority:** High
+**Effort:** Small (≤1 day)
+**Source:** Competitor analysis — Open Session (`docs/benchmark/opensession-comparison.md`)
+
+**Problem:**
+The agent-owned scheduler (v0.37.0) has a `prompt` action, and every scheduled prompt lands in the agent's **existing** context. For internal maintenance that is correct — continuity is the point. For anything triggered by external input it is wrong, and it is a **prompt-injection surface**: a hostile support ticket or Slack message inherits everything the agent already knows and everything it is already permitted to do.
+
+**Proposed Solution:**
+Add `fresh: true` to `ScheduledTask`. A fresh task runs in a clean context and returns; a normal task resumes the agent's session as today.
+
+Open Session shipped both and made the trade explicit — their *automations* are "amnesiac, every run starts clean", their *goals* resume a single session "so context carries, and the agent remembers what it already tried". They did not pick one, and neither should we: amnesia is a safety feature when the input is untrusted, continuity is what long-running work needs.
+
+**Files:** `lib/agent-schedule.ts`, `lib/agent-schedule-runner.ts`
+
+---
+
+### 17. Read-Only Agent Tier
+
+**Status:** Planned
+**Priority:** Medium
+**Effort:** Medium (2-3 days)
+**Source:** Competitor analysis — Paseo *and* Open Session
+
+**Problem:**
+`permissionMode` is `supervised` / `smartAuto` / `fullAutonomy` — every tier can write. There is no way to spawn an agent that may read the repo and reason about it but **cannot modify a file**.
+
+**Proposed Solution:**
+A read-only tier beside the existing `permissionMode` values.
+
+**Two independent competitors converged on this primitive**, which is the strongest signal in the benchmark set: Paseo's `/paseo-committee` spawns high-reasoning analysis agents that cannot modify files, and Open Session's sessions run in `ask` (read-only) / `code` / `scratch` modes. Both use it for the same job — analysis, second opinions, review — where write access is pure downside risk.
+
+**Benefits:**
+- Makes analysis/committee patterns safe to run at high autonomy
+- The natural permission tier for any agent acting on external input (pairs with #16)
+
+---
+
+### 18. Agent Status Push Contract
+
+**Status:** Planned
+**Priority:** Medium
+**Effort:** Medium (2-3 days)
+**Source:** Competitor analysis — opensessions (`docs/benchmark/opensessions-comparison.md`)
+
+**Problem:**
+Agent state is **inferred**: Claude Code hooks when they fire, pane readback when they do not, and heuristics like `detectStartupBlock()` grepping the terminal for *"Do you trust the files in this folder?"*. Inference has cost us real days — a trust prompt blocking a host silently, and a CUDA failure that left an entire host indexing **nothing for months** while the subsystem reported healthy (v0.36.48–0.36.50).
+
+**Proposed Solution:**
+A documented HTTP endpoint that **agents and scripts push their own status, progress, and logs to**, complementing hooks rather than replacing them. Deterministic code reporting what it actually did — not the agent being asked to remember to report.
+
+Extend the status vocabulary while we are there: `idle` / `active` / `waiting_for_input` / `permission_request` has no notion of **finished-with-an-error** or **interrupted**, which is exactly what an operator scanning a fleet wants to see. opensessions marks threads `done` / `error` / `interrupted`.
+
+**Also cheap and high-signal from the same source:** git branch and detected localhost ports in the agent list.
+
+**Caveat, learned the hard way:** this only works for callers that are deterministic code. An agent that *chooses* to POST is the same unreliable narrator we already have — see the delivery-confirmation work in v0.36.37–38.
+
+---
+
+### 19. Git Worktree Isolation Per Task
+
+**Status:** Planned
+**Priority:** Medium
+**Effort:** Large (full cycle)
+**Source:** Competitor analysis — Paseo *and* Open Session
+
+**Problem:**
+Parallel agents share a checkout, so two agents working the same repo collide on branch state and the working tree.
+
+**Proposed Solution:**
+Give each task/workspace its own git worktree. Both competitors build on this: Open Session's workspace "holds a repo, a branch, a worktree directory and any attached repos", and Paseo exposes worktrees, diffs, branches and PRs in-product.
+
+**Open question:** how this interacts with `workingDirectory` being a **stored** agent property (see CLAUDE.md, Agent-First Architecture). A worktree is per-task and ephemeral; the agent's directory is not. Likely the worktree belongs to the task, not the agent.
+
+---
 
 ### 3. Slack Integration for Agent Communication
 

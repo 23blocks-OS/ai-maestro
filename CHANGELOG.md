@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.6] - 2026-08-28 — Backlog: deferred ideas from the competitor benchmarks
+
+### Added
+- **Five backlog entries** capturing what the Paseo / Open Session / opensessions analyses produced but nobody logged. They were living in gitignored benchmark docs and in one session's context, which is where ideas go to die.
+  - **#15 QR-code pairing for mobile app → host registration** — Paseo's pairing UX (public key in the URL *fragment*, so the page server never sees it; the host refuses commands until the handshake completes), running over our existing Tailscale transport. Explicitly **not** their relay: Tailscale gives real network identity and ACLs, and their own docs treat it as first-class.
+  - **#16 Fresh-context scheduled tasks (`fresh: true`)** — the v0.37.0 scheduler lands every `prompt` in the agent's existing context. Correct for internal maintenance, a prompt-injection surface for anything triggered by external input. Open Session ships both modes and makes the trade explicit.
+  - **#17 Read-only agent tier** — `permissionMode` has no "can read, cannot write" level. **Two independent competitors converged on this primitive** (Paseo's committee agents cannot modify files; Open Session has an `ask` mode), which is the strongest signal in the benchmark set.
+  - **#18 Agent status push contract** — agent state is inferred from hooks, pane readback, and heuristics that grep the terminal for a trust prompt. That inference is what let a host index **nothing for months** while reporting healthy (0.36.48–0.36.50). Logged with the caveat we already paid for: only *deterministic code* reporting is worth anything — an agent that chooses to report is the same unreliable narrator.
+  - **#19 Git worktree isolation per task** — flagged by both Paseo and Open Session; open question is how it squares with `workingDirectory` being a stored agent property.
+
+### Notes
+- `docs/BACKLOG.md` header was stale at v0.29.16 / 2026-01-03; refreshed.
+- No functional change. Docs only.
+
 ## [0.37.5] - 2026-08-28 — Docs viewer shows file names
 
 ### Fixed

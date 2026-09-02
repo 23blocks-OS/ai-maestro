@@ -66,6 +66,7 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
+import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
 import {
   capturePaneFromContainer,
   inspectContainerStatus,
@@ -256,22 +257,15 @@ function sanitizeArgs(args: string): string {
   return args.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
 }
 
-/** Resolve program name to CLI command */
-function resolveStartCommand(program: string): string {
-  if (program.includes('claude') || program.includes('claude code')) {
-    return 'claude'
-  } else if (program.includes('codex')) {
-    return 'codex'
-  } else if (program.includes('aider')) {
-    return 'aider'
-  } else if (program.includes('cursor')) {
-    return 'cursor'
-  } else if (program.includes('gemini')) {
-    return 'gemini'
-  } else if (program.includes('opencode')) {
-    return 'opencode'
-  }
-  return 'claude' // Default
+/**
+ * Resolve program name to CLI command.
+ *
+ * Delegates to lib/program-command, which supports wrapper scripts and — the
+ * important part — returns null rather than defaulting to `claude` for a value
+ * it does not recognise. See that module for why the old default was dangerous.
+ */
+function resolveStartCommand(program: string): ResolvedProgram {
+  return resolveProgramCommand(program)
 }
 
 /**
@@ -1643,6 +1637,8 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
   woken: boolean
   alreadyRunning?: boolean
   programStarted?: boolean
+  /** Why no program was started, when programStarted is false but the agent woke. */
+  programError?: string
   message: string
 }>> {
   try {
@@ -1828,14 +1824,44 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
       const program = (programOverride || agent.program || 'claude code').toLowerCase()
       console.log(`[Wake] Final program selection: "${program}" (override: ${programOverride}, agent.program: ${agent.program})`)
 
-      if (program === 'none' || program === 'terminal') {
+      if (isNoProgram(program)) {
         // Export env vars for terminal-only mode
         try {
           await runtime.sendKeys(sessionName, `"export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'; unset CLAUDECODE"`, { enter: true })
         } catch { /* non-fatal */ }
         console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
-        let startCommand = resolveStartCommand(program)
+        const resolved = resolveStartCommand(program)
+
+        if (!resolved.command) {
+          // Refuse rather than guess. The old ladder returned 'claude' for
+          // anything it did not recognise, which meant a misconfigured or
+          // missing wrapper — the one case where launching bare Claude Code is
+          // unacceptable — silently launched bare Claude Code.
+          console.error(`[Wake] Not starting a program for ${agentName}: ${resolved.error}`)
+          updateAgentSessionInRegistry(agentId, sessionIndex, 'online', workingDirectory, true)
+          return {
+            data: {
+              success: true,
+              agentId,
+              name: agentName,
+              sessionName,
+              sessionIndex,
+              workingDirectory,
+              projectDirectory: params.projectDirectory,
+              hooksExecuted: false,
+              woken: true,
+              programStarted: false,
+              programError: resolved.error,
+              message:
+                `Agent "${agentName}" session ${sessionIndex} is awake, but no program was started: ` +
+                `${resolved.error}`,
+            },
+            status: 200,
+          }
+        }
+
+        const startCommand = resolved.command
 
         // Build full command with programArgs and model
         let fullCommand = startCommand
@@ -1849,8 +1875,11 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
           fullCommand = `${fullCommand} --model ${agent.model}`
         }
 
-        // Inject --permission-mode for claude-based programs
-        if (startCommand === 'claude') {
+        // Inject --permission-mode for claude-based programs. Keyed off the
+        // resolved KIND, not the literal command, so a wrapper named
+        // e.g. claude-sandboxed.sh still gets Claude Code's flags — losing
+        // --permission-mode on a sandboxed agent would be a silent downgrade.
+        if (resolved.kind === 'claude') {
           const effectiveMode = params.permissionMode || agent.permissionMode || 'supervised'
           if (effectiveMode !== 'supervised') {
             const cliMode = PERMISSION_MODE_TO_CLI[effectiveMode]
@@ -1860,7 +1889,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
           // Give Claude Code the agent's native session name (opt-in via
           // AIMAESTRO_SESSION_NAME). Surfaces in the statusline session_name
           // field, terminal title, and `claude --resume <name>`.
-          fullCommand = `${fullCommand}${claudeSessionNameFlag(agentName, startCommand)}`
+          fullCommand = `${fullCommand}${claudeSessionNameFlag(agentName, 'claude')}`
 
           // Channels: reliable idle-agent wake via MCP turn-injection. When
           // AIMAESTRO_CHANNEL_FLAG is set, the agent boots with the amp channel so
@@ -1890,7 +1919,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
 
           // Opt-in OTLP telemetry: export claude_code.* metrics to AI Maestro's
           // receiver, correlated to this agent via session.id (off by default).
-          fullCommand = `${claudeTelemetryEnvPrefix(startCommand)}${fullCommand}`
+          fullCommand = `${claudeTelemetryEnvPrefix('claude')}${fullCommand}`
         }
 
         // Small delay to let the session initialize

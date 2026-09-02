@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2026-08-28
-**Current Version:** v0.37.6
+**Current Version:** v0.37.7
 
 ---
 
@@ -691,6 +691,43 @@ Add "Memory" tab to AI Maestro dashboard:
 ---
 
 ## Next (v0.6.x)
+
+### 20. Per-OS-User Agent Isolation (`runAs`)
+
+**Status:** Planned — **design only, deliberately not shipped in 0.37.7**
+**Priority:** High
+**Effort:** Large (full cycle, plus per-host provisioning)
+**Source:** Field report, 3Metas, 2 September 2026 (finding #5)
+
+**Problem:**
+Every agent on a host runs as the same OS account — whoever started the server. A correctly-scoped per-repo deploy key therefore protects nothing at the filesystem level: the reporter's agent was refused access to a repository by `git`, and then read the same repository as a plain directory.
+
+Grepping the create payload confirms it: there is no `user`, `uid`, `runAs` or `asUser` field anywhere. This is a **missing capability, not a misconfiguration**.
+
+**Consequence:** any agent on a shared host reads every other agent's working data, whatever the credentials say. For an agent exposed to untrusted input this is the difference between two legs of the prompt-injection trifecta and all three.
+
+**Why it was not fixed alongside the other four findings:**
+
+Everything else in that report was a component reporting something it had not earned. This one is a capability that does not exist, and the fix crosses a privilege boundary:
+
+- `tmux new-session` as another user needs the server to hold privilege it does not have today — root, or a narrow `sudoers` NOPASSWD entry per agent user, provisioned on every host.
+- The web terminal attaches with `tmux attach` **as the server user**; attaching to another user's session means another user's socket and another set of permissions on it.
+- Each agent user needs its own `$HOME`, `~/.agent-messaging`, `~/.claude`, and ownership of its working directory — which is also the migration problem for ~50 existing agents.
+- macOS and Linux differ in user creation, socket permissions and launch context, and both hosts are in production.
+
+A `runAs` field that appears to isolate and does not would be the exact defect class this whole report is about: a control reporting protection it does not provide. Shipping it unverified is worse than not shipping it.
+
+**Proposed design:**
+
+1. `runAs?: string` on the agent record — an OS username. Absent means today's behaviour, unchanged.
+2. Session launch becomes `sudo -u <runAs> tmux -S <per-user socket> new-session …`, gated on a preflight that verifies the sudoers entry exists and the socket directory is traversable. **Preflight failure refuses to launch** — same rule as the program resolver in 0.37.7: refuse rather than silently do the unisolated thing.
+3. The PTY bridge attaches through the same `sudo -u`.
+4. A provisioning script creates the user, its AMP home, and its sudoers fragment, because per the reporter's own note the estate does not add machines or accounts by hand.
+5. A diagnostic check that reports, per host: how many agents declare `runAs`, and how many of those actually resolved — so the gap between intent and reality is visible rather than assumed.
+
+**Interim mitigation available today:** wrapper programs (0.37.7, backlog #17-adjacent) let an agent run under `sandbox-exec` or an equivalent, which addresses the untrusted-input case without the user boundary. It is narrower — it constrains the one agent rather than isolating all of them from each other — but it is real, and unlike the previous workaround it survives a wake.
+
+---
 
 ### 15. QR-Code Pairing for Mobile App → Host Registration
 

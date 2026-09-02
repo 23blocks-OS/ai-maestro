@@ -231,3 +231,63 @@ describe('notifyAgent — pane readback', () => {
     expect(mockRuntime.sendKeys).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * Staged text — the state that had eight of nine agents on one host deaf while
+ * every indicator read green.
+ *
+ * `capture-pane` shows the input box, so the old readback (needle anywhere on
+ * the pane) was satisfied by text that had been typed and never submitted. The
+ * pane adapter returned `confirmed`, which additionally suppressed the retry
+ * that would have rescued it.
+ */
+describe('notifyAgent — text staged in the input box', () => {
+  /** The ref is sitting in the input box, never accepted. */
+  function stagedPane(messageId: string) {
+    return `  earlier output\n╭────────╮\n│ > [#${messageRef(messageId)}] [MESSAGE] From: sender - deploy failed\n╰────────╯`
+  }
+
+  it('does NOT report verified when the message is only staged', async () => {
+    mockRuntime.capturePane.mockResolvedValue(stagedPane(BASE.messageId))
+    const res = await notifyAgent(BASE)
+    expect(res.verified).toBeFalsy()
+    expect(res.notified).toBe(false)
+  })
+
+  it('names the failure precisely, so the log points the right way', async () => {
+    // "Not seen in pane" would send whoever reads it looking for the opposite
+    // problem. The message IS on the pane — that is the point.
+    mockRuntime.capturePane.mockResolvedValue(stagedPane(BASE.messageId))
+    const res = await notifyAgent(BASE)
+    expect(res.reason).toMatch(/staged/i)
+  })
+
+  it('clears the input box before retyping, rather than sending Enter again', async () => {
+    // Measured in the field: Enter once fails, Enter twice fails,
+    // clear-and-retype then Enter succeeds 7 of 7. Typing on top of staged text
+    // just produces a doubled line.
+    mockRuntime.capturePane.mockResolvedValue(stagedPane(BASE.messageId))
+    await notifyAgent(BASE)
+    const keys = mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])
+    expect(keys).toContain('C-u')
+    // and the clear comes before the second attempt's text
+    const clearAt = keys.indexOf('C-u')
+    const textAfter = keys.slice(clearAt).filter((k: string) => k.includes('[MESSAGE]'))
+    expect(textAfter.length).toBeGreaterThan(0)
+  })
+
+  it('does not clear on the FIRST attempt — nothing is staged yet', async () => {
+    mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+    await notifyAgent(BASE)
+    expect(mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])).not.toContain('C-u')
+  })
+
+  it('still reports verified when a resend is accepted after staging', async () => {
+    // First attempt stages; the clear-and-retype gets through.
+    mockRuntime.capturePane
+      .mockResolvedValueOnce(stagedPane(BASE.messageId))
+      .mockResolvedValue(paneWith(BASE.messageId))
+    const res = await notifyAgent(BASE)
+    expect(res.verified).toBe(true)
+  })
+})

@@ -44,6 +44,12 @@ export interface NotificationResult {
   notified: boolean       // True if the notification reached the pane
   verified?: boolean      // True if we READ IT BACK off the pane (real proof)
   reason?: string         // Why notification was skipped (if notified=false)
+  /**
+   * We actually typed into the pane. Distinguishes "this route does not apply"
+   * (no session, remote host, disabled) from "this route applies and failed" —
+   * which the wake chain reports as `unavailable` vs `failed`.
+   */
+  attempted?: boolean
   error?: string          // Error message (if success=false)
 }
 
@@ -66,6 +72,17 @@ const NOTIFICATION_VERIFY_DELAY_MS = 250
 const NOTIFICATION_MAX_SENDS = 2             // initial + one resend
 const NOTIFICATION_CAPTURE_LINES = 120
 
+// Recovery for text that reached the input box and was never submitted.
+//
+// Reported from a 50-agent estate: eight of nine agents on one host held
+// staged, unsubmitted text, one of them for about eleven hours, while every
+// indicator stayed green. Sending Enter again does not rescue it — the
+// reporter measured Enter once and Enter twice both failing, and
+// clear-then-retype-then-Enter succeeding 7 of 7. So recovery clears the input
+// line first and types the text again as fresh keystrokes.
+const NOTIFICATION_CLEAR_INPUT_KEY = 'C-u'   // kill-line: empties the input box
+const NOTIFICATION_CLEAR_SETTLE_MS = 80
+
 // Body appended to the pane notification. Kept short and single-lined: a raw
 // newline inside send-keys would submit the TUI early (and open an unterminated
 // quote at a shell prompt), truncating the message at the first line break.
@@ -78,6 +95,13 @@ interface PaneDeliveryResult {
   verified: boolean
   /** The runtime can't be captured, so absence of proof isn't proof of absence. */
   unverifiable: boolean
+  /**
+   * We can see our text sitting in the agent's input box, unsubmitted. This is
+   * strictly worse than "unknown": it is positive evidence of NON-delivery, and
+   * it is the state that had eight of nine agents on one host holding staged
+   * text while everything reported healthy.
+   */
+  staged: boolean
 }
 
 /**
@@ -110,6 +134,58 @@ export function toSingleLine(text: string, max: number): string {
 function paneContains(pane: string, needle: string): boolean {
   const strip = (s: string) => s.replace(/\s+/g, '')
   return strip(pane).includes(strip(needle))
+}
+
+/**
+ * A line that is the agent's input prompt, after stripping the box-drawing
+ * chrome TUIs wrap it in (`│ > `, `╭─`, and friends).
+ *
+ * Matches Claude Code and Codex (`>`), fish/starship-style prompts (`❯`), and
+ * a bare shell (`$`, `%`). Kept deliberately loose: a false positive costs one
+ * unnecessary resend, a false negative costs a lost message.
+ */
+const INPUT_PROMPT_LINE = /^[\s│┃|╎┆:]*[>❯$%⏵]\s?/
+
+/**
+ * Split a captured pane into what the agent has ACCEPTED and what is still
+ * sitting in its input box.
+ *
+ * This distinction is the whole point. `capture-pane` shows the input box, so
+ * text typed into an agent and never submitted reads back exactly like text the
+ * agent received — which is how a readback check that looked for the message
+ * anywhere on the pane returned `confirmed` for eight agents that were deaf.
+ * The input box is the tail of the pane from its last prompt line onward.
+ */
+export function splitPaneAtInput(pane: string): { accepted: string; input: string } {
+  const lines = pane.split('\n')
+  let promptAt = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (INPUT_PROMPT_LINE.test(lines[i])) {
+      promptAt = i
+      break
+    }
+  }
+  if (promptAt === -1) return { accepted: pane, input: '' }
+  return {
+    accepted: lines.slice(0, promptAt).join('\n'),
+    input: lines.slice(promptAt).join('\n'),
+  }
+}
+
+/**
+ * Proof of submission, not merely of presence.
+ *
+ * The needle must appear ABOVE the input box. A TUI echoes a submitted prompt
+ * into the transcript above its input, so "above" is what submission looks
+ * like; "in the box" is what a lost Enter looks like.
+ */
+export function paneSubmitted(pane: string, needle: string): boolean {
+  return paneContains(splitPaneAtInput(pane).accepted, needle)
+}
+
+/** Our text is in the input box, unsubmitted — positive evidence of failure. */
+export function paneStaged(pane: string, needle: string): boolean {
+  return paneContains(splitPaneAtInput(pane).input, needle)
 }
 
 /**
@@ -147,27 +223,48 @@ async function sendTmuxNotification(
   const isTui = hasHookReport(sessionName)
   const payload = isTui ? message : `echo '${message.replace(/'/g, "'\\''")}'`
   let sawPane = false
+  let staged = false
 
   for (let send = 1; send <= NOTIFICATION_MAX_SENDS; send++) {
+    // A resend after staged text must CLEAR the input box first. Typing again
+    // on top of what is already there produces a doubled line that submits as
+    // garbage, and re-sending Enter alone does not rescue it — both measured in
+    // the field. Clear, retype, then Enter.
+    if (staged) {
+      await runtime.sendKeys(target, NOTIFICATION_CLEAR_INPUT_KEY)
+      await new Promise(resolve => setTimeout(resolve, NOTIFICATION_CLEAR_SETTLE_MS))
+    }
+
     await runtime.sendKeys(target, payload, { literal: true })
     await new Promise(resolve => setTimeout(resolve, NOTIFICATION_SUBMIT_DELAY_MS))
     await runtime.sendKeys(target, 'Enter')
 
+    staged = false
     for (let poll = 0; poll < NOTIFICATION_VERIFY_POLLS; poll++) {
       await new Promise(resolve => setTimeout(resolve, NOTIFICATION_VERIFY_DELAY_MS))
       const pane = await runtime.capturePane(target, NOTIFICATION_CAPTURE_LINES).catch(() => '')
-      if (pane) sawPane = true
-      if (pane && paneContains(pane, needle)) {
-        return { sent: true, verified: true, unverifiable: false }
+      if (!pane) continue
+      sawPane = true
+
+      // Above the input box = the agent took it. This is the only proof.
+      if (paneSubmitted(pane, needle)) {
+        return { sent: true, verified: true, unverifiable: false, staged: false }
+      }
+
+      // In the input box = the Enter did not take. Stop polling; more waiting
+      // will not submit it, and the next send needs to clear first.
+      if (paneStaged(pane, needle)) {
+        staged = true
+        break
       }
     }
 
     // Never captured anything at all: this runtime doesn't support readback, so
     // resending would just double-deliver against a check that can't succeed.
-    if (!sawPane) return { sent: true, verified: false, unverifiable: true }
+    if (!sawPane) return { sent: true, verified: false, unverifiable: true, staged: false }
   }
 
-  return { sent: true, verified: false, unverifiable: false }
+  return { sent: true, verified: false, unverifiable: false, staged }
 }
 
 /**
@@ -280,11 +377,35 @@ export async function notifyAgent(options: NotificationOptions): Promise<Notific
       return { success: true, notified: true, verified: false, reason: 'Runtime cannot verify' }
     }
 
+    if (result.staged) {
+      // The strongest negative signal available: our text is visibly sitting in
+      // the agent's input box, unsubmitted, after a clear-and-retype. Say so
+      // precisely — "not seen in pane" would suggest the opposite problem and
+      // send whoever reads the log looking in the wrong place.
+      console.warn(
+        `[Notify] ✗ Notification to ${agentName} is STAGED in the input box, not submitted ` +
+          `(after ${NOTIFICATION_MAX_SENDS} sends). The agent has not seen it.`
+      )
+      return {
+        success: true,
+        notified: false,
+        verified: false,
+        attempted: true,
+        reason: 'Staged in input box, never submitted',
+      }
+    }
+
     // We could read the pane and the message never showed up after a resend.
     // Report honestly so the caller can retry or surface it, rather than
     // recording a delivery that never happened.
     console.warn(`[Notify] ✗ Notification to ${agentName} not seen in pane after ${NOTIFICATION_MAX_SENDS} sends`)
-    return { success: true, notified: false, verified: false, reason: 'Not seen in pane after retries' }
+    return {
+      success: true,
+      notified: false,
+      verified: false,
+      attempted: true,
+      reason: 'Not seen in pane after retries',
+    }
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'

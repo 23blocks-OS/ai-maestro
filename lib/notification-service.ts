@@ -382,9 +382,23 @@ export async function notifyAgent(options: NotificationOptions): Promise<Notific
       // the agent's input box, unsubmitted, after a clear-and-retype. Say so
       // precisely — "not seen in pane" would suggest the opposite problem and
       // send whoever reads the log looking in the wrong place.
+      // This failure does not hit every agent, so something differs between
+      // the ones it hits and the ones it does not. Record the candidates at the
+      // moment of failure rather than reasoning about them later: pane width
+      // (a narrow pane wraps the same notification into more lines, which is
+      // what pushes a TUI into treating it as a multi-line paste instead of a
+      // typed prompt), the alternate screen (a different renderer AND no
+      // scrollback), copy mode, and what is actually running in the pane.
+      // hookReport distinguishes the two payload shapes we send: plain text to
+      // a live agent TUI, `echo '...'` to anything else.
+      const paneInfo = (await runtime.describePane?.(`${sessionName}:0.0`).catch(() => ({}))) || {}
+      const context = Object.entries(paneInfo)
+        .map(([k, v]) => `${k}=${v}`)
+        .concat(`hookReport=${hasHookReport(sessionName)}`, `payloadChars=${notification.length}`)
+        .join(' ')
       console.warn(
         `[Notify] ✗ Notification to ${agentName} is STAGED in the input box, not submitted ` +
-          `(after ${NOTIFICATION_MAX_SENDS} sends). The agent has not seen it.`
+          `(after ${NOTIFICATION_MAX_SENDS} sends). The agent has not seen it. [${context}]`
       )
       return {
         success: true,

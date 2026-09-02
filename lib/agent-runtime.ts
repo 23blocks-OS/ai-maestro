@@ -35,6 +35,13 @@ export interface AgentRuntime {
   getWorkingDirectory(name: string): Promise<string>
   isInCopyMode(name: string): Promise<boolean>
   cancelCopyMode(name: string): Promise<void>
+  /**
+   * Pane properties that plausibly affect whether typed text SUBMITS.
+   *
+   * Optional: a runtime that cannot introspect its pane simply omits it, and
+   * callers treat the absence as "unknown" rather than as a value.
+   */
+  describePane?(name: string): Promise<Record<string, string>>
 
   // Lifecycle
   createSession(name: string, cwd: string): Promise<void>
@@ -139,6 +146,44 @@ export class TmuxRuntime implements AgentRuntime {
       return stdout.trim() === '1'
     } catch {
       return false
+    }
+  }
+
+  /**
+   * Pane properties captured when a wake fails, so the reason can be found
+   * rather than argued about.
+   *
+   * The staged-text failure does not hit every agent, which means something
+   * differs between the ones it hits and the ones it does not. Rather than
+   * theorise, record the candidates at the moment of failure: width (a narrow
+   * pane wraps the same notification into more lines, which is what pushes a
+   * TUI into treating it as a multi-line paste rather than a typed prompt),
+   * whether the alternate screen is on (the fullscreen renderer handles input
+   * differently and keeps no scrollback, so it also breaks the readback), and
+   * whether the pane is in copy mode or running something other than the agent.
+   */
+  async describePane(name: string): Promise<Record<string, string>> {
+    const FORMAT = [
+      'width=#{pane_width}',
+      'height=#{pane_height}',
+      'alternate_on=#{alternate_on}',
+      'history_size=#{history_size}',
+      'in_mode=#{pane_in_mode}',
+      'command=#{pane_current_command}',
+    ].join(' ')
+    try {
+      const { stdout } = await execAsync(`tmux display-message -t "${name}" -p "${FORMAT}"`)
+      return Object.fromEntries(
+        stdout
+          .trim()
+          .split(' ')
+          .map(pair => {
+            const at = pair.indexOf('=')
+            return at === -1 ? [pair, ''] : [pair.slice(0, at), pair.slice(at + 1)]
+          })
+      )
+    } catch {
+      return {}
     }
   }
 

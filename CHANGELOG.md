@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.8] - 2026-09-02 — Hosts get the identity fix; staged wakes record what differs
+
+### Fixed
+- **Hosts were still running the script that rewrites the identity it reads.** [claude-plugin#26](https://github.com/agentmessaging/claude-plugin/pull/26) merged upstream, but fresh installs (`install-plugin.sh`) and host updates read the **built** submodule, not `claude-plugin` directly — so nothing reached a host until the plugin was rebuilt ([plugins#32](https://github.com/23blocks-OS/ai-maestro-plugins/pull/32)) and the pointer bumped. That is this release. `--id` now beats an inherited `AMP_DIR`, `load_config()` is read-only, repair lives in `amp-init --repair-config` (which keeps keys, id and registrations, unlike `--force`), and `amp-init` completes an existing identity instead of minting a rival directory.
+
+### Added
+- **A staged wake now records what was different about the pane.** The failure does not hit every agent, which means something distinguishes the ones it hits — so instead of arguing about it, the warning carries the candidates measured at the moment of failure: `width`, `height`, `alternate_on`, `history_size`, `in_mode`, `command`, plus `hookReport` and `payloadChars`.
+  - **width** is the leading hypothesis. A narrow pane wraps the same notification into more lines, and line count is what pushes a TUI into treating input as a multi-line *paste* rather than a typed prompt — different submit semantics, same bytes. Our own fleet is already split 80 vs 101 columns.
+  - **alternate_on** would mean the fullscreen renderer, which handles input differently *and* keeps no scrollback — so it breaks the readback as well. Agents launched by hand rather than woken by AI Maestro miss `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`, which is exactly the shape of the sandbox workaround in the field report.
+  - **hookReport** distinguishes the two payload shapes: plain text to a live agent TUI, `echo '...'` to anything else. Different length, different quoting, plausibly different handling.
+- `describePane()` on the runtime interface, optional so a runtime that cannot introspect its pane reports nothing rather than guessing.
+
+### Notes
+- No behaviour change to delivery itself; 0.37.7 already stopped counting staged text as delivered. This makes the *cause* findable from logs instead of reproducible only in production.
+- 1066 tests passing.
+
 ## [0.37.7] - 2026-09-02 — Field report from a 50-agent estate: four of five findings
 
 A production estate (3Metas, ~50 agents across three hosts) reported five findings from one day of use. Four are fixed here; the fifth is a missing capability and is designed and logged rather than half-built. Every one of the four is the same shape this subsystem keeps producing: **a component reporting something it had not earned.**

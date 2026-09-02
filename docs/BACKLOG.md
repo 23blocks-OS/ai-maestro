@@ -2,8 +2,8 @@
 
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
-**Last Updated:** 2026-08-28
-**Current Version:** v0.37.7
+**Last Updated:** 2026-09-02
+**Current Version:** v0.37.8
 
 ---
 

@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.9] - 2026-09-02 — The fullscreen readback, measured instead of assumed
+
+3Metas raised a concern against the 0.37.7 fix itself, and it was the right question: proof of submission requires the message to appear **above** the input box, and an agent on Claude Code's fullscreen renderer reports `history_size=0`. Their `3m-leads` is in exactly that state — it is their sandboxed manual launch, so it never received `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` — and it owns their live customer contact route.
+
+> your new proof-of-submission readback has no scrollback to read on the one agent that owns our live customer contact route
+
+### Verified
+- **It works, and now there is a test proving it.** Reproduced their state locally — a tmux session running Claude Code 2.1.252 launched without the env var: `alternate_on=1, history_size=0, 80x24` — sent a notification through the same two-step send, and captured the pane. Both fixtures in `tests/pane-staged-text.test.ts` are that raw capture. `history_size=0` removes the **scrollback**, not the screen: `capture-pane` still returns the visible screen, the fullscreen renderer draws the submitted prompt above its input box like any other, and the check runs within a second of sending. Submitted classifies as submitted; staged classifies as staged.
+- **The subtlety the test pins**: both the echoed prompt and the empty input box begin with `❯`. Splitting at the *first* prompt line would put the submitted message inside the input region and invert the verdict. Splitting at the *last* is what makes it correct — and that is now asserted rather than incidental.
+
+### Known limitation, stated rather than discovered later
+- On the alternate screen there is no history to fall back on, so a burst of output that scrolls the message off the visible screen before the poll reads as "not seen". That produces a **duplicate nudge** via the retry queue — never a lost message, and never a spurious clear-and-retype, because the needle is not in the input box.
+
+### Also
+- **The width hypothesis from 0.37.8 is disconfirmed.** 3Metas measured it: identical 80x24 geometry on both the clean agent and the deaf ones, and the two *wider* 102-column panes were among the deaf — the wrong direction. Their standing lead is now that the one clean agent was **adopted** rather than created by AI Maestro, so it was started differently. The 0.37.8 instrumentation records `command` (which for Claude Code carries the version) and `hookReport` at failure time, which is the discriminator that hypothesis needs.
+- Their caveat is load-bearing and worth repeating: that geometry was measured *now*, not at test time, and a pane can be resized. Recording it at the moment of failure is precisely why 0.37.8 does it there.
+
+### Notes
+- 1070 tests passing.
+
 ## [0.37.8] - 2026-09-02 — Hosts get the identity fix; staged wakes record what differs
 
 ### Fixed

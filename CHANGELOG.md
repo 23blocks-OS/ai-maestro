@@ -3,6 +3,34 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.7] - 2026-09-02 — Field report from a 50-agent estate: four of five findings
+
+A production estate (3Metas, ~50 agents across three hosts) reported five findings from one day of use. Four are fixed here; the fifth is a missing capability and is designed and logged rather than half-built. Every one of the four is the same shape this subsystem keeps producing: **a component reporting something it had not earned.**
+
+### Fixed
+
+- **A wake that stages text in the input box was reported as delivered.** `capture-pane` includes the agent's input box, and the readback looked for the message *anywhere* on the pane — so text typed into an agent and never submitted read back exactly like text the agent had received. The pane adapter returned `confirmed`, which additionally suppressed the retry that would have rescued it. Reported cost: **eight of nine agents on one host holding staged, unsubmitted text, one of them for about eleven hours**, with `stop_reason=end_turn`, clean turn durations and a moving `lastActive` throughout. Seven were recoverable wake nudges — the mail was still in the inbox. **One was a real instruction with no inbox copy, and it was lost.** Proof of delivery is now proof of *submission*: the message must appear **above** the input box, where a TUI echoes what it accepted. Text found still in the box is reported as `staged` — positive evidence of non-delivery, distinct from "unknown" — and routed to the retry queue.
+- **Recovery now clears before retyping.** The reporter measured it: Enter once fails, Enter twice fails, **clear-and-retype then Enter succeeds 7 of 7**. Typing again on top of staged text just produces a doubled line. Resends send `C-u` first.
+- **The pane route reports `failed`, not `unavailable`, when it typed and the text did not take.** `unavailable` means "this route does not apply"; using it for a route that applied and failed hides a real fault behind a word that means nothing to see here.
+- **An unrecognised `program` no longer silently becomes bare Claude Code.** The resolver ended in `return 'claude'`, so any value it did not recognise launched plain Claude Code — the worst possible default, because the one configuration that must never launch bare (a sandboxed wrapper) is exactly what an unrecognised name produced. `lib/program-command.ts` now returns an error and **refuses to launch**, and the wake reports `programStarted: false` with the reason. This also removes a second, slightly different copy of the same ladder in the session-create path.
+
+### Added
+
+- **Wrapper scripts as `program`.** An agent that reads untrusted external mail can now point `program` at an absolute path to an executable — e.g. a `sandbox-exec` wrapper. Previously `program` was a closed whitelist, so the only way to sandbox an agent was to wake with `startProgram:false` and launch it by hand, which held until the next ordinary wake started the program **unsandboxed with nothing to warn anyone**. The reporter built a detector because they could not build a preventer. Wrapper paths are validated (absolute, exists, executable, no shell metacharacters, no whitespace) because `program` is interpolated into a shell command line. A wrapper whose name contains `claude` is treated as Claude Code for flag purposes, so it keeps `--permission-mode`, telemetry and `--channels` — losing `--permission-mode` on a sandboxed agent would be a silent downgrade of exactly the agent that needs it.
+- **A `channel-wake` startup diagnostic.** The channel route injects a real turn with no keystrokes and is the only one that works cleanly on an idle agent — and on both of the reporter's hosts `~/.aimaestro/channels/` did not exist. Not empty: **absent.** Nothing was broken and nothing lied; the adapter correctly reports `unavailable` and delivery falls back to the pane. But it was invisible, and cost a day to discover. Startup now says out loud how many online agents have a channel, how many are proven by ack, and which of the three preconditions is missing — including whether `AIMAESTRO_CHANNEL_FLAG` is even set.
+
+### Not fixed — designed and logged
+
+- **Agents cannot run as separate OS users** (`docs/BACKLOG.md` #20). Every agent runs as whoever started the server, so a correctly-scoped per-repo deploy key protects nothing at the filesystem level — `git` refused the reporter's agent access to a repository it then read as a plain directory. There is no `user`/`uid`/`runAs` field anywhere: a missing capability, not a misconfiguration. The fix crosses a privilege boundary (sudoers per agent user, per-user tmux sockets, per-user `$HOME` and AMP home, ~50 existing agents to migrate, two production hosts differing in all of it). **A `runAs` field that appears to isolate and does not would be precisely the defect class this entire release is about**, so it is designed in the backlog rather than shipped unverified. The new wrapper support is a real interim mitigation for the untrusted-input case.
+
+### Upstream (separate repo, not in this release)
+
+- **A read command rewrote the identity of the agent it read** — [agentmessaging/claude-plugin#26](https://github.com/agentmessaging/claude-plugin/pull/26), open and green. `amp-inbox.sh --id <other>` run from an agent session rewrote the target's config to the caller's name and dropped the target's id, and separately `--id` was ignored outright whenever `AMP_DIR` was exported. The reporter ranked it first, correctly: *"it changes the system while appearing to observe it, and it cannot be audited around, because the audit is what causes it."* An agents manager sweeping the fleet to check for identity corruption would have renamed every agent it inspected. **That fix reaches the hosts only after #26 merges and the plugin is rebuilt.**
+
+### Notes
+- Verified against the live registry before changing the program resolver: 75 `claude-code`, 8 `Claude Code`, 1 `none`, 1 unset — all still resolve.
+- 1066 tests (up from 1017): 11 pinning submitted-vs-staged, 5 the staged recovery flow, 33 the program resolver including command-injection refusals. Upstream: 11 new bats tests, 9 of which fail against the previous code.
+
 ## [0.37.6] - 2026-08-28 — Backlog: deferred ideas from the competitor benchmarks
 
 ### Added

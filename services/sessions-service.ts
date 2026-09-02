@@ -36,6 +36,7 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
+import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
 
@@ -762,31 +763,33 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     console.warn(`[Sessions] Could not set up AMP for ${agentName}:`, ampError)
   }
 
-  // Launch program
-  const selectedProgram = (program || 'claude-code').toLowerCase()
-  if (selectedProgram !== 'none' && selectedProgram !== 'terminal') {
-    let startCommand = ''
-    if (selectedProgram.includes('claude')) startCommand = 'claude'
-    else if (selectedProgram.includes('codex')) startCommand = 'codex'
-    else if (selectedProgram.includes('aider')) startCommand = 'aider'
-    else if (selectedProgram.includes('cursor')) startCommand = 'cursor'
-    else if (selectedProgram.includes('gemini')) startCommand = 'gemini'
-    else if (selectedProgram.includes('opencode')) startCommand = 'opencode'
-    else if (selectedProgram.includes('openclaw')) startCommand = 'openclaw'
-    else startCommand = 'claude'
+  // Launch program.
+  //
+  // Shares lib/program-command with the wake path — this used to be a second,
+  // slightly different copy of the same ladder, with the same `else 'claude'`
+  // default that turns an unrecognised or broken wrapper into a bare,
+  // unsandboxed Claude Code.
+  const selectedProgram = program || 'claude-code'
+  if (!isNoProgram(selectedProgram)) {
+    const resolved = resolveProgramCommand(selectedProgram)
+    if (!resolved.command) {
+      console.error(`[Sessions] Not launching a program in ${actualSessionName}: ${resolved.error}`)
+    } else {
+      let startCommand = resolved.command
 
-    if (programArgs && typeof programArgs === 'string') {
-      const sanitized = programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
-      if (sanitized) startCommand = `${startCommand} ${sanitized}`
-    }
+      if (programArgs && typeof programArgs === 'string') {
+        const sanitized = programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
+        if (sanitized) startCommand = `${startCommand} ${sanitized}`
+      }
 
-    await new Promise(resolve => setTimeout(resolve, 300))
+      await new Promise(resolve => setTimeout(resolve, 300))
 
-    try {
-      await runtime.sendKeys(actualSessionName, `"${startCommand}"`, { enter: true })
-      console.log(`[Sessions] Launched program "${startCommand}" in session ${actualSessionName}`)
-    } catch (progError) {
-      console.warn(`[Sessions] Could not launch program in ${actualSessionName}:`, progError)
+      try {
+        await runtime.sendKeys(actualSessionName, `"${startCommand}"`, { enter: true })
+        console.log(`[Sessions] Launched program "${startCommand}" in session ${actualSessionName}`)
+      } catch (progError) {
+        console.warn(`[Sessions] Could not launch program in ${actualSessionName}:`, progError)
+      }
     }
   }
 

@@ -24,6 +24,7 @@ import path from 'path'
 import os from 'os'
 import { getHosts, isSelf } from '@/lib/hosts-config'
 import { loadAgents } from '@/lib/agent-registry'
+import { hasChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
 import { loadKeyPair } from '@/lib/amp-keys'
 import { deriveDidKey } from '@/lib/amp-did'
 import { type ServiceResult } from '@/services/service-errors'
@@ -192,6 +193,71 @@ function checkAMPIdentityIntegrity(): DiagnosticCheck {
   }
 }
 
+/**
+ * Is the reliable wake route actually available to the fleet?
+ *
+ * The channel route injects a real turn with no keystrokes, which is the only
+ * thing that works cleanly on an idle agent — the pane route has to type into
+ * a TUI and can be defeated by its input state. When a session did not register
+ * the channel server, the adapter reports `unavailable` and delivery quietly
+ * falls back to the pane. That is correct behaviour and it lies to nobody, but
+ * it is invisible: an estate of ~50 agents ran for months on the fallback
+ * without knowing the better route had never been opened, and lost a day to it.
+ *
+ * So: say it out loud, once, at startup. Three preconditions can block it and
+ * none is settable from a crew host — the --channels flag (AIMAESTRO_CHANNEL_FLAG
+ * here), the plugin being on the Anthropic allowlist, and channelsEnabled for
+ * the org.
+ */
+function checkChannelWake(): DiagnosticCheck {
+  try {
+    const online = loadAgents().filter(
+      (a: any) => !a.deletedAt && a.sessions?.some((sess: any) => sess.status === 'online')
+    )
+    if (online.length === 0) {
+      return { name: 'channel-wake', status: 'pass', message: 'No online agents' }
+    }
+
+    const registered = online.filter((a: any) => hasChannel(a.id))
+    const verified = registered.filter((a: any) => isChannelVerified(a.id))
+    const flagSet = !!process.env.AIMAESTRO_CHANNEL_FLAG
+
+    if (registered.length === 0) {
+      return {
+        name: 'channel-wake',
+        status: 'warn',
+        message:
+          `Channel delivery unavailable for all ${online.length} online agent(s) — no session has registered a channel. ` +
+          `Waking falls back to typing into the tmux pane. ` +
+          (flagSet
+            ? 'AIMAESTRO_CHANNEL_FLAG is set, so the remaining preconditions are the plugin allowlist and channelsEnabled for the org.'
+            : 'AIMAESTRO_CHANNEL_FLAG is NOT set, so agents boot without --channels and cannot register one.'),
+        details: { online: online.length, registered: 0, verified: 0, channelFlagSet: flagSet },
+      }
+    }
+
+    const status: DiagnosticStatus = verified.length === registered.length ? 'pass' : 'warn'
+    return {
+      name: 'channel-wake',
+      status,
+      message:
+        `${registered.length}/${online.length} online agent(s) have a channel, ${verified.length} proven by ack` +
+        (verified.length < registered.length
+          ? ' — unacked channels still fall back to the pane, which is correct but slower and noisier'
+          : ''),
+      details: {
+        online: online.length,
+        registered: registered.length,
+        verified: verified.length,
+        channelFlagSet: flagSet,
+        unregistered: online.filter((a: any) => !hasChannel(a.id)).map((a: any) => a.name),
+      },
+    }
+  } catch (error: any) {
+    return { name: 'channel-wake', status: 'warn', message: `Could not verify: ${error.message}` }
+  }
+}
+
 function checkNodeVersion(): DiagnosticCheck {
   const version = process.version
   const major = parseInt(version.slice(1).split('.')[0], 10)
@@ -344,6 +410,7 @@ export async function runDiagnostics(): Promise<ServiceResult<DiagnosticReport>>
   checks.push(tmux, nodePty)
   checks.push(checkAgentRegistry())
   checks.push(checkAMPIdentityIntegrity())
+  checks.push(checkChannelWake())
   checks.push(checkNodeVersion())
   checks.push(diskSpace)
 

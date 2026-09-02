@@ -191,6 +191,11 @@ export const paneAdapter: WakeAdapter = {
     })
     if (res.verified) return { adapter: 'pane', status: 'confirmed' }
     if (res.notified) return { adapter: 'pane', status: 'sent', detail: res.reason }
+    // We typed into the pane and it did not take — most sharply when the text
+    // is still sitting in the input box. That is the route failing, not the
+    // route being inapplicable, and calling it `unavailable` would hide a real
+    // fault behind a word that means "nothing to see here".
+    if (res.attempted) return { adapter: 'pane', status: 'failed', detail: res.reason || res.error }
     // notifyAgent never throws for an absent agent/session; it reports why.
     return { adapter: 'pane', status: 'unavailable', detail: res.reason || res.error }
   },

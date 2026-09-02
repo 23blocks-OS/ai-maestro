@@ -37,6 +37,7 @@ import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookSta
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
+import { paneSubmitted, paneStaged } from '@/lib/notification-service'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
 
@@ -871,13 +872,26 @@ export async function renameSession(oldName: string, newName: string): Promise<S
 }
 
 /**
+ * Readback window for `sendCommand({ verify: true })`.
+ *
+ * Sized from the lesson 3Metas paid for: they judged four agents "deaf" using a
+ * 2m19s observation window when their own measured response time was 3m48s, and
+ * a window shorter than the thing it measures can only say ABSENT, never SLOW —
+ * so slow came back as absent. A TUI echo is sub-second, but 1s left no margin
+ * on a loaded host, and the cost of reading slow as absent here is a duplicate
+ * nudge on every busy agent.
+ */
+const COMMAND_VERIFY_POLLS = 12
+const COMMAND_VERIFY_DELAY_MS = 250
+
+/**
  * Send a command to a tmux session.
  */
 export async function sendCommand(
   sessionName: string,
   command: string,
-  options: { requireIdle?: boolean; addNewline?: boolean } = {}
-): Promise<ServiceResult<{ success: boolean; sessionName: string; commandSent?: string; method?: string; wasIdle?: boolean; idle?: boolean; timeSinceActivity?: number; idleThreshold?: number }>> {
+  options: { requireIdle?: boolean; addNewline?: boolean; verify?: boolean } = {}
+): Promise<ServiceResult<{ success: boolean; sessionName: string; commandSent?: string; method?: string; wasIdle?: boolean; idle?: boolean; timeSinceActivity?: number; idleThreshold?: number; submitted?: boolean; staged?: boolean }>> {
   const requireIdle = options.requireIdle !== false
   const addNewline = options.addNewline !== false
 
@@ -903,6 +917,31 @@ export async function sendCommand(
   await runtime.sendKeys(sessionName, command, { literal: true, enter: addNewline })
 
   sessionActivity.set(sessionName, Date.now())
+
+  // Opt-in readback. `sendKeys` returning proves bytes reached tmux and nothing
+  // more — the same unearned claim that made the message-wake path report eight
+  // deaf agents as delivered. This route is the 5-minute inbox poll's wake, and
+  // it was never verified at all, so it has been quietly reporting success for
+  // every nudge that staged in an input box and never submitted.
+  //
+  // Off by default: most callers (canvas, chat inject, meetings) send commands
+  // whose text is not expected to echo back the way a prompt does, and paying
+  // ~1s of polling for them would be waste.
+  if (options.verify && addNewline) {
+    let submitted = false
+    let staged = false
+    for (let poll = 0; poll < COMMAND_VERIFY_POLLS; poll++) {
+      await new Promise(resolve => setTimeout(resolve, COMMAND_VERIFY_DELAY_MS))
+      const pane = await runtime.capturePane(sessionName, 120).catch(() => '')
+      if (!pane) continue
+      if (paneSubmitted(pane, command)) { submitted = true; break }
+      if (paneStaged(pane, command)) { staged = true; break }
+    }
+    return {
+      data: { success: true, sessionName, commandSent: command, method: 'tmux-send-keys', wasIdle: true, submitted, staged },
+      status: 200,
+    }
+  }
 
   return { data: { success: true, sessionName, commandSent: command, method: 'tmux-send-keys', wasIdle: true }, status: 200 }
 }

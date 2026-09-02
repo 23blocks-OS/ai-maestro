@@ -49,7 +49,13 @@ interface AgentConfig {
 interface SubconsciousConfig {
   memoryCheckInterval?: number  // How often to check for new conversations (default: 5 minutes)
   messageCheckInterval?: number // How often to check for messages (default: 5 minutes) - DEPRECATED
-  messagePollingEnabled?: boolean // Enable message polling (default: false - use push notifications instead)
+  // Enable the 5-minute inbox poll. DEFAULT: ENABLED (`!== false` below).
+  // This comment previously claimed the default was false "because push
+  // notifications replace polling", and CLAUDE.md said the same. Both were
+  // wrong, and the error mattered: the poll is not a legacy leftover, it is the
+  // fallback that actually delivers when a push wake fails to submit. Anyone
+  // reading the old comment would have believed there was no safety net.
+  messagePollingEnabled?: boolean
   consolidationEnabled?: boolean // Enable long-term memory consolidation (default: true)
   consolidationHour?: number    // Hour of day to run consolidation (default: 2 = 2 AM)
 }
@@ -82,7 +88,7 @@ interface SubconsciousStatus {
   startedAt: number | null
   memoryCheckInterval: number
   messageCheckInterval: number
-  messagePollingEnabled: boolean  // false = using push notifications (default)
+  messagePollingEnabled: boolean  // default TRUE — see AgentConfig above
   activityState: 'active' | 'idle' | 'disconnected'
   staggerOffset: number
   lastMemoryRun: number | null
@@ -635,7 +641,14 @@ class AgentSubconscious {
         prompt = `${urgentFlag}You have ${unreadCount} new messages${sendersInfo}. Please check your inbox.`
       }
 
-      // Send the natural language prompt to Claude Code
+      // Send the natural language prompt to Claude Code.
+      //
+      // `verify: true` because this path had NO readback at all: it reported
+      // success on HTTP 200, which proves bytes reached tmux and nothing more.
+      // That is the same unearned claim the message-wake path was fixed for in
+      // 0.37.7, surviving in a second implementation nobody had looked at —
+      // and this is the one that actually delivers most of the time, because a
+      // push wake that fails to submit is rescued here five minutes later.
       const commandResponse = await fetch(
         `${getSelfApiBase()}/api/sessions/${encodeURIComponent(sessionName)}/command`,
         {
@@ -644,20 +657,29 @@ class AgentSubconscious {
           body: JSON.stringify({
             command: prompt.trim(),
             requireIdle: true,
-            addNewline: true  // Press Enter to submit the prompt to Claude
+            addNewline: true,  // Press Enter to submit the prompt to Claude
+            verify: true
           })
         }
       )
 
+      const tag = `[Agent ${this.agentId.substring(0, 8)}]`
       if (commandResponse.ok) {
         const result = await commandResponse.json()
-        if (result.success) {
-          console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Sent message notification to Claude (${unreadCount} unread)`)
+        // Name the mechanism. Without this, a poll-delivered wake is
+        // indistinguishable in the logs from a push-delivered one, so "push
+        // works" stays an assumption instead of a measurement.
+        if (result.submitted) {
+          console.log(`${tag} ✓ Inbox poll wake SUBMITTED (${unreadCount} unread) — delivered by the 5-min poll, not by push`)
+        } else if (result.staged) {
+          console.warn(`${tag} ✗ Inbox poll wake STAGED in the input box, not submitted (${unreadCount} unread) — the agent has NOT seen it`)
+        } else if (result.success) {
+          console.log(`${tag} ~ Inbox poll wake sent, unverified (${unreadCount} unread)`)
         }
       } else {
         const result = await commandResponse.json()
         if (result.idle === false) {
-          console.log(`[Agent ${this.agentId.substring(0, 8)}] Session busy, skipping message notification`)
+          console.log(`${tag} Session busy, skipping message notification`)
         }
       }
     } catch (error) {

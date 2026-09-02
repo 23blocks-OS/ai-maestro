@@ -3,6 +3,33 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.10] - 2026-09-02 — The wake that was actually delivering had no proof at all
+
+3Metas retracted a message tonight, and the retraction was worth more than the claim. They had called four agents deaf using a 2m19s observation window, published it, then found all four had answered at **4m22s–4m31s** — clustered within 9 seconds of each other.
+
+That timing is the finding. **It is a 5-minute poll, and it is ours.**
+
+### Fixed
+- **`Agent.checkMessages()` — the 5-minute inbox poll — reported success on HTTP 200.** It POSTs a "you have N unread" prompt to the session command endpoint, and `sendCommand` returned `success: true` the instant `sendKeys` returned. That proves bytes reached tmux and nothing more: it is the identical unearned claim fixed in 0.37.7 for the message-wake path, surviving untouched in a **second implementation nobody had looked at**.
+
+  It matters more than the first one, not less. When a push wake stages in an input box and never submits, **this is what rescues it five minutes later** — which is exactly how the failure stayed invisible for months. Messages did arrive. They arrived up to five minutes late, by a different route than the one everyone was watching.
+
+  `sendCommand` now takes `verify: true` (opt-in, so canvas/chat/meeting injection are unaffected) and returns `submitted` / `staged` from a real pane readback, reusing 0.37.7's proof-of-submission.
+- **The poll now names the mechanism**: `✓ Inbox poll wake SUBMITTED — delivered by the 5-min poll, not by push`. Without that, a poll-delivered wake is indistinguishable in the logs from a push-delivered one, so *"push works"* stays an assumption rather than a measurement. Expect this line to be common.
+
+### Corrected documentation that was actively misleading
+- `CLAUDE.md` and two comments in `lib/agent.ts` stated message polling was **disabled by default**, "replaced by push notifications". The code has always been `config.messagePollingEnabled !== false` — **on unless explicitly disabled**. Anyone reading the docs would have concluded there was no safety net under push, and would have misread an agent that "eventually" woke. Both now say enabled, with the measurement that proves it.
+
+### The methodological point, kept because it is the actual lesson
+3Metas held the number that would have prevented their error — a measured 3m48s response time, which they had quoted to us in writing hours earlier — and chose a 2m19s window for a test of the same phenomenon. Their words:
+
+> A negative result inside a window shorter than the known response time is not a result. It is the clock. We published it as biology. **The window could only say ABSENT, never SLOW — so slow came back as absent.**
+
+That is the same defect this changelog has been about for three releases: an instrument that cannot express the thing it is measuring. Our readback window was 1 second per send, sized against nothing in particular. It is now 12 polls × 250 ms with the reasoning written down beside it, so the next person changing it knows what it has to outlast.
+
+### Notes
+- 1078 tests passing. 8 new, covering the poll path's verdicts and specifically that a slow render is not reported as absent.
+
 ## [0.37.9] - 2026-09-02 — The fullscreen readback, measured instead of assumed
 
 3Metas raised a concern against the 0.37.7 fix itself, and it was the right question: proof of submission requires the message to appear **above** the input box, and an agent on Claude Code's fullscreen renderer reports `history_size=0`. Their `3m-leads` is in exactly that state — it is their sandboxed manual launch, so it never received `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` — and it owns their live customer contact route.

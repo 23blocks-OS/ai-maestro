@@ -27,6 +27,7 @@ export async function POST(
     const result = await sendCommand(sessionName, body.command, {
       requireIdle: body.requireIdle,
       addNewline: body.addNewline,
+      verify: body.verify,
     })
 
     return toResponse(result)

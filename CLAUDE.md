@@ -227,9 +227,13 @@ The subconscious does NOT need remote API calls to access agent data - everythin
 **Subconscious timers (v0.18.10+):**
 - `maintainMemory()` - Indexes conversations for semantic search (runs periodically)
 - `triggerConsolidation()` - Long-term memory consolidation (runs periodically)
-- `checkMessages()` - **DISABLED by default** (push notifications replace polling)
+- `checkMessages()` - **ENABLED by default**, every 5 minutes
 
-Message polling was removed in favor of push notifications. When messages arrive, agents receive instant tmux notifications instead of waiting for the next poll cycle. To re-enable polling (not recommended), set `messagePollingEnabled: true` in the subconscious config.
+**This entry previously said polling was disabled and had been "replaced by push notifications". That was wrong, and the error mattered.** The code default is `config.messagePollingEnabled !== false` — i.e. on unless explicitly turned off — and the poll is not a legacy leftover. It is the fallback that actually delivers when a push wake reaches the pane but never submits.
+
+Measured on a customer estate (2026-09-02): four agents that a push wake had not woken all answered 4m22s–4m31s after the message, clustered within 9 seconds of each other. That is this 5-minute poll firing, not push. Anyone reading the old note would have believed there was no safety net underneath push — and would have drawn the wrong conclusion from an agent that "eventually" woke.
+
+Set `messagePollingEnabled: false` to turn it off. Do not, unless you have proven the push path submits on every agent in the fleet.
 
 ### 3. Session Discovery Pattern
 

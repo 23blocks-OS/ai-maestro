@@ -3,6 +3,36 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.15] - 2026-09-02 — Correcting the attribution in 0.37.12, and a third writer nobody had counted
+
+3Metas checked a claim I had accepted without checking, and it was wrong. Correcting the record rather than leaving it standing in a shipped release.
+
+### Corrected
+- **[0.37.12](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.37.12) said "seven of eight staged fragments are the poll's wording". That attribution is in doubt, and the doubt is specific.** There is a **third** writer of that sentence, which the grep behind 0.37.12 missed because it covered `lib/` and the writer lives under `scripts/`:
+
+  | writer | string | lands in |
+  |---|---|---|
+  | `lib/agent.ts` (the 5-min poll) | `…Please check your inbox.` | the **input box**, typed |
+  | `scripts/claude-hooks/ai-maestro-hook.cjs:289,296` | `…check your inbox using the agent-messaging skill.` | the **transcript**, rendered |
+  | `lib/notification-service.ts` (push) | `[MESSAGE] {subject} — from {from}` | the input box, typed |
+
+  A `{ decision: "block", reason }` return is displayed *by* Claude Code as output. It appears in a pane capture as transcript text and **never as staged input** — so fragments carrying the skill suffix are the hook working correctly, not a nudge that failed to submit.
+
+  The reporters' captures are almost certainly a mix: one pane held `notify counsel about the undefined hours`, which is nobody's nudge and can only have been typed. Which region each fragment occupied is the fact that settles it, and only they can answer it.
+
+- **The Stop hook cannot drop a keystroke, because it never presses one.** Verified: two mentions of tmux in the whole file, both *reading* a session name; delivery is `process.stdout.write` at line 698. It is structurally immune to the entire failure class these releases have been chasing — and the comment at lines 612–617 already said so.
+- **"The pane is an unreliable write surface for everyone" was wrong.** The reporters measured their own tooling and have **zero** `send-keys` callers; their inbox poll runs `amp-inbox` inside its own session and reads. The unverified write surface is ours alone, in the two `lib/` paths.
+
+### Unchanged, and worth stating
+- **The 0.37.12 recovery is safe regardless.** The `C-u` retype fires only when the readback finds *our own per-message ref* inside the input-box region. Hook transcript text cannot trigger it; with nothing staged it never runs. The code is right where the reasoning was wrong.
+
+### Verified
+- Stop hook reachability across all three hosts: wired to the current `ai-maestro-hook.cjs`, with **zero** per-project `settings.local.json` carrying their own `Stop` hook to shadow it. That is configuration, not behaviour — the distinction is the entire subject of these releases and is marked here deliberately.
+
+### Notes
+- The methodological failure is worth recording because it is not the obvious one: I accepted the wider, more self-critical conclusion *because* it was wider and more self-critical. Preferring the unflattering story to the checked one is the same error as preferring the flattering one — it just wears better clothes. One message earlier I had praised the reporters for grepping both possible origins instead of the one they expected.
+- Heuristic from the same exchange, kept verbatim: **"a number that cannot be true about the measurer is the cheapest control available."** It killed a false alarm of 993 undelivered messages that had every marking of a confirmation — the measuring agent's own inbox showed 327 unread, which it knew was false about itself.
+
 ## [0.37.14] - 2026-09-02 — Prose typed into an agent no longer runs as shell commands (#426)
 
 Reported by **@Shadercloud** on a fresh install. They created an agent called Steve, sent it a sentence of ordinary English, and got:

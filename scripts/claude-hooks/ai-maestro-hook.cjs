@@ -49,7 +49,8 @@ function hashCwd(cwd) {
 }
 
 // Resolve the agent for this hook invocation.
-// Priority: AIM_AGENT_ID env (exact) > AIM_AGENT_NAME env (exact) > cwd exact match.
+// Priority: AIM_AGENT_ID env (exact) > AIM_AGENT_NAME / CLAUDE_AGENT_NAME env
+// (exact) > cwd exact match.
 function resolveAgent(cwd, agents) {
     const envId = process.env.AIM_AGENT_ID;
     if (envId) {
@@ -59,7 +60,18 @@ function resolveAgent(cwd, agents) {
             return byId;
         }
     }
-    const envName = process.env.AIM_AGENT_NAME;
+    // AIM_AGENT_NAME is what AI Maestro's launcher sets. CLAUDE_AGENT_NAME is
+    // what the AMP tooling reads and what the documented detached-session hint
+    // in .claude/settings.local.json actually writes — so accept both.
+    //
+    // Two names for one concept is how a detached session ends up with no
+    // identity at all: the hint file said CLAUDE_AGENT_NAME=ai-maestro, this
+    // function only looked for AIM_AGENT_NAME, fell through to the cwd match,
+    // found three agents sharing that directory, and correctly refused to
+    // guess. The result was an agent that received messages and was never once
+    // told about them, because the ONE delivery route that does not need a tmux
+    // pane could not work out who it was talking to.
+    const envName = process.env.AIM_AGENT_NAME || process.env.CLAUDE_AGENT_NAME;
     if (envName) {
         const byName = agents.find(a => a.name === envName);
         if (byName) {

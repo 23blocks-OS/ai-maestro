@@ -3,6 +3,32 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.13] - 2026-09-02 — Registration no longer looks like it failed, and a wrong guess stops inventing identities
+
+Reported by **salesland-dev-3metas** (Salesland iCPA, 3Metas) while registering a new agent against a local Maestro. Two bugs, and the root cause of the second turned out to be a directory-creation defect that has been quietly manufacturing garbage identities.
+
+Ships to hosts via [claude-plugin#27](https://github.com/agentmessaging/claude-plugin/pull/27) → [plugins#33](https://github.com/23blocks-OS/ai-maestro-plugins/pull/33) → this submodule bump. The upstream merge alone changes nothing on any machine.
+
+### Fixed
+- **A successfully registered agent reported `@default.local` everywhere a human would check.** `amp-register.sh` wrote `registrations/<provider>.json` and `IDENTITY.md` and called back to the Maestro API, but never touched `config.json` — so `amp-statusline`, `amp-identity` and `amp-inbox` all kept the pre-registration identity. The registration had genuinely succeeded; only the evidence of it was missing. Now patched surgically with `jq` (`.agent.tenant`, `.agent.address`, a `provider` block) rather than through `save_config`, which rebuilds the object and would drop `agent.id`, `fingerprint` and `createdAt` — the same destructive shape as the auto-fix removed in 0.37.8.
+- **`exit 0` having persisted nothing.** A first invocation could print "Updating identity file…" and exit clean with `registrations/` still empty; only a second run with `--force` worked. `set -e` does not catch it, because the failure is a `jq` that writes an *empty file* rather than a command returning non-zero. The success path now verifies the file exists and contains an `apiKey`, and exits 1 otherwise.
+- **The root cause of that: a wrong inference was manufacturing identities.** `amp-helper` resolves the agent from the working directory when nothing more explicit is available — a `.claude/settings.local.json` hint, else the agent that uniquely owns `$PWD`. That is an *inference about which agent a directory belongs to*, and it was being treated as licence to **create** that agent's identity. A hint naming an agent with no entry in this home fell through to the raw name path and auto-created an empty shell: `keys/`, `messages/`, `registrations/`, no config.
+
+  Reproduced from a clean home: **one `amp-init --name foo` produced two directories** — the real UUID one and a stray shell for an unrelated name — because `amp-init` overrides `AMP_DIR` only *after* the helper has already created the wrong one. That is also how a registration can land under one resolution while the operator inspects another.
+
+  These shells are not harmless: a later name-based resolution can select the empty shell over the real identity, which is one of the ways an agent ends up looking unregistered or reading an empty inbox.
+
+### Changed
+- **`amp-init` no longer depends on an inference firing.** Requiring the cwd hint to point at an existing identity exposed a latent dependency: init only worked because *something* resolved, so on a genuinely clean home with no project hint it would have failed outright. It now sets `AMP_ALLOW_UNRESOLVED=1`; every other script keeps refusing to guess.
+- `--help` documents that `--api-url` must include the API base. The script posts to `{API_URL}/v1/register`, so `http://localhost:23000` returns a 404 that reads like the provider is down — the failure sends you to inspect the wrong system entirely.
+
+### Verified
+End to end from a clean home: `amp-init` creates exactly one directory, `amp-register` updates `config.json`, and `amp-identity` reports `Tenant: rnd23blocks` rather than `default` — the reporter's exact symptom.
+
+### Notes
+- Upstream suite 211 passing, 13 new tests, including that the config patch preserves `agent.id` and `fingerprint`, and that a cwd hint for an unknown agent creates nothing.
+- The reporter's repro was precise enough to work from without a clarifying question. Their `--force` observation — *"since exit 0 is not trustworthy there"* — was the correct read of the failure and is what pointed at the root cause.
+
 ## [0.37.12] - 2026-09-02 — The five-minute poll was not the rescue, it was the same failure retried
 
 3Metas captured the verbatim staged text from eight panes this morning, read-only, before anything was cleared:

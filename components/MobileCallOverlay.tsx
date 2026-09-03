@@ -6,6 +6,9 @@ import { PhoneOff, MicOff, Mic, Settings } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { VoiceCommandMatch } from '@/lib/voice-commands'
 import { useTTS } from '@/hooks/useTTS'
+import { useSpeechLevel } from '@/hooks/useSpeechLevel'
+import AgentFace from '@/components/AgentFace'
+import { activityForAgentStatus } from '@/lib/avatar-motion'
 import { useCompanionWebSocket } from '@/hooks/useCompanionWebSocket'
 import CompanionInput from '@/components/CompanionInput'
 import FloatingVoiceSettings from '@/components/FloatingVoiceSettings'
@@ -31,6 +34,21 @@ export default function MobileCallOverlay({ agent, onClose }: MobileCallOverlayP
 
   // TTS
   const tts = useTTS({ agentId: agent.id })
+
+  // Speech energy for the face. Analysed off the real waveform when the
+  // provider renders to an <audio> element; a synthetic envelope otherwise
+  // (web-speech exposes no stream at all — see lib/speech-level).
+  const speechLevel = useSpeechLevel({
+    isSpeaking: tts.isSpeaking,
+    getAudioElement: tts.getAudioElement,
+  })
+
+  // The agent's own state drives posture and gaze between utterances. Speaking
+  // counts as active, so the face leans in while it talks.
+  const isOnline = agent.sessions?.some(s => s.status === 'online') ?? false
+  const faceActivity = tts.isSpeaking
+    ? 'active'
+    : activityForAgentStatus(agent.sessions?.[0]?.status, isOnline)
 
   // WebSocket for speech events
   const handleSpeech = useCallback((text: string) => {
@@ -133,9 +151,9 @@ export default function MobileCallOverlay({ agent, onClose }: MobileCallOverlayP
             style={{ width: 120, height: 120, top: -10, left: -10 }}
           />
           {/* Avatar circle */}
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-3xl text-white font-bold shadow-lg shadow-emerald-500/30">
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-3xl text-white font-bold shadow-lg shadow-emerald-500/30">
             {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
+              <AgentFace src={avatarUrl} width={96} activity="idle" alt={displayName} />
             ) : avatarEmoji ? (
               <span className="text-4xl">{avatarEmoji}</span>
             ) : (
@@ -217,39 +235,37 @@ export default function MobileCallOverlay({ agent, onClose }: MobileCallOverlayP
 
         {/* Center area - avatar + waveform */}
         <div className="flex-1 flex flex-col items-center justify-center">
-          {/* Large avatar */}
-          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-500/30 to-teal-600/30 border border-white/10 flex items-center justify-center text-4xl text-white font-bold mb-6">
+          {/* Large avatar — animated: blink, breathing, micro-sway, and a jaw
+              driven by the actual speech waveform. */}
+          <div className="w-40 h-40 rounded-full overflow-hidden bg-gradient-to-br from-emerald-500/30 to-teal-600/30 border border-white/10 flex items-center justify-center text-4xl text-white font-bold mb-6">
             {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
+              <AgentFace
+                src={avatarUrl}
+                width={160}
+                activity={faceActivity}
+                readLevel={speechLevel.read}
+                alt={displayName}
+              />
             ) : avatarEmoji ? (
-              <span className="text-5xl">{avatarEmoji}</span>
+              <motion.span
+                className="text-6xl"
+                // No face to rig, but an emoji can still breathe rather than
+                // sit frozen while its agent talks.
+                animate={faceActivity === 'offline' ? { scale: 1 } : { scale: [1, 1.04, 1] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                {avatarEmoji}
+              </motion.span>
             ) : (
               initials
             )}
           </div>
 
-          {/* Speaking waveform */}
-          <div className="flex items-end gap-1 h-8 mb-2">
-            {[0, 1, 2, 3, 4].map(i => (
-              <motion.div
-                key={i}
-                className="w-1 rounded-full bg-teal-400"
-                animate={tts.isSpeaking ? {
-                  height: [8, 24 + Math.random() * 8, 8],
-                } : {
-                  height: 4,
-                }}
-                transition={tts.isSpeaking ? {
-                  duration: 0.4 + i * 0.08,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                  delay: i * 0.08,
-                } : {
-                  duration: 0.3,
-                }}
-              />
-            ))}
-          </div>
+          {/* Speaking level — driven by the actual audio, not Math.random().
+              The bars used to animate on a timer whenever isSpeaking was true,
+              which meant they moved identically for silence, a word and a
+              shout. */}
+          <SpeechBars read={speechLevel.read} active={tts.isSpeaking} />
           <p className="text-white/40 text-xs">
             {tts.isSpeaking ? 'Speaking...' : tts.isMuted ? 'Muted' : 'Listening...'}
           </p>
@@ -321,5 +337,51 @@ export default function MobileCallOverlay({ agent, onClose }: MobileCallOverlayP
         </div>
       </div>
     </motion.div>
+  )
+}
+
+/**
+ * Five bars driven by real speech energy.
+ *
+ * Reads from a rAF loop and writes straight to the DOM. Putting a 60Hz level in
+ * React state would re-render the call screen on every frame and make the
+ * decoration the most expensive thing on the page.
+ */
+function SpeechBars({ read, active }: { read: () => number; active: boolean }) {
+  const barsRef = useRef<Array<HTMLDivElement | null>>([])
+  const activeRef = useRef(active)
+  activeRef.current = active
+
+  useEffect(() => {
+    let raf = 0
+    // Each bar lags the one before it, so the group ripples instead of moving
+    // as one block — the cheapest thing that makes a level meter look like a
+    // voice rather than a slider.
+    const history = [0, 0, 0, 0, 0]
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const level = activeRef.current ? read() : 0
+      history.unshift(level)
+      history.length = 5
+      barsRef.current.forEach((el, i) => {
+        if (!el) return
+        el.style.height = `${4 + history[i] * 22}px`
+      })
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [read])
+
+  return (
+    <div className="flex items-end gap-1 h-8 mb-2">
+      {[0, 1, 2, 3, 4].map(i => (
+        <div
+          key={i}
+          ref={el => { barsRef.current[i] = el }}
+          className="w-1 rounded-full bg-teal-400 transition-[height] duration-75"
+          style={{ height: 4 }}
+        />
+      ))}
+    </div>
   )
 }

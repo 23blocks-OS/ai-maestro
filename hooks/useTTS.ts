@@ -18,6 +18,15 @@ interface UseTTSReturn {
   setConfig: (update: Partial<TTSConfig>) => void
   speak: (text: string) => void
   stop: () => void
+  /**
+   * The <audio> element currently playing, or null.
+   *
+   * Lets a caller attach a Web Audio AnalyserNode and drive a face from the
+   * real waveform. Returns null for `web-speech`, which renders straight to the
+   * output device and exposes no stream — callers must treat that as "analysis
+   * impossible" and fall back, not as an error.
+   */
+  getAudioElement: () => HTMLAudioElement | null
 }
 
 const STORAGE_KEY_PREFIX = 'companion-tts-'
@@ -153,6 +162,11 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
     setIsSpeaking(false)
   }, [])
 
+  const getAudioElement = useCallback(
+    () => providerRef.current?.getAudioElement?.() ?? null,
+    []
+  )
+
   return {
     isSpeaking,
     isMuted: config.muted,
@@ -162,5 +176,6 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
     setConfig,
     speak,
     stop,
+    getAudioElement,
   }
 }

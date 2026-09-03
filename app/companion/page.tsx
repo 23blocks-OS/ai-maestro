@@ -11,6 +11,8 @@ import {
 import Link from 'next/link'
 import type { Agent } from '@/types/agent'
 import { useTTS } from '@/hooks/useTTS'
+import { useSpeechLevel } from '@/hooks/useSpeechLevel'
+import AgentFace from '@/components/AgentFace'
 import { useCompanionWebSocket } from '@/hooks/useCompanionWebSocket'
 import type { VoiceCommandMatch } from '@/lib/voice-commands'
 import CompanionInput from '@/components/CompanionInput'
@@ -56,6 +58,14 @@ function CompanionContent() {
   // TTS voice system (pure speech player, server handles summarization)
   const tts = useTTS({
     agentId: activeAgentId || '',
+  })
+
+  // Speech energy for the animated face. Analysed off the real waveform when
+  // the provider renders to an <audio> element; a synthetic envelope otherwise
+  // (web-speech exposes no stream at all — see lib/speech-level).
+  const speechLevel = useSpeechLevel({
+    isSpeaking: tts.isSpeaking,
+    getAudioElement: tts.getAudioElement,
   })
 
   // Companion WebSocket - receives speech events, sends user messages
@@ -407,12 +417,14 @@ function CompanionContent() {
         {/* Full-bleed avatar */}
         <div className={`absolute inset-0 ${BORDER_GLOW[activityState]}`}>
           {isAvatarUrl ? (
-            <img
-              src={activeAgent!.avatar}
+            /* Animated: blink, breathing, micro-sway, and a jaw driven by the
+               actual speech waveform. Offline desaturation is handled inside
+               the renderer, so it stays consistent with the motion state. */
+            <FullBleedFace
+              src={activeAgent!.avatar!}
               alt={displayName}
-              className={`absolute inset-0 w-full h-full object-cover ${
-                activityState === 'offline' ? 'grayscale brightness-50' : ''
-              }`}
+              activity={tts.isSpeaking ? 'active' : activityState}
+              readLevel={speechLevel.read}
             />
           ) : (
             <div className={`absolute inset-0 ${
@@ -1046,5 +1058,57 @@ export default function CompanionPage() {
     }>
       <CompanionContent />
     </Suspense>
+  )
+}
+
+/**
+ * The call avatar at screen size.
+ *
+ * AgentFace paints to a fixed-size canvas, so it needs pixel dimensions rather
+ * than `inset-0`. This measures the container and re-renders the canvas on
+ * resize and orientation change.
+ */
+function FullBleedFace({
+  src,
+  alt,
+  activity,
+  readLevel,
+}: {
+  src: string
+  alt: string
+  activity: ActivityState
+  readLevel: () => number
+}) {
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      // Round to whole pixels: a fractional canvas size resamples the portrait
+      // and shows up as a soft edge on a full-screen face.
+      setSize({ w: Math.round(rect.width), h: Math.round(rect.height) })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={boxRef} className="absolute inset-0">
+      {size && (
+        <AgentFace
+          src={src}
+          width={size.w}
+          height={size.h}
+          activity={activity}
+          readLevel={readLevel}
+          alt={alt}
+        />
+      )}
+    </div>
   )
 }

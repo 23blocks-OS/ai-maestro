@@ -7,6 +7,7 @@
 
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
+import { isPaneAtBareShell, BARE_SHELL_MESSAGE } from '@/lib/pane-occupant'
 import {
   enqueueForSession,
   shouldUseAdditionalContext,
@@ -179,11 +180,20 @@ export async function sendChatMessage(
     return invalidRequest('Agent session is not online')
   }
 
+  // `online` means the tmux session EXISTS, not that an agent is running in it.
+  // Without this guard a pane sitting at a shell prompt accepts the message and
+  // bash executes it — reported on a fresh install (#426) as
+  // "Steve: command not found".
+  if (await isPaneAtBareShell(sessionName)) {
+    console.warn(`[Chat Service] Refusing to send to ${sessionName}: pane is at a bare shell`)
+    return invalidRequest(BARE_SHELL_MESSAGE)
+  }
+
   const runtime = getRuntime()
   await runtime.cancelCopyMode(sessionName)
   await runtime.sendKeys(sessionName, message, { literal: true, enter: true })
 
-  console.log('[Chat Service] Message sent successfully')
+  console.log('[Chat Service] Message handed to the pane')
 
   return {
     data: {
@@ -249,6 +259,13 @@ export async function injectMeetingPrompt(
       data: { success: true, queued: true, sessionName },
       status: 200
     }
+  }
+
+  // Same guard as the chat path: a meeting prompt typed into a shell is
+  // executed, not read.
+  if (await isPaneAtBareShell(sessionName)) {
+    console.warn(`[Meeting Inject] Refusing to inject into ${sessionName}: pane is at a bare shell`)
+    return invalidRequest(BARE_SHELL_MESSAGE)
   }
 
   // ── Legacy path: sanitize + bracketed paste + send-keys ───────────

@@ -35,6 +35,19 @@ export interface TTSProvider {
   speak(options: TTSSpeakOptions): Promise<void>
   stop(): void
   isSpeaking(): boolean
+  /**
+   * The <audio> element currently playing, when this provider renders to one.
+   *
+   * This is what makes real lip-sync possible: an element can be routed through
+   * a Web Audio AnalyserNode, so the mouth is driven by the actual waveform
+   * rather than by a boolean and Math.random().
+   *
+   * Optional because `web-speech` genuinely cannot supply it. SpeechSynthesis
+   * renders straight to the output device and exposes no stream — there is no
+   * element, no MediaStream, and no way to tap the audio. Callers must treat
+   * its absence as "no analysis possible" and fall back, not as an error.
+   */
+  getAudioElement?(): HTMLAudioElement | null
 }
 
 export const DEFAULT_TTS_CONFIG: TTSConfig = {

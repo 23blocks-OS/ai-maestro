@@ -3,6 +3,38 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.11] - 2026-09-02 — Agents that look alive on a call, with lips driven by the actual voice
+
+The call screen had a static portrait and a five-bar "waveform" animating on a timer:
+
+```js
+height: [8, 24 + Math.random() * 8, 8]   // driven by a boolean, not by the voice
+```
+
+It moved identically for silence, a word and a shout, and the avatar never blinked, breathed or moved. The agent did not look dead because of the mouth — nothing moved at all.
+
+### Added
+- **`AgentFace`** — the portrait, animated. A soft jaw warp opens the mouth (three horizontal bands: rigid above the hinge, stretched across the lips, chin displaced), with an inner-mouth shadow that deepens as it opens. Sprites were rejected deliberately: they need an exact mouth position per avatar and there are 245 of them, and a hard-edged sprite three percent out of place looks broken where a soft band still reads as talking.
+- **`FaceMotion`** — blink, breathing, micro-sway and gaze, all delta-time driven and pure, so a 120Hz display and a throttled background tab behave identically and a dropped frame never skips a blink. **This is the half that actually creates the illusion**: humans read blink cadence and micro-motion long before they inspect lips.
+- **Expression driven by real agent state.** `thinking` drifts the gaze up and away and slows the blink; `waiting` (a permission prompt or a question) holds eye contact; `active` breathes faster. The app already computed this and spent it on a border glow. `offline` is **frozen and desaturated on purpose** — a breathing avatar for an agent that is not running would be the same class of lie as a delivery report nothing verified.
+- **Speech level from the real waveform.** A Web Audio `AnalyserNode` taps the TTS `<audio>` element; RMS (not peak, which twitches) through a noise gate and a soft knee drives the jaw. The speech bars now show the same signal.
+
+### Fixed
+- **The soft knee clipped.** `min(1, g / (1 + g * 0.45))` crosses 1 at a finite input, so every syllable above 0.36 RMS — ordinary loud speech — pinned the jaw fully open and held it, losing exactly the detail a mouth is meant to show. `g / (1 + g)` approaches 1 asymptotically and stays monotonic at any input.
+- **Coming back online never blinked again.** Going offline left the blink timer at `Infinity` and nothing rescheduled it, so a face that returned stayed dead for the session. Caught by a test, not by watching.
+
+### Known limitation
+- **`web-speech`, the default TTS provider, cannot be lip-synced at all.** `SpeechSynthesis` renders straight to the output device and exposes no stream — there is no element, no `MediaStream`, no supported way to tap the audio. Those calls get a synthetic 4–6Hz envelope, and the mode is reported as `synthetic` rather than quietly passed off as measurement. Real sync needs the OpenAI or ElevenLabs provider.
+
+### Calibration, because the first approach was wrong
+Anchors began as one set per avatar folder, assuming a generated set would be consistently framed. **It is not**: the `women` set alone spans an eye line from 0.337 to 0.411 of image height, and at the wrong end the mouth shadow landed on the chin and the eyelids drew under the eyes.
+
+`scripts/calibrate-avatar-rigs.mjs` now measures every avatar once, offline: eyes via OpenCV Haar cascades, everything else derived from **inter-ocular distance**, which is the standard anthropometric scale and — the point — invariant to crop. Cross-checked against hand-measured mouths on four faces spanning the framing range: `(mouthY − eyeY) / IOD` came out **1.06, 0.99, 1.09, 1.03**, and the derived mouths land within one percent of the measured ones. 191 of 200 human avatars calibrated; robots fall back to a hand-measured default (Haar detects 1 of 45 — many have visors or no face) and get a **damped** jaw, because a rigid faceplate that stretches reads as a rendering bug rather than speech.
+
+### Notes
+- The blink took five attempts, four of which were rejected by rendering them and looking. The lesson worth keeping: they were judged at 5× zoom, where every seam is glaring. At the sizes this renders — a 96px circle, a 160px call avatar — the artifacts are a pixel or two and invisible. **Verify at display size, not at zoom.**
+- 1125 tests passing; 42 new covering motion cadence, the level curve and rig derivation.
+
 ## [0.37.10] - 2026-09-02 — The wake that was actually delivering had no proof at all
 
 3Metas retracted a message tonight, and the retraction was worth more than the claim. They had called four agents deaf using a 2m19s observation window, published it, then found all four had answered at **4m22s–4m31s** — clustered within 9 seconds of each other.

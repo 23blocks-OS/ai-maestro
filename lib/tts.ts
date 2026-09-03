@@ -202,6 +202,11 @@ export function createWebSpeechProvider(): TTSProvider {
     isSpeaking() {
       return speaking
     },
+
+    // Deliberately no getAudioElement: SpeechSynthesis renders straight to the
+    // output device. There is no element, no MediaStream, and no supported way
+    // to tap the audio — so amplitude-driven lip sync is impossible here, not
+    // merely unimplemented. Callers fall back to a synthetic envelope.
   }
 }
 
@@ -297,6 +302,12 @@ export function createOpenAIProvider(apiKey: string): TTSProvider {
     isSpeaking() {
       return speaking
     },
+
+    // Lets the caller attach an AnalyserNode and drive a mouth from the real
+    // waveform. See TTSProvider.getAudioElement.
+    getAudioElement() {
+      return audio
+    },
   }
 }
 
@@ -387,6 +398,12 @@ export function createElevenLabsProvider(apiKey: string): TTSProvider {
 
     isSpeaking() {
       return speaking
+    },
+
+    // Lets the caller attach an AnalyserNode and drive a mouth from the real
+    // waveform. See TTSProvider.getAudioElement.
+    getAudioElement() {
+      return audio
     },
   }
 }

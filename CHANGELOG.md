@@ -3,6 +3,43 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.16] - 2026-09-02 — Detached agents were never told they had mail
+
+Juan asked the question that broke this open: *"why when you got a message are you not notified? neither by the hook or the poll or whatever it is"*.
+
+The `ai-maestro` agent had been receiving messages all day and had to be told to check its inbox by hand, every single time. Three delivery routes, all correct, all silent.
+
+### The diagnosis
+| route | why it could not reach a detached agent |
+|---|---|
+| push (`notification-service`) | needs a tmux pane. `sessions: 0` — there is nothing to type into |
+| 5-min poll (`Agent.checkMessages`) | needs a session name. Same |
+| **Stop hook** | needs no pane — but could not work out **which agent it was** |
+
+The hook is the only route that does not need a pane: it returns `{ decision: "block", reason }` and Claude Code renders it. So it is the only route that can reach a session which is not tmux-managed, and it was the one that failed.
+
+### Fixed
+- **Two environment variable names for one concept.** The documented detached-session hint in `.claude/settings.local.json` writes **`CLAUDE_AGENT_NAME`** — which is what the AMP tooling reads — while the hook looked only for **`AIM_AGENT_NAME`**, the name its own launcher sets. So the hint was ignored, resolution fell through to matching the working directory, three registered agents shared that directory, and the hook **correctly refused to guess**.
+
+  Correct refusal at every step, and the agent still never heard a thing. The hook now accepts either.
+
+### Verified
+Running the hook against a real Stop event, before and after:
+
+```
+$ echo '{"hook_event_name":"Stop",...}' | CLAUDE_AGENT_NAME=ai-maestro node ai-maestro-hook.cjs
+{"decision":"block","reason":"[AMP] You have 2 unread messages in your inbox: …"}
+
+$ echo '{"hook_event_name":"Stop",...}' | env -u CLAUDE_AGENT_NAME … node ai-maestro-hook.cjs
+{}
+```
+
+### Notes
+- This is not the dropped-Enter class these releases have been about. Nothing was staged, nothing failed to submit; the message simply never had a route. Worth separating, because it means "the wake is unreliable" was covering for a second, unrelated silence.
+- Any detached or manually-started Claude Code session sharing a working directory with more than one registered agent had this. Sessions launched by AI Maestro were unaffected — the launcher sets `AIM_AGENT_NAME`.
+- Hook synced to both plugin copies per the single-source rule; `tests/plugin-hook-sync.test.ts` covers the drift.
+- 1167 tests passing, 7 new on agent resolution.
+
 ## [0.37.15] - 2026-09-02 — Correcting the attribution in 0.37.12, and a third writer nobody had counted
 
 3Metas checked a claim I had accepted without checking, and it was wrong. Correcting the record rather than leaving it standing in a shipped release.

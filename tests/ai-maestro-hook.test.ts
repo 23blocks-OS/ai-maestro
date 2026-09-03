@@ -103,3 +103,82 @@ describe('ai-maestro-hook · buildAmpBlockReason', () => {
     expect(reason).toContain('from alice (rnd23blocks)')
   })
 })
+
+/**
+ * Agent resolution for DETACHED sessions — why an agent can receive messages
+ * for a whole day and never once be told.
+ *
+ * The Stop hook is the only delivery route that does not need a tmux pane: it
+ * returns `{ decision: "block", reason }` and Claude Code renders it. So it is
+ * the ONLY route that can reach a session which is not tmux-managed.
+ *
+ * It could not reach them, for a reason that has nothing to do with delivery:
+ * two different environment variable names for one concept. The documented
+ * detached-session hint in .claude/settings.local.json writes
+ * CLAUDE_AGENT_NAME — which is what the AMP tooling reads — while this hook
+ * looked only for AIM_AGENT_NAME, the name its own launcher sets. So the hint
+ * was ignored, resolution fell through to matching the working directory,
+ * three registered agents shared that directory, and the hook correctly
+ * refused to guess.
+ *
+ * Correct refusal, right down the line, and the agent still never heard a thing.
+ */
+describe('resolveAgent — detached sessions', () => {
+  const AGENTS = [
+    { id: 'aaa', name: 'agents-web', workingDirectory: '/repo' },
+    { id: 'bbb', name: 'ai-maestro', workingDirectory: '/repo' },
+    { id: 'ccc', name: 'maestro', workingDirectory: '/repo' },
+    { id: 'ddd', name: 'solo', workingDirectory: '/solo' },
+  ]
+
+  /** Mirrors resolveAgent in scripts/claude-hooks/ai-maestro-hook.cjs. */
+  function resolveAgent(cwd: string, agents: typeof AGENTS, env: Record<string, string> = {}) {
+    if (env.AIM_AGENT_ID) {
+      const byId = agents.find(a => a.id === env.AIM_AGENT_ID)
+      if (byId) return byId
+    }
+    const envName = env.AIM_AGENT_NAME || env.CLAUDE_AGENT_NAME
+    if (envName) {
+      const byName = agents.find(a => a.name === envName)
+      if (byName) return byName
+    }
+    const matches = agents.filter(a => a.workingDirectory === cwd)
+    return matches.length === 1 ? matches[0] : null
+  }
+
+  it('accepts CLAUDE_AGENT_NAME, which is what the hint file actually writes', () => {
+    // The whole bug: this returned null before, so the one pane-independent
+    // delivery route went silent for every detached session.
+    expect(resolveAgent('/repo', AGENTS, { CLAUDE_AGENT_NAME: 'ai-maestro' })?.name).toBe('ai-maestro')
+  })
+
+  it('still accepts AIM_AGENT_NAME, which the launcher sets', () => {
+    expect(resolveAgent('/repo', AGENTS, { AIM_AGENT_NAME: 'ai-maestro' })?.name).toBe('ai-maestro')
+  })
+
+  it('prefers an explicit id over any name', () => {
+    expect(
+      resolveAgent('/repo', AGENTS, { AIM_AGENT_ID: 'ccc', CLAUDE_AGENT_NAME: 'ai-maestro' })?.name
+    ).toBe('maestro')
+  })
+
+  it('AIM_AGENT_NAME wins over CLAUDE_AGENT_NAME when both are set', () => {
+    expect(
+      resolveAgent('/repo', AGENTS, { AIM_AGENT_NAME: 'maestro', CLAUDE_AGENT_NAME: 'ai-maestro' })?.name
+    ).toBe('maestro')
+  })
+
+  it('refuses to guess when several agents share the directory', () => {
+    // Correct, and worth keeping: guessing would silently misattribute the
+    // session to the wrong agent, which is worse than no identity.
+    expect(resolveAgent('/repo', AGENTS, {})).toBeNull()
+  })
+
+  it('still resolves an unambiguous directory with no hint at all', () => {
+    expect(resolveAgent('/solo', AGENTS, {})?.name).toBe('solo')
+  })
+
+  it('falls back to cwd when the hint names an agent that does not exist', () => {
+    expect(resolveAgent('/solo', AGENTS, { CLAUDE_AGENT_NAME: 'ghost' })?.name).toBe('solo')
+  })
+})

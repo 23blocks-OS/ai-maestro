@@ -1,0 +1,1015 @@
+{
+  "$schema": "https://ai-maestro.dev/schemas/face-anchors-1.json",
+  "version": 1,
+  "note": "Per-avatar face anchors for animated call avatars. Normalised 0..1 to image dimensions. Avatars ABSENT from this table are expected, not errors — use the setDefaults fallback.",
+  "derivation": {
+    "comment": "Everything else is derived from inter-ocular distance (IOD), which is invariant to how tightly the portrait is cropped.",
+    "mouthY": "eyeY + 1.04 * iod",
+    "jawTop": "eyeY + 0.72 * iod",
+    "mouthWidth": "0.62 * iod",
+    "eyeWidth": "0.56 * iod",
+    "mouthX": "eyeX"
+  },
+  "setDefaults": {
+    "men": {
+      "eyeX": 0.5,
+      "eyeY": 0.38,
+      "iod": 0.16,
+      "jawScale": 1
+    },
+    "women": {
+      "eyeX": 0.5,
+      "eyeY": 0.41,
+      "iod": 0.155,
+      "jawScale": 1
+    },
+    "robots": {
+      "eyeX": 0.5,
+      "eyeY": 0.365,
+      "iod": 0.29,
+      "jawScale": 0.55,
+      "comment": "Hand-measured; Haar detects 1 of 45. jawScale damps the warp because a rigid faceplate that stretches reads as a rendering bug."
+    }
+  },
+  "coverage": {
+    "total": 245,
+    "measured": 192,
+    "fallback": 53,
+    "bySet": {
+      "men": {
+        "total": 100,
+        "measured": 92
+      },
+      "women": {
+        "total": 100,
+        "measured": 99
+      },
+      "robots": {
+        "total": 45,
+        "measured": 1
+      }
+    }
+  },
+  "anchors": {
+    "men_00.png": {
+      "eyeX": 0.4946,
+      "eyeY": 0.3726,
+      "iod": 0.1533
+    },
+    "men_02.png": {
+      "eyeX": 0.4895,
+      "eyeY": 0.3484,
+      "iod": 0.1431
+    },
+    "men_03.png": {
+      "eyeX": 0.4932,
+      "eyeY": 0.3467,
+      "iod": 0.1553
+    },
+    "men_04.png": {
+      "eyeX": 0.4302,
+      "eyeY": 0.312,
+      "iod": 0.2637
+    },
+    "men_05.png": {
+      "eyeX": 0.4939,
+      "eyeY": 0.3669,
+      "iod": 0.1685
+    },
+    "men_06.png": {
+      "eyeX": 0.4829,
+      "eyeY": 0.3838,
+      "iod": 0.165
+    },
+    "men_07.png": {
+      "eyeX": 0.4883,
+      "eyeY": 0.353,
+      "iod": 0.1484
+    },
+    "men_08.png": {
+      "eyeX": 0.488,
+      "eyeY": 0.384,
+      "iod": 0.1919
+    },
+    "men_09.png": {
+      "eyeX": 0.4934,
+      "eyeY": 0.3997,
+      "iod": 0.1519
+    },
+    "men_10.png": {
+      "eyeX": 0.5012,
+      "eyeY": 0.3958,
+      "iod": 0.1372
+    },
+    "men_11.png": {
+      "eyeX": 0.4978,
+      "eyeY": 0.3943,
+      "iod": 0.2183
+    },
+    "men_12.png": {
+      "eyeX": 0.4985,
+      "eyeY": 0.4175,
+      "iod": 0.2031
+    },
+    "men_13.png": {
+      "eyeX": 0.4939,
+      "eyeY": 0.3601,
+      "iod": 0.1216
+    },
+    "men_14.png": {
+      "eyeX": 0.4758,
+      "eyeY": 0.4377,
+      "iod": 0.2075
+    },
+    "men_15.png": {
+      "eyeX": 0.4956,
+      "eyeY": 0.3452,
+      "iod": 0.1084
+    },
+    "men_16.png": {
+      "eyeX": 0.4946,
+      "eyeY": 0.4683,
+      "iod": 0.2119
+    },
+    "men_17.png": {
+      "eyeX": 0.5056,
+      "eyeY": 0.3572,
+      "iod": 0.1255
+    },
+    "men_18.png": {
+      "eyeX": 0.4937,
+      "eyeY": 0.4375,
+      "iod": 0.1523
+    },
+    "men_19.png": {
+      "eyeX": 0.4944,
+      "eyeY": 0.3723,
+      "iod": 0.1382
+    },
+    "men_20.png": {
+      "eyeX": 0.4993,
+      "eyeY": 0.4363,
+      "iod": 0.1812
+    },
+    "men_21.png": {
+      "eyeX": 0.448,
+      "eyeY": 0.3269,
+      "iod": 0.269
+    },
+    "men_22.png": {
+      "eyeX": 0.4829,
+      "eyeY": 0.417,
+      "iod": 0.1719
+    },
+    "men_23.png": {
+      "eyeX": 0.4805,
+      "eyeY": 0.4434,
+      "iod": 0.1816
+    },
+    "men_24.png": {
+      "eyeX": 0.4924,
+      "eyeY": 0.4109,
+      "iod": 0.1665
+    },
+    "men_25.png": {
+      "eyeX": 0.4941,
+      "eyeY": 0.3823,
+      "iod": 0.1924
+    },
+    "men_27.png": {
+      "eyeX": 0.4971,
+      "eyeY": 0.4077,
+      "iod": 0.1895
+    },
+    "men_30.png": {
+      "eyeX": 0.4907,
+      "eyeY": 0.3555,
+      "iod": 0.1699
+    },
+    "men_31.png": {
+      "eyeX": 0.4648,
+      "eyeY": 0.4243,
+      "iod": 0.1807
+    },
+    "men_32.png": {
+      "eyeX": 0.4902,
+      "eyeY": 0.4038,
+      "iod": 0.1787
+    },
+    "men_33.png": {
+      "eyeX": 0.4846,
+      "eyeY": 0.4548,
+      "iod": 0.2095
+    },
+    "men_34.png": {
+      "eyeX": 0.5146,
+      "eyeY": 0.3877,
+      "iod": 0.1797
+    },
+    "men_35.png": {
+      "eyeX": 0.4905,
+      "eyeY": 0.384,
+      "iod": 0.1558
+    },
+    "men_36.png": {
+      "eyeX": 0.4956,
+      "eyeY": 0.4146,
+      "iod": 0.2021
+    },
+    "men_38.png": {
+      "eyeX": 0.4878,
+      "eyeY": 0.3853,
+      "iod": 0.1631
+    },
+    "men_39.png": {
+      "eyeX": 0.4976,
+      "eyeY": 0.4102,
+      "iod": 0.1562
+    },
+    "men_40.png": {
+      "eyeX": 0.4949,
+      "eyeY": 0.3718,
+      "iod": 0.1704
+    },
+    "men_41.png": {
+      "eyeX": 0.5144,
+      "eyeY": 0.4143,
+      "iod": 0.1802
+    },
+    "men_42.png": {
+      "eyeX": 0.4934,
+      "eyeY": 0.3694,
+      "iod": 0.1333
+    },
+    "men_43.png": {
+      "eyeX": 0.4863,
+      "eyeY": 0.3896,
+      "iod": 0.167
+    },
+    "men_44.png": {
+      "eyeX": 0.4966,
+      "eyeY": 0.4556,
+      "iod": 0.1982
+    },
+    "men_45.png": {
+      "eyeX": 0.4893,
+      "eyeY": 0.5054,
+      "iod": 0.2168
+    },
+    "men_46.png": {
+      "eyeX": 0.4956,
+      "eyeY": 0.4033,
+      "iod": 0.1426
+    },
+    "men_47.png": {
+      "eyeX": 0.4961,
+      "eyeY": 0.3325,
+      "iod": 0.1465
+    },
+    "men_48.png": {
+      "eyeX": 0.4937,
+      "eyeY": 0.3721,
+      "iod": 0.1777
+    },
+    "men_49.png": {
+      "eyeX": 0.4331,
+      "eyeY": 0.4624,
+      "iod": 0.167
+    },
+    "men_50.png": {
+      "eyeX": 0.4819,
+      "eyeY": 0.418,
+      "iod": 0.1895
+    },
+    "men_51.png": {
+      "eyeX": 0.5002,
+      "eyeY": 0.3792,
+      "iod": 0.1636
+    },
+    "men_52.png": {
+      "eyeX": 0.4927,
+      "eyeY": 0.4824,
+      "iod": 0.1309
+    },
+    "men_53.png": {
+      "eyeX": 0.4976,
+      "eyeY": 0.3179,
+      "iod": 0.1777
+    },
+    "men_54.png": {
+      "eyeX": 0.4922,
+      "eyeY": 0.3389,
+      "iod": 0.1865
+    },
+    "men_55.png": {
+      "eyeX": 0.4993,
+      "eyeY": 0.3821,
+      "iod": 0.1899
+    },
+    "men_56.png": {
+      "eyeX": 0.4956,
+      "eyeY": 0.3887,
+      "iod": 0.1963
+    },
+    "men_57.png": {
+      "eyeX": 0.4871,
+      "eyeY": 0.4309,
+      "iod": 0.1792
+    },
+    "men_58.png": {
+      "eyeX": 0.4978,
+      "eyeY": 0.3972,
+      "iod": 0.1665
+    },
+    "men_59.png": {
+      "eyeX": 0.4924,
+      "eyeY": 0.4402,
+      "iod": 0.1567
+    },
+    "men_60.png": {
+      "eyeX": 0.4932,
+      "eyeY": 0.377,
+      "iod": 0.1748
+    },
+    "men_61.png": {
+      "eyeX": 0.5034,
+      "eyeY": 0.3018,
+      "iod": 0.1328
+    },
+    "men_62.png": {
+      "eyeX": 0.489,
+      "eyeY": 0.4011,
+      "iod": 0.1753
+    },
+    "men_63.png": {
+      "eyeX": 0.4924,
+      "eyeY": 0.3547,
+      "iod": 0.1938
+    },
+    "men_64.png": {
+      "eyeX": 0.4902,
+      "eyeY": 0.3364,
+      "iod": 0.1709
+    },
+    "men_65.png": {
+      "eyeX": 0.4871,
+      "eyeY": 0.3865,
+      "iod": 0.1548
+    },
+    "men_66.png": {
+      "eyeX": 0.4883,
+      "eyeY": 0.4116,
+      "iod": 0.1885
+    },
+    "men_67.png": {
+      "eyeX": 0.4963,
+      "eyeY": 0.3557,
+      "iod": 0.1636
+    },
+    "men_68.png": {
+      "eyeX": 0.4946,
+      "eyeY": 0.4087,
+      "iod": 0.167
+    },
+    "men_69.png": {
+      "eyeX": 0.4919,
+      "eyeY": 0.3523,
+      "iod": 0.1831
+    },
+    "men_70.png": {
+      "eyeX": 0.4919,
+      "eyeY": 0.3787,
+      "iod": 0.2212
+    },
+    "men_71.png": {
+      "eyeX": 0.4966,
+      "eyeY": 0.3545,
+      "iod": 0.1377
+    },
+    "men_72.png": {
+      "eyeX": 0.4829,
+      "eyeY": 0.4204,
+      "iod": 0.1934
+    },
+    "men_73.png": {
+      "eyeX": 0.4963,
+      "eyeY": 0.4368,
+      "iod": 0.1724
+    },
+    "men_75.png": {
+      "eyeX": 0.5073,
+      "eyeY": 0.3115,
+      "iod": 0.1602
+    },
+    "men_76.png": {
+      "eyeX": 0.4998,
+      "eyeY": 0.4382,
+      "iod": 0.186
+    },
+    "men_77.png": {
+      "eyeX": 0.4817,
+      "eyeY": 0.4006,
+      "iod": 0.1558
+    },
+    "men_79.png": {
+      "eyeX": 0.499,
+      "eyeY": 0.4233,
+      "iod": 0.2051
+    },
+    "men_80.png": {
+      "eyeX": 0.5032,
+      "eyeY": 0.3547,
+      "iod": 0.2114
+    },
+    "men_81.png": {
+      "eyeX": 0.5027,
+      "eyeY": 0.3938,
+      "iod": 0.1812
+    },
+    "men_82.png": {
+      "eyeX": 0.4795,
+      "eyeY": 0.4209,
+      "iod": 0.1895
+    },
+    "men_83.png": {
+      "eyeX": 0.4883,
+      "eyeY": 0.3267,
+      "iod": 0.1523
+    },
+    "men_84.png": {
+      "eyeX": 0.4966,
+      "eyeY": 0.4102,
+      "iod": 0.2012
+    },
+    "men_86.png": {
+      "eyeX": 0.4927,
+      "eyeY": 0.4111,
+      "iod": 0.1768
+    },
+    "men_87.png": {
+      "eyeX": 0.4966,
+      "eyeY": 0.3672,
+      "iod": 0.1807
+    },
+    "men_88.png": {
+      "eyeX": 0.4912,
+      "eyeY": 0.3828,
+      "iod": 0.1572
+    },
+    "men_89.png": {
+      "eyeX": 0.4995,
+      "eyeY": 0.3569,
+      "iod": 0.1514
+    },
+    "men_90.png": {
+      "eyeX": 0.4968,
+      "eyeY": 0.4177,
+      "iod": 0.1929
+    },
+    "men_91.png": {
+      "eyeX": 0.4946,
+      "eyeY": 0.395,
+      "iod": 0.2314
+    },
+    "men_92.png": {
+      "eyeX": 0.4563,
+      "eyeY": 0.3669,
+      "iod": 0.2505
+    },
+    "men_93.png": {
+      "eyeX": 0.4731,
+      "eyeY": 0.498,
+      "iod": 0.2139
+    },
+    "men_94.png": {
+      "eyeX": 0.4861,
+      "eyeY": 0.4211,
+      "iod": 0.1704
+    },
+    "men_95.png": {
+      "eyeX": 0.4917,
+      "eyeY": 0.3818,
+      "iod": 0.1621
+    },
+    "men_96.png": {
+      "eyeX": 0.4902,
+      "eyeY": 0.3945,
+      "iod": 0.167
+    },
+    "men_97.png": {
+      "eyeX": 0.4797,
+      "eyeY": 0.4158,
+      "iod": 0.1733
+    },
+    "men_98.png": {
+      "eyeX": 0.4836,
+      "eyeY": 0.4612,
+      "iod": 0.2251
+    },
+    "men_99.png": {
+      "eyeX": 0.4897,
+      "eyeY": 0.4165,
+      "iod": 0.2031
+    },
+    "robots_41.png": {
+      "eyeX": 0.5718,
+      "eyeY": 0.4547,
+      "iod": 0.1848
+    },
+    "women_00.png": {
+      "eyeX": 0.5005,
+      "eyeY": 0.3428,
+      "iod": 0.1543
+    },
+    "women_01.png": {
+      "eyeX": 0.4902,
+      "eyeY": 0.4004,
+      "iod": 0.1758
+    },
+    "women_02.png": {
+      "eyeX": 0.4966,
+      "eyeY": 0.3403,
+      "iod": 0.1523
+    },
+    "women_03.png": {
+      "eyeX": 0.4912,
+      "eyeY": 0.3779,
+      "iod": 0.1621
+    },
+    "women_04.png": {
+      "eyeX": 0.4756,
+      "eyeY": 0.3877,
+      "iod": 0.1982
+    },
+    "women_05.png": {
+      "eyeX": 0.4863,
+      "eyeY": 0.395,
+      "iod": 0.1621
+    },
+    "women_06.png": {
+      "eyeX": 0.491,
+      "eyeY": 0.4377,
+      "iod": 0.1831
+    },
+    "women_07.png": {
+      "eyeX": 0.4951,
+      "eyeY": 0.4106,
+      "iod": 0.1592
+    },
+    "women_08.png": {
+      "eyeX": 0.4907,
+      "eyeY": 0.4023,
+      "iod": 0.1592
+    },
+    "women_09.png": {
+      "eyeX": 0.5068,
+      "eyeY": 0.4653,
+      "iod": 0.2305
+    },
+    "women_10.png": {
+      "eyeX": 0.4971,
+      "eyeY": 0.356,
+      "iod": 0.1738
+    },
+    "women_11.png": {
+      "eyeX": 0.502,
+      "eyeY": 0.4121,
+      "iod": 0.1572
+    },
+    "women_12.png": {
+      "eyeX": 0.5005,
+      "eyeY": 0.3599,
+      "iod": 0.1523
+    },
+    "women_13.png": {
+      "eyeX": 0.4929,
+      "eyeY": 0.3938,
+      "iod": 0.1372
+    },
+    "women_14.png": {
+      "eyeX": 0.4895,
+      "eyeY": 0.4749,
+      "iod": 0.2427
+    },
+    "women_15.png": {
+      "eyeX": 0.4968,
+      "eyeY": 0.4016,
+      "iod": 0.1733
+    },
+    "women_16.png": {
+      "eyeX": 0.4915,
+      "eyeY": 0.4412,
+      "iod": 0.1685
+    },
+    "women_17.png": {
+      "eyeX": 0.4944,
+      "eyeY": 0.406,
+      "iod": 0.189
+    },
+    "women_18.png": {
+      "eyeX": 0.4905,
+      "eyeY": 0.4075,
+      "iod": 0.2007
+    },
+    "women_19.png": {
+      "eyeX": 0.4941,
+      "eyeY": 0.4224,
+      "iod": 0.1885
+    },
+    "women_20.png": {
+      "eyeX": 0.4976,
+      "eyeY": 0.4258,
+      "iod": 0.1982
+    },
+    "women_21.png": {
+      "eyeX": 0.4893,
+      "eyeY": 0.3374,
+      "iod": 0.1484
+    },
+    "women_22.png": {
+      "eyeX": 0.4973,
+      "eyeY": 0.3411,
+      "iod": 0.1265
+    },
+    "women_23.png": {
+      "eyeX": 0.4963,
+      "eyeY": 0.3831,
+      "iod": 0.146
+    },
+    "women_24.png": {
+      "eyeX": 0.4917,
+      "eyeY": 0.4365,
+      "iod": 0.1748
+    },
+    "women_25.png": {
+      "eyeX": 0.4858,
+      "eyeY": 0.376,
+      "iod": 0.1445
+    },
+    "women_26.png": {
+      "eyeX": 0.4915,
+      "eyeY": 0.3694,
+      "iod": 0.1519
+    },
+    "women_27.png": {
+      "eyeX": 0.4944,
+      "eyeY": 0.3406,
+      "iod": 0.1519
+    },
+    "women_28.png": {
+      "eyeX": 0.4949,
+      "eyeY": 0.4338,
+      "iod": 0.1997
+    },
+    "women_29.png": {
+      "eyeX": 0.4941,
+      "eyeY": 0.3887,
+      "iod": 0.1543
+    },
+    "women_30.png": {
+      "eyeX": 0.4954,
+      "eyeY": 0.4456,
+      "iod": 0.1733
+    },
+    "women_31.png": {
+      "eyeX": 0.4988,
+      "eyeY": 0.408,
+      "iod": 0.1899
+    },
+    "women_32.png": {
+      "eyeX": 0.4929,
+      "eyeY": 0.4104,
+      "iod": 0.1421
+    },
+    "women_33.png": {
+      "eyeX": 0.4871,
+      "eyeY": 0.4192,
+      "iod": 0.1802
+    },
+    "women_34.png": {
+      "eyeX": 0.498,
+      "eyeY": 0.3872,
+      "iod": 0.1299
+    },
+    "women_35.png": {
+      "eyeX": 0.4937,
+      "eyeY": 0.4297,
+      "iod": 0.1826
+    },
+    "women_36.png": {
+      "eyeX": 0.4951,
+      "eyeY": 0.4717,
+      "iod": 0.1846
+    },
+    "women_37.png": {
+      "eyeX": 0.4924,
+      "eyeY": 0.4612,
+      "iod": 0.2368
+    },
+    "women_38.png": {
+      "eyeX": 0.4954,
+      "eyeY": 0.408,
+      "iod": 0.1685
+    },
+    "women_39.png": {
+      "eyeX": 0.4851,
+      "eyeY": 0.4119,
+      "iod": 0.1519
+    },
+    "women_40.png": {
+      "eyeX": 0.4995,
+      "eyeY": 0.3252,
+      "iod": 0.1426
+    },
+    "women_41.png": {
+      "eyeX": 0.4561,
+      "eyeY": 0.4395,
+      "iod": 0.2754
+    },
+    "women_42.png": {
+      "eyeX": 0.4951,
+      "eyeY": 0.3198,
+      "iod": 0.1133
+    },
+    "women_43.png": {
+      "eyeX": 0.4976,
+      "eyeY": 0.4375,
+      "iod": 0.1689
+    },
+    "women_44.png": {
+      "eyeX": 0.4775,
+      "eyeY": 0.4355,
+      "iod": 0.2119
+    },
+    "women_45.png": {
+      "eyeX": 0.5037,
+      "eyeY": 0.3909,
+      "iod": 0.1587
+    },
+    "women_46.png": {
+      "eyeX": 0.4934,
+      "eyeY": 0.3318,
+      "iod": 0.1509
+    },
+    "women_47.png": {
+      "eyeX": 0.4941,
+      "eyeY": 0.415,
+      "iod": 0.1729
+    },
+    "women_48.png": {
+      "eyeX": 0.4917,
+      "eyeY": 0.4048,
+      "iod": 0.1797
+    },
+    "women_49.png": {
+      "eyeX": 0.4819,
+      "eyeY": 0.4229,
+      "iod": 0.1904
+    },
+    "women_50.png": {
+      "eyeX": 0.5002,
+      "eyeY": 0.4221,
+      "iod": 0.2056
+    },
+    "women_51.png": {
+      "eyeX": 0.4924,
+      "eyeY": 0.3894,
+      "iod": 0.1597
+    },
+    "women_52.png": {
+      "eyeX": 0.5073,
+      "eyeY": 0.4824,
+      "iod": 0.1611
+    },
+    "women_53.png": {
+      "eyeX": 0.498,
+      "eyeY": 0.4048,
+      "iod": 0.2021
+    },
+    "women_54.png": {
+      "eyeX": 0.4814,
+      "eyeY": 0.4067,
+      "iod": 0.165
+    },
+    "women_55.png": {
+      "eyeX": 0.4951,
+      "eyeY": 0.3169,
+      "iod": 0.1328
+    },
+    "women_56.png": {
+      "eyeX": 0.4941,
+      "eyeY": 0.3594,
+      "iod": 0.1592
+    },
+    "women_57.png": {
+      "eyeX": 0.4956,
+      "eyeY": 0.3081,
+      "iod": 0.1338
+    },
+    "women_58.png": {
+      "eyeX": 0.4939,
+      "eyeY": 0.3967,
+      "iod": 0.147
+    },
+    "women_59.png": {
+      "eyeX": 0.501,
+      "eyeY": 0.3491,
+      "iod": 0.1484
+    },
+    "women_60.png": {
+      "eyeX": 0.4829,
+      "eyeY": 0.4365,
+      "iod": 0.2168
+    },
+    "women_61.png": {
+      "eyeX": 0.4976,
+      "eyeY": 0.4375,
+      "iod": 0.1787
+    },
+    "women_62.png": {
+      "eyeX": 0.437,
+      "eyeY": 0.4956,
+      "iod": 0.2998
+    },
+    "women_63.png": {
+      "eyeX": 0.4856,
+      "eyeY": 0.3811,
+      "iod": 0.1636
+    },
+    "women_64.png": {
+      "eyeX": 0.4993,
+      "eyeY": 0.4192,
+      "iod": 0.1997
+    },
+    "women_65.png": {
+      "eyeX": 0.4961,
+      "eyeY": 0.3994,
+      "iod": 0.1895
+    },
+    "women_66.png": {
+      "eyeX": 0.4976,
+      "eyeY": 0.3901,
+      "iod": 0.1641
+    },
+    "women_67.png": {
+      "eyeX": 0.4924,
+      "eyeY": 0.3669,
+      "iod": 0.1772
+    },
+    "women_68.png": {
+      "eyeX": 0.4871,
+      "eyeY": 0.4377,
+      "iod": 0.2163
+    },
+    "women_69.png": {
+      "eyeX": 0.4998,
+      "eyeY": 0.3928,
+      "iod": 0.1401
+    },
+    "women_70.png": {
+      "eyeX": 0.4978,
+      "eyeY": 0.386,
+      "iod": 0.1714
+    },
+    "women_71.png": {
+      "eyeX": 0.4868,
+      "eyeY": 0.3228,
+      "iod": 0.1318
+    },
+    "women_73.png": {
+      "eyeX": 0.498,
+      "eyeY": 0.415,
+      "iod": 0.1943
+    },
+    "women_74.png": {
+      "eyeX": 0.4937,
+      "eyeY": 0.4087,
+      "iod": 0.1904
+    },
+    "women_75.png": {
+      "eyeX": 0.4939,
+      "eyeY": 0.3801,
+      "iod": 0.1616
+    },
+    "women_76.png": {
+      "eyeX": 0.4866,
+      "eyeY": 0.3215,
+      "iod": 0.1401
+    },
+    "women_77.png": {
+      "eyeX": 0.4983,
+      "eyeY": 0.4138,
+      "iod": 0.1831
+    },
+    "women_78.png": {
+      "eyeX": 0.491,
+      "eyeY": 0.4285,
+      "iod": 0.2046
+    },
+    "women_79.png": {
+      "eyeX": 0.4941,
+      "eyeY": 0.4043,
+      "iod": 0.1807
+    },
+    "women_80.png": {
+      "eyeX": 0.5015,
+      "eyeY": 0.4087,
+      "iod": 0.1719
+    },
+    "women_81.png": {
+      "eyeX": 0.49,
+      "eyeY": 0.3723,
+      "iod": 0.1616
+    },
+    "women_82.png": {
+      "eyeX": 0.4912,
+      "eyeY": 0.3701,
+      "iod": 0.1543
+    },
+    "women_83.png": {
+      "eyeX": 0.4949,
+      "eyeY": 0.385,
+      "iod": 0.1743
+    },
+    "women_84.png": {
+      "eyeX": 0.4927,
+      "eyeY": 0.3843,
+      "iod": 0.1758
+    },
+    "women_85.png": {
+      "eyeX": 0.4939,
+      "eyeY": 0.4124,
+      "iod": 0.1851
+    },
+    "women_86.png": {
+      "eyeX": 0.4861,
+      "eyeY": 0.3865,
+      "iod": 0.1411
+    },
+    "women_87.png": {
+      "eyeX": 0.4998,
+      "eyeY": 0.3752,
+      "iod": 0.1323
+    },
+    "women_88.png": {
+      "eyeX": 0.4927,
+      "eyeY": 0.3921,
+      "iod": 0.1963
+    },
+    "women_89.png": {
+      "eyeX": 0.4878,
+      "eyeY": 0.4224,
+      "iod": 0.2021
+    },
+    "women_90.png": {
+      "eyeX": 0.4971,
+      "eyeY": 0.4062,
+      "iod": 0.1514
+    },
+    "women_91.png": {
+      "eyeX": 0.4878,
+      "eyeY": 0.4268,
+      "iod": 0.1826
+    },
+    "women_92.png": {
+      "eyeX": 0.498,
+      "eyeY": 0.4365,
+      "iod": 0.2041
+    },
+    "women_93.png": {
+      "eyeX": 0.4988,
+      "eyeY": 0.4036,
+      "iod": 0.2056
+    },
+    "women_94.png": {
+      "eyeX": 0.4971,
+      "eyeY": 0.4092,
+      "iod": 0.1934
+    },
+    "women_95.png": {
+      "eyeX": 0.4819,
+      "eyeY": 0.3359,
+      "iod": 0.1611
+    },
+    "women_96.png": {
+      "eyeX": 0.4968,
+      "eyeY": 0.4373,
+      "iod": 0.1646
+    },
+    "women_97.png": {
+      "eyeX": 0.4985,
+      "eyeY": 0.3784,
+      "iod": 0.1592
+    },
+    "women_98.png": {
+      "eyeX": 0.4819,
+      "eyeY": 0.3789,
+      "iod": 0.1738
+    },
+    "women_99.png": {
+      "eyeX": 0.4958,
+      "eyeY": 0.3474,
+      "iod": 0.1567
+    }
+  }
+}

@@ -3,6 +3,39 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.12] - 2026-09-02 — The five-minute poll was not the rescue, it was the same failure retried
+
+3Metas captured the verbatim staged text from eight panes this morning, read-only, before anything was cleared:
+
+```
+3m-accounts : check the inbox
+3m-cmo      : check the inbox
+3m-counsel  : check your inbox
+3m-growth   : check your inbox
+3m-hr       : check your inbox
+3m-support  : check inbox
+3m-web      : check the inbox
+3m-sales    : notify counsel about the undefined hours
+```
+
+**Seven of eight are inbox nudges, and "check your inbox" is this poll's wording.** The push path's format is `[MESSAGE] {subject} — from {from}` and contains the phrase nowhere.
+
+So [0.37.10](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.37.10) had it backwards. The five-minute poll was never a reliable channel quietly rescuing failed pushes — **it is the same dropped keystroke, retried every five minutes, failing identically each time.** That is how one agent stayed deaf from roughly 20:09 to 07:00 with over a hundred attempts, each typing on top of the last.
+
+### Fixed
+- **The poll path now recovers, not just reports.** 0.37.10 gave it proof-of-submission and stopped there, so it could see the text staged in the input box and do nothing about it. It now clears with `C-u` and retypes — the recovery the message-wake path got in 0.37.7 — which is the measured fix: *Enter once fails, Enter twice fails, clear-and-retype then Enter succeeds 7 of 7.*
+
+### Added
+- **`session_created` in the pane diagnostics.** Their caution, and it is a good one: `pane_current_command` carries the Claude Code version, and **a version field looks like a property while behaving like a timestamp**. Claude Code auto-updates itself with no announcement — they watched it move from 2.1.258 to 2.1.259 between two restart rounds — so a long-running session is pinned to whatever binary existed when it started. They lost real time reading a version column as "these agents share a property" when it only meant "these agents started at the same time". Recording when the session began makes that legible rather than a trap for the next reader.
+- **`public/avatars/face-anchors.json`** — the avatar face anchors, served. The mobile app resolves every asset relative to the host URL, so fetching anchors from the host keeps it in sync as avatars are added; a bundled copy goes stale the first time someone adds one. Carries the derivation ratios, the per-set fallbacks and a coverage block. `scripts/calibrate-avatar-rigs.mjs` now emits it alongside the bundled TS.
+
+### Corrected
+- **Coverage was misreported.** 245 avatars = **192 measured + 53 on set defaults** (8 men, 1 woman, 44 robots — one robot *is* detected). An earlier note said "45 robots on the default", which does not add up and would have led a consumer to treat a missing anchor as a bug. **A missing entry is expected**, and the JSON says so.
+
+### Notes
+- The reporters found the third staged fragment, `"check the inbox"`, in their **own** agent's sent messages — it appears nowhere in our source. The staging failure is therefore not specific to our poll: the pane is an unreliable write surface for anyone who types into it. Their own manager hit it while diagnosing. Our verification covers our paths; theirs is theirs to instrument.
+- 1130 tests passing.
+
 ## [0.37.11] - 2026-09-02 — Agents that look alive on a call, with lips driven by the actual voice
 
 The call screen had a static portrait and a five-bar "waveform" animating on a timer:

@@ -883,6 +883,11 @@ export async function renameSession(oldName: string, newName: string): Promise<S
  */
 const COMMAND_VERIFY_POLLS = 12
 const COMMAND_VERIFY_DELAY_MS = 250
+/** Initial send plus one clear-and-retype. */
+const COMMAND_MAX_SENDS = 2
+/** Ctrl-U kills the line, emptying the input box before retyping. */
+const COMMAND_CLEAR_INPUT_KEY = 'C-u'
+const COMMAND_CLEAR_SETTLE_MS = 80
 
 /**
  * Send a command to a tmux session.
@@ -930,13 +935,39 @@ export async function sendCommand(
   if (options.verify && addNewline) {
     let submitted = false
     let staged = false
-    for (let poll = 0; poll < COMMAND_VERIFY_POLLS; poll++) {
-      await new Promise(resolve => setTimeout(resolve, COMMAND_VERIFY_DELAY_MS))
-      const pane = await runtime.capturePane(sessionName, 120).catch(() => '')
-      if (!pane) continue
-      if (paneSubmitted(pane, command)) { submitted = true; break }
-      if (paneStaged(pane, command)) { staged = true; break }
+
+    for (let attempt = 1; attempt <= COMMAND_MAX_SENDS; attempt++) {
+      // A resend after staged text must CLEAR the input box first. This is the
+      // recovery the message-wake path got in 0.37.7 and this path did not,
+      // and it turned out to matter far more here: 3Metas showed that the
+      // "…check your inbox" text found staged on seven of eight panes is THIS
+      // poll's wording, not the push's. So the five-minute poll was not a
+      // reliable channel quietly rescuing failed pushes — it was the same
+      // dropped keystroke, retried every five minutes, failing identically
+      // each time. One agent stayed deaf for eleven hours with over a hundred
+      // attempts, each one typing on top of the last.
+      //
+      // Measured by them: Enter once fails, Enter twice fails,
+      // clear-and-retype then Enter succeeds 7 of 7.
+      if (attempt > 1) {
+        await runtime.sendKeys(sessionName, COMMAND_CLEAR_INPUT_KEY)
+        await new Promise(resolve => setTimeout(resolve, COMMAND_CLEAR_SETTLE_MS))
+        await runtime.sendKeys(sessionName, command, { literal: true, enter: true })
+      }
+
+      staged = false
+      for (let poll = 0; poll < COMMAND_VERIFY_POLLS; poll++) {
+        await new Promise(resolve => setTimeout(resolve, COMMAND_VERIFY_DELAY_MS))
+        const pane = await runtime.capturePane(sessionName, 120).catch(() => '')
+        if (!pane) continue
+        if (paneSubmitted(pane, command)) { submitted = true; break }
+        // In the box = the Enter did not take. Stop polling; more waiting will
+        // not submit it, and the next attempt needs to clear first.
+        if (paneStaged(pane, command)) { staged = true; break }
+      }
+      if (submitted || !staged) break
     }
+
     return {
       data: { success: true, sessionName, commandSent: command, method: 'tmux-send-keys', wasIdle: true, submitted, staged },
       status: 200,

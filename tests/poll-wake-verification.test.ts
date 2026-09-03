@@ -108,3 +108,66 @@ describe('sendCommand — verify: true', () => {
     expect(mockRuntime.capturePane).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * Recovery on the poll path — the fix that actually addresses eleven hours.
+ *
+ * 3Metas captured the verbatim staged text from eight panes before anything was
+ * cleared. Seven read "…check your inbox", which is THIS poll's wording — the
+ * push path's format is "[MESSAGE] {subject} — from {from}" and contains the
+ * phrase nowhere.
+ *
+ * So the five-minute poll was never a reliable channel quietly rescuing failed
+ * pushes. It is the same dropped keystroke, retried every five minutes, failing
+ * identically each time — which is how one agent stayed deaf from 20:09 to
+ * 07:00 with over a hundred attempts, each typing on top of the last.
+ *
+ * 0.37.10 gave this path VERIFICATION. It did not give it RECOVERY, so it could
+ * see the failure and did nothing about it.
+ */
+describe('sendCommand — recovery when the text stages', () => {
+  it('clears the input box before retyping, rather than typing on top', () => {
+    // A hundred nudges typed on top of one another is what the field data
+    // actually showed. Clear first, then retype.
+    return (async () => {
+      mockRuntime.capturePane.mockResolvedValue(STAGED)
+      await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
+      const keys = mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])
+      expect(keys).toContain('C-u')
+      const clearAt = keys.indexOf('C-u')
+      expect(keys.slice(clearAt).some((k: string) => k.includes('check your inbox'))).toBe(true)
+    })()
+  })
+
+  it('does not clear on the first attempt — nothing is staged yet', async () => {
+    mockRuntime.capturePane.mockResolvedValue(SUBMITTED)
+    await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
+    expect(mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])).not.toContain('C-u')
+  })
+
+  it('reports submitted when the clear-and-retype gets through', async () => {
+    // Their measurement: Enter once fails, Enter twice fails, clear-and-retype
+    // then Enter succeeds 7 of 7.
+    mockRuntime.capturePane
+      .mockResolvedValueOnce(STAGED)
+      .mockResolvedValue(SUBMITTED)
+    const res = await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
+    expect(res.data).toMatchObject({ submitted: true })
+  })
+
+  it('gives up after one retry rather than hammering the pane', async () => {
+    mockRuntime.capturePane.mockResolvedValue(STAGED)
+    const res = await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
+    expect(res.data).toMatchObject({ submitted: false, staged: true })
+    // initial send + one clear + one retype
+    expect(mockRuntime.sendKeys.mock.calls.filter((c: any[]) => c[1] === 'C-u').length).toBe(1)
+  })
+
+  it('does not retry when the pane simply shows something else', async () => {
+    // Not staged means the text is not sitting in the box, so a clear-and-retype
+    // would be a duplicate rather than a recovery.
+    mockRuntime.capturePane.mockResolvedValue('unrelated output\n> ')
+    await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
+    expect(mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])).not.toContain('C-u')
+  })
+})

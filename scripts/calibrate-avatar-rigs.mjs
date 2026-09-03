@@ -40,7 +40,13 @@
  *   python3 -m venv /tmp/cal && /tmp/cal/bin/pip install "opencv-python-headless<5"
  *   CAL_PYTHON=/tmp/cal/bin/python node scripts/calibrate-avatar-rigs.mjs
  *
- * Writes lib/avatar-rigs.generated.ts. Re-run when avatars are added.
+ * Writes BOTH:
+ *   lib/avatar-rigs.generated.ts   — bundled, for the web client
+ *   public/avatars/face-anchors.json — served, for the mobile app and anything
+ *                                      else that must stay in sync as avatars
+ *                                      are added without shipping a new build
+ *
+ * Re-run when avatars are added.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -125,4 +131,37 @@ ${entries}
 }
 `)
 
-console.log(`\nWrote ${Object.keys(measured).length} anchors to ${path.relative(ROOT, OUT)}`)
+// Served copy. The mobile app resolves every asset relative to the host URL, so
+// fetching anchors from the host keeps it in sync as avatars are added — a
+// bundled copy goes stale the first time someone adds one.
+const total = all.length
+const JSON_OUT = path.join(AVATAR_DIR, 'face-anchors.json')
+fs.writeFileSync(JSON_OUT, JSON.stringify({
+  version: 1,
+  note: 'Per-avatar face anchors for animated call avatars. Normalised 0..1 to image dimensions. Avatars ABSENT from this table are expected, not errors — use the setDefaults fallback.',
+  derivation: {
+    comment: 'Everything else is derived from inter-ocular distance (IOD), which is invariant to how tightly the portrait is cropped.',
+    mouthY: 'eyeY + 1.04 * iod',
+    jawTop: 'eyeY + 0.72 * iod',
+    mouthWidth: '0.62 * iod',
+    eyeWidth: '0.56 * iod',
+    mouthX: 'eyeX',
+  },
+  setDefaults: {
+    men: { eyeX: 0.5, eyeY: 0.38, iod: 0.16, jawScale: 1 },
+    women: { eyeX: 0.5, eyeY: 0.41, iod: 0.155, jawScale: 1 },
+    robots: { eyeX: 0.5, eyeY: 0.365, iod: 0.29, jawScale: 0.55 },
+  },
+  coverage: {
+    total,
+    measured: Object.keys(measured).length,
+    fallback: total - Object.keys(measured).length,
+    bySet: Object.fromEntries(Object.entries(bySet).map(([k, v]) => [k, { total: v.total, measured: v.hit }])),
+  },
+  anchors: Object.fromEntries(Object.entries(measured).map(([k, v]) => [k, { eyeX: v[0], eyeY: v[1], iod: v[2] }])),
+}, null, 2))
+
+console.log(`\nWrote ${Object.keys(measured).length} anchors to:`)
+console.log(`  ${path.relative(ROOT, OUT)}`)
+console.log(`  ${path.relative(ROOT, JSON_OUT)}`)
+console.log(`  ${total - Object.keys(measured).length} avatars fall back to set defaults (expected, not errors)`)

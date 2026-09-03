@@ -170,6 +170,15 @@ export class TmuxRuntime implements AgentRuntime {
       'history_size=#{history_size}',
       'in_mode=#{pane_in_mode}',
       'command=#{pane_current_command}',
+      // Session start, because `command` carries the Claude Code VERSION and a
+      // version field looks like a property while behaving like a timestamp.
+      // Claude Code auto-updates itself with no announcement, so a long-running
+      // session is pinned to whatever binary existed when it started. 3Metas
+      // spent real time reading a version column as "these agents share a
+      // property" when it only meant "these agents started at the same time".
+      // Recording when the session began makes that legible instead of a trap
+      // for the next person reading these logs.
+      'session_created=#{session_created}',
     ].join(' ')
     try {
       const { stdout } = await execAsync(`tmux display-message -t "${name}" -p "${FORMAT}"`)

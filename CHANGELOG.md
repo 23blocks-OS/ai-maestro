@@ -3,6 +3,29 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.14] - 2026-09-02 — Prose typed into an agent no longer runs as shell commands (#426)
+
+Reported by **@Shadercloud** on a fresh install. They created an agent called Steve, sent it a sentence of ordinary English, and got:
+
+```
+david@David-Razer:~$ Steve you will be my second in command. When I say "Hire" an agent I actually mean "Create"…
+Steve: command not found
+david@David-Razer:~$ The first thing we need to do it setup an HR departmand hire and HR manager.
+Command 'The' not found, did you mean: command 'he' from deb node-he (1.2.0-4)
+```
+
+**Their prose was executed by bash, one line at a time.** Their question — *"Did I do something wrong in the installation?"* — deserved an answer, and the answer is no.
+
+### Fixed
+- **Session status `online` means the tmux session EXISTS, not that an agent is running in it.** Chat and meeting injection checked only that, so a pane sitting at a shell prompt accepted the message and the shell ran it. Both paths now refuse when the pane is visibly at a shell, and say what to do about it instead of failing cryptically.
+
+  The check is deliberately **asymmetric**: it does not try to prove an agent *is* running — there are too many agent CLIs, and a false negative would refuse to deliver to a working agent. It proves a **shell** is running, which is a short closed list (`bash`, `zsh`, `fish`, `login`, the `-bash` login forms…) and the only case that causes harm. Unknown occupants are allowed through, and any failure to introspect the pane allows through too: absence of evidence is not evidence.
+
+### Notes
+- The delivery layer behaved correctly throughout — the reporter saw *"Not confirmed — may not have reached the agent"*, which is exactly right and is the honesty work from 0.37.7–0.37.12 doing its job. What was missing was refusing to send at all, and explaining why.
+- This does **not** fix the underlying cause of their empty pane: the configured program never started, most likely because `claude` was not installed or not on `PATH` inside that tmux session, and the launch failure is currently swallowed with a warning. Surfacing that at creation time is the real fix and is not in this release — the guard stops the damage and names the likely cause, which is as far as it honestly goes.
+- 1160 tests passing, 30 new.
+
 ## [0.37.13] - 2026-09-02 — Registration no longer looks like it failed, and a wrong guess stops inventing identities
 
 Reported by **salesland-dev-3metas** (Salesland iCPA, 3Metas) while registering a new agent against a local Maestro. Two bugs, and the root cause of the second turned out to be a directory-creation defect that has been quietly manufacturing garbage identities.

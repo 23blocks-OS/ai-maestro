@@ -3,6 +3,43 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.5] - 2026-09-04 — Paste a screenshot onto an agent (#270)
+
+[#270](https://github.com/23blocks-OS/ai-maestro/issues/270) asked for three things. **The third — file attachments in the messaging system — shipped in [v0.38.0](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.0).** The other two are here.
+
+### Added
+- **Paste an image onto a terminal** (Cmd/Ctrl+V) and it goes to the agent. The existing paste handler read `navigator.clipboard.readText()` — **text only** — so an image on the clipboard produced silence, which is precisely what the issue reported. Images arrive as files on the paste event and are now intercepted before xterm sees them; a text paste falls through untouched.
+- **Drag and drop files onto a terminal**, with a drop-target overlay. Dragging a file over a terminal previously gave no indication anything would happen.
+- `POST /api/agents/{id}/files` (multipart). Remote agents are proxied to their own host — the same pattern the wake route uses, for the same reason: the bytes are useless on the wrong machine.
+
+### The design decision worth stating
+**A path, not the bytes.** Agent CLIs read files from disk — Claude Code takes a path and opens it, as do Codex and Aider. Pushing base64 into the pane would be both enormous and wrong: a one-megabyte screenshot becomes 1.3 MB of text typed one keystroke-batch at a time into a TUI that will mangle it.
+
+**Outside the working directory.** Files land in `~/.aimaestro/uploads/<agentId>/`, never in the agent's `workingDirectory`. That directory is usually a git repository someone is working in; screenshots dropped there show up in `git status`, get committed by an agent tidying up, or collide with real files. An absolute path outside the repo reads just as well to every CLI and cannot pollute anything.
+
+### Everything built this week made this safe
+- Validation reuses `lib/amp-attachments` — filename sanitising, blocked executables, magic bytes against the declared type, the 25 MB ceiling — rather than growing a second, weaker set of rules for the same job.
+- The prompt is delivered through `sendChatMessage`, which carries the **bare-shell guard from 0.37.14**. Without it, pasting a screenshot into an agent whose program never started would have typed the path at a shell, which would try to execute it.
+- **Saved and announced are separate outcomes.** A file can land safely while the agent cannot be told — no session, or a program that never started — and reporting that as plain success would be the same unearned claim removed everywhere else this cycle. The UI shows a warning naming the path, so the file is not lost.
+
+### Verified end to end
+A real 4×4 PNG posted to a live agent: byte-identical on disk, and the agent's own pane shows it **reading the file** —
+
+```
+❯ I've attached a file for you at "/Users/…/uploads/70796e0d-…/shot.png" —
+  ⎿  ~/.aimaestro/uploads/70796e0d-…/shot.png
+```
+
+Refusals, checked against the same agent:
+
+| file | response |
+|---|---|
+| ELF binary named `evil.pdf`, declared `application/pdf` | `file is an executable (elf) regardless of its declared type` |
+| `run.sh` declared `text/plain` | `blocked file extension: .sh` |
+
+### Notes
+- 26 new tests. 1283 passing.
+
 ## [0.38.4] - 2026-09-04 — A failed program launch is now visible where people actually are (#441)
 
 [v0.38.0](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.0) made the API report `programStarted: false` with a reason. **Nothing displayed it**, so the dashboard still showed a healthy-looking agent and someone had to read the API response or the server log to find out. That is the half the reporter of [#426](https://github.com/23blocks-OS/ai-maestro/issues/426) would actually have seen.

@@ -31,6 +31,75 @@ interface TerminalViewProps {
 
 export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
   const { addToast } = useToast()
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
+  /**
+   * Hand files to the agent (#270).
+   *
+   * The bytes go to the server, which writes them to disk on the agent's own
+   * host and tells the agent the path — agent CLIs read files from disk, and
+   * pushing a megabyte of base64 through a TUI keystroke-batch would be both
+   * enormous and mangled.
+   */
+  const uploadFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return
+    const agentId = session.agentId
+    if (!agentId) {
+      addToast({ type: 'error', title: 'Cannot attach files', message: 'This session has no registered agent.' })
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const form = new FormData()
+      // A pasted screenshot has no name. The server generates one from the MIME
+      // type rather than inventing a uuid, because the agent quotes the path
+      // back to a human.
+      for (const f of files) form.append('files', f, f.name || '')
+
+      const res = await fetch(`/api/agents/${agentId}/files`, { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        addToast({
+          type: 'error',
+          title: 'Could not attach the file',
+          message: data?.message || `Upload failed (${res.status})`,
+        })
+        return
+      }
+
+      // Saved and announced are separate outcomes: the file can land safely
+      // while the agent cannot be told (no session, or a program that never
+      // started). Reporting that as plain success would be a claim we have not
+      // earned.
+      if (data?.announced === false) {
+        addToast({
+          type: 'warning',
+          title: 'File saved, but the agent was not told',
+          message: `${data.announceError || 'The agent could not be reached.'} The file is at ${data.files?.[0]?.path ?? 'the upload directory'}.`,
+          duration: 15000,
+        })
+        return
+      }
+
+      const n = data?.files?.length ?? files.length
+      addToast({
+        type: 'success',
+        title: n === 1 ? 'File sent to the agent' : `${n} files sent to the agent`,
+        message: data?.files?.[0]?.path || '',
+      })
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Could not attach the file',
+        message: err instanceof Error ? err.message : 'Unknown error',
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }, [session.agentId, addToast])
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
@@ -819,6 +888,38 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       >
         <div
           ref={terminalRef}
+          // Paste and drop files onto the terminal (#270).
+          //
+          // The existing Cmd+V handler in useTerminal reads clipboard TEXT only,
+          // so an image on the clipboard silently produced nothing at all —
+          // which is exactly what this issue reported. Images arrive as files on
+          // the paste event, so they are intercepted here before xterm sees it;
+          // a text paste falls through untouched to the existing handler.
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData?.files ?? [])
+            if (files.length === 0) return
+            e.preventDefault()
+            e.stopPropagation()
+            void uploadFiles(files)
+          }}
+          onDragOver={(e) => {
+            if (!Array.from(e.dataTransfer.types).includes('Files')) return
+            e.preventDefault()
+            setIsDraggingFile(true)
+          }}
+          onDragLeave={(e) => {
+            // Only when the pointer actually leaves the terminal — dragging over
+            // a child fires dragleave for the child and would flicker the overlay.
+            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+            setIsDraggingFile(false)
+          }}
+          onDrop={(e) => {
+            const files = Array.from(e.dataTransfer.files ?? [])
+            setIsDraggingFile(false)
+            if (files.length === 0) return
+            e.preventDefault()
+            void uploadFiles(files)
+          }}
           style={{
             // Terminal takes full available space within container
             flex: '1 1 0%',
@@ -827,6 +928,21 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
             position: 'relative',
           }}
         />
+
+        {/* Drop target feedback. Without it, dragging a file over a terminal
+            gives no sign anything will happen. */}
+        {isDraggingFile && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400/60 rounded-lg pointer-events-none">
+            <div className="px-4 py-2 rounded-lg bg-gray-900/90 text-blue-200 text-sm font-medium">
+              Drop to send to {session.name || session.id}
+            </div>
+          </div>
+        )}
+        {isUploading && (
+          <div className="absolute top-3 right-3 z-30 px-3 py-1.5 rounded-lg bg-gray-900/90 text-gray-200 text-xs font-medium pointer-events-none">
+            Sending file…
+          </div>
+        )}
         {/* Touch clipboard toolbar - floating bottom-right */}
         {isTouch && terminal && isReady && (
           <div className="absolute bottom-3 right-3 z-20 flex gap-1.5">

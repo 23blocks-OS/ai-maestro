@@ -393,9 +393,21 @@ function saveNotifiedIds(cwd, ids) {
 // to read + respond before going idle.
 function buildAmpBlockReason(messages) {
     const urgentCount = messages.filter(m => m.priority === 'urgent').length;
+    // Lead with the count and the word, not a bracketed tag.
+    //
+    // Claude Code renders a Stop hook's `decision: block` as "Stop hook error:"
+    // followed by the start of this string, TRUNCATED to the label width. We
+    // cannot change its wording (nothing failed here — block is the documented
+    // way to hand work back to an agent), but we choose what survives the
+    // truncation. Leading with "[AMP]" made the label read
+    //
+    //     Stop hook error: [A
+    //
+    // which tells the reader nothing at all. Putting the count first means even
+    // a dozen characters carry the message: "1 unread AMP m…".
     const header = messages.length === 1
-        ? `[AMP] You have 1 unread message in your inbox:`
-        : `[AMP] You have ${messages.length} unread messages in your inbox${urgentCount > 0 ? ` (${urgentCount} urgent)` : ''}:`;
+        ? `1 unread AMP message in your inbox:`
+        : `${messages.length} unread AMP messages in your inbox${urgentCount > 0 ? ` (${urgentCount} urgent)` : ''}:`;
     const lines = messages.slice(0, 10).map((m, i) => {
         const urgent = m.priority === 'urgent' ? '[URGENT] ' : '';
         const subj = m.subject ? ` — "${m.subject}"` : '';

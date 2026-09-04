@@ -3,6 +3,34 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.2] - 2026-09-04 — The version bumper stops reporting work it did not do (#375)
+
+[#375](https://github.com/23blocks-OS/ai-maestro/issues/375) reported `package.json` frozen at `0.29.16` for fifteen releases while every run printed **"✓ Updated N files"**. That specific case had already been fixed. **The mechanism behind it had not**, and it was still live in three places — including the source of truth.
+
+Reproduced on a scratch checkout with three drifted files. The script reported `Updated 3 files`, exited **0**, and had changed none of them.
+
+### Fixed
+- **`update_file` skipped silently on a pattern miss.** A file that had drifted stayed drifted forever and never appeared in the output. It now distinguishes *absent* (a legitimate slim clone — fine) from *present but not matching* (a file that was supposed to be updated and was not — a failure), and **verifies the substitution actually took** rather than assuming `sed` succeeded.
+- **`docs/BACKLOG.md` printed a tick unconditionally.** It ran `sed` and claimed success whether or not anything changed — not a silent skip but a false claim, and the reason that header had to be corrected by hand after every single release in this cycle.
+- **`version.json` — the source of truth — was updated by an unchecked `sed`** keyed on `"version": "x"`, with a space after the colon. Reformat the file (jq, a merge, an editor) and the pattern stops matching: the version freezes at whatever it was, **every subsequent bump reads that stale value as `CURRENT_VERSION`**, and every release still reports success. It is now updated structurally with `node` — the same fix already applied to `package.json` — and read back to confirm before anything else runs.
+- **A partial bump now exits non-zero and names every file it could not update.** A bump that half-applies is worse than one that refuses, because the drift compounds silently across every release that follows. That is exactly how fifteen releases shipped with a frozen `package.json`.
+
+### And it immediately found four more frozen files
+The first run of the fixed script on this repo reported four files it could not update — **all stuck at `0.29.16`**, the same version the issue reported for `package.json`:
+
+```
+✗ scripts/remote-install.sh
+✗ docs/index.html (schema)
+✗ docs/index.html (display)
+✗ docs/ai-index.html
+```
+
+So the reporter found one symptom of a freeze that had actually hit **five** files. `scripts/remote-install.sh` is the public installer, which has been advertising `0.29.16` to every new user since April. All four are repaired here, and the bumper now completes with no misses.
+
+### Notes
+- 10 new tests in `tests/bump-version.test.ts`, driving the real script in a scratch checkout. **5 of them fail against the previous version**, including the compact-JSON case that silently froze `version.json`.
+- This is the same defect as the rest of this cycle, in the release tooling itself: a step that reports success it has not earned. It was reported in May and the reporter was right about the mechanism, not only the symptom.
+
 ## [0.38.1] - 2026-09-04 — The inbox nudge reads properly when the label truncates it
 
 Reported from the receiving end: the notification showed up as

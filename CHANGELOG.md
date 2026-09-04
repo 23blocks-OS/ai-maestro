@@ -3,6 +3,29 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.3] - 2026-09-04 — AMP commands no longer stop at a permission dialog nobody is watching (#337)
+
+[#337](https://github.com/23blocks-OS/ai-maestro/issues/337) reported that Claude Code prompts for approval on every AMP command. The friction is the visible part; the real cost is that **it breaks unattended message handling entirely** — the inbox poll injects "check your inbox", the agent tries to run `amp-inbox.sh`, and the run stops at a dialog nobody is watching. The message stays unread and nothing reports a problem.
+
+Both remedies the issue proposed are implemented.
+
+### Added
+- **`install-plugin.sh` offers to configure the permissions, with consent.** It shows exactly what would be added, asks (or applies under `-y`), backs up `settings.json` first, and merges structurally with `node` rather than appending — that file also holds the Stop hook that delivers messages to detached agents, and corrupting it would silence them completely. Re-running reports "already configured" instead of asking again.
+- **The AMP skill documents the same setup** as a required step, for anyone not using AI Maestro's installer ([claude-plugin#28](https://github.com/agentmessaging/claude-plugin/pull/28)).
+
+### What is allowed, and what deliberately is not
+| | commands | reasoning |
+|---|---|---|
+| allowed | `amp-inbox`, `amp-read`, `amp-reply`, `amp-send`, `amp-download`, `amp-status`, `amp-fetch`, `amp-identity` | the routine loop an agent must complete without a human |
+| **not** | `amp-init`, `amp-register` | they mutate the agent's identity, and after the defects fixed in 0.37.13 that is a boundary worth keeping a human on |
+| **not** | `amp-delete` | deleting mail is irreversible, and losing messages is the exact failure this cycle has been about |
+
+Each command is allowed in three invocation forms — bare, `CLAUDE_AGENT_NAME=`, and `AMP_DIR=` — because agents are launched in different ways.
+
+### Notes
+- The hand-applied workaround on the dev machine covered **3 of 12** commands and omitted `amp-send.sh`, which agents use constantly. That is the sort of gap a documented-and-installed list closes and a manual one does not.
+- Verified against a `settings.json` already containing hand-added entries, a Stop hook and a statusLine: 21 entries merged onto 3, no duplicates, hook and statusLine intact, exclusions honoured, and idempotent on a second run.
+
 ## [0.38.2] - 2026-09-04 — The version bumper stops reporting work it did not do (#375)
 
 [#375](https://github.com/23blocks-OS/ai-maestro/issues/375) reported `package.json` frozen at `0.29.16` for fifteen releases while every run printed **"✓ Updated N files"**. That specific case had already been fixed. **The mechanism behind it had not**, and it was still live in three places — including the source of truth.

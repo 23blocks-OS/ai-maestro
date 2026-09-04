@@ -420,6 +420,20 @@ export interface AMPInfoResponse {
     messages_per_minute: number
     api_requests_per_minute: number
   }
+  /**
+   * Advertised attachment limits — spec/attachment-guide.md section 9.
+   *
+   * `av_scanning` is required to be present and false for a provider without
+   * antivirus infrastructure (section 5, recommended step 4), so recipients
+   * are never left to assume a scan happened.
+   */
+  attachment_limits?: {
+    max_attachment_size: number
+    max_total_attachment_size: number
+    max_attachments_per_message: number
+    av_scanning: boolean
+    injection_scanning: boolean
+  }
 }
 
 // ============================================================================

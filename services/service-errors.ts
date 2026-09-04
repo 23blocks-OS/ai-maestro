@@ -39,6 +39,19 @@ export type ServiceErrorCode =
   | 'duplicate_message'
   | 'key_already_registered'
   | 'address_already_registered'
+  // AMP attachment codes — spec/attachment-guide.md section 7. These are part
+  // of the protocol contract, not local inventions: the client's recovery
+  // patterns branch on them (attachment_rejected means "do NOT retry with the
+  // same file", which is a different instruction from attachment_pending).
+  | 'attachment_too_large'
+  | 'too_many_attachments'
+  | 'attachment_rejected'
+  | 'attachment_not_found'
+  | 'attachment_expired'
+  | 'attachment_pending'
+  | 'attachment_already_used'
+  | 'invalid_digest_algorithm'
+  | 'attachments_not_supported'
   | 'invalid_signature'
   | 'key_conflict'
   | 'key_revoked'

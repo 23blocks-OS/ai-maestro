@@ -67,6 +67,7 @@ import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
+import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import {
   capturePaneFromContainer,
   inspectContainerStatus,
@@ -1820,6 +1821,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
     const ampDir = await setupAMPForSession(sessionName, agentName, agentId)
 
     // Start the AI program if requested
+    let launchVerdict: LaunchVerdict = { started: true }
     if (startProgram) {
       const program = (programOverride || agent.program || 'claude code').toLowerCase()
       console.log(`[Wake] Final program selection: "${program}" (override: ${programOverride}, agent.program: ${agent.program})`)
@@ -1934,6 +1936,17 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
         }
+
+        // send-keys succeeding proves tmux accepted the keystrokes, not that the
+        // program exists. Without this check an agent whose program is missing,
+        // unauthenticated or off PATH wakes "successfully" onto a bare shell —
+        // which is what turned a missing PATH entry into a confusing half hour
+        // for the reporter of #426, and what makes a mistyped or uninstalled
+        // program (aider, codex, a wrapper) indistinguishable from a healthy agent.
+        launchVerdict = await verifyProgramStarted(runtime, sessionName, startCommand)
+        if (!launchVerdict.started) {
+          console.warn(`[Wake] ${agentName}: ${launchVerdict.error}${launchVerdict.shellSaid ? ` — shell said: ${launchVerdict.shellSaid}` : ''}`)
+        }
       }
     }
 
@@ -1965,8 +1978,11 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         projectDirectory,
         hooksExecuted: !!agent.hooks?.['on-wake'],
         woken: true,
-        programStarted: startProgram,
-        message: `Agent "${agentName}" session ${sessionIndex} has been woken up and is ready to use.`,
+        programStarted: startProgram && launchVerdict.started,
+        ...(launchVerdict.error ? { programError: launchVerdict.error } : {}),
+        message: launchVerdict.started
+          ? `Agent "${agentName}" session ${sessionIndex} has been woken up and is ready to use.`
+          : `Agent "${agentName}" session ${sessionIndex} is awake, but its program did not start. ${launchVerdict.error}`,
       },
       status: 200,
     }

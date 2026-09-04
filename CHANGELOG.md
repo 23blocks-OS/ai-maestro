@@ -3,6 +3,35 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.1] - 2026-09-04 — The inbox nudge reads properly when the label truncates it
+
+Reported from the receiving end: the notification showed up as
+
+```
+Stop hook error: [A
+```
+
+Two separate things, and only one of them is ours.
+
+**"Stop hook error" is Claude Code's label** for any Stop hook returning `decision: block`. We cannot change that wording, and it is misleading here — nothing failed. `block` is the documented way for a hook to hand work back to an agent, and it is the only AMP delivery route that needs no tmux pane.
+
+**"[A" was ours.** Claude Code renders the start of the reason string, truncated to the label width, and we led with a bracketed tag — so the characters that survived carried no information at all.
+
+### Changed
+- The blocking reason now leads with the count instead of `[AMP]`:
+
+  | width | before | after |
+  |---|---|---|
+  | 4 | `[AMP` | `1 un` |
+  | 12 | `[AMP] You ha` | `1 unread AMP` |
+  | 20 | `[AMP] You have 1 unr` | `1 unread AMP message` |
+
+  Urgency still appears in the header (`3 unread AMP messages in your inbox (1 urgent):`), since that is the one thing worth interrupting for.
+
+### Notes
+- A reason string that is also a UI label has two audiences: the agent reading the whole thing, and a human reading the first dozen characters. The second one had not been considered.
+- Hook synced to both plugin copies per the single-source rule. 1247 tests passing, 4 new pinning the truncation behaviour.
+
 ## [0.38.0] - 2026-09-04 — Attachments actually work, and a failed program launch is no longer silent
 
 Two tracks. The first makes agents able to exchange files; the second stops the class of failure that made creating an agent feel broken.

@@ -861,6 +861,113 @@ if [ "$INSTALL_SCRIPTS" = true ] && command -v amp-statusline.sh &> /dev/null; t
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Claude Code permissions for the AMP read-and-respond loop (issue #337)
+# ---------------------------------------------------------------------------
+#
+# Without these, Claude Code asks for approval every single time an agent runs
+# amp-inbox.sh or amp-read.sh. That is not merely annoying — it BLOCKS the
+# subconscious inbox poll, because the injected "check your inbox" prompt makes
+# the agent try to run a command it then cannot run unattended. Messages sit
+# unread behind a dialog nobody is watching.
+#
+# What is allowed, and what deliberately is not:
+#
+#   allowed   inbox, read, reply, send, download, status, fetch, identity
+#             — the routine loop an agent must complete without a human
+#   NOT       amp-init.sh, amp-register.sh — these mutate the agent's identity,
+#             and after the identity defects fixed in 0.37.13 that is a boundary
+#             worth keeping a human on
+#   NOT       amp-delete.sh — deleting mail is irreversible, and losing messages
+#             is the exact failure this release cycle has been about
+#
+# Each command is allowed in three invocation forms, because agents are launched
+# in different ways: bare, and with the CLAUDE_AGENT_NAME= or AMP_DIR= prefix
+# that AI Maestro's launcher and the detached-session hint use.
+configure_amp_permissions() {
+    local settings="$HOME/.claude/settings.json"
+    local cmds=(amp-inbox.sh amp-read.sh amp-reply.sh amp-send.sh amp-download.sh amp-status.sh amp-fetch.sh amp-identity.sh)
+
+    local entries=()
+    for c in "${cmds[@]}"; do
+        entries+=("Bash(${c}:*)")
+        entries+=("Bash(CLAUDE_AGENT_NAME=* ${c}:*)")
+        entries+=("Bash(AMP_DIR=* ${c}:*)")
+    done
+
+    # What is genuinely missing? Re-running the installer must not re-ask.
+    local missing=()
+    for e in "${entries[@]}"; do
+        if [ -f "$settings" ] && node -e "
+            const fs=require('fs');
+            let s={}; try { s = JSON.parse(fs.readFileSync(process.argv[1],'utf8')); } catch (_) {}
+            const allow = (s.permissions && s.permissions.allow) || [];
+            process.exit(allow.includes(process.argv[2]) ? 0 : 1);
+        " "$settings" "$e" 2>/dev/null; then
+            continue
+        fi
+        missing+=("$e")
+    done
+
+    if [ ${#missing[@]} -eq 0 ]; then
+        print_success "AMP permissions already configured (${#entries[@]} entries)"
+        return 0
+    fi
+
+    echo ""
+    print_info "Claude Code asks for approval every time an agent runs an AMP command."
+    echo "  That blocks the subconscious inbox poll, so messages sit unread behind a"
+    echo "  dialog nobody is watching."
+    echo ""
+    echo "  ${#missing[@]} permission entries would be added to ${settings}:"
+    echo "    amp-inbox, amp-read, amp-reply, amp-send, amp-download, amp-status, amp-fetch, amp-identity"
+    echo ""
+    echo "  NOT included, on purpose: amp-init and amp-register (they change the"
+    echo "  agent's identity) and amp-delete (deleting mail is irreversible)."
+    echo ""
+
+    if [ "$NON_INTERACTIVE" != true ]; then
+        read -r -p "  Add these permissions? [Y/n] " reply
+        case "$reply" in
+            [Nn]*)
+                print_warning "Skipped. Agents will prompt on every AMP command."
+                echo "  Re-run this installer, or add them by hand under permissions.allow"
+                return 0
+                ;;
+        esac
+    fi
+
+    mkdir -p "$(dirname "$settings")"
+    [ -f "$settings" ] && cp "$settings" "${settings}.bak-$(date +%Y%m%d%H%M%S)"
+
+    # Merge structurally. A sed/append would corrupt the file or duplicate
+    # entries, and this file also holds the Stop hook that delivers messages to
+    # detached agents — breaking it would silence them entirely.
+    if node -e "
+        const fs = require('fs');
+        const file = process.argv[1];
+        const add = process.argv.slice(2);
+        let s = {};
+        if (fs.existsSync(file)) {
+            try { s = JSON.parse(fs.readFileSync(file, 'utf8')); }
+            catch (e) { console.error('settings.json is not valid JSON: ' + e.message); process.exit(1); }
+        }
+        s.permissions = s.permissions || {};
+        const allow = new Set(s.permissions.allow || []);
+        for (const a of add) allow.add(a);
+        s.permissions.allow = [...allow];
+        fs.writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
+    " "$settings" "${missing[@]}"; then
+        print_success "Added ${#missing[@]} AMP permission entries to settings.json"
+    else
+        print_warning "Could not update ${settings} — add the entries by hand"
+    fi
+}
+
+if [ "$INSTALL_SCRIPTS" = true ]; then
+    configure_amp_permissions
+fi
+
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                    Installation Complete!                      ║"

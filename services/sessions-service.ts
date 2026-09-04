@@ -38,6 +38,7 @@ import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
 import { paneSubmitted, paneStaged } from '@/lib/notification-service'
+import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
 
@@ -647,7 +648,18 @@ export function heartbeat(agentId: string, status?: string, claudeSessionId?: st
 /**
  * Create a new session (local or forwarded to remote host).
  */
-export async function createSession(params: CreateSessionParams): Promise<ServiceResult<{ success: boolean; name: string; agentId?: string; type?: string }>> {
+export async function createSession(params: CreateSessionParams): Promise<ServiceResult<{
+  success: boolean
+  name: string
+  agentId?: string
+  type?: string
+  /** False when the configured program did not start in the pane. */
+  programStarted?: boolean
+  /** Why it did not start, phrased for the person who just created the agent. */
+  programError?: string
+  /** The shell's own complaint, verbatim. */
+  shellSaid?: string
+}>> {
   const { name, workingDirectory, agentId, hostId, label, avatar, programArgs, program } = params
 
   if (!name || typeof name !== 'string') {
@@ -770,6 +782,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   // slightly different copy of the same ladder, with the same `else 'claude'`
   // default that turns an unrecognised or broken wrapper into a bare,
   // unsandboxed Claude Code.
+  let launchVerdict: LaunchVerdict = { started: true }
   const selectedProgram = program || 'claude-code'
   if (!isNoProgram(selectedProgram)) {
     const resolved = resolveProgramCommand(selectedProgram)
@@ -787,14 +800,37 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
 
       try {
         await runtime.sendKeys(actualSessionName, `"${startCommand}"`, { enter: true })
-        console.log(`[Sessions] Launched program "${startCommand}" in session ${actualSessionName}`)
       } catch (progError) {
         console.warn(`[Sessions] Could not launch program in ${actualSessionName}:`, progError)
+      }
+
+      // send-keys succeeding proves tmux took the keystrokes, not that the
+      // program exists. This is where #426 was born: a fresh install whose
+      // `claude` was not on PATH inside the tmux session created an agent that
+      // reported healthy and sat at a bash prompt, so the operator's next
+      // message was executed as shell commands. Creation is the right moment to
+      // notice — it is when someone is looking.
+      launchVerdict = await verifyProgramStarted(runtime, actualSessionName, startCommand)
+      if (launchVerdict.started) {
+        console.log(`[Sessions] Launched program "${startCommand}" in session ${actualSessionName}`)
+      } else {
+        console.warn(`[Sessions] ${actualSessionName}: ${launchVerdict.error}${launchVerdict.shellSaid ? ` — shell said: ${launchVerdict.shellSaid}` : ''}`)
       }
     }
   }
 
-  return { data: { success: true, name: actualSessionName, agentId: registeredAgent?.id }, status: 200 }
+  return {
+    data: {
+      success: true,
+      name: actualSessionName,
+      agentId: registeredAgent?.id,
+      programStarted: launchVerdict.started,
+      // Surfaced so the UI can say what is wrong at the moment the agent is
+      // created, rather than leaving someone to discover it by talking to a shell.
+      ...(launchVerdict.error ? { programError: launchVerdict.error, shellSaid: launchVerdict.shellSaid } : {}),
+    },
+    status: 200,
+  }
 }
 
 /**

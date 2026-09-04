@@ -30,6 +30,11 @@
  */
 
 import crypto from 'crypto'
+import {
+  MAX_ATTACHMENT_SIZE,
+  MAX_TOTAL_ATTACHMENT_SIZE,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+} from '@/lib/amp-attachments'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -497,7 +502,21 @@ export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
         'local-delivery',
         'relay-queue',
         'mesh-routing',
+        'attachments',
       ],
+      // Spec section 9: providers advertise their attachment limits here, and
+      // section 5 REQUIRES a provider without antivirus infrastructure to
+      // declare `av_scanning: false` rather than let recipients assume files
+      // were scanned. We run the mandatory checks (size, digest, blocked types,
+      // magic bytes) and no AV, which is why attachments come back
+      // `basic_clean` and never `clean`.
+      attachment_limits: {
+        max_attachment_size: MAX_ATTACHMENT_SIZE,
+        max_total_attachment_size: MAX_TOTAL_ATTACHMENT_SIZE,
+        max_attachments_per_message: MAX_ATTACHMENTS_PER_MESSAGE,
+        av_scanning: false,
+        injection_scanning: false,
+      },
       registration_modes: ['open'],
       rate_limits: {
         messages_per_minute: 60,

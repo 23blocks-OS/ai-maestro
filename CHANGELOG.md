@@ -3,6 +3,53 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.0] - 2026-09-04 — Attachments actually work, and a failed program launch is no longer silent
+
+Two tracks. The first makes agents able to exchange files; the second stops the class of failure that made creating an agent feel broken.
+
+### Added — AMP attachments (provider side)
+
+`amp-send.sh --attach` has existed for a long time and has been getting **404** the whole time: the client implemented the full flow, the endpoints were never built, and the skill advertised it. An agent asked to send a file followed our own documentation into a dead end.
+
+Implemented against the normative text of `agentmessaging/protocol` **`spec/attachment-guide.md` v0.1.2**, so no client change is needed — every agent already running the plugin gains attachments the moment this ships.
+
+**Why there is no S3.** The spec says content is stored "externally by the provider (e.g., in S3 **or equivalent** object storage)". *Equivalent* is the operative word: it constrains the metadata and the flow, never the backend. The client asks for an upload URL and PUTs to whatever it is handed, so a URL on this host is exactly as conformant as a presigned S3 one — and files stay inside the tailnet with no third party in the data path, the same reasoning that ruled out a transport relay.
+
+Storage is content-addressed by the sha256 the client already computes, so a file attached ten times occupies one copy and a partial write can never masquerade as a good one.
+
+**`basic_clean`, not `clean`.** The spec provides a status for a provider that runs the required checks and no antivirus, and requires that provider to declare `"av_scanning": false` in `/v1/info`. We do both. Returning `clean` would have been a claim we had not earned — and the client already understands the honest one, printing *"passed basic checks only (no AV scan)"* to the receiving agent unprompted.
+
+All three MUST checks from section 5 are implemented and apply to **local delivery too** — there is no carve-out anywhere in the spec (`06a-local-networks.md` and `10-local-bus.md` do not mention attachments at all):
+
+| check | on failure |
+|---|---|
+| size and digest match what was declared | `rejected` |
+| blocked MIME types and executables | `rejected` |
+| magic bytes match the declared `content_type` at primary-type level | `rejected` |
+
+Primary-type level is deliberate: a DOCX is a zip, and a stricter comparison would reject a legitimate OOXML file.
+
+Download URLs carry a **capability token**, not an API key — the spec requires cross-provider recipients to fetch "without an account on the originating provider", and that URL travels inside a message to another host. Tokens are scoped to one attachment id, signed, expiring, and compared in constant time.
+
+Verified end to end with the real client: `amp-send.sh --attach` → routed message → `amp-download.sh --all` → **byte-identical file**, digest verified on the way in and again on the way out.
+
+### Fixed — a program that never started reported success
+
+`send-keys` returning proves tmux accepted the keystrokes, not that the program exists. So an agent whose program is missing, unauthenticated, or off `PATH` came up looking perfectly healthy with a bare shell behind it — which is how [#426](https://github.com/23blocks-OS/ai-maestro/issues/426) turned a missing `PATH` entry into a confusing half hour, and how configuring a framework you have not installed (`aider`, `codex`, a wrapper) has been indistinguishable from a working agent.
+
+Both the create and wake paths now verify the launch and report `programStarted: false` with the reason.
+
+**Measured, not predicted.** The obvious approach — a preflight `command -v` — cannot work: a tmux pane runs an interactive non-login shell (reads `~/.bashrc`, not `~/.bash_profile`), while a check spawned from the server is non-interactive (reads neither), so it would confidently disagree with the pane it claims to describe. Instead we look at what actually happened: after a grace period the pane either holds the program or a shell, and tmux says which. When it is still a shell we quote the shell's own diagnosis, because it has already said precisely what went wrong.
+
+The common cause gets named in the error, since it is overwhelmingly the same one: tmux starts a non-login shell, so a `PATH` exported from `~/.bash_profile` is absent — the default outcome of an npm-installed CLI on Ubuntu.
+
+Any doubt counts as started. A false "did not start" would tell an operator their working agent is broken, which is worse than staying quiet.
+
+### Notes
+- Tracked separately as [#441](https://github.com/23blocks-OS/ai-maestro/issues/441): surfacing this at agent-creation time in the UI.
+- 1243 tests passing; 76 new, of which 59 assert the attachment spec's own MUSTs rather than our conveniences.
+- Still not implemented, and deliberately not claimed: antivirus and prompt-injection scanning, the 2-hour orphan sweep, and single-use enforcement of attachment ids at `/route`.
+
 ## [0.37.16] - 2026-09-02 — Detached agents were never told they had mail
 
 Juan asked the question that broke this open: *"why when you got a message are you not notified? neither by the hook or the poll or whatever it is"*.

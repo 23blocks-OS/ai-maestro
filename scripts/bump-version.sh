@@ -97,27 +97,73 @@ _sed_inplace() {
     sed -i.bak "$@" "$file" && rm -f "${file}.bak"
 }
 
+# Files that were present but could not be updated. A non-empty list fails the
+# run — see the note at the bottom of this function.
+FILES_MISSED=()
+
 update_file() {
     local file="$1"
     local pattern="$2"
     local replacement="$3"
     local description="$4"
 
-    if [ -f "$file" ]; then
-        if grep -q "$pattern" "$file" 2>/dev/null; then
-            _sed_inplace "$file" "s|$pattern|$replacement|g"
-            echo -e "  ${GREEN}✓${NC} $description"
-            FILES_UPDATED=$((FILES_UPDATED + 1))
-        fi
+    # A file that is not in this checkout is not a failure — docs/ are optional
+    # in some clones. A file that IS here and does not contain the version we
+    # expected IS a failure, and used to be silent.
+    if [ ! -f "$file" ]; then
+        return 0
     fi
+
+    if ! grep -q "$pattern" "$file" 2>/dev/null; then
+        echo -e "  ${YELLOW}!${NC} $description — expected version not found, NOT updated"
+        FILES_MISSED+=("$description")
+        return 0
+    fi
+
+    _sed_inplace "$file" "s|$pattern|$replacement|g"
+
+    # Verify rather than assume. sed can match the grep pattern and still fail to
+    # substitute (an unescaped delimiter in the replacement, for instance), and
+    # a bump that reports success it did not earn is exactly how package.json sat
+    # at 0.29.16 for fifteen releases while every run printed a tick.
+    if grep -q "$pattern" "$file" 2>/dev/null; then
+        echo -e "  ${YELLOW}!${NC} $description — substitution did not take, NOT updated"
+        FILES_MISSED+=("$description")
+        return 0
+    fi
+
+    echo -e "  ${GREEN}✓${NC} $description"
+    FILES_UPDATED=$((FILES_UPDATED + 1))
 }
 
 echo "Updating files..."
 echo ""
 
-# 1. version.json
-_sed_inplace "$VERSION_FILE" "s|\"version\": \"$CURRENT_VERSION\"|\"version\": \"$NEW_VERSION\"|g"
-_sed_inplace "$VERSION_FILE" "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$(date -u +%Y-%m-%d)\"|g"
+# 1. version.json — the source of truth, so update it STRUCTURALLY.
+#
+# This used an unchecked sed keyed on `"version": "x"` with a space after the
+# colon, and printed a tick unconditionally. Reformat the file (jq, a merge, an
+# editor) and the pattern stops matching: the version would freeze at whatever
+# it was, every subsequent bump would read that same stale value as
+# CURRENT_VERSION, and every release would still report success. That is the
+# package.json failure again, on the one file everything else is derived from.
+node -e "
+  const fs = require('fs');
+  const f = process.argv[1];
+  const v = JSON.parse(fs.readFileSync(f, 'utf8'));
+  v.version = process.argv[2];
+  v.releaseDate = process.argv[3];
+  fs.writeFileSync(f, JSON.stringify(v, null, 2) + '\n');
+" "$VERSION_FILE" "$NEW_VERSION" "$(date -u +%Y-%m-%d)"
+
+# Read it back. Claiming a bump that did not land is how the drift starts.
+WROTE_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version)" "$VERSION_FILE" 2>/dev/null || echo "")
+if [ "$WROTE_VERSION" != "$NEW_VERSION" ]; then
+    echo -e "  ${RED}✗${NC} version.json — wrote $NEW_VERSION but file reads '$WROTE_VERSION'"
+    echo ""
+    echo -e "${RED}Aborting: the source of truth was not updated.${NC}"
+    exit 1
+fi
 echo -e "  ${GREEN}✓${NC} version.json"
 FILES_UPDATED=$((FILES_UPDATED + 1))
 
@@ -164,14 +210,36 @@ update_file "$PROJECT_ROOT/docs/ai-index.html" \
     "docs/ai-index.html"
 
 # 8. docs/BACKLOG.md (current version header)
-if [ -f "$PROJECT_ROOT/docs/BACKLOG.md" ]; then
-    _sed_inplace "$PROJECT_ROOT/docs/BACKLOG.md" "s|\*\*Current Version:\*\* v$CURRENT_VERSION|\*\*Current Version:\*\* v$NEW_VERSION|g"
-    echo -e "  ${GREEN}✓${NC} docs/BACKLOG.md (header)"
-    FILES_UPDATED=$((FILES_UPDATED + 1))
-fi
+#
+# This ran sed unconditionally and printed a tick whether or not anything
+# changed — not a silent skip but an outright false claim, and the reason the
+# header had to be corrected by hand after every release.
+update_file "$PROJECT_ROOT/docs/BACKLOG.md" \
+    "\*\*Current Version:\*\* v$CURRENT_VERSION" \
+    "**Current Version:** v$NEW_VERSION" \
+    "docs/BACKLOG.md (header)"
 
 echo ""
 echo -e "${GREEN}Updated $FILES_UPDATED files${NC}"
+
+# Fail loudly on anything we were supposed to update and did not.
+#
+# The whole point: a bump that half-applies is worse than one that refuses,
+# because the drift compounds silently over every subsequent release. This is
+# what let package.json sit at 0.29.16 for fifteen releases while the script
+# reported success each time.
+if [ ${#FILES_MISSED[@]} -gt 0 ]; then
+    echo ""
+    echo -e "${RED}${#FILES_MISSED[@]} file(s) were NOT updated:${NC}"
+    for missed in "${FILES_MISSED[@]}"; do
+        echo -e "  ${RED}✗${NC} $missed"
+    done
+    echo ""
+    echo "These files did not contain version $CURRENT_VERSION, so they had already"
+    echo "drifted. Fix them by hand, then re-run — version.json now says $NEW_VERSION."
+    exit 1
+fi
+
 echo ""
 
 # Show what changed

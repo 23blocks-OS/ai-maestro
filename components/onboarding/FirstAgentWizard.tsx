@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Check, AlertCircle, Terminal } from 'lucide-react'
+import { X, Check, AlertCircle, Terminal, AlertTriangle } from 'lucide-react'
 import CreateAgentAnimation from '../CreateAgentAnimation'
 
 interface FirstAgentWizardProps {
@@ -11,6 +11,7 @@ interface FirstAgentWizardProps {
 
 export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWizardProps) {
   const [step, setStep] = useState<'name' | 'directory' | 'creating' | 'success'>('name')
+  const [programWarning, setProgramWarning] = useState('')
   const [agentName, setAgentName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -81,9 +82,16 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
         }),
       })
 
+      const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.message || data.error || 'Failed to create agent')
+      }
+      // The agent was created but its program did not start — the pane is a
+      // bare shell. This is the first agent someone ever makes, so it is the
+      // worst possible place to stay silent about it: #426 was reported by a
+      // user in exactly this position, whose first message was executed by bash.
+      if (data?.programStarted === false && data?.programError) {
+        setProgramWarning(data.programError)
       }
 
       // Animate completion
@@ -256,9 +264,30 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
                   Welcome to the team, <span className="text-green-400">{agentName}</span>!
                 </h3>
                 <p className="text-gray-400">
-                  Your new AI companion is ready to help you build amazing things
+                  {programWarning
+                    ? 'Your agent was created, but its AI program did not start'
+                    : 'Your new AI companion is ready to help you build amazing things'}
                 </p>
               </div>
+
+              {/* The agent exists but its pane is a bare shell. Saying so here
+                  is the whole point of #441: this is someone's FIRST agent, and
+                  the reporter of #426 was in exactly this position — their first
+                  message to it was executed by bash. */}
+              {programWarning && (
+                <div className="w-full mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                  <h4 className="text-sm font-semibold text-amber-300 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    The AI program did not start
+                  </h4>
+                  <p className="text-xs text-amber-200/80 leading-relaxed mb-2">{programWarning}</p>
+                  <p className="text-xs text-amber-200/60 leading-relaxed">
+                    The agent&apos;s terminal is at a shell prompt. Anything you send it now
+                    would be run as a shell command instead of read — open the terminal and
+                    start the program there first.
+                  </p>
+                </div>
+              )}
 
               <div className="w-full p-5 bg-gradient-to-br from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-xl">
                 <h4 className="text-sm font-medium text-green-400 mb-4 flex items-center gap-2">

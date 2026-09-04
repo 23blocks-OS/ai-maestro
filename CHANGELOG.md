@@ -3,6 +3,35 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.4] - 2026-09-04 — A failed program launch is now visible where people actually are (#441)
+
+[v0.38.0](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.0) made the API report `programStarted: false` with a reason. **Nothing displayed it**, so the dashboard still showed a healthy-looking agent and someone had to read the API response or the server log to find out. That is the half the reporter of [#426](https://github.com/23blocks-OS/ai-maestro/issues/426) would actually have seen.
+
+### Added
+- **The first-agent onboarding wizard** shows it on the success screen. This is the most important of the three: it is someone's very first agent, and #426 was reported by a user in exactly that position whose first message was executed by bash. The heading changes from *"ready to help you build amazing things"* to *"created, but its AI program did not start"*, with the reason and what to do next.
+- **The agent creation wizard** shows the same warning on its success screen — the agent genuinely exists, so this is a warning rather than a failure, and the wizard no longer implies everything is fine.
+- **Waking an agent** raises a 15-second warning toast. The wake path only checked `!response.ok`, so a wake returning **HTTP 200 with `programStarted: false`** was treated as complete success and said nothing at all.
+
+All three name the consequence rather than just the fault: *the terminal is at a shell prompt, so anything sent now would be run as a shell command instead of read.*
+
+### Verified end to end
+Creating an agent configured with `aider`, which is not installed on this machine:
+
+```json
+{
+  "success": true,
+  "programStarted": false,
+  "programError": "\"aider\" did not start: the program is not on PATH inside the tmux session. tmux starts a non-login shell, so a PATH exported from ~/.bash_profile or ~/.profile is not present — move it to ~/.bashrc (or ~/.zshrc), or check the program is installed at all.",
+  "shellSaid": "zsh: command not found: aider"
+}
+```
+
+Control, with a program that is installed: `programStarted: true`, no warning.
+
+### Notes
+- This closes the case that started with a fresh install and ends with a configured-but-missing framework: choosing `aider`, `codex`, `cursor` or a wrapper you have not installed used to be **indistinguishable from a working agent** at every layer — service, API and UI.
+- 1257 tests passing.
+
 ## [0.38.3] - 2026-09-04 — AMP commands no longer stop at a permission dialog nobody is watching (#337)
 
 [#337](https://github.com/23blocks-OS/ai-maestro/issues/337) reported that Claude Code prompts for approval on every AMP command. The friction is the visible part; the real cost is that **it breaks unattended message handling entirely** — the inbox poll injects "check your inbox", the agent tries to run `amp-inbox.sh`, and the run stops at a dialog nobody is watching. The message stays unread and nothing reports a problem.

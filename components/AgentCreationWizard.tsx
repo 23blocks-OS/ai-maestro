@@ -233,6 +233,11 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [creationSuccess, setCreationSuccess] = useState(false)
   const [showLetsGo, setShowLetsGo] = useState(false)
   const [creationError, setCreationError] = useState('')
+  // The agent was created but its PROGRAM did not start. Not a failure — the
+  // agent exists — but the pane is a bare shell, so anything typed at it would
+  // be executed by the shell rather than read (#426). Shown on the success
+  // screen rather than swallowed.
+  const [creationWarning, setCreationWarning] = useState('')
 
   // Input state
   const [nameInput, setNameInput] = useState('')
@@ -431,9 +436,12 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
             program,
           }),
         })
+        const data = await response.json().catch(() => ({}))
         if (!response.ok) {
-          const data = await response.json()
           throw new Error(data.message || data.error || 'Failed to create agent')
+        }
+        if (data?.programStarted === false && data?.programError) {
+          setCreationWarning(data.programError)
         }
       }
       setCreationSuccess(true)
@@ -573,6 +581,18 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                     >
                       Let&apos;s Go!
                     </button>
+                  </div>
+                )}
+                {creationWarning && (
+                  <div className="mt-4 mx-auto max-w-md rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">
+                    <p className="text-amber-300 text-sm font-semibold mb-1">
+                      Created, but the program did not start
+                    </p>
+                    <p className="text-amber-200/80 text-xs leading-relaxed">{creationWarning}</p>
+                    <p className="text-amber-200/60 text-xs mt-2">
+                      The agent exists, but its terminal is sitting at a shell prompt — messages
+                      sent to it now would be run as shell commands, not read.
+                    </p>
                   </div>
                 )}
                 {creationError && (

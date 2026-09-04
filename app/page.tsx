@@ -527,9 +527,24 @@ export default function DashboardPage() {
         body: JSON.stringify(body),
       })
 
+      const data = await response.json().catch(() => ({}))
+
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.message || data.error || 'Failed to wake agent')
+      }
+
+      // A wake can succeed while the agent's PROGRAM does not start — the tmux
+      // session comes up and the pane sits at a shell. Until v0.38.0 that was
+      // swallowed entirely; the API now reports it, and this is where a person
+      // finds out. Without this the agent appears in the list looking healthy
+      // and the first thing typed at it is executed by bash (#426).
+      if (data?.programStarted === false && data?.programError) {
+        addToast({
+          type: 'warning',
+          title: `${agent.alias || agent.name} woke, but its program did not start`,
+          message: data.programError,
+          duration: 15000,
+        })
       }
 
       refreshAgents()

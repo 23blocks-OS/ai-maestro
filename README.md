@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.38.5-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.38.6-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -33,6 +33,7 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 - **Works with any AI agent** — Claude Code, Codex, Aider, Cursor, OpenClaw, Hermes, Droid, or any terminal-based agent. We don't lock you in.
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
+- **Yours, entirely** — MIT licensed. No account, no telemetry, no per-seat pricing, no hosted tier we upsell you to. Your code and your agents stay on your machines.
 
 ---
 
@@ -96,6 +97,8 @@ See and manage all your AI agents in one place. Create agents from the UI with a
 
 A peer mesh network where every machine is equal. Add a computer, it joins the mesh. Every agent on every machine, visible from one dashboard. Use each machine for what it's best at — Mac for iOS builds, Linux for Docker, cloud for heavy compute. **No central server required.**
 
+Worker machines can run headless (`yarn headless`) — the full API and agent runtime with no UI, in about 100MB of RAM. Run the dashboard where you sit; run agents wherever the compute is.
+
 ### Agent Messaging
 
 *I was the mailman — copying messages between agents because they couldn't talk to each other.*
@@ -123,11 +126,19 @@ Three layers of intelligence that grow over time: **Memory** (agents remember pa
 
 Assemble agents into teams, run meetings in split-pane war rooms, and track tasks on a full Kanban board with drag-and-drop, dependencies, and 5 status columns. Cross-machine teams work seamlessly. This is project management for your AI workforce.
 
-### Agent Identity
+### Scheduled Work
+
+*Some jobs shouldn't wait for me to remember to ask.*
+
+Give an agent its own schedule — morning triage, a nightly dependency check, a Monday report. The timer belongs to the **agent, not the machine**, so a schedule travels with the agent when it moves hosts, and fires when that agent goes idle instead of interrupting it mid-task.
+
+### Agent Presence
 
 *At 80 agents, they all looked the same.*
 
-Custom avatars, personality profiles, and visual presence for every agent. When an agent has a face and a role, you instinctively assign it the right work — just like a real team.
+Custom avatars, personality profiles, and roles for every agent. When an agent has a face and a job title, you instinctively assign it the right work — just like a real team.
+
+Agents can also **speak and be seen**: a voice pipeline with your choice of TTS provider, and live animated faces that lip-sync to what the agent is saying. Open a call with an agent and it looks back at you. Nobody else is doing this, and once you've reviewed a plan by listening to it on a walk, the terminal feels like a downgrade.
 
 ### Agent Deployment
 
@@ -255,6 +266,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 ## What's Next
 
+- **Worktree isolation** — run several agents on one repository at once, each on its own branch, with a diff review to pick the winner
 - Agent search and filtering across the entire mesh
 - Agent playback — time-travel through agent sessions
 - Performance analytics dashboard
@@ -319,6 +331,17 @@ tmux gives you terminals. AI Maestro gives you an organization — persistent me
 
 **What is LolaBot?**
 [LolaBot](https://github.com/23blocks-OS/lolabot) is an open-source agent framework — a batteries-included Chief of Staff that handles email, memory, tasks, and security. The [LolaBot Factory](https://lolabots.com) offers pre-built agent templates for one-click deployment.
+
+**What does it cost?**
+Nothing. MIT licensed, free for any purpose including commercial — no seats, no usage fees, no paid tier. You bring your own agent subscriptions (Claude Code, Codex, whatever you already pay for) and AI Maestro just runs them. Note that some tools in this space are *source-available* rather than open source, under licenses that forbid offering them as a service; MIT has no such restriction.
+
+**Do you collect telemetry?**
+No. No analytics SDK, no account, no login, no phone-home. The only telemetry in the product is the agent metrics shown on your own dashboard, and those post to `localhost:23000` — your machine. Point them at a central collector only if you choose to run one.
+
+**How does this compare to the parallel-agent IDEs?**
+Different job. Tools like Orca, Paseo, Superset and Conductor are excellent at running several agents on **one repository on one machine**, each in an isolated git worktree, then diffing the results and merging the best. If that's what you need, use one of them — and note we don't have worktree isolation yet (it's next on the roadmap above).
+
+AI Maestro is built for the case after that one: a **standing team of agents** with names, memory, and the ability to message each other, spread across every machine you own. Agents that persist between sessions, remember prior work, coordinate on a shared Kanban board, and move between computers. Ours is a fleet; theirs is a workbench. Plenty of people want both.
 
 **Is there a hosted / cloud version?**
 Not yet. AI Maestro runs on your machines. You own your data, your agents, and your infrastructure.

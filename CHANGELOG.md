@@ -3,6 +3,43 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.6] - 2026-09-07 — Say what we already ship
+
+A competitive benchmark against Paseo, Orca, Conductor and Superset turned up an
+uncomfortable finding: several capabilities we shipped months ago appear nowhere
+in the README, including two that every competitor either charges for or cannot
+claim at all.
+
+### Changed
+- **README documents what already exists.** No new code — this release closes the
+  gap between what AI Maestro does and what a first-time reader can tell it does.
+  - **Scheduled work** (shipped 0.37.0) had no entry at all. Timers belong to the
+    agent rather than the host, so a schedule follows an agent between machines
+    and fires on that agent's idle transition — worth saying out loud.
+  - **Voice and live animated faces** (0.38.x) were buried under "custom avatars".
+    That section is now *Agent Presence* and says an agent can speak and lip-sync.
+  - **Headless worker mode** (`yarn headless`, ~100MB, no UI) was documented only
+    in CLAUDE.md, so nobody outside the repo knew worker nodes were a thing.
+  - **No account, no telemetry, no per-seat pricing.** Verified before writing it:
+    no analytics SDK in the dependency tree, no phone-home in the source, and the
+    OTLP endpoint defaults to `localhost:23000`. Competitors advertise this
+    heavily; one of them is source-available under a license that forbids running
+    it as a service, and another charges $60 per user per month.
+- **The mental model is now written down.** AI Maestro is an OS for an AI-first
+  company: an agent is an employee that *owns* a product, repo or process, not a
+  disposable worker. Because agents own things they do not share a checkout —
+  each clones what it owns and integrates through pull requests. That is not a
+  missing feature, it is forced by the premise: git worktrees are several working
+  directories over one `.git` store on one disk, so they cannot span hosts, and
+  our agents live on different machines. New *Mental Model* section in the README
+  and an *Agent Ownership* section in `docs/CONCEPTS.md`.
+- **Roadmap:** create an agent directly from a repo URL — clone and staff in one
+  step. Today agent creation only attaches an existing directory; cloning happens
+  only on transfer/import. That is the real gap the ownership model implies.
+- **New FAQ entries**: what it costs, whether we collect telemetry, and an honest
+  comparison with the parallel-agent IDEs that says plainly where they are the
+  better choice.
+
 ## [0.38.5] - 2026-09-04 — Paste a screenshot onto an agent (#270)
 
 [#270](https://github.com/23blocks-OS/ai-maestro/issues/270) asked for three things. **The third — file attachments in the messaging system — shipped in [v0.38.0](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.0).** The other two are here.

@@ -8,6 +8,7 @@ Understanding AI Maestro's architecture will help you maximize its potential for
 - [Localhost vs Remote Hosts](#localhost-vs-remote-hosts)
 - [The Peer Mesh Network](#the-peer-mesh-network)
 - [Agents and tmux Sessions](#agents-and-tmux-sessions)
+- [Agent Ownership](#agent-ownership)
 - [Security Model](#security-model)
 
 ---
@@ -229,6 +230,44 @@ When you create an agent, AI Maestro creates a tmux session for it. The tmux ses
 
 ---
 
+## Agent Ownership
+
+This is the design decision that separates AI Maestro from every other agent tool, and it is worth understanding before you organize your fleet.
+
+### An agent owns things
+
+In AI Maestro an agent is not a worker you hand a task to and dispose of. It is closer to an **employee**: it has a name, a face, a persistent memory, an inbox — and it **owns** something. A product. A repository. A process. A customer. Its memory and its code graph are indexed against what it owns, which is precisely why it gets more useful the longer it works on it.
+
+That is the whole thesis. You are not running a task queue. You are staffing a company.
+
+### Agents do not share a working copy
+
+Because agents own things, **two agents do not share one checkout**. If two agents need the same repository, each one clones it into its own working directory, works on its own branch, and integrates through git the way any two engineers on a team would — push, pull request, review, merge.
+
+This is not a limitation we are working around. It is the only model that survives the thing AI Maestro is actually for:
+
+> **Your agents are on different machines.**
+
+A shared working directory requires a shared filesystem. Git worktrees — the isolation primitive used by the single-machine, parallel-agent IDEs — are a set of working directories backed by **one `.git` object store on one disk**. They cannot span hosts. The moment your backend agent lives on a Linux box and your iOS agent lives on a Mac, worktrees stop being an option and a clone is the only thing that works.
+
+The product already assumes this. Transfer an agent to another host and AI Maestro clones its repositories to the same paths on the destination, because an agent's repos travel with the agent.
+
+### "But I want five agents on one repo"
+
+Two different wishes hide inside that sentence, and they have different answers.
+
+**"Five agents, each owning a different part of the system."** This is the AI Maestro case. Give each one its own clone. Backend owns the API, frontend owns the web app, infra owns the Terraform — even in a monorepo. They coordinate over AMP and integrate through pull requests. It is how human teams work, and it scales past one machine.
+
+**"Five agents attempting the same task so I can pick the best diff."** This is a genuinely different workflow — disposable, single-machine, fan-out-and-compare — and tools like Orca, Paseo, Superset and Conductor are built specifically for it, on git worktrees. If that is what you need today, use one of them. We would rather say so than pretend a clone is the same thing.
+
+### Practical notes
+
+- **Large repositories:** cloning 80 agents' worth of a monorepo is real disk. Use `git clone --filter=blob:none` (blobless) or `--reference /path/to/local/mirror` to share objects with an existing local copy.
+- **Worktrees inside an agent are fine.** An agent that owns a repo can absolutely use `git worktree` in its own clone for a scratch branch or a hotfix without stashing. Worktrees are a useful tool *within* an agent; they are just not how AI Maestro isolates agents *from each other*.
+- **Repos are discovered, not configured.** Point an agent at a directory and AI Maestro reads its git remote and branch automatically.
+
+---
+
 ## Security Model
 
 Understanding AI Maestro's security model helps you deploy it safely.
@@ -315,8 +354,9 @@ AI Maestro assumes OS-level security:
 2. **Peer mesh** = all nodes are equal, no central server required
 3. **Add once** = bidirectional discovery syncs peers automatically
 4. **Agents** are automatically organized by naming convention (tmux sessions are the underlying tool)
-5. Security relies on OS users + network isolation (Tailscale recommended)
-6. Access the dashboard from any connected node - they all show the same agents
+5. **Agents own their work** — each agent clones what it owns rather than sharing a checkout, because a fleet spread across machines cannot share a filesystem
+6. Security relies on OS users + network isolation (Tailscale recommended)
+7. Access the dashboard from any connected node - they all show the same agents
 
 **Next Steps:**
 - [Use Cases](./USE-CASES.md) - See real-world scenarios

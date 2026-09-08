@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.38.5-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.38.6-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -33,6 +33,21 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 - **Works with any AI agent** — Claude Code, Codex, Aider, Cursor, OpenClaw, Hermes, Droid, or any terminal-based agent. We don't lock you in.
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
+- **Yours, entirely** — MIT licensed. No account, no telemetry, no per-seat pricing, no hosted tier we upsell you to. Your code and your agents stay on your machines.
+
+---
+
+## The Mental Model
+
+**AI Maestro is an operating system for an AI-first company.** Not a task runner — a place where a standing team works.
+
+An agent here is closer to an **employee** than to a job. It has a name, a face, a memory that survives the session, an inbox — and it **owns** something: a product, a repository, a process, a customer. Its memory and code graph are indexed against what it owns, which is why it gets better at that thing over months rather than starting cold every morning.
+
+Because agents own things, **they don't share a working copy.** Two agents that need the same repository each clone it, work on their own branch, and integrate through git — push, pull request, review, merge — exactly like two engineers on a team.
+
+That's deliberate, and it follows from the one thing that defines this product: **your agents run on different machines.** A shared checkout needs a shared filesystem. Git worktrees — the isolation primitive the single-machine agent IDEs are built on — are several working directories over **one `.git` store on one disk**, so they stop working the moment your backend agent is on a Linux box and your iOS agent is on a Mac. A clone is the only primitive that survives the move. It's why transferring an agent to another host clones its repos to the destination: an agent's repositories travel with the agent.
+
+[The full model →](./docs/CONCEPTS.md#agent-ownership)
 
 ---
 
@@ -96,6 +111,8 @@ See and manage all your AI agents in one place. Create agents from the UI with a
 
 A peer mesh network where every machine is equal. Add a computer, it joins the mesh. Every agent on every machine, visible from one dashboard. Use each machine for what it's best at — Mac for iOS builds, Linux for Docker, cloud for heavy compute. **No central server required.**
 
+Worker machines can run headless (`yarn headless`) — the full API and agent runtime with no UI, in about 100MB of RAM. Run the dashboard where you sit; run agents wherever the compute is.
+
 ### Agent Messaging
 
 *I was the mailman — copying messages between agents because they couldn't talk to each other.*
@@ -123,11 +140,19 @@ Three layers of intelligence that grow over time: **Memory** (agents remember pa
 
 Assemble agents into teams, run meetings in split-pane war rooms, and track tasks on a full Kanban board with drag-and-drop, dependencies, and 5 status columns. Cross-machine teams work seamlessly. This is project management for your AI workforce.
 
-### Agent Identity
+### Scheduled Work
+
+*Some jobs shouldn't wait for me to remember to ask.*
+
+Give an agent its own schedule — morning triage, a nightly dependency check, a Monday report. The timer belongs to the **agent, not the machine**, so a schedule travels with the agent when it moves hosts, and fires when that agent goes idle instead of interrupting it mid-task.
+
+### Agent Presence
 
 *At 80 agents, they all looked the same.*
 
-Custom avatars, personality profiles, and visual presence for every agent. When an agent has a face and a role, you instinctively assign it the right work — just like a real team.
+Custom avatars, personality profiles, and roles for every agent. When an agent has a face and a job title, you instinctively assign it the right work — just like a real team.
+
+Agents can also **speak and be seen**: a voice pipeline with your choice of TTS provider, and live animated faces that lip-sync to what the agent is saying. Open a call with an agent and it looks back at you. Nobody else is doing this, and once you've reviewed a plan by listening to it on a walk, the terminal feels like a downgrade.
 
 ### Agent Deployment
 
@@ -255,6 +280,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 ## What's Next
 
+- **Create an agent from a repo URL** — clone and staff it in one step, instead of cloning by hand and pointing an agent at the folder
 - Agent search and filtering across the entire mesh
 - Agent playback — time-travel through agent sessions
 - Performance analytics dashboard
@@ -319,6 +345,20 @@ tmux gives you terminals. AI Maestro gives you an organization — persistent me
 
 **What is LolaBot?**
 [LolaBot](https://github.com/23blocks-OS/lolabot) is an open-source agent framework — a batteries-included Chief of Staff that handles email, memory, tasks, and security. The [LolaBot Factory](https://lolabots.com) offers pre-built agent templates for one-click deployment.
+
+**What does it cost?**
+Nothing. MIT licensed, free for any purpose including commercial — no seats, no usage fees, no paid tier. You bring your own agent subscriptions (Claude Code, Codex, whatever you already pay for) and AI Maestro just runs them. Note that some tools in this space are *source-available* rather than open source, under licenses that forbid offering them as a service; MIT has no such restriction.
+
+**Do you collect telemetry?**
+No. No analytics SDK, no account, no login, no phone-home. The only telemetry in the product is the agent metrics shown on your own dashboard, and those post to `localhost:23000` — your machine. Point them at a central collector only if you choose to run one.
+
+**How does this compare to the parallel-agent IDEs?**
+Different job, and deliberately so. Tools like Orca, Paseo, Superset and Conductor run several agents on **one repository on one machine**, each in an isolated git worktree, then diff the results so you can merge the best one. It's a disposable fan-out: five attempts at the same task, keep one, throw away four. They're good at it. If that's the workflow you want today, use one of them.
+
+AI Maestro is built for the case after that one — a **standing team** of agents that own things, remember their work, message each other, and run across every machine you have. We don't use worktrees because worktrees can't leave the machine they're on: they're several working directories over one `.git` store on one disk. Our agents each clone what they own and integrate through pull requests, like a human team, which is the only model that works when the backend agent is on Linux and the iOS agent is on a Mac. See [the mental model](#the-mental-model).
+
+**Can I run several agents on the same repository?**
+Yes — give each one its own clone. Backend owns the API, frontend owns the web app, infra owns the Terraform, even inside a monorepo. They coordinate over AMP and merge through git. For a large repo, `git clone --filter=blob:none` or `--reference` to a local mirror keeps the disk cost down. And an individual agent is free to use `git worktree` inside its own clone — worktrees are a fine tool *within* an agent, just not how we isolate agents *from each other*.
 
 **Is there a hosted / cloud version?**
 Not yet. AI Maestro runs on your machines. You own your data, your agents, and your infrastructure.

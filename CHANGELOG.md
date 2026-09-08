@@ -25,10 +25,17 @@ claim at all.
     OTLP endpoint defaults to `localhost:23000`. Competitors advertise this
     heavily; one of them is source-available under a license that forbids running
     it as a service, and another charges $60 per user per month.
-- **Roadmap names the real gap.** Worktree isolation — running several agents on
-  one repository at once, each on its own branch, with a diff review to pick the
-  winner — is now the first item under What's Next. All four benchmarked tools
-  build on that primitive and we do not have it.
+- **The mental model is now written down.** AI Maestro is an OS for an AI-first
+  company: an agent is an employee that *owns* a product, repo or process, not a
+  disposable worker. Because agents own things they do not share a checkout —
+  each clones what it owns and integrates through pull requests. That is not a
+  missing feature, it is forced by the premise: git worktrees are several working
+  directories over one `.git` store on one disk, so they cannot span hosts, and
+  our agents live on different machines. New *Mental Model* section in the README
+  and an *Agent Ownership* section in `docs/CONCEPTS.md`.
+- **Roadmap:** create an agent directly from a repo URL — clone and staff in one
+  step. Today agent creation only attaches an existing directory; cloning happens
+  only on transfer/import. That is the real gap the ownership model implies.
 - **New FAQ entries**: what it costs, whether we collect telemetry, and an honest
   comparison with the parallel-agent IDEs that says plainly where they are the
   better choice.

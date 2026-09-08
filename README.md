@@ -37,6 +37,20 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 
 ---
 
+## The Mental Model
+
+**AI Maestro is an operating system for an AI-first company.** Not a task runner — a place where a standing team works.
+
+An agent here is closer to an **employee** than to a job. It has a name, a face, a memory that survives the session, an inbox — and it **owns** something: a product, a repository, a process, a customer. Its memory and code graph are indexed against what it owns, which is why it gets better at that thing over months rather than starting cold every morning.
+
+Because agents own things, **they don't share a working copy.** Two agents that need the same repository each clone it, work on their own branch, and integrate through git — push, pull request, review, merge — exactly like two engineers on a team.
+
+That's deliberate, and it follows from the one thing that defines this product: **your agents run on different machines.** A shared checkout needs a shared filesystem. Git worktrees — the isolation primitive the single-machine agent IDEs are built on — are several working directories over **one `.git` store on one disk**, so they stop working the moment your backend agent is on a Linux box and your iOS agent is on a Mac. A clone is the only primitive that survives the move. It's why transferring an agent to another host clones its repos to the destination: an agent's repositories travel with the agent.
+
+[The full model →](./docs/CONCEPTS.md#agent-ownership)
+
+---
+
 ## Quick Start
 
 ```bash
@@ -266,7 +280,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 ## What's Next
 
-- **Worktree isolation** — run several agents on one repository at once, each on its own branch, with a diff review to pick the winner
+- **Create an agent from a repo URL** — clone and staff it in one step, instead of cloning by hand and pointing an agent at the folder
 - Agent search and filtering across the entire mesh
 - Agent playback — time-travel through agent sessions
 - Performance analytics dashboard
@@ -339,9 +353,12 @@ Nothing. MIT licensed, free for any purpose including commercial — no seats, n
 No. No analytics SDK, no account, no login, no phone-home. The only telemetry in the product is the agent metrics shown on your own dashboard, and those post to `localhost:23000` — your machine. Point them at a central collector only if you choose to run one.
 
 **How does this compare to the parallel-agent IDEs?**
-Different job. Tools like Orca, Paseo, Superset and Conductor are excellent at running several agents on **one repository on one machine**, each in an isolated git worktree, then diffing the results and merging the best. If that's what you need, use one of them — and note we don't have worktree isolation yet (it's next on the roadmap above).
+Different job, and deliberately so. Tools like Orca, Paseo, Superset and Conductor run several agents on **one repository on one machine**, each in an isolated git worktree, then diff the results so you can merge the best one. It's a disposable fan-out: five attempts at the same task, keep one, throw away four. They're good at it. If that's the workflow you want today, use one of them.
 
-AI Maestro is built for the case after that one: a **standing team of agents** with names, memory, and the ability to message each other, spread across every machine you own. Agents that persist between sessions, remember prior work, coordinate on a shared Kanban board, and move between computers. Ours is a fleet; theirs is a workbench. Plenty of people want both.
+AI Maestro is built for the case after that one — a **standing team** of agents that own things, remember their work, message each other, and run across every machine you have. We don't use worktrees because worktrees can't leave the machine they're on: they're several working directories over one `.git` store on one disk. Our agents each clone what they own and integrate through pull requests, like a human team, which is the only model that works when the backend agent is on Linux and the iOS agent is on a Mac. See [the mental model](#the-mental-model).
+
+**Can I run several agents on the same repository?**
+Yes — give each one its own clone. Backend owns the API, frontend owns the web app, infra owns the Terraform, even inside a monorepo. They coordinate over AMP and merge through git. For a large repo, `git clone --filter=blob:none` or `--reference` to a local mirror keeps the disk cost down. And an individual agent is free to use `git worktree` inside its own clone — worktrees are a fine tool *within* an agent, just not how we isolate agents *from each other*.
 
 **Is there a hosted / cloud version?**
 Not yet. AI Maestro runs on your machines. You own your data, your agents, and your infrastructure.

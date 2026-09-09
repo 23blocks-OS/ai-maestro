@@ -3,6 +3,44 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.7] - 2026-09-08 — The installer never built the app
+
+### Fixed
+- **`remote-install.sh` — the documented one-liner in the README — never ran a
+  build, so every fresh install produced a server that could not start.**
+
+  `.next` is gitignored, so a fresh `git clone --depth 1` has no bundle.
+  `ecosystem.config.js` starts AI Maestro with `NODE_ENV=production`, which makes
+  `server.mjs:90` set `dev = false`, which makes Next refuse to start:
+  *"Could not find a production build in the '.next' directory."* pm2 then
+  crash-looped it ten times (`max_restarts: 10`) and gave up. The function
+  responsible was even called `act3_clone_and_build`; it only cloned.
+
+  Confirmed by calling `next({ dev: false })).prepare()` against a directory with
+  dependencies but no `.next`, which is exactly what the installer produced.
+
+  Existing hosts were unaffected because `update-aimaestro.sh` builds. Only the
+  path new users take was broken.
+
+- **The update path left the previous version's bundle in place.** `git pull` with
+  no rebuild meant users "updated" and kept running the old UI — the same silent
+  staleness as the stale-plugin-scripts bug in 0.36.31.
+
+- **A failed `yarn install` no longer continues.** Both paths ended in
+  `|| maestro_warn "yarn install had errors — continuing"`, which is how a broken
+  install reached the "success" banner.
+
+### Changed
+- The build is verified by **`.next/BUILD_ID` on disk, not by the exit code**. A
+  Next build can exit non-zero having written a usable bundle, and can exit zero
+  having written nothing; only the artifact settles it. A stale bundle is deleted
+  before building so a failed rebuild cannot leave the old version looking valid.
+- On failure the installer prints the last 15 lines of the build log and the path
+  to the full one, then exits non-zero, instead of reporting success.
+- `tests/remote-install-build.test.ts` — 9 tests covering both call sites, the
+  removed silent-continue, and the build-verification behaviour including the
+  exit-zero-wrote-nothing case.
+
 ## [0.38.6] - 2026-09-07 — Say what we already ship
 
 A competitive benchmark against Paseo, Orca, Conductor and Superset turned up an

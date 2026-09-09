@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.38.6"
+VERSION="0.38.7"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -924,6 +924,48 @@ act2b_gateway_selection() {
 # ACT 3: CLONE & BUILD AI MAESTRO
 # =============================================================================
 
+# Build the production bundle.
+#
+# This is not optional and it is not a speed optimisation. pm2 starts AI Maestro
+# with NODE_ENV=production (ecosystem.config.js), which makes server.mjs set
+# `dev = false`, which makes Next require a production build in .next. `.next` is
+# gitignored, so a fresh clone never has one. Without this step the server dies on
+# startup with "Could not find a production build in the '.next' directory" and
+# pm2 crash-loops it ten times before giving up — a silently dead install.
+#
+# Verified by BUILD_ID rather than by exit code: a build can exit non-zero after
+# having written a usable bundle, and can also exit zero having written nothing.
+# The artifact on disk is the thing that matters.
+build_app() {
+    local step="${1:-3}"
+    local total_steps="${2:-5}"
+    maestro_step "$step" "$total_steps" "Building AI Maestro (2-4 min)..." ""
+
+    rm -rf .next 2>/dev/null || true
+
+    if ! yarn build >/tmp/aimaestro-build.log 2>&1; then
+        if [ ! -f ".next/BUILD_ID" ]; then
+            maestro_fail "Build failed — AI Maestro cannot start without it."
+            echo ""
+            echo "   Last 15 lines of the build log:"
+            tail -15 /tmp/aimaestro-build.log | sed 's/^/     /'
+            echo ""
+            echo "   Full log: /tmp/aimaestro-build.log"
+            echo "   Retry in $INSTALL_DIR with: yarn build"
+            exit 1
+        fi
+    fi
+
+    if [ ! -f ".next/BUILD_ID" ]; then
+        maestro_fail "Build reported success but produced no bundle (.next/BUILD_ID missing)."
+        echo "   Full log: /tmp/aimaestro-build.log"
+        echo "   Retry in $INSTALL_DIR with: yarn build"
+        exit 1
+    fi
+
+    maestro_step "$step" "$total_steps" "Building AI Maestro..." "done"
+}
+
 act3_clone_and_build() {
     echo ""
     maestro_say "Now the main event — installing AI Maestro..."
@@ -948,7 +990,7 @@ act3_clone_and_build() {
             fi
             maestro_ask_yn "Update existing installation?" "y"
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ] || [ "$REPLY" = "" ]; then
-                maestro_step 1 4 "Pulling latest changes..." ""
+                maestro_step 1 5 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
                 # Count stashes before so we only pop what we pushed (avoids race condition)
                 local stash_count_before
@@ -970,13 +1012,21 @@ act3_clone_and_build() {
                     fi
                 fi
                 git submodule update --init --recursive 2>/dev/null || maestro_warn "Some submodules failed to update"
-                maestro_step 1 4 "Pulling latest changes..." "done"
+                maestro_step 1 5 "Pulling latest changes..." "done"
 
-                maestro_step 2 4 "Installing dependencies..." ""
-                yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
-                maestro_step 2 4 "Installing dependencies..." "done"
+                maestro_step 2 5 "Installing dependencies..." ""
+                if ! { yarn install --silent 2>/dev/null || yarn install; }; then
+                    maestro_fail "Dependency install failed — leaving the previous version running."
+                    echo "   Retry in $INSTALL_DIR with: yarn install && yarn build"
+                    exit 1
+                fi
+                maestro_step 2 5 "Installing dependencies..." "done"
 
-                maestro_step 3 4 "Updating agent tools..." ""
+                # Rebuild, or the freshly pulled code never reaches the browser:
+                # .next still holds the PREVIOUS version's bundle.
+                build_app 3 5
+
+                maestro_step 4 5 "Updating agent tools..." ""
                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
                     # On update: only reinstall tools that are already present
                     local tool_flags=""
@@ -985,10 +1035,10 @@ act3_clone_and_build() {
                     # shellcheck disable=SC2086
                     ./install.sh --from-remote -y $tool_flags
                 fi
-                maestro_step 3 4 "Updating agent tools..." "done"
+                maestro_step 4 5 "Updating agent tools..." "done"
 
                 # Update existing gateways
-                maestro_step 4 4 "Updating gateways..." ""
+                maestro_step 5 5 "Updating gateways..." ""
                 if [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
                     cd "$INSTALL_DIR/services"
                     git pull origin main 2>/dev/null || git pull 2>/dev/null || true
@@ -1000,7 +1050,7 @@ act3_clone_and_build() {
                     done
                     cd "$INSTALL_DIR"
                 fi
-                maestro_step 4 4 "Updating gateways..." "done"
+                maestro_step 5 5 "Updating gateways..." "done"
 
                 echo ""
                 maestro_ok "AI Maestro v${VERSION} updated (was v${old_version:-unknown})"
@@ -1016,8 +1066,8 @@ act3_clone_and_build() {
     fi
 
     # Fresh install — determine total steps
-    local total_steps=4
-    [ -n "$SELECTED_GATEWAYS" ] && total_steps=5
+    local total_steps=5
+    [ -n "$SELECTED_GATEWAYS" ] && total_steps=6
 
     maestro_step 1 "$total_steps" "Downloading..." ""
     if ! git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"; then
@@ -1029,19 +1079,25 @@ act3_clone_and_build() {
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
-    yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+    if ! { yarn install --silent 2>/dev/null || yarn install; }; then
+        maestro_fail "Dependency install failed. AI Maestro cannot start without it."
+        echo "   Try again in $INSTALL_DIR with: yarn install"
+        exit 1
+    fi
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
-    maestro_step 3 "$total_steps" "Setting up agent tools..." ""
+    build_app 3 "$total_steps"
+
+    maestro_step 4 "$total_steps" "Setting up agent tools..." ""
     if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
         chmod +x install.sh
         ./install.sh --from-remote -y
     fi
-    maestro_step 3 "$total_steps" "Setting up agent tools..." "done"
+    maestro_step 4 "$total_steps" "Setting up agent tools..." "done"
 
     # Install selected gateways
     if [ -n "$SELECTED_GATEWAYS" ]; then
-        maestro_step 4 "$total_steps" "Installing gateways..." ""
+        maestro_step 5 "$total_steps" "Installing gateways..." ""
         if git clone --depth 1 "$GATEWAYS_REPO" "$INSTALL_DIR/services" 2>/dev/null; then
             IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
             for gw in "${GW_ARRAY[@]}"; do
@@ -1076,7 +1132,7 @@ act3_clone_and_build() {
             maestro_warn "Could not clone gateways repo — you can add them later"
             SELECTED_GATEWAYS=""
         fi
-        maestro_step 4 "$total_steps" "Installing gateways..." "done"
+        maestro_step 5 "$total_steps" "Installing gateways..." "done"
     fi
 
     local config_step=$total_steps

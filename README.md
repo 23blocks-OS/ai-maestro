@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.38.7-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.38.8-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -152,7 +152,9 @@ Give an agent its own schedule — morning triage, a nightly dependency check, a
 
 Custom avatars, personality profiles, and roles for every agent. When an agent has a face and a job title, you instinctively assign it the right work — just like a real team.
 
-Agents can also **speak and be seen**: a voice pipeline with your choice of TTS provider, and live animated faces that lip-sync to what the agent is saying. Open a call with an agent and it looks back at you. Nobody else is doing this, and once you've reviewed a plan by listening to it on a walk, the terminal feels like a downgrade.
+Agents can also **speak and be seen**: a voice pipeline with your choice of TTS provider, and live animated faces that move while the agent talks. Open a call with an agent and it looks back at you. Nobody else is doing this, and once you've reviewed a plan by listening to it on a walk, the terminal feels like a downgrade.
+
+One caveat worth stating plainly: **true lip-sync — mouth movement driven by the actual audio — needs the OpenAI or ElevenLabs voice and an API key.** The default browser voice (`web-speech`) renders straight to your speakers and exposes no audio stream to measure, so the face animates from a synthetic envelope instead. It looks alive; it is not tracking the words. That is a limit of the Web Speech API, not something we plan to work around.
 
 ### Agent Deployment
 

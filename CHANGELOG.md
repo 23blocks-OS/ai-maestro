@@ -3,6 +3,27 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.8] - 2026-09-09 — The lip-sync claim was true of one voice, not the default
+
+### Fixed
+- **README overclaimed lip-sync.** [v0.38.6](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.6)
+  added *"live animated faces that lip-sync to what the agent is saying"* with no
+  qualifier. That is true only on the OpenAI and ElevenLabs voices, which need an
+  API key. `hooks/useTTS.ts:86-92` falls back to `web-speech` whenever a provider
+  is unselected or unkeyed, and `web-speech` **cannot** be lip-synced —
+  `SpeechSynthesis` renders straight to the output device and exposes no element
+  and no `MediaStream` to tap, so the face animates from a synthetic 4–6Hz
+  envelope instead.
+
+  The limitation was already documented in this changelog under the release that
+  built the feature. The claim was written anyway, without checking, which is
+  precisely the unearned-success pattern this project has spent the cycle
+  removing — and it is worse in the README, where it is the first thing a new
+  user reads and the first thing they can catch us on.
+
+  The README now states which voices give real sync, why the default cannot, and
+  that it is a Web Speech API limit rather than a roadmap item.
+
 ## [0.38.7] - 2026-09-08 — The installer never built the app
 
 ### Fixed

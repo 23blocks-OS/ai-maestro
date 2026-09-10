@@ -3,6 +3,40 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.9] - 2026-09-10 — Stale skill backups were being offered to agents as real skills
+
+### Fixed
+- **`install-plugin.sh` never deleted the skill backups it created.** Each run
+  copies every existing skill to `<skill>.backup-<timestamp>` before replacing it.
+  The script runs on every install, every `update-aimaestro.sh`, and every fleet
+  deploy, so each pass left 8 more directories behind and none were ever removed.
+
+  Measured across the fleet on 9 September: **313 / 304 / 447** backup
+  directories — 41 copies of `planning`, 41 of `memory-search`, the oldest dating
+  to 23 February.
+
+  **The cost was not disk (~6 MB).** `~/.claude/skills` is a namespace Claude Code
+  *enumerates*, so every stale copy was presented to agents as an invokable skill.
+  A session on 9 September was offered `agent-messaging.backup-20260909090251`
+  and `graph-query.backup-20260909090251` alongside the current ones. Agents were
+  choosing among forty-one versions of the same skill, the oldest describing AMP
+  scripts as they behaved seven months earlier.
+
+  `prune_skill_backups` now keeps the two most recent per skill and deletes the
+  rest, **after** a successful install so a rollback is never pruned out from
+  under itself. Override with `SKILL_BACKUPS_KEEP`.
+
+### Notes
+- The backups were close to useless anyway: the install already copies into a
+  `mktemp` directory and only removes the old skill once that copy has succeeded,
+  making the restore branch nearly unreachable — and the restore reads only the
+  newest backup, never the other forty. The comment claimed they "preserve user
+  customizations", but an edit buried in one of 41 identically-named directories
+  is not recoverable in any practical sense.
+- `tests/skill-backup-prune.test.ts` — 10 cases including the real-world 41→2
+  pileup, and an assertion that the prune happens after the install rather than
+  before it.
+
 ## [0.38.8] - 2026-09-09 — The lip-sync claim was true of one voice, not the default
 
 ### Fixed

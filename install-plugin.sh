@@ -722,6 +722,38 @@ if [ "$INSTALL_SKILL" = true ]; then
 
     mkdir -p ~/.claude/skills
 
+    # Keep the most recent SKILL_BACKUPS_KEEP backups of one skill, delete the rest.
+    #
+    # WHY THIS EXISTS
+    #
+    # Each install copies the current skill to <skill>.backup-<timestamp> before
+    # replacing it, and nothing ever deleted them. Every install, every update and
+    # every fleet deploy left 8 more directories behind. By September 2026 the
+    # hosts held 313, 304 and 447 of them, some dating to February.
+    #
+    # The cost is not disk (about 6 MB). ~/.claude/skills is a namespace Claude
+    # Code ENUMERATES, so every stale copy is offered to agents as an invokable
+    # skill. Agents were choosing between the current agent-messaging skill and
+    # forty-one older ones, the oldest describing AMP scripts as they behaved
+    # seven months ago.
+    #
+    # Sorted lexically, which is chronological: the timestamp is %Y%m%d%H%M%S.
+    prune_skill_backups() {
+        local skill="$1"
+        local keep="${SKILL_BACKUPS_KEEP:-2}"
+        local -a backups
+        # shellcheck disable=SC2207
+        backups=($(ls -1d ~/.claude/skills/"$skill".backup-* 2>/dev/null | sort))
+        local total=${#backups[@]}
+        [ "$total" -le "$keep" ] && return 0
+        local remove=$(( total - keep ))
+        local i
+        for (( i = 0; i < remove; i++ )); do
+            rm -rf "${backups[$i]}"
+        done
+        print_info "Pruned $remove old $skill backup(s), kept $keep"
+    }
+
     # Install AMP messaging skill from plugin
     if [ -d "$PLUGIN_DIR/skills/agent-messaging" ]; then
         SKILL_INSTALL_OK=true
@@ -746,6 +778,10 @@ if [ "$INSTALL_SKILL" = true ]; then
                     SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
                     print_success "Skill file verified (${SKILL_SIZE} bytes)"
                 fi
+
+                # Only after the new skill is in place — never prune a rollback
+                # we might still need.
+                prune_skill_backups agent-messaging
             else
                 # Copy failed - clean up temp, restore backup if we made one
                 rm -rf "$TEMP_SKILL_DIR"
@@ -788,6 +824,7 @@ if [ "$INSTALL_SKILL" = true ]; then
                     rm -rf ~/.claude/skills/"$skill"
                     mv "$TEMP_SKILL_DIR" ~/.claude/skills/"$skill"
                     print_success "Installed: $skill skill"
+                    prune_skill_backups "$skill"
                 else
                     # Copy failed - clean up temp, restore backup if needed
                     rm -rf "$TEMP_SKILL_DIR"

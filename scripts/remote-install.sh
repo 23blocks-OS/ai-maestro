@@ -189,6 +189,7 @@ SKIP_AI_TOOL=false
 SKIP_GATEWAYS=false
 UNINSTALL=false
 NON_INTERACTIVE=false
+START_FAILED=false
 IS_UPDATE=false
 SELECTED_GATEWAYS=""
 GATEWAYS_REPO="https://github.com/23blocks-OS/aimaestro-gateways.git"
@@ -979,10 +980,20 @@ act3_clone_and_build() {
             if [ -f "$INSTALL_DIR/package.json" ]; then
                 old_version=$(grep '"version"' "$INSTALL_DIR/package.json" 2>/dev/null | head -1 | sed 's/.*"version".*"\([^"]*\)".*/\1/')
             fi
+            # A matching version only means the SOURCE is current. Dependencies or
+            # the build output can still be missing (interrupted install, pruned
+            # node_modules), and skipping the repair below leaves `yarn start`
+            # failing with "tsx: not found".
             if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
-                maestro_ok "AI Maestro v${VERSION} is already up to date"
-                maestro_info "Dashboard: http://localhost:${PORT}"
-                return
+                if [ -d "$INSTALL_DIR/node_modules" ] && [ -d "$INSTALL_DIR/.next" ]; then
+                    maestro_ok "AI Maestro v${VERSION} is already up to date"
+                    maestro_info "Dashboard: http://localhost:${PORT}"
+                    return
+                fi
+                maestro_warn "AI Maestro v${VERSION} is current but the installation is incomplete"
+                [ ! -d "$INSTALL_DIR/node_modules" ] && maestro_info "Missing: node_modules (dependencies never installed)"
+                [ ! -d "$INSTALL_DIR/.next" ] && maestro_info "Missing: .next (app was never built)"
+                maestro_info "Repairing..."
             fi
             maestro_warn "AI Maestro already installed at $INSTALL_DIR"
             if [ -n "$old_version" ]; then
@@ -1224,8 +1235,15 @@ act4_start_and_register() {
         if [ $attempts -lt $max_attempts ]; then
             maestro_ok "AI Maestro running on port $PORT"
         else
-            maestro_warn "Service is starting slowly — it may need a moment"
-            maestro_info "Check: curl http://localhost:${PORT}/api/sessions"
+            # After max_attempts the service is not "slow", it never bound the
+            # port. Surface the real error instead of reporting overall success.
+            START_FAILED=true
+            maestro_fail "AI Maestro did not start on port $PORT after ${max_attempts}s"
+            if [ -f "$INSTALL_DIR/logs/startup.log" ]; then
+                maestro_info "Last lines of $INSTALL_DIR/logs/startup.log:"
+                tail -n 10 "$INSTALL_DIR/logs/startup.log" | sed 's/^/     /'
+            fi
+            maestro_info "Retry in $INSTALL_DIR with: yarn install && yarn build && yarn start"
         fi
     fi
 
@@ -1440,8 +1458,14 @@ main() {
 
     # Machine-readable status line for CI log parsing
     if [ "$NON_INTERACTIVE" = true ]; then
-        echo "[maestro] STATUS: SUCCESS"
+        if [ "$START_FAILED" = true ]; then
+            echo "[maestro] STATUS: FAILED (service did not start)"
+        else
+            echo "[maestro] STATUS: SUCCESS"
+        fi
     fi
+    [ "$START_FAILED" = true ] && exit 1
+    return 0
 }
 
 main "$@"

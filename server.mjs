@@ -204,13 +204,23 @@ async function getChatHistory(sessionName, agentId) {
   const workingDir = getAgentWorkingDir(agent)
   let hookState = readHookState(workingDir)
 
-  // If the file no longer has permission_request but the server remembers one
-  // from this session (agent is still waiting for approval), use the stored state.
-  // This handles tab-switching: component unmounts/remounts while permission is pending.
+  // If the file no longer has permission_request but the server remembers one,
+  // serve the remembered one — this is what keeps a pending approval visible
+  // across a tab switch, when the component unmounts and remounts.
+  //
+  // But only if the pane still shows the prompt. The remembered state is cleared
+  // only when a new assistant message arrives, so a false positive would pin a
+  // permission card in the chat forever — which is exactly what people report as
+  // "that question panel is back again". The pane is the ground truth.
   if (hookState?.status !== 'permission_request') {
     const sessionState = terminalSessions.get(sessionName)
     if (sessionState?._lastPermission) {
-      hookState = sessionState._lastPermission
+      if (isAgentAtPermissionPrompt(sessionName)) {
+        hookState = sessionState._lastPermission
+      } else {
+        console.log(`[Chat] ${sessionName}: dropping stale permission card — pane shows no prompt`)
+        sessionState._lastPermission = null
+      }
     }
   }
 
@@ -737,13 +747,32 @@ async function sendChatMessage(sessionName, message) {
   // the paste shows but Enter never submits.
   exitCopyMode(sessionName)
 
-  // 1. Check hookState first (fast path)
+  // 1. Remembered permission state — but NEVER trust it on its own.
+  //
+  // `_lastPermission` is set whenever a permission_request is seen (including by
+  // detectPermissionFromPane, which can false-positive), and is cleared only when
+  // a NEW assistant message appears in the transcript. That is a deadlock: we
+  // refuse to send because we believe a permission is pending, the agent
+  // therefore receives nothing, produces no assistant message, and the memory
+  // never clears. The chat is dead until someone restarts the server or drives
+  // the agent from a terminal.
+  //
+  // Measured on a live agent 15 Sep 2026: a false permission_request at 14:14:35
+  // blocked every chat message for the rest of the afternoon while the pane sat
+  // at an ordinary empty prompt with no dialog of any kind.
+  //
+  // So: re-validate against the pane, which is the ground truth. If the prompt is
+  // gone, the memory is stale — drop it and carry on.
   const sessionState = terminalSessions.get(sessionName)
-  if (sessionState?._lastPermission?.status === 'permission_request') {
-    return { ok: false, error: 'Agent is waiting for permission approval. Approve or deny the pending action first.' }
+  const paneAtPermission = isAgentAtPermissionPrompt(sessionName)
+
+  if (sessionState?._lastPermission?.status === 'permission_request' && !paneAtPermission) {
+    console.log(`[Chat] ${sessionName}: clearing stale permission state — pane shows no prompt`)
+    sessionState._lastPermission = null
   }
-  // 2. Check pane for permission prompt (catches cases hookState missed)
-  if (isAgentAtPermissionPrompt(sessionName)) {
+
+  // 2. Refuse only when the PANE actually shows a prompt right now.
+  if (paneAtPermission) {
     return { ok: false, error: 'Agent is waiting for permission approval. Approve or deny the pending action first.' }
   }
 

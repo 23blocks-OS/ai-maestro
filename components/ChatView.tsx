@@ -113,7 +113,23 @@ const PENDING_EXPIRY_MS = 30000
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
-  const [input, setInput] = useState('')
+  // The draft survives leaving the chat.
+  //
+  // ChatView UNMOUNTS when you switch to the terminal tab, so anything typed and
+  // not yet sent was simply gone on the way back — retype it. Keyed per agent so
+  // two agents do not share a draft.
+  const draftKey = `aimaestro-chat-draft-${agent.id}`
+  const [input, setInput] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    try { return localStorage.getItem(draftKey) || '' } catch { return '' }
+  })
+
+  useEffect(() => {
+    try {
+      if (input) localStorage.setItem(draftKey, input)
+      else localStorage.removeItem(draftKey)
+    } catch { /* private mode, quota — a lost draft is not worth throwing over */ }
+  }, [input, draftKey])
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -544,6 +560,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
 
     setInput('')
+    try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
     setIsSending(true)
 
     // Reset textarea height
@@ -565,6 +582,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       setError('Failed to send — try again')
       setPendingMessages(prev => prev.filter(p => p.id !== pendingMsg.id))
       setInput(messageToSend)
+      try { localStorage.setItem(draftKey, messageToSend) } catch { /* ignore */ }
     }
 
     setIsSending(false)

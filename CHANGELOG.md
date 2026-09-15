@@ -3,6 +3,43 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.15] - 2026-09-15 — The chat could refuse every message forever
+
+### Fixed
+- **A false permission detection deadlocked the chat.** `sendChatMessage` in
+  `server.mjs` — the function the chat UI actually calls — refused to send
+  whenever `sessionState._lastPermission` held a `permission_request`, **without
+  checking whether the prompt still existed**. That memory is cleared only when a
+  new assistant message appears in the transcript, which cannot happen while
+  every message is being refused. Refusal → nothing reaches the agent → no reply
+  → refusal.
+
+  Measured on a live agent: a false `permission_request` at 14:14:35 blocked every
+  chat message for the rest of the afternoon while the pane sat at an ordinary
+  empty prompt, hook state read `waiting_for_input`, and a pane scan found zero
+  permission indicators. Only a server restart or driving the agent from a
+  terminal could break it.
+
+  The pane is now consulted first and is the authority: if it shows no prompt, the
+  remembered state is **stale and gets cleared**, and the send proceeds. The
+  refusal fires only on a prompt that is there right now.
+
+- **The same stale memory pinned the question/permission card in the UI.** Chat
+  history served `_lastPermission` whenever the state file disagreed, so a false
+  positive kept a card on screen across reloads and tab switches — the *"that
+  panel is back again"* report. It is now validated against the pane too.
+
+- **The draft is no longer lost when you leave the chat.** `ChatView` unmounts on
+  a switch to the terminal tab, so anything typed and not yet sent was gone on the
+  way back. The draft is persisted per agent and restored on mount.
+
+### Notes
+- Remembered permission state is a **cache, never an authority**. A cache the
+  world cannot invalidate is a deadlock waiting to be reported.
+- `tests/permission-deadlock.test.ts` — 8 cases asserting the pane is checked
+  before the memory, that stale memory is cleared rather than left to block, that
+  the refusal is guarded by the live check, and that the draft round-trips.
+
 ## [0.38.14] - 2026-09-15 — The answered question is now actually gone
 
 v0.38.13 was two-thirds of a fix. Both remaining thirds are here.

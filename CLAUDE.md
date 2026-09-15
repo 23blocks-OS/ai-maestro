@@ -768,6 +768,44 @@ tmux session names are limited to: `^[a-zA-Z0-9_-]+$`
 
 These are deferred to Phase 2+ if remote access is needed.
 
+## ⚠️ The chat has TWO paths and THREE question renderers
+
+**Read [docs/CHAT-ARCHITECTURE.md](./docs/CHAT-ARCHITECTURE.md) before touching chat code.**
+Seven releases on 15 Sep 2026 went into one user-visible symptom, and most of that
+time was spent fixing the *wrong copy* of the right code.
+
+**Two functions named `sendChatMessage`:**
+
+| file | called by |
+|---|---|
+| `server.mjs` (~735) | **the chat UI** — WebSocket `chat:send` |
+| `services/agents-chat-service.ts` | the REST endpoint `/api/agents/:id/chat` |
+
+Verification was added to the TypeScript one, tested through REST, seen returning
+`verified: true`, and reported fixed. The chat UI never calls it.
+
+**Three places render a question panel**, and only two mention `AskUserQuestion`:
+
+1. transcript card in `ChatView.tsx`
+2. **a second copy** in `MobileChatView.tsx` — *not phone-only*: a `layoutOverride`
+   in localStorage makes `TabletDashboard` render it on desktop
+3. `hookState.options`, **synthesised from 200 lines of pane scrollback** by
+   `detectPermissionFromPane` — this one never reads the transcript, which is why
+   a question answered hours ago kept reappearing
+
+**Pane readback rules** (`lib/pane-readback.mjs`, imported by both server.mjs and TS):
+
+- proof of submission is **position** — the text must be ABOVE the input box
+- capture with `-e` and strip SGR dim, or Claude Code's greyed placeholder reads
+  as staged text
+- clear the input with **backspaces**, never `C-u` (verified: `C-u` is a no-op there)
+- a live menu is the **last thing on the pane**; if the agent has spoken since, it is history
+
+**`_lastPermission` is a cache, never an authority.** Re-validate against the pane
+before refusing a send, or a false positive deadlocks the chat permanently.
+
+---
+
 ## Common Gotchas
 
 ### 1. Terminal Not Fitting Container
@@ -950,6 +988,7 @@ These scripts test end-to-end behavior against a live AI Maestro instance with t
 - **[README.md](./README.md)** - Project overview, quick start, architecture
 - **[docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md)** - Installation prerequisites
 - **[docs/OPERATIONS-GUIDE.md](./docs/OPERATIONS-GUIDE.md)** - Agent management, troubleshooting
+- **[docs/CHAT-ARCHITECTURE.md](./docs/CHAT-ARCHITECTURE.md)** - Both chat paths, the three question renderers, pane readback rules, and a debugging checklist
 - **[docs/CEREBELLUM.md](./docs/CEREBELLUM.md)** - Cerebellum subsystem architecture, voice pipeline, TTS providers
 
 Refer to these when users ask about setup or usage.

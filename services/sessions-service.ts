@@ -38,7 +38,7 @@ import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
-import { paneSubmitted, paneStaged } from '@/lib/notification-service'
+import { paneSubmitted, paneStaged, clearInputKeys } from '@/lib/notification-service'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
@@ -1016,7 +1016,8 @@ const COMMAND_VERIFY_DELAY_MS = 250
 /** Initial send plus one clear-and-retype. */
 const COMMAND_MAX_SENDS = 2
 /** Ctrl-U kills the line, emptying the input box before retyping. */
-const COMMAND_CLEAR_INPUT_KEY = 'C-u'
+// Clearing uses backspaces, not C-u — C-u is a no-op in Claude Code's input.
+// See clearInputKeys() in lib/notification-service.
 const COMMAND_CLEAR_SETTLE_MS = 80
 
 /**
@@ -1080,7 +1081,8 @@ export async function sendCommand(
       // Measured by them: Enter once fails, Enter twice fails,
       // clear-and-retype then Enter succeeds 7 of 7.
       if (attempt > 1) {
-        await runtime.sendKeys(sessionName, COMMAND_CLEAR_INPUT_KEY)
+        const { key: clearKey, repeat: clearRepeat } = clearInputKeys(command.length)
+        await runtime.repeatKey(sessionName, clearKey, clearRepeat)
         await new Promise(resolve => setTimeout(resolve, COMMAND_CLEAR_SETTLE_MS))
         await runtime.sendKeys(sessionName, command, { literal: true, enter: true })
       }

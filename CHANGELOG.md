@@ -3,6 +3,49 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.12] - 2026-09-15 — The chat said "sent" while your words sat in a text box
+
+Reported live: an agent asked a six-option question, the answer did nothing, and
+afterwards nothing typed into the chat reached the agent — with no error. The
+person had to open a terminal to find out why.
+
+The cause in the pane was Claude Code's own session-feedback survey ("How is
+Claude doing this session? 1: Bad 2: Fine 3: Good 0: Dismiss") holding the
+keyboard. Everything typed landed in the input box and was never submitted.
+
+### Fixed
+- **`sendChatMessage` returned `success: true` without checking anything.** It
+  called `sendKeys` and returned. This was the last place in the codebase still
+  reporting a delivery it had not verified — and the one a person actually looks
+  at. It now proves submission with `paneSubmitted` / `paneStaged`, retries once
+  after clearing, and returns a real error naming the cause and the fix.
+
+  That machinery has existed since v0.37.x, built for exactly this failure, and
+  had been wired into the AMP notification path and nowhere else.
+
+- **`C-u` does not clear Claude Code's input box.** It was the clear key in both
+  recovery paths (`NOTIFICATION_CLEAR_INPUT_KEY`, `COMMAND_CLEAR_INPUT_KEY`).
+  Verified by hand against a live agent: a staged line survived two `C-u` and an
+  `Escape`; only backspace removed characters. **A clear that does not clear makes
+  the retry worse than no retry**, because the retype appends to what is already
+  staged — which is exactly the "doubled line" the field data had shown. Clearing
+  is now `clearInputKeys()`: backspaces, counted to the text, sent in one
+  `tmux send-keys -N` via the new `runtime.repeatKey`.
+
+- **Claude Code's dim placeholder read as staged text.** It renders your previous
+  prompt greyed out inside an EMPTY input box. In a plain `capture-pane -p` that
+  is indistinguishable from a message stuck in the box — it cost ten minutes of
+  live debugging, twice, during this very investigation. Readback now captures
+  with `-e` (`runtime.capturePaneRaw`) and drops SGR-dim runs via
+  `stripDimPlaceholder()` before looking for anything.
+
+### Notes
+- `tests/chat-send-verification.test.ts` — 12 cases: the reported scenario, the
+  actionable error, backspace-not-C-u, single retry, recovery, and both readback
+  traps (dim placeholder vs genuinely staged).
+- Existing notification and wake tests updated: they asserted `C-u`, which was
+  asserting a no-op.
+
 ## [0.38.11] - 2026-09-15 — A "waiting" badge now expires after a day
 
 ### Fixed

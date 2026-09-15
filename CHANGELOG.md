@@ -3,6 +3,56 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.10] - 2026-09-15 — The dashboard could not see an agent working unless you were watching it
+
+Reported against v0.38.9 by an agent on a customer estate, with measurements.
+Three independent faults; fixing any one alone would not have shown a working
+agent.
+
+### Fixed
+- **The indicator only knew about terminal activity.** `getActivity()` iterated
+  `sessionActivity` and nothing else. That map is written by the PTY layer, which
+  only runs **while somebody has the agent's terminal open in the dashboard** —
+  for an autonomous fleet, the unusual case. `GET /api/sessions/activity` returned
+  `{"activity":{}}` with fifteen agents running, one of them twelve minutes into a
+  turn. Hook state was consulted, but only to *upgrade* an entry terminal activity
+  had already created, so an agent nobody was watching could never appear at all.
+
+  It now falls back to what the hook reports, preferring the hook's **state file**
+  over the broadcast map: the file is written with `fs.writeFileSync` before any
+  network call, so it survives a hook process that exits mid-fetch. The broadcast
+  map remains the only source for agents on other hosts. Terminal activity still
+  wins where it exists — it is measured, the hook report is merely claimed.
+
+- **The hook never said a turn had started.** `SessionStart` fires once per
+  session and `Stop` reports idle at the end; nothing in between reported work.
+  `UserPromptSubmit` now writes `active`, and `install-hooks.sh` registers that
+  event — it was not registered at all, which also meant the AMP inbox drain in
+  that branch, described in its own comment as *"the reliable delivery slot for
+  Claude Code"*, had never run in a standard install.
+
+- **Status updates were lost to `process.exit`.** Only one of five `writeState`
+  call sites was awaited, and `process.exit(0)` at the end of `run()` kills any
+  in-flight fetch. Measured 10–14 Sep on the reporting estate: **0 of 56** Stop
+  broadcasts and **0 of 17** SessionStart broadcasts reached the server; 36 of 95
+  Notifications survived, by accident of doing more async work first. The comment
+  at the single awaited site describes this exact failure — the fix had been
+  applied to one site of five.
+
+### Also affected, and not in the original report
+- **Agent-owned scheduled tasks depend on this path.** `broadcastActivityUpdate`
+  runs due tasks on the transition into idle, and that transition arrives via the
+  same broadcast that was being dropped. Scheduled work almost certainly was not
+  firing on hosts where terminals were closed.
+
+### Notes
+- `tests/session-activity-hook-fallback.test.ts` — 13 cases covering the reported
+  scenario, TTL boundaries, terminal-wins precedence, and the distinction between
+  the two hook stores (file keyed by cwd hash, map keyed by session name) that the
+  original analysis did not separate.
+- Plugin submodule bumped: hook copies synced via `scripts/sync-plugin-hook.sh`
+  (ai-maestro-plugins#36).
+
 ## [0.38.9] - 2026-09-10 — Stale skill backups were being offered to agents as real skills
 
 ### Fixed

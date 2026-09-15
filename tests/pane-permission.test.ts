@@ -98,3 +98,74 @@ describe('parsePermissionMenu (pane scraper)', () => {
     expect(r!.options[0].label).toBe('Yes, run the command')
   })
 })
+
+/**
+ * A menu that has scrolled into history is not a live prompt.
+ *
+ * Reported 15 September 2026, after four releases spent fixing the WRONG card.
+ * The question panel kept reappearing on every reload and every tab switch, and
+ * the transcript said plainly that it had been answered 46 messages earlier.
+ *
+ * It was not the transcript card at all. `detectPermissionFromPane` scrapes 200
+ * lines of pane scrollback, `parsePermissionMenu` matched a long-dead six-option
+ * question inside it, and the server MANUFACTURED a hookState with `options` —
+ * which both chat renderers draw as live buttons. The same false positive then
+ * convinced `sendChatMessage` a permission was pending and refused every message.
+ *
+ * The old "is this active?" check ran from the menu to the END of the capture, so
+ * any `esc to cancel` or leftover `❯ 1.` selector below a dead menu satisfied it.
+ * On a busy agent with 200 lines of history that is close to guaranteed.
+ *
+ * The tell: if the agent has SPOKEN since the menu, the menu is over.
+ */
+describe('a menu that scrolled into history', () => {
+  const MENU = [
+    '● Felipe needs the cuenta de cobro signed before 12:00 — do you want it handled?',
+    '',
+    '❯ 1. He photographs his signature, I place it (Recommended)',
+    '  2. I send him the how-to, he signs it himself',
+    '  3. You call him',
+    '  4. Ask Calop for an extension',
+    '  5. Type something.',
+    '  6. Chat about this',
+    '',
+    '  esc to cancel',
+  ].join('\n')
+
+  const inputBox = ['', '─────────────', '❯ ', '─────────────'].join('\n')
+
+  it('is detected while it is the last thing on the pane', () => {
+    const r = parsePermissionMenu(`${MENU}\n${inputBox}`)
+    expect(r).not.toBeNull()
+    expect(r!.options).toHaveLength(6)
+  })
+
+  it('is NOT detected once the agent has answered below it', () => {
+    // `●` is Claude Code's own assistant marker — the conversation moved on.
+    const after = '\n● Done — I sent Felipe the how-to.\n' + inputBox
+    expect(parsePermissionMenu(MENU + after)).toBeNull()
+  })
+
+  it('is NOT detected once a tool result appears below it', () => {
+    expect(parsePermissionMenu(`${MENU}\n  ⎿  8 skills available\n${inputBox}`)).toBeNull()
+  })
+
+  it('is NOT detected once a later prompt was submitted below it', () => {
+    // A submitted prompt echoes as `❯ <text>`; an EMPTY `❯` is just the input box.
+    expect(parsePermissionMenu(`${MENU}\n❯ ping from the chat\n${inputBox}`)).toBeNull()
+  })
+
+  it('is NOT detected once a status line appears below it', () => {
+    expect(parsePermissionMenu(`${MENU}\n✻ Churned for 4s · done 11:16 AM\n${inputBox}`)).toBeNull()
+  })
+
+  it('survives the empty input box below it — that is not conversation', () => {
+    expect(parsePermissionMenu(`${MENU}\n${inputBox}`)).not.toBeNull()
+  })
+
+  it('rejects the real 200-line scrollback that caused the report', () => {
+    // Menu near the top, a long conversation after it, input box at the bottom.
+    const filler = Array.from({ length: 40 }, (_, i) => `● turn ${i}`).join('\n')
+    expect(parsePermissionMenu(`${MENU}\n${filler}\n${inputBox}`)).toBeNull()
+  })
+})

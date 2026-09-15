@@ -40,6 +40,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   before the memory, that stale memory is cleared rather than left to block, that
   the refusal is guarded by the live check, and that the draft round-trips.
 
+## [0.38.17] - 2026-09-15 — The question panel came from the pane, not the transcript
+
+### Fixed
+- **A menu that scrolled into history was still being rendered as a live prompt.**
+  This is the actual cause of the question panel that kept reappearing, and it is
+  not what the previous four releases fixed.
+
+  `detectPermissionFromPane` scrapes **200 lines of pane scrollback**.
+  `parsePermissionMenu` matched a six-option question answered hours earlier, and
+  the server **manufactured** a `hookState` carrying `options` — which both chat
+  renderers draw as live buttons. That path never consults the transcript, which
+  is why the card returned on every reload and every tab switch while the
+  transcript plainly recorded the answer 46 messages back.
+
+  The same false positive set `_lastPermission` and deadlocked the chat.
+
+  The old liveness check ran from the menu to the **end of the capture**, so any
+  `esc to cancel` or leftover `❯ 1.` selector *below* a dead menu satisfied it. On
+  a busy agent with 200 lines of history that is close to guaranteed.
+
+  A live menu is now required to be the **last thing on the pane**: if Claude Code
+  has spoken since — `●` assistant, `⎿` tool result, `✻` status, or a submitted
+  `❯ <text>` — the menu is over. An empty `❯` is the waiting input box and still
+  counts as live.
+
+  Verified against the exact 223-line capture that produced the phantom card: it
+  now returns `null`.
+
+### Notes
+- Three separate places render an option panel: the transcript card in
+  `ChatView`, the same card duplicated in `MobileChatView`, and this
+  `hookState.options` path in both. v0.38.13 and v0.38.14 fixed the first two. This
+  is the third.
+- `tests/pane-permission.test.ts` — 7 new cases: live menu still detected, and
+  rejected once an assistant turn, tool result, status line, later prompt, or a
+  long conversation appears below it.
+
 ## [0.38.16] - 2026-09-15 — Both chat paths, properly
 
 Not another patch on one symptom. The chat failed all afternoon in five different

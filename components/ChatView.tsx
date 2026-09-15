@@ -54,6 +54,11 @@ interface ChatViewProps {
 
 interface Message {
   type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'thinking' | 'summary' | 'system' | 'queue-operation'
+    // Emitted by parseJsonlLines for every completed tool call. Carries no
+    // payload — it exists so the UI can tell an answered question from a live
+    // one after a page reload. See isQuestionAnswered.
+    | 'tool_result_marker'
+  tool_use_id?: string
   timestamp?: string
   uuid?: string
   message?: {
@@ -644,16 +649,45 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return content.find(block => block.type === 'tool_use' && block.name === 'AskUserQuestion') || null
   }
 
-  // Check if an AskUserQuestion tool_use has been answered
+  // Has this AskUserQuestion been answered?
+  //
+  // `answeredQuestions` is a useState Set — it dies with the page. It used to be
+  // the ONLY working source, because the transcript branch below searched for
+  // tool_result blocks that the parser had already discarded. So reloading the
+  // page resurrected every question in the window as live and unanswered, even
+  // ones the conversation had moved a hundred messages past.
+  //
+  // The parser now emits a `tool_result_marker` for each completed tool call,
+  // which comes off disk and therefore survives a reload.
   const isQuestionAnswered = (toolUseId: string): boolean => {
     if (answeredQuestions.has(toolUseId)) return true
     return messages.some(m =>
-      m.type === 'user' &&
-      Array.isArray(m.message?.content) &&
-      m.message!.content.some((block: ContentBlock) =>
-        block.type === 'tool_result' && block.tool_use_id === toolUseId
-      )
+      (m.type === 'tool_result_marker' && m.tool_use_id === toolUseId) ||
+      (m.type === 'user' &&
+        Array.isArray(m.message?.content) &&
+        m.message!.content.some((block: ContentBlock) =>
+          block.type === 'tool_result' && block.tool_use_id === toolUseId
+        ))
     )
+  }
+
+  /**
+   * Is this question still the live one?
+   *
+   * Even unanswered, a question the conversation has moved past must not render
+   * as an actionable card — clicking it sends a keystroke to a menu that is no
+   * longer on screen, which is how a stale card "blocks" the chat. Live means:
+   * it is the LAST AskUserQuestion in the transcript, and the agent is actually
+   * waiting rather than working or idle.
+   */
+  const isQuestionCurrent = (toolUseId: string): boolean => {
+    let lastAskId: string | null = null
+    for (const m of messages) {
+      const t = getAskUserQuestion(m)
+      if (t?.id) lastAskId = t.id
+    }
+    if (lastAskId !== toolUseId) return false
+    return hookState?.status === 'waiting_for_input' || hookState?.status === 'permission_request'
   }
 
   // Render tool-specific expanded content
@@ -996,7 +1030,11 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   {(() => {
                     const askTool = getAskUserQuestion(message)
                     if (!askTool?.input?.questions) return null
-                    const answered = askTool.id ? isQuestionAnswered(askTool.id) : false
+                    // Not actionable unless it is BOTH unanswered and still the
+                    // live question. Anything else renders as history.
+                    const answered = askTool.id
+                      ? isQuestionAnswered(askTool.id) || !isQuestionCurrent(askTool.id)
+                      : false
                     const questions = askTool.input.questions as Array<{
                       question: string
                       header?: string

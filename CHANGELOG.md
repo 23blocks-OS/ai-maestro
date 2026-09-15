@@ -3,6 +3,41 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.13] - 2026-09-15 — An answered question came back every time you reloaded
+
+### Fixed
+- **A question the conversation had moved past rendered as a live, blocking card
+  after every page reload.** Reported against a six-option question that had been
+  answered 124 transcript lines earlier.
+
+  The chain: `parseJsonlLines` discarded every tool-result message
+  (`if (message.type === 'user' && message.toolUseResult) continue`), while
+  `isQuestionAnswered` decided a question was answered by searching those same
+  messages for a matching `tool_result` — something the parser had already
+  deleted. That branch could never return true. The only working record was
+  `answeredQuestions`, a `useState` Set that dies with the page, so a reload
+  resurrected every AskUserQuestion in the window as unanswered.
+
+  Verified against the live transcript before writing the fix: the question at
+  line 239 of 363 **did** have a matching `tool_result` on disk. The data was
+  correct the whole time; the UI could not see it.
+
+  The parser now emits a lightweight `tool_result_marker` for each completed tool
+  call — no payload, so raw tool output still never reaches the transcript view —
+  and answered-ness is read from disk instead of from browser memory.
+
+- **An old question is no longer actionable at all.** Even unanswered, a question
+  the conversation has moved past must not offer buttons: clicking one sends a
+  keystroke to a menu that is no longer on screen, which is precisely how a stale
+  card appears to "block" the chat. A card is interactive only when it is the
+  **last** AskUserQuestion in the transcript **and** the agent is actually waiting
+  (`waiting_for_input` / `permission_request`). Everything else renders as history.
+
+### Notes
+- `tests/stale-question-card.test.ts` — 9 cases including the reported shape
+  (answered, then 124 lines of conversation), several results in one message, and
+  confirmation that the raw result payload is still kept out of the chat view.
+
 ## [0.38.12] - 2026-09-15 — The chat said "sent" while your words sat in a text box
 
 Reported live: an agent asked a six-option question, the answer did nothing, and

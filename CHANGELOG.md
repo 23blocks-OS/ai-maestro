@@ -40,6 +40,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   before the memory, that stale memory is cleared rather than left to block, that
   the refusal is guarded by the live check, and that the draft round-trips.
 
+## [0.38.18] - 2026-09-15 — Write down how the chat actually works
+
+Documentation only. Seven releases went into one user-visible symptom today, and
+most of that time was spent fixing the **wrong copy** of the right code. Nothing
+in the repository described how the chat is wired, so each fix had to rediscover
+it — badly.
+
+### Added
+- **`docs/CHAT-ARCHITECTURE.md`** — the map that did not exist:
+  - **Two chat paths**, tmux and SDK, side by side, with the reliability ceiling
+    of each stated plainly. The tmux path infers agent state by reading a
+    terminal as text; that can be made better, not certain.
+  - **Two functions named `sendChatMessage`** — `server.mjs` (what the chat UI
+    calls) and `services/agents-chat-service.ts` (what the REST endpoint calls).
+    Verification was added to the second, tested through REST, seen returning
+    `verified: true`, and reported fixed. The chat UI never calls it.
+  - **Three places that render a question panel**, only two of which mention
+    `AskUserQuestion`. The third synthesises options from 200 lines of pane
+    scrollback and never reads the transcript — which is why a question answered
+    46 messages earlier kept reappearing.
+  - **Pane readback rules**: proof of submission is *position*, not presence;
+    capture with `-e` and strip SGR dim or the placeholder lies; clear with
+    backspaces because `C-u` is a no-op; a live menu is the last thing on the pane.
+  - **`_lastPermission` is a cache, never an authority** — and the deadlock that
+    follows from treating it as one.
+  - A **debugging checklist** of four commands, each of which would have replaced
+    hours of reasoning today.
+
+### Changed
+- `CLAUDE.md` — a prominent section above Common Gotchas covering the duplicate
+  `sendChatMessage`, the three renderers, and the readback rules.
+- `README.md` — links the new document.
+
+### Notes
+- Remaining duplication, listed in the doc so it is not rediscovered a third time:
+  `sendChatMessage` × 2 and the question renderer × 2. Pane readback was collapsed
+  into `lib/pane-readback.mjs` in 0.38.16.
+
 ## [0.38.17] - 2026-09-15 — The question panel came from the pane, not the transcript
 
 ### Fixed

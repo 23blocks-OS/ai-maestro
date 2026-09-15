@@ -3,6 +3,36 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.14] - 2026-09-15 — The answered question is now actually gone
+
+v0.38.13 was two-thirds of a fix. Both remaining thirds are here.
+
+### Fixed
+- **`MobileChatView` carries its OWN copy of the question panel, and v0.38.13 only
+  fixed `ChatView`.** Same `isQuestionAnswered`, same `useState` Set, same
+  transcript search for tool-result blocks the parser had already discarded — and
+  none of the v0.38.13 changes. Whichever renderer was on screen kept showing the
+  card fully live, which is why it still appeared and was still clickable rather
+  than greyed. Both files now share the same logic.
+
+- **An answered question no longer renders as a panel at all.** v0.38.13 set
+  `disabled` and `opacity-50`, so the full six-option card still drew itself on
+  every reload and every switch back from the terminal — which is what people
+  were actually complaining about. It now collapses to a single muted line:
+  `✓ <question> · answered`.
+
+- **Liveness no longer trusts hook status alone.** A question counted as current
+  if it was the last one and the hook said `waiting_for_input` — but a pane
+  reporting `waiting_for_input` with `notificationType: idle_prompt` is sitting at
+  an EMPTY prompt, which is indistinguishable from waiting on a menu by that
+  signal alone. A question is now live only if **nothing has been said since it
+  was asked**. The transcript is the reliable witness; the hook state is not.
+
+### Notes
+- Verified in the built client bundle rather than assumed: the marker check
+  appears twice (both renderers) and the collapsed label three times (one desktop,
+  two mobile render sites).
+
 ## [0.38.13] - 2026-09-15 — An answered question came back every time you reloaded
 
 ### Fixed

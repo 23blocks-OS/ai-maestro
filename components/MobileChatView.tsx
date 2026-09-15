@@ -517,16 +517,38 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   }
 
   // Check if an AskUserQuestion has been answered
+  // Kept in step with ChatView deliberately — this file carries its own copy of
+  // the question panel, and fixing only the desktop one left the same stale card
+  // rendering here. `answeredQuestions` is a useState Set that dies with the
+  // page; the tool_result_marker comes off disk and survives a reload.
   const isQuestionAnswered = (toolUseId?: string): boolean => {
     if (!toolUseId) return false
     if (answeredQuestions.has(toolUseId)) return true
     return messages.some(m =>
-      m.type === 'user' &&
-      Array.isArray(m.message?.content) &&
-      m.message!.content!.some(block =>
-        block.type === 'tool_result' && block.tool_use_id === toolUseId
-      )
+      ((m as any).type === 'tool_result_marker' && (m as any).tool_use_id === toolUseId) ||
+      (m.type === 'user' &&
+        Array.isArray(m.message?.content) &&
+        m.message!.content!.some(block =>
+          block.type === 'tool_result' && block.tool_use_id === toolUseId
+        ))
     )
+  }
+
+  /** A question the conversation has moved past is history, not a live menu. */
+  const isQuestionCurrent = (toolUseId?: string): boolean => {
+    if (!toolUseId) return false
+    let askIdx = -1
+    let lastAskId: string | null = null
+    messages.forEach((m, i) => {
+      const t = extractAskUserQuestion(m)
+      if (t?.id) { lastAskId = t.id; if (t.id === toolUseId) askIdx = i }
+    })
+    if (lastAskId !== toolUseId || askIdx === -1) return false
+    const spokeSince = messages.slice(askIdx + 1).some(m =>
+      m.type === 'assistant' || m.type === 'user' || (m as any).type === 'thinking'
+    )
+    if (spokeSince) return false
+    return hookState?.status === 'waiting_for_input' || hookState?.status === 'permission_request'
   }
 
   // Auto-grow textarea
@@ -647,14 +669,27 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             const text = extractText(msg)
             const tools = extractToolUses(msg)
             const askQ = extractAskUserQuestion(msg)
-            const answered = askQ ? isQuestionAnswered(askQ.id) : false
+            const answered = askQ
+              ? isQuestionAnswered(askQ.id) || !isQuestionCurrent(askQ.id)
+              : false
 
             // AskUserQuestion-only message (no text, just the question)
             if (!text && askQ) {
               return (
                 <div key={key} className="mx-3 my-1.5">
                   <div className="max-w-[90%] min-w-0 overflow-hidden">
-                    {askQ.questions.map((q, qIdx) => (
+                    {answered && (
+                      <div className="space-y-1">
+                        {askQ.questions.map((q, qIdx) => (
+                          <div key={qIdx} className="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 rounded bg-gray-800/20">
+                            <Check className="w-3 h-3 flex-shrink-0 text-gray-600" />
+                            <span className="truncate">{q.header || q.question}</span>
+                            <span className="text-gray-600 flex-shrink-0">· answered</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!answered && askQ.questions.map((q, qIdx) => (
                       <div key={qIdx} className="bg-cyan-900/30 rounded-xl border border-cyan-700/40 p-3 mb-2">
                         {q.header && (
                           <div className="text-xs font-medium text-cyan-400 mb-1">{q.header}</div>
@@ -744,7 +779,18 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                   )}
                   {askQ && (
                     <div className="max-w-[90%] mt-2">
-                      {askQ.questions.map((q, qIdx) => (
+                      {answered && (
+                        <div className="space-y-1">
+                          {askQ.questions.map((q, qIdx) => (
+                            <div key={qIdx} className="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 rounded bg-gray-800/20">
+                              <Check className="w-3 h-3 flex-shrink-0 text-gray-600" />
+                              <span className="truncate">{q.header || q.question}</span>
+                              <span className="text-gray-600 flex-shrink-0">· answered</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {!answered && askQ.questions.map((q, qIdx) => (
                         <div key={qIdx} className="bg-cyan-900/30 rounded-xl border border-cyan-700/40 p-3 mb-2">
                           {q.header && (
                             <div className="text-xs font-medium text-cyan-400 mb-1">{q.header}</div>

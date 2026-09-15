@@ -681,12 +681,26 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
    * waiting rather than working or idle.
    */
   const isQuestionCurrent = (toolUseId: string): boolean => {
+    let askIdx = -1
     let lastAskId: string | null = null
-    for (const m of messages) {
+    messages.forEach((m, i) => {
       const t = getAskUserQuestion(m)
-      if (t?.id) lastAskId = t.id
-    }
-    if (lastAskId !== toolUseId) return false
+      if (t?.id) { lastAskId = t.id; if (t.id === toolUseId) askIdx = i }
+    })
+    if (lastAskId !== toolUseId || askIdx === -1) return false
+
+    // Did the conversation continue after the question was asked? If the agent
+    // has said anything since, the question is settled — answered, withdrawn, or
+    // abandoned — and must not be presented as a live menu. This is the reliable
+    // signal; hook status is not. A pane reporting `waiting_for_input` with
+    // notificationType `idle_prompt` is sitting at an EMPTY prompt, which looks
+    // identical to waiting on a menu but is not. That distinction is why a
+    // question the conversation had moved 124 lines past still rendered as live.
+    const spokeSince = messages.slice(askIdx + 1).some(m =>
+      m.type === 'assistant' || m.type === 'user' || m.type === 'thinking'
+    )
+    if (spokeSince) return false
+
     return hookState?.status === 'waiting_for_input' || hookState?.status === 'permission_request'
   }
 
@@ -1041,6 +1055,30 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       options: Array<{ label: string; description?: string }>
                       multiSelect?: boolean
                     }>
+
+                    // A question that is answered, or that the conversation has
+                    // moved past, collapses to ONE LINE.
+                    //
+                    // Greying the buttons out was not enough: the full six-option
+                    // panel still rendered, on every reload and every switch back
+                    // from the terminal, which is what people actually complained
+                    // about. It is history — show it as history.
+                    if (answered) {
+                      return (
+                        <div className="mt-2 space-y-1">
+                          {questions.map((q, qIdx) => (
+                            <div
+                              key={qIdx}
+                              className="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 rounded bg-gray-800/20"
+                            >
+                              <Check className="w-3 h-3 flex-shrink-0 text-gray-600" />
+                              <span className="truncate">{q.header || q.question}</span>
+                              <span className="text-gray-600 flex-shrink-0">· answered</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
 
                     return (
                       <div className="mt-3 space-y-3">

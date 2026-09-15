@@ -123,6 +123,17 @@ install_claude_hooks() {
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

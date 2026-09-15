@@ -34,6 +34,7 @@ import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/s
 import { parseNameForDisplay, isCallSession } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
@@ -144,8 +145,21 @@ function hashCwd(cwd: string): string {
   return crypto.createHash('md5').update(cwd || '').digest('hex').substring(0, 16)
 }
 
-/** Read hook state for a given working directory */
-function getHookState(workingDir: string): { status: string; notificationType?: string } | null {
+/**
+ * Read hook state for a working directory.
+ *
+ * This reads the FILE the hook writes with fs.writeFileSync before it attempts
+ * any network call — so unlike the broadcast, it cannot be lost to the hook
+ * process exiting mid-fetch. It is the more trustworthy of the two hook records.
+ *
+ * `maxAgeMs` applies to non-waiting states only; waiting states never expire here
+ * because an agent blocked on a prompt stays blocked until someone answers.
+ * Default 60s preserves the original behaviour for the terminal-upgrade path.
+ */
+function getHookState(
+  workingDir: string,
+  maxAgeMs: number = 60000
+): { status: string; notificationType?: string; at: number } | null {
   if (!workingDir) return null
 
   const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
@@ -157,13 +171,11 @@ function getHookState(workingDir: string): { status: string; notificationType?: 
       const content = fs.readFileSync(stateFile, 'utf-8')
       const state = JSON.parse(content)
 
+      const at = new Date(state.updatedAt).getTime()
       const isWaitingState = state.status === 'waiting_for_input' || state.status === 'permission_request'
-      if (!isWaitingState) {
-        const stateAge = Date.now() - new Date(state.updatedAt).getTime()
-        if (stateAge > 60000) return null
-      }
+      if (!isWaitingState && Date.now() - at > maxAgeMs) return null
 
-      return { status: state.status, notificationType: state.notificationType }
+      return { status: state.status, notificationType: state.notificationType, at }
     }
   } catch {
     // Ignore errors reading state files
@@ -542,6 +554,59 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
       status,
       hookStatus: hookState?.status,
       notificationType: hookState?.notificationType
+    }
+  })
+
+  // Everything above this line comes from `sessionActivity`, which is written by
+  // the PTY layer — and the PTY only runs while somebody has that agent's
+  // terminal open in the dashboard. For an autonomous fleet that is the UNUSUAL
+  // case: nobody is watching, so no agent ever appeared to be working, however
+  // busy it was. A twelve-minute turn showed as 'idle' start to finish.
+  //
+  // The hook already reports what the agent is doing and
+  // `broadcastActivityUpdate` already persists it — its own comment says this is
+  // "the only busy/idle signal that exists for an agent nobody is watching". That
+  // signal fed the wake path (lib/session-idle) and was never read here.
+  //
+  // Terminal activity still wins where it exists, because it is measured rather
+  // than reported. This only fills in the agents it cannot see.
+  const stale = Date.now() - HOOK_STATUS_TTL_MS
+  const toActivityStatus = (hookStatus: string): SessionActivityStatus =>
+    hookStatus === 'active' ? 'active'
+    : (hookStatus === 'waiting_for_input' || hookStatus === 'permission_request') ? 'waiting'
+    : 'idle'
+
+  // Prefer the state FILE over the broadcast map. Both come from the same hook,
+  // but the file is written synchronously before any network call, so it survives
+  // a hook process that exits before its fetch completes. The map is the only
+  // source for an agent on ANOTHER host, whose file is on that host's disk.
+  for (const [sessionName, workingDir] of sessionToWorkingDir) {
+    if (activity[sessionName]) continue
+
+    const fromFile = getHookState(workingDir, HOOK_STATUS_TTL_MS)
+    const fromMap = hookStatusMap.get(sessionName)
+    const reported =
+      fromFile && (!fromMap || fromFile.at >= fromMap.at) ? fromFile
+      : fromMap && fromMap.at >= stale ? fromMap
+      : null
+    if (!reported) continue
+
+    activity[sessionName] = {
+      lastActivity: new Date(reported.at).toISOString(),
+      status: toActivityStatus(reported.status),
+      hookStatus: reported.status,
+      notificationType: reported.notificationType,
+    }
+  }
+
+  // Remote agents report over the wire and have no local state file.
+  hookStatusMap.forEach((reported, sessionName) => {
+    if (activity[sessionName] || reported.at < stale) return
+    activity[sessionName] = {
+      lastActivity: new Date(reported.at).toISOString(),
+      status: toActivityStatus(reported.status),
+      hookStatus: reported.status,
+      notificationType: reported.notificationType,
     }
   })
 

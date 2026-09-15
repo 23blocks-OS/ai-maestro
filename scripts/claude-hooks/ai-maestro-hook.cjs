@@ -583,7 +583,7 @@ async function main() {
 
             if (notificationType === 'idle_prompt') {
                 // Claude is waiting for regular input - perfect time to check messages!
-                writeState(cwd, {
+                await writeState(cwd, {
                     status: 'waiting_for_input',
                     message: input.message || 'Waiting for your input...',
                     notificationType,
@@ -624,7 +624,7 @@ async function main() {
                 } catch (e) {}
 
                 // No existing permission_request — write what we have
-                writeState(cwd, {
+                await writeState(cwd, {
                     status: 'waiting_for_input',
                     message: input.message || 'Waiting for your input...',
                     notificationType,
@@ -662,7 +662,10 @@ async function main() {
                     debugLog({ event: 'stop_block_check_failed', error: err.message });
                 }
             }
-            writeState(cwd, {
+            // MUST be awaited: process.exit(0) at the end of run() kills any
+            // in-flight fetch. Measured on a customer estate 10-14 Sep 2026,
+            // 0 of 56 Stop broadcasts reached the server without this.
+            await writeState(cwd, {
                 status: blocked ? 'active' : 'idle',
                 message: null,
                 sessionId,
@@ -673,7 +676,7 @@ async function main() {
 
         case 'SessionStart':
             // Session started - record the session info
-            writeState(cwd, {
+            await writeState(cwd, {
                 status: 'active',
                 message: null,
                 sessionId,
@@ -694,6 +697,19 @@ async function main() {
             break;
 
         case 'UserPromptSubmit': {
+            // The only event that means "a turn just STARTED".
+            //
+            // Without this the dashboard could never show an agent as working:
+            // SessionStart fires once per session, Stop reports idle at the end,
+            // and nothing in between said the agent was busy. An agent that took
+            // a twelve-minute turn stayed 'idle' throughout.
+            await writeState(cwd, {
+                status: 'active',
+                message: null,
+                sessionId,
+                transcriptPath
+            });
+
             // Drain on every user prompt — this is the reliable delivery slot
             // for Claude Code. SessionStart can be preempted by other plugins'
             // hooks; UserPromptSubmit fires once per user turn and is rarely contended.

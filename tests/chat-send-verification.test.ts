@@ -73,7 +73,7 @@ describe('a message that actually lands', () => {
     mockRuntime.capturePaneRaw.mockResolvedValue(submitted(MSG))
     const r = await sendChatMessage('a1', MSG)
     expect(r.status).toBe(200)
-    expect(r.data?.verified).toBe(true)
+    expect((r.data as any)?.verified).toBe(true)
   })
 
   it('does not retype when the first send was accepted', async () => {
@@ -88,7 +88,7 @@ describe('a message that is typed but never submitted', () => {
     mockRuntime.capturePaneRaw.mockResolvedValue(staged(MSG))
     const r = await sendChatMessage('a1', MSG)
     expect(r.status).toBeGreaterThanOrEqual(400)
-    expect(r.data?.success).not.toBe(true)
+    expect((r.data as any)?.success).not.toBe(true)
   })
 
   it('tells the person what to do about it', async () => {
@@ -96,7 +96,7 @@ describe('a message that is typed but never submitted', () => {
     // cause (something is holding the keyboard) and the fix (open the terminal).
     mockRuntime.capturePaneRaw.mockResolvedValue(staged(MSG))
     const r = await sendChatMessage('a1', MSG)
-    expect(r.data?.message).toBe(CHAT_NOT_SUBMITTED_MESSAGE)
+    expect((r.data as any)?.message).toBe(CHAT_NOT_SUBMITTED_MESSAGE)
     expect(CHAT_NOT_SUBMITTED_MESSAGE).toMatch(/terminal/i)
   })
 

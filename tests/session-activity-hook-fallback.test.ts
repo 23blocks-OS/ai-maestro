@@ -56,6 +56,7 @@ function writeHookFile(cwd: string, status: string, at: number = Date.now()) {
 const { sessionActivity, hookStatus } = await import('@/services/shared-state')
 const { getActivity } = await import('@/services/sessions-service')
 const { HOOK_STATUS_TTL_MS } = await import('@/lib/session-idle')
+const { WAITING_STATE_TTL_MS } = await import('@/services/sessions-service')
 
 beforeEach(() => {
   sessionActivity.clear()
@@ -144,5 +145,65 @@ describe('trust boundaries', () => {
 
   it('returns an empty map when nothing is running at all', async () => {
     expect(await getActivity()).toEqual({})
+  })
+})
+
+describe('staleness bounds', () => {
+  const HOURS = 60 * 60 * 1000
+
+  it('drops a "waiting" report older than 24h', async () => {
+    // v0.38.10 surfaced hook state in the sidebar and 56 of 67 agents on one host
+    // showed a pulsing amber "needs you" badge from reports over a week old, the
+    // oldest from 12 January. Permanent amber teaches people to ignore amber.
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 25 * HOURS)
+    expect(await getActivity()).toEqual({})
+  })
+
+  it('keeps a "waiting" report from overnight', async () => {
+    // Genuinely blocked since yesterday evening must still be flagged this morning.
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 14 * HOURS)
+    expect((await getActivity())['backend-api'].status).toBe('waiting')
+  })
+
+  it('expires "active" much sooner than "waiting"', async () => {
+    // Working is a claim about right now; blocked persists until answered.
+    writeHookFile('/repos/api', 'active', Date.now() - 2 * HOURS)
+    expect(await getActivity()).toEqual({})
+    expect(WAITING_STATE_TTL_MS).toBeGreaterThan(HOOK_STATUS_TTL_MS)
+  })
+
+  it('does not label a LIVE terminal "waiting" on a months-old report', async () => {
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 60 * 24 * HOURS)
+    sessionActivity.set('backend-api', Date.now())
+    expect((await getActivity())['backend-api'].status).toBe('active')
+  })
+})
+
+describe('an agent that goes quiet and comes back', () => {
+  const HOURS = 60 * 60 * 1000
+
+  it('reappears as soon as it reports again — expiry is age, not a blocklist', async () => {
+    // Silent for 48h: gone from the report.
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 48 * HOURS)
+    expect(await getActivity()).toEqual({})
+
+    // It picks up a task. The hook fires UserPromptSubmit and rewrites the file.
+    writeHookFile('/repos/api', 'active')
+    expect((await getActivity())['backend-api'].status).toBe('active')
+  })
+
+  it('comes back through the broadcast map too, for an agent on another host', async () => {
+    hookStatus.set('backend-api', { status: 'idle', at: Date.now() - 48 * HOURS })
+    expect(await getActivity()).toEqual({})
+
+    hookStatus.set('backend-api', { status: 'active', at: Date.now() })
+    expect((await getActivity())['backend-api'].status).toBe('active')
+  })
+
+  it('nothing is cached — every call recomputes from the two stores', async () => {
+    writeHookFile('/repos/api', 'active')
+    expect((await getActivity())['backend-api'].status).toBe('active')
+    writeHookFile('/repos/api', 'idle')
+    expect((await getActivity())['backend-api'].status).toBe('idle')
   })
 })

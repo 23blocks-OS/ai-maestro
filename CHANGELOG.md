@@ -78,6 +78,38 @@ external fix. Thank you.** Found while setting up a multi-host mesh over OpenVPN
   conflicted on version stamps only; the commit keeps Javier's authorship.
 - `tests/remote-install-build.test.ts` — 5 new cases locking in the guard, the
   named-missing output, `STATUS: FAILED`, the non-zero exit, and the log tail.
+## [0.38.20] - 2026-09-17 — Share the logic, not the shape
+
+The duplication that made a one-symptom day into nine releases, removed — but only
+where removing it is actually sound.
+
+### Changed
+- **`lib/question-state.mjs`** — one implementation of "is this question answered,
+  is it still live", used by both chat renderers. These rules were fixed in
+  `ChatView` in v0.38.13 and had to be fixed *again* in `MobileChatView` in
+  v0.38.14; in between, the bug was live for anyone whose `layoutOverride` put
+  them on the mobile renderer, including on a desktop browser.
+- **`lib/chat-verify.mjs`** — one verify/clear/retype loop, used by both send
+  paths. It was written twice on the same day, which meant it could only ever be
+  fixed in one of them at a time. Delivery is **injected**, so each path keeps its
+  own mechanism.
+
+### Deliberately NOT collapsed
+- **The two chat components.** `ChatView` and `MobileChatView` are different
+  layouts, not an accident. Merging them produces one component full of branching
+  markup — worse than two. Only their logic was shared.
+- **The two `sendChatMessage` wrappers.** Genuinely different jobs: one resolves an
+  agent and guards against a bare shell, the other handles tmux copy-mode and the
+  permission cache. They also deliver differently — paste-buffer vs send-keys
+  through the mockable runtime — and both are correct for their caller. Only the
+  proof was duplicated.
+
+### Notes
+- `tests/shared-chat-logic.test.ts` — 15 cases covering both extracted modules,
+  including the dim-placeholder trap and the single-retry rule. 1385 total.
+- The rule left behind, and written into `docs/CHAT-ARCHITECTURE.md`: **share the
+  logic, not the shape.** Every bug on 15 September was a fork of logic; none was
+  a fork of markup.
 
 ## [0.38.18] - 2026-09-15 — Write down how the chat actually works
 

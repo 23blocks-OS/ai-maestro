@@ -5,6 +5,10 @@ import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, 
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
+import {
+  isQuestionAnswered as sharedIsAnswered,
+  isQuestionCurrent as sharedIsCurrent,
+} from '@/lib/question-state.mjs'
 import type { Agent } from '@/types/agent'
 
 // Collapsible thinking block
@@ -727,60 +731,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return content.find(block => block.type === 'tool_use' && block.name === 'AskUserQuestion') || null
   }
 
-  // Has this AskUserQuestion been answered?
-  //
-  // `answeredQuestions` is a useState Set — it dies with the page. It used to be
-  // the ONLY working source, because the transcript branch below searched for
-  // tool_result blocks that the parser had already discarded. So reloading the
-  // page resurrected every question in the window as live and unanswered, even
-  // ones the conversation had moved a hundred messages past.
-  //
-  // The parser now emits a `tool_result_marker` for each completed tool call,
-  // which comes off disk and therefore survives a reload.
-  const isQuestionAnswered = (toolUseId: string): boolean => {
-    if (answeredQuestions.has(toolUseId)) return true
-    return messages.some(m =>
-      (m.type === 'tool_result_marker' && m.tool_use_id === toolUseId) ||
-      (m.type === 'user' &&
-        Array.isArray(m.message?.content) &&
-        m.message!.content.some((block: ContentBlock) =>
-          block.type === 'tool_result' && block.tool_use_id === toolUseId
-        ))
-    )
-  }
+  // Shared with MobileChatView — see lib/question-state.mjs. These rules were
+  // duplicated in both renderers and had to be fixed twice on 15 Sep 2026.
+  const isQuestionAnswered = (toolUseId: string): boolean =>
+    sharedIsAnswered(messages, toolUseId, answeredQuestions)
 
-  /**
-   * Is this question still the live one?
-   *
-   * Even unanswered, a question the conversation has moved past must not render
-   * as an actionable card — clicking it sends a keystroke to a menu that is no
-   * longer on screen, which is how a stale card "blocks" the chat. Live means:
-   * it is the LAST AskUserQuestion in the transcript, and the agent is actually
-   * waiting rather than working or idle.
-   */
-  const isQuestionCurrent = (toolUseId: string): boolean => {
-    let askIdx = -1
-    let lastAskId: string | null = null
-    messages.forEach((m, i) => {
-      const t = getAskUserQuestion(m)
-      if (t?.id) { lastAskId = t.id; if (t.id === toolUseId) askIdx = i }
-    })
-    if (lastAskId !== toolUseId || askIdx === -1) return false
-
-    // Did the conversation continue after the question was asked? If the agent
-    // has said anything since, the question is settled — answered, withdrawn, or
-    // abandoned — and must not be presented as a live menu. This is the reliable
-    // signal; hook status is not. A pane reporting `waiting_for_input` with
-    // notificationType `idle_prompt` is sitting at an EMPTY prompt, which looks
-    // identical to waiting on a menu but is not. That distinction is why a
-    // question the conversation had moved 124 lines past still rendered as live.
-    const spokeSince = messages.slice(askIdx + 1).some(m =>
-      m.type === 'assistant' || m.type === 'user' || m.type === 'thinking'
-    )
-    if (spokeSince) return false
-
-    return hookState?.status === 'waiting_for_input' || hookState?.status === 'permission_request'
-  }
+  const isQuestionCurrent = (toolUseId: string): boolean =>
+    sharedIsCurrent(messages, toolUseId, hookState)
 
   // Render tool-specific expanded content
   const renderToolExpanded = (tool: ContentBlock) => {

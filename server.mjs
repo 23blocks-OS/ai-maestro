@@ -11,7 +11,7 @@ import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
-import { paneSubmitted, paneStaged, stripDimPlaceholder, clearInputKeys } from './lib/pane-readback.mjs'
+import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
 import {
   resolveJsonlPath,
   getAgentWorkingDir,
@@ -743,17 +743,6 @@ function exitCopyMode(sessionName) {
   } catch { /* best effort */ }
 }
 
-/** ~3s of polling: a TUI can take a moment to echo a submitted prompt. */
-const CHAT_VERIFY_POLLS = 12
-const CHAT_POLL_INTERVAL_MS = 250
-/** One retry. If a dialog is holding the keyboard, a third attempt will not help. */
-const CHAT_MAX_SENDS = 2
-
-const CHAT_NOT_SUBMITTED =
-  "Your message reached the agent's input box but was never submitted — something in " +
-  'the terminal is holding the keyboard, usually a prompt or dialog waiting for an ' +
-  "answer. Open this agent's terminal, clear whatever is waiting, and send again."
-
 /** Capture WITH escapes, so dim placeholder text can be told from real input. */
 function capturePaneRaw(sessionName, lines = 200) {
   try {
@@ -843,43 +832,35 @@ async function sendChatMessage(sessionName, message) {
     return { ok: false, error: 'Text pasted but Enter failed: ' + err.message }
   }
 
-  // 7. PROVE it was submitted.
+  // 7. PROVE it was submitted — shared with the REST path, see lib/chat-verify.
   //
   // Everything above is best-effort: the paste probe is explicitly advisory, and
-  // Enter can be swallowed by anything holding the keyboard — a dialog, a menu,
-  // Claude Code's own feedback survey. Returning ok here without looking is how
-  // the chat spent months reporting "sent" for messages that sat in the input box
-  // until somebody opened a terminal and found them.
-  //
-  // Read the pane: the text must appear ABOVE the input box. If it is still IN
-  // the box, clear it with backspaces (C-u does nothing to this input) and retype
-  // once. A second failure means something is holding the keyboard and no number
-  // of retries will help — say so, and say what to do about it.
-  for (let attempt = 1; attempt <= CHAT_MAX_SENDS; attempt++) {
-    for (let poll = 0; poll < CHAT_VERIFY_POLLS; poll++) {
-      await new Promise(r => setTimeout(r, CHAT_POLL_INTERVAL_MS))
-      const pane = stripDimPlaceholder(capturePaneRaw(sessionName))
-
-      if (paneSubmitted(pane, message)) return { ok: true, verified: true }
-
-      if (paneStaged(pane, message)) {
-        if (attempt >= CHAT_MAX_SENDS) break
-        const { key, repeat } = clearInputKeys(message.length)
-        try { execSync(`tmux send-keys -t "${sessionName}" -N ${repeat} ${key}`, { timeout: 3000 }) } catch {}
-        try {
-          fs.writeFileSync(tmpFile2, message, 'utf-8')
-          execSync(`tmux load-buffer -b "${bufferName}-r" "${tmpFile2}"`, { timeout: 3000 })
-          execSync(`tmux paste-buffer -d -r -b "${bufferName}-r" -t "${sessionName}"`, { timeout: 3000 })
-          execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
-        } catch { /* fall through to the failure report */ }
-        finally { try { fs.unlinkSync(tmpFile2) } catch {} }
-        break
-      }
-    }
+  // Enter can be swallowed by anything holding the keyboard. Returning ok without
+  // looking is how the chat spent months reporting "sent" for messages that sat
+  // in the input box until somebody opened a terminal.
+  const deliverOnce = () => {
+    fs.writeFileSync(tmpFile2, message, 'utf-8')
+    execSync(`tmux load-buffer -b "${bufferName}-r" "${tmpFile2}"`, { timeout: 3000 })
+    execSync(`tmux paste-buffer -d -r -b "${bufferName}-r" -t "${sessionName}"`, { timeout: 3000 })
+    execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
+    try { fs.unlinkSync(tmpFile2) } catch {}
   }
 
+  let first = true
+  const { submitted } = await deliverAndVerify(message, {
+    capture: () => capturePaneRaw(sessionName),
+    // The first delivery already happened above (steps 4-6); only a RETRY needs
+    // to re-paste.
+    deliver: () => { if (first) { first = false; return } deliverOnce() },
+    clear: (count) => {
+      try { execSync(`tmux send-keys -t "${sessionName}" -N ${count} BSpace`, { timeout: 3000 }) } catch {}
+    },
+  })
+
+  if (submitted) return { ok: true, verified: true }
+
   console.warn(`[Chat] ${sessionName}: typed but never submitted`)
-  return { ok: false, error: CHAT_NOT_SUBMITTED }
+  return { ok: false, error: NOT_SUBMITTED_MESSAGE }
 }
 
 /**

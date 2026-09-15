@@ -37,6 +37,18 @@ interface PermReq {
   input: any
 }
 
+interface AskQuestion {
+  question: string
+  header?: string
+  options?: Array<{ label: string; description?: string }>
+  multiSelect?: boolean
+}
+
+interface QuestionReq {
+  requestId: string
+  questions: AskQuestion[]
+}
+
 let idCounter = 0
 const nextId = () => `t${++idCounter}`
 
@@ -49,6 +61,14 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
   const [noToken, setNoToken] = useState(false)
   const [meta, setMeta] = useState<Meta>({})
   const [permissions, setPermissions] = useState<PermReq[]>([])
+
+  // Questions are NOT permissions. A permission wants allow/deny; a question
+  // wants the user's choices echoed back. They arrive through the same SDK
+  // callback, which is why they used to render as an Allow/Deny card that gave
+  // Claude no answer at all.
+  const [questions, setQuestions] = useState<QuestionReq[]>([])
+  const [picks, setPicks] = useState<Record<string, Record<string, string>>>({})
+  const [freeText, setFreeText] = useState<Record<string, string>>({})
 
   const wsRef = useRef<WebSocket | null>(null)
   const curAssistantId = useRef<string | null>(null)
@@ -115,6 +135,16 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
               ? prev
               : [...prev, { requestId: msg.requestId, toolName: msg.toolName, input: msg.input }]
           )
+          break
+        case 'stream:question':
+          setQuestions(prev =>
+            prev.some(q => q.requestId === msg.requestId)
+              ? prev
+              : [...prev, { requestId: msg.requestId, questions: msg.questions || [] }]
+          )
+          break
+        case 'stream:question-resolved':
+          setQuestions(prev => prev.filter(q => q.requestId !== msg.requestId))
           break
         case 'stream:permission-resolved':
           setPermissions(prev => prev.filter(p => p.requestId !== msg.requestId))
@@ -203,6 +233,31 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+  }
+
+  /**
+   * Send answers back. Keys are the question TEXT, values the chosen label — or
+   * the user's own words, which the SDK treats as a first-class answer rather
+   * than a fallback. `freeform` covers "none of these, let me just tell you";
+   * Claude receives it as "The user responded: …".
+   */
+  const respondQuestion = (requestId: string) => {
+    const chosen = picks[requestId] || {}
+    const typed = (freeText[requestId] || '').trim()
+    const merged: Record<string, string> = { ...chosen }
+
+    const qs = questions.find(q => q.requestId === requestId)?.questions || []
+    if (typed && qs.length === 1) merged[qs[0].question] = typed
+
+    wsRef.current?.send(JSON.stringify({
+      type: 'questionAnswer',
+      requestId,
+      answers: merged,
+      freeform: typed && qs.length !== 1 ? typed : null,
+    }))
+    setQuestions(prev => prev.filter(q => q.requestId !== requestId))
+    setPicks(prev => { const n = { ...prev }; delete n[requestId]; return n })
+    setFreeText(prev => { const n = { ...prev }; delete n[requestId]; return n })
   }
 
   const respondPermission = (requestId: string, decision: 'allow' | 'deny') => {
@@ -299,6 +354,70 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         })}
 
         {/* Permission cards — Claude wants to do something that needs approval */}
+        {questions.map((q) => (
+          <div key={q.requestId} className="flex justify-start">
+            <div className="max-w-[85%] min-w-0 overflow-hidden w-full">
+              <div className="rounded-2xl px-4 py-3 bg-cyan-900/30 border border-cyan-700/50 text-cyan-100">
+                {q.questions.map((question, qi) => (
+                  <div key={qi} className="mb-3 last:mb-0">
+                    {question.header && (
+                      <div className="text-xs font-medium text-cyan-400 mb-1">{question.header}</div>
+                    )}
+                    <div className="text-sm mb-2">{question.question}</div>
+                    <div className="space-y-1.5">
+                      {(question.options || []).map((opt, oi) => {
+                        const chosen = picks[q.requestId]?.[question.question] === opt.label
+                        return (
+                          <button
+                            key={oi}
+                            onClick={() => setPicks(prev => ({
+                              ...prev,
+                              [q.requestId]: { ...(prev[q.requestId] || {}), [question.question]: opt.label },
+                            }))}
+                            className={`flex items-start gap-2 w-full text-left px-3 py-2 rounded-lg border transition-all ${
+                              chosen
+                                ? 'bg-cyan-600/40 border-cyan-400/60'
+                                : 'bg-cyan-800/20 border-cyan-600/30 hover:bg-cyan-700/30'
+                            }`}
+                          >
+                            <span className="text-cyan-400 font-bold w-5 text-center flex-shrink-0">{oi + 1}</span>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-sm text-cyan-200">{opt.label}</span>
+                              {opt.description && (
+                                <p className="text-xs text-cyan-400/60 mt-0.5">{opt.description}</p>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Free text is an answer, not an escape hatch. */}
+                <textarea
+                  value={freeText[q.requestId] || ''}
+                  onChange={(e) => setFreeText(prev => ({ ...prev, [q.requestId]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); respondQuestion(q.requestId) }
+                  }}
+                  placeholder="…or answer in your own words"
+                  rows={2}
+                  className="mt-2 w-full resize-none rounded-lg bg-gray-950/40 border border-cyan-700/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50 focus:outline-none focus:border-cyan-500/70"
+                />
+
+                <button
+                  onClick={() => respondQuestion(q.requestId)}
+                  disabled={!picks[q.requestId] && !(freeText[q.requestId] || '').trim()}
+                  className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-700/60 hover:bg-cyan-600/60 border border-cyan-500/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Answer
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+
         {permissions.map((p) => (
           <div key={p.requestId} className="flex justify-start">
             <div className="max-w-[85%] min-w-0 overflow-hidden">

@@ -19,6 +19,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockRuntime = {
   sendKeys: vi.fn().mockResolvedValue(undefined),
   capturePane: vi.fn().mockResolvedValue(''),
+  capturePaneRaw: vi.fn().mockResolvedValue(''),
+  repeatKey: vi.fn().mockResolvedValue(undefined),
   sessionExists: vi.fn().mockResolvedValue(true),
 }
 
@@ -68,6 +70,8 @@ function paneWith(messageId: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockRuntime.sendKeys.mockResolvedValue(undefined)
+  mockRuntime.repeatKey.mockClear()
+  mockRuntime.repeatKey.mockResolvedValue(undefined)
   mockRuntime.sessionExists.mockResolvedValue(true)
   mockIdle.hasHookReport.mockReturnValue(false)
 })
@@ -266,14 +270,33 @@ describe('notifyAgent — text staged in the input box', () => {
     // Measured in the field: Enter once fails, Enter twice fails,
     // clear-and-retype then Enter succeeds 7 of 7. Typing on top of staged text
     // just produces a doubled line.
+    //
+    // The clear is BACKSPACES, not C-u. C-u was used here for months and is a
+    // no-op in Claude Code's input — verified by hand on a live agent 15 Sep
+    // 2026, where a staged line survived two C-u and an Escape and only
+    // backspace removed characters. A clear that does not clear makes the retry
+    // WORSE than no retry: it appends to what is already staged.
     mockRuntime.capturePane.mockResolvedValue(stagedPane(BASE.messageId))
     await notifyAgent(BASE)
+
+    expect(mockRuntime.repeatKey).toHaveBeenCalled()
+    const [, key, times] = mockRuntime.repeatKey.mock.calls[0]
+    expect(key).toBe('BSpace')
+    expect(times).toBeGreaterThan(0)
+
+    // never again by a key that does nothing
     const keys = mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])
-    expect(keys).toContain('C-u')
-    // and the clear comes before the second attempt's text
-    const clearAt = keys.indexOf('C-u')
-    const textAfter = keys.slice(clearAt).filter((k: string) => k.includes('[MESSAGE]'))
-    expect(textAfter.length).toBeGreaterThan(0)
+    expect(keys).not.toContain('C-u')
+  })
+
+  it('clears at least as many characters as it typed', async () => {
+    // Too few backspaces leaves a fragment, and the retype lands on top of it.
+    mockRuntime.capturePane.mockResolvedValue(stagedPane(BASE.messageId))
+    await notifyAgent(BASE)
+    const typed = mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])
+      .find((k: string) => k.includes('[MESSAGE]')) as string
+    const [, , times] = mockRuntime.repeatKey.mock.calls[0]
+    expect(times).toBeGreaterThanOrEqual(typed.length)
   })
 
   it('does not clear on the FIRST attempt — nothing is staged yet', async () => {

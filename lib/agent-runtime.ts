@@ -51,6 +51,10 @@ export interface AgentRuntime {
   // I/O
   sendKeys(name: string, keys: string, opts?: { literal?: boolean; enter?: boolean }): Promise<void>
   capturePane(name: string, lines?: number): Promise<string>
+  /** Capture WITH escape sequences, to tell dim placeholder from real input. */
+  capturePaneRaw(name: string, lines?: number): Promise<string>
+  /** Press one key N times (clearing an input box with backspaces). */
+  repeatKey(name: string, key: string, times: number): Promise<void>
 
   // Environment
   setEnvironment(name: string, key: string, value: string): Promise<void>
@@ -260,6 +264,32 @@ export class TmuxRuntime implements AgentRuntime {
       } else {
         await execAsync(`tmux send-keys -t "${name}" ${keys}`)
       }
+    }
+  }
+
+  /**
+   * Press one key N times. Used to clear a TUI input box with backspaces —
+   * `C-u` does not clear Claude Code's input, backspace does. tmux -N repeats
+   * in a single call, so this stays one exec no matter how long the text is.
+   */
+  async repeatKey(name: string, key: string, times: number): Promise<void> {
+    const n = Math.max(1, Math.min(2000, Math.floor(times)))
+    await execAsync(`tmux send-keys -t "${name}" -N ${n} ${key}`)
+  }
+
+  /**
+   * Capture WITH escape sequences, so callers can tell Claude Code's dim
+   * placeholder from text that is really staged. See stripDimPlaceholder.
+   */
+  async capturePaneRaw(name: string, lines: number = 200): Promise<string> {
+    try {
+      const { stdout } = await execAsync(
+        `tmux capture-pane -t "${name}" -p -e -S -${lines} 2>/dev/null || tmux capture-pane -t "${name}" -p -e`,
+        { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
+      )
+      return stdout
+    } catch {
+      return ''
     }
   }
 

@@ -80,7 +80,10 @@ const NOTIFICATION_CAPTURE_LINES = 120
 // reporter measured Enter once and Enter twice both failing, and
 // clear-then-retype-then-Enter succeeding 7 of 7. So recovery clears the input
 // line first and types the text again as fresh keystrokes.
-const NOTIFICATION_CLEAR_INPUT_KEY = 'C-u'   // kill-line: empties the input box
+// NOT C-u. Verified by hand against a live Claude Code pane on 15 Sep 2026: a
+// staged line survived two C-u and an Escape, and only backspace removed
+// characters. Every clear-and-retype built on C-u was appending to what was
+// already staged rather than replacing it. See clearInputKeys().
 const NOTIFICATION_CLEAR_SETTLE_MS = 80
 
 // Body appended to the pane notification. Kept short and single-lined: a raw
@@ -189,6 +192,42 @@ export function paneStaged(pane: string, needle: string): boolean {
 }
 
 /**
+ * Strip Claude Code's DIM placeholder from a pane captured with `-e`.
+ *
+ * Claude Code renders your previous prompt greyed out inside an EMPTY input box
+ * as a hint. In a plain `capture-pane -p` it is indistinguishable from text you
+ * actually typed — which cost a live debugging session on 15 Sep 2026, where an
+ * agent looked jammed with a staged message for ten minutes and the box had been
+ * empty the whole time. Only `capture-pane -e` tells them apart: the placeholder
+ * is wrapped in SGR dim (`ESC[2m` … `ESC[0m`).
+ *
+ * Callers that capture with `-e` should run this first; the readback then sees
+ * only text the user or we actually put there.
+ */
+const SGR_DIM_RUN = /\x1b\[2m[\s\S]*?(?:\x1b\[(?:0|22)m|$)/g
+const SGR_ANY = /\x1b\[[0-9;]*m/g
+
+export function stripDimPlaceholder(paneWithEscapes: string): string {
+  return paneWithEscapes.replace(SGR_DIM_RUN, '').replace(SGR_ANY, '')
+}
+
+/**
+ * How to clear a TUI input box.
+ *
+ * NOT `C-u`. That was used here for months and is a no-op in Claude Code's
+ * input — verified by hand on a live agent: the staged line survived two `C-u`
+ * and an `Escape`, and only backspace removed characters. Every "clear and
+ * retype" recovery built on `C-u` therefore appended to whatever was already
+ * staged instead of replacing it, which is worse than not retrying at all.
+ *
+ * Backspace is dumb and works. Send a few more than the text is long, because a
+ * backspace against an empty box costs nothing.
+ */
+export function clearInputKeys(stagedLength: number): { key: string; repeat: number } {
+  return { key: 'BSpace', repeat: Math.min(2000, Math.max(16, stagedLength + 16)) }
+}
+
+/**
  * Send a notification to a tmux session and confirm it landed.
  *
  * The notification is delivered in two separate send-keys calls with a short
@@ -231,7 +270,8 @@ async function sendTmuxNotification(
     // garbage, and re-sending Enter alone does not rescue it — both measured in
     // the field. Clear, retype, then Enter.
     if (staged) {
-      await runtime.sendKeys(target, NOTIFICATION_CLEAR_INPUT_KEY)
+      const { key: clearKey, repeat: clearRepeat } = clearInputKeys(payload.length)
+      await runtime.repeatKey(target, clearKey, clearRepeat)
       await new Promise(resolve => setTimeout(resolve, NOTIFICATION_CLEAR_SETTLE_MS))
     }
 

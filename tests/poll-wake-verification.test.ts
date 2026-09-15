@@ -21,6 +21,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockRuntime = {
   sendKeys: vi.fn().mockResolvedValue(undefined),
   capturePane: vi.fn().mockResolvedValue(''),
+  capturePaneRaw: vi.fn().mockResolvedValue(''),
+  repeatKey: vi.fn().mockResolvedValue(undefined),
   sessionExists: vi.fn().mockResolvedValue(true),
   cancelCopyMode: vi.fn().mockResolvedValue(undefined),
 }
@@ -45,6 +47,8 @@ beforeEach(() => {
   state.sessionActivity.clear()
   mockRuntime.sessionExists.mockResolvedValue(true)
   mockRuntime.sendKeys.mockResolvedValue(undefined)
+  mockRuntime.repeatKey.mockClear()
+  mockRuntime.repeatKey.mockResolvedValue(undefined)
 })
 
 describe('sendCommand — unverified by default', () => {
@@ -130,19 +134,24 @@ describe('sendCommand — recovery when the text stages', () => {
     // A hundred nudges typed on top of one another is what the field data
     // actually showed. Clear first, then retype.
     return (async () => {
+      // The clear is BACKSPACES. C-u was used here for months and does nothing
+      // to Claude Code's input — verified by hand on a live agent 15 Sep 2026.
+      // A clear that does not clear makes the retry worse than no retry: the
+      // retype appends to what is already staged.
       mockRuntime.capturePane.mockResolvedValue(STAGED)
       await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
-      const keys = mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])
-      expect(keys).toContain('C-u')
-      const clearAt = keys.indexOf('C-u')
-      expect(keys.slice(clearAt).some((k: string) => k.includes('check your inbox'))).toBe(true)
+      expect(mockRuntime.repeatKey).toHaveBeenCalled()
+      const [, key, times] = mockRuntime.repeatKey.mock.calls[0]
+      expect(key).toBe('BSpace')
+      expect(times).toBeGreaterThanOrEqual(PROMPT.length)
+      expect(mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])).not.toContain('C-u')
     })()
   })
 
   it('does not clear on the first attempt — nothing is staged yet', async () => {
     mockRuntime.capturePane.mockResolvedValue(SUBMITTED)
     await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
-    expect(mockRuntime.sendKeys.mock.calls.map((c: any[]) => c[1])).not.toContain('C-u')
+    expect(mockRuntime.repeatKey).not.toHaveBeenCalled()
   })
 
   it('reports submitted when the clear-and-retype gets through', async () => {
@@ -160,7 +169,7 @@ describe('sendCommand — recovery when the text stages', () => {
     const res = await sendCommand(SESSION, PROMPT, { requireIdle: false, verify: true })
     expect(res.data).toMatchObject({ submitted: false, staged: true })
     // initial send + one clear + one retype
-    expect(mockRuntime.sendKeys.mock.calls.filter((c: any[]) => c[1] === 'C-u').length).toBe(1)
+    expect(mockRuntime.repeatKey).toHaveBeenCalledTimes(1)
   })
 
   it('does not retry when the pane simply shows something else', async () => {

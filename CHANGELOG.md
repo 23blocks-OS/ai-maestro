@@ -3,6 +3,46 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.11] - 2026-09-15 — A "waiting" badge now expires after a day
+
+### Fixed
+- **Stale "needs you" badges.** v0.38.10 made the indicator read hook state, which
+  worked — and immediately exposed an inherited assumption. Waiting states never
+  expired, because for the wake path that is correct: an agent blocked on a prompt
+  is still blocked tomorrow. For a badge it is not. On the first host checked,
+  **56 of 67 agents reported "waiting" from reports older than a week, the oldest
+  from 12 January**, each rendering as a pulsing amber "needs you" dot.
+
+  Fifty-six permanent amber dots teach a person to ignore amber, which defeats the
+  point of having it — the exact failure herdr's *"never hunt for the stuck one"*
+  exists to prevent.
+
+  `WAITING_STATE_TTL_MS` (24h) now bounds waiting reports in the indicator.
+  Overnight blockage is still flagged in the morning; January stops shouting.
+  `active` and `idle` keep the much shorter `HOOK_STATUS_TTL_MS` (15m), because
+  "working" is a claim about right now while "blocked" persists until answered.
+
+  **The wake path is untouched** — `getHookState` is private to `getActivity`, and
+  `lib/session-idle` reads the shared map directly with its own rules.
+
+- One freshness rule now governs **both** hook stores. Previously a file-derived
+  waiting report survived indefinitely while a map-derived one expired in 15
+  minutes, so the same agent could appear or vanish depending on which store
+  answered.
+
+- The terminal-upgrade path is bounded too: a live, working terminal is no longer
+  labelled "waiting" on the strength of a months-old report.
+
+### Notes
+- Expiry is on the **age of the report**, not a blocklist. An agent silent for 48
+  hours drops out and reappears within a second of its next hook event; nothing is
+  cached, and `getActivity` recomputes from both stores on every call. Three tests
+  cover that round trip explicitly — file, map, and no-caching.
+- **Known limit:** `active` expires after 15 minutes, so a turn longer than that
+  with no intervening hook event drops out mid-turn. A `PreToolUse` heartbeat
+  throttled to once a minute would close it; not built yet.
+- `tests/session-activity-hook-fallback.test.ts` — now 20 cases.
+
 ## [0.38.10] - 2026-09-15 — The dashboard could not see an agent working unless you were watching it
 
 Reported against v0.38.9 by an agent on a customer estate, with measurements.

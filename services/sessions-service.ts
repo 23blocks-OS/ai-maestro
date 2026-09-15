@@ -146,6 +146,28 @@ function hashCwd(cwd: string): string {
 }
 
 /**
+ * How long a "waiting" report stays believable in the ACTIVITY INDICATOR.
+ *
+ * Waiting states deliberately never expire in the wake path (lib/session-idle):
+ * an agent blocked on a prompt is still blocked tomorrow, and the wake logic must
+ * know that. The indicator has the opposite problem. When v0.38.10 first surfaced
+ * hook state in the sidebar, 56 of 67 agents on one host reported "waiting" from
+ * reports older than a week — the oldest from 12 January. Every one rendered as a
+ * pulsing amber "needs you" badge.
+ *
+ * Fifty-six permanent amber dots teach a person to ignore the colour, which
+ * defeats the entire point of having one. A day is long enough that an agent
+ * genuinely blocked overnight is still flagged in the morning, and short enough
+ * that January stops shouting.
+ *
+ * This bound applies ONLY to the indicator. The wake path is untouched.
+ */
+export const WAITING_STATE_TTL_MS = 24 * 60 * 60 * 1000
+
+const isWaitingStatus = (status: string): boolean =>
+  status === 'waiting_for_input' || status === 'permission_request'
+
+/**
  * Read hook state for a working directory.
  *
  * This reads the FILE the hook writes with fs.writeFileSync before it attempts
@@ -158,7 +180,8 @@ function hashCwd(cwd: string): string {
  */
 function getHookState(
   workingDir: string,
-  maxAgeMs: number = 60000
+  maxAgeMs: number = 60000,
+  maxWaitingAgeMs: number = WAITING_STATE_TTL_MS
 ): { status: string; notificationType?: string; at: number } | null {
   if (!workingDir) return null
 
@@ -172,8 +195,8 @@ function getHookState(
       const state = JSON.parse(content)
 
       const at = new Date(state.updatedAt).getTime()
-      const isWaitingState = state.status === 'waiting_for_input' || state.status === 'permission_request'
-      if (!isWaitingState && Date.now() - at > maxAgeMs) return null
+      const age = Date.now() - at
+      if (age > (isWaitingStatus(state.status) ? maxWaitingAgeMs : maxAgeMs)) return null
 
       return { status: state.status, notificationType: state.notificationType, at }
     }
@@ -542,7 +565,9 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   activityMap.forEach((timestamp, sessionName) => {
     const terminalIdle = ((now - timestamp) / 1000) > 3
     const workingDir = sessionToWorkingDir.get(sessionName)
-    const hookState = workingDir ? getHookState(workingDir) : null
+    // Bounded the same way: a live terminal must not be labelled "waiting" on the
+    // strength of a report from months ago.
+    const hookState = workingDir ? getHookState(workingDir, 60000, WAITING_STATE_TTL_MS) : null
 
     let status: SessionActivityStatus = terminalIdle ? 'idle' : 'active'
     if (hookState && (hookState.status === 'waiting_for_input' || hookState.status === 'permission_request')) {
@@ -570,7 +595,11 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   //
   // Terminal activity still wins where it exists, because it is measured rather
   // than reported. This only fills in the agents it cannot see.
-  const stale = Date.now() - HOOK_STATUS_TTL_MS
+  // One rule for both stores: a working/idle report goes stale in minutes, a
+  // blocked one stays relevant for a day. See WAITING_STATE_TTL_MS.
+  const isFresh = (status: string, at: number): boolean =>
+    Date.now() - at <= (isWaitingStatus(status) ? WAITING_STATE_TTL_MS : HOOK_STATUS_TTL_MS)
+
   const toActivityStatus = (hookStatus: string): SessionActivityStatus =>
     hookStatus === 'active' ? 'active'
     : (hookStatus === 'waiting_for_input' || hookStatus === 'permission_request') ? 'waiting'
@@ -583,12 +612,12 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   for (const [sessionName, workingDir] of sessionToWorkingDir) {
     if (activity[sessionName]) continue
 
-    const fromFile = getHookState(workingDir, HOOK_STATUS_TTL_MS)
+    const fromFile = getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS)
     const fromMap = hookStatusMap.get(sessionName)
+    const mapFresh = fromMap && isFresh(fromMap.status, fromMap.at) ? fromMap : null
     const reported =
-      fromFile && (!fromMap || fromFile.at >= fromMap.at) ? fromFile
-      : fromMap && fromMap.at >= stale ? fromMap
-      : null
+      fromFile && (!mapFresh || fromFile.at >= mapFresh.at) ? fromFile
+      : mapFresh
     if (!reported) continue
 
     activity[sessionName] = {
@@ -601,7 +630,7 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
 
   // Remote agents report over the wire and have no local state file.
   hookStatusMap.forEach((reported, sessionName) => {
-    if (activity[sessionName] || reported.at < stale) return
+    if (activity[sessionName] || !isFresh(reported.status, reported.at)) return
     activity[sessionName] = {
       lastActivity: new Date(reported.at).toISOString(),
       status: toActivityStatus(reported.status),

@@ -109,10 +109,38 @@ function messageKey(m: Message): string {
 }
 
 const PENDING_EXPIRY_MS = 30000
+/** Let the TUI open its free-text field before the answer is pasted into it. */
+const QUESTION_OTHER_SETTLE_MS = 400
 
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
+  // Pending bubbles survive leaving the chat.
+  //
+  // These carry the Retry button for a message that may not have landed. They
+  // were component state, so switching to the terminal tab unmounted ChatView and
+  // took the evidence with it — the message was gone and there was nothing left
+  // to retry. Keyed per agent, same as the draft.
+  const pendingKey = `aimaestro-chat-pending-${agent.id}`
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = localStorage.getItem(pendingKey)
+      const parsed = raw ? JSON.parse(raw) : []
+      // A bubble still marked 'sending' from a previous mount cannot be waited
+      // on any more — the socket that would have confirmed it is gone. Show it
+      // as failed so it is actionable rather than spinning forever.
+      return Array.isArray(parsed)
+        ? parsed.map((p: PendingMessage) => p.status === 'sending' ? { ...p, status: 'failed' as const } : p)
+        : []
+    } catch { return [] }
+  })
+
+  useEffect(() => {
+    try {
+      if (pendingMessages.length) localStorage.setItem(pendingKey, JSON.stringify(pendingMessages))
+      else localStorage.removeItem(pendingKey)
+    } catch { /* quota / private mode */ }
+  }, [pendingMessages, pendingKey])
   // The draft survives leaving the chat.
   //
   // ChatView UNMOUNTS when you switch to the terminal tab, so anything typed and
@@ -543,6 +571,29 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     setPendingMessages(prev => prev.filter(p => p.id !== id))
   }
 
+  /**
+   * The live AskUserQuestion on screen, if there is one.
+   *
+   * Claude Code treats free text as a legitimate answer to a question — its own
+   * terminal prompt reads "Enter a number, or type your own answer", and the SDK
+   * documents the custom string being used as the answer value. So typing in the
+   * chat must answer the question, not be refused.
+   *
+   * In the TUI the free-text field lives behind the last option ("Other"), so we
+   * press that first and then send the text. Without this, typing while a menu is
+   * open goes nowhere and the only way through is a terminal.
+   */
+  const liveQuestion = (): { otherIndex: number } | null => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const t = getAskUserQuestion(messages[i])
+      if (!t?.id || !t.input?.questions?.length) continue
+      if (isQuestionAnswered(t.id) || !isQuestionCurrent(t.id)) return null
+      const q = t.input.questions[0] as { options?: unknown[] }
+      return { otherIndex: (q.options?.length || 0) + 1 }
+    }
+    return null
+  }
+
   // Send message via WebSocket
   const handleSend = () => {
     if (!input.trim() || isSending) return
@@ -577,7 +628,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
     setPendingMessages(prev => [...prev, pendingMsg])
 
-    const sent = sendChatMessage('chat:send', { message: messageToSend })
+    // Answering a live question: open its free-text field first.
+    const q = liveQuestion()
+    if (q) {
+      sendChatMessage('chat:permissionResponse', { key: String(q.otherIndex) })
+    }
+
+    const doSend = () => sendChatMessage('chat:send', { message: messageToSend })
+    const sent = q
+      ? (setTimeout(doSend, QUESTION_OTHER_SETTLE_MS), true)
+      : doSend()
     if (!sent) {
       setError('Failed to send — try again')
       setPendingMessages(prev => prev.filter(p => p.id !== pendingMsg.id))

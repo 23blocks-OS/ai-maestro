@@ -11,6 +11,7 @@ import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
+import { paneSubmitted, paneStaged, stripDimPlaceholder, clearInputKeys } from './lib/pane-readback.mjs'
 import {
   resolveJsonlPath,
   getAgentWorkingDir,
@@ -742,7 +743,29 @@ function exitCopyMode(sessionName) {
   } catch { /* best effort */ }
 }
 
+/** ~3s of polling: a TUI can take a moment to echo a submitted prompt. */
+const CHAT_VERIFY_POLLS = 12
+const CHAT_POLL_INTERVAL_MS = 250
+/** One retry. If a dialog is holding the keyboard, a third attempt will not help. */
+const CHAT_MAX_SENDS = 2
+
+const CHAT_NOT_SUBMITTED =
+  "Your message reached the agent's input box but was never submitted — something in " +
+  'the terminal is holding the keyboard, usually a prompt or dialog waiting for an ' +
+  "answer. Open this agent's terminal, clear whatever is waiting, and send again."
+
+/** Capture WITH escapes, so dim placeholder text can be told from real input. */
+function capturePaneRaw(sessionName, lines = 200) {
+  try {
+    return execSync(
+      `tmux capture-pane -t "${sessionName}" -p -e -S -${lines} 2>/dev/null || tmux capture-pane -t "${sessionName}" -p -e`,
+      { timeout: 3000, encoding: 'utf-8', shell: '/bin/bash' }
+    )
+  } catch { return '' }
+}
+
 async function sendChatMessage(sessionName, message) {
+  const tmpFile2 = path.join(os.tmpdir(), `aimaestro-resend-${Date.now()}.txt`)
   // 0. Ensure the pane isn't in copy-mode (scrolling leaves it there) — else
   // the paste shows but Enter never submits.
   exitCopyMode(sessionName)
@@ -820,7 +843,43 @@ async function sendChatMessage(sessionName, message) {
     return { ok: false, error: 'Text pasted but Enter failed: ' + err.message }
   }
 
-  return { ok: true }
+  // 7. PROVE it was submitted.
+  //
+  // Everything above is best-effort: the paste probe is explicitly advisory, and
+  // Enter can be swallowed by anything holding the keyboard — a dialog, a menu,
+  // Claude Code's own feedback survey. Returning ok here without looking is how
+  // the chat spent months reporting "sent" for messages that sat in the input box
+  // until somebody opened a terminal and found them.
+  //
+  // Read the pane: the text must appear ABOVE the input box. If it is still IN
+  // the box, clear it with backspaces (C-u does nothing to this input) and retype
+  // once. A second failure means something is holding the keyboard and no number
+  // of retries will help — say so, and say what to do about it.
+  for (let attempt = 1; attempt <= CHAT_MAX_SENDS; attempt++) {
+    for (let poll = 0; poll < CHAT_VERIFY_POLLS; poll++) {
+      await new Promise(r => setTimeout(r, CHAT_POLL_INTERVAL_MS))
+      const pane = stripDimPlaceholder(capturePaneRaw(sessionName))
+
+      if (paneSubmitted(pane, message)) return { ok: true, verified: true }
+
+      if (paneStaged(pane, message)) {
+        if (attempt >= CHAT_MAX_SENDS) break
+        const { key, repeat } = clearInputKeys(message.length)
+        try { execSync(`tmux send-keys -t "${sessionName}" -N ${repeat} ${key}`, { timeout: 3000 }) } catch {}
+        try {
+          fs.writeFileSync(tmpFile2, message, 'utf-8')
+          execSync(`tmux load-buffer -b "${bufferName}-r" "${tmpFile2}"`, { timeout: 3000 })
+          execSync(`tmux paste-buffer -d -r -b "${bufferName}-r" -t "${sessionName}"`, { timeout: 3000 })
+          execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
+        } catch { /* fall through to the failure report */ }
+        finally { try { fs.unlinkSync(tmpFile2) } catch {} }
+        break
+      }
+    }
+  }
+
+  console.warn(`[Chat] ${sessionName}: typed but never submitted`)
+  return { ok: false, error: CHAT_NOT_SUBMITTED }
 }
 
 /**
@@ -1682,6 +1741,13 @@ async function startServer(handleRequest) {
       }
       if (msg.type === 'permissionDecision' && msg.requestId) {
         session.resolvePermission(msg.requestId, msg.decision, msg.message)
+        return
+      }
+      // Answers to an AskUserQuestion card. `answers` maps question text to the
+      // chosen label (or the user's own words); `freeform` is a reply that is not
+      // an answer to any specific question.
+      if (msg.type === 'questionAnswer' && msg.requestId) {
+        session.resolveQuestion(msg.requestId, msg.answers || {}, msg.freeform || null)
         return
       }
     })

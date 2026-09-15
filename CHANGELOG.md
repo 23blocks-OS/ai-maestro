@@ -40,6 +40,70 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   before the memory, that stale memory is cleared rather than left to block, that
   the refusal is guarded by the live check, and that the draft round-trips.
 
+## [0.38.16] - 2026-09-15 — Both chat paths, properly
+
+Not another patch on one symptom. The chat failed all afternoon in five different
+ways that were really two problems: the tmux path never verified anything, and
+the SDK path never learned to answer a question.
+
+### Fixed — the chat people actually use (tmux path)
+- **`sendChatMessage` in `server.mjs` now PROVES submission.** It pasted, ran an
+  explicitly-advisory probe, sent Enter and returned `ok`. That is why the UI
+  said "sent" for messages that sat in the input box until somebody opened a
+  terminal. It now reads the pane, requires the text ABOVE the input box, clears
+  with backspaces and retypes once if the text is still in the box, and otherwise
+  returns an error naming the cause and the fix.
+
+  **The verification already existed** — in `lib/notification-service.ts`, which
+  `server.mjs` cannot import. So the file that needed it was the one file without
+  it. Now in `lib/pane-readback.mjs`, imported by both; there is nothing left to
+  duplicate.
+
+- **A false permission detection could refuse every message forever.**
+  `_lastPermission` was believed without re-checking the pane, and only cleared by
+  a new assistant message — which cannot arrive while every message is refused.
+  The pane is the authority now; stale memory is dropped, not obeyed.
+
+- **Typing now answers a question instead of being refused.** Claude Code's own
+  prompt says *"Enter a number, or type your own answer"*, and its free-text field
+  sits behind the last option. The chat presses that first, then sends the text.
+  No more being pushed to a terminal to say something that is not on the menu.
+
+- **The draft and the Retry bubble survive leaving the chat.** `ChatView` unmounts
+  on a tab switch, so unsent text and any pending message — including the one with
+  the Retry button — were simply gone. Both are persisted per agent. A bubble
+  still marked "sending" from a previous mount returns as *failed*, so it is
+  actionable rather than spinning forever.
+
+### Added — the path that can actually be 100% (SDK path)
+- **`AskUserQuestion` is answered properly.** `_onCanUseTool` treated every tool
+  as a permission: one Allow/Deny card. Answering a question with "allow" returns
+  the input unchanged with no `answers` key, so Claude receives **no answer** and
+  the turn stalls. Questions now get their own card and resolve in the documented
+  shape:
+
+  ```js
+  { behavior: 'allow',
+    updatedInput: { questions, answers: { "<question text>": "<label or your words>" } } }
+  ```
+
+- **Free text is a first-class answer**, per Anthropic's own guidance — the card
+  carries the options *and* a text box. A reply that answers no specific question
+  goes back as `response`, which Claude reads as "The user responded: …".
+- A question can no longer be resolved through the permission path, or the reverse.
+
+### Why the SDK path matters
+The tmux path infers state by reading a terminal as text and typing keystrokes
+back. Every bug above is a consequence of that: staged text, false permission
+detection, a dim placeholder read as real input, `C-u` silently not clearing.
+Screen-scraping a TUI can be made *better*; it cannot be made certain. The SDK
+path exchanges structured JSON in both directions and has none of those failure
+modes. It is now complete enough to be the default.
+
+### Notes
+- `tests/streaming-questions.test.ts` (11) and `tests/permission-deadlock.test.ts`
+  (8). 1363 total.
+
 ## [0.38.14] - 2026-09-15 — The answered question is now actually gone
 
 v0.38.13 was two-thirds of a fix. Both remaining thirds are here.

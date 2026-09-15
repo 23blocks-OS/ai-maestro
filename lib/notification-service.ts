@@ -140,92 +140,26 @@ function paneContains(pane: string, needle: string): boolean {
 }
 
 /**
- * A line that is the agent's input prompt, after stripping the box-drawing
- * chrome TUIs wrap it in (`│ > `, `╭─`, and friends).
- *
- * Matches Claude Code and Codex (`>`), fish/starship-style prompts (`❯`), and
- * a bare shell (`$`, `%`). Kept deliberately loose: a false positive costs one
- * unnecessary resend, a false negative costs a lost message.
+ * Pane readback lives in lib/pane-readback.mjs so server.mjs — the file the chat
+ * UI actually calls — can use the SAME implementation. It used to live here, in
+ * TypeScript, which is precisely why the chat path had no verification at all.
  */
-const INPUT_PROMPT_LINE = /^[\s│┃|╎┆:]*[>❯$%⏵]\s?/
+import {
+  splitPaneAtInput,
+  paneSubmitted,
+  paneStaged,
+  stripDimPlaceholder,
+  clearInputKeys,
+} from '@/lib/pane-readback.mjs'
 
-/**
- * Split a captured pane into what the agent has ACCEPTED and what is still
- * sitting in its input box.
- *
- * This distinction is the whole point. `capture-pane` shows the input box, so
- * text typed into an agent and never submitted reads back exactly like text the
- * agent received — which is how a readback check that looked for the message
- * anywhere on the pane returned `confirmed` for eight agents that were deaf.
- * The input box is the tail of the pane from its last prompt line onward.
- */
-export function splitPaneAtInput(pane: string): { accepted: string; input: string } {
-  const lines = pane.split('\n')
-  let promptAt = -1
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (INPUT_PROMPT_LINE.test(lines[i])) {
-      promptAt = i
-      break
-    }
-  }
-  if (promptAt === -1) return { accepted: pane, input: '' }
-  return {
-    accepted: lines.slice(0, promptAt).join('\n'),
-    input: lines.slice(promptAt).join('\n'),
-  }
-}
-
-/**
- * Proof of submission, not merely of presence.
- *
- * The needle must appear ABOVE the input box. A TUI echoes a submitted prompt
- * into the transcript above its input, so "above" is what submission looks
- * like; "in the box" is what a lost Enter looks like.
- */
-export function paneSubmitted(pane: string, needle: string): boolean {
-  return paneContains(splitPaneAtInput(pane).accepted, needle)
-}
-
-/** Our text is in the input box, unsubmitted — positive evidence of failure. */
-export function paneStaged(pane: string, needle: string): boolean {
-  return paneContains(splitPaneAtInput(pane).input, needle)
-}
-
-/**
- * Strip Claude Code's DIM placeholder from a pane captured with `-e`.
- *
- * Claude Code renders your previous prompt greyed out inside an EMPTY input box
- * as a hint. In a plain `capture-pane -p` it is indistinguishable from text you
- * actually typed — which cost a live debugging session on 15 Sep 2026, where an
- * agent looked jammed with a staged message for ten minutes and the box had been
- * empty the whole time. Only `capture-pane -e` tells them apart: the placeholder
- * is wrapped in SGR dim (`ESC[2m` … `ESC[0m`).
- *
- * Callers that capture with `-e` should run this first; the readback then sees
- * only text the user or we actually put there.
- */
-const SGR_DIM_RUN = /\x1b\[2m[\s\S]*?(?:\x1b\[(?:0|22)m|$)/g
-const SGR_ANY = /\x1b\[[0-9;]*m/g
-
-export function stripDimPlaceholder(paneWithEscapes: string): string {
-  return paneWithEscapes.replace(SGR_DIM_RUN, '').replace(SGR_ANY, '')
-}
-
-/**
- * How to clear a TUI input box.
- *
- * NOT `C-u`. That was used here for months and is a no-op in Claude Code's
- * input — verified by hand on a live agent: the staged line survived two `C-u`
- * and an `Escape`, and only backspace removed characters. Every "clear and
- * retype" recovery built on `C-u` therefore appended to whatever was already
- * staged instead of replacing it, which is worse than not retrying at all.
- *
- * Backspace is dumb and works. Send a few more than the text is long, because a
- * backspace against an empty box costs nothing.
- */
-export function clearInputKeys(stagedLength: number): { key: string; repeat: number } {
-  return { key: 'BSpace', repeat: Math.min(2000, Math.max(16, stagedLength + 16)) }
-}
+export {
+  INPUT_PROMPT_LINE,
+  splitPaneAtInput,
+  paneSubmitted,
+  paneStaged,
+  stripDimPlaceholder,
+  clearInputKeys,
+} from '@/lib/pane-readback.mjs'
 
 /**
  * Send a notification to a tmux session and confirm it landed.

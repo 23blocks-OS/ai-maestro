@@ -8,7 +8,7 @@
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import { isPaneAtBareShell, BARE_SHELL_MESSAGE } from '@/lib/pane-occupant'
-import { paneSubmitted, paneStaged, stripDimPlaceholder, clearInputKeys } from '@/lib/notification-service'
+import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from '@/lib/chat-verify.mjs'
 import {
   enqueueForSession,
   shouldUseAdditionalContext,
@@ -164,6 +164,7 @@ const CHAT_POLL_INTERVAL_MS = 250
 /** One retry. If a modal is holding the keyboard, a third try will not help. */
 const CHAT_MAX_SENDS = 2
 
+/** @deprecated import NOT_SUBMITTED_MESSAGE from '@/lib/chat-verify.mjs' */
 export const CHAT_NOT_SUBMITTED_MESSAGE =
   'Your message reached the agent\'s input box but was never submitted — something in the ' +
   'terminal is holding the keyboard, usually a prompt or dialog waiting for an answer. ' +
@@ -204,47 +205,25 @@ export async function sendChatMessage(
   const runtime = getRuntime()
   await runtime.cancelCopyMode(sessionName)
 
-  // Type it, then PROVE it was submitted.
-  //
-  // This used to end at sendKeys and return success. It was the last place in
-  // the codebase still reporting a delivery it had not checked — and the one
-  // the user sees. Reported 15 Sep 2026: a modal (Claude Code's own session
-  // feedback survey) was holding the keyboard, so every chat message landed in
-  // the input box unsubmitted while the UI showed each one as sent. The person
-  // had to open a terminal to discover their words had gone nowhere.
-  //
-  // The machinery for this has existed since v0.37.x — paneSubmitted /
-  // paneStaged, built for exactly this failure — and was wired into the AMP
-  // notification path and nowhere else.
-  for (let attempt = 1; attempt <= CHAT_MAX_SENDS; attempt++) {
-    await runtime.sendKeys(sessionName, message, { literal: true, enter: true })
+  // Type it, then PROVE it was submitted — shared with the chat path, see
+  // lib/chat-verify. Delivery stays local because this path types through the
+  // runtime abstraction its tests mock, while the chat path pastes via a tmux
+  // buffer. Both are legitimate; the proof is what had to stop being duplicated.
+  const { submitted } = await deliverAndVerify(message, {
+    capture: () => runtime.capturePaneRaw(sessionName),
+    deliver: () => runtime.sendKeys(sessionName, message, { literal: true, enter: true }),
+    clear: (count: number) => runtime.repeatKey(sessionName, 'BSpace', count),
+  })
 
-    for (let poll = 0; poll < CHAT_VERIFY_POLLS; poll++) {
-      await new Promise(r => setTimeout(r, CHAT_POLL_INTERVAL_MS))
-      const pane = stripDimPlaceholder(await runtime.capturePaneRaw(sessionName))
-
-      if (paneSubmitted(pane, message)) {
-        return {
-          data: { success: true, message: 'Message sent to session', sessionName, verified: true },
-          status: 200
-        }
-      }
-
-      if (paneStaged(pane, message)) {
-        // In the box, not submitted. Retrying without clearing would APPEND to
-        // what is already there, so clear first — with backspaces, because C-u
-        // does not clear this input.
-        if (attempt < CHAT_MAX_SENDS) {
-          const { key, repeat } = clearInputKeys(message.length)
-          await runtime.repeatKey(sessionName, key, repeat)
-        }
-        break
-      }
+  if (submitted) {
+    return {
+      data: { success: true, message: 'Message sent to session', sessionName, verified: true },
+      status: 200,
     }
   }
 
   console.warn(`[Chat Service] ${sessionName}: typed but never submitted`)
-  return invalidRequest(CHAT_NOT_SUBMITTED_MESSAGE)
+  return invalidRequest(NOT_SUBMITTED_MESSAGE)
 }
 
 /**

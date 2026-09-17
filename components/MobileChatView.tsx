@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
+import {
+  isQuestionAnswered as sharedIsAnswered,
+  isQuestionCurrent as sharedIsCurrent,
+} from '@/lib/question-state.mjs'
 import MobileToolBurstGroup from '@/components/chat/MobileToolBurstGroup'
 import { groupMessages, getToolPreviewText, type ToolBurst } from '@/lib/chat-utils'
 
@@ -517,39 +521,15 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   }
 
   // Check if an AskUserQuestion has been answered
-  // Kept in step with ChatView deliberately — this file carries its own copy of
-  // the question panel, and fixing only the desktop one left the same stale card
-  // rendering here. `answeredQuestions` is a useState Set that dies with the
-  // page; the tool_result_marker comes off disk and survives a reload.
-  const isQuestionAnswered = (toolUseId?: string): boolean => {
-    if (!toolUseId) return false
-    if (answeredQuestions.has(toolUseId)) return true
-    return messages.some(m =>
-      ((m as any).type === 'tool_result_marker' && (m as any).tool_use_id === toolUseId) ||
-      (m.type === 'user' &&
-        Array.isArray(m.message?.content) &&
-        m.message!.content!.some(block =>
-          block.type === 'tool_result' && block.tool_use_id === toolUseId
-        ))
-    )
-  }
+  // Shared with ChatView — see lib/question-state.mjs. These rules used to be
+  // duplicated here, which is why fixing ChatView alone left the bug live for
+  // anyone whose layoutOverride put them on this renderer (including desktop).
+  const isQuestionAnswered = (toolUseId?: string): boolean =>
+    sharedIsAnswered(messages, toolUseId, answeredQuestions)
 
-  /** A question the conversation has moved past is history, not a live menu. */
-  const isQuestionCurrent = (toolUseId?: string): boolean => {
-    if (!toolUseId) return false
-    let askIdx = -1
-    let lastAskId: string | null = null
-    messages.forEach((m, i) => {
-      const t = extractAskUserQuestion(m)
-      if (t?.id) { lastAskId = t.id; if (t.id === toolUseId) askIdx = i }
-    })
-    if (lastAskId !== toolUseId || askIdx === -1) return false
-    const spokeSince = messages.slice(askIdx + 1).some(m =>
-      m.type === 'assistant' || m.type === 'user' || (m as any).type === 'thinking'
-    )
-    if (spokeSince) return false
-    return hookState?.status === 'waiting_for_input' || hookState?.status === 'permission_request'
-  }
+  const isQuestionCurrent = (toolUseId?: string): boolean =>
+    sharedIsCurrent(messages, toolUseId, hookState)
+
 
   // Auto-grow textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

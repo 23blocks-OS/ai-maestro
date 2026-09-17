@@ -217,11 +217,27 @@ the wrong file.
 
 ## Known duplication — fix this and the class of bug goes away
 
-| duplicated | status |
+| was duplicated | status |
 |---|---|
-| pane readback (TS + mjs) | **resolved** — `lib/pane-readback.mjs`, both import it |
-| `sendChatMessage` × 2 | still duplicated |
-| question panel renderer × 2 | still duplicated |
-| question panel *sources* × 3 | inherent, but now documented |
+| pane readback | **resolved** — `lib/pane-readback.mjs` |
+| question answered/live rules | **resolved** — `lib/question-state.mjs` |
+| verify / clear / retype loop | **resolved** — `lib/chat-verify.mjs` |
+| question panel *sources* × 3 | inherent, documented above |
 
-Every bug on 15 September was one of these forks.
+### What was deliberately NOT collapsed
+
+**The two chat components.** `ChatView` and `MobileChatView` are different
+layouts, not an accident. Merging them yields one component full of branching
+markup — worse than two. Their shared *logic* moved to `lib/question-state.mjs`;
+their markup stays apart.
+
+**The two `sendChatMessage` wrappers.** They have genuinely different jobs: the
+service resolves an agent from the registry and guards against a bare shell;
+`server.mjs` handles tmux copy-mode and the permission cache. They also deliver
+text differently — the chat path pastes through a tmux buffer (newlines and
+quoting for free), the service types via the runtime abstraction its tests mock.
+Both are legitimate. Only the **proof** was duplicated, and that is now
+`lib/chat-verify.mjs`, which takes delivery as an injected function.
+
+The rule this leaves behind: **share the logic, not the shape.** Every bug on
+15 September was a fork of logic; none of them was a fork of markup.

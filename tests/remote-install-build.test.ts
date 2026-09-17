@@ -123,3 +123,57 @@ describe('build_app verifies the artifact, not the exit code', () => {
     expect(fs.existsSync(path.join(dir, '.next', 'BUILD_ID'))).toBe(false)
   })
 })
+
+/**
+ * A version match must not short-circuit a broken tree.
+ *
+ * Contributed by Javier Moya (@nodoyuna, jaak.ai) in #453, found while setting up
+ * a multi-host mesh over OpenVPN.
+ *
+ * The update path returned early whenever `package.json` carried the current
+ * version. But a matching version only means the SOURCE is current —
+ * `node_modules` and `.next` can still be missing after an interrupted install, a
+ * pruned checkout, or a fresh clone that never built. The shortcut then skipped
+ * `yarn install`, `build_app` and the submodule update, and `yarn start` died
+ * with `tsx: not found`.
+ *
+ * Same failure class as the "installer never built the app" fix in v0.38.7 —
+ * that added `build_app` to the update branch, and this early return fires
+ * before reaching it.
+ *
+ * Two things made it invisible, and both are fixed here: the start loop reported
+ * a service that never bound the port as "starting slowly", and `main()` ended on
+ * an unconditional `STATUS: SUCCESS` with exit 0. An install that produced
+ * nothing runnable looked identical to a good one.
+ */
+describe('a current version with a broken tree (#453)', () => {
+  const src = () => fs.readFileSync(SCRIPT, 'utf8')
+
+  it('does not return early unless node_modules AND .next exist', () => {
+    const s = src()
+    const upToDate = s.indexOf('is already up to date')
+    const guard = s.lastIndexOf('node_modules', upToDate)
+    expect(guard).toBeGreaterThan(-1)
+    expect(s.slice(guard, upToDate)).toContain('.next')
+  })
+
+  it('names what is missing instead of failing silently', () => {
+    expect(src()).toContain('installation is incomplete')
+    expect(src()).toMatch(/Missing: node_modules/)
+    expect(src()).toMatch(/Missing: \.next/)
+  })
+
+  it('reports a service that never started as FAILED, not "slow"', () => {
+    const s = src()
+    expect(s).toContain('STATUS: FAILED')
+    expect(s).not.toMatch(/Service is starting slowly/)
+  })
+
+  it('exits non-zero when the service did not come up', () => {
+    expect(src()).toMatch(/START_FAILED["' ]*=["' ]*true[\s\S]{0,120}exit 1/)
+  })
+
+  it('shows the startup log so the failure is actionable', () => {
+    expect(src()).toMatch(/startup\.log/)
+  })
+})

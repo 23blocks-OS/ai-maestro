@@ -40,6 +40,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   before the memory, that stale memory is cleared rather than left to block, that
   the refusal is guarded by the live check, and that the draft round-trips.
 
+## [0.38.19] - 2026-09-17 — A version match no longer hides an incomplete install
+
+**Contributed by [Javier Moya](https://github.com/nodoyuna) (jaak.ai) — our first
+external fix. Thank you.** Found while setting up a multi-host mesh over OpenVPN.
+[#453](https://github.com/23blocks-OS/ai-maestro/pull/453)
+
+### Fixed
+- **`remote-install.sh` returned early whenever `package.json` carried the current
+  version — and reported `STATUS: SUCCESS` over an install that produced nothing
+  runnable.** A matching version only means the *source* is current.
+  `node_modules` and `.next` can still be missing after an interrupted install, a
+  pruned checkout, or a fresh clone that never built. The shortcut then skipped
+  `yarn install`, `build_app` and the submodule update, and `yarn start` died with
+  `tsx: not found`.
+
+  Same failure class as v0.38.7 ("the installer never built the app") — that fix
+  added `build_app` to the update branch, and this early return fires before
+  reaching it.
+
+  The fast path is now gated on `node_modules` **and** `.next` actually existing;
+  when either is missing it says which, and falls through to the repair that was
+  already there.
+
+- **A service that never bound the port is no longer called "starting slowly".**
+  It reports as a failure with the tail of `startup.log`, `main()` emits
+  `STATUS: FAILED`, and the script exits 1. An install that produced nothing
+  runnable used to look identical to a good one, in CI log parsing as much as on a
+  terminal.
+
+### Notes
+- This is the same unearned-success pattern removed from the pane readback, the
+  message poll, the program launch and the version bumper this cycle — found
+  independently, from outside, on the one path none of us re-ran after it worked
+  once.
+- Carried onto main by cherry-pick because the branch predated nine releases and
+  conflicted on version stamps only; the commit keeps Javier's authorship.
+- `tests/remote-install-build.test.ts` — 5 new cases locking in the guard, the
+  named-missing output, `STATUS: FAILED`, the non-zero exit, and the log tail.
+
 ## [0.38.18] - 2026-09-15 — Write down how the chat actually works
 
 Documentation only. Seven releases went into one user-visible symptom today, and

@@ -301,11 +301,35 @@ We love contributions. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ### Contributors
 
-People outside the team who made AI Maestro better:
+AI Maestro is better because of people outside the team who hit something, read
+the source, and sent a fix. In order of arrival:
 
-- **[Javier Moya](https://github.com/nodoyuna)** ([jaak.ai](https://jaak.ai)) — found that the installer reported success over an install that could not start, traced it to an early return that made the existing repair unreachable, and sent a tested fix ([#453](https://github.com/23blocks-OS/ai-maestro/pull/453), shipped in [v0.38.19](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.19)). Found it by installing fresh on hardware we don't have, in a network we don't run — which is the one thing maintainers cannot do for themselves.
+- **[@Emasoft](https://github.com/Emasoft)** — a consolidated fix across memory,
+  terminal, installers, skills and the API covering 65+ issues, plus CI repairs
+  for the installer workflow and the agent-cli skill check. The single largest
+  outside contribution to this project.
+- **[@dwzrd86](https://github.com/dwzrd86)** (Darius Davis) — Ubuntu 24.04 support
+  and crash resilience, and the Phase 5 work behind the Search, Export and
+  Playback tabs: hooks, UI scaffolding, and the integration into the main page.
+- **[@Tanariel](https://github.com/Tanariel)** — `C-m` instead of `Enter` for tmux
+  `send-keys`, which is still how every message reaches an agent today, and a fix
+  stopping undefined values from overwriting task fields on update.
+- **[@meichuanyi](https://github.com/meichuanyi)** — the FAQ section, which is the
+  first thing many people read.
+- **[@weliu](https://github.com/weliu)** (Wenfeng Liu) — corrected the pm2 start
+  command to use `ecosystem.config.js`.
+- **[@nodoyuna](https://github.com/nodoyuna)** (Javier Moya, [jaak.ai](https://jaak.ai))
+  — found that the installer reported success over an install that could not
+  start, traced it to an early return that made the existing repair unreachable,
+  and sent a tested fix ([#453](https://github.com/23blocks-OS/ai-maestro/pull/453)).
 
-We built this because one of us was running 35 agents across terminals and had become the human message bus between them. It solved our problem. That it is solving yours too is the best thing that has happened to this project — and a patch from someone who hit a rough edge and read the source is the most useful thing we can receive. [Open a PR](./CONTRIBUTING.md).
+[Full list on GitHub →](https://github.com/23blocks-OS/ai-maestro/graphs/contributors)
+
+We built this because one of us was running 35 agents across terminals and had
+become the human message bus between them. It solved our problem. That it solves
+yours too is the best thing that has happened to this project — and a patch from
+someone who hit a rough edge and read the source is the most useful thing we can
+receive. [Open a PR](./CONTRIBUTING.md).
 
 <details>
 <summary><b>Acknowledgments</b></summary>

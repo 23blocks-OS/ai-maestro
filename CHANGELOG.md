@@ -38,8 +38,8 @@ where removing it is actually sound.
 
 ## [0.38.19] - 2026-09-17 — A version match no longer hides an incomplete install
 
-**Contributed by [Javier Moya](https://github.com/nodoyuna) (jaak.ai) — our first
-external fix. Thank you.** Found while setting up a multi-host mesh over OpenVPN.
+**Contributed by [Javier Moya](https://github.com/nodoyuna) (jaak.ai). Thank
+you.** Found while setting up a multi-host mesh over OpenVPN.
 [#453](https://github.com/23blocks-OS/ai-maestro/pull/453)
 
 ### Fixed

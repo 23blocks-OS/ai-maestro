@@ -3,42 +3,38 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.38.15] - 2026-09-15 — The chat could refuse every message forever
+## [0.38.20] - 2026-09-17 — Share the logic, not the shape
 
-### Fixed
-- **A false permission detection deadlocked the chat.** `sendChatMessage` in
-  `server.mjs` — the function the chat UI actually calls — refused to send
-  whenever `sessionState._lastPermission` held a `permission_request`, **without
-  checking whether the prompt still existed**. That memory is cleared only when a
-  new assistant message appears in the transcript, which cannot happen while
-  every message is being refused. Refusal → nothing reaches the agent → no reply
-  → refusal.
+The duplication that made a one-symptom day into nine releases, removed — but only
+where removing it is actually sound.
 
-  Measured on a live agent: a false `permission_request` at 14:14:35 blocked every
-  chat message for the rest of the afternoon while the pane sat at an ordinary
-  empty prompt, hook state read `waiting_for_input`, and a pane scan found zero
-  permission indicators. Only a server restart or driving the agent from a
-  terminal could break it.
+### Changed
+- **`lib/question-state.mjs`** — one implementation of "is this question answered,
+  is it still live", used by both chat renderers. These rules were fixed in
+  `ChatView` in v0.38.13 and had to be fixed *again* in `MobileChatView` in
+  v0.38.14; in between, the bug was live for anyone whose `layoutOverride` put
+  them on the mobile renderer, including on a desktop browser.
+- **`lib/chat-verify.mjs`** — one verify/clear/retype loop, used by both send
+  paths. It was written twice on the same day, which meant it could only ever be
+  fixed in one of them at a time. Delivery is **injected**, so each path keeps its
+  own mechanism.
 
-  The pane is now consulted first and is the authority: if it shows no prompt, the
-  remembered state is **stale and gets cleared**, and the send proceeds. The
-  refusal fires only on a prompt that is there right now.
-
-- **The same stale memory pinned the question/permission card in the UI.** Chat
-  history served `_lastPermission` whenever the state file disagreed, so a false
-  positive kept a card on screen across reloads and tab switches — the *"that
-  panel is back again"* report. It is now validated against the pane too.
-
-- **The draft is no longer lost when you leave the chat.** `ChatView` unmounts on
-  a switch to the terminal tab, so anything typed and not yet sent was gone on the
-  way back. The draft is persisted per agent and restored on mount.
+### Deliberately NOT collapsed
+- **The two chat components.** `ChatView` and `MobileChatView` are different
+  layouts, not an accident. Merging them produces one component full of branching
+  markup — worse than two. Only their logic was shared.
+- **The two `sendChatMessage` wrappers.** Genuinely different jobs: one resolves an
+  agent and guards against a bare shell, the other handles tmux copy-mode and the
+  permission cache. They also deliver differently — paste-buffer vs send-keys
+  through the mockable runtime — and both are correct for their caller. Only the
+  proof was duplicated.
 
 ### Notes
-- Remembered permission state is a **cache, never an authority**. A cache the
-  world cannot invalidate is a deadlock waiting to be reported.
-- `tests/permission-deadlock.test.ts` — 8 cases asserting the pane is checked
-  before the memory, that stale memory is cleared rather than left to block, that
-  the refusal is guarded by the live check, and that the draft round-trips.
+- `tests/shared-chat-logic.test.ts` — 15 cases covering both extracted modules,
+  including the dim-placeholder trap and the single-retry rule. 1385 total.
+- The rule left behind, and written into `docs/CHAT-ARCHITECTURE.md`: **share the
+  logic, not the shape.** Every bug on 15 September was a fork of logic; none was
+  a fork of markup.
 
 ## [0.38.19] - 2026-09-17 — A version match no longer hides an incomplete install
 
@@ -78,39 +74,6 @@ external fix. Thank you.** Found while setting up a multi-host mesh over OpenVPN
   conflicted on version stamps only; the commit keeps Javier's authorship.
 - `tests/remote-install-build.test.ts` — 5 new cases locking in the guard, the
   named-missing output, `STATUS: FAILED`, the non-zero exit, and the log tail.
-## [0.38.20] - 2026-09-17 — Share the logic, not the shape
-
-The duplication that made a one-symptom day into nine releases, removed — but only
-where removing it is actually sound.
-
-### Changed
-- **`lib/question-state.mjs`** — one implementation of "is this question answered,
-  is it still live", used by both chat renderers. These rules were fixed in
-  `ChatView` in v0.38.13 and had to be fixed *again* in `MobileChatView` in
-  v0.38.14; in between, the bug was live for anyone whose `layoutOverride` put
-  them on the mobile renderer, including on a desktop browser.
-- **`lib/chat-verify.mjs`** — one verify/clear/retype loop, used by both send
-  paths. It was written twice on the same day, which meant it could only ever be
-  fixed in one of them at a time. Delivery is **injected**, so each path keeps its
-  own mechanism.
-
-### Deliberately NOT collapsed
-- **The two chat components.** `ChatView` and `MobileChatView` are different
-  layouts, not an accident. Merging them produces one component full of branching
-  markup — worse than two. Only their logic was shared.
-- **The two `sendChatMessage` wrappers.** Genuinely different jobs: one resolves an
-  agent and guards against a bare shell, the other handles tmux copy-mode and the
-  permission cache. They also deliver differently — paste-buffer vs send-keys
-  through the mockable runtime — and both are correct for their caller. Only the
-  proof was duplicated.
-
-### Notes
-- `tests/shared-chat-logic.test.ts` — 15 cases covering both extracted modules,
-  including the dim-placeholder trap and the single-retry rule. 1385 total.
-- The rule left behind, and written into `docs/CHAT-ARCHITECTURE.md`: **share the
-  logic, not the shape.** Every bug on 15 September was a fork of logic; none was
-  a fork of markup.
-
 ## [0.38.18] - 2026-09-15 — Write down how the chat actually works
 
 Documentation only. Seven releases went into one user-visible symptom today, and
@@ -249,6 +212,43 @@ modes. It is now complete enough to be the default.
 ### Notes
 - `tests/streaming-questions.test.ts` (11) and `tests/permission-deadlock.test.ts`
   (8). 1363 total.
+
+## [0.38.15] - 2026-09-15 — The chat could refuse every message forever
+
+### Fixed
+- **A false permission detection deadlocked the chat.** `sendChatMessage` in
+  `server.mjs` — the function the chat UI actually calls — refused to send
+  whenever `sessionState._lastPermission` held a `permission_request`, **without
+  checking whether the prompt still existed**. That memory is cleared only when a
+  new assistant message appears in the transcript, which cannot happen while
+  every message is being refused. Refusal → nothing reaches the agent → no reply
+  → refusal.
+
+  Measured on a live agent: a false `permission_request` at 14:14:35 blocked every
+  chat message for the rest of the afternoon while the pane sat at an ordinary
+  empty prompt, hook state read `waiting_for_input`, and a pane scan found zero
+  permission indicators. Only a server restart or driving the agent from a
+  terminal could break it.
+
+  The pane is now consulted first and is the authority: if it shows no prompt, the
+  remembered state is **stale and gets cleared**, and the send proceeds. The
+  refusal fires only on a prompt that is there right now.
+
+- **The same stale memory pinned the question/permission card in the UI.** Chat
+  history served `_lastPermission` whenever the state file disagreed, so a false
+  positive kept a card on screen across reloads and tab switches — the *"that
+  panel is back again"* report. It is now validated against the pane too.
+
+- **The draft is no longer lost when you leave the chat.** `ChatView` unmounts on
+  a switch to the terminal tab, so anything typed and not yet sent was gone on the
+  way back. The draft is persisted per agent and restored on mount.
+
+### Notes
+- Remembered permission state is a **cache, never an authority**. A cache the
+  world cannot invalidate is a deadlock waiting to be reported.
+- `tests/permission-deadlock.test.ts` — 8 cases asserting the pane is checked
+  before the memory, that stale memory is cleared rather than left to block, that
+  the refusal is guarded by the live check, and that the draft round-trips.
 
 ## [0.38.14] - 2026-09-15 — The answered question is now actually gone
 

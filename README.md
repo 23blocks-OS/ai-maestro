@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.38.19-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.38.20-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -298,6 +298,14 @@ We love contributions. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 - [Report a bug](https://github.com/23blocks-OS/ai-maestro/issues)
 - [Request a feature](https://github.com/23blocks-OS/ai-maestro/issues/new?labels=enhancement)
+
+### Contributors
+
+People outside the team who made AI Maestro better:
+
+- **[Javier Moya](https://github.com/nodoyuna)** ([jaak.ai](https://jaak.ai)) — found that the installer reported success over an install that could not start, traced it to an early return that made the existing repair unreachable, and sent a tested fix ([#453](https://github.com/23blocks-OS/ai-maestro/pull/453), shipped in [v0.38.19](https://github.com/23blocks-OS/ai-maestro/releases/tag/v0.38.19)). Found it by installing fresh on hardware we don't have, in a network we don't run — which is the one thing maintainers cannot do for themselves.
+
+We built this because one of us was running 35 agents across terminals and had become the human message bus between them. It solved our problem. That it is solving yours too is the best thing that has happened to this project — and a patch from someone who hit a rough edge and read the source is the most useful thing we can receive. [Open a PR](./CONTRIBUTING.md).
 
 <details>
 <summary><b>Acknowledgments</b></summary>

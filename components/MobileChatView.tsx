@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
+import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
   isQuestionCurrent as sharedIsCurrent,
@@ -338,14 +339,21 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
                 setMessages(prev => {
-                  const existingUuids = new Set(prev.map(m => m.uuid).filter(Boolean))
-                  const uniqueNew = newMsgs.filter((m: ChatMessage) =>
-                    !m.uuid || !existingUuids.has(m.uuid)
-                  )
+                  // `!m.uuid ||` waved every uuid-less message through, so an
+                  // overlapping batch appended it again. Fall back to a content
+                  // key the way ChatView does.
+                  const key = (m: ChatMessage) =>
+                    m.uuid || `${m.type}|${m.timestamp || ''}|${extractText(m).slice(0, 120)}`
+                  const existingKeys = new Set(prev.map(key))
+                  const uniqueNew = newMsgs.filter((m: ChatMessage) => !existingKeys.has(key(m)))
                   if (uniqueNew.length === 0) return prev
                   return [...prev, ...uniqueNew].slice(-200)
                 })
-                setPendingMessages([])
+                // Clear a bubble only when ITS OWN text is in the transcript.
+                // This used to clear ALL pending on any incoming batch, so
+                // unrelated agent output marked your message delivered when it
+                // may never have landed. See lib/pending-reconcile.mjs.
+                setPendingMessages(prev => reconcilePending(prev, newMsgs, extractText) as typeof prev)
                 if (newMsgs.some((m: ChatMessage) => m.type === 'assistant')) {
                   setLiveActivity(null)
                 }

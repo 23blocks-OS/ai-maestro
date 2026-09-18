@@ -5,6 +5,7 @@ import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, 
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
+import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
   isQuestionCurrent as sharedIsCurrent,
@@ -125,6 +126,15 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // took the evidence with it — the message was gone and there was nothing left
   // to retry. Keyed per agent, same as the draft.
   const pendingKey = `aimaestro-chat-pending-${agent.id}`
+  /**
+   * Drop any pending bubble whose text now appears in the transcript.
+   * Shared with MobileChatView — see lib/pending-reconcile.mjs for the two
+   * opposite ways this used to fail.
+   */
+  const clearEchoedPending = useCallback((msgs: Message[]) => {
+    setPendingMessages(prev => reconcilePending(prev, msgs, messageText) as PendingMessage[])
+  }, [])
+
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -292,9 +302,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               setHookState(history.hookState || null)
               setLastModified(history.lastModified || null)
               setError(null)
-              // Only clear pending on initial load (server history includes sent msgs)
+              // History always contains what was sent, so reconcile against it on
+              // EVERY push — not only the first. Doing it once was why a bubble
+              // survived a reconnect or tab switch and rendered beside the real
+              // message forever.
               if (!hasLoadedRef.current) {
                 setPendingMessages([])
+              } else {
+                clearEchoedPending(newMessages)
               }
               hasLoadedRef.current = true
               setIsLoading(false)
@@ -317,21 +332,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                 // Previously ANY user/assistant message cleared ALL pending
                 // bubbles — unrelated agent output made your message look
                 // delivered when it might not be.
-                const echoedTexts = newMsgs
-                  .filter((m: Message) => m.type === 'user' ||
-                    (m.type === 'queue-operation' && m.operation === 'enqueue'))
-                  .map((m: Message) => messageText(m).trim())
-                  .filter(Boolean)
-                if (echoedTexts.length > 0) {
-                  setPendingMessages(prev => {
-                    const remaining = [...prev]
-                    for (const text of echoedTexts) {
-                      const idx = remaining.findIndex(p => p.text.trim() === text)
-                      if (idx !== -1) remaining.splice(idx, 1)
-                    }
-                    return remaining.length === prev.length ? prev : remaining
-                  })
-                }
+                clearEchoedPending(newMsgs)
+
                 // Assistant response means the agent moved on — clear sticky permission + activity
                 if (newMsgs.some((m: Message) => m.type === 'assistant')) {
                   setHookState(null)
@@ -342,16 +344,22 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             }
 
             case 'chat:hookState': {
-              // Permission prompts are "sticky" — once we have a permission_request,
-              // only replace it with another permission_request. Null or waiting_for_input
-              // cannot clear it. Only explicit user action (sendQuickResponse → setHookState(null))
-              // or an assistant message (chat:messages handler) can clear it.
+              // Permission prompts are sticky against MISSING information, not
+              // against contradicting information.
+              //
+              // `null` means "I could not read a state" — a transient failure must
+              // not drop a live permission card mid-approval. A concrete status
+              // means the server looked and the agent is not at a prompt, and
+              // since v0.38.17 the server validates that against the pane before
+              // serving a permission card at all.
+              //
+              // Ignoring a concrete status was the client-side twin of the server
+              // deadlock fixed in v0.38.15: one false permission_request pinned the
+              // card, and only an assistant message could clear it — which an idle
+              // agent receiving nothing will never produce.
               const newState = data.data || null
               setHookState(prev => {
-                if (prev?.status === 'permission_request') {
-                  if (newState?.status === 'permission_request') return newState
-                  return prev
-                }
+                if (prev?.status === 'permission_request' && newState === null) return prev
                 return newState
               })
               break
@@ -632,16 +640,29 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     }
     setPendingMessages(prev => [...prev, pendingMsg])
 
-    // Answering a live question: open its free-text field first.
+    // Answering a live question: open its free-text field first, then send.
+    //
+    // The deferred branch used to return `true` before the send had happened, so a
+    // socket that dropped during the settle window failed silently and the bubble
+    // spun to "Not confirmed" 30s later with no error. Report on the ACTUAL send:
+    // the deferred one reports late rather than optimistically.
     const q = liveQuestion()
+    const doSend = () => sendChatMessage('chat:send', { message: messageToSend })
+
+    let sent = true
     if (q) {
       sendChatMessage('chat:permissionResponse', { key: String(q.otherIndex) })
+      setTimeout(() => {
+        if (!doSend()) {
+          setError('Not connected — reconnecting…')
+          setPendingMessages(prev =>
+            prev.map(p => (p.id === pendingMsg.id ? { ...p, status: 'failed' as const } : p))
+          )
+        }
+      }, QUESTION_OTHER_SETTLE_MS)
+    } else {
+      sent = doSend()
     }
-
-    const doSend = () => sendChatMessage('chat:send', { message: messageToSend })
-    const sent = q
-      ? (setTimeout(doSend, QUESTION_OTHER_SETTLE_MS), true)
-      : doSend()
     if (!sent) {
       setError('Failed to send — try again')
       setPendingMessages(prev => prev.filter(p => p.id !== pendingMsg.id))

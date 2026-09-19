@@ -3,6 +3,52 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.21] - 2026-09-18 — Chat audit: six defects, four of them ours from last week
+
+Reported: a message rendering twice — once real, once still "Sending…". Rather
+than patch that one symptom, this is a read of every state transition in the chat
+subsystem. Six defects, listed with the direction each one fails in.
+
+### Fixed
+- **F1 — a bubble survived every history push after the first.** `chat:history`
+  reconciled pending only on initial load, yet **every** history push contains the
+  sent message. Any reconnect, tab switch or watcher restart re-rendered the real
+  message and left the bubble beside it. Persisting bubbles in v0.38.16 — so the
+  Retry button would survive a tab switch — turned a transient duplicate into a
+  permanent one. **This is the reported bug.**
+- **F2 — the incremental clear required exact string equality.** Text that has
+  been through a terminal comes back re-flowed. Matching is whitespace-insensitive
+  now.
+- **F3 — `MobileChatView` cleared ALL pending on any incoming batch**, so
+  unrelated agent output marked a message delivered that may never have landed.
+  The same unearned-success pattern this codebase has spent a cycle removing,
+  wearing a different hat. Opposite direction to F1, same root: no shared matcher.
+- **F4 — the question path reported success before the send happened.** It
+  returned `true` and scheduled the send 400ms later; a socket dropping in that
+  window failed silently and the bubble spun to "Not confirmed" 30s later with no
+  error. Introduced in v0.38.16.
+- **F5 — `MobileChatView` dedup let uuid-less messages duplicate.**
+  `!m.uuid || !seen.has(m.uuid)` waves every uuid-less message through. It now
+  falls back to a content key, as `ChatView` already did.
+- **F6 — `permission_request` was sticky on the CLIENT against every later
+  state**, including a concrete `waiting_for_input`. One false positive pinned the
+  card, clearable only by an assistant message an idle agent never produces — the
+  client-side twin of the server deadlock fixed in v0.38.15. Stickiness now
+  applies only against `null` (a failed read), not against a contradicting status.
+
+### Changed
+- **`lib/pending-reconcile.mjs`** — one matcher, called from both the history and
+  incremental paths in both renderers. F1 and F3 were the same missing abstraction
+  failing in opposite directions.
+- `docs/CHAT-ARCHITECTURE.md` gains an **Optimistic state** section stating the
+  five rules, each of which has now been broken at least once in production.
+
+### Notes
+- Four of the six were introduced by fixes earlier in the week. Persisting pending
+  bubbles, the question free-text path, and both renderer divergences are mine.
+- `tests/chat-audit.test.ts` — 12 cases, one per finding plus the behavioural
+  matcher tests. 1402 total.
+
 ## [0.38.20] - 2026-09-17 — Share the logic, not the shape
 
 The duplication that made a one-symptom day into nine releases, removed — but only

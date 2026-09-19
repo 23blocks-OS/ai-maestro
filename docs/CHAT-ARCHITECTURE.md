@@ -186,6 +186,39 @@ no specific question; Claude reads it as *"The user responded: …"*.
 
 ---
 
+## Optimistic state — the rules
+
+The chat shows your message before the agent has it. Everything below exists
+because that optimism has to be reconciled against truth, and every way of
+getting it wrong has now been shipped at least once.
+
+**A pending bubble clears when ITS OWN text appears in the transcript, and nothing
+else clears it.** Not "any new message" (that marks an undelivered message as
+delivered — `MobileChatView` did this), and not "only on first load" (that leaves
+the bubble beside the real message forever — `ChatView` did this, and persisting
+bubbles in v0.38.16 made it permanent rather than transient). One matcher,
+`lib/pending-reconcile.mjs`, called from **both** the history and incremental
+paths in **both** renderers.
+
+**Match whitespace-insensitively.** The text comes back through a terminal, which
+wraps and re-flows it. Exact equality fails on long messages.
+
+**Never report a send that has not happened.** A deferred send must report when it
+runs, not when it is scheduled.
+
+**Dedup needs a fallback key.** `!m.uuid || !seen.has(m.uuid)` waves every
+uuid-less message through, and an overlapping batch appends it again. Use
+`uuid || type|timestamp|text.slice(0,120)`.
+
+**Stickiness is against MISSING information, not contradicting information.** A
+permission card should survive a `null` state (a failed read) but must yield to a
+concrete `waiting_for_input`. Ignoring every later state is how one false positive
+pins a card that only an assistant message can clear — which an idle agent
+receiving nothing will never produce. That was the client-side twin of the server
+deadlock in v0.38.15.
+
+---
+
 ## Debugging checklist
 
 Run these before forming a theory. Each one took minutes and would have replaced

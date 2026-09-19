@@ -3,6 +3,49 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.23] - 2026-09-19 — Backlog structure, and six items from a competitor read
+
+Planning only. No product code changed.
+
+### Added
+- **`backlog/` + `BACKLOG.md` as an index**, per the 23blocks convention — detail
+  files carry Description / Why It's Needed / Business Case / Implementation Plan.
+  The prior flat checklist is preserved verbatim under *Unfiled*. Not to be
+  confused with `docs/BACKLOG.md`, the version-stamped product roadmap.
+
+- Six items, from reading `singledigit/microvm-dev-environment` ("rDev") — a
+  browser terminal running Claude Code in per-user AWS Lambda MicroVMs:
+
+  - **F001 — a shared filesystem agents and humans can both reach.** He mounts
+    each user's home with `mount -t s3files -o accesspoint=<id>`. The idea worth
+    taking is not S3, it is that we keep building *transfer* (AMP attachments,
+    agent transfer, uploads) when what is missing is a *shared namespace*. The
+    item evaluates five options and flags that S3 Files mount targets are
+    VPC-scoped, so the obvious implementation likely does not fit a Tailscale
+    mesh of personal machines.
+  - **F002 — Lambda MicroVM as a deployment mode.** Firecracker isolation with
+    suspended idle cost, which none of tmux/Docker/EC2/ECS gives. Two blockers
+    recorded: an 8-hour lifetime ceiling that contradicts the ownership model, and
+    unverified GA status (`stages: [preprod]`).
+  - **F003 — native iOS selection and paste**, via the `@cocalc/xterm` fork
+    carrying xterm.js PR #5961. Flagged that the fork tracks 5.5 while we are on
+    6.0, so it may be a downgrade rather than a swap.
+  - **B001 — two browsers on one agent fight over terminal size.** Reproduced.
+    The first diagnosis was wrong: each WebSocket spawns its own PTY, so **tmux**
+    arbitrates via `window-size latest`, not our code. Recorded with the repro and
+    three options, including tmux session groups as the real fix.
+  - **B002 — `@wterm/*` 0.3.0 → 0.5.0 and `ws` 8.21.0 → 8.21.3.** Every
+    `@xterm/*` package and `node-pty` are already current; only the second
+    terminal stack has drifted. 0.5 carries a focused-cursor visibility fix that
+    is a live defect in that view.
+  - **B003 — clicking a question option may not confirm it.** Measured: the number
+    key moves the selection while the footer still reads "Enter to select". Likely
+    the origin of the whole 15–19 Sep chat investigation.
+
+### Changed
+- `CLAUDE.md` points at the backlog and distinguishes it from `docs/BACKLOG.md`.
+- `marketing/competitive-landscape-2026.md` gains rDev as profile 26 (gitignored).
+
 ## [0.38.22] - 2026-09-19 — A message sent while the agent is busy
 
 ### Fixed

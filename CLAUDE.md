@@ -983,6 +983,13 @@ These scripts test end-to-end behavior against a live AI Maestro instance with t
 
 **Prerequisites:** AI Maestro running on localhost:23000, jq installed, tmux installed. AMP tests also require AMP scripts (`./install-plugin.sh -y`).
 
+## Backlog
+
+Features and bugs are tracked in [`BACKLOG.md`](./BACKLOG.md), an index pointing to
+detail files under [`backlog/`](./backlog/). Use the `backlog-management` skill to
+log, update, or triage items. (Not to be confused with `docs/BACKLOG.md`, which is
+the version-stamped product roadmap.)
+
 ## Documentation References
 
 - **[README.md](./README.md)** - Project overview, quick start, architecture

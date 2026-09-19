@@ -3,6 +3,41 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.22] - 2026-09-19 — A message sent while the agent is busy
+
+### Fixed
+- **F7 — a message sent while the agent was working never cleared its bubble.**
+  Found by verifying the v0.38.21 fix against a live agent instead of a fixture.
+  The message delivered correctly — `verified: true`, text above the input box —
+  and the bubble still spun for 30 seconds and then claimed *"Not confirmed"*.
+
+  Claude Code QUEUES a prompt sent while it is busy, and records it as an
+  attachment rather than a user turn:
+
+  ```json
+  { "type": "attachment",
+    "attachment": { "type": "queued_command", "prompt": "…" } }
+  ```
+
+  `ChatView` consumes a `queue-operation` shape in **nine** places. **Nothing ever
+  produced it** — the parser passed the attachment straight through. So a queued
+  message neither rendered as queued nor reconciled its pending bubble. The live
+  transcript held **five** `queued_command` entries, every one invisible to the
+  chat.
+
+  This is the most common case in ordinary use, because people type while their
+  agent is working. `parseJsonlLines` now emits the `queue-operation` the UI has
+  been waiting for since it was written.
+
+### Notes
+- Other attachment kinds are untouched — that transcript carried 18 distinct
+  subtypes including 330 `total_tokens_reminder` entries, and only
+  `queued_command` is a message.
+- The audit in v0.38.21 was a code read and found six defects. This one was only
+  findable by sending a real message to a real agent and watching what the
+  transcript recorded. Both kinds of checking were needed.
+- `tests/chat-audit.test.ts` — 5 more cases. 1407 total.
+
 ## [0.38.21] - 2026-09-18 — Chat audit: six defects, four of them ours from last week
 
 Reported: a message rendering twice — once real, once still "Sending…". Rather

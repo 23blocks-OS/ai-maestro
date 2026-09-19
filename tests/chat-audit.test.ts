@@ -127,3 +127,67 @@ describe('F6 — the client does not out-stick the server', () => {
     expect(block).toContain("prev?.status === 'permission_request'")
   })
 })
+
+/**
+ * F7 — a message sent while the agent is BUSY never cleared its bubble.
+ *
+ * Found by verifying the F1 fix against a live agent rather than a fixture. The
+ * message delivered fine (`verified: true`, text above the input box) but the
+ * bubble did not reconcile, because Claude Code had QUEUED it and recorded it as
+ * an attachment rather than a user turn:
+ *
+ *   { type: 'attachment', attachment: { type: 'queued_command', prompt: '…' } }
+ *
+ * `ChatView` consumes a `queue-operation` shape in nine places. Nothing ever
+ * produced it — the parser passed the attachment straight through. So a queued
+ * message neither rendered as queued nor cleared its pending bubble; it spun for
+ * 30 seconds and then claimed "Not confirmed" about a message that was fine.
+ *
+ * That live transcript held five `queued_command` entries, every one invisible to
+ * the chat. This is the most common case in normal use, because people type while
+ * their agent is working.
+ */
+describe('F7 — a queued command is a real message', () => {
+  const queued = (prompt: string, uuid = 'u1') => JSON.stringify({
+    type: 'attachment', uuid, timestamp: '2026-09-19T18:21:15Z',
+    attachment: { type: 'queued_command', prompt },
+  })
+
+  it('parses into the queue-operation shape the UI already renders', async () => {
+    const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
+    const [m] = parseJsonlLines([queued('do the thing')], 100)
+    expect(m.type).toBe('queue-operation')
+    expect(m.operation).toBe('enqueue')
+    expect(m.content).toBe('do the thing')
+  })
+
+  it('clears the pending bubble for the message that was queued', async () => {
+    const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
+    const msgs = parseJsonlLines([queued('do the thing')], 100)
+    const pending = [{ id: '1', text: 'do the thing', status: 'sending' }]
+    expect(reconcilePending(pending, msgs, (m: any) => m.content || '')).toHaveLength(0)
+  })
+
+  it('does not clear a DIFFERENT pending message', async () => {
+    const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
+    const msgs = parseJsonlLines([queued('something else')], 100)
+    const pending = [{ id: '1', text: 'do the thing', status: 'sending' }]
+    expect(reconcilePending(pending, msgs, (m: any) => m.content || '')).toHaveLength(1)
+  })
+
+  it('leaves other attachment kinds alone — only queued_command is a message', async () => {
+    const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
+    const other = JSON.stringify({
+      type: 'attachment', uuid: 'u2',
+      attachment: { type: 'total_tokens_reminder', value: 1 },
+    })
+    const out = parseJsonlLines([other], 100)
+    expect(out.filter((m: any) => m.type === 'queue-operation')).toHaveLength(0)
+  })
+
+  it('survives a queued_command with no prompt', async () => {
+    const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
+    const bad = JSON.stringify({ type: 'attachment', attachment: { type: 'queued_command' } })
+    expect(() => parseJsonlLines([bad], 100)).not.toThrow()
+  })
+})

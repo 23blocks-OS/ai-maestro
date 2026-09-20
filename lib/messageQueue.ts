@@ -691,9 +691,23 @@ export async function markMessageAsRead(agentIdentifier: string, messageId: stri
 
     // Handle AMP envelope format vs old flat format
     if (raw.envelope && raw.payload) {
-      // AMP format - update status in metadata and local sections
-      if (raw.metadata) raw.metadata.status = 'read'
-      if (raw.local) raw.local.status = 'read'
+      // AMP format — status lives in metadata and local.
+      //
+      // These writes used to be conditional on the section already existing
+      // (`if (raw.metadata) ...`), while the READ path at line ~214 is
+      // `metadata?.status || local?.status || 'unread'` — it defaults to
+      // unread. So an envelope carrying neither section could never be marked
+      // read: nothing was written, `true` was returned anyway, and the message
+      // stayed unread forever while every caller believed it had succeeded.
+      //
+      // Not observed in the field — all 1733 messages on the host we checked
+      // carry both sections — but it is the same unearned-success shape this
+      // codebase keeps paying for, and it sits directly under a bug report
+      // about messages that stay unread after being read. Create the sections.
+      if (!raw.metadata) raw.metadata = {}
+      if (!raw.local) raw.local = {}
+      raw.metadata.status = 'read'
+      raw.local.status = 'read'
     } else {
       // Old flat format
       raw.status = 'read'

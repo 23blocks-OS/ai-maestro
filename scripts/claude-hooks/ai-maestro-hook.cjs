@@ -284,29 +284,26 @@ async function checkUnreadMessages(cwd) {
 
         if (messages.length === 0) return null;
 
-        debugLog({ event: 'unread_messages_found', agentId: agent.id, count: messages.length });
-
-        // Format message notification
-        const formatSender = (msg) => {
-            const name = msg.fromAlias || (msg.from ? msg.from.substring(0, 8) : 'unknown');
-            const host = msg.fromHost ? ` (${msg.fromHost})` : '';
-            return `${name}${host}`;
-        };
-
-        if (messages.length === 1) {
-            const msg = messages[0];
-            const fromInfo = formatSender(msg);
-            const subjectInfo = msg.subject ? ` about "${msg.subject}"` : '';
-            const urgentFlag = msg.priority === 'urgent' ? '[URGENT] ' : '';
-            return `${urgentFlag}You have a new message from ${fromInfo}${subjectInfo}. Please check your inbox using the agent-messaging skill.`;
-        } else {
-            const urgentCount = messages.filter(m => m.priority === 'urgent').length;
-            const senderInfos = messages.map(m => formatSender(m));
-            const uniqueSenders = [...new Set(senderInfos)].slice(0, 3);
-            const sendersInfo = uniqueSenders.join(', ');
-            const urgentFlag = urgentCount > 0 ? `[${urgentCount} URGENT] ` : '';
-            return `${urgentFlag}You have ${messages.length} new messages from ${sendersInfo}. Please check your inbox using the agent-messaging skill.`;
+        // Dedup BEFORE announcing. Without this the notice was rebuilt from the
+        // live unread list on every single user turn — measured on mini-lola
+        // 2026-09-19: 39 injections against 3 Stop blocks, `count=1` on every
+        // one of them, 17:57 through 19:46. Same message, twenty-odd identical
+        // "you have a new message" announcements.
+        const announced = loadAnnounced(cwd);
+        const decision = decideInboxAnnouncement({ messages, announced, now: Date.now() });
+        if (!decision.notice) {
+            debugLog({ event: 'inbox_announce_suppressed', agentId: agent.id, count: messages.length });
+            return null;
         }
+        saveAnnounced(cwd, decision.announced);
+        debugLog({
+            event: 'unread_messages_found',
+            agentId: agent.id,
+            count: messages.length,
+            fresh: decision.freshIds.length,
+            reminders: decision.reminderIds.length,
+        });
+        return decision.notice;
     } catch (err) {
         debugLog({ event: 'message_check_error', error: err.message });
         // Fall back to standalone AMP check (works without AI Maestro)
@@ -372,6 +369,133 @@ function formatMessageSender(msg) {
     const name = msg.fromAlias || (msg.from ? msg.from.substring(0, 8) : 'unknown');
     const host = msg.fromHost ? ` (${msg.fromHost})` : '';
     return `${name}${host}`;
+}
+
+// ── Inbox announcement dedup (context-injection path) ───────────────────────
+//
+// TWO paths announce unread AMP messages and only one of them used to dedup:
+//
+//   Stop hook              decideStopDelivery + <hash>.notified.json   once per message
+//   context injection      checkUnreadMessages                         EVERY user turn
+//
+// The injection path fires far more often (39 vs 3 in one measured day), so the
+// path without dedup was the one doing nearly all the talking. A notifier that
+// repeats itself trains the reader to ignore it, and then the one real alert is
+// the one that gets dismissed — which is exactly what happened on 2026-09-19.
+//
+// The two stores are deliberately SEPARATE. Letting an injection consume the
+// Stop path's first-fire would disarm the Stop block, and the Stop block is the
+// forcing mechanism — the only one that can start a turn on an already-idle
+// agent. Share the logic, not the state.
+//
+// Repeats are rate-limited rather than silenced outright: a message that is
+// still unread an hour later is worth mentioning again, just not every turn,
+// and not in words that make it sound like it just arrived.
+const INBOX_REMIND_MS = Number(process.env.AIM_INBOX_REMIND_MS || 30 * 60 * 1000);
+const ANNOUNCED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ANNOUNCED_CAP = 200;
+
+// Keep the newest entries, drop anything past the TTL. Pure.
+function pruneAnnounced(announced, now, ttlMs, cap) {
+    const ttl = typeof ttlMs === 'number' ? ttlMs : ANNOUNCED_TTL_MS;
+    const max = typeof cap === 'number' ? cap : ANNOUNCED_CAP;
+    const kept = Object.entries(announced || {})
+        .filter(([, t]) => typeof t === 'number' && now - t < ttl)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, max);
+    return Object.fromEntries(kept);
+}
+
+// The AMP filesystem store names messages with underscores (msg_123_abc) while
+// the HTTP API reports the same message with hyphens (msg-123-abc). pas-lola
+// spotted the divergence; it is harmless where she expected it (both sides of
+// the dedup comparison come from the API) but NOT harmless here — an id in the
+// API's form is rejected by amp-read.sh:
+//
+//     $ amp-read.sh msg-1789863849489-zl8spaj
+//     Error: Message not found
+//
+// So anything we print for a human or an agent to act on gets converted first.
+function ampMessageId(id) {
+    return typeof id === 'string' && id.startsWith('msg-') ? id.replace(/-/g, '_') : id;
+}
+
+// Wording carries the distinction the old code lost: `fresh` messages are new,
+// `reminders` are explicitly NOT. Calling a two-hour-old message "new" on the
+// twentieth announcement is the part that destroys trust in the notifier.
+//
+// The notice also names the message ID. It used to identify a message only by
+// sender and subject — and a reply carries `Re: <same subject>` from the same
+// sender, so a genuinely new message in a live thread produced a notice byte
+// -identical to the repeats around it. That is not a cosmetic problem: it is
+// precisely what made a real message indistinguishable from noise on
+// 2026-09-19. An id is the one thing that tells them apart.
+function buildInboxNotice(fresh, reminders) {
+    const parts = [];
+    if (fresh.length === 1) {
+        const m = fresh[0];
+        const subject = m.subject ? ` about "${m.subject}"` : '';
+        const urgent = m.priority === 'urgent' ? '[URGENT] ' : '';
+        parts.push(`${urgent}You have a new message from ${formatMessageSender(m)}${subject}.`);
+        parts.push(`Read it with: amp-read.sh ${ampMessageId(m.id)}`);
+    } else if (fresh.length > 1) {
+        const urgentCount = fresh.filter(m => m.priority === 'urgent').length;
+        const senders = [...new Set(fresh.map(formatMessageSender))].slice(0, 3).join(', ');
+        const urgent = urgentCount > 0 ? `[${urgentCount} URGENT] ` : '';
+        parts.push(`${urgent}You have ${fresh.length} new messages from ${senders}.`);
+    }
+    if (reminders.length > 0) {
+        const senders = [...new Set(reminders.map(formatMessageSender))].slice(0, 3).join(', ');
+        const ids = reminders.slice(0, 3).map(m => ampMessageId(m.id)).join(', ');
+        parts.push(reminders.length === 1
+            ? `Still unread from earlier: a message from ${senders} (${ids}).`
+            : `Still unread from earlier: ${reminders.length} messages from ${senders} (${ids}).`);
+    }
+    parts.push('Please check your inbox using the agent-messaging skill.');
+    return parts.join(' ');
+}
+
+// Pure decision — no I/O, unit-testable. `announced` maps message id to the ms
+// timestamp it was last announced at. Returns notice:null when there is nothing
+// worth saying, which is the common case and the whole point.
+function decideInboxAnnouncement({ messages, announced, now, remindAfterMs }) {
+    const seen = (announced && typeof announced === 'object' && !Array.isArray(announced)) ? announced : {};
+    const gap = typeof remindAfterMs === 'number' ? remindAfterMs : INBOX_REMIND_MS;
+    const fresh = [];
+    const reminders = [];
+    for (const m of messages || []) {
+        if (!m || !m.id) continue;
+        const last = seen[m.id];
+        if (typeof last !== 'number') fresh.push(m);
+        else if (now - last >= gap) reminders.push(m);
+    }
+    if (fresh.length === 0 && reminders.length === 0) {
+        return { notice: null, announced: seen, freshIds: [], reminderIds: [] };
+    }
+    const next = { ...seen };
+    for (const m of fresh.concat(reminders)) next[m.id] = now;
+    return {
+        notice: buildInboxNotice(fresh, reminders),
+        announced: pruneAnnounced(next, now),
+        freshIds: fresh.map(m => m.id),
+        reminderIds: reminders.map(m => m.id),
+    };
+}
+
+function announcedFile(cwd) {
+    return path.join(os.homedir(), '.aimaestro', 'chat-state', `${hashCwd(cwd)}.announced.json`);
+}
+function loadAnnounced(cwd) {
+    try {
+        const o = JSON.parse(fs.readFileSync(announcedFile(cwd), 'utf8'));
+        return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+}
+function saveAnnounced(cwd, announced) {
+    try {
+        fs.mkdirSync(path.join(os.homedir(), '.aimaestro', 'chat-state'), { recursive: true });
+        fs.writeFileSync(announcedFile(cwd), JSON.stringify(announced));
+    } catch (e) { debugLog({ event: 'save_announced_failed', error: e.message }); }
 }
 
 // Per-cwd dedup so each message triggers the Stop-hook block exactly once.
@@ -753,4 +877,8 @@ module.exports = {
     filterFreshMessages,
     decideStopDelivery,
     formatMessageSender,
+    decideInboxAnnouncement,
+    buildInboxNotice,
+    pruneAnnounced,
+    ampMessageId,
 };

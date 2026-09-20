@@ -3,6 +3,49 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.28] - 2026-09-19 — The re-fire's actual home: the wake-queue retry loop
+
+pas-lola's third report on the same bug, with the evidence that located it. Her
+first report got the injection notice deduped (0.38.24); this is where the
+repeats she originally described were really coming from.
+
+### Fixed
+- **The wake queue re-delivered messages the agent had already read.** When pane
+  readback could not PROVE a notification landed (`!res.verified` — and readback
+  is fragile), the wake re-entered the queue and was retyped into the pane, up to
+  the retry cap. Nothing in that loop asked whether the message was still
+  unread. Measured on her host 2026-09-20: message `9hqvr480` landed as a prompt
+  **six times across three minutes**, and the near-miss message `0ycttsw3` six
+  times too — long after she had answered them.
+
+  Verification answers "did my keystrokes land." It never answers "does this
+  still need delivering." Conflating the two is what made an answered message
+  keep coming back. `flushDueWakes` now calls `stillNeedsDelivery(item)` before
+  RE-delivering: if the message is no longer unread (or is gone), the retry is
+  dropped, however unproven the earlier send was. First attempts
+  (`attempts === 0`) are never gated — a just-stored message is unread by
+  definition. Status-read failures fail OPEN and deliver: a duplicate is
+  recoverable, a dropped real message is not.
+
+### Why this is separate from 0.38.24 / 0.38.25
+- 0.38.24 gated the CONTEXT-INJECTION notice (`decideInboxAnnouncement`); 0.38.25
+  gave it a message id. This is the ROUTING-TIME PANE PUSH (`notifyAgent` via the
+  wake queue) — a third path, which pas-lola correctly predicted my earlier fix
+  would not cover, because these repeats never pass through the reminder gate.
+  Three paths announce messages; each needed its own honesty fix.
+
+### Added
+- 8 wake-queue tests: the first attempt always delivers, an unread retry
+  delivers, a READ retry is dropped, a gone message is dropped, an unreadable
+  status delivers (fail-open), and a replay of the six-fire loop stopping. All
+  verified to fail against the pre-fix code.
+
+### Still open, flagged not fixed
+- Two hook invocations one second apart on her host (`00:04:31`/`00:04:32`) —
+  pas-lola confirmed it is ONE session, not two panes, so the duplicate is
+  inside a single session's handling. Needs the stdin capture to localise;
+  Juan owns adding that hook. Not guessed at here.
+
 ## [0.38.27] - 2026-09-19 — Security: close the tmux command-injection bypass (GHSA-2vm8-3q4q-wqv3)
 
 Critical, unauthenticated RCE. Reported against v0.37.6; confirmed live on HEAD

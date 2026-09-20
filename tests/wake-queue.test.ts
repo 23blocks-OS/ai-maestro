@@ -12,13 +12,17 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const { mockNotify, mockIdle } = vi.hoisted(() => ({
+const { mockNotify, mockIdle, mockQueue } = vi.hoisted(() => ({
   mockNotify: { notifyAgent: vi.fn() },
   mockIdle: { isSessionIdle: vi.fn(), msSinceActivity: vi.fn(), IDLE_THRESHOLD_MS: 30000 },
+  mockQueue: { getMessage: vi.fn() },
 }))
 
 vi.mock('@/lib/notification-service', () => mockNotify)
 vi.mock('@/lib/session-idle', () => mockIdle)
+// wake-queue now re-checks unread status before RE-delivering (see the
+// stillNeedsDelivery tests below); it reads that through getMessage.
+vi.mock('@/lib/messageQueue', () => mockQueue)
 
 import {
   enqueueWake,
@@ -47,6 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   __resetWakeQueue()
   mockNotify.notifyAgent.mockResolvedValue({ success: true, notified: true, verified: true })
+  mockQueue.getMessage.mockResolvedValue({ id: 'msg-1', status: 'unread' })
 })
 
 afterEach(() => __resetWakeQueue())
@@ -135,7 +140,7 @@ describe('flushDueWakes', () => {
       mockIdle.isSessionIdle.mockReturnValue(false)
       enqueueWake(wake())
 
-      vi.advanceTimersByTime(11 * 60 * 1000) // past the 10 min TTL
+      await vi.advanceTimersByTimeAsync(11 * 60 * 1000) // past the 10 min TTL
       mockIdle.isSessionIdle.mockReturnValue(true)
       await flushDueWakes()
 
@@ -195,7 +200,7 @@ describe('retry with backoff', () => {
       await flushDueWakes()            // still inside the backoff window
       expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
 
-      vi.advanceTimersByTime(31_000)
+      await vi.advanceTimersByTimeAsync(31_000)
       await flushDueWakes()            // backoff served
       expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(2)
     } finally {
@@ -212,7 +217,7 @@ describe('retry with backoff', () => {
 
       // 4 backoff slots = 4 attempts total.
       for (let i = 0; i < 6; i++) {
-        vi.advanceTimersByTime(11 * 60 * 1000 - 1) // past any backoff, under the TTL
+        await vi.advanceTimersByTimeAsync(11 * 60 * 1000 - 1) // past any backoff, under the TTL
         await flushDueWakes()
       }
 
@@ -235,7 +240,7 @@ describe('retry with backoff', () => {
       await flushDueWakes()
       expect(pendingWakeCount('agent-1')).toBe(1)
 
-      vi.advanceTimersByTime(31_000) // serve the first retry backoff
+      await vi.advanceTimersByTimeAsync(31_000) // serve the first retry backoff
       await flushDueWakes()
 
       expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(2)
@@ -267,5 +272,87 @@ describe('pendingWakes — the operator surface', () => {
 
   it('is empty when nothing is waiting', () => {
     expect(pendingWakes()).toEqual([])
+  })
+})
+
+describe('a retry must not re-fire a message the agent already read', () => {
+  // pas-lola, 2026-09-20: one message landed as a prompt SIX times across three
+  // minutes, long after she had replied to it. The wake queue re-delivers when
+  // readback could not PROVE the last send landed, and readback is fragile — so
+  // an answered message kept being retyped. Verification answers "did my
+  // keystrokes land", never "does this still need delivering".
+  const first = () => wake({ messageId: 'msg-refire', attempts: 0 })
+
+  it('still delivers the FIRST attempt even though it checks nothing', async () => {
+    // attempts === 0: unread by definition, must always go.
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    enqueueWake(first())
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
+    expect(mockQueue.getMessage).not.toHaveBeenCalled()
+  })
+
+  it('re-delivers a retry while the message is STILL unread', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockResolvedValue({ id: 'msg-refire', status: 'unread' })
+    // Simulate a queued retry (attempts already made, backoff served).
+    enqueueWake({ ...first(), attempts: 1, notBefore: Date.now() - 1 } as any)
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('DROPS a retry once the message has been read — the actual bug', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockResolvedValue({ id: 'msg-refire', status: 'read' })
+    enqueueWake({ ...first(), attempts: 1, notBefore: Date.now() - 1 } as any)
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+    expect(pendingWakeCount('agent-1')).toBe(0)
+  })
+
+  it('DROPS a retry when the message is gone (deleted/moved)', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockResolvedValue(null)
+    enqueueWake({ ...first(), attempts: 1, notBefore: Date.now() - 1 } as any)
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+  })
+
+  it('DELIVERS a retry when the status cannot be read, rather than dropping it', async () => {
+    // A duplicate is recoverable; a dropped real message is not. Fail open.
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockRejectedValue(new Error('disk error'))
+    enqueueWake({ ...first(), attempts: 1, notBefore: Date.now() - 1 } as any)
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops the six-fire loop: a read message is not retried again and again', async () => {
+    // Reproduce the shape of the measured symptom — the same message keeps
+    // coming back unconfirmed — but with the agent having read it after the
+    // first landing. Old code: N re-fires. New code: at most one more.
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockNotify.notifyAgent.mockResolvedValue({ success: true, notified: true, verified: false })
+    mockQueue.getMessage.mockResolvedValue({ id: 'msg-refire', status: 'read' })
+    enqueueWake({ ...first(), attempts: 2, notBefore: Date.now() - 1 } as any)
+    await flushDueWakes()
+    await flushDueWakes()
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+  })
+})
+
+describe('stillNeedsDelivery (unit)', () => {
+  it('always true for a first attempt', async () => {
+    const { stillNeedsDelivery } = await import('@/lib/wake-queue')
+    expect(await stillNeedsDelivery({ agentId: 'a', messageId: 'm', attempts: 0 } as any)).toBe(true)
+  })
+
+  it('true for an unread retry, false for a read one', async () => {
+    const { stillNeedsDelivery } = await import('@/lib/wake-queue')
+    mockQueue.getMessage.mockResolvedValueOnce({ id: 'm', status: 'unread' })
+    expect(await stillNeedsDelivery({ agentId: 'a', messageId: 'm', attempts: 1 } as any)).toBe(true)
+    mockQueue.getMessage.mockResolvedValueOnce({ id: 'm', status: 'read' })
+    expect(await stillNeedsDelivery({ agentId: 'a', messageId: 'm', attempts: 1 } as any)).toBe(false)
   })
 })

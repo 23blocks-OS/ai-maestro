@@ -41,6 +41,7 @@
 
 import { notifyAgent } from '@/lib/notification-service'
 import { isSessionIdle } from '@/lib/session-idle'
+import { getMessage } from '@/lib/messageQueue'
 
 /** How often to re-check queued agents for idleness. */
 const FLUSH_INTERVAL_MS = 5_000
@@ -143,6 +144,40 @@ export function enqueueWake(
  * into a pane that just went idle is its own kind of mistimed interruption. The
  * next tick picks up the rest.
  */
+/**
+ * A retry must not re-deliver a message the agent has already read.
+ *
+ * This is the bug pas-lola reported first and I initially fixed on the wrong
+ * path. The wake queue re-delivers whenever readback could not PROVE the last
+ * send landed (`!res.verified`), and readback is fragile, so an already-answered
+ * message gets retyped into the pane up to MAX_ATTEMPTS times. Measured on her
+ * host 2026-09-20: one message landed as a prompt six times across three
+ * minutes, long after she had replied to it.
+ *
+ * Verification answers "did my keystrokes land"; it never answers "does this
+ * still need delivering". Those are different questions, and conflating them is
+ * what makes the notifier cry wolf. Before RE-delivering, ask the second
+ * question directly: if the message is no longer unread, the agent has
+ * demonstrably seen it — drop the wake, however unverified the earlier send was.
+ *
+ * Only retries are gated. A first attempt (attempts === 0) always goes: the
+ * message is unread by definition when it was just stored, and skipping the
+ * initial notify would be the opposite failure.
+ */
+export async function stillNeedsDelivery(item: QueuedWake): Promise<boolean> {
+  if (item.attempts === 0) return true
+  try {
+    const msg = await getMessage(item.agentId, item.messageId, 'inbox')
+    // No message found: it was deleted/moved — nothing left to deliver.
+    if (!msg) return false
+    return msg.status === 'unread'
+  } catch {
+    // Can't tell: fall through to deliver rather than silently swallow a wake.
+    // A duplicate is recoverable; a dropped real message is not.
+    return true
+  }
+}
+
 export async function flushDueWakes(): Promise<void> {
   for (const [agentId, queue] of Array.from(queues.entries())) {
     // Expire stale entries first, regardless of idleness.
@@ -173,6 +208,15 @@ export async function flushDueWakes(): Promise<void> {
     fresh.shift()
     if (fresh.length === 0) queues.delete(agentId)
     else queues.set(agentId, fresh)
+
+    // A retry for a message the agent has already read is a re-fire, not a
+    // delivery. Drop it here rather than retype it into the pane.
+    if (!(await stillNeedsDelivery(next))) {
+      console.log(
+        `[WakeQueue] ${next.agentName}: dropping retry for ${next.messageId} — already read`
+      )
+      continue
+    }
 
     const waited = Math.round((Date.now() - next.queuedAt) / 1000)
     const attempt = next.attempts + 1

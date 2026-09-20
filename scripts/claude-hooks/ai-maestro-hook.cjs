@@ -406,9 +406,30 @@ function pruneAnnounced(announced, now, ttlMs, cap) {
     return Object.fromEntries(kept);
 }
 
+// The AMP filesystem store names messages with underscores (msg_123_abc) while
+// the HTTP API reports the same message with hyphens (msg-123-abc). pas-lola
+// spotted the divergence; it is harmless where she expected it (both sides of
+// the dedup comparison come from the API) but NOT harmless here — an id in the
+// API's form is rejected by amp-read.sh:
+//
+//     $ amp-read.sh msg-1789863849489-zl8spaj
+//     Error: Message not found
+//
+// So anything we print for a human or an agent to act on gets converted first.
+function ampMessageId(id) {
+    return typeof id === 'string' && id.startsWith('msg-') ? id.replace(/-/g, '_') : id;
+}
+
 // Wording carries the distinction the old code lost: `fresh` messages are new,
 // `reminders` are explicitly NOT. Calling a two-hour-old message "new" on the
 // twentieth announcement is the part that destroys trust in the notifier.
+//
+// The notice also names the message ID. It used to identify a message only by
+// sender and subject — and a reply carries `Re: <same subject>` from the same
+// sender, so a genuinely new message in a live thread produced a notice byte
+// -identical to the repeats around it. That is not a cosmetic problem: it is
+// precisely what made a real message indistinguishable from noise on
+// 2026-09-19. An id is the one thing that tells them apart.
 function buildInboxNotice(fresh, reminders) {
     const parts = [];
     if (fresh.length === 1) {
@@ -416,6 +437,7 @@ function buildInboxNotice(fresh, reminders) {
         const subject = m.subject ? ` about "${m.subject}"` : '';
         const urgent = m.priority === 'urgent' ? '[URGENT] ' : '';
         parts.push(`${urgent}You have a new message from ${formatMessageSender(m)}${subject}.`);
+        parts.push(`Read it with: amp-read.sh ${ampMessageId(m.id)}`);
     } else if (fresh.length > 1) {
         const urgentCount = fresh.filter(m => m.priority === 'urgent').length;
         const senders = [...new Set(fresh.map(formatMessageSender))].slice(0, 3).join(', ');
@@ -424,9 +446,10 @@ function buildInboxNotice(fresh, reminders) {
     }
     if (reminders.length > 0) {
         const senders = [...new Set(reminders.map(formatMessageSender))].slice(0, 3).join(', ');
+        const ids = reminders.slice(0, 3).map(m => ampMessageId(m.id)).join(', ');
         parts.push(reminders.length === 1
-            ? `Still unread from earlier: a message from ${senders}.`
-            : `Still unread from earlier: ${reminders.length} messages from ${senders}.`);
+            ? `Still unread from earlier: a message from ${senders} (${ids}).`
+            : `Still unread from earlier: ${reminders.length} messages from ${senders} (${ids}).`);
     }
     parts.push('Please check your inbox using the agent-messaging skill.');
     return parts.join(' ');
@@ -857,4 +880,5 @@ module.exports = {
     decideInboxAnnouncement,
     buildInboxNotice,
     pruneAnnounced,
+    ampMessageId,
 };

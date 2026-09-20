@@ -27,6 +27,15 @@ vi.mock('@/lib/amp-inbox-writer', () => ({
 vi.mock('child_process', () => ({
   exec: vi.fn((cmd: string, cb: Function) => cb(null, '', '')),
   execSync: vi.fn(),
+  // lib/tmux-safe.mjs (GHSA-2vm8-3q4q-wqv3) runs tmux through execFile with an
+  // argument vector instead of a shell string, so the mock has to expose it.
+  // promisify() reads the callback signature, hence the (file, args, opts, cb)
+  // shape with a trailing-argument callback.
+  execFile: vi.fn((...args: unknown[]) => {
+    const cb = args.find(a => typeof a === 'function') as Function | undefined
+    cb?.(null, '', '')
+  }),
+  execFileSync: vi.fn(() => ''),
 }))
 
 // In-memory filesystem mock

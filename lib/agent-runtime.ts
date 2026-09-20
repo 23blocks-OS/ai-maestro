@@ -10,6 +10,11 @@
 
 import { exec, execFileSync as nodeExecFileSync } from 'child_process'
 import { promisify } from 'util'
+// SECURITY (GHSA-2vm8-3q4q-wqv3): every tmux call below goes through these.
+// They use execFile with an argument vector and reject malformed session names,
+// so no caller can reach a shell with attacker-controlled text. See the header
+// of lib/tmux-safe.mjs for why validation lives here and not at the routes.
+import { tmux, assertSessionName, splitKeySpec } from '@/lib/tmux-safe.mjs'
 
 const execAsync = promisify(exec)
 
@@ -75,7 +80,12 @@ export class TmuxRuntime implements AgentRuntime {
 
   async listSessions(): Promise<DiscoveredSession[]> {
     try {
-      const { stdout } = await execAsync('tmux list-sessions 2>/dev/null || echo ""')
+      let stdout = ''
+      try {
+        ({ stdout } = await tmux(['list-sessions']))
+      } catch {
+        return []  // no server running — the old `|| echo ""` case
+      }
       if (!stdout.trim()) return []
 
       const lines = stdout.trim().split('\n')
@@ -98,8 +108,11 @@ export class TmuxRuntime implements AgentRuntime {
 
         let workingDirectory = ''
         try {
-          const { stdout: cwdOutput } = await execAsync(
-            `tmux display-message -t "${name}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
+          // Name came from tmux's own output, so it is not attacker-supplied —
+          // argv form regardless, and NO assert, or a pre-existing session with
+          // an unusual name would silently vanish from discovery.
+          const { stdout: cwdOutput } = await tmux(
+            ['display-message', '-t', name, '-p', '#{pane_current_path}']
           )
           workingDirectory = cwdOutput.trim()
         } catch {
@@ -124,7 +137,7 @@ export class TmuxRuntime implements AgentRuntime {
 
   async sessionExists(name: string): Promise<boolean> {
     try {
-      await execAsync(`tmux has-session -t "${name}" 2>/dev/null`)
+      await tmux(['has-session', '-t', assertSessionName(name)])
       return true
     } catch {
       return false
@@ -133,8 +146,8 @@ export class TmuxRuntime implements AgentRuntime {
 
   async getWorkingDirectory(name: string): Promise<string> {
     try {
-      const { stdout } = await execAsync(
-        `tmux display-message -t "${name}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
+      const { stdout } = await tmux(
+        ['display-message', '-t', assertSessionName(name), '-p', '#{pane_current_path}']
       )
       return stdout.trim()
     } catch {
@@ -144,8 +157,8 @@ export class TmuxRuntime implements AgentRuntime {
 
   async isInCopyMode(name: string): Promise<boolean> {
     try {
-      const { stdout } = await execAsync(
-        `tmux display-message -t "${name}" -p "#{pane_in_mode}"`
+      const { stdout } = await tmux(
+        ['display-message', '-t', assertSessionName(name), '-p', '#{pane_in_mode}']
       )
       return stdout.trim() === '1'
     } catch {
@@ -185,7 +198,7 @@ export class TmuxRuntime implements AgentRuntime {
       'session_created=#{session_created}',
     ].join(' ')
     try {
-      const { stdout } = await execAsync(`tmux display-message -t "${name}" -p "${FORMAT}"`)
+      const { stdout } = await tmux(['display-message', '-t', assertSessionName(name), '-p', FORMAT])
       return Object.fromEntries(
         stdout
           .trim()
@@ -206,14 +219,14 @@ export class TmuxRuntime implements AgentRuntime {
       if (!inCopyMode) return
 
       // Stage 1: Escape dismisses any command-prompt overlay + exits plain copy-mode
-      await execAsync(`tmux send-keys -t "${name}" Escape`)
+      await tmux(['send-keys', '-t', assertSessionName(name), 'Escape'])
       await new Promise(resolve => setTimeout(resolve, 30))
 
       // Stage 2: belt-and-suspenders. If Stage 1 only dismissed the overlay,
       // force-exit with q.
       const stillInCopyMode = await this.isInCopyMode(name)
       if (stillInCopyMode) {
-        await execAsync(`tmux send-keys -t "${name}" q`)
+        await tmux(['send-keys', '-t', assertSessionName(name), 'q'])
         await new Promise(resolve => setTimeout(resolve, 50))
       }
     } catch {
@@ -226,15 +239,15 @@ export class TmuxRuntime implements AgentRuntime {
   async createSession(name: string, cwd: string): Promise<void> {
     // Unset TMUX so tmux doesn't try to use a stale parent socket
     const env = { ...process.env, TMUX: undefined }
-    await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`, { env })
+    await tmux(['new-session', '-d', '-s', assertSessionName(name), '-c', cwd], { env })
   }
 
   async killSession(name: string): Promise<void> {
-    await execAsync(`tmux kill-session -t "${name}"`)
+    await tmux(['kill-session', '-t', assertSessionName(name)])
   }
 
   async renameSession(oldName: string, newName: string): Promise<void> {
-    await execAsync(`tmux rename-session -t "${oldName}" "${newName}"`)
+    await tmux(['rename-session', '-t', assertSessionName(oldName), assertSessionName(newName)])
   }
 
   // -- I/O -----------------------------------------------------------------
@@ -247,22 +260,22 @@ export class TmuxRuntime implements AgentRuntime {
     const { literal = false, enter = false } = opts
 
     if (literal) {
-      const escaped = keys.replace(/'/g, "'\\''")
-      await execAsync(`tmux send-keys -t "${name}" -l '${escaped}'`)
+      // No escaping: -l takes the text as one argv entry, verbatim.
+      await tmux(['send-keys', '-t', assertSessionName(name), '-l', keys])
       if (enter) {
         // Send Enter separately with a delay so TUIs (Claude Code, Codex)
         // process the literal text before receiving the submit. Without this,
         // Enter can arrive in the same tmux tick and be processed before the
         // input field updates, causing the submit to be silently lost.
         await new Promise(r => setTimeout(r, 100))
-        await execAsync(`tmux send-keys -t "${name}" Enter`)
+        await tmux(['send-keys', '-t', assertSessionName(name), 'Enter'])
       }
     } else {
       // Non-literal: keys is a raw key sequence (e.g. "C-c", "exit Enter", quoted command)
       if (enter) {
-        await execAsync(`tmux send-keys -t "${name}" ${keys} Enter`)
+        await tmux(['send-keys', '-t', assertSessionName(name), ...splitKeySpec(keys), 'Enter'])
       } else {
-        await execAsync(`tmux send-keys -t "${name}" ${keys}`)
+        await tmux(['send-keys', '-t', assertSessionName(name), ...splitKeySpec(keys)])
       }
     }
   }
@@ -274,7 +287,7 @@ export class TmuxRuntime implements AgentRuntime {
    */
   async repeatKey(name: string, key: string, times: number): Promise<void> {
     const n = Math.max(1, Math.min(2000, Math.floor(times)))
-    await execAsync(`tmux send-keys -t "${name}" -N ${n} ${key}`)
+    await tmux(['send-keys', '-t', assertSessionName(name), '-N', String(n), ...splitKeySpec(key)])
   }
 
   /**
@@ -283,11 +296,18 @@ export class TmuxRuntime implements AgentRuntime {
    */
   async capturePaneRaw(name: string, lines: number = 200): Promise<string> {
     try {
-      const { stdout } = await execAsync(
-        `tmux capture-pane -t "${name}" -p -e -S -${lines} 2>/dev/null || tmux capture-pane -t "${name}" -p -e`,
-        { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
-      )
-      return stdout
+      // The shell `||` fallback became a JS try/catch — same behaviour, no shell.
+      const session = assertSessionName(name)
+      const n = Math.max(1, Math.min(100000, Math.floor(lines)))
+      try {
+        const { stdout } = await tmux(
+          ['capture-pane', '-t', session, '-p', '-e', '-S', `-${n}`], { timeout: 3000 }
+        )
+        return stdout
+      } catch {
+        const { stdout } = await tmux(['capture-pane', '-t', session, '-p', '-e'], { timeout: 3000 })
+        return stdout
+      }
     } catch {
       return ''
     }
@@ -295,11 +315,17 @@ export class TmuxRuntime implements AgentRuntime {
 
   async capturePane(name: string, lines: number = 2000): Promise<string> {
     try {
-      const { stdout } = await execAsync(
-        `tmux capture-pane -t "${name}" -p -S -${lines} 2>/dev/null || tmux capture-pane -t "${name}" -p`,
-        { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
-      )
-      return stdout
+      const session = assertSessionName(name)
+      const n = Math.max(1, Math.min(100000, Math.floor(lines)))
+      try {
+        const { stdout } = await tmux(
+          ['capture-pane', '-t', session, '-p', '-S', `-${n}`], { timeout: 3000 }
+        )
+        return stdout
+      } catch {
+        const { stdout } = await tmux(['capture-pane', '-t', session, '-p'], { timeout: 3000 })
+        return stdout
+      }
     } catch {
       return ''
     }
@@ -308,11 +334,15 @@ export class TmuxRuntime implements AgentRuntime {
   // -- Environment ---------------------------------------------------------
 
   async setEnvironment(name: string, key: string, value: string): Promise<void> {
-    await execAsync(`tmux set-environment -t "${name}" ${key} "${value}"`)
+    await tmux(['set-environment', '-t', assertSessionName(name), key, value])
   }
 
   async unsetEnvironment(name: string, key: string): Promise<void> {
-    await execAsync(`tmux set-environment -t "${name}" -r ${key} 2>/dev/null || true`)
+    try {
+      await tmux(['set-environment', '-t', assertSessionName(name), '-r', key])
+    } catch {
+      // `|| true` in the old shell string: unsetting something already unset is fine.
+    }
   }
 
   // -- PTY -----------------------------------------------------------------

@@ -27,6 +27,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B001** — [Two browsers on one agent fight over the terminal size](./backlog/B001-multi-client-terminal-sizing.md) — `Todo`
 - **B002** — [wterm and ws are behind](./backlog/B002-wterm-and-ws-updates.md) — `Todo`
 - **B003** — [Clicking a question option may not confirm it](./backlog/B003-option-click-missing-enter.md) — `Todo`
+- **B004** — [Audit remaining shell-string external commands (git, aws) for injection](./backlog/B004-shell-string-external-command-audit.md) — `Todo`
 
 ## Unfiled
 

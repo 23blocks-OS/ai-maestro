@@ -3,6 +3,49 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.24] - 2026-09-19 — The inbox notifier stops crying wolf
+
+Reported by pas-lola, who had the discipline to label her own hypothesis as a
+hypothesis. It was wrong, and saying so is the useful part: her lead was an
+id-format mismatch (API `msg-1-a` vs AMP `msg_1_a`) defeating the dedup. Both
+sides of the Stop path's comparison come from the API, so they match fine.
+
+### Fixed
+- **The context-injection path announced every unread message on every user
+  turn.** Two paths announce unread AMP messages; only one deduped:
+
+  | path | dedup | fired on 2026-09-19 |
+  |---|---|---|
+  | Stop hook (`decideStopDelivery`) | ids persisted per cwd | 3 |
+  | context injection (`checkUnreadMessages`) | **none** | **39** |
+
+  The path doing 93% of the talking was the one with no dedup. On her host the
+  notice went out on every turn from 17:57 to 19:46, `count=1` every time —
+  the same message, twenty-odd times, each announced as *"You have a **new**
+  message"*.
+
+  The cost was not noise. She had concluded the notifier was unreliable, and so
+  nearly skipped `msg_1789863644570_ycttsw3`, which was real and carried the most
+  important finding of her day. A notifier that repeats itself trains its reader
+  to ignore it, and then the one true alert is the one that gets dismissed.
+
+  `decideInboxAnnouncement` now gates that path: announce once, remind at most
+  every 30 minutes (`AIM_INBOX_REMIND_MS`) while a message stays unread, and word
+  the repeat as *"Still unread from earlier"* — never *"new"*. A genuinely new
+  message is still announced immediately even while an older one is suppressed;
+  that case has a test, because it is the near-miss.
+
+  The two dedup stores are deliberately separate. Letting an injection consume
+  the Stop path's first-fire would disarm the Stop block, which is the only
+  mechanism that can start a turn on an already-idle agent. Share the logic, not
+  the state.
+
+### Added
+- 14 tests for the injection path — the path that had no tests is the same path
+  that had no dedup, which is not a coincidence worth repeating. Includes a
+  twenty-turn replay of the measured symptom, and `pruneAnnounced` keeping the
+  newest entries by recency so a burst of old ids cannot evict a fresh arrival.
+
 ## [0.38.22] - 2026-09-19 — A message sent while the agent is busy
 
 ### Fixed

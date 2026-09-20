@@ -3,6 +3,32 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.29] - 2026-09-20 — Reply-target safety: reply to the message you actually read
+
+Follow-on from the misroute pas-lola surfaced while we were fixing the notifier.
+Nothing was misrouted by AMP — the message was correctly addressed, threaded, and
+signed. The bug was that its TARGET was chosen by `amp-inbox | head -1`, which
+returns whatever is top of the inbox, not the message being answered. amp-reply
+faithfully sent to that message's sender, so one company's internal detail landed
+in a different agent's mailbox.
+
+### Fixed (upstream: agentmessaging/claude-plugin#30, bundled here via the plugin)
+- **amp-reply now enforces "reply to the message you just read."** `amp-read`
+  records the message it surfaced (per-agent, per-terminal); `amp-reply` refuses
+  a target that is not that message, printing both ids and both senders. `--force`
+  overrides; reading the target first clears it naturally. This is the invariant
+  pas-lola argued for — not a blacklist of `head -1`, which the next caller would
+  route around.
+- **SKILL.md** documents the invariant and shows the dangerous vs correct pattern.
+- 8 new upstream unit tests; upstream suite 172/172.
+
+### Note
+- The content-security wrapper already made this a disclosure problem, not an
+  execution one — the misrouted body arrived `trust="none"` / DATA ONLY. This
+  fix addresses the disclosure half: not sending to the wrong recipient at all.
+- Plugin submodule bumped to the rebuilt output (ai-maestro-plugins#38, built
+  from claude-plugin@main after #30).
+
 ## [0.38.28] - 2026-09-19 — The re-fire's actual home: the wake-queue retry loop
 
 pas-lola's third report on the same bug, with the evidence that located it. Her

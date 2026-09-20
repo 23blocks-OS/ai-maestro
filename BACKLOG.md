@@ -28,7 +28,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B002** — [wterm and ws are behind](./backlog/B002-wterm-and-ws-updates.md) — `Todo`
 - **B003** — [Clicking a question option may not confirm it](./backlog/B003-option-click-missing-enter.md) — `Todo`
 - **B004** — [Audit remaining shell-string external commands (git, aws) for injection](./backlog/B004-shell-string-external-command-audit.md) — `Todo`
-- **B005** — [Bind 23000 to the tailscale interface + enable ufw across the fleet](./backlog/B005-listener-network-posture.md) — `Todo`
+- **B005** — [Listener network posture (bind address / firewall)](./backlog/B005-listener-network-posture.md) — `Wontfix` (no auth is by design)
 
 ## Unfiled
 

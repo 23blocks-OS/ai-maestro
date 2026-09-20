@@ -1,75 +1,55 @@
-# B005 — Bind 23000 to the tailscale interface + enable ufw across the fleet
+# B005 — Listener network posture (bind address / firewall)
 
-**Status:** Todo
+**Status:** Wontfix
 **Type:** Bug
 **Created:** 2026-09-20
+**Decided:** 2026-09-20 — no authentication is by design (Juan)
 
-## Description
+## Decision
 
-AI Maestro binds to `0.0.0.0:23000` with no authentication (documented in
-SECURITY.md as the Phase-1 model). Verified on mini-lola 2026-09-20:
+**Wontfix, by design.** AI Maestro deliberately runs without application-level
+authentication: it is meant to run on **local networks with Tailscale**, and the
+trust boundary is the network, not app auth. The `0.0.0.0:23000` bind is
+therefore intentional — LAN reachability is the feature that lets a tablet or
+phone on the same network open the dashboard (SECURITY.md documents exactly
+this). "An unauthenticated listener on all interfaces" is the design, not a gap.
+
+This file is kept (not deleted) so the record shows the concern was raised,
+considered, and decided — not silently dropped.
+
+## What was originally raised
+
+During the GHSA-2vm8 RCE work, mini-lola was verified as:
 
 ```
 ss -ltn | awk '$4 ~ /23000$/'   ->  LISTEN 0.0.0.0:23000
 ufw status                      ->  Status: inactive
 ```
 
-So the listener is reachable from the **entire LAN**, not just the tailnet —
-every device on the network (phones, IoT, a guest laptop), and the public
-internet if the router forwards 23000. This was the true blast radius of the
-tmux RCE (GHSA-2vm8-3q4q-wqv3): not "tailnet devices, which are yours" but
-"anything that can reach the host on 23000."
+The concern (mine, echoing pas-lola) was that patching the RCE removed one
+exploit without shrinking the unauthenticated attack surface, and that binding to
+the tailscale interface + ufw would collapse the blast radius of any *future*
+unauth bug. That reasoning treated the unauthenticated LAN listener as a gap. Per
+the design decision above, it is not — it is the intended access model.
 
-That specific exploit is now patched (v0.38.27). This item is about the
-**posture the patch does not change**, framed by pas-lola:
+## What survives the decision
 
-> A patch removes one exploit from an unauthenticated listener on all
-> interfaces; it does not make the listener authenticated or the interfaces
-> fewer. The next unauth bug in that surface has the same blast radius as this
-> one did.
+Two narrow things, neither of which reopens the auth question:
 
-## Why It's Needed
+1. **The RCE fix (v0.38.27) stands on its own.** Network trust protects against
+   outsiders, not against a malformed request from a device legitimately on the
+   network. Input validation is correct whether or not there is auth in front of
+   it, so `lib/tmux-safe.mjs` was worth doing regardless of posture.
 
-Two published advisories in this codebase (GHSA-mf7j, GHSA-2vm8) were the same
-class — unauthenticated input reaching a shell primitive — and both were
-critical *because* the listener is reachable and unauthenticated. Hardening
-individual sinks (done) does not shrink the attack surface; binding to the
-tailscale interface does, at a stroke, for every current and future unauth bug.
+2. **"Local network" excludes the public internet.** A host must not port-forward
+   23000 through its router — that is outside the trust boundary the design
+   assumes. This is a one-line deployment note (candidate for SECURITY.md /
+   host-setup docs), not a code or config change, and it does not challenge the
+   design; it marks the edge of it.
 
-An assumption that hosts are "tailnet-only" was made and turned out false on the
-first host checked. The fix removes the need to make that assumption at all.
+## Not doing
 
-## Business Case
-
-- **Risk mitigation:** collapses the blast radius of any future unauth bug from
-  "the LAN / possibly the internet" to "the tailnet, which is the operator's."
-  This is the single highest-leverage security change available and it is a
-  config, not code.
-- **Cheap and reversible:** an env/bind-address change plus a firewall rule per
-  host; no application changes.
-- **Removes a standing assumption:** "which hosts are exposed" stops being a
-  question that has to be re-answered correctly every time.
-
-## Implementation Plan
-
-- **Bind address:** make the listen host configurable (env `HOST` / `BIND_ADDR`),
-  defaulting to `0.0.0.0` for the documented localhost story but settable to the
-  tailscale interface IP (100.x) or `127.0.0.1` per host. `server.mjs` already
-  reads `HOSTNAME`/`PORT`; confirm it honours a bind address and that the
-  WebSocket upgrade path binds the same.
-- **Firewall:** `ufw` recipe per host — allow the tailscale interface / 100.64.0.0/10,
-  deny 23000 elsewhere. Ship as a documented step in the host setup / an optional
-  flag in `update-aimaestro.sh`, not silently (a firewall change nobody made is
-  its own surprise).
-- **Per-host verification** (pas-lola's four-second check, make it the acceptance test):
-  ```
-  ss -ltn | awk '$4 ~ /23000$/'
-  ufw status
-  ```
-- **Docs:** update SECURITY.md — the localhost-only model is the *default*, and
-  any host reachable beyond localhost should bind to the tailnet + firewall.
-- Effort: **S** per host; **M** to make it a clean configurable default + docs.
-- Open question: default to `127.0.0.1` and require opt-in for network exposure
-  (safer, but breaks the tablet/phone dashboard access the current default
-  enables), or keep `0.0.0.0` default and make tailnet-bind the documented
-  recommendation. This is Juan's call — it trades convenience against surface.
+- Adding authentication — explicitly against the design.
+- Forcing a `127.0.0.1` or tailscale-only bind by default — would break the
+  intended tablet/phone LAN access.
+- Enabling `ufw` as part of the deploy — the LAN listener is intended.

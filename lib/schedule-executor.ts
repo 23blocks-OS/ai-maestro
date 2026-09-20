@@ -9,6 +9,7 @@ import {
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import type { Schedule } from '@/types/schedule'
+import { tmux, assertSessionName } from '@/lib/tmux-safe.mjs'
 
 const execAsync = promisify(exec)
 
@@ -121,7 +122,8 @@ async function runExecution(
 
     console.log(`[Scheduler] Creating tmux session "${sessionName}" in ${cwd}`)
     const env = { ...process.env, TMUX: undefined }
-    await execAsync(`tmux new-session -d -s "${sessionName}" -c "${cwd}"`, { env })
+    // SECURITY (GHSA-2vm8-3q4q-wqv3): argv form, validated name, no shell.
+    await tmux(['new-session', '-d', '-s', assertSessionName(sessionName), '-c', cwd], { env })
 
     // Wait for shell to be ready
     await sleep(1_000)

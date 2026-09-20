@@ -3,6 +3,64 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.27] - 2026-09-19 — Security: close the tmux command-injection bypass (GHSA-2vm8-3q4q-wqv3)
+
+Critical, unauthenticated RCE. Reported against v0.37.6; confirmed live on HEAD
+before this fix.
+
+### Security
+- **`GET /api/sessions/[id]/command` passed its URL path segment into a tmux
+  SHELL STRING.** `sessionExists()` ran ``execAsync(`tmux has-session -t
+  "${name}" …`)`` — the double quotes are not protection; `$(…)` and backticks
+  still evaluate. The server binds `0.0.0.0:23000` with no auth, and the check
+  runs before any session lookup, so one request executed arbitrary commands as
+  the server user, no valid agent required.
+
+  This is a **bypass** of the CVE-2026-37751 fix, which hardened only the sync
+  deletion path (`killSessionSync`) and validated names at agent creation. The
+  async path, and every other tmux call, were untouched — which is how the
+  bypass was found. So the fix closes the class, not the line:
+
+  1. **No shell for tmux, anywhere.** Every tmux call now goes through
+     `lib/tmux-safe.mjs`, which uses `execFile` with an argument vector. A
+     session name is one argv entry; there is no parser left to confuse.
+     Converted: all of `lib/agent-runtime.ts` (~18 calls), the 11 shell-string
+     calls in `server.mjs`, and `lib/schedule-executor.ts`.
+  2. **Validation at the choke point.** Every helper rejects a name outside
+     `^[a-zA-Z0-9_-]{1,128}$`, and the `/term` WebSocket — a *second*
+     unauthenticated path to the same primitive, not named in the advisory —
+     now validates before attaching a PTY. Route-by-route validation is what
+     failed last time; this cannot be reintroduced by forgetting a route.
+
+  Verified against the live fleet before shipping: 124 registry names and 36
+  live tmux sessions across three hosts, none rejected. A functional probe drove
+  every converted operation against real tmux (both send-keys modes reach the
+  pane, capture/rename/kill/env all work) and confirmed an `evil$(touch …)`
+  payload is rejected with no file created.
+
+### Already fixed, confirmed during the sweep
+- **GHSA-g7qj-fhxp-6chc** (High — `gray-matter` executable frontmatter RCE in the
+  plugin-builder repo scan) is **already closed in code**: `lib/safe-matter.ts`
+  overrides the js/coffee engines and both call sites (`plugin-builder-service.ts`,
+  `marketplace-skills.ts`) use it. No code change needed; noted here so the state
+  is on record.
+- **docker** calls use a real single-quote escaper (`shellQuote`) / validated
+  container names — not the bare-double-quote guard the advisory defeated — so
+  they are safe as-is.
+
+### Added
+- `lib/tmux-safe.mjs` and 51 tests (`tests/tmux-safe.test.ts`) covering the
+  advisory's PoC payloads, the CVE it bypassed, the real fleet names that must
+  keep working, and `splitKeySpec`'s preservation of legacy shell semantics.
+- **B004** in the backlog: convert the last two config-fed shell-string calls
+  (`git clone`, `aws --profile`) and add a CI guard that fails on any NEW
+  shell-string interpolation — the one-time audit does not keep itself fixed.
+
+### Note
+- The root exposure — an unauthenticated `0.0.0.0` listener — is unchanged and
+  out of scope here. These fixes are defense-in-depth on top of the network
+  posture documented in SECURITY.md, not a substitute for it.
+
 ## [0.38.26] - 2026-09-19 — Backlog structure, and six items from a competitor read
 
 Planning only. No product code changed.

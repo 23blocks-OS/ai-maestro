@@ -12,6 +12,7 @@ import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
+import { isValidSessionName } from './lib/tmux-safe.mjs'
 import {
   resolveJsonlPath,
   getAgentWorkingDir,
@@ -1774,6 +1775,22 @@ async function startServer(handleRequest) {
 
     if (!sessionName || typeof sessionName !== 'string') {
       ws.close(1008, 'Session name required')
+      return
+    }
+
+    // SECURITY (GHSA-2vm8-3q4q-wqv3, same class, different door). This name is
+    // interpolated into tmux SHELL STRINGS further down this file (capture-pane,
+    // send-keys, paste-buffer). The advisory covers the HTTP route; this
+    // WebSocket is a second unauthenticated path to the same primitive, and it
+    // validated only that the name was a non-empty string.
+    //
+    // Rejecting here is a choke point: every tmux call in this file receives a
+    // name that has already passed, which is what the previous fix — validating
+    // at one route — failed to achieve. The per-call argv conversion is still
+    // worth doing, but this is what closes the hole.
+    if (!isValidSessionName(sessionName)) {
+      console.warn(`[Security] Rejected WebSocket session name: ${JSON.stringify(sessionName).slice(0, 80)}`)
+      ws.close(1008, 'Invalid session name')
       return
     }
 

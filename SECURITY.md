@@ -72,6 +72,36 @@ HOSTNAME=localhost PORT=3000 yarn dev
   - CORS protection
   - Rate limiting
 
+## Resolved Advisories
+
+| Advisory | Severity | Class | Resolved in |
+|---|---|---|---|
+| GHSA-mf7j-vfrr-jmfh / CVE-2026-37751 | Critical | tmux session-name command injection (`killSessionSync`) | v0.35.x |
+| GHSA-2vm8-3q4q-wqv3 | Critical | tmux session-name command injection — **bypass** of the above via the async `sessionExists()` path (`GET /api/sessions/[id]/command`) | v0.38.27 |
+| GHSA-g7qj-fhxp-6chc | High | RCE via `gray-matter` executable frontmatter in the plugin-builder repo scan | fixed in code (`lib/safe-matter.ts`); advisory pending publish |
+
+### Note on the GHSA-2vm8 fix
+
+The first fix converted one path (`killSessionSync`) to argument-array execution
+and validated names at agent creation. The reporter found that the **async**
+existence-check path still built a shell string, and route-level validation did
+not cover it. The v0.38.27 fix therefore does two things instead of one:
+
+1. **No shell for tmux, anywhere.** All tmux calls go through `lib/tmux-safe.mjs`,
+   which uses `execFile` with an argument vector. A session name is one argv
+   entry; there is no shell parser left to confuse.
+2. **Validation at the choke point, not the routes.** Every helper rejects a
+   session name outside `^[a-zA-Z0-9_-]{1,128}$`, and the `/term` WebSocket
+   entry validates before attaching a PTY. A future caller cannot reintroduce
+   the hole by forgetting to validate at a new route.
+
+Verified against the live fleet before shipping: 124 registry names and 36 live
+tmux sessions across three hosts, none rejected by the new validator.
+
+**These are defense-in-depth on top of, not a replacement for, the network
+posture below.** The root exposure is still an unauthenticated listener; see
+the next section.
+
 ## Reporting a Vulnerability
 
 **If you discover a security vulnerability, please:**

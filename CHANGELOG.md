@@ -3,6 +3,96 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.25] - 2026-09-19 — Follow-up: tell the messages apart
+
+pas-lola sent a second report with evidence that contradicted part of her own
+first one — the notifier fired, she said, while BOTH stores read zero unread.
+
+That specific claim is not supported by the hook's own log: `unread_messages_found`
+is only reachable when the API returned one or more messages, and there are twelve
+such entries on her host tonight. Every fire had a real unread message behind it.
+The zero she sampled was seconds later, after the state changed.
+
+But her instinct that something was still wrong was right, and the second report
+contains the detail that explains the near-miss.
+
+### Fixed
+- **The notice could not distinguish a new message from a repeat.** It identified
+  a message only by sender and subject — and a reply carries `Re: <same subject>`
+  from the same sender. So a genuinely new message in a live thread produced a
+  notice byte-identical to the repeats around it. Combined with the missing dedup
+  fixed in 0.38.24, it was not possible for a reader to tell them apart. The
+  notice now names the message id.
+
+- **The id it prints is the one that actually works.** This is pas-lola's
+  hyphen/underscore observation, which was harmless where she expected it (both
+  sides of the dedup comparison come from the API) and not harmless here:
+
+  ```
+  $ amp-read.sh msg-1789863849489-zl8spaj     # the API's form
+  Error: Message not found: msg-1789863849489-zl8spaj
+  ```
+
+  `ampMessageId()` converts before printing, so the notice ends `Read it with:
+  amp-read.sh msg_1789863849489_zl8spaj` — a command that runs.
+
+- **`markMessageAsRead` wrote conditionally and returned `true` regardless.**
+  The write was `if (raw.metadata) raw.metadata.status = 'read'` while the read
+  path is `metadata?.status || local?.status || 'unread'`. An envelope carrying
+  neither section could never be marked read: nothing was written, success was
+  reported, and the message stayed unread forever. NOT the cause of the report —
+  all 1733 messages on the affected host carry both sections — but it is the same
+  unearned-success shape, sitting directly under a bug report about messages that
+  stay unread after being read. 8 tests, verified to fail against the old code.
+
+### Notes
+- Two hook invocations one second apart (`00:04:31`/`00:04:32`, `00:17:53`/`00:17:54`)
+  indicate the hook runs twice per prompt on that host — two sessions on one cwd.
+  Left alone pending confirmation rather than fixed on a guess.
+
+## [0.38.24] - 2026-09-19 — The inbox notifier stops crying wolf
+
+Reported by pas-lola, who had the discipline to label her own hypothesis as a
+hypothesis. It was wrong, and saying so is the useful part: her lead was an
+id-format mismatch (API `msg-1-a` vs AMP `msg_1_a`) defeating the dedup. Both
+sides of the Stop path's comparison come from the API, so they match fine.
+
+### Fixed
+- **The context-injection path announced every unread message on every user
+  turn.** Two paths announce unread AMP messages; only one deduped:
+
+  | path | dedup | fired on 2026-09-19 |
+  |---|---|---|
+  | Stop hook (`decideStopDelivery`) | ids persisted per cwd | 3 |
+  | context injection (`checkUnreadMessages`) | **none** | **39** |
+
+  The path doing 93% of the talking was the one with no dedup. On her host the
+  notice went out on every turn from 17:57 to 19:46, `count=1` every time —
+  the same message, twenty-odd times, each announced as *"You have a **new**
+  message"*.
+
+  The cost was not noise. She had concluded the notifier was unreliable, and so
+  nearly skipped `msg_1789863644570_ycttsw3`, which was real and carried the most
+  important finding of her day. A notifier that repeats itself trains its reader
+  to ignore it, and then the one true alert is the one that gets dismissed.
+
+  `decideInboxAnnouncement` now gates that path: announce once, remind at most
+  every 30 minutes (`AIM_INBOX_REMIND_MS`) while a message stays unread, and word
+  the repeat as *"Still unread from earlier"* — never *"new"*. A genuinely new
+  message is still announced immediately even while an older one is suppressed;
+  that case has a test, because it is the near-miss.
+
+  The two dedup stores are deliberately separate. Letting an injection consume
+  the Stop path's first-fire would disarm the Stop block, which is the only
+  mechanism that can start a turn on an already-idle agent. Share the logic, not
+  the state.
+
+### Added
+- 14 tests for the injection path — the path that had no tests is the same path
+  that had no dedup, which is not a coincidence worth repeating. Includes a
+  twenty-turn replay of the measured symptom, and `pruneAnnounced` keeping the
+  newest entries by recency so a burst of old ids cannot evict a fresh arrival.
+
 ## [0.38.22] - 2026-09-19 — A message sent while the agent is busy
 
 ### Fixed

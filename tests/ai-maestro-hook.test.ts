@@ -220,3 +220,142 @@ describe('buildAmpBlockReason — reads correctly when truncated', () => {
     expect(reason).toContain('(1 urgent)')
   })
 })
+
+/**
+ * Inbox announcement dedup — the context-injection path.
+ *
+ * Reported by pas-lola 2026-09-19: the same AMP message was announced as "new"
+ * roughly nine times in a day, and the noise nearly cost a real message its
+ * reader. Her hypothesis was an id-format mismatch (API `msg-1-a`, AMP
+ * `msg_1_a`) defeating the dedup; that turned out to be wrong — both sides of
+ * the Stop path's comparison come from the API, so they match fine.
+ *
+ * The actual cause was duller. TWO paths announce unread messages, and only the
+ * Stop path deduped. The injection path rebuilt its notice from the live unread
+ * list on every user turn. Measured on her host that day: 39 injections against
+ * 3 Stop blocks, `count=1` on all of them.
+ *
+ * So these cover the path that had no tests, which is the same path that had no
+ * dedup — not a coincidence worth repeating.
+ */
+describe('ai-maestro-hook · decideInboxAnnouncement', () => {
+  const HOUR = 60 * 60 * 1000
+
+  it('announces a message it has never seen', () => {
+    const d = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 1000 })
+    expect(d.notice).toContain('new message')
+    expect(d.freshIds).toEqual(['a'])
+  })
+
+  it('says NOTHING on the next turn — the actual bug', () => {
+    const first = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 1000 })
+    const second = hook.decideInboxAnnouncement({
+      messages: [msg('a')], announced: first.announced, now: 1000 + 60_000,
+    })
+    expect(second.notice).toBeNull()
+  })
+
+  it('stays silent across twenty consecutive turns', () => {
+    // The measured symptom was ~20 identical announcements in two hours.
+    let announced = {}
+    const notices: (string | null)[] = []
+    for (let i = 0; i < 20; i++) {
+      const d = hook.decideInboxAnnouncement({
+        messages: [msg('a')], announced, now: 1000 + i * 60_000,
+      })
+      announced = d.announced
+      notices.push(d.notice)
+    }
+    expect(notices.filter(Boolean)).toHaveLength(1)
+  })
+
+  it('reminds once the interval has passed, because still-unread is worth saying', () => {
+    const first = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 0 })
+    const later = hook.decideInboxAnnouncement({
+      messages: [msg('a')], announced: first.announced, now: HOUR, remindAfterMs: 30 * 60 * 1000,
+    })
+    expect(later.notice).not.toBeNull()
+    expect(later.reminderIds).toEqual(['a'])
+  })
+
+  it('does NOT call a reminder "new" — the wording is what destroyed trust', () => {
+    const first = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 0 })
+    const later = hook.decideInboxAnnouncement({
+      messages: [msg('a')], announced: first.announced, now: HOUR, remindAfterMs: 1000,
+    })
+    expect(later.notice).toContain('Still unread')
+    expect(later.notice).not.toContain('new message')
+  })
+
+  it('re-arms the clock on a reminder so it does not then repeat every turn', () => {
+    const a = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 0 })
+    const b = hook.decideInboxAnnouncement({
+      messages: [msg('a')], announced: a.announced, now: HOUR, remindAfterMs: 30 * 60 * 1000,
+    })
+    const c = hook.decideInboxAnnouncement({
+      messages: [msg('a')], announced: b.announced, now: HOUR + 60_000, remindAfterMs: 30 * 60 * 1000,
+    })
+    expect(c.notice).toBeNull()
+  })
+
+  it('announces a genuinely new message even while another is being suppressed', () => {
+    // The near-miss: a real message must not be hidden by the noise around it.
+    const first = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 0 })
+    const second = hook.decideInboxAnnouncement({
+      messages: [msg('a'), msg('b', { subject: 'SEO state' })],
+      announced: first.announced, now: 60_000,
+    })
+    expect(second.freshIds).toEqual(['b'])
+    expect(second.notice).toContain('SEO state')
+  })
+
+  it('carries the urgent flag on a new message', () => {
+    const d = hook.decideInboxAnnouncement({
+      messages: [msg('a', { priority: 'urgent' })], announced: {}, now: 0,
+    })
+    expect(d.notice).toContain('[URGENT]')
+  })
+
+  it('ignores messages with no id rather than throwing', () => {
+    const d = hook.decideInboxAnnouncement({
+      messages: [{ subject: 'headless' }, msg('a')], announced: {}, now: 0,
+    })
+    expect(d.freshIds).toEqual(['a'])
+  })
+
+  it('tolerates a corrupt store instead of announcing everything forever', () => {
+    const d = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: null, now: 0 })
+    expect(d.freshIds).toEqual(['a'])
+    expect(d.announced).toBeTypeOf('object')
+  })
+
+  it('returns the store unchanged when there is nothing to say', () => {
+    const first = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 0 })
+    const second = hook.decideInboxAnnouncement({
+      messages: [msg('a')], announced: first.announced, now: 1000,
+    })
+    expect(second.announced).toEqual(first.announced)
+  })
+})
+
+describe('ai-maestro-hook · pruneAnnounced', () => {
+  it('drops entries past the TTL', () => {
+    const now = 10 * 24 * 60 * 60 * 1000
+    const pruned = hook.pruneAnnounced({ old: 0, recent: now - 1000 }, now)
+    expect(Object.keys(pruned)).toEqual(['recent'])
+  })
+
+  it('keeps the NEWEST when over the cap, not the first seen', () => {
+    // The Stop path's slice(-200) keeps insertion order; this keeps recency,
+    // so a burst of old ids cannot evict the message that just arrived.
+    const announced: Record<string, number> = {}
+    for (let i = 0; i < 10; i++) announced[`m${i}`] = i
+    const pruned = hook.pruneAnnounced(announced, 100, 1000, 3)
+    expect(Object.keys(pruned).sort()).toEqual(['m7', 'm8', 'm9'])
+  })
+
+  it('survives a garbage store', () => {
+    expect(hook.pruneAnnounced(null, 0)).toEqual({})
+    expect(hook.pruneAnnounced({ a: 'not-a-number' } as never, 0)).toEqual({})
+  })
+})

@@ -36,6 +36,29 @@ This means it's accessible from ANY device on your local network:
 HOSTNAME=localhost PORT=3000 yarn dev
 ```
 
+**By design, there is no application-level authentication.** The trust boundary
+is the *network*: AI Maestro is meant to run on a trusted local network with
+Tailscale as the perimeter. The `0.0.0.0` bind is intentional — it is what lets a
+tablet or phone on the same network open the dashboard. This is the model, not a
+gap, so "add auth" and "bind to localhost only" are deliberately *not* on the
+roadmap (see CLAUDE.md, "Localhost-Only Security Model").
+
+**The one condition the model depends on: 23000 must not be reachable from
+outside the trusted network** — in particular, never port-forward it through a
+router to the public internet. Verify per host (four seconds, no privileges):
+
+```bash
+ss -ltn | awk '$4 ~ /23000$/'   # confirm what interface it's bound to
+ufw status                       # (Linux) confirm the host firewall posture
+```
+
+Because the network is the perimeter, input-validation fixes still matter *more*,
+not less: network trust keeps outsiders out, but does nothing about a malformed
+request from a device that is legitimately inside — a compromised laptop, a phone,
+a misbehaving agent. Arbitrary-code-execution bugs (e.g. GHSA-2vm8-3q4q-wqv3) are
+fixed on their own merits regardless of the trust model. See "Resolved
+Advisories" below.
+
 ### Data Storage
 
 **Local Data Only:**

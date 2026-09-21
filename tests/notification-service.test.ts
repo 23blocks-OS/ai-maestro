@@ -51,7 +51,7 @@ vi.mock('@/types/agent', () => ({
 const mockIdle = vi.hoisted(() => ({ hasHookReport: vi.fn(() => false) }))
 vi.mock('@/lib/session-idle', () => mockIdle)
 
-import { notifyAgent, messageRef, toSingleLine } from '@/lib/notification-service'
+import { notifyAgent, messageRef, toSingleLine, __resetDeliveryGuard } from '@/lib/notification-service'
 
 const BASE = {
   agentId: 'agent-uuid-1',
@@ -69,6 +69,7 @@ function paneWith(messageId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  __resetDeliveryGuard()
   mockRuntime.sendKeys.mockResolvedValue(undefined)
   mockRuntime.repeatKey.mockClear()
   mockRuntime.repeatKey.mockResolvedValue(undefined)
@@ -312,5 +313,65 @@ describe('notifyAgent — text staged in the input box', () => {
       .mockResolvedValue(paneWith(BASE.messageId))
     const res = await notifyAgent(BASE)
     expect(res.verified).toBe(true)
+  })
+})
+
+describe('duplicate-delivery guard — the "hook fired twice" bug', () => {
+  // Measured on a customer host: 20 duplicate submissions, same session,
+  // identical prompt, ~1.2s apart. Two triggers (a routing-time push and a
+  // near-coincident poll/wake) each called notifyAgent for the SAME message, so
+  // it was typed into the pane and submitted twice. notifyAgent had nothing
+  // keyed to the message to notice.
+  const pane = paneWith(BASE.messageId)
+
+  beforeEach(() => {
+    mockRuntime.capturePane.mockResolvedValue(pane)
+    mockRuntime.capturePaneRaw.mockResolvedValue(pane)
+  })
+
+  it('delivers the first call', async () => {
+    const r = await notifyAgent({ ...BASE })
+    expect(r.notified).toBe(true)
+    expect(mockRuntime.sendKeys).toHaveBeenCalled()
+  })
+
+  it('SUPPRESSES a second call for the same message moments later', async () => {
+    await notifyAgent({ ...BASE })
+    mockRuntime.sendKeys.mockClear()
+    const r = await notifyAgent({ ...BASE })
+    expect(r.notified).toBe(false)
+    expect(r.reason).toMatch(/duplicate/i)
+    // The decisive assertion: nothing was typed into the pane the second time.
+    expect(mockRuntime.sendKeys).not.toHaveBeenCalled()
+  })
+
+  it('does NOT suppress a DIFFERENT message to the same agent', async () => {
+    await notifyAgent({ ...BASE })
+    mockRuntime.sendKeys.mockClear()
+    const other = 'zzz99999-dead-beef-0000-444455556666'
+    mockRuntime.capturePane.mockResolvedValue(paneWith(other))
+    mockRuntime.capturePaneRaw.mockResolvedValue(paneWith(other))
+    const r = await notifyAgent({ ...BASE, messageId: other })
+    expect(r.notified).toBe(true)
+    expect(mockRuntime.sendKeys).toHaveBeenCalled()
+  })
+
+  it('does NOT suppress the SAME message id to a DIFFERENT agent', async () => {
+    // The key is (agent, message): a broadcast of one message to several agents
+    // must reach each of them.
+    await notifyAgent({ ...BASE })
+    mockRuntime.sendKeys.mockClear()
+    const r = await notifyAgent({ ...BASE, agentId: 'agent-uuid-2', agentName: 'other' })
+    expect(r.notified).toBe(true)
+    expect(mockRuntime.sendKeys).toHaveBeenCalled()
+  })
+
+  it('records BEFORE sending, so two racing triggers cannot both pass the check', async () => {
+    // Fire both without awaiting the first — the guard must let exactly one land.
+    const [a, b] = await Promise.all([notifyAgent({ ...BASE }), notifyAgent({ ...BASE })])
+    const delivered = [a, b].filter((r) => r.notified).length
+    const suppressed = [a, b].filter((r) => r.reason?.match(/duplicate/i)).length
+    expect(delivered).toBe(1)
+    expect(suppressed).toBe(1)
   })
 })

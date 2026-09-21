@@ -6,6 +6,7 @@ import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
   isQuestionCurrent as sharedIsCurrent,
+  paneCardBelongsToTranscriptQuestion,
 } from '@/lib/question-state.mjs'
 import MobileToolBurstGroup from '@/components/chat/MobileToolBurstGroup'
 import { groupMessages, getToolPreviewText, type ToolBurst } from '@/lib/chat-utils'
@@ -560,9 +561,18 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
   // Determine status
   const isPermission = hookState?.status === 'permission_request'
+  // The id-less pane/hook permission card is suppressed when it belongs to a
+  // transcript AskUserQuestion (matched by option text) — that question is
+  // rendered and governed by identity inside the message list, so drawing this
+  // one too is how an answered question redraws from screen position. Suppressing
+  // it here ALSO restores the composer (which isPermission hides), so a settled
+  // question does not leave the chat with neither a card nor an input. Genuine
+  // "Allow Edit?" prompts match no transcript question and still show.
+  // See paneCardBelongsToTranscriptQuestion. Mirrors ChatView exactly.
+  const showPermission = isPermission && !paneCardBelongsToTranscriptQuestion(messages, hookState)
   const isWaiting = hookState?.status === 'waiting_for_input'
   const isSendingMsg = sending
-  const isWorking = !sending && (pendingMessages.length > 0 || (messages.length > 0 && !isWaiting && !isPermission &&
+  const isWorking = !sending && (pendingMessages.length > 0 || (messages.length > 0 && !isWaiting && !showPermission &&
     (messages[messages.length - 1]?.type === 'user' || messages[messages.length - 1]?.type === 'human')))
 
   return (
@@ -847,7 +857,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
         ))}
 
         {/* Live activity indicator */}
-        {liveActivity && !isPermission && (
+        {liveActivity && !showPermission && (
           <div className="mx-3 my-1">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800/60 border border-gray-700/50">
               <div className="flex gap-0.5">
@@ -870,7 +880,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
       {/* Status bar */}
       <div className="flex-shrink-0 border-t border-gray-800">
-        {isPermission && (
+        {showPermission && (
           <div className="px-3 py-2 bg-yellow-900/20 border-b border-yellow-800/50">
             <p className="text-xs text-yellow-300 mb-2">
               {hookState?.description || hookState?.message || `Allow ${hookState?.toolName || 'action'}?`}
@@ -922,7 +932,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           </div>
         )}
 
-        {!isPermission && (
+        {!showPermission && (
           <div className="px-3 py-1.5 flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full flex-shrink-0 ${

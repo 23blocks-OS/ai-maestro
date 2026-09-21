@@ -9,6 +9,7 @@ import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
   isQuestionCurrent as sharedIsCurrent,
+  paneCardBelongsToTranscriptQuestion,
 } from '@/lib/question-state.mjs'
 import type { Agent } from '@/types/agent'
 
@@ -1241,7 +1242,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         )}
 
         {/* PERMISSION REQUEST — always from hookState */}
-        {hookState?.status === 'permission_request' && (
+        {/* The id-less pane/hook permission card. Defer to the transcript's
+            identity-governed AskUserQuestion card when this is the SAME question
+            (matched by option text): otherwise an answered question, correctly
+            hidden above, redraws here from screen position. See
+            paneCardBelongsToTranscriptQuestion. Genuine tool-permission prompts
+            ("Allow Edit?") match no transcript question and still render. */}
+        {hookState?.status === 'permission_request' &&
+          !paneCardBelongsToTranscriptQuestion(messages, hookState) && (
           <div className="flex justify-start">
             <div className="max-w-[85%] min-w-0 overflow-hidden">
               <div className="rounded-2xl px-4 py-3 bg-amber-900/40 border border-amber-600/50 text-amber-200">

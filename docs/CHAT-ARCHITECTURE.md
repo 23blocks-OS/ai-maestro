@@ -134,6 +134,21 @@ since — `●` assistant turn, `⎿` tool result, `✻` status, or a submitted
 `❯ <text>` — the menu is over. An empty `❯` is the waiting input box and still
 counts as live.
 
+**Identity reconciliation (v0.38.33).** This card had no `tool_use` id, so it was
+the last place in the chat that resolved a target by *screen position* rather than
+*identity* — the same class as the `amp-inbox | head -1` reply misroute. The fix
+recovers the identity from what the menu SAYS:
+`paneCardBelongsToTranscriptQuestion(messages, hookState)` content-matches the
+pane card's option labels against the transcript's LAST `AskUserQuestion`. When
+they match, this card *belongs to that question*, which renderer #1/#2 already
+govern by `tool_use` id — so both renderers now **suppress this card** and defer
+to the identity-governed one. An answered question is therefore hidden on all
+three paths at once. A genuine `Allow Edit?` tool-permission prompt matches no
+transcript question and still renders (it has no id anywhere, and this card is its
+only representation). MobileChatView suppresses via a derived `showPermission` so
+the composer returns when the card is gone — a suppressed card must never strand
+the input.
+
 ---
 
 ## Permission state

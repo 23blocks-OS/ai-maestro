@@ -3,6 +3,54 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.33] - 2026-09-21 — The last target-by-position bug: the pane permission card
+
+From the audit Juan asked for after the reply-by-`head -1` misroute: *do we
+resolve conversational targets by position/recency anywhere else?* The sweep came
+back almost entirely clean — threading, questions, chat send, tasks, meetings,
+wake delivery are all identity-addressed — with exactly one structural residual,
+now fixed.
+
+### Fixed
+- **The pane-synthesised permission card resolved its target by screen position,
+  not identity.** `detectPermissionFromPane` parses whatever menu is on the tmux
+  pane and renders a clickable card with `source: 'pane'` and **no `tool_use`
+  id**. The transcript's `AskUserQuestion` card is governed by identity
+  (`isQuestionAnswered` / `isQuestionCurrent`, keyed on the tool_use id); the pane
+  card, having no id, was governed only by "is a menu on screen". So a question
+  answered long ago — correctly hidden on the transcript path — could still draw
+  from the pane path. Same class as the `amp-inbox | head -1` reply misroute, one
+  layer down.
+
+  `paneCardBelongsToTranscriptQuestion(messages, hookState)` recovers the identity
+  from what the menu SAYS: it content-matches the pane card's option labels
+  (whitespace- and truncation-tolerant) against the transcript's LAST
+  `AskUserQuestion`. On a match the card *belongs to that question* — which the
+  transcript card already governs by id — so **both renderers now suppress the
+  pane card** and defer to the identity-governed one. An answered question is
+  hidden on all three renderers at once. A genuine `Allow Edit?` tool-permission
+  prompt matches no transcript question and still renders (no id anywhere; this
+  card is its only representation).
+
+  MobileChatView suppresses via a derived `showPermission` used for every
+  permission-driven layout decision, so a suppressed card also restores the
+  composer — a suppressed card must never strand the input.
+
+### Added
+- 10 tests (`tests/pane-card-identity.test.ts`): content-match with truncation and
+  reflow, last-question-only, genuine-permission-prompt passthrough, and the
+  reported answered-question-does-not-resurrect case.
+
+### Audit result (no change needed)
+- Reviewed for target-by-position/recency across the board; identity-addressed
+  everywhere else: AMP read/reply/delete require explicit ids; threading uses
+  `thread_id`/`in_reply_to`; questions match by `tool_use` id; chat send binds an
+  explicit session/agent id; bubble reconcile matches by content; tasks are
+  id-keyed; meetings route by explicit session; wake delivery keys on `messageId`.
+  Two recency uses kept as correct: streaming resume (newest `.jsonl` — "current
+  conversation" IS recency) and `find(online session)` (safe under one-session-
+  per-agent).
+
 ## [0.38.29] - 2026-09-20 — Reply-target safety: reply to the message you actually read
 
 Follow-on from the misroute pas-lola surfaced while we were fixing the notifier.

@@ -48,6 +48,26 @@ function hashCwd(cwd) {
     return crypto.createHash('md5').update(cwd || '').digest('hex').substring(0, 16);
 }
 
+// ── Hook time budget ─────────────────────────────────────────────────────────
+// Claude Code kills a hook after 5s and DISCARDS its output ("UserPromptSubmit
+// hook timed out after 5s"). The injection path fetches the local API on every
+// user turn, and those fetches were unbounded — a slow or busy server (a build,
+// a restart, load) hung the hook past 5s and the message injection was thrown
+// away. Measured on a customer host.
+//
+// A discarded injection is only a DELAY — the Stop path and the 5-minute poll
+// both re-deliver — so it is always better to return early than to hang. Every
+// injection fetch now has a per-request timeout, and the whole injection step
+// has an overall deadline well under 5s.
+const HOOK_FETCH_TIMEOUT_MS = 1500;
+const INJECT_DEADLINE_MS = 3500;
+function withDeadline(promise, ms, fallback) {
+    return Promise.race([
+        promise,
+        new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+    ]);
+}
+
 // Resolve the agent for this hook invocation.
 // Priority: AIM_AGENT_ID env (exact) > AIM_AGENT_NAME / CLAUDE_AGENT_NAME env
 // (exact) > cwd exact match.
@@ -261,7 +281,7 @@ async function checkUnreadMessagesStandalone() {
 async function checkUnreadMessages(cwd) {
     try {
         // Find agent by working directory
-        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        const agentsResponse = await fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) });
         if (!agentsResponse.ok) return null;
 
         const agentsData = await agentsResponse.json();
@@ -275,7 +295,8 @@ async function checkUnreadMessages(cwd) {
 
         // Check for unread messages
         const messagesResponse = await fetch(
-            `http://localhost:23000/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`
+            `http://localhost:23000/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
+            { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) }
         );
         if (!messagesResponse.ok) return null;
 
@@ -315,7 +336,7 @@ async function checkUnreadMessages(cwd) {
 async function drainMeetingInjectQueue(cwd) {
     try {
         // Resolve agent to get session name
-        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        const agentsResponse = await fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) });
         if (!agentsResponse.ok) return null;
 
         const agentsData = await agentsResponse.json();
@@ -326,7 +347,8 @@ async function drainMeetingInjectQueue(cwd) {
         if (!sessionName) return null;
 
         const queueResponse = await fetch(
-            `http://localhost:23000/api/meetings/inject-queue?session=${encodeURIComponent(sessionName)}`
+            `http://localhost:23000/api/meetings/inject-queue?session=${encodeURIComponent(sessionName)}`,
+            { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) }
         );
         if (!queueResponse.ok) return null;
 
@@ -716,10 +738,10 @@ async function main() {
                 });
 
                 // Check for unread messages and meeting inject queue
-                const [idleMessagePrompt, meetingContext] = await Promise.all([
+                const [idleMessagePrompt, meetingContext] = await withDeadline(Promise.all([
                     checkUnreadMessages(cwd),
                     drainMeetingInjectQueue(cwd)
-                ]);
+                ]), INJECT_DEADLINE_MS, [null, null]);
                 const combined = [idleMessagePrompt, meetingContext].filter(Boolean).join('\n\n');
                 if (combined) {
                     debugLog({ event: 'injecting_context', cwd, agent, trigger: 'idle_prompt', hasInbox: !!idleMessagePrompt, hasMeeting: !!meetingContext });
@@ -809,10 +831,10 @@ async function main() {
             });
 
             // Check for unread messages and meeting inject queue
-            const [startMessagePrompt, startMeetingContext] = await Promise.all([
+            const [startMessagePrompt, startMeetingContext] = await withDeadline(Promise.all([
                 checkUnreadMessages(cwd),
                 drainMeetingInjectQueue(cwd)
-            ]);
+            ]), INJECT_DEADLINE_MS, [null, null]);
             const startCombined = [startMessagePrompt, startMeetingContext].filter(Boolean).join('\n\n');
             if (startCombined) {
                 debugLog({ event: 'injecting_context', cwd, agent, trigger: 'session_start', hasInbox: !!startMessagePrompt, hasMeeting: !!startMeetingContext });
@@ -837,10 +859,10 @@ async function main() {
             // Drain on every user prompt — this is the reliable delivery slot
             // for Claude Code. SessionStart can be preempted by other plugins'
             // hooks; UserPromptSubmit fires once per user turn and is rarely contended.
-            const [upsInbox, upsMeeting] = await Promise.all([
+            const [upsInbox, upsMeeting] = await withDeadline(Promise.all([
                 checkUnreadMessages(cwd),
                 drainMeetingInjectQueue(cwd)
-            ]);
+            ]), INJECT_DEADLINE_MS, [null, null]);
             const upsContext = [upsMeeting, upsInbox].filter(Boolean).join('\n\n');
             if (upsContext) {
                 debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting });

@@ -3,6 +3,47 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.34] - 2026-09-21 — The "hook fires twice" and the 5s timeout — both ours
+
+Chasing the last open item (two hook fires one second apart) and Juan's separate
+report of "UserPromptSubmit hook timed out after 5s — output discarded". The
+hook's own `hook_received` log already captured its stdin, so no new capture was
+needed — the evidence was on disk. Two distinct, real, fixable bugs.
+
+### Fixed
+- **The same message was delivered to the pane twice (~1.2s apart).** The
+  "duplicate fire" was really a duplicate DELIVERY: two triggers (a routing-time
+  push and a near-coincident poll/wake) each called `notifyAgent` for the same
+  message, and nothing was keyed to the message, so it was typed and submitted
+  twice. Measured on a customer host: 20 duplicates, same session, identical
+  prompt. `notifyAgent` now suppresses a re-delivery of the same
+  `(agent, messageId)` within a 10s window — comfortably over the observed 1.2s
+  and well under the wake-queue's ≥30s retry backoff, so a legitimate later retry
+  of a still-unread message is unaffected. The record is written BEFORE the send,
+  so two racing triggers collapse to exactly one pane submit.
+
+- **The UserPromptSubmit hook could hang past Claude Code's 5s limit.** The
+  injection path fetched the local API on every turn through FOUR fetches
+  (`checkUnreadMessages` + `drainMeetingInjectQueue`, each re-fetching
+  `/api/agents`) with **no timeout** — while the Stop path had 2.5s timeouts all
+  along. A slow or busy server (a build, a restart, load) hung the hook, and
+  Claude Code discarded its output with "hook timed out after 5s". Each injection
+  fetch now has a 1.5s timeout, and the whole injection step an overall 3.5s
+  deadline. A discarded injection is only a delay — the Stop path and the
+  5-minute poll both re-deliver — so returning early always beats hanging.
+
+### Added
+- 5 tests for the duplicate-delivery guard (first delivers; second suppressed
+  with nothing typed; a different message or a different agent is not suppressed;
+  two racing triggers collapse to one) with a `__resetDeliveryGuard` test hook.
+
+### Diagnosis note
+- The originally-suspected "two panes / two sessions" was ruled out earlier by
+  pas-lola (one session_id). The paired events in the log were mostly
+  Stop→UserPromptSubmit (normal lifecycle); the genuine duplicates were
+  UserPromptSubmit+UserPromptSubmit with byte-identical prompts, which pointed at
+  delivery, not at Claude Code double-firing.
+
 ## [0.38.33] - 2026-09-21 — The last target-by-position bug: the pane permission card
 
 From the audit Juan asked for after the reply-by-`head -1` misroute: *do we

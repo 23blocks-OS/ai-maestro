@@ -91,6 +91,42 @@ const NOTIFICATION_CLEAR_SETTLE_MS = 80
 // quote at a shell prompt), truncating the message at the first line break.
 const NOTIFICATION_BODY_MAX = 400
 
+// ── Duplicate-delivery guard ─────────────────────────────────────────────────
+// notifyAgent types a message into the agent's pane and submits it. Nothing here
+// was keyed to the message, so when two triggers fired for the SAME message near
+// simultaneously (a routing-time push and a poll/wake landing within a second),
+// the message was typed into the pane TWICE and submitted twice. Measured on a
+// customer host: 20 duplicate submissions, same session, identical prompt, ~1.2s
+// apart — the "hook fires twice" symptom, which was really "delivered twice".
+//
+// Collapse near-simultaneous re-deliveries of the same message to one pane
+// submit. The window is short (well over the observed 1.2s, well under the
+// wake-queue's ≥30s retry backoff) so a legitimate later retry of a
+// still-unread message is unaffected.
+const RECENT_DELIVERY_WINDOW_MS = 10_000
+const recentDeliveries = new Map<string, number>()
+
+function deliveryKey(agentId: string | undefined, agentName: string | undefined, messageId: string): string {
+  return `${agentId || agentName || 'unknown'}:${messageId}`
+}
+
+/** True if this exact message was just delivered to this agent's pane. Prunes as it goes. */
+function wasJustDelivered(key: string, now: number): boolean {
+  const at = recentDeliveries.get(key)
+  // Opportunistic prune so the map cannot grow without bound.
+  if (recentDeliveries.size > 500) {
+    for (const [k, t] of recentDeliveries) {
+      if (now - t > RECENT_DELIVERY_WINDOW_MS) recentDeliveries.delete(k)
+    }
+  }
+  return at !== undefined && now - at < RECENT_DELIVERY_WINDOW_MS
+}
+
+/** Test-only: clear the duplicate-delivery window between cases. */
+export function __resetDeliveryGuard(): void {
+  recentDeliveries.clear()
+}
+
 interface PaneDeliveryResult {
   /** The bytes were handed to the runtime without error. */
   sent: boolean
@@ -294,6 +330,18 @@ export async function notifyAgent(options: NotificationOptions): Promise<Notific
 
   try {
     const { agentId, agentName, agentHost } = options
+
+    // Collapse a near-simultaneous duplicate delivery of the same message.
+    if (options.messageId) {
+      const key = deliveryKey(agentId, agentName, options.messageId)
+      const now = Date.now()
+      if (wasJustDelivered(key, now)) {
+        return { success: true, notified: false, reason: 'Duplicate delivery suppressed' }
+      }
+      // Record BEFORE sending: two triggers racing into notifyAgent must not both
+      // pass the check before either records. First one through wins the pane.
+      recentDeliveries.set(key, now)
+    }
     const selfHostId = getSelfHostId()
 
     // Check if target is on a remote host

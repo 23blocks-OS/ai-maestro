@@ -43,6 +43,17 @@ interface HostFetchResult {
   fromCache?: boolean
 }
 
+/** Tell the server log about a client-side event (best effort, never throws). */
+function reportClientEvent(event: string, detail: string) {
+  try {
+    fetch('/api/debug/client-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, lastError: detail, path: location.pathname }),
+    }).catch(() => { /* diagnostics only */ })
+  } catch { /* diagnostics only */ }
+}
+
 /**
  * Fetch agents from a specific host
  */
@@ -215,6 +226,25 @@ export function useAgents() {
   const [error, setError] = useState<Error | null>(null)
   const [hostErrors, setHostErrors] = useState<Record<string, Error>>({})
   const hasLoadedOnce = useRef(false)
+  /**
+   * The last successful result per host. A refresh that fails (or times out) for
+   * a host keeps that host's previous agents instead of dropping them: dropping
+   * this host's agents on one slow /api/agents (1.7-3.6 s normally, past the 8 s
+   * timeout under load) unmounted every agent view and remounted it on the next
+   * good refresh, which looked exactly like the app restarting (2026-09-23).
+   */
+  const lastGood = useRef(new Map<string, HostFetchResult>())
+  const keepLastGood = (results: HostFetchResult[]): HostFetchResult[] =>
+    results.map(r => {
+      if (r.success) {
+        lastGood.current.set(r.hostId, r)
+        return r
+      }
+      const previous = lastGood.current.get(r.hostId)
+      if (!previous) return r
+      reportClientEvent('agents_fetch_failed_kept_previous', `${r.hostId}: ${r.error?.message ?? 'unknown'}`)
+      return { ...previous, fromCache: true }
+    })
 
   const loadAgents = useCallback(async () => {
     if (hosts.length === 0) {
@@ -232,9 +262,9 @@ export function useAgents() {
       const remoteHosts = enabledHosts.filter(h => !h.isSelf && !isLocalhostUrl(h.url))
 
       // Fetch local host first (fast) so the UI can render immediately
-      const localResults = await Promise.all(
+      const localResults = keepLastGood(await Promise.all(
         localHosts.map(host => fetchHostAgents(host))
-      )
+      ))
 
       // On first load only, show local agents right away so UI doesn't wait for remotes.
       // On subsequent refreshes, skip this to avoid replacing the full list with just local agents.
@@ -247,9 +277,9 @@ export function useAgents() {
       }
 
       // Then fetch remote hosts in parallel (may be slow or timeout)
-      const remoteResults = await Promise.all(
+      const remoteResults = keepLastGood(await Promise.all(
         remoteHosts.map(host => fetchHostAgents(host))
-      )
+      ))
 
       // Merge all results
       const allResults = [...localResults, ...remoteResults]

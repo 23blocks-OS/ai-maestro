@@ -1,6 +1,6 @@
 # Long-Term Memory Implementation Plan
 
-## Current implementation (v0.40.1)
+## Current implementation (v0.41.0)
 
 The plan below was the original design. What actually ships:
 
@@ -34,6 +34,21 @@ extraction remain as fallbacks when no classifier key is configured.
   calls per server. More history continues on the next run.
 - Schedule: nightly 2:00–2:30 AM per agent, and on demand from the Memory tab.
 - Cost measured on real transcripts: about $0.06 for a 1,800-passage conversation.
+
+**Cards are the memory; recurrence is the weight (v0.41.0).** Jev flags
+candidate passages; the summarizer reads one session's candidates together and
+writes at most `min(5, ceil(n/3))` cards per call, each citing its evidence
+(zero is valid). Jev checks each card against that evidence. A card that states
+what an existing memory states (`lib/memory/recurrence.ts`: cosine ≤ 0.25 and
+Jev "same point" ≥ 0.5, or ≤ 0.12 and ≥ 0.35) reinforces it: `reinforcement_count`
+counts distinct sessions (`source_conversations`), evidence goes to
+`memory_evidence`. Lifecycle each run: 2+ sessions → `long`; one session, no
+access, 30+ days → `faded` (never recalled; revived if it comes up again).
+Recall ranks by distance − 0.015·ln(sessions) − 0.01 if long; the primer orders
+decisions/preferences/patterns by sessions. Legacy verbatim memories migrate
+once (`memory_migrations`: `cards-as-memories-v1`). Consolidation is driven by
+each agent's schedule, run by a server sweep every 15 minutes (20 agents,
+oldest first) as well as on idle transitions.
 
 **Memory cards and the entity graph (v0.40.1).** After classification, each
 memory without a card is summarized by the host's own Claude subscription:

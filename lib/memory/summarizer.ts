@@ -1,10 +1,13 @@
 /**
  * Memory card summarizer — the host's own Claude subscription.
  *
- * Jev decides WHAT is worth remembering but cannot write text. This turns each
- * flagged passage, read in the context of its whole exchange (and the one
- * before it), into a memory card: a one-line statement, a fixed-vocabulary
- * action, typed entities and relations between them.
+ * Jev flags passages that MIGHT be worth remembering but cannot write text.
+ * This reads ONE session's flagged passages together, each with the exchange it
+ * came from, and writes at most a few memory cards: only knowledge worth having
+ * in a future session, merged where passages say the same thing, each citing
+ * the passages it rests on. Zero cards is a valid answer. (Judging passage by
+ * passage kept 15-37% of everything; a paragraph rarely shows it will matter
+ * again. Recurrence across sessions decides that; see lib/memory/recurrence.ts.)
  *
  * It runs `claude -p` with the cheapest model on the login every agent on the
  * host already uses, so there is no extra key. Verified on Claude Code 2.1.280:
@@ -40,24 +43,30 @@ export const RELATION_PREDICATES = [
 ] as const
 export type RelationPredicate = typeof RELATION_PREDICATES[number]
 
-export interface CardJob {
-  memory_id: string
-  category: string
-  /** The passage Jev flagged (verbatim, redacted) */
+export const CARD_CATEGORIES = ['fact', 'decision', 'preference', 'pattern', 'insight', 'reasoning'] as const
+export type CardCategory = typeof CARD_CATEGORIES[number]
+
+/** A passage Jev flagged, with where it came from. */
+export interface Candidate {
+  /** 1-based number the summarizer cites as evidence */
+  n: number
   passage: string
-  /** The whole exchange it came from */
+  /** Jev's category guess */
+  category: string
+  /** Which exchange (chunk) it belongs to, for grouping */
+  exchangeKey: string
   exchange: string
-  /** The exchange before it, as background */
   previous?: string
 }
 
 export interface GeneratedCard {
-  memory_id: string
-  skip: boolean
   statement: string
+  category: CardCategory
   action: CardAction
   entities: Array<{ name: string; type: EntityType }>
   relations: Array<{ subject: string; predicate: RelationPredicate; object: string }>
+  /** Candidate numbers this card rests on */
+  evidence: number[]
 }
 
 export class SummarizerError extends Error {
@@ -67,25 +76,30 @@ export class SummarizerError extends Error {
 
 export const SUMMARIZER_MODEL = 'haiku'
 const CALL_TIMEOUT_MS = 180_000
-const MAX_BATCH = 12
-const MAX_BATCH_CHARS = 60_000
-const MAX_PREVIOUS_CHARS = 2_000
+const MAX_PREVIOUS_CHARS = 1_500
+/** Per call; a session larger than this is split into several calls */
+export const MAX_SESSION_CHARS = 60_000
+/** Cards per call: few, merged, only what a future session needs */
+export function maxCardsFor(candidates: number): number {
+  return Math.max(1, Math.min(5, Math.ceil(candidates / 3)))
+}
 
-const SYSTEM_PROMPT = `You write long-term memory cards for an AI software agent from excerpts of its own past conversations with its user.
+const SYSTEM_PROMPT = `You maintain the long-term memory of an AI software agent. You get passages from ONE of its work sessions that a filter flagged as possibly worth remembering, each shown with the exchange it came from.
 
-For each MEMORY you get the passage that was flagged as worth remembering, the whole exchange it came from, and the exchange before it as background. Read all of it: the card must capture what the passage means in context, not just repeat it.
+Write memory cards ONLY for knowledge the agent will need in a FUTURE session: decisions and their reasons, stable facts about systems, hosts, people and the environment, the user's preferences, recurring patterns and gotchas, lessons that change how to work. Merge passages that say the same thing into one card. Do NOT write cards for: what was done today, progress and status updates, narration of a debugging session, anything that only matters for this session's task. Fewer, better cards. Zero cards is a correct answer when nothing qualifies.
 
-For each memory return:
-- statement: ONE self-contained sentence, at most 35 words, stating the durable knowledge: what was decided, found, preferred or learned, and why if it is given. Use specific names. Write it so it makes sense with no other context. Do not write "the user said" or "the assistant explained"; state the knowledge itself.
+Each card:
+- statement: ONE self-contained sentence, at most 35 words, stating the durable knowledge and why if given. Specific names. It must make sense with no other context. Never "the user said" / "the assistant found": state the knowledge itself.
+- category: fact | decision | preference | pattern | insight | reasoning
 - action: what kind of knowledge it is, from the allowed list.
-- entities: the NAMED, specific things the statement is about: systems, services, hosts, agents, people, repos, files, functions, tools, products, libraries, organizations. A concept only if it has a proper name in this project (e.g. "AMP", "pane readback"). Never generic words like "message", "fallback", "user", "server", "bug", "fix". Usually 1 to 5 entities. Use canonical names; when a name in KNOWN ENTITIES refers to the same thing, use that exact spelling.
-- relations: subject/predicate/object triples between entity names from your own entities list, only when the excerpt states the relation.
-- skip: true if, read in context, the passage holds nothing worth remembering beyond this conversation. Then leave statement empty.
+- entities: the NAMED specific things it is about (systems, services, hosts, agents, people, repos, files, functions, tools, products, libraries, organizations; a concept only if it has a proper name here). Never generic words. Usually 1 to 5. When a name in KNOWN ENTITIES is the same thing, use that exact spelling.
+- relations: subject/predicate/object between your entity names, only when stated.
+- evidence: the numbers of the flagged passages the card rests on.
 
-Never include secrets, passwords, tokens or keys; text shown as [REDACTED] stays redacted.
+Never include secrets, passwords, tokens or keys; [REDACTED] stays redacted.
 
-Reply with ONLY a JSON object, no prose and no code fence, one card per MEMORY using its memory_id:
-{"cards":[{"memory_id":"...","skip":false,"statement":"...","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${RELATION_PREDICATES.join('|')}","object":"..."}]}]}`
+Reply with ONLY a JSON object, no prose and no code fence:
+{"cards":[{"statement":"...","category":"${CARD_CATEGORIES.join('|')}","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${RELATION_PREDICATES.join('|')}","object":"..."}],"evidence":[1,2]}]}`
 
 /** The JSON object in a model reply, tolerating a stray code fence or preamble. */
 export function extractJson(text: string): unknown {
@@ -185,57 +199,68 @@ function clip(text: string, max: number): string {
   return `${text.slice(0, half)}\n[…]\n${text.slice(-half)}`
 }
 
-/** Split jobs into calls that stay under the per-call size limits. */
-export function batchJobs(jobs: CardJob[]): CardJob[][] {
-  const batches: CardJob[][] = []
-  let current: CardJob[] = []
+/**
+ * Split a session's candidates into calls under the size limit, never splitting
+ * one exchange across calls (its passages are judged together).
+ */
+export function batchCandidates<T extends Candidate>(candidates: T[]): T[][] {
+  const batches: T[][] = []
+  let current: T[] = []
   let size = 0
-  for (const job of jobs) {
-    const jobSize = job.exchange.length + Math.min(job.previous?.length || 0, MAX_PREVIOUS_CHARS) + job.passage.length
-    if (current.length > 0 && (current.length >= MAX_BATCH || size + jobSize > MAX_BATCH_CHARS)) {
+  let lastKey = ''
+  for (const c of candidates) {
+    const newExchange = c.exchangeKey !== lastKey
+    const cost = (newExchange ? c.exchange.length + Math.min(c.previous?.length || 0, MAX_PREVIOUS_CHARS) : 0) + c.passage.length
+    if (newExchange && current.length > 0 && size + cost > MAX_SESSION_CHARS) {
       batches.push(current)
       current = []
       size = 0
     }
-    current.push(job)
-    size += jobSize
+    current.push(c)
+    size += cost
+    lastKey = c.exchangeKey
   }
   if (current.length > 0) batches.push(current)
   return batches
 }
 
-export function buildPrompt(jobs: CardJob[], knownEntities: string[]): string {
-  const parts = jobs.map(job => [
-    `### MEMORY ${job.memory_id}`,
-    `CATEGORY: ${job.category}`,
-    job.previous ? `PREVIOUS EXCHANGE (background only):\n${clip(job.previous, MAX_PREVIOUS_CHARS)}` : '',
-    `EXCHANGE:\n${job.exchange || job.passage}`,
-    `FLAGGED PASSAGE:\n>>> ${job.passage}`,
+export function buildSessionPrompt(candidates: Candidate[], knownEntities: string[], maxCards: number): string {
+  const groups: Candidate[][] = []
+  for (const c of candidates) {
+    const last = groups[groups.length - 1]
+    if (last && last[0].exchangeKey === c.exchangeKey) last.push(c)
+    else groups.push([c])
+  }
+  const parts = groups.map((g, i) => [
+    `### EXCHANGE ${i + 1}`,
+    g[0].previous ? `BACKGROUND (the exchange before it):\n${clip(g[0].previous, MAX_PREVIOUS_CHARS)}` : '',
+    `EXCHANGE:\n${g[0].exchange || g.map(c => c.passage).join('\n\n')}`,
+    `FLAGGED PASSAGES:\n${g.map(c => `[${c.n}] (${c.category}) >>> ${c.passage}`).join('\n\n')}`,
   ].filter(Boolean).join('\n\n'))
   const known = knownEntities.length > 0
     ? `KNOWN ENTITIES (use these exact names when they refer to the same thing): ${knownEntities.slice(0, 80).join(', ')}\n\n`
     : ''
-  return `${known}Write one memory card for each of the ${jobs.length} memories below.\n\n${parts.join('\n\n---\n\n')}`
+  return `${known}${candidates.length} flagged passages from one work session follow. Write AT MOST ${maxCards} memory cards (zero is fine).\n\n${parts.join('\n\n---\n\n')}`
 }
 
-/** Keep only well-formed cards for memories that were asked about. */
-export function parseCards(output: unknown, jobs: CardJob[]): GeneratedCard[] {
-  const wanted = new Set(jobs.map(j => j.memory_id))
+/** Keep well-formed cards; coerce off-list values; drop evidence that was never offered. */
+export function parseSessionCards(output: unknown, candidates: Candidate[], maxCards: number): GeneratedCard[] {
   const cards = (output as { cards?: unknown[] })?.cards
   if (!Array.isArray(cards)) return []
+  const valid = new Set(candidates.map(c => c.n))
+  const categories = new Set<string>(CARD_CATEGORIES)
   const actions = new Set<string>(CARD_ACTIONS)
   const types = new Set<string>(ENTITY_TYPES)
   const predicates = new Set<string>(RELATION_PREDICATES)
   const out: GeneratedCard[] = []
   for (const raw of cards as any[]) {
-    if (!raw || !wanted.has(raw.memory_id)) continue
-    wanted.delete(raw.memory_id) // first card per memory wins
-    const statement = String(raw.statement || '').trim()
-    const skip = Boolean(raw.skip) || !statement
+    const statement = String(raw?.statement || '').trim()
+    if (!statement) continue
+    const evidence = (Array.isArray(raw.evidence) ? raw.evidence : []).map(Number).filter((n: number) => valid.has(n))
+    if (evidence.length === 0) continue // a card must rest on something that was flagged
     out.push({
-      memory_id: raw.memory_id,
-      skip,
       statement,
+      category: categories.has(raw.category) ? raw.category : 'insight',
       action: actions.has(raw.action) ? raw.action : 'other',
       entities: (Array.isArray(raw.entities) ? raw.entities : [])
         .filter((e: any) => e && typeof e.name === 'string' && e.name.trim())
@@ -243,7 +268,9 @@ export function parseCards(output: unknown, jobs: CardJob[]): GeneratedCard[] {
       relations: (Array.isArray(raw.relations) ? raw.relations : [])
         .filter((r: any) => r && r.subject && r.object && predicates.has(r.predicate))
         .map((r: any) => ({ subject: String(r.subject).trim(), predicate: r.predicate, object: String(r.object).trim() })),
+      evidence: [...new Set<number>(evidence)],
     })
+    if (out.length >= maxCards) break
   }
   return out
 }
@@ -341,7 +368,7 @@ async function runViaTmux(claude: string, args: string[], prompt: string): Promi
   }
 }
 
-export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): Promise<GeneratedCard[]> {
+export async function summarizeSession(candidates: Candidate[], knownEntities: string[]): Promise<GeneratedCard[]> {
   const claude = resolveClaudeBinary()
   if (!claude) throw new SummarizerError('claude CLI not found on this host (set CLAUDE_BIN to its path)', false)
 
@@ -359,7 +386,8 @@ export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): 
     '--output-format', 'json',
     '--system-prompt', SYSTEM_PROMPT,
   ]
-  const prompt = buildPrompt(jobs, knownEntities)
+  const maxCards = maxCardsFor(candidates.length)
+  const prompt = buildSessionPrompt(candidates, knownEntities, maxCards)
 
   return withSlot(async () => {
     let raw = viaTmux ? await runViaTmux(claude, args, prompt) : await runDirect(claude, args, prompt)
@@ -374,7 +402,7 @@ export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): 
       const detail = String(parsed?.result || raw.stderr || raw.stdout || `exit ${raw.code}`).slice(0, 300)
       throw new SummarizerError(`summarizer failed: ${detail}`, LIMIT_PATTERN.test(detail))
     }
-    return parseCards(extractJson(String(parsed.result ?? '')), jobs)
+    return parseSessionCards(extractJson(String(parsed.result ?? '')), candidates, maxCards)
   })
 }
 

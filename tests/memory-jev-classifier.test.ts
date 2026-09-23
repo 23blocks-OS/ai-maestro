@@ -135,6 +135,18 @@ describe('JevClassifier', () => {
     expect(c.accepts({ ...r, importance: 1 })).toBe(false)
   })
 
+  it('retries a transient 403 instead of aborting the run', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 403, text: async () => '' })
+      .mockResolvedValueOnce(answer(0.9, 'fact', 3))
+    vi.stubGlobal('fetch', fetchMock)
+    const p = new JevClassifier(settings).classify('state')
+    await vi.runAllTimersAsync()
+    await expect(p).resolves.toMatchObject({ category: 'fact' })
+    vi.useRealTimers()
+  })
+
   it('treats a rejected key as fatal', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, text: async () => '' })))
     const err = await new JevClassifier(settings).classify('state').catch(e => e)

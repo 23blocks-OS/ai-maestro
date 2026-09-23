@@ -384,6 +384,12 @@ describe('ai-maestro-hook · memory recall', () => {
     expect(notice).not.toContain('long verbatim passage')
   })
 
+  it('shows a memory\'s weight when it came up in more than one session', () => {
+    const notice = hook.buildMemoryNotice([{ ...mem('a'), statement: 'Deploy via update-aimaestro.sh.', sessions: 4 }, { ...mem('b'), sessions: 1 }], { primer: false })
+    expect(notice).toContain('- [decision · seen in 4 sessions · 2026-09-22] Deploy via update-aimaestro.sh.')
+    expect(notice).toContain('- [decision · 2026-09-22] memory b')
+  })
+
   it('uses the standing-decisions title for the session-start primer', () => {
     expect(hook.buildMemoryNotice([mem('a', 'preference')], { primer: true }))
       .toContain('## Memory: your standing decisions and preferences')
@@ -402,5 +408,44 @@ describe('ai-maestro-hook · memory recall', () => {
 
   it('respects the limit', () => {
     expect(hook.selectFreshMemories([mem('a'), mem('b'), mem('c')], [], 2)).toHaveLength(2)
+  })
+})
+
+// The hook resolves its agent from the local registry file. GET /api/agents
+// took 2.1-2.6 s under load against a 1.5 s budget, so every inbox check and
+// memory recall timed out (2026-09-23: zero memories injected fleet-wide).
+describe('ai-maestro-hook · readLocalRegistry', () => {
+  const fs = require('fs') as typeof import('fs')
+  const os = require('os') as typeof import('os')
+  const path = require('path') as typeof import('path')
+
+  it('maps registry agents to what resolveAgent needs, skipping deleted ones', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-reg-'))
+    const prevHome = process.env.HOME
+    try {
+      fs.mkdirSync(path.join(home, '.aimaestro', 'agents'), { recursive: true })
+      fs.writeFileSync(path.join(home, '.aimaestro', 'agents', 'registry.json'), JSON.stringify([
+        { id: 'a1', name: 'alpha', alias: 'al', workingDirectory: '/w/alpha', sessions: [{ workingDirectory: '/w/alpha-s' }] },
+        { id: 'a2', name: 'gone', status: 'deleted', workingDirectory: '/w/gone' },
+      ]))
+      process.env.HOME = home
+      const agents = hook.readLocalRegistry()
+      expect(agents).toEqual([{ id: 'a1', name: 'alpha', alias: 'al', workingDirectory: '/w/alpha', session: { workingDirectory: '/w/alpha-s' } }])
+    } finally {
+      process.env.HOME = prevHome
+      fs.rmSync(home, { recursive: true, force: true })
+    }
+  })
+
+  it('returns null when there is no registry (cloud containers fall back to HTTP)', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-reg-'))
+    const prevHome = process.env.HOME
+    try {
+      process.env.HOME = home
+      expect(hook.readLocalRegistry()).toBeNull()
+    } finally {
+      process.env.HOME = prevHome
+      fs.rmSync(home, { recursive: true, force: true })
+    }
   })
 })

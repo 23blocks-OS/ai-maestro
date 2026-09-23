@@ -20,48 +20,14 @@ import { AgentDatabase } from '../cozo-db'
 import { escapeForCozo } from '../cozo-utils'
 import { embedTexts } from '../rag/embeddings'
 import { toCozoVector } from '../cozo-schema-memory'
-import { JevClassifier, ClassifierError } from './jev-provider'
-import {
-  summarizeBatch, batchJobs, SummarizerError, SUMMARIZER_MODEL,
-  type CardJob, type GeneratedCard,
-} from './summarizer'
+import { SUMMARIZER_MODEL, type GeneratedCard } from './summarizer'
+import type { JevClassifier } from './jev-provider'
 
 /** A non-null string literal: escapeForCozo('') is `null`, which a String column rejects. */
 const str = (s: string | undefined | null) => (s ? escapeForCozo(s) : "''")
 
-/** Memories turned into cards per agent per run; the rest continue next run. */
-const CARDS_PER_RUN = 60
-/** Minimum P(statement supported by excerpt) */
-const MIN_FAITHFULNESS = 0.6
 /** Entities this close (cosine distance) are asked about as possible duplicates */
 const ENTITY_MERGE_DISTANCE = 0.2
-
-// ---------------------------------------------------------------------------
-// Sources
-// ---------------------------------------------------------------------------
-
-export async function recordMemorySource(agentDb: AgentDatabase, source: {
-  memory_id: string
-  conversation_file: string
-  msg_start: number
-  msg_end: number
-  ts?: number
-  exchange: string
-  previous_exchange?: string
-}): Promise<void> {
-  await agentDb.run(`
-    ?[memory_id, conversation_file, msg_start, msg_end, ts, exchange, previous_exchange] <- [[
-      ${escapeForCozo(source.memory_id)},
-      ${escapeForCozo(source.conversation_file)},
-      ${Math.floor(source.msg_start)},
-      ${Math.floor(source.msg_end)},
-      ${Number.isFinite(source.ts) ? Math.floor(source.ts as number) : 'null'},
-      ${str(source.exchange)},
-      ${escapeForCozo(source.previous_exchange)}
-    ]]
-    :put memory_sources
-  `)
-}
 
 // ---------------------------------------------------------------------------
 // Entity candidates: deterministic names that seed the summarizer's hints
@@ -115,6 +81,8 @@ export class EntityIndex {
     this.rows.set(row.entity_id, row)
     for (const key of [row.name, ...row.aliases]) this.byKey.set(norm(key), row)
   }
+
+  get size(): number { return this.rows.size }
 
   /** The most-mentioned names, offered to the summarizer as canonical spellings. */
   topNames(limit = 40): string[] {
@@ -198,54 +166,16 @@ export class EntityIndex {
 }
 
 // ---------------------------------------------------------------------------
-// The card pass
+// Writing a card's pieces
 // ---------------------------------------------------------------------------
 
-async function pendingJobs(agentDb: AgentDatabase, agentId: string, limit: number): Promise<CardJob[]> {
-  const result = await agentDb.run(`
-    ?[memory_id, category, content, created_at] :=
-      *memories{memory_id, agent_id, category, content, created_at},
-      agent_id = ${escapeForCozo(agentId)},
-      not *memory_cards{memory_id}
-    :order -created_at
-    :limit ${limit}
-  `)
-  if (result.rows.length === 0) return []
-  const ids = (result.rows as unknown[][]).map(r => r[0] as string)
-  const sources = await agentDb.run(`
-    ?[memory_id, exchange, previous_exchange] :=
-      *memory_sources{memory_id, exchange, previous_exchange},
-      memory_id in [${ids.map(id => escapeForCozo(id)).join(', ')}]
-  `)
-  const byId = new Map((sources.rows as unknown[][]).map(r => [r[0] as string, { exchange: r[1] as string, previous: (r[2] as string | null) || undefined }]))
-  return (result.rows as unknown[][]).map(r => {
-    const src = byId.get(r[0] as string)
-    return {
-      memory_id: r[0] as string,
-      category: r[1] as string,
-      passage: r[2] as string,
-      // Memories from before sources were kept: the passage is all the context there is
-      exchange: src?.exchange || (r[2] as string),
-      previous: src?.previous,
-    }
-  })
-}
-
-async function faithfulness(classifier: JevClassifier, statement: string, job: CardJob): Promise<number> {
-  const { answers } = await classifier.ask(
-    `EXCERPT:\n${job.exchange.slice(0, 6000)}\n\nFLAGGED PASSAGE:\n${job.passage.slice(0, 2000)}\n\nSTATEMENT: ${statement}`,
-    { supported: { type: 'noul', instructions: 'Is the STATEMENT fully supported by the EXCERPT, with nothing invented or changed?', criteria: { true: 'Every claim in the statement is stated or clearly implied by the excerpt', false: 'The statement adds, changes or contradicts something' } } }
-  )
-  return Number(answers.supported?.noul ?? 0)
-}
-
-async function saveCard(agentDb: AgentDatabase, memoryId: string, card: { statement: string; action: string; status: string; faithfulness: number }) {
+export async function saveCard(agentDb: AgentDatabase, memoryId: string, card: { statement: string; action: string; status: string; faithfulness: number }) {
   await agentDb.run(`
     ?[memory_id, statement, action, status, model, faithfulness, created_at] <- [[
       ${escapeForCozo(memoryId)},
       ${str(card.statement)},
       ${str(card.action)},
-      ${escapeForCozo(card.status)},
+      ${str(card.status)},
       ${escapeForCozo(SUMMARIZER_MODEL)},
       ${card.faithfulness},
       ${Date.now()}
@@ -254,15 +184,16 @@ async function saveCard(agentDb: AgentDatabase, memoryId: string, card: { statem
   `)
 }
 
-async function linkCardEntities(agentDb: AgentDatabase, entities: EntityIndex, card: GeneratedCard) {
+/** Entities become graph nodes linked to the memory; stated relations become edges. */
+export async function linkCardEntities(agentDb: AgentDatabase, entities: EntityIndex, memoryId: string, card: Pick<GeneratedCard, 'statement' | 'entities' | 'relations'>) {
   const idByName = new Map<string, string>()
   for (const e of card.entities) {
-    const id = await entities.resolve(e.name, e.type, card.statement)
     if (idByName.has(norm(e.name))) continue
+    const id = await entities.resolve(e.name, e.type, card.statement)
     idByName.set(norm(e.name), id)
     await entities.mention(id)
     await agentDb.run(`
-      ?[memory_id, entity_id] <- [[${escapeForCozo(card.memory_id)}, ${escapeForCozo(id)}]]
+      ?[memory_id, entity_id] <- [[${escapeForCozo(memoryId)}, ${escapeForCozo(id)}]]
       :put memory_entities
     `)
   }
@@ -272,83 +203,11 @@ async function linkCardEntities(agentDb: AgentDatabase, entities: EntityIndex, c
     if (!from || !to || from === to) continue
     await agentDb.run(`
       ?[from_entity, predicate, to_entity, memory_id, created_at] <- [[
-        ${escapeForCozo(from)}, ${escapeForCozo(r.predicate)}, ${escapeForCozo(to)}, ${escapeForCozo(card.memory_id)}, ${Date.now()}
+        ${escapeForCozo(from)}, ${escapeForCozo(r.predicate)}, ${escapeForCozo(to)}, ${escapeForCozo(memoryId)}, ${Date.now()}
       ]]
       :put entity_relations
     `)
   }
-}
-
-export interface CardPassResult {
-  cards: number
-  skipped: number
-  rejected: number
-  entities: number
-  deferred: boolean
-}
-
-/**
- * Turn up to CARDS_PER_RUN memories without a card into cards. Never throws:
- * errors are reported, and anything unfinished stays pending for the next run.
- */
-export async function buildCards(
-  agentDb: AgentDatabase,
-  agentId: string,
-  classifier: JevClassifier,
-  knownNames: string[],
-  errors: string[]
-): Promise<CardPassResult> {
-  const result: CardPassResult = { cards: 0, skipped: 0, rejected: 0, entities: 0, deferred: false }
-  const jobs = await pendingJobs(agentDb, agentId, CARDS_PER_RUN)
-  if (jobs.length === 0) return result
-
-  const entities = await EntityIndex.load(agentDb, agentId, classifier)
-  const before = entities.topNames(100_000).length
-
-  for (const batch of batchJobs(jobs)) {
-    const hints = [...new Set([
-      ...knownNames,
-      ...entities.topNames(),
-      ...batch.flatMap(j => extractEntityCandidates(j.exchange)),
-    ])]
-
-    let cards: GeneratedCard[]
-    try {
-      cards = await summarizeBatch(batch, hints)
-    } catch (err) {
-      const e = err as SummarizerError
-      errors.push(`Card summarizer: ${e.message}`)
-      if (e.limited) result.deferred = true
-      return result // leave the rest pending; limits and outages clear by the next run
-    }
-
-    for (const card of cards) {
-      const job = batch.find(j => j.memory_id === card.memory_id)!
-      try {
-        if (card.skip) {
-          await saveCard(agentDb, card.memory_id, { statement: '', action: card.action, status: 'skipped', faithfulness: 0 })
-          result.skipped++
-          continue
-        }
-        const score = await faithfulness(classifier, card.statement, job)
-        if (score < MIN_FAITHFULNESS) {
-          await saveCard(agentDb, card.memory_id, { statement: card.statement, action: card.action, status: 'rejected', faithfulness: score })
-          result.rejected++
-          continue
-        }
-        await linkCardEntities(agentDb, entities, card)
-        await saveCard(agentDb, card.memory_id, { statement: card.statement, action: card.action, status: 'done', faithfulness: score })
-        result.cards++
-      } catch (err) {
-        const e = err as any
-        errors.push(`Card ${card.memory_id}: ${e.message}${e.display ? ` — ${String(e.display).replace(/\x1b\[[0-9;]*m/g, '').trim().slice(0, 300)}` : ''}`)
-        if (err instanceof ClassifierError && err.fatal) return result
-      }
-    }
-  }
-
-  result.entities = entities.topNames(100_000).length - before
-  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -363,11 +222,34 @@ export interface MemoryCardView {
 
 const idList = (ids: string[]) => ids.map(id => escapeForCozo(id)).join(', ')
 
-/** Cards and entities for a set of memories, keyed by memory id. */
-export async function loadCards(agentDb: AgentDatabase, memoryIds: string[]): Promise<Map<string, { card?: MemoryCardView; entities: Array<{ name: string; type: string }> }>> {
-  const out = new Map<string, { card?: MemoryCardView; entities: Array<{ name: string; type: string }> }>()
+export interface EvidenceView {
+  passage: string
+  conversation_file: string
+  ts: number | null
+}
+
+interface CardExtras {
+  card?: MemoryCardView
+  entities: Array<{ name: string; type: string }>
+  /** Passages the memory rests on, newest first (at most 3) */
+  evidence: EvidenceView[]
+}
+
+/** Cards, entities and evidence for a set of memories, keyed by memory id. */
+export async function loadCards(agentDb: AgentDatabase, memoryIds: string[]): Promise<Map<string, CardExtras>> {
+  const out = new Map<string, CardExtras>()
   if (memoryIds.length === 0) return out
-  for (const id of memoryIds) out.set(id, { entities: [] })
+  for (const id of memoryIds) out.set(id, { entities: [], evidence: [] })
+  const ev = await agentDb.run(`
+    ?[memory_id, passage, conversation_file, ts, created_at] :=
+      *memory_evidence{memory_id, passage, conversation_file, ts, created_at},
+      memory_id in [${idList(memoryIds)}]
+    :order -created_at
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  for (const r of ev.rows as unknown[][]) {
+    const bucket = out.get(r[0] as string)!
+    if (bucket.evidence.length < 3) bucket.evidence.push({ passage: r[1] as string, conversation_file: r[2] as string, ts: (r[3] as number | null) ?? null })
+  }
   const cards = await agentDb.run(`
     ?[memory_id, statement, action, status] :=
       *memory_cards{memory_id, statement, action, status},
@@ -389,9 +271,9 @@ export async function loadCards(agentDb: AgentDatabase, memoryIds: string[]): Pr
 }
 
 /** Attach card + entities to memory rows (anything with a memory_id). */
-export async function withCards<T extends { memory_id: string }>(agentDb: AgentDatabase, memories: T[]): Promise<Array<T & { card?: MemoryCardView; entities: Array<{ name: string; type: string }> }>> {
+export async function withCards<T extends { memory_id: string }>(agentDb: AgentDatabase, memories: T[]): Promise<Array<T & CardExtras>> {
   const cards = await loadCards(agentDb, memories.map(m => m.memory_id))
-  return memories.map(m => ({ ...m, ...(cards.get(m.memory_id) || { entities: [] }) }))
+  return memories.map(m => ({ ...m, ...(cards.get(m.memory_id) || { entities: [], evidence: [] }) }))
 }
 
 /**

@@ -227,13 +227,15 @@ export async function getStats(
 export async function countMemories(
   agentDb: AgentDatabase,
   agentId: string,
-  category?: MemoryCategory | null
+  category?: MemoryCategory | null,
+  includeFaded = false
 ): Promise<number> {
   const result = await agentDb.run(`
     ?[count(memory_id)] :=
-      *memories{memory_id, agent_id, category},
+      *memories{memory_id, agent_id, category, tier},
       agent_id = ${escapeForCozo(agentId)}${category ? `,
-      category = ${escapeForCozo(category)}` : ''}
+      category = ${escapeForCozo(category)}` : ''}${includeFaded ? '' : `,
+      tier != 'faded'`}
   `)
   return (result.rows[0]?.[0] as number) || 0
 }
@@ -245,7 +247,7 @@ export async function getRecentMemories(
   agentDb: AgentDatabase,
   agentId: string,
   limit: number = 20,
-  options: { offset?: number; category?: MemoryCategory | null } = {}
+  options: { offset?: number; category?: MemoryCategory | null; includeFaded?: boolean } = {}
 ): Promise<Array<{
   memory_id: string
   category: MemoryCategory
@@ -259,7 +261,8 @@ export async function getRecentMemories(
     ?[memory_id, category, tier, content, confidence, created_at, reinforcement_count] :=
       *memories{memory_id, agent_id, category, tier, content, confidence, created_at, reinforcement_count},
       agent_id = ${escapeForCozo(agentId)}${options.category ? `,
-      category = ${escapeForCozo(options.category)}` : ''}
+      category = ${escapeForCozo(options.category)}` : ''}${options.includeFaded ? '' : `,
+      tier != 'faded'`}
 
     :order -created_at
     :limit ${limit}

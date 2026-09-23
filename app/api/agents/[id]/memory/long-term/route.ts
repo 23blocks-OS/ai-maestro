@@ -40,6 +40,7 @@ export async function GET(
     memoryId: searchParams.get('id'),
     maxTokens: parseInt(searchParams.get('maxTokens') || '2000'),
     offset: parseInt(searchParams.get('offset') || '0'),
+    includeFaded: searchParams.get('includeFaded') === 'true',
   })
 
   return toResponse(result)

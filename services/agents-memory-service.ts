@@ -513,7 +513,32 @@ export async function getConsolidationStatus(agentId: string): Promise<ServiceRe
   }
 }
 
+/**
+ * Agents consolidating right now. The schedule (idle transition or sweep), the
+ * in-memory nightly timer and the Consolidate button can all fire for the same
+ * agent; two concurrent runs would classify the same messages twice.
+ */
+const consolidating = new Set<string>()
+
 export async function triggerConsolidation(
+  agentId: string,
+  options: { dryRun?: boolean; provider?: string; maxConversations?: number }
+): Promise<ServiceResult<any>> {
+  if (consolidating.has(agentId)) {
+    return {
+      data: { success: true, status: 'already_running', agent_id: agentId, message: 'Consolidation is already running for this agent' },
+      status: 200
+    }
+  }
+  consolidating.add(agentId)
+  try {
+    return await runTriggeredConsolidation(agentId, options)
+  } finally {
+    consolidating.delete(agentId)
+  }
+}
+
+async function runTriggeredConsolidation(
   agentId: string,
   options: { dryRun?: boolean; provider?: string; maxConversations?: number }
 ): Promise<ServiceResult<any>> {
@@ -542,7 +567,7 @@ export async function triggerConsolidation(
       && result.status !== 'failed'
       && result.memories_created === 0
       && result.memories_linked === 0
-      && !result.cards_created
+      && !result.memories_reinforced
     return {
       data: {
         success: result.status !== 'failed',
@@ -619,6 +644,20 @@ export interface RecalledMemory {
   content: string
   created_at: number | null
   distance: number | null
+  /** Distinct sessions this memory came up in: its weight */
+  sessions: number
+  tier: string
+}
+
+/**
+ * Relevance first, weight second: among memories that are about the prompt, the
+ * one seen in more sessions ranks higher. The bonus is capped small (10
+ * sessions ≈ 0.045 of distance): it breaks ties between similar matches but a
+ * barely relevant memory seen often must not outrank a clearly relevant one
+ * (on-topic 0.24-0.30, borderline 0.30-0.32).
+ */
+export function recallScore(distance: number, sessions: number, tier: string): number {
+  return distance - 0.015 * Math.log(Math.max(1, sessions)) - (tier === 'long' ? 0.01 : 0)
 }
 
 /**
@@ -664,27 +703,32 @@ export async function recallMemories(
       let memories: RecalledMemory[]
       if (query) {
         const [vec] = await embedTexts([query.slice(0, 2000)])
-        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit, minConfidence: 0, trackAccess: !transient })
+        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit: limit * 3, minConfidence: 0, trackAccess: !transient })
         const createdAt = await memoryCreatedAt(agentDb, hits.map(h => h.memory_id))
         memories = hits
-          .filter(h => h.similarity <= maxDistance) // the field is a cosine distance
+          .filter(h => h.tier !== 'faded' && h.similarity <= maxDistance) // similarity is a cosine distance
           .map(h => ({
             memory_id: h.memory_id,
             category: h.category,
             content: h.content,
             created_at: createdAt.get(h.memory_id) ?? null,
             distance: h.similarity,
+            sessions: h.reinforcement_count,
+            tier: h.tier,
           }))
+          .sort((a, b) => recallScore(a.distance!, a.sessions, a.tier) - recallScore(b.distance!, b.sessions, b.tier))
+          .slice(0, limit)
         // A prompt that names a known entity ("mini-lola", "pane readback") also
         // recalls that entity's newest memories, even if the wording differs.
         const named = await entitiesMentionedIn(agentDb, agentId, query)
         if (named.length > 0) {
           const byEntity = await agentDb.run(`
-            ?[memory_id, category, content, created_at] :=
+            ?[memory_id, category, content, created_at, reinforcement_count, tier] :=
               *memory_entities{memory_id, entity_id},
               entity_id in [${named.slice(0, 5).map(id => escapeForCozo(id)).join(', ')}],
-              *memories{memory_id, category, content, created_at}
-            :order -created_at
+              *memories{memory_id, category, content, created_at, reinforcement_count, tier},
+              tier != 'faded'
+            :order -reinforcement_count, -created_at
             :limit ${limit}
           `)
           const seen = new Set(memories.map(m => m.memory_id))
@@ -692,15 +736,18 @@ export async function recallMemories(
             if (memories.length >= limit + 2) break
             if (seen.has(r[0] as string)) continue
             seen.add(r[0] as string)
-            memories.push({ memory_id: r[0] as string, category: r[1] as string, content: r[2] as string, created_at: r[3] as number, distance: null })
+            memories.push({ memory_id: r[0] as string, category: r[1] as string, content: r[2] as string, created_at: r[3] as number, distance: null, sessions: r[4] as number, tier: r[5] as string })
           }
         }
       } else {
+        // Session start: the standing decisions, preferences and patterns, the
+        // ones seen in the most sessions first
         const result = await agentDb.run(`
-          ?[memory_id, category, content, created_at, reinforcement_count] :=
-            *memories{memory_id, agent_id, category, content, created_at, reinforcement_count},
+          ?[memory_id, category, content, created_at, reinforcement_count, tier] :=
+            *memories{memory_id, agent_id, category, content, created_at, reinforcement_count, tier},
             agent_id = ${escapeForCozo(agentId)},
-            category in ['decision', 'preference']
+            category in ['decision', 'preference', 'pattern'],
+            tier != 'faded'
           :order -reinforcement_count, -created_at
           :limit ${limit}
         `)
@@ -710,12 +757,13 @@ export async function recallMemories(
           content: row[2] as string,
           created_at: row[3] as number,
           distance: null,
+          sessions: row[4] as number,
+          tier: row[5] as string,
         }))
       }
 
       const withCardRows = await withCards(agentDb, memories)
-      // A card judged unfaithful or empty is not worth injecting; its passage is.
-      const recalled = withCardRows.map(m => ({
+      const recalled = withCardRows.map(({ evidence: _evidence, ...m }) => ({
         ...m,
         statement: m.card?.status === 'done' ? m.card.statement : null,
       }))
@@ -774,12 +822,13 @@ export async function queryLongTermMemories(
     memoryId?: string | null
     maxTokens?: number
     offset?: number
+    includeFaded?: boolean
   }
 ): Promise<ServiceResult<any>> {
   try {
     const {
       query, category, limit = 20, includeRelated = false,
-      minConfidence = 0, tier, view, memoryId, maxTokens = 2000, offset = 0
+      minConfidence = 0, tier, view, memoryId, maxTokens = 2000, offset = 0, includeFaded = false
     } = params
 
     const agent = await agentRegistry.getAgent(agentId)
@@ -858,8 +907,8 @@ export async function queryLongTermMemories(
     // UI can say "100 of 342" instead of silently stopping at the limit.
     if (!query) {
       const [page, total] = await Promise.all([
-        getRecentMemories(agentDb, agentId, limit, { offset, category }),
-        countMemories(agentDb, agentId, category),
+        getRecentMemories(agentDb, agentId, limit, { offset, category, includeFaded }),
+        countMemories(agentDb, agentId, category, includeFaded),
       ])
       const memories = await withCards(agentDb, page)
       return {

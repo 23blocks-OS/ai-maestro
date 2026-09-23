@@ -674,6 +674,22 @@ const routes: Route[] = [
     sendServiceResult(res, await sendChatMessage(params.id, body.message))
   }},
 
+  // Memory maintenance sweep (runs every agent's due index/consolidate tasks)
+  { method: 'GET', pattern: /^\/api\/memory\/sweep$/, paramNames: [], handler: async (_req, res) => {
+    const { listIndexableAgents } = await import('@/lib/memory/sweep')
+    sendJson(res, 200, { eligible: listIndexableAgents().length })
+  }},
+  { method: 'POST', pattern: /^\/api\/memory\/sweep$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    const { sweepAgentMemory } = await import('@/lib/memory/sweep')
+    try {
+      const result = await sweepAgentMemory({ limit: body?.limit, minAgeMs: body?.minAgeMs, only: body?.only })
+      sendJson(res, 200, { success: true, ...result })
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: error instanceof Error ? error.message : 'Unknown error' })
+    }
+  }},
+
   // Memory classifier settings (host-level)
   { method: 'GET', pattern: /^\/api\/settings\/memory$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getMemorySettings())
@@ -722,6 +738,7 @@ const routes: Route[] = [
       memoryId: query.id,
       maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
       offset: query.offset ? parseInt(query.offset) : undefined,
+      includeFaded: query.includeFaded === 'true',
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {

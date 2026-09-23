@@ -250,16 +250,19 @@ export class JevClassifier {
           continue
         }
 
-        if (res.status === 401 || res.status === 403) {
-          throw new ClassifierError(`Classifier rejected the API key (HTTP ${res.status}). Check Settings → Memory.`, true)
+        if (res.status === 401) {
+          throw new ClassifierError('Classifier rejected the API key (HTTP 401). Check Settings → Memory.', true)
         }
-        if (res.status === 404) {
-          throw new ClassifierError(`Classifier endpoint not found: ${this.endpoint()} (HTTP 404). Check the URL in Settings → Memory.`, true)
-        }
-        if (res.status === 429 || res.status >= 500) {
+        // 403 came back transiently on 2026-09-23 (02:10, the key worked before
+        // and after) and, treated as a bad key, aborted the agent's whole run.
+        // Retry it like a rate limit; if it persists it surfaces as a per-chunk error.
+        if (res.status === 403 || res.status === 429 || res.status >= 500) {
           lastError = `HTTP ${res.status}`
           await sleep(1000 * 2 ** attempt)
           continue
+        }
+        if (res.status === 404) {
+          throw new ClassifierError(`Classifier endpoint not found: ${this.endpoint()} (HTTP 404). Check the URL in Settings → Memory.`, true)
         }
         if (!res.ok) {
           const body = await res.text().catch(() => '')

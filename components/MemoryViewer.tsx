@@ -66,6 +66,8 @@ interface MemoryViewerProps {
   isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
+const PAGE_SIZE = 100
+
 const CATEGORY_COLORS: Record<string, string> = {
   fact: '#3b82f6',      // blue
   decision: '#8b5cf6',  // purple
@@ -94,6 +96,10 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
 export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }: MemoryViewerProps) {
   const [view, setView] = useState<'list' | 'graph'>('list')
   const [memories, setMemories] = useState<Memory[]>([])
+  const [memoriesTotal, setMemoriesTotal] = useState<number | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const memoriesRef = useRef<Memory[]>([])
+  memoriesRef.current = memories
   const [stats, setStats] = useState<MemoryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -121,11 +127,14 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
   // Graph state
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[], links: GraphLink[] } | null>(null)
 
-  // Fetch memories
-  const fetchMemories = useCallback(async () => {
-    setLoading(true)
+  // Fetch memories. Browsing pages 100 at a time ("Load more"); a search
+  // returns the top 100 matches by relevance.
+  const fetchMemories = useCallback(async (append = false) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
-      let url = `${hostUrl}/api/agents/${agentId}/memory/long-term?limit=100`
+      const offset = append ? memoriesRef.current.length : 0
+      let url = `${hostUrl}/api/agents/${agentId}/memory/long-term?limit=${PAGE_SIZE}&offset=${offset}`
       if (searchQuery) {
         url += `&query=${encodeURIComponent(searchQuery)}`
       }
@@ -136,12 +145,15 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
       const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
-        setMemories(data.memories || [])
+        const page: Memory[] = data.memories || []
+        setMemories(prev => (append ? [...prev, ...page] : page))
+        setMemoriesTotal(typeof data.total === 'number' ? data.total : null)
       }
     } catch (error) {
       console.error('Failed to fetch memories:', error)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }, [agentId, hostUrl, searchQuery, categoryFilter])
 
@@ -492,6 +504,9 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         <MemoryList
           memories={memories}
           loading={loading}
+          total={memoriesTotal}
+          loadingMore={loadingMore}
+          onLoadMore={() => fetchMemories(true)}
           onEdit={startEdit}
           onDelete={deleteMemory}
         />
@@ -587,11 +602,18 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
 function MemoryList({
   memories,
   loading,
+  total,
+  loadingMore,
+  onLoadMore,
   onEdit,
   onDelete
 }: {
   memories: Memory[]
   loading: boolean
+  /** Total when browsing; null for search results (top matches only) */
+  total: number | null
+  loadingMore: boolean
+  onLoadMore: () => void
   onEdit: (memory: Memory) => void
   onDelete: (memoryId: string) => void
 }) {
@@ -718,6 +740,20 @@ function MemoryList({
           </div>
         </div>
       ))}
+      {total !== null && (
+        <div className="flex items-center justify-between pt-1 text-xs text-gray-500">
+          <span>Showing {memories.length} of {total}</span>
+          {memories.length < total && (
+            <button
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-gray-600 disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

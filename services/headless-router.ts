@@ -717,6 +717,7 @@ const routes: Route[] = [
       view: query.view,
       memoryId: query.id,
       maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      offset: query.offset ? parseInt(query.offset) : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {

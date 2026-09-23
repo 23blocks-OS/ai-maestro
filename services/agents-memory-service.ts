@@ -55,14 +55,9 @@ import { consolidateMemories, promoteMemories, pruneShortTermMemory } from '@/li
 import type { PreparedConversation, ConversationMessage } from '@/lib/memory/types'
 import {
   searchMemories,
-  getMemoriesByType,
-  getFacts,
-  getPreferences,
-  getPatterns,
-  getDecisions,
-  getInsights,
   getStats,
   getRecentMemories,
+  countMemories,
   getMostReinforcedMemories,
   buildMemoryContext,
   getMemoryById
@@ -729,12 +724,13 @@ export async function queryLongTermMemories(
     view?: string | null
     memoryId?: string | null
     maxTokens?: number
+    offset?: number
   }
 ): Promise<ServiceResult<any>> {
   try {
     const {
       query, category, limit = 20, includeRelated = false,
-      minConfidence = 0, tier, view, memoryId, maxTokens = 2000
+      minConfidence = 0, tier, view, memoryId, maxTokens = 2000, offset = 0
     } = params
 
     const agent = await agentRegistry.getAgent(agentId)
@@ -804,32 +800,28 @@ export async function queryLongTermMemories(
       return { data: { success: true, agent_id: agentId, memory }, status: 200 }
     }
 
-    if (category && !query) {
-      let memories
-      switch (category) {
-        case 'fact': memories = await getFacts(agentDb, agentId, limit); break
-        case 'preference': memories = await getPreferences(agentDb, agentId, limit); break
-        case 'pattern': memories = await getPatterns(agentDb, agentId, limit); break
-        case 'decision': memories = await getDecisions(agentDb, agentId, limit); break
-        case 'insight': memories = await getInsights(agentDb, agentId, limit); break
-        default: memories = await getMemoriesByType(agentDb, agentId, category, { limit, includeRelated })
+    // Browsing (no search query): newest first, pageable, with the total so the
+    // UI can say "100 of 342" instead of silently stopping at the limit.
+    if (!query) {
+      const [memories, total] = await Promise.all([
+        getRecentMemories(agentDb, agentId, limit, { offset, category }),
+        countMemories(agentDb, agentId, category),
+      ])
+      return {
+        data: { success: true, agent_id: agentId, ...(category ? { category } : {}), memories, count: memories.length, total, offset },
+        status: 200
       }
-      return { data: { success: true, agent_id: agentId, category, memories, count: memories.length }, status: 200 }
     }
 
-    if (query) {
-      const memories = await searchMemories(agentDb, agentId, query, {
-        limit,
-        includeRelated,
-        categories: category ? [category] : undefined,
-        minConfidence,
-        tier: tier || undefined
-      })
-      return { data: { success: true, agent_id: agentId, query, memories, count: memories.length }, status: 200 }
-    }
-
-    const memories = await getRecentMemories(agentDb, agentId, limit)
-    return { data: { success: true, agent_id: agentId, memories, count: memories.length }, status: 200 }
+    // Search: ranked by relevance, top `limit` only (no paging through a ranking)
+    const memories = await searchMemories(agentDb, agentId, query, {
+      limit,
+      includeRelated,
+      categories: category ? [category] : undefined,
+      minConfidence,
+      tier: tier || undefined
+    })
+    return { data: { success: true, agent_id: agentId, query, memories, count: memories.length }, status: 200 }
   } catch (error) {
     console.error('[Memory Service] queryLongTermMemories Error:', error)
     return operationFailed('query long-term memories', (error as Error).message)

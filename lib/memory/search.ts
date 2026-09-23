@@ -223,13 +223,29 @@ export async function getStats(
   }
 }
 
+/** How many memories an agent has, optionally in one category (for "X of Y"). */
+export async function countMemories(
+  agentDb: AgentDatabase,
+  agentId: string,
+  category?: MemoryCategory | null
+): Promise<number> {
+  const result = await agentDb.run(`
+    ?[count(memory_id)] :=
+      *memories{memory_id, agent_id, category},
+      agent_id = ${escapeForCozo(agentId)}${category ? `,
+      category = ${escapeForCozo(category)}` : ''}
+  `)
+  return (result.rows[0]?.[0] as number) || 0
+}
+
 /**
- * Get recent memories (for debugging/exploration)
+ * Recent memories, newest first, pageable with offset
  */
 export async function getRecentMemories(
   agentDb: AgentDatabase,
   agentId: string,
-  limit: number = 20
+  limit: number = 20,
+  options: { offset?: number; category?: MemoryCategory | null } = {}
 ): Promise<Array<{
   memory_id: string
   category: MemoryCategory
@@ -242,10 +258,12 @@ export async function getRecentMemories(
   const result = await agentDb.run(`
     ?[memory_id, category, tier, content, confidence, created_at, reinforcement_count] :=
       *memories{memory_id, agent_id, category, tier, content, confidence, created_at, reinforcement_count},
-      agent_id = ${escapeForCozo(agentId)}
+      agent_id = ${escapeForCozo(agentId)}${options.category ? `,
+      category = ${escapeForCozo(options.category)}` : ''}
 
     :order -created_at
     :limit ${limit}
+    :offset ${Math.max(0, Math.floor(options.offset || 0))}
   `)
 
   return result.rows.map((row: unknown[]) => ({

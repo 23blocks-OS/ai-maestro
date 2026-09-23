@@ -39,6 +39,7 @@ export async function GET(
     view: searchParams.get('view'),
     memoryId: searchParams.get('id'),
     maxTokens: parseInt(searchParams.get('maxTokens') || '2000'),
+    offset: parseInt(searchParams.get('offset') || '0'),
   })
 
   return toResponse(result)

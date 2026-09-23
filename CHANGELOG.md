@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.43.3] - 2026-09-23 — Backlog: F011
+
+Logged F011: each agent has its own browser (vercel-labs/agent-browser, per-agent
+session and profile) with a live view you can watch and take over.
+
 ## [0.43.2] - 2026-09-23 — Backlog: F010
 
 Logged F010: deliver AMP messages through Claude Code's own cross-session inbox

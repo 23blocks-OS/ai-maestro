@@ -21,6 +21,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F001** — [A shared filesystem agents and humans can both reach](./backlog/F001-shared-agent-filesystem.md) — `Todo`
 - **F002** — [AWS Lambda MicroVM as an agent deployment mode](./backlog/F002-microvm-agent-deployment.md) — `Todo`
 - **F003** — [Native iOS selection and paste in the terminal](./backlog/F003-ios-terminal-selection.md) — `Todo`
+- **F004** — [Codex chat support (multi-provider transcript reader)](./backlog/F004-codex-chat-transcript.md) — `In Progress` (Phase 1 shipped)
 
 ## Bugs
 

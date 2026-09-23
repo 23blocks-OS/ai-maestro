@@ -101,6 +101,24 @@ export function extractJson(text: string): unknown {
 
 let resolvedClaude: string | null | undefined
 
+/** "2.1.278 (Claude Code)" → [2, 1, 278] */
+export function parseClaudeVersion(output: string): number[] | null {
+  const m = output.match(/(\d+)\.(\d+)\.(\d+)/)
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null
+}
+
+export function newerVersion(a: number[], b: number[]): boolean {
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
+  return false
+}
+
+/**
+ * The newest `claude` on the host. Hosts can have several: mac-mini had a
+ * stale Homebrew cask (2.0.33) at /usr/local/bin ahead of the current install
+ * (2.1.278) in ~/.local/bin, and the old one rejects --no-session-persistence.
+ * pm2's PATH also often lacks the right one (seen: ~/.local/bin, /usr/local/bin,
+ * /usr/bin), so every known location is checked and the highest version wins.
+ */
 export function resolveClaudeBinary(): string | null {
   if (resolvedClaude !== undefined) return resolvedClaude
   const candidates = [
@@ -112,19 +130,36 @@ export function resolveClaudeBinary(): string | null {
     '/usr/local/bin/claude',
     '/usr/bin/claude',
   ].filter((p): p is string => Boolean(p))
-  for (const candidate of candidates) {
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK)
-      return (resolvedClaude = candidate)
-    } catch { /* next */ }
+
+  // An explicit CLAUDE_BIN wins outright
+  if (process.env.CLAUDE_BIN) {
+    try { fs.accessSync(process.env.CLAUDE_BIN, fs.constants.X_OK); return (resolvedClaude = process.env.CLAUDE_BIN) } catch { /* fall through */ }
   }
-  // Last resort: the login shell's PATH, which is how agents launch it
+
+  // The login shell's claude (how agents launch it) is a candidate too
   try {
     const shell = process.env.SHELL || '/bin/bash'
     const out = execFileSync(shell, ['-lc', 'command -v claude'], { encoding: 'utf8', timeout: 10_000 }).trim().split('\n').pop()
-    if (out && fs.existsSync(out)) return (resolvedClaude = out)
+    if (out) candidates.push(out)
   } catch { /* not found */ }
-  return (resolvedClaude = null)
+
+  let best: { bin: string; version: number[] } | null = null
+  const seen = new Set<string>()
+  for (const candidate of candidates) {
+    let real: string
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK)
+      real = fs.realpathSync(candidate)
+    } catch { continue }
+    if (seen.has(real)) continue
+    seen.add(real)
+    let version: number[] | null = null
+    try { version = parseClaudeVersion(execFileSync(candidate, ['--version'], { encoding: 'utf8', timeout: 15_000 })) } catch { /* unusable */ }
+    if (!version) continue
+    if (!best || newerVersion(version, best.version)) best = { bin: candidate, version }
+  }
+  if (best) console.log(`[MEMORY-CARDS] Using claude ${best.version.join('.')} at ${best.bin}`)
+  return (resolvedClaude = best?.bin ?? null)
 }
 
 // ---------------------------------------------------------------------------

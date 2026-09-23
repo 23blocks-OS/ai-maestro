@@ -97,3 +97,18 @@ describe('extractEntityCandidates', () => {
     expect(c.some(x => x.includes('REDACTED'))).toBe(false)
   })
 })
+
+describe('claude version selection', () => {
+  it('parses Claude Code version output', async () => {
+    const { parseClaudeVersion } = await import('@/lib/memory/summarizer')
+    expect(parseClaudeVersion('2.1.278 (Claude Code)')).toEqual([2, 1, 278])
+    expect(parseClaudeVersion('nope')).toBeNull()
+  })
+
+  it('prefers the newer install (mac-mini: 2.1.278 over a stale 2.0.33 cask)', async () => {
+    const { newerVersion } = await import('@/lib/memory/summarizer')
+    expect(newerVersion([2, 1, 278], [2, 0, 33])).toBe(true)
+    expect(newerVersion([2, 0, 33], [2, 1, 278])).toBe(false)
+    expect(newerVersion([2, 1, 278], [2, 1, 278])).toBe(false)
+  })
+})

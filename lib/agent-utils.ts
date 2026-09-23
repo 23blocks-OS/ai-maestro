@@ -59,11 +59,16 @@ export function getRandomAlias(agentName: string): string {
  *
  * CRITICAL: session.id must be the tmux session name for WebSocket to connect.
  */
+/** Where the agent works: stored on the agent (the source of truth), then its session, then its default */
+export function agentWorkingDirectory(agent: Agent): string {
+  return agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || ''
+}
+
 export function agentToSession(agent: Agent): Session {
   return {
     id: agent.session?.tmuxSessionName || agent.id,
     name: agent.label || agent.name || agent.alias || '',
-    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
+    workingDirectory: agentWorkingDirectory(agent),
     status: 'active' as const,
     createdAt: agent.createdAt,
     lastActivity: agent.lastActive || agent.createdAt,

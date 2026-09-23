@@ -3,6 +3,44 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.42.0] - 2026-09-23 — Long-term memory is a skill: entities, relations and what a change affects
+
+The agent is the product and long-term memory is one of its skills. Not every
+agent needs it; agents that act on systems need the entities involved and how
+they relate, kept current, so they act with the consequences in view.
+
+- **Per-agent skill.** Agent profile → Skills → Long-term memory (default on)
+  and Recall into prompts. Off: no consolidation, no backfill, nothing injected;
+  what was built is kept. The old panel's settings (Ollama, Claude model,
+  retention) were never read and are gone.
+- **History backfill at night.** A run covers about three conversations, so an
+  agent with months of history (IaC: 422 conversations, 6 consolidated) would
+  take months. A run that leaves history behind records it, and between 2 and
+  8 AM the server keeps consolidating agents with a backlog, one at a time,
+  round-robin, newest history first. An agent that makes no progress waits for
+  the next night. Nothing runs in the day.
+- **Relations that change.** Relations are dated by when the conversation said
+  them (not when they were processed, since history is backfilled newest first)
+  and can be said to have ENDED ("moved off mini-lola"). A relation's state is
+  its latest statement; ended ones show as "no longer" and dashed in the graph.
+  Weight = sessions behind it. More verbs chosen for consequences: hosts,
+  deploys_to, stores_data_in, reads_from, writes_to, requires, affects.
+- **Entity recall.** When a prompt names an entity, the agent is told what it
+  relates to, current relations first, strongest first. On IaC, a prompt about
+  redeploying 23blocks-api-authentication now brings: crm, sales, search and
+  onboarding depend on it; it breaks 23blocks-api-platform.
+- **Dates are when it was said.** Recalled memories showed the consolidation
+  date, so a February decision rebuilt today read as today's.
+- **Only injections count as use.** access_count was bumped by consolidation's
+  own searches: 918 of 918 memories looked "recalled". The hook now logs every
+  injection to the agent's `memory-recalls.jsonl` and consolidation folds it
+  in; old counts were reset once.
+- **"long" is now "recurring".** Every consolidated memory is long-term memory;
+  recurrence is strength. Migrated once.
+- **Docs.** `docs/LONG-TERM-MEMORY.md` rewritten from the reasons and concepts
+  to the mechanics; the memory-search skill explains cards, the entity graph
+  and "check relations before changing something"; new website page.
+
 ## [0.41.13] - 2026-09-23 — Memory from months of history, not only surviving transcripts
 
 Consolidation read only Claude Code transcripts, and Claude Code deletes them

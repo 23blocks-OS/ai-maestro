@@ -42,8 +42,10 @@ import { createClaudeProvider } from './claude-provider'
 import { JevClassifier, ClassifierError, chunkConversation, classifyRelations, classifyEntityRelations } from './jev-provider'
 import { redactSecrets, extractSecretValues, hashSecret } from './redact'
 import { EntityIndex, saveCard, linkCardEntities, extractEntityCandidates } from './cards'
+import { recordRelation } from './relations'
 import { summarizeSession, batchCandidates, SummarizerError, type Candidate, type GeneratedCard } from './summarizer'
-import { findSamePoint, reinforceWithSession, addEvidence, updateLifecycle, migrateToCardMemories } from './recurrence'
+import { findSamePoint, reinforceWithSession, addEvidence, updateLifecycle, migrateToCardMemories, migrateTierNames, resetAccessCounts } from './recurrence'
+import { foldRecallLog } from './recall-log'
 import { loadAgents } from '../agent-registry'
 import { getHosts } from '../hosts-config'
 import { loadClassifierSettings, isClassifierConfigured } from './settings'
@@ -418,12 +420,8 @@ async function backfillEntityRelations(
           const from = idByName.get(r.subject)
           const to = idByName.get(r.object)
           if (!from || !to || from === to) continue
-          await agentDb.run(`
-            ?[from_entity, predicate, to_entity, memory_id, created_at] <- [[
-              ${escapeForCozo(from)}, ${escapeForCozo(r.predicate)}, ${escapeForCozo(to)}, ${escapeForCozo(memoryId)}, ${Date.now()}
-            ]]
-            :put entity_relations
-          `)
+          const when = await agentDb.run(`?[max(ts)] := *memory_evidence{memory_id: ${escapeForCozo(memoryId)}, ts}, ts != null`).catch(() => ({ rows: [] as unknown[][] }))
+          await recordRelation(agentDb, { from, predicate: r.predicate, to, memoryId, saidAt: (when.rows[0]?.[0] as number) || Date.now(), holds: true })
           added++
         }
       }
@@ -632,9 +630,11 @@ async function consolidateWithClassifier(
         // Pairs of entities the summarizer left unconnected: let Jev read the verbs from the statement
         const stated = new Set(card.relations.map(r => [r.subject, r.object].sort().join('|')))
         const relations = card.entities.length >= 2
-          ? [...card.relations, ...await classifyEntityRelations(classifier, card.statement, card.entities.map(e => e.name), 0.7, stated, evidence.map(e => e.passage).join('\n\n')).catch(() => [])]
+          ? [...card.relations, ...(await classifyEntityRelations(classifier, card.statement, card.entities.map(e => e.name), 0.7, stated, evidence.map(e => e.passage).join('\n\n')).catch(() => [])).map(r => ({ ...r, holds: true }))]
           : card.relations
-        await linkCardEntities(agentDb, entities, memoryId, { ...card, relations }, knownSecrets)
+        // Dated by the conversation, so a newer statement ("moved off X") wins over an older one
+        const saidAt = Math.max(0, ...evidence.map(e => e.ts || 0)) || conversation.last_message_at || Date.now()
+        await linkCardEntities(agentDb, entities, memoryId, { ...card, relations }, knownSecrets, saidAt)
         await agentDb.run(`?[memory_id, checked_at] <- [[${escapeForCozo(memoryId)}, ${Date.now()}]] :put entity_relation_checked`)
         if (!same) {
           try {
@@ -743,8 +743,16 @@ export async function consolidateMemories(
         // Verbatim-passage memories from before cards: cards become the memory, raw passages fade
         await migrateToCardMemories(agentDb, agentId)
         await pruneWeakSupportsLinks(agentDb)
+        await migrateTierNames(agentDb)
+        await resetAccessCounts(agentDb)
       } catch (err) {
         errors.push(`Card migration: ${(err as Error).message}`)
+      }
+      try {
+        // Injections the hook logged since the last run become access counts
+        await foldRecallLog(agentDb, agentId)
+      } catch (err) {
+        errors.push(`Recall log: ${(err as Error).message}`)
       }
     }
     entities = await EntityIndex.load(agentDb, agentId, choice.classifier)
@@ -959,13 +967,13 @@ export async function promoteMemories(
         await agentDb.run(`
           ?[memory_id, tier, promoted_at] <- [[
             ${escapeForCozo(memoryId)},
-            'long',
+            'recurring',
             ${Date.now()}
           ]]
           :update memories
         `)
         promoted++
-        console.log(`[CONSOLIDATE] Promoted to long-term: ${memoryId}`)
+        console.log(`[CONSOLIDATE] Promoted to recurring: ${memoryId}`)
       } catch (error: any) {
         console.error(`[CONSOLIDATE] Failed to promote ${memoryId}:`, error.message)
       }

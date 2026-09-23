@@ -43,6 +43,9 @@ async function runIndex(agentId: string): Promise<{ ok: boolean; detail: string 
 }
 
 async function runConsolidate(agentId: string): Promise<{ ok: boolean; detail: string }> {
+  // Long-term memory is a per-agent skill: an agent without it builds none
+  const { isMemorySkillEnabled } = await import('@/lib/memory/skill')
+  if (!isMemorySkillEnabled(agentId)) return { ok: true, detail: 'memory skill off' }
   // Consolidation needs the agent's database. Import lazily so an agent whose
   // schedule has no consolidate task never pays for loading it.
   const { agentRegistry } = await import('@/lib/agent')

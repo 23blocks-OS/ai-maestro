@@ -23,6 +23,7 @@ import { toCozoVector } from '../cozo-schema-memory'
 import { SUMMARIZER_MODEL, isGenericEntity, type GeneratedCard } from './summarizer'
 import type { JevClassifier } from './jev-provider'
 import { hashSecret } from './redact'
+import { recordRelation, entityNeighbourhood, relationState } from './relations'
 
 /** A non-null string literal: escapeForCozo('') is `null`, which a String column rejects. */
 const str = (s: string | undefined | null) => (s ? escapeForCozo(s) : "''")
@@ -190,8 +191,10 @@ export async function linkCardEntities(
   agentDb: AgentDatabase,
   entities: EntityIndex,
   memoryId: string,
-  card: Pick<GeneratedCard, 'statement' | 'entities' | 'relations'>,
-  knownSecrets?: Set<string>
+  card: Pick<GeneratedCard, 'statement' | 'entities'> & { relations: Array<{ subject: string; predicate: string; object: string; holds?: boolean }> },
+  knownSecrets?: Set<string>,
+  /** When the conversation said it: relations are dated by what was said, not when it was processed */
+  saidAt: number = Date.now()
 ) {
   const idByName = new Map<string, string>()
   for (const e of card.entities) {
@@ -210,12 +213,7 @@ export async function linkCardEntities(
     const from = idByName.get(norm(r.subject))
     const to = idByName.get(norm(r.object))
     if (!from || !to || from === to) continue
-    await agentDb.run(`
-      ?[from_entity, predicate, to_entity, memory_id, created_at] <- [[
-        ${escapeForCozo(from)}, ${escapeForCozo(r.predicate)}, ${escapeForCozo(to)}, ${escapeForCozo(memoryId)}, ${Date.now()}
-      ]]
-      :put entity_relations
-    `)
+    await recordRelation(agentDb, { from, predicate: r.predicate, to, memoryId, saidAt, holds: r.holds !== false })
   }
 }
 
@@ -285,7 +283,7 @@ export async function withCards<T extends { memory_id: string }>(agentDb: AgentD
   return memories.map(m => ({ ...m, ...(cards.get(m.memory_id) || { entities: [], evidence: [] }) }))
 }
 
-type GraphLinkRow = { source: string; target: string; relationship: string; weight: number }
+type GraphLinkRow = { source: string; target: string; relationship: string; weight: number; ended?: boolean }
 type GraphNodeRow = { id: string; name: string; type: string; mention_count: number; hub: boolean }
 
 /** Co-mention edges shown at most (strongest first); stated relations are always shown. */
@@ -327,6 +325,16 @@ export async function entityGraph(agentDb: AgentDatabase, agentId: string, limit
     ?[from_entity, predicate, to_entity, count(memory_id)] :=
       *entity_relations{from_entity, predicate, to_entity, memory_id}
   `)
+  // A relation holds when its latest statement says so (lib/memory/relations.ts)
+  const said = await agentDb.run(`
+    ?[from_entity, predicate, to_entity, said_at, holds] := *relation_statements{from_entity, predicate, to_entity, said_at, holds}
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  const statementsByRelation = new Map<string, Array<{ said_at: number; holds: boolean }>>()
+  for (const [f, p, t, at, holds] of said.rows as [string, string, string, number, boolean][]) {
+    const k = `${f}|${p}|${t}`
+    if (!statementsByRelation.has(k)) statementsByRelation.set(k, [])
+    statementsByRelation.get(k)!.push({ said_at: at, holds })
+  }
   const co = await agentDb.run(`
     ?[a, b, count(memory_id)] :=
       *memory_entities{memory_id, entity_id: a},
@@ -362,7 +370,8 @@ export async function entityGraph(agentDb: AgentDatabase, agentId: string, limit
   for (const [from, predicate, to, weight] of rels.rows as [string, string, string, number][]) {
     // related_to predates the vocabulary change: it says no more than a co-mention
     if (!ids.has(from) || !ids.has(to) || from === to || predicate === 'related_to') continue
-    links.set(`${from}|${predicate}|${to}`, { source: from, target: to, relationship: predicate, weight })
+    const ended = !relationState(statementsByRelation.get(`${from}|${predicate}|${to}`) || []).holds
+    links.set(`${from}|${predicate}|${to}`, { source: from, target: to, relationship: predicate, weight, ...(ended ? { ended: true } : {}) })
     related.add([from, to].sort().join('|'))
   }
   const coEdges: GraphLinkRow[] = []
@@ -403,16 +412,8 @@ export async function aboutEntity(agentDb: AgentDatabase, agentId: string, name:
   const entity = await findEntity(agentDb, agentId, name)
   if (!entity) return null
   const id = escapeForCozo(entity.entity_id)
-  const relations = await agentDb.run(`
-    ?[direction, predicate, other_name, other_type] :=
-      *entity_relations{from_entity: ${id}, predicate, to_entity: other},
-      *entities{entity_id: other, name: other_name, type: other_type},
-      direction = 'out'
-    ?[direction, predicate, other_name, other_type] :=
-      *entity_relations{from_entity: other, predicate, to_entity: ${id}},
-      *entities{entity_id: other, name: other_name, type: other_type},
-      direction = 'in'
-  `)
+  // Current relations first, strongest first; ended ones marked
+  const relations = await entityNeighbourhood(agentDb, entity.entity_id, 40)
   const memories = await agentDb.run(`
     ?[memory_id, category, content, created_at] :=
       *memory_entities{memory_id, entity_id: ${id}},
@@ -423,7 +424,7 @@ export async function aboutEntity(agentDb: AgentDatabase, agentId: string, name:
   const rows = (memories.rows as unknown[][]).map(r => ({ memory_id: r[0] as string, category: r[1] as string, content: r[2] as string, created_at: r[3] as number }))
   return {
     entity,
-    relations: (relations.rows as unknown[][]).map(r => ({ direction: r[0] as string, predicate: r[1] as string, name: r[2] as string, type: r[3] as string })),
+    relations: relations.map(r => ({ direction: r.direction, predicate: r.predicate, name: r.name, type: r.type, holds: r.holds, weight: r.weight, last_said_at: r.last_said_at })),
     memories: await withCards(agentDb, rows),
   }
 }

@@ -366,6 +366,15 @@ describe('ai-maestro-hook · memory recall', () => {
   const mem = (id: string, category = 'decision', content = `memory ${id}`) =>
     ({ memory_id: id, category, content, created_at: Date.UTC(2026, 8, 22) })
 
+  it('entity notice: each named entity with its relations, null when there is nothing to say', () => {
+    expect(hook.buildEntityNotice([])).toBeNull()
+    expect(hook.buildEntityNotice([{ entity_id: 'e', name: 'x', relations: [] }])).toBeNull()
+    const notice = hook.buildEntityNotice([{ entity_id: 'e', name: 'products.public', type: 'service', relations: ['winepro stores data in products.public (3 sessions)', 'products.public runs on mini-lola (no longer)'] }])
+    expect(notice).toContain('## Memory: what you know about the things this prompt names')
+    expect(notice).toContain('**products.public** (service)')
+    expect(notice).toContain('- products.public runs on mini-lola (no longer)')
+  })
+
   it('returns null when there is nothing to recall', () => {
     expect(hook.buildMemoryNotice([], { primer: false })).toBeNull()
     expect(hook.buildMemoryNotice(undefined, { primer: true })).toBeNull()

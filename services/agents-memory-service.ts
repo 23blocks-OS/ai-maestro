@@ -42,6 +42,7 @@ import { getAgent as getRegistryAgent, getAgentBySession, updateAgentMetrics, in
 import { getSelfHost } from '@/lib/hosts-config'
 import { hybridSearch, semanticSearch, searchByTerm, searchBySymbol } from '@/lib/rag/search'
 import { runIndexDelta } from '@/lib/index-delta'
+import { writeBacklog } from '@/lib/memory/backlog'
 import {
   initializeTrackingSchema,
   upsertAgent,
@@ -65,6 +66,8 @@ import {
 import type { MemoryCategory } from '@/lib/cozo-schema-memory'
 import { getConsolidatedOffsets, searchMemoriesByEmbedding } from '@/lib/cozo-schema-memory'
 import { withCards, entityGraph, aboutEntity, entitiesMentionedIn } from '@/lib/memory/cards'
+import { entityNeighbourhood, describeRelation } from '@/lib/memory/relations'
+import { isGenericEntity } from '@/lib/memory/summarizer'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
@@ -574,6 +577,17 @@ async function runTriggeredConsolidation(
       maxConversations
     })
 
+    if (!dryRun && result.status !== 'failed') {
+      // History left for the night backlog worker. prepareConversations stops at
+      // maxConversations, so a full list means there may be more past it.
+      writeBacklog(agentId, {
+        moreRemaining: Boolean(result.more_remaining) || conversations.length >= maxConversations,
+        at: Date.now(),
+        conversationsProcessed: result.conversations_processed || 0,
+        memoriesCreated: result.memories_created || 0,
+      })
+    }
+
     const nothingNew = conversations.length === 0
       && result.status !== 'failed'
       && result.memories_created === 0
@@ -668,7 +682,7 @@ export interface RecalledMemory {
  * (on-topic 0.24-0.30, borderline 0.30-0.32).
  */
 export function recallScore(distance: number, sessions: number, tier: string): number {
-  return distance - 0.015 * Math.log(Math.max(1, sessions)) - (tier === 'long' ? 0.01 : 0)
+  return distance - 0.015 * Math.log(Math.max(1, sessions)) - (tier === 'recurring' ? 0.01 : 0)
 }
 
 /**
@@ -678,6 +692,33 @@ export function recallScore(distance: number, sessions: number, tier: string): n
  * Without one (session start): the agent's standing decisions and preferences,
  * most reinforced first.
  */
+/** Entities named in a prompt that get their relations recalled */
+const RECALL_MAX_ENTITIES = 3
+const RECALL_RELATIONS_PER_ENTITY = 6
+
+interface RecalledEntity {
+  entity_id: string
+  name: string
+  type: string
+  /** One readable line per relation, current ones first ("winepro stores data in products.public (3 sessions)") */
+  relations: string[]
+}
+
+async function recallEntities(agentDb: AgentDatabase, entityIds: string[]): Promise<RecalledEntity[]> {
+  if (entityIds.length === 0) return []
+  const rows = await agentDb.run(`
+    ?[entity_id, name, type] := *entities{entity_id, name, type}, entity_id in [${entityIds.map(id => escapeForCozo(id)).join(', ')}]
+  `)
+  const out: RecalledEntity[] = []
+  for (const [id, name, type] of rows.rows as [string, string, string][]) {
+    if (isGenericEntity(name, type)) continue
+    const rels = await entityNeighbourhood(agentDb, id, RECALL_RELATIONS_PER_ENTITY)
+    if (rels.length === 0) continue // a name with no relations adds nothing the memories do not say
+    out.push({ entity_id: id, name, type, relations: rels.map(r => describeRelation(name, r)) })
+  }
+  return out
+}
+
 export async function recallMemories(
   agentId: string,
   params: { query?: string | null; limit?: number; maxDistance?: number }
@@ -686,6 +727,12 @@ export async function recallMemories(
     const limit = Math.min(Math.max(params.limit || 5, 1), 20)
     const maxDistance = params.maxDistance ?? RECALL_MAX_DISTANCE
     const query = params.query?.trim()
+
+    // Long-term memory is a per-agent skill; an agent without it is told nothing
+    const { readMemorySkill } = await import('@/lib/memory/skill')
+    if (!readMemorySkill(agentId).recall) {
+      return { data: { success: true, agent_id: agentId, query: query || null, memories: [], entities: [], count: 0, disabled: true }, status: 200 }
+    }
 
     // Recall runs on every user prompt of every agent. Going through
     // agentRegistry.getAgent() would load the agent into the 10-slot LRU and
@@ -712,9 +759,10 @@ export async function recallMemories(
 
     try {
       let memories: RecalledMemory[]
+      let entities: RecalledEntity[] = []
       if (query) {
         const [vec] = await embedTexts([query.slice(0, 2000)])
-        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit: limit * 3, minConfidence: 0, trackAccess: !transient })
+        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit: limit * 3, minConfidence: 0 })
         const createdAt = await memoryCreatedAt(agentDb, hits.map(h => h.memory_id))
         memories = hits
           .filter(h => h.tier !== 'faded' && h.similarity <= maxDistance) // similarity is a cosine distance
@@ -732,6 +780,9 @@ export async function recallMemories(
         // A prompt that names a known entity ("mini-lola", "pane readback") also
         // recalls that entity's newest memories, even if the wording differs.
         const named = await entitiesMentionedIn(agentDb, agentId, query)
+        // What the agent knows about each named entity: what it relates to, what
+        // depends on it, what ended. This is the recall an agent acts on.
+        entities = await recallEntities(agentDb, named.slice(0, RECALL_MAX_ENTITIES))
         if (named.length > 0) {
           const byEntity = await agentDb.run(`
             ?[memory_id, category, content, created_at, reinforcement_count, tier] :=
@@ -774,11 +825,14 @@ export async function recallMemories(
       }
 
       const withCardRows = await withCards(agentDb, memories)
-      const recalled = withCardRows.map(({ evidence: _evidence, ...m }) => ({
+      const recalled = withCardRows.map(({ evidence, ...m }) => ({
         ...m,
         statement: m.card?.status === 'done' ? m.card.statement : null,
+        // When it was last said, not when it was consolidated: history is
+        // backfilled, so a February decision is written today
+        said_at: Math.max(0, ...evidence.map(e => e.ts || 0)) || null,
       }))
-      return { data: { success: true, agent_id: agentId, query: query || null, memories: recalled, count: recalled.length }, status: 200 }
+      return { data: { success: true, agent_id: agentId, query: query || null, memories: recalled, entities, count: recalled.length }, status: 200 }
     } finally {
       if (transient) await transient.close()
     }
@@ -828,7 +882,7 @@ export async function queryLongTermMemories(
     limit?: number
     includeRelated?: boolean
     minConfidence?: number
-    tier?: 'warm' | 'long' | null
+    tier?: 'warm' | 'recurring' | null
     view?: string | null
     memoryId?: string | null
     maxTokens?: number
@@ -1313,4 +1367,30 @@ export function updateMetrics(
     console.error('Failed to update agent metrics:', error)
     return invalidRequest((error as Error).message)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Night backlog (history not consolidated yet)
+// ---------------------------------------------------------------------------
+
+/**
+ * Start working the fleet's history backlog in the background, if it is night
+ * and nothing is running already. See lib/memory/backlog.ts.
+ */
+export async function startMemoryBacklog(): Promise<ServiceResult<any>> {
+  const { runBacklogPass, agentsWithBacklog, inNightWindow } = await import('@/lib/memory/backlog')
+  const pending = agentsWithBacklog().length
+  if (!inNightWindow()) {
+    return { data: { success: true, started: false, reason: 'outside the night window (2-8 AM)', pending }, status: 200 }
+  }
+  if (pending === 0) {
+    return { data: { success: true, started: false, reason: 'no backlog', pending }, status: 200 }
+  }
+  runBacklogPass(async (agentId) => {
+    const r = await triggerConsolidation(agentId, {})
+    return (r.data as any) || null
+  })
+    .then(r => { if (r.runs) console.log(`[Memory Backlog] pass ended (${r.stoppedBecause}): ${r.runs} runs over ${r.agents} agents`) })
+    .catch(err => console.error('[Memory Backlog] pass failed:', err))
+  return { data: { success: true, started: true, pending }, status: 202 }
 }

@@ -5,6 +5,7 @@
  * Routes are thin wrappers that call these functions.
  */
 
+import { readBacklog } from '@/lib/memory/backlog'
 import {
   getAgentSkills,
   addMarketplaceSkills,
@@ -187,9 +188,9 @@ export async function getSkillSettings(agentId: string): Promise<ServiceResult<R
   try {
     const content = await fs.readFile(settingsPath, 'utf-8')
     const settings = JSON.parse(content)
-    return { data: { success: true, settings }, status: 200 }
+    return { data: { success: true, settings, memory_backlog: readBacklog(agentId) }, status: 200 }
   } catch {
-    return { data: { success: true, settings: null }, status: 200 }
+    return { data: { success: true, settings: null, memory_backlog: readBacklog(agentId) }, status: 200 }
   }
 }
 

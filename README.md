@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.41.13-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.42.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -132,7 +132,9 @@ Connect your AI agents to [Slack](https://github.com/23blocks-OS/aimaestro-gatew
 
 *Every morning, my agents woke up with amnesia.*
 
-Three layers of intelligence that grow over time: **Memory** (agents remember past conversations and decisions), **Code Graph** (interactive visualization of your entire codebase with delta indexing), and **Documentation** (auto-generated, searchable docs from your code). Agents get smarter the longer they work with you.
+**Long-term memory** is a skill you switch on per agent. Every night each agent's conversations become memory: short statements of what it learned, each backed by the passages it came from, and an **entity graph** of the things it works with and how they relate (`runs on`, `depends on`, `stores data in`, `deploys to`), kept current, with ended relations marked. Claude Code deletes transcripts after 30 days; AI Maestro rebuilds that history from the agent's own message index, so months of work become memory instead of disappearing. When a prompt names something, the agent is told what it relates to before it acts, so it can see what a change affects. Knowledge that comes up in more sessions weighs more; secrets are redacted and never stored. [How it works →](docs/LONG-TERM-MEMORY.md)
+
+Alongside it: **Code Graph** (interactive visualization of your entire codebase with delta indexing) and **Documentation** (auto-generated, searchable docs from your code). Agents get smarter the longer they work with you.
 
 ### Work Coordination
 

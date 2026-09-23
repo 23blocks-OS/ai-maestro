@@ -66,10 +66,11 @@ This ensures that even with 100+ agents, they don't all try to run at the same t
 | Idle          | 30 minutes   |
 | Disconnected  | 60 minutes   |
 
-Long-term memory consolidation does **not** follow these intervals. It is due
-once a day per agent (after 2 AM, from the agent's own schedule), and runs when
-the server's 15-minute sweep or the agent's next idle transition reaches it, or
-on demand from the Memory tab. See [LONG-TERM-MEMORY.md](./LONG-TERM-MEMORY.md#current-implementation-v0410).
+Long-term memory consolidation does **not** follow these intervals. It is a
+per-agent skill (Agent profile → Skills), due once a night per agent (2 AM,
+from the agent's own schedule; started by the sweep or an idle transition until
+8 AM), followed by a history backfill for agents with older conversations left,
+and on demand from the Memory tab. See [LONG-TERM-MEMORY.md](./LONG-TERM-MEMORY.md).
 
 **API Endpoint:**
 ```

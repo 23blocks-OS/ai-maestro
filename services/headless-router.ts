@@ -690,6 +690,12 @@ const routes: Route[] = [
     }
   }},
 
+  // Night backlog: keep consolidating agents with unprocessed history (2-8 AM)
+  { method: 'POST', pattern: /^\/api\/memory\/backlog$/, paramNames: [], handler: async (_req, res) => {
+    const { startMemoryBacklog } = await import('@/services/agents-memory-service')
+    sendServiceResult(res, await startMemoryBacklog())
+  }},
+
   // Memory classifier settings (host-level)
   { method: 'GET', pattern: /^\/api\/settings\/memory$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getMemorySettings())

@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Long-Term Memory: Agents That Remember Across Sessions | AI Maestro</title>
+    <meta name="description" content="Long-term memory for AI Maestro agents. Claude Code deletes transcripts after 30 days; AI Maestro rebuilds that history from the agent's own message index, turns it into memory cards and an entity graph, and recalls what a change affects before the agent acts.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/memory.html">
+    <meta property="og:title" content="Long-Term Memory - Agents That Remember | AI Maestro">
+    <meta property="og:description" content="Memory that survives Claude Code's 30-day transcript deletion, and knows what a change affects: memory cards plus an entity graph of directed relations, recalled into every prompt.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/images/code_graph_02.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro agent memory">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Long-Term Memory - Agents That Remember | AI Maestro">
+    <meta name="twitter:description" content="Agents forget. Claude Code deletes transcripts after 30 days. AI Maestro gives agents memory that survives, and an entity graph of what a change affects.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/images/code_graph_02.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="AI agent long-term memory, Claude Code memory, Claude Code transcript deletion, cleanupPeriodDays, agent entity graph, memory consolidation, memory recall, episodic semantic memory AI, AI agent knowledge graph, CozoDB, AI Maestro memory skill">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/memory.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#6366f1">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#6366f1">
+    <meta name="msapplication-TileColor" content="#6366f1">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareFeature",
+      "name": "Long-Term Memory",
+      "description": "A per-agent skill that gives AI Maestro agents memory across sessions: memory cards and an entity graph of directed relations, built nightly from the agent's own message index (which survives Claude Code's 30-day transcript deletion) and recalled into the agent's prompts.",
+      "featureList": [
+        "Message index that outlives Claude Code's 30-day transcript deletion",
+        "Nightly consolidation: redact, classify, summarize, check, merge, link",
+        "Memory cards: decisions, facts, preferences, lessons",
+        "Entity graph with directed verb relations that change over time",
+        "History backfill between 2 and 8 AM",
+        "Automatic recall at session start and on each prompt",
+        "Secret redaction with SHA-256 hash learning",
+        "Per-agent switches: Long-term memory and Recall into prompts"
+      ],
+      "isPartOf": {
+        "@type": "SoftwareApplication",
+        "name": "AI Maestro",
+        "url": "https://ai-maestro.23blocks.com"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Long-Term Memory: AI Agents That Remember Across Sessions",
+      "description": "Why AI Maestro agents need long-term memory, the ideas behind it, and how consolidation, the entity graph and recall work.",
+      "author": {
+        "@type": "Person",
+        "name": "Juan Pelaez"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "23blocks"
+      },
+      "datePublished": "2026-09-23",
+      "dateModified": "2026-09-23",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://ai-maestro.23blocks.com/memory.html"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [{
+        "@type": "Question",
+        "name": "Why do AI agents need long-term memory?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A Claude Code agent starts every session with an empty mind, and Claude Code deletes transcripts older than cleanupPeriodDays, 30 days by default. AI Maestro indexes every message into the agent's own database, which survives that deletion, and consolidates it into memory cards and an entity graph the agent can recall."
+        }
+      },{
+        "@type": "Question",
+        "name": "What is the entity graph?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Every memory card names the things it is about: services, hosts, buckets, repositories, people. Those become nodes in the agent's entity graph. Cards state directed verb relations between them, such as depends on, runs on or stores data in. Each relation is dated and says whether it still holds, so the agent can see what a change affects."
+        }
+      },{
+        "@type": "Question",
+        "name": "Does every agent need long-term memory?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It is a per-agent skill, on by default and switchable in the agent's profile under Skills. Agents that answer a question or write a function do fine inside one session; agents that act on infrastructure, deployments, data or customer environments benefit most."
+        }
+      }]
+    }
+    </script>
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Horizontal rule accent */
+        .hr-accent {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+        }
+
+        /* Typing cursor */
+        .typing-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1em;
+            background-color: #00d4ff;
+            margin-left: 4px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        /* Memory page: keep long tokens from forcing horizontal scroll */
+        .break-anywhere {
+            overflow-wrap: anywhere;
+        }
+
+        /* Pipeline flow arrows */
+        .flow-arrow {
+            color: #22d3ee;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+
+    
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-display font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-display font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+
+    <!-- Hero Section -->
+    <header class="py-12 md:py-24 text-center px-4 md:px-8 relative overflow-hidden">
+        <!-- Background Effects -->
+        <div class="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900"></div>
+        <div class="absolute top-0 left-1/4 w-72 md:w-96 h-72 md:h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-1/4 w-72 md:w-96 h-72 md:h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+        <div class="max-w-[1200px] mx-auto relative">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white text-sm font-display font-bold rounded-full mb-6">
+                AGENT SKILL
+            </div>
+            <p class="text-[1.5rem] md:text-[2.5rem] font-semibold text-slate-500 mb-4 min-h-[2.25rem] md:min-h-[3.75rem]" id="announcement"><span class="typing-cursor"></span></p>
+            <h1 class="font-display text-4xl md:text-6xl font-extrabold tracking-tight leading-tight mb-6 max-w-[900px] mx-auto">Long-Term <span class="gradient-text">Memory</span></h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[760px] mx-auto mb-4">Agents forget. Every Claude Code session starts with an empty mind, and Claude Code deletes transcripts after 30 days.</p>
+            <p class="text-lg md:text-xl text-slate-200 max-w-[760px] mx-auto mb-8">AI Maestro gives an agent memory that survives: the decisions it made and why, the facts about the systems it works on, and the things it works with and how they relate. Before it changes something, it knows what else that change touches.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
+                <a href="#why" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 text-lg">Why it matters</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/LONG-TERM-MEMORY.md" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-cyan-400 border-2 border-cyan-500 hover:bg-cyan-500 hover:text-slate-900 text-lg" target="_blank">Read the Docs</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Why Section -->
+    <section id="why" class="py-16 md:py-24 bg-slate-950 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">Agents forget, and Claude Code deletes the record</h2>
+                <p class="text-lg text-slate-400 max-w-[760px] mx-auto">What an agent learned yesterday (which host runs which service, why a migration was done a certain way, what broke the last time a bucket was moved) is gone unless someone wrote it into a file.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-bold mb-4 text-white">The 30-day deletion</h3>
+                    <p class="text-slate-400 mb-6">Claude Code deletes transcripts older than <code class="bg-slate-800 px-1.5 py-0.5 rounded text-cyan-400 text-sm">cleanupPeriodDays</code>, <strong class="text-white">30 days by default</strong>. After that, the only record of months of an agent's work is whatever AI Maestro kept.</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 text-center">
+                            <div class="font-display text-4xl md:text-5xl font-extrabold text-white">422</div>
+                            <p class="text-slate-400 text-sm mt-2">conversations over ten months</p>
+                        </div>
+                        <div class="bg-slate-950 rounded-xl p-4 border border-red-500/40 text-center">
+                            <div class="font-display text-4xl md:text-5xl font-extrabold text-red-400">1</div>
+                            <p class="text-slate-400 text-sm mt-2">transcript still on disk</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-500 text-sm mt-4">One of our own agents, IaC (infrastructure).</p>
+                    <p class="text-slate-300 mt-4">AI Maestro indexes every message into the agent's own database. That index survives the deletion, and consolidation rebuilds a conversation from it when the transcript is gone.</p>
+                </div>
+
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-bold mb-4 text-white">Some agents need more than one session</h3>
+                    <p class="text-slate-400 mb-4">Not every agent needs long-term memory. An agent that answers a question, writes a function or triages an inbox does fine inside one session.</p>
+                    <p class="text-slate-400 mb-4">Other agents act on systems whose structure outlives any conversation: <span class="text-slate-200">infrastructure, deployments, data, customer environments</span>. For them the expensive mistakes are the ones where a change hits something the agent did not know was connected.</p>
+                    <p class="text-slate-300">They need the <strong class="text-cyan-400">entities</strong> involved (services, hosts, buckets, repositories, people) and the <strong class="text-cyan-400">relations</strong> between them (runs on, stores data in, depends on, deploys to), kept current, so they can act with the consequences in view.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Concepts Section -->
+    <section id="concepts" class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">Modeled on human memory</h2>
+                <p class="text-lg text-slate-400 max-w-[700px] mx-auto">The model follows how human memory is usually described.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-slate-500 mb-1">SHORT-TERM MEMORY</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> what you hold in mind right now</p>
+                    <p class="text-slate-200">The context window: the current session, the files read, the conversation so far. Lost when the session ends or is compacted.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border-2 border-cyan-500/50">
+                    <p class="text-xs font-mono text-cyan-400 mb-1">LONG-TERM MEMORY</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> what persists</p>
+                    <p class="text-slate-200">What AI Maestro keeps across sessions.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-purple-400 mb-1">EPISODIC</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> what happened</p>
+                    <p class="text-slate-200 text-sm">The conversations: the transcript, and the agent's message index that outlives it.</p>
+                </div>
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-purple-400 mb-1">SEMANTIC</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> what is true</p>
+                    <p class="text-slate-200 text-sm"><strong class="text-white">Memory cards</strong> (decisions, facts, preferences, lessons) and the <strong class="text-white">entity graph</strong>.</p>
+                </div>
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-purple-400 mb-1">PROCEDURAL</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> how to do things</p>
+                    <p class="text-slate-200 text-sm">Skills. Not captured automatically yet.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-amber-400 mb-1">CONSOLIDATION</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> sleep turns the day into memory</p>
+                    <p class="text-slate-200 text-sm">A nightly run (2 AM, and older history until 8 AM) turns conversations into cards and relations.</p>
+                </div>
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-amber-400 mb-1">RECALL</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> a cue brings a memory back</p>
+                    <p class="text-slate-200 text-sm">The prompt: memories near it and the relations of entities it names are injected.</p>
+                </div>
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-amber-400 mb-1">STRENGTH</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> rehearsal makes a memory stronger</p>
+                    <p class="text-slate-200 text-sm">Recurrence: knowledge that comes up in more sessions weighs more.</p>
+                </div>
+                <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-amber-400 mb-1">FORGETTING</p>
+                    <p class="text-slate-400 text-sm mb-3"><span class="text-slate-500">In people:</span> unused memories fade</p>
+                    <p class="text-slate-200 text-sm">A one-off memory nobody used fades after 30 days, and comes back if it recurs.</p>
+                </div>
+            </div>
+
+            <p class="text-slate-400 text-center max-w-[760px] mx-auto mt-8">Everything consolidation keeps is long-term memory. Recurrence does not move a memory into a different kind of memory; it makes it stronger.</p>
+        </div>
+    </section>
+
+    <!-- What a memory is -->
+    <section id="memory-card" class="py-16 md:py-24 bg-slate-950 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">What a memory is</h2>
+                <p class="text-lg text-slate-400 max-w-[760px] mx-auto">Cards are written for a future session: "what the agent will need to know", not "what happened today". Progress reports, narration and task chatter are not memory.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Card example -->
+                <div>
+                    <h3 class="text-xl font-display font-bold mb-4 text-white">A memory card</h3>
+                    <p class="text-slate-400 mb-4">One self-contained statement of durable knowledge, with the passages it rests on.</p>
+                    <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 border-l-4 border-l-cyan-500">
+                        <span class="inline-block px-2 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded text-xs font-mono mb-3">fact</span>
+                        <p class="text-slate-100 break-anywhere mb-4">23blocks-api-authentication has 7 critical vulnerabilities fixed in undeployed code (v4.46.0 in prod is vulnerable); the staging environment is decommissioned, blocking a safe test and deploy of the fix.</p>
+                        <div class="flex flex-wrap gap-2 text-xs font-mono">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-300 break-anywhere">entities: 23blocks-api-authentication</span>
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-300">seen in 1 session</span>
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-300">evidence: 2 passages</span>
+                        </div>
+                    </div>
+
+                    <h3 class="text-xl font-display font-bold mt-10 mb-4 text-white">Strength and fading</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-4 bg-slate-900 p-4 rounded-xl border border-slate-700">
+                            <span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded text-xs font-mono flex-shrink-0 w-24 text-center">warm</span>
+                            <p class="text-slate-300 text-sm">Seen in one session.</p>
+                        </div>
+                        <div class="flex items-start gap-4 bg-slate-900 p-4 rounded-xl border border-slate-700">
+                            <span class="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/30 rounded text-xs font-mono flex-shrink-0 w-24 text-center">recurring</span>
+                            <p class="text-slate-300 text-sm">The same knowledge came up in 2 or more separate sessions of this agent.</p>
+                        </div>
+                        <div class="flex items-start gap-4 bg-slate-900 p-4 rounded-xl border border-slate-700">
+                            <span class="px-2 py-0.5 bg-slate-700/50 text-slate-400 border border-slate-600 rounded text-xs font-mono flex-shrink-0 w-24 text-center">faded</span>
+                            <p class="text-slate-300 text-sm">Seen once, never recalled, older than 30 days. Kept, not recalled; revived if it comes up again.</p>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mt-4">Before a new card is stored, AI Maestro checks whether an existing memory already states the same point; if so, the new card reinforces it instead of becoming a duplicate. Memories belong to one agent: agents do not share memory, and recurrence counts only that agent's own sessions.</p>
+                </div>
+
+                <!-- Entities & relations -->
+                <div>
+                    <h3 class="text-xl font-display font-bold mb-4 text-white">Entities and relations</h3>
+                    <p class="text-slate-400 mb-4">Every card names the specific things it is about. Those become nodes in the agent's <strong class="text-white">entity graph</strong>, shared by every card that mentions them. Between them, cards state <strong class="text-white">relations</strong>, always directed and always a verb.</p>
+
+                    <div class="bg-slate-900 rounded-2xl border border-slate-700 p-4 md:p-6 space-y-3 font-mono text-sm">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-100 break-anywhere">23blocks-api-crm</span>
+                            <span class="text-cyan-400">depends on &rarr;</span>
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-100 break-anywhere">23blocks-api-authentication</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">winepro</span>
+                            <span class="text-cyan-400">stores data in &rarr;</span>
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">products.public</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">Zoom</span>
+                            <span class="text-cyan-400">runs on &rarr;</span>
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">ECS</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 opacity-70">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-300 line-through decoration-slate-500">api</span>
+                            <span class="text-slate-400">runs on &rarr;</span>
+                            <span class="px-2 py-1 bg-slate-800 rounded text-slate-300 line-through decoration-slate-500">mini-lola</span>
+                            <span class="px-2 py-0.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded text-xs">no longer</span>
+                        </div>
+                    </div>
+
+                    <p class="text-slate-400 mt-6 mb-3">The verbs are fixed, and chosen for consequences:</p>
+                    <div class="flex flex-wrap gap-2 font-mono text-xs">
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">uses</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">depends_on</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">runs_on</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">hosts</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">deploys_to</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">stores_data_in</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">reads_from</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">writes_to</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">calls</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">part_of</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">owns</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">configures</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">requires</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">replaces</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">fixes</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">breaks</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">affects</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">prefers</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">decided_on</span>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">rejected</span>
+                    </div>
+                    <p class="text-slate-400 text-sm mt-3">"Related to" is not a relation: it says nothing about what a change affects.</p>
+
+                    <div class="mt-6 bg-slate-900 p-5 rounded-xl border border-slate-700 border-l-4 border-l-amber-500">
+                        <h4 class="font-display font-bold text-white mb-2">Relations change over time</h4>
+                        <p class="text-slate-400 text-sm">Each statement of a relation is dated by when it was said in a conversation, and says whether it holds or has ended ("we moved the API off mini-lola"). The relation's state is its latest statement. Its <strong class="text-slate-200">weight</strong> is the number of sessions behind it.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how-it-works" class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">How it works</h2>
+                <p class="text-lg text-slate-400 max-w-[760px] mx-auto">From conversation to memory the agent can use, in the agent's own CozoDB database.</p>
+            </div>
+
+            <!-- Flow -->
+            <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1.6fr_auto_1fr_auto_1fr] gap-3 items-stretch mb-12">
+                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-purple-400 mb-2">1 &middot; INDEX</p>
+                    <h3 class="font-display font-bold text-white mb-2">Message index</h3>
+                    <p class="text-slate-400 text-sm">Every message, kept. Hourly and on idle, into <code class="text-cyan-400 break-anywhere">~/.aimaestro/agents/&lt;id&gt;/agent.db</code>. Survives Claude Code's 30-day deletion.</p>
+                </div>
+                <div class="flow-arrow flex items-center justify-center text-2xl rotate-90 lg:rotate-0" aria-hidden="true">&rarr;</div>
+                <div class="bg-slate-900 p-5 rounded-2xl border-2 border-cyan-500/50">
+                    <p class="text-xs font-mono text-cyan-400 mb-2">2 &middot; NIGHTLY CONSOLIDATION (2 AM)</p>
+                    <h3 class="font-display font-bold text-white mb-3">Conversations become cards and relations</h3>
+                    <div class="flex flex-wrap items-center gap-1.5 font-mono text-xs">
+                        <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">redact</span><span class="flow-arrow">&rarr;</span>
+                        <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">classify</span><span class="flow-arrow">&rarr;</span>
+                        <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">summarize</span><span class="flow-arrow">&rarr;</span>
+                        <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">check</span><span class="flow-arrow">&rarr;</span>
+                        <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">merge</span><span class="flow-arrow">&rarr;</span>
+                        <span class="px-2 py-1 bg-slate-800 rounded text-slate-100">link</span>
+                    </div>
+                </div>
+                <div class="flow-arrow flex items-center justify-center text-2xl rotate-90 lg:rotate-0" aria-hidden="true">&rarr;</div>
+                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-amber-400 mb-2">3 &middot; BACKFILL (2&ndash;8 AM)</p>
+                    <h3 class="font-display font-bold text-white mb-2">History backfill</h3>
+                    <p class="text-slate-400 text-sm">Agents with months of history keep consolidating through the night window, newest first.</p>
+                </div>
+                <div class="flow-arrow flex items-center justify-center text-2xl rotate-90 lg:rotate-0" aria-hidden="true">&rarr;</div>
+                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-700">
+                    <p class="text-xs font-mono text-green-400 mb-2">4 &middot; RECALL</p>
+                    <h3 class="font-display font-bold text-white mb-2">Into the next session</h3>
+                    <p class="text-slate-400 text-sm">Injected at session start and on each prompt, or searched on demand.</p>
+                </div>
+            </div>
+
+            <!-- Consolidation steps -->
+            <h3 class="text-2xl font-display font-bold mb-2 text-white">Nightly consolidation, step by step</h3>
+            <p class="text-slate-400 mb-6 max-w-[900px]">Each agent consolidates once a night at 2 AM (its own schedule, in <code class="text-cyan-400">schedule.json</code>). It reads every conversation with messages it has not consolidated yet, newest first: from the transcript when it is still on disk, otherwise <strong class="text-white">rebuilt from the message index</strong>.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700">
+                    <h4 class="font-display font-bold text-white mb-2"><span class="text-cyan-400 font-mono mr-2">1</span>Redact</h4>
+                    <p class="text-slate-400 text-sm">Secrets are removed before anything leaves the machine or is stored.</p>
+                </div>
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700">
+                    <h4 class="font-display font-bold text-white mb-2"><span class="text-cyan-400 font-mono mr-2">2</span>Classify</h4>
+                    <p class="text-slate-400 text-sm">Each passage is judged in the context of its exchange by a small classifier (Jev, a System One model): is it worth remembering, what kind of knowledge, how important. Most of a conversation is not memory; this step finds the candidates cheaply.</p>
+                </div>
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700">
+                    <h4 class="font-display font-bold text-white mb-2"><span class="text-cyan-400 font-mono mr-2">3</span>Summarize</h4>
+                    <p class="text-slate-400 text-sm">A session's candidates are read together by the host's own Claude subscription (Haiku). It writes a few cards: about one per three candidates, at most five per call, zero when nothing qualifies. Each card carries a statement, a category, its entities, its relations and its evidence.</p>
+                </div>
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700">
+                    <h4 class="font-display font-bold text-white mb-2"><span class="text-cyan-400 font-mono mr-2">4</span>Check</h4>
+                    <p class="text-slate-400 text-sm">The classifier verifies each card against its evidence, and that it does not reveal a secret value. Cards that fail are dropped.</p>
+                </div>
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700">
+                    <h4 class="font-display font-bold text-white mb-2"><span class="text-cyan-400 font-mono mr-2">5</span>Merge</h4>
+                    <p class="text-slate-400 text-sm">If an existing memory states the same point, the card reinforces it instead of duplicating it. Embedding distance plus a classifier judgement, because "use X" and "do not use X" embed close together.</p>
+                </div>
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700">
+                    <h4 class="font-display font-bold text-white mb-2"><span class="text-cyan-400 font-mono mr-2">6</span>Link</h4>
+                    <p class="text-slate-400 text-sm">Entities resolve to existing nodes ("mini-lola" and "the mini-lola host" are one node), relations are recorded with the date they were said, and the classifier reads the verb the evidence supports for entity pairs a card names without one.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-bold mb-4 text-white">History backfill</h3>
+                    <p class="text-slate-400 mb-4">An agent with months of history would take months at one run per night. When a run leaves conversations behind, it records that, and during the night window (2 to 8 AM) the server keeps consolidating agents with a backlog, one at a time, round-robin, so each gets its newest history first.</p>
+                    <p class="text-slate-400">An agent whose run makes no progress (a usage limit, an outage) waits for the next night. Nothing runs during the day; the <strong class="text-white">Consolidate now</strong> button in the Memory tab works any time.</p>
+                </div>
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-bold mb-4 text-white">Budget and resume</h3>
+                    <p class="text-slate-400 mb-4">Each run handles about 1,000 passages and 10 summarizer calls, typically 3 to 10 conversations. Progress is saved per conversation, so a run that stops resumes where it stopped.</p>
+                    <p class="text-slate-400">Cost: the classifier runs about $0.06 per 1,800 passages; the summarizer uses the host's Claude subscription (Haiku).</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Recall -->
+    <section id="recall" class="py-16 md:py-24 bg-slate-950 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">Recall: consequences in view</h2>
+                <p class="text-lg text-slate-400 max-w-[760px] mx-auto">Memory reaches the agent automatically through the AI Maestro Claude Code hook, and on demand through the memory-search skill.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="bg-slate-900 p-5 rounded-xl border border-slate-700">
+                        <h4 class="font-display font-bold text-white mb-2">Session start</h4>
+                        <p class="text-slate-400 text-sm">The agent's standing decisions, preferences and patterns, the ones seen in the most sessions first.</p>
+                    </div>
+                    <div class="bg-slate-900 p-5 rounded-xl border border-slate-700">
+                        <h4 class="font-display font-bold text-white mb-2">Each prompt</h4>
+                        <p class="text-slate-400 text-sm mb-2">For every entity the prompt names, what the agent knows about it: its relations, current ones first, strongest first, "no longer" when one ended.</p>
+                        <p class="text-slate-400 text-sm">Plus the memories nearest to the prompt, favouring ones seen in more sessions.</p>
+                    </div>
+                    <p class="text-slate-500 text-sm">Each memory and each entity is injected at most once per session.</p>
+                </div>
+
+                <div class="lg:col-span-3 min-w-0">
+                    <p class="text-slate-400 mb-3">A prompt asking to redeploy <span class="text-white font-mono text-sm break-anywhere">23blocks-api-authentication</span> brings:</p>
+                    <div class="bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden">
+                        <div class="flex items-center gap-2 px-4 py-3 bg-slate-800 border-b border-slate-700">
+                            <span class="w-3 h-3 rounded-full bg-red-500/70"></span>
+                            <span class="w-3 h-3 rounded-full bg-amber-500/70"></span>
+                            <span class="w-3 h-3 rounded-full bg-green-500/70"></span>
+                            <span class="ml-2 text-xs font-mono text-slate-500">injected context</span>
+                        </div>
+<pre class="p-4 md:p-6 text-xs md:text-sm font-mono text-slate-200 overflow-x-auto leading-relaxed"><span class="text-cyan-400">## Memory: what you know about the things this prompt names</span>
+<span class="text-white font-semibold">**23blocks-api-authentication** (service)</span>
+- 23blocks-api-crm depends on 23blocks-api-authentication
+- 23blocks-api-sales depends on 23blocks-api-authentication
+- 23blocks-api-search depends on 23blocks-api-authentication
+- Zoom uses 23blocks-api-authentication
+- 23blocks-api-authentication breaks 23blocks-api-platform
+
+<span class="text-cyan-400">## Memory: notes from your past sessions on this topic</span>
+- [fact · 2026-07-31] Staging cluster was decommissioned in June 2026 ...</pre>
+                    </div>
+
+                    <p class="text-slate-400 mt-6 mb-3">On demand, through the <code class="text-cyan-400">memory-search</code> skill:</p>
+                    <div class="bg-slate-800 p-4 rounded-lg font-mono text-xs md:text-sm overflow-x-auto">
+                        <div class="whitespace-nowrap"><span class="text-green-400">memory-search.sh</span> <span class="text-amber-300">"staging deploy"</span>            <span class="text-slate-500"># cards first, then raw history</span></div>
+                        <div class="whitespace-nowrap"><span class="text-green-400">memory-search.sh</span> <span class="text-slate-400">--about</span> <span class="text-amber-300">"products.public"</span>   <span class="text-slate-500"># an entity's relations and cards</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-12 bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                <h3 class="text-xl font-display font-bold mb-2 text-white">Measuring use</h3>
+                <p class="text-slate-400">Every injection is appended to the agent's <code class="text-cyan-400">memory-recalls.jsonl</code> (time, session, memory ids, entity names). Consolidation folds it into each memory's access count. Only injections count; searches made by consolidation itself do not. This log is the raw data for the open question: does recalled memory change what the agent does?</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Secrets -->
+    <section id="secrets" class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div>
+                    <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-6">Secrets learned once, redacted everywhere</h2>
+                    <p class="text-lg text-slate-400">Redaction is the first step of consolidation. Secrets are removed before anything leaves the machine or is stored.</p>
+                </div>
+                <div class="space-y-4">
+                    <div class="bg-slate-900 p-5 rounded-xl border border-slate-700">
+                        <h4 class="font-display font-bold text-white mb-2">What is removed</h4>
+                        <p class="text-slate-400 text-sm">Private keys, connection strings, provider tokens, <code class="text-cyan-400">KEY=value</code> assignments, and values quoted after words like key, salt, secret or password.</p>
+                    </div>
+                    <div class="bg-slate-900 p-5 rounded-xl border border-slate-700 border-l-4 border-l-cyan-500">
+                        <h4 class="font-display font-bold text-white mb-2">Hash learning</h4>
+                        <p class="text-slate-400 text-sm">A secret found once is remembered as a SHA-256 hash, never the value, and redacted wherever it appears later, even with no hint around it.</p>
+                    </div>
+                    <div class="bg-slate-900 p-5 rounded-xl border border-slate-700">
+                        <h4 class="font-display font-bold text-white mb-2">Checked again</h4>
+                        <p class="text-slate-400 text-sm">Every card is checked to make sure it does not reveal a secret value. Cards that fail are dropped.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The skill & setup -->
+    <section id="setup" class="py-16 md:py-24 bg-slate-950 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">A skill, per agent</h2>
+                <p class="text-lg text-slate-400 max-w-[760px] mx-auto">Each agent has the skill switched on or off in its profile: <strong class="text-white">Skills &rarr; Long-term memory</strong>. It is stored in the agent's own directory, so it moves with the agent.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h3 class="text-lg font-display font-bold text-white">Long-term memory</h3>
+                        <span class="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/30 rounded text-xs font-mono">default on</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">Nightly consolidation and history backfill run for this agent.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h3 class="text-lg font-display font-bold text-white">Recall into prompts</h3>
+                        <span class="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/30 rounded text-xs font-mono">default on</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">Memories and entity relations are injected into its prompts.</p>
+                </div>
+            </div>
+            <p class="text-slate-400 text-sm text-center mb-12">Off means nothing is built and nothing is injected. What was already built is kept and remains searchable.</p>
+
+            <h3 class="text-2xl font-display font-bold mb-6 text-white text-center">Setup</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-cyan-500 text-slate-900 rounded-full text-2xl font-display font-bold mb-4">1</div>
+                    <h4 class="text-xl font-display font-bold mb-3 text-white">Classifier key</h4>
+                    <p class="text-slate-400 text-sm"><strong class="text-slate-200">Settings &rarr; Memory</strong>: the model URL and API key. Each user brings their own; it is stored in <code class="text-cyan-400 break-anywhere">~/.aimaestro/memory-settings.json</code> (mode 0600) and never sent back to the browser. <strong class="text-slate-200">Test connection</strong> checks it.</p>
+                </div>
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-cyan-500 text-slate-900 rounded-full text-2xl font-display font-bold mb-4">2</div>
+                    <h4 class="text-xl font-display font-bold mb-3 text-white">Claude login on the host</h4>
+                    <p class="text-slate-400 text-sm">The summarizer uses the host's own Claude Code login. On macOS, if the server cannot read the Keychain, it runs the summarizer inside a hidden tmux session instead.</p>
+                </div>
+                <div class="bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-700">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-cyan-500 text-slate-900 rounded-full text-2xl font-display font-bold mb-4">3</div>
+                    <h4 class="text-xl font-display font-bold mb-3 text-white">The skill</h4>
+                    <p class="text-slate-400 text-sm">On by default for every agent. Switch it off for agents that do not need it: <strong class="text-slate-200">Agent profile &rarr; Skills</strong>.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Known limits -->
+    <section id="limits" class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-[1000px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">Known limits</h2>
+                <p class="text-lg text-slate-400 max-w-[700px] mx-auto">What long-term memory does not do yet.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 border-l-4 border-l-amber-500">
+                    <h4 class="font-display font-bold text-white mb-2">Use is not yet measured</h4>
+                    <p class="text-slate-400 text-sm">The recall log records what was injected; whether the agent acted on it still has to be judged from its next turns.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 border-l-4 border-l-amber-500">
+                    <h4 class="font-display font-bold text-white mb-2">Procedural memory is not captured</h4>
+                    <p class="text-slate-400 text-sm">How to do things is not captured. Skills are the natural home for it.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 border-l-4 border-l-amber-500">
+                    <h4 class="font-display font-bold text-white mb-2">The message index is not redacted</h4>
+                    <p class="text-slate-400 text-sm">Secrets are removed from memory, not from the raw index the history is rebuilt from.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 border-l-4 border-l-amber-500">
+                    <h4 class="font-display font-bold text-white mb-2">Relations are only as good as the conversations</h4>
+                    <p class="text-slate-400 text-sm">A dependency nobody mentioned is not in the graph.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-16 md:py-24 text-center bg-gradient-to-br from-purple-600 to-indigo-600 text-white px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight mb-4">Give your agents a memory that lasts</h2>
+            <p class="text-lg md:text-xl mb-8 opacity-90">Free, open source, and each agent's memory lives in its own local database.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center max-w-[400px] md:max-w-none mx-auto">
+                <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-cyan-400 hover:bg-slate-950 hover:-translate-y-0.5 text-lg" target="_blank">
+                    Get Started on GitHub
+                </a>
+                <a href="skills.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-slate-900 hover:text-cyan-400 text-lg">
+                    Explore Skills
+                </a>
+                <a href="agent-intelligence.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-slate-900 hover:text-cyan-400 text-lg">
+                    Agent Intelligence
+                </a>
+            </div>
+        </div>
+    </section>
+
+    
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+                <div class="md:col-span-2">
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-10 h-10">
+                        <span class="font-display font-bold text-xl text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed max-w-md">The future of work platform. Orchestrate multiple AI coding agents from one dashboard.</p>
+                    <div class="flex items-center gap-4 mt-6">
+                        <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 hover:text-cyan-400 transition-colors">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                        </a>
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-slate-400 hover:text-cyan-400 transition-colors">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        </a>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-display font-bold text-white mb-4">Resources</h4>
+                    <ul class="space-y-3">
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro#readme" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Documentation</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/issues" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Issues</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Contributing</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-display font-bold text-white mb-4">Built by</h4>
+                    <p class="text-slate-400">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="hover:text-cyan-400 transition-colors no-underline">Juan Pelaez</a> @ <a href="https://23blocks.com" target="_blank" class="hover:text-cyan-400 transition-colors no-underline">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-sm mt-2">Made with <span class="text-red-500">&#9829;</span> in Boulder, CO</p>
+                    <p class="text-slate-500 text-sm">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">&copy; 2025 Juan Pelaez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- GSAP Animations -->
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Typing animation for announcement
+        const announcement = document.getElementById('announcement');
+        const text = "Memory that survives.";
+        const cursor = announcement.querySelector('.typing-cursor');
+        let charIndex = 0;
+
+        function typeCharacter() {
+            if (charIndex < text.length) {
+                const char = text[charIndex];
+                const textNode = document.createTextNode(char);
+                announcement.insertBefore(textNode, cursor);
+                charIndex++;
+                setTimeout(typeCharacter, 50);
+            }
+        }
+
+        setTimeout(typeCharacter, 1500);
+
+        // Fade in sections on scroll
+        gsap.utils.toArray("section").forEach((section) => {
+            gsap.from(section, {
+                opacity: 0,
+                y: 50,
+                duration: 0.8,
+                ease: "power2.out",
+                scrollTrigger: {
+                    trigger: section,
+                    start: "top 80%",
+                    end: "top 50%",
+                    toggleActions: "play none none none"
+                }
+            });
+        });
+    </script>
+
+    <!-- Copy for AI functionality -->
+    <script src="copy-for-ai.js"></script>
+</body>
+</html>

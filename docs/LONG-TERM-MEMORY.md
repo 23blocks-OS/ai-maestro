@@ -1,449 +1,314 @@
-# Long-Term Memory Implementation Plan
+# Long-Term Memory
 
-## Current implementation (v0.41.0)
+Long-term memory is a skill an AI Maestro agent can have. With it, the agent
+remembers what it learned across sessions: the decisions it made and why, the
+facts about the systems it works on, and above all **the things it works with
+and how they relate**. Before it changes something, it knows what else that
+change touches.
 
-The plan below was the original design. What actually ships:
+This document explains why the skill exists, the ideas behind it, and how it
+works, in that order.
 
-**Writing: classification, not extraction.** Consolidation splits each new part
-of a conversation into passages (the user's turn, and each paragraph of the
-reply of 120+ characters) and asks a System One classifier (Jev by default,
-`POST {url}/v1/systemone`) three questions about each passage, judged in the
-context of the user's request: worth remembering (yes/no probability), which
-category (`fact | decision | preference | pattern | insight | reasoning | none`),
-and importance (0–4). Passages with P ≥ 0.75, importance ≥ 2.5 and a real
-category are stored **verbatim**. Nothing is rewritten by an LLM. (0.85 / 3 kept
-1.6% of a real 857-passage conversation and dropped plainly useful decisions;
-0.75 / 2.5 keeps ~15%.)
+---
 
-- **Secrets are redacted first** (`lib/memory/redact.ts`): private keys,
-  connection-string passwords, provider tokens, `password = …` assignments and
-  passwords quoted in prose. Nothing unredacted reaches the classifier, the
-  store or a prompt, and each run also scrubs memories stored before redaction.
-- **The graph:** each new memory is compared with its nearest existing
-  memories (distance ≤ 0.35), and one classifier call labels each pair
-  `supports | contradicts | supersedes | leads_to` (or none). Memories stored
-  before linking are backfilled, 60 per run, tracked in `memory_link_checked`. Ollama and Claude
-extraction remain as fallbacks when no classifier key is configured.
+## Why
 
-- Each user brings their own key and URL: Settings → Memory, stored at
-  `~/.aimaestro/memory-settings.json` (0600), never returned to the browser.
-- Incremental: `consolidated_conversations.message_count` is the offset reached,
-  so a growing conversation is resumed, never re-read and never skipped. A failed
-  classification or store stops the offset at the last complete exchange.
-- Bounded: at most 1,000 passages per agent per run, and 8 concurrent classifier
-  calls per server. More history continues on the next run.
-- Schedule: nightly 2:00–2:30 AM per agent, and on demand from the Memory tab.
-- Cost measured on real transcripts: about $0.06 for a 1,800-passage conversation.
+### Agents forget, and Claude Code deletes the record
 
-**Cards are the memory; recurrence is the weight (v0.41.0).** Jev flags
-candidate passages; the summarizer reads one session's candidates together and
-writes at most `min(5, ceil(n/3))` cards per call, each citing its evidence
-(zero is valid). Jev checks each card against that evidence. A card that states
-what an existing memory states (`lib/memory/recurrence.ts`: cosine ≤ 0.25 and
-Jev "same point" ≥ 0.5, or ≤ 0.12 and ≥ 0.35) reinforces it: `reinforcement_count`
-counts distinct sessions (`source_conversations`), evidence goes to
-`memory_evidence`. Lifecycle each run: 2+ sessions → `long`; one session, no
-access, 30+ days → `faded` (never recalled; revived if it comes up again).
-Recall ranks by distance − 0.015·ln(sessions) − 0.01 if long; the primer orders
-decisions/preferences/patterns by sessions. Legacy verbatim memories migrate
-once (`memory_migrations`: `cards-as-memories-v1`). Consolidation is driven by
-each agent's schedule, run by a server sweep every 15 minutes (20 agents,
-oldest first) as well as on idle transitions.
+A Claude Code agent starts every session with an empty mind. What it learned
+yesterday (which host runs which service, why a migration was done a certain
+way, what broke the last time a bucket was moved) is gone unless someone wrote
+it into a file.
 
-**Memory cards and the entity graph (v0.40.1).** After classification, each
-memory without a card is summarized by the host's own Claude subscription:
-`claude -p --model haiku --tools "" --no-session-persistence --strict-mcp-config`
-with hooks and thinking off, from `~/.aimaestro/memory-worker` (no CLAUDE.md, no
-transcript written, never `--bare`, which cannot use the subscription). Batches
-of up to 12, 60 cards per agent per run, 2 concurrent calls per server. Input
-per memory: the flagged passage, its whole exchange, and the exchange before it
-(`memory_sources`). Output: `statement`, `action` (fixed vocabulary), typed
-`entities`, `relations`. Jev checks each statement against the excerpt
-(`memory_cards.status` = done | rejected | skipped). Entities are resolved to
-canonical nodes (`entities`, `entity_vec`), linked to memories
-(`memory_entities`) and to each other (`entity_relations`). On a usage limit
-the pass stops and resumes next run; the verbatim memory is always kept.
+The conversation itself is kept for a while. Claude Code deletes transcripts
+older than `cleanupPeriodDays`, **30 days by default**. After that, the only
+record of months of an agent's work is whatever AI Maestro kept. One of our
+own agents (IaC, infrastructure) had 422 conversations over ten months; one
+transcript was still on disk.
 
-**Reading: memory before files.** `GET /api/agents/:id/memory/recall` returns
-the memories nearest to a query (cosine distance ≤ 0.32, measured: on-topic
-0.24–0.30, other topics 0.40+) or, with no query, the agent's standing decisions
-and preferences. The Claude Code hook injects these as a `## Memory:` block at
-SessionStart (primer) and on every UserPromptSubmit (nearest to the prompt),
-each memory at most once per session, as its card statement when it has one;
-a prompt that names a known entity also recalls that entity's memories.
-`memory-search.sh` shows long-term memories before raw conversation history,
-and `memory-search.sh --about "<entity>"` shows an entity's relations and cards
-(`GET /api/agents/:id/memory/entity?name=`).
+### Some agents need more than one session's context
 
-**Retention warning.** Claude Code deletes transcripts older than
-`cleanupPeriodDays` (default 30). Long-term memory is the only record that
-outlives that window, so consolidation has to run before it closes.
+The agent is the product, and long-term memory is one of its skills. Not every
+agent needs it. An agent that answers a question, writes a function or triages
+an inbox does fine inside one session.
 
-## Overview
+Other agents act on systems whose structure outlives any conversation:
+infrastructure, deployments, data, customer environments. For them the
+expensive mistakes are the ones where a change hits something the agent did
+not know was connected. They need the **entities** involved (services, hosts,
+buckets, repositories, people) and the **relations** between them (runs on,
+stores data in, depends on, deploys to), kept current, so they can act with
+the consequences in view.
 
-Implement a two-tier memory system inspired by biological memory:
-- **Short-term memory**: Current system (raw messages + embeddings) - temporary, high detail
-- **Long-term memory**: New system (consolidated insights) - permanent, distilled knowledge
+That is what this skill is for.
 
-Consolidation extracts key facts, decisions, preferences, and patterns from conversations using LLM summarization (Ollama or Claude API).
+---
 
-## Architecture
+## Concepts
+
+The model follows how human memory is usually described.
+
+| | In people | In an agent |
+|---|---|---|
+| **Short-term memory** | what you hold in mind right now | the context window: the current session, the files read, the conversation so far. Lost when the session ends or is compacted. |
+| **Long-term memory** | what persists | what AI Maestro keeps across sessions |
+| · episodic | what happened | the conversations: the transcript, and the agent's message index that outlives it |
+| · semantic | what is true | **memory cards** (decisions, facts, preferences, lessons) and the **entity graph** |
+| · procedural | how to do things | skills. Not captured automatically yet. |
+| **Consolidation** | sleep turns the day into memory | a nightly run (2 AM, and older history until 8 AM) turns conversations into cards and relations |
+| **Recall** | a cue brings a memory back | the prompt: memories near it and the relations of entities it names are injected |
+| **Strength** | rehearsal makes a memory stronger | recurrence: knowledge that comes up in more sessions weighs more |
+| **Forgetting** | unused memories fade | a one-off memory nobody used fades after 30 days, and comes back if it recurs |
+
+Everything consolidation keeps is long-term memory. Recurrence does not move a
+memory into a different kind of memory; it makes it stronger.
+
+### A memory card
+
+One self-contained statement of durable knowledge, with the passages it rests
+on:
+
+> **fact** · 23blocks-api-authentication has 7 critical vulnerabilities fixed in
+> undeployed code (v4.46.0 in prod is vulnerable); the staging environment is
+> decommissioned, blocking a safe test and deploy of the fix.
+> *entities:* 23blocks-api-authentication · *seen in 1 session* · *evidence:* 2 passages
+
+Cards are written for a future session: "what the agent will need to know",
+not "what happened today". Progress reports, narration and task chatter are
+not memory.
+
+### Entities and relations
+
+Every card names the specific things it is about. Those become nodes in the
+agent's **entity graph**, shared by every card that mentions them. Between
+them, cards state **relations**, always directed and always a verb:
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         SHORT-TERM MEMORY                           │
-│  (Current System - lib/rag/)                                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
-│  │  messages   │  │   msg_vec   │  │  msg_terms  │                 │
-│  │ (raw text)  │  │ (embeddings)│  │  (keywords) │                 │
-│  └─────────────┘  └─────────────┘  └─────────────┘                 │
-│         ↓                                                           │
-│    Configurable retention (7-90 days)                              │
-└─────────────────────────────────────────────────────────────────────┘
-                              ↓
-                    CONSOLIDATION PROCESS
-                    (Nightly + On-demand)
-                    LLM extracts insights
-                              ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│                         LONG-TERM MEMORY                            │
-│  (New System - lib/memory/)                                         │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  memories table                                              │   │
-│  │  - id, agent_id, category, content, source_conversations   │   │
-│  │  - confidence, created_at, last_reinforced_at, access_count │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  memory_vec (embeddings for semantic search)                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  Categories: fact | decision | preference | pattern | insight       │
-│  Never deleted (or rarely)                                          │
-└─────────────────────────────────────────────────────────────────────┘
+23blocks-api-crm   depends on      23blocks-api-authentication
+winepro            stores data in  products.public
+Zoom               runs on         ECS
+api                runs on         mini-lola          (no longer)
 ```
 
-## Memory Categories
+The verbs are fixed, and chosen for consequences: `uses`, `depends_on`,
+`runs_on`, `hosts`, `deploys_to`, `stores_data_in`, `reads_from`, `writes_to`,
+`calls`, `part_of`, `owns`, `configures`, `requires`, `replaces`, `fixes`,
+`breaks`, `affects`, `prefers`, `decided_on`, `rejected`. "Related to" is not a
+relation: it says nothing about what a change affects.
 
-| Category | Description | Example |
-|----------|-------------|---------|
-| `fact` | Specific pieces of information | "Production DB is at 192.168.1.50" |
-| `decision` | Choices made with rationale | "Chose React over Vue due to team expertise" |
-| `preference` | User/project preferences | "Always use TypeScript, prefer functional style" |
-| `pattern` | Recurring workflows | "Run tests before deploying to staging" |
-| `insight` | Learned understanding | "This codebase uses repository pattern" |
+A relation **changes over time**. Each statement of it is dated by when it was
+said in a conversation, and says whether it holds or has ended ("we moved the
+API off mini-lola"). The relation's state is its latest statement. Its
+**weight** is the number of sessions behind it.
 
-## Implementation Steps
+### Strength and fading
 
-### Step 1: Add Long-Term Memory Schema
-**File**: `lib/cozo-schema-memory.ts`
+| Level | Meaning |
+|---|---|
+| **warm** | seen in one session |
+| **recurring** | the same knowledge came up in 2 or more separate sessions of this agent |
+| **faded** | seen once, never recalled, older than 30 days; kept, not recalled; revived if it comes up again |
 
-```typescript
-// New CozoDB tables for long-term memory
-memories {
-  memory_id: String
-  =>
-  agent_id: String,
-  category: String,           // fact | decision | preference | pattern | insight
-  content: String,            // The actual memory content
-  context: String?,           // Additional context/reasoning
-  source_conversations: String?, // JSON array of conversation files
-  source_message_ids: String?,   // JSON array of msg_ids that led to this
-  confidence: Float,          // 0.0-1.0, how confident the LLM was
-  created_at: Int,
-  last_reinforced_at: Int,    // Updated when same insight extracted again
-  reinforcement_count: Int,   // How many times this was reinforced
-  access_count: Int,          // How many times queried
-  last_accessed_at: Int?
-}
+One paragraph in one session does not show that something will matter again.
+The same knowledge surfacing in another session does. Before a new card is
+stored, AI Maestro checks whether an existing memory already states the same
+point; if so, the new card reinforces it instead of becoming a duplicate.
 
-memory_vec {
-  memory_id: String
-  =>
-  vec: Bytes                  // 384-d embedding for semantic search
-}
+Memories belong to one agent. Agents do not share memory, and recurrence
+counts only that agent's own sessions.
 
-consolidation_runs {
-  run_id: String
-  =>
-  agent_id: String,
-  started_at: Int,
-  completed_at: Int?,
-  status: String,             // running | completed | failed
-  conversations_processed: Int,
-  memories_created: Int,
-  memories_reinforced: Int,
-  llm_provider: String,       // ollama | claude
-  error: String?
-}
-```
+---
 
-### Step 2: Create LLM Provider Interface
-**File**: `lib/memory/llm-provider.ts`
+## The skill
 
-Abstract interface for memory consolidation LLM:
+Each agent has the skill switched on or off in its profile: **Skills → Long-term
+memory**. It is stored in the agent's own directory, so it moves with the agent.
 
-```typescript
-interface MemoryExtractionResult {
-  memories: Array<{
-    category: 'fact' | 'decision' | 'preference' | 'pattern' | 'insight'
-    content: string
-    context?: string
-    confidence: number  // 0.0-1.0
-  }>
-}
+| Switch | Effect |
+|---|---|
+| **Long-term memory** (default on) | nightly consolidation and history backfill run for this agent |
+| **Recall into prompts** (default on) | memories and entity relations are injected into its prompts |
 
-interface LLMProvider {
-  name: string
-  isAvailable(): Promise<boolean>
-  extractMemories(conversationText: string): Promise<MemoryExtractionResult>
-}
+Off means nothing is built and nothing is injected. What was already built is
+kept and remains searchable.
 
-// Implementations:
-// - OllamaProvider (uses localhost:11434)
-// - ClaudeProvider (uses Anthropic API)
-```
+The classifier and its key are host-level: **Settings → Memory**.
 
-### Step 3: Create Ollama Provider
-**File**: `lib/memory/ollama-provider.ts`
+---
 
-```typescript
-class OllamaProvider implements LLMProvider {
-  name = 'ollama'
-  model = 'llama3.2'  // or configurable
-
-  async isAvailable(): Promise<boolean> {
-    // Check if Ollama is running at localhost:11434
-  }
-
-  async extractMemories(text: string): Promise<MemoryExtractionResult> {
-    // POST to /api/generate with extraction prompt
-    // Parse JSON response
-  }
-}
-```
-
-### Step 4: Create Claude Provider
-**File**: `lib/memory/claude-provider.ts`
-
-```typescript
-class ClaudeProvider implements LLMProvider {
-  name = 'claude'
-  model = 'claude-3-haiku-20240307'  // Fast & cheap for extraction
-
-  async isAvailable(): Promise<boolean> {
-    // Check if ANTHROPIC_API_KEY is set
-  }
-
-  async extractMemories(text: string): Promise<MemoryExtractionResult> {
-    // Use Anthropic SDK
-    // Parse structured response
-  }
-}
-```
-
-### Step 5: Create Memory Consolidation Engine
-**File**: `lib/memory/consolidate.ts`
-
-Core consolidation logic:
-
-```typescript
-async function consolidateMemories(agentDb: AgentDatabase, options: {
-  provider?: 'ollama' | 'claude' | 'auto'  // auto = try ollama first
-  dryRun?: boolean
-}): Promise<ConsolidationResult> {
-  // 1. Find unprocessed conversations (not yet consolidated)
-  // 2. For each conversation:
-  //    a. Load messages from short-term memory
-  //    b. Send to LLM for extraction
-  //    c. Deduplicate against existing memories
-  //    d. If similar memory exists, reinforce it
-  //    e. Otherwise, create new memory
-  // 3. Generate embeddings for new memories
-  // 4. Record consolidation run
-  // 5. Return stats
-}
-
-async function pruneShortTermMemory(agentDb: AgentDatabase, options: {
-  retentionDays: number
-  dryRun?: boolean
-}): Promise<PruneResult> {
-  // Delete messages older than retentionDays that have been consolidated
-}
-```
-
-### Step 6: Create Memory Search
-**File**: `lib/memory/search.ts`
-
-```typescript
-async function searchLongTermMemory(
-  query: string,
-  agentDb: AgentDatabase,
-  options: {
-    limit?: number
-    categories?: string[]
-    minConfidence?: number
-  }
-): Promise<MemorySearchResult[]> {
-  // 1. Embed query
-  // 2. Search memory_vec for similar embeddings
-  // 3. Filter by category/confidence
-  // 4. Update access_count and last_accessed_at
-  // 5. Return ranked results
-}
-```
-
-### Step 7: Add Consolidation to Subconscious
-**File**: `lib/agent.ts` (modify)
-
-Add consolidation to the subconscious background jobs:
-
-```typescript
-// In AgentSubconscious class:
-private consolidationInterval: NodeJS.Timeout | null = null
-
-private async runConsolidation() {
-  // Run nightly at configured time (default 2 AM)
-  // Or when manually triggered
-}
-
-// Add to start():
-this.scheduleConsolidation()
-```
-
-### Step 8: Add Memory Settings
-**File**: `lib/memory/settings.ts`
-
-```typescript
-interface MemorySettings {
-  consolidation: {
-    enabled: boolean
-    schedule: 'nightly' | 'weekly' | 'manual'
-    nightlyTime: string  // "02:00" format
-    llmProvider: 'ollama' | 'claude' | 'auto'
-    ollamaModel: string  // default: 'llama3.2'
-    claudeModel: string  // default: 'claude-3-haiku-20240307'
-  }
-  retention: {
-    shortTermDays: number  // 0 = keep forever, default: 30
-    pruneAfterConsolidation: boolean
-  }
-}
-```
-
-### Step 9: Add API Endpoints
-**Files**: `app/api/agents/[id]/memory/...`
+## How it works
 
 ```
-GET  /api/agents/{id}/memory/long-term
-     Query long-term memories (with search)
-
-POST /api/agents/{id}/memory/consolidate
-     Trigger manual consolidation
-
-GET  /api/agents/{id}/memory/consolidation-runs
-     List consolidation history
-
-GET  /api/agents/{id}/memory/settings
-PUT  /api/agents/{id}/memory/settings
-     Get/update memory settings
-
-POST /api/agents/{id}/memory/prune
-     Manually prune short-term memory
+ conversation ──► message index ──► nightly consolidation ──► memory cards + entity graph
+ (transcript,      (every message,    redact → classify →        (agent's own CozoDB)
+  deleted at 30d)   kept)              summarize → check →               │
+                                       merge → link                      ▼
+                                                               recall into the next session
 ```
 
-### Step 10: Add UI Components
-**File**: `components/MemoryPanel.tsx` (new)
+### 1. Indexing
 
-Memory management panel showing:
-- Long-term memory list with categories
-- Search across memories
-- Consolidation status and history
-- Settings for retention/schedule
-- Manual consolidate/prune buttons
+Every agent's messages are indexed into its own database (CozoDB, at
+`~/.aimaestro/agents/<id>/agent.db`), hourly and on idle. The index keeps full
+message text and survives Claude Code's 30-day deletion. This is the episodic
+record everything else is built from.
 
-## Files to Create/Modify
+### 2. Consolidation (nightly)
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `lib/cozo-schema-memory.ts` | Create | Long-term memory CozoDB tables |
-| `lib/memory/llm-provider.ts` | Create | LLM provider interface |
-| `lib/memory/ollama-provider.ts` | Create | Ollama implementation |
-| `lib/memory/claude-provider.ts` | Create | Claude API implementation |
-| `lib/memory/consolidate.ts` | Create | Consolidation engine |
-| `lib/memory/search.ts` | Create | Long-term memory search |
-| `lib/memory/settings.ts` | Create | Memory settings types |
-| `lib/memory/prune.ts` | Create | Short-term memory pruning |
-| `lib/agent.ts` | Modify | Add consolidation to subconscious |
-| `app/api/agents/[id]/memory/long-term/route.ts` | Create | Query long-term memories |
-| `app/api/agents/[id]/memory/consolidate/route.ts` | Create | Trigger consolidation |
-| `app/api/agents/[id]/memory/settings/route.ts` | Create | Memory settings API |
-| `components/MemoryPanel.tsx` | Create | Memory management UI |
+Each agent consolidates once a night at 2 AM (its own schedule, in
+`schedule.json`), run on idle transitions or by the server sweep. It reads
+every conversation with messages it has not consolidated yet, newest first:
+from the transcript when it is still on disk, otherwise rebuilt from the
+message index.
 
-## LLM Extraction Prompt
+1. **Redact.** Secrets are removed before anything leaves the machine or is
+   stored: private keys, connection strings, provider tokens, `KEY=value`
+   assignments, and values quoted after words like key, salt, secret or
+   password. A secret found once is remembered as a SHA-256 hash (never the
+   value) and redacted wherever it appears later, even with no hint around it.
+2. **Classify.** Each passage (a user turn, or a paragraph of the reply) is
+   judged in the context of its exchange by a small classifier (Jev, a System
+   One model): is it worth remembering, what kind of knowledge is it, how
+   important. Most of a conversation is not memory; this step finds the
+   candidates cheaply.
+3. **Summarize.** The candidates of one session are read together, with their
+   exchanges, by the host's own Claude subscription (Haiku, through
+   `claude -p` with tools, hooks and thinking off). It writes a few cards:
+   about one per three candidates, at most five per call, zero when nothing
+   qualifies. Each card has a statement, a category, the entities it names,
+   the relations between them (with whether each still holds), and the
+   passages it rests on.
+4. **Check.** The classifier verifies each card against its evidence (is the
+   statement supported?) and that it does not reveal a secret value. Cards that
+   fail are dropped.
+5. **Merge.** If an existing memory states the same point, the card reinforces
+   it (one more session, more evidence) instead of creating a duplicate. The
+   check is embedding distance plus a classifier judgement, because "use X" and
+   "do not use X" embed close together.
+6. **Link.** Entities are resolved to existing nodes (so "mini-lola" and
+   "the mini-lola host" are one node), relations are recorded with the date
+   they were said, and pairs of entities a card names without stating a verb
+   are read by the classifier for the verb the evidence supports.
+
+Budget per run: about 1,000 passages and 10 summarizer calls, typically 3 to
+10 conversations (a real run on IaC: 10 conversations, 21 memories, 4 minutes). Progress is saved per conversation, so a run that stops resumes
+where it stopped.
+
+### 3. History backfill (nightly)
+
+An agent with months of history would take months at one run per night. When a
+run leaves conversations behind, it records that (`memory-backlog.json` in the
+agent's directory), and during the night window (2 to 8 AM) the server keeps
+consolidating agents with a backlog, one at a time, round-robin, so each gets
+its newest history first. An agent whose run makes no progress (a usage limit,
+an outage) waits for the next night. Nothing runs during the day; the
+**Consolidate now** button in the Memory tab works any time.
+
+### 4. Recall
+
+Memory reaches the agent in two ways.
+
+**Automatically**, through the AI Maestro Claude Code hook:
+
+- **Session start:** the agent's standing decisions, preferences and patterns,
+  the ones seen in the most sessions first.
+- **Each prompt:**
+  - for every entity the prompt names, what the agent knows about it: its
+    relations, current ones first, strongest first, "no longer" when one ended;
+  - the memories nearest to the prompt, favouring ones seen in more sessions.
+
+Each memory and each entity is injected at most once per session. For
+example, a prompt asking to redeploy 23blocks-api-authentication brings:
 
 ```
-You are a memory consolidation system. Analyze the following conversation and extract important memories that should be retained long-term.
+## Memory: what you know about the things this prompt names
+**23blocks-api-authentication** (service)
+- 23blocks-api-crm depends on 23blocks-api-authentication
+- 23blocks-api-sales depends on 23blocks-api-authentication
+- 23blocks-api-search depends on 23blocks-api-authentication
+- Zoom uses 23blocks-api-authentication
+- 23blocks-api-authentication breaks 23blocks-api-platform
 
-For each memory, classify it as one of:
-- fact: Specific pieces of information (URLs, paths, credentials, names)
-- decision: Choices made with rationale
-- preference: User or project preferences
-- pattern: Recurring workflows or behaviors
-- insight: Learned understanding about the codebase or project
-
-Output JSON:
-{
-  "memories": [
-    {
-      "category": "fact",
-      "content": "The production database is PostgreSQL at db.example.com:5432",
-      "context": "Discussed during deployment setup",
-      "confidence": 0.95
-    }
-  ]
-}
-
-Only extract truly important information worth remembering permanently.
-Skip routine coding actions and temporary details.
-
-CONVERSATION:
-{conversation_text}
+## Memory: notes from your past sessions on this topic
+- [fact · 2026-07-31] Staging cluster was decommissioned in June 2026 ...
 ```
 
-## Deduplication Strategy
+**On demand**, through the `memory-search` skill:
 
-When a new memory is extracted:
-1. Embed the new memory content
-2. Search existing memories with cosine similarity > 0.85
-3. If match found:
-   - Don't create duplicate
-   - Increment `reinforcement_count` on existing memory
-   - Update `last_reinforced_at`
-   - Optionally merge context if new info
-4. If no match:
-   - Create new memory with embedding
+```bash
+memory-search.sh "staging deploy"            # cards first, then raw history
+memory-search.sh --about "products.public"   # an entity's relations and cards
+```
 
-## Success Criteria
+### 5. Measuring use
 
-- [ ] Long-term memories persist across short-term pruning
-- [ ] Consolidation extracts meaningful insights (not noise)
-- [ ] Ollama works offline without API key
-- [ ] Falls back to Claude if Ollama unavailable
-- [ ] Deduplication prevents memory bloat
-- [ ] Reinforcement tracks repeated insights
-- [ ] Search finds relevant long-term memories
-- [ ] UI shows memory status and allows management
-- [ ] Settings configurable per agent
+Every injection is appended to the agent's `memory-recalls.jsonl` (time,
+session, memory ids, entity names). Consolidation folds it into each memory's
+access count. Only injections count; searches made by consolidation itself do
+not. This log is the raw data for the open question: does recalled memory
+change what the agent does?
 
-## Implementation Order
+---
 
-1. Schema + types (foundation)
-2. Ollama provider (test locally first)
-3. Consolidation engine (core logic)
-4. Memory search (query ability)
-5. API endpoints (expose functionality)
-6. Claude provider (fallback)
-7. Subconscious integration (automation)
-8. UI components (user interface)
-9. Pruning logic (cleanup)
-10. Settings UI (configuration)
+## Setup
+
+1. **Classifier key.** Settings → Memory: the model URL and API key (each
+   user brings their own; stored in `~/.aimaestro/memory-settings.json`, mode
+   0600, never sent back to the browser). **Test connection** checks it.
+2. **Claude login on the host.** The summarizer uses the host's own Claude Code
+   login. On macOS, if the server cannot read the Keychain, it runs the
+   summarizer inside a hidden tmux session instead.
+3. **The skill.** On by default for every agent. Switch it off for agents that
+   do not need it: Agent profile → Skills.
+
+---
+
+## Operations
+
+| | |
+|---|---|
+| Nightly run | 2 AM per agent; the sweep starts daily tasks until 8 AM |
+| History backfill | 2 to 8 AM, one agent at a time, until no backlog |
+| Budget per run | ~1,000 passages, 10 summarizer calls |
+| Cost | classifier: about $0.06 per 1,800 passages; summarizer: the host's Claude subscription (Haiku) |
+| Turn off the sweep | `MEMORY_SWEEP_ENABLED=false` |
+
+**Where it lives** (per agent, `~/.aimaestro/agents/<id>/`):
+
+| File / table | Holds |
+|---|---|
+| `agent.db` → `messages` | the message index (episodic) |
+| `memories`, `memory_cards`, `memory_vec` | the memories, their statements and embeddings |
+| `memory_evidence` | the passages each memory rests on, per session |
+| `entities`, `memory_entities` | entity nodes and which memories name them |
+| `entity_relations`, `relation_statements` | relations, and each dated statement of them (holds / ended) |
+| `secret_hashes` | hashes of secret values seen (never the values) |
+| `skill-settings.json` | the skill switches |
+| `memory-backlog.json` | whether history is left to consolidate |
+| `memory-recalls.jsonl` | every injection |
+
+**API:**
+
+| Endpoint | |
+|---|---|
+| `POST /api/agents/:id/memory/consolidate` | consolidate now |
+| `GET /api/agents/:id/memory/long-term` | memories (paged); `?view=stats`, `?view=entity-graph[&focus=name]` |
+| `GET /api/agents/:id/memory/recall?q=` | what the hook injects |
+| `GET /api/agents/:id/memory/entity?name=` | an entity's relations and memories |
+| `POST /api/memory/backlog` | start the night backlog worker (no-op outside 2 to 8 AM) |
+
+**Logs:** `[MEMORY]`, `[CONSOLIDATE]`, `[Memory Sweep]`, `[Memory Backlog]`,
+`[Schedule]` in the server log.
+
+---
+
+## Known limits
+
+- **Use is not yet measured.** The recall log records what was injected; whether
+  the agent acted on it still has to be judged from its next turns.
+- **Procedural memory** (how to do things) is not captured. Skills are the
+  natural home for it.
+- **The message index is not redacted.** Secrets are removed from memory, not
+  from the raw index the history is rebuilt from.
+- **Relations are only as good as the conversations.** A dependency nobody
+  mentioned is not in the graph.

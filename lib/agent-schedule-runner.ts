@@ -11,7 +11,7 @@
  * happening.
  */
 
-import { readSchedule, dueTasks, markRun, type ScheduledTask } from '@/lib/agent-schedule'
+import { readSchedule, dueTasks, markRun, type ScheduledTask, type DueOptions } from '@/lib/agent-schedule'
 
 export interface TaskRunResult {
   taskId: string
@@ -118,12 +118,12 @@ async function runTask(agentId: string, task: ScheduledTask): Promise<TaskRunRes
  * transition — an agent that goes idle frequently would otherwise hammer a
  * broken task continuously.
  */
-export async function runDueTasks(agentId: string): Promise<ScheduleRunResult> {
+export async function runDueTasks(agentId: string, opts: DueOptions = {}): Promise<ScheduleRunResult> {
   if (inFlight.has(agentId)) return { agentId, ran: [], skipped: 1 }
   inFlight.add(agentId)
   try {
     const schedule = readSchedule(agentId)
-    const due = dueTasks(schedule)
+    const due = dueTasks(schedule, Date.now(), opts)
     const ran: TaskRunResult[] = []
     for (const task of due) {
       const r = await runTask(agentId, task)

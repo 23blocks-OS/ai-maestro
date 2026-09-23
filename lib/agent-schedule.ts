@@ -123,6 +123,14 @@ export function writeSchedule(schedule: AgentSchedule): boolean {
   }
 }
 
+/** The most recent time (local) the clock showed `hour`:00 at or before `now`. */
+export function lastOccurrence(hour: number, now: number = Date.now()): number {
+  const d = new Date(now)
+  d.setHours(hour, 0, 0, 0)
+  if (d.getTime() > now) d.setDate(d.getDate() - 1)
+  return d.getTime()
+}
+
 /**
  * Is this task due?
  *
@@ -130,13 +138,27 @@ export function writeSchedule(schedule: AgentSchedule): boolean {
  * immediately if they have never run, so a newly-moved agent starts working
  * rather than waiting out a full interval on its new host.
  *
- * Daily tasks are due when the local hour matches and the task has not already
- * run within the last 23 hours. The 23-hour window (rather than "today") means
- * a machine that was asleep at 2am still consolidates when it wakes, instead of
- * silently skipping a day — the exact failure mode of the old
- * resident-at-2am-or-never design.
+ * Daily tasks are due once their most recent scheduled time (today at `atHour`
+ * if that has passed, otherwise yesterday) has gone by without a run after it.
+ * So a task runs once a day, and an agent that nobody reached AT 2am still runs
+ * when it is next reached: by its idle transition or the server sweep.
+ *
+ * This used to require the local hour to BE `atHour`, which quietly brought back
+ * the resident-at-2am-or-never failure it was meant to remove: only agents that
+ * a sweep or an idle transition happened to reach between 2:00 and 2:59 ever
+ * consolidated (11 of 170 on 2026-09-23).
  */
-export function isDue(task: ScheduledTask, now: number = Date.now()): boolean {
+export interface DueOptions {
+  /**
+   * Only start a daily task within this many hours after its scheduled time.
+   * The server sweep passes this so fleet-wide consolidation happens at night
+   * (the user's call: "at sleep, 2am") and not as a daytime backfill; an agent's
+   * own idle transition passes nothing and may catch up at any time.
+   */
+  dailyWindowHours?: number
+}
+
+export function isDue(task: ScheduledTask, now: number = Date.now(), opts: DueOptions = {}): boolean {
   if (!task.enabled) return false
 
   if (typeof task.everyMs === 'number') {
@@ -145,9 +167,10 @@ export function isDue(task: ScheduledTask, now: number = Date.now()): boolean {
   }
 
   if (typeof task.atHour === 'number') {
-    if (new Date(now).getHours() !== task.atHour) return false
+    const since = lastOccurrence(task.atHour, now)
+    if (opts.dailyWindowHours !== undefined && now - since >= opts.dailyWindowHours * HOUR) return false
     if (!task.lastRunAt) return true
-    return now - task.lastRunAt >= 23 * HOUR
+    return task.lastRunAt < since
   }
 
   // Neither cadence set: not schedulable. Enabled-but-unschedulable is a
@@ -157,8 +180,8 @@ export function isDue(task: ScheduledTask, now: number = Date.now()): boolean {
 }
 
 /** Tasks currently due, in declaration order. */
-export function dueTasks(schedule: AgentSchedule, now: number = Date.now()): ScheduledTask[] {
-  return schedule.tasks.filter((t) => isDue(t, now))
+export function dueTasks(schedule: AgentSchedule, now: number = Date.now(), opts: DueOptions = {}): ScheduledTask[] {
+  return schedule.tasks.filter((t) => isDue(t, now, opts))
 }
 
 /** Record the outcome of a run and persist it. */

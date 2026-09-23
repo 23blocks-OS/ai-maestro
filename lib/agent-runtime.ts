@@ -79,6 +79,30 @@ export class TmuxRuntime implements AgentRuntime {
   // -- Discovery -----------------------------------------------------------
 
   async listSessions(): Promise<DiscoveredSession[]> {
+    // One tmux call for every session's name, windows, creation time and cwd.
+    // The per-session `display-message` below ran once per session, in series:
+    // 36 sessions ≈ 1.8 s, which was most of GET /api/agents; under load it
+    // passed the dashboard's 8 s timeout and the agent list reset (2026-09-23).
+    try {
+      const { stdout } = await tmux(['list-sessions', '-F', '#{session_name}\t#{session_windows}\t#{session_created}\t#{pane_current_path}'])
+      const rows = stdout.split('\n').filter(Boolean).map(line => line.split('\t'))
+      if (rows.length > 0 && rows.every(r => r.length === 4 && /^\d+$/.test(r[1]) && /^\d+$/.test(r[2]))) {
+        return rows.map(([name, windows, created, cwd]) => ({
+          name,
+          windows: parseInt(windows, 10),
+          createdAt: new Date(parseInt(created, 10) * 1000).toISOString(),
+          workingDirectory: cwd,
+        }))
+      }
+      if (!stdout.trim()) return []
+    } catch {
+      // no tmux server, or a tmux without -F formats: fall through
+    }
+    return this.listSessionsOneByOne()
+  }
+
+  /** The original discovery: one `display-message` per session. Fallback only. */
+  private async listSessionsOneByOne(): Promise<DiscoveredSession[]> {
     try {
       let stdout = ''
       try {

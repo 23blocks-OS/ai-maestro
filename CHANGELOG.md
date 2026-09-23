@@ -3,7 +3,7 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.41.4] - 2026-09-23 — The dashboard no longer "restarts" when a refresh is slow
+## [0.41.5] - 2026-09-23 — The dashboard no longer "restarts" when a refresh is slow
 
 The agent list refreshes from each host's /api/agents. When this host's own
 request failed or passed its 8 s timeout (it takes 1.7-3.6 s normally, more
@@ -12,6 +12,12 @@ and remounted on the next good refresh, which looked exactly like the app
 restarting. Remote hosts already fell back to cached agents; this host did not.
 A failed refresh now keeps each host's last good list, and reports the failure
 to the server log ([CLIENT] agents_fetch_failed_kept_previous).
+
+And the reason it was slow: session discovery ran one `tmux display-message`
+per session, in series, to read each working directory (36 sessions: 2.65 s).
+One `tmux list-sessions -F` now returns every session's name, windows, creation
+time and cwd (104 ms, identical results). GET /api/agents drops from ~2.5 s to
+~0.1 s.
 
 ## [0.41.3] - 2026-09-23 — Memory work at night; agents stay open while in use
 

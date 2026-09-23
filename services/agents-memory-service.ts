@@ -679,10 +679,22 @@ export interface RecalledMemory {
  * one seen in more sessions ranks higher. The bonus is capped small (10
  * sessions ≈ 0.045 of distance): it breaks ties between similar matches but a
  * barely relevant memory seen often must not outrank a clearly relevant one
- * (on-topic 0.24-0.30, borderline 0.30-0.32).
+ * (on-topic 0.24-0.30, borderline 0.30-0.32). A correction (the user told the
+ * agent it was wrong) gets the same small edge as recurrence: it is what the
+ * agent most needs not to repeat, but it still has to be about the prompt.
  */
-export function recallScore(distance: number, sessions: number, tier: string): number {
-  return distance - 0.015 * Math.log(Math.max(1, sessions)) - (tier === 'recurring' ? 0.01 : 0)
+export function recallScore(distance: number, sessions: number, tier: string, correction = false): number {
+  return distance - 0.015 * Math.log(Math.max(1, sessions)) - (tier === 'recurring' ? 0.01 : 0) - (correction ? 0.01 : 0)
+}
+
+/** Memories whose card is a correction of the agent (action "corrected") */
+async function correctionIds(agentDb: AgentDatabase, ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const r = await agentDb.run(`
+    ?[memory_id] := *memory_cards{memory_id, action, status}, status = 'done', action = 'corrected',
+      memory_id in [${ids.map(id => escapeForCozo(id)).join(', ')}]
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  return new Set((r.rows as [string][]).map(x => x[0]))
 }
 
 /**
@@ -769,6 +781,7 @@ export async function recallMemories(
         const [vec] = await embedTexts([query.slice(0, 2000)])
         const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit: limit * 3, minConfidence: 0 })
         const createdAt = await memoryCreatedAt(agentDb, hits.map(h => h.memory_id))
+        const corrections = await correctionIds(agentDb, hits.map(h => h.memory_id))
         memories = hits
           .filter(h => h.tier !== 'faded' && h.similarity <= maxDistance) // similarity is a cosine distance
           .map(h => ({
@@ -780,7 +793,7 @@ export async function recallMemories(
             sessions: h.reinforcement_count,
             tier: h.tier,
           }))
-          .sort((a, b) => recallScore(a.distance!, a.sessions, a.tier) - recallScore(b.distance!, b.sessions, b.tier))
+          .sort((a, b) => recallScore(a.distance!, a.sessions, a.tier, corrections.has(a.memory_id)) - recallScore(b.distance!, b.sessions, b.tier, corrections.has(b.memory_id)))
           .slice(0, limit)
         // A prompt that names a known entity ("mini-lola", "pane readback") also
         // recalls that entity's newest memories, even if the wording differs.
@@ -807,15 +820,25 @@ export async function recallMemories(
           }
         }
       } else {
-        // Session start: the standing decisions, preferences and patterns, the
-        // ones seen in the most sessions first
+        // Session start: the corrections the user gave (what the agent must not
+        // get wrong again), then standing decisions, preferences and patterns,
+        // the ones seen in the most sessions first
         const result = await agentDb.run(`
-          ?[memory_id, category, content, created_at, reinforcement_count, tier] :=
+          corrected[memory_id] := *memory_cards{memory_id, action, status}, status = 'done', action = 'corrected'
+          ?[memory_id, category, content, created_at, reinforcement_count, tier, is_correction] :=
+            corrected[memory_id],
+            *memories{memory_id, agent_id, category, content, created_at, reinforcement_count, tier},
+            agent_id = ${escapeForCozo(agentId)},
+            tier != 'faded',
+            is_correction = 1
+          ?[memory_id, category, content, created_at, reinforcement_count, tier, is_correction] :=
             *memories{memory_id, agent_id, category, content, created_at, reinforcement_count, tier},
             agent_id = ${escapeForCozo(agentId)},
             category in ['decision', 'preference', 'pattern'],
-            tier != 'faded'
-          :order -reinforcement_count, -created_at
+            tier != 'faded',
+            not corrected[memory_id],
+            is_correction = 0
+          :order -is_correction, -reinforcement_count, -created_at
           :limit ${limit}
         `)
         memories = result.rows.map((row: unknown[]) => ({

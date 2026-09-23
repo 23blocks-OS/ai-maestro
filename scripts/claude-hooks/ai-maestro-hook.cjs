@@ -635,14 +635,16 @@ function buildMemoryNotice(memories, { primer }) {
         const date = when ? new Date(when).toISOString().slice(0, 10) : 'undated';
         // Weight: knowledge that came up in several sessions is more likely to matter
         const weight = m.sessions > 1 ? ` · seen in ${m.sessions} sessions` : '';
-        return `- [${m.category}${weight} · ${date}] ${clipped}`;
+        // A correction: the user told the agent it was wrong; say so
+        const kind = m.card && m.card.action === 'corrected' ? 'correction' : m.category;
+        return `- [${kind}${weight} · ${date}] ${clipped}`;
     });
     const title = primer
-        ? '## Memory: your standing decisions and preferences'
+        ? '## Memory: your standing decisions, preferences, and corrections you were given'
         : '## Memory: notes from your past sessions on this topic';
     return [
         title,
-        'Check these before re-reading files or re-deciding. They come from your earlier sessions; "seen in N sessions" means the same knowledge came up that often. They may be outdated, so verify anything you act on. Search for more with memory-search.sh.',
+        'Check these before re-reading files or re-deciding. They come from your earlier sessions; "seen in N sessions" means the same knowledge came up that often, and "correction" means the user told you that you had it wrong: do not repeat it. They may be outdated, so verify anything you act on. Search for more with memory-search.sh.',
         '',
         ...lines,
     ].join('\n');

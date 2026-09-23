@@ -3,6 +3,33 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.43.0] - 2026-09-23 — Memory: corrections
+
+When the user corrects the agent ("no, that bucket is production", "that makes
+no sense, use service discovery"), that is the most valuable thing to remember
+and the rarest. The plain durable/important questions scored casual
+corrections too low to keep.
+
+- **Detection.** Each user turn is judged by Jev together with what the agent
+  said just before it (including across run boundaries): "is the user
+  correcting the assistant?" Threshold 0.75, calibrated on 74 real turns: 0.9+
+  were plainly corrections; 0.6-0.75 mixed in harness notifications and status.
+- **Kept on a lower bar** (correction >= 0.75 and durable >= 0.5).
+- **The card writer** sees corrections marked, with what was corrected, and
+  states the right way (action `corrected`); a card resting only on corrections
+  is always `corrected`; a correction that repeats a known memory marks that
+  memory as a correction.
+- **Recall.** Corrections get a small ranking edge (like recurrence) and lead
+  the session-start primer, labelled `correction` ("do not repeat it").
+- **Noise.** Notifications typed into sessions by AI Maestro and the harness
+  ("You have a new message from…", "Read the output file…") are no longer
+  classified as the user speaking.
+- Backlog: F008 (lessons become skills), F009 (corrections).
+
+First real run (copy of IaC): 6 corrections found; e.g. "WinePro app points to
+FluidMind box (…), not prod or the developer source; verify the RDS endpoint
+before querying".
+
 ## [0.42.2] - 2026-09-23 — Docs: link Jev
 
 The memory page and LONG-TERM-MEMORY.md now link Jev, the System One

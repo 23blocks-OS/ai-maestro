@@ -97,6 +97,8 @@ export interface ConsolidationResult {
   more_remaining?: boolean
   /** Cards Jev judged unsupported by their evidence (not stored) */
   cards_rejected?: number
+  /** User turns judged to be corrections of the agent */
+  corrections_found?: number
   entities_created?: number
   /** The summarizer was unavailable (usage limit, not logged in); the rest waits for the next run */
   cards_deferred?: boolean

@@ -169,7 +169,11 @@ message index.
 2. **Classify.** Each passage (a user turn, or a paragraph of the reply) is
    judged in the context of its exchange by a small classifier ([Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev), a System
    One model): is it worth remembering, what kind of knowledge is it, how
-   important. Most of a conversation is not memory; this step finds the
+   important. A user turn is also judged against what the agent said just
+   before it: **is the user correcting the agent?** Corrections are the most
+   valuable memory and the rarest, so they are kept on a lower bar, written as
+   "the right way" (action `corrected`), ranked higher in recall and put first
+   at session start. Most of a conversation is not memory; this step finds the
    candidates cheaply.
 3. **Summarize.** The candidates of one session are read together, with their
    exchanges, by the host's own Claude subscription (Haiku, through

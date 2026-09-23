@@ -60,11 +60,15 @@ const staggerOffset = hash(agentId) % memoryCheckInterval
 This ensures that even with 100+ agents, they don't all try to run at the same time.
 
 **Intervals:**
-| Activity State | Memory Check | Consolidation |
-|---------------|--------------|---------------|
-| Active        | 5 minutes    | 30 minutes    |
-| Idle          | 30 minutes   | 60 minutes    |
-| Disconnected  | 60 minutes   | 120 minutes   |
+| Activity State | Memory Check (indexing) |
+|---------------|--------------|
+| Active        | 5 minutes    |
+| Idle          | 30 minutes   |
+| Disconnected  | 60 minutes   |
+
+Long-term memory consolidation does **not** follow these intervals. It runs once
+a night per agent (2:00–2:30 AM, staggered by agent id) and on demand from the
+Memory tab. See [LONG-TERM-MEMORY.md](./LONG-TERM-MEMORY.md#current-implementation-v0392).
 
 **API Endpoint:**
 ```
@@ -301,9 +305,6 @@ GET /api/agents/{agentId}/conversations/search?q=query
 ```bash
 # Memory check interval (default: 5 minutes when active)
 MEMORY_CHECK_INTERVAL=300000
-
-# Consolidation interval (default: 30 minutes when active)
-CONSOLIDATION_INTERVAL=1800000
 
 # Push notifications (v0.18.10+)
 NOTIFICATIONS_ENABLED=true

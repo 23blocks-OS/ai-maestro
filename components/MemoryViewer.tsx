@@ -104,7 +104,11 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     success: boolean
     memoriesCreated?: number
     memoriesReinforced?: number
-    error?: string
+    chunksClassified?: number
+    provider?: string
+    notice?: string       // e.g. nothing new to consolidate
+    moreRemaining?: boolean
+    error?: string        // every error the run reported, joined
   } | null>(null)
 
   // Edit state
@@ -176,12 +180,21 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         headers: { 'Content-Type': 'application/json' }
       })
       const data = await response.json()
+      // Failures arrive as errors[] (engine) or error/message (service); show them all
+      const errorText = [
+        ...(Array.isArray(data.errors) ? data.errors : []),
+        ...(data.success ? [] : [data.error, data.message])
+      ].filter(Boolean).join(' · ')
 
       setConsolidationResult({
-        success: data.success,
+        success: Boolean(data.success),
         memoriesCreated: data.memories_created,
         memoriesReinforced: data.memories_reinforced,
-        error: data.message || data.error
+        chunksClassified: data.chunks_classified,
+        provider: data.provider_used,
+        notice: data.status === 'no_data' ? data.message : undefined,
+        moreRemaining: data.more_remaining,
+        error: errorText || (response.ok ? undefined : `HTTP ${response.status}`)
       })
 
       if (data.success) {
@@ -320,11 +333,28 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
             : 'bg-red-500/10 border-red-500/30'
         }`}>
           {consolidationResult.success ? (
-            <div className="flex items-center gap-2 text-sm text-green-400">
-              <TrendingUp className="w-4 h-4" />
-              <span>
-                Created {consolidationResult.memoriesCreated || 0} memories, reinforced {consolidationResult.memoriesReinforced || 0}
-              </span>
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center gap-2 text-green-400">
+                <TrendingUp className="w-4 h-4" />
+                <span>
+                  {consolidationResult.notice || (
+                    <>
+                      Created {consolidationResult.memoriesCreated || 0} memories, reinforced {consolidationResult.memoriesReinforced || 0}
+                      {consolidationResult.chunksClassified !== undefined && ` from ${consolidationResult.chunksClassified} passages`}
+                      {consolidationResult.provider && ` (${consolidationResult.provider})`}
+                    </>
+                  )}
+                </span>
+              </div>
+              {consolidationResult.moreRemaining && (
+                <div className="text-gray-400 pl-6">More history left to process. It continues on the next run, or click Consolidate again.</div>
+              )}
+              {consolidationResult.error && (
+                <div className="flex items-start gap-2 text-amber-400 pl-6">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{consolidationResult.error}</span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-red-400">

@@ -27,6 +27,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import os from 'os'
 import { agentRegistry } from '@/lib/agent'
+import { AgentDatabase } from '@/lib/cozo-db'
 import {
   initializeSimpleSchema,
   recordSession,
@@ -67,6 +68,7 @@ import {
   getMemoryById
 } from '@/lib/memory/search'
 import type { MemoryCategory } from '@/lib/cozo-schema-memory'
+import { getConsolidatedOffsets, searchMemoriesByEmbedding } from '@/lib/cozo-schema-memory'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
@@ -113,6 +115,7 @@ async function prepareConversations(
   limit: number = 50
 ): Promise<PreparedConversation[]> {
   const prepared: PreparedConversation[] = []
+  const offsets = await getConsolidatedOffsets(await agentDb())
 
   const projectsResult = await (await agentDb()).run(`
     ?[project_path, project_name, claude_dir] :=
@@ -181,8 +184,11 @@ async function prepareConversations(
           }
         }
 
-        if (messages.length > 0) {
+        // Only conversations with messages past the last consolidation count toward the limit
+        const consolidatedOffset = offsets.get(jsonlFile) || 0
+        if (messages.length > consolidatedOffset) {
           prepared.push({
+            consolidated_offset: consolidatedOffset,
             file_path: jsonlFile,
             project_path: projectPath,
             messages,
@@ -517,7 +523,7 @@ export async function triggerConsolidation(
 ): Promise<ServiceResult<any>> {
   try {
     const dryRun = options.dryRun || false
-    const provider = (options.provider || 'auto') as 'ollama' | 'claude' | 'auto'
+    const provider = (options.provider || 'auto') as 'jev' | 'ollama' | 'claude' | 'auto'
     const maxConversations = options.maxConversations || 50
 
     const agent = await agentRegistry.getAgent(agentId)
@@ -534,7 +540,7 @@ export async function triggerConsolidation(
           success: true,
           status: 'no_data',
           agent_id: agentId,
-          message: 'No conversations found to consolidate',
+          message: 'Nothing new to consolidate: no conversations with messages since the last run',
           conversations_processed: 0,
           memories_created: 0,
           memories_reinforced: 0,
@@ -607,6 +613,118 @@ export async function manageConsolidation(
 // ===========================================================================
 // PUBLIC API — Long-Term Memory (GET/DELETE/PATCH /api/agents/:id/memory/long-term)
 // ===========================================================================
+
+// ===========================================================================
+// PUBLIC API — Recall (GET /api/agents/:id/memory/recall)
+// ===========================================================================
+
+/**
+ * Cosine distance cutoff for "this memory is about what the agent is doing".
+ * Measured with bge-small on real passages (2026-09-22): on-topic prompts land
+ * at 0.24–0.30, a different topic in the same codebase ~0.40, unrelated 0.50+.
+ */
+const RECALL_MAX_DISTANCE = 0.32
+
+export interface RecalledMemory {
+  memory_id: string
+  category: string
+  content: string
+  created_at: number | null
+  distance: number | null
+}
+
+/**
+ * What an agent should know before it starts reading files.
+ *
+ * With a query: the memories nearest to it, within maxDistance.
+ * Without one (session start): the agent's standing decisions and preferences,
+ * most reinforced first.
+ */
+export async function recallMemories(
+  agentId: string,
+  params: { query?: string | null; limit?: number; maxDistance?: number }
+): Promise<ServiceResult<any>> {
+  try {
+    const limit = Math.min(Math.max(params.limit || 5, 1), 20)
+    const maxDistance = params.maxDistance ?? RECALL_MAX_DISTANCE
+    const query = params.query?.trim()
+
+    // Recall runs on every user prompt of every agent. Going through
+    // agentRegistry.getAgent() would load the agent into the 10-slot LRU and
+    // evict another one (with its timers) each time. Use the loaded agent if
+    // there is one; otherwise open its database just for this read.
+    const loaded = agentRegistry.getExistingAgent(agentId)
+    let transient: AgentDatabase | null = null
+    let agentDb: AgentDatabase
+    if (loaded) {
+      agentDb = await loaded.getDatabase()
+    } else {
+      // Check before constructing: AgentDatabase creates the agent directory,
+      // and agentId comes straight from the URL.
+      if (!/^[A-Za-z0-9_-]+$/.test(agentId)
+        || !fs.existsSync(path.join(os.homedir(), '.aimaestro', 'agents', agentId, 'agent.db'))) {
+        return { data: { success: true, agent_id: agentId, query: query || null, memories: [], count: 0 }, status: 200 }
+      }
+      transient = new AgentDatabase({ agentId })
+      await transient.initialize()
+      agentDb = transient
+    }
+
+    try {
+      let memories: RecalledMemory[]
+      if (query) {
+        const [vec] = await embedTexts([query.slice(0, 2000)])
+        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit, minConfidence: 0 })
+        const createdAt = await memoryCreatedAt(agentDb, hits.map(h => h.memory_id))
+        memories = hits
+          .filter(h => h.similarity <= maxDistance) // the field is a cosine distance
+          .map(h => ({
+            memory_id: h.memory_id,
+            category: h.category,
+            content: h.content,
+            created_at: createdAt.get(h.memory_id) ?? null,
+            distance: h.similarity,
+          }))
+      } else {
+        const result = await agentDb.run(`
+          ?[memory_id, category, content, created_at, reinforcement_count] :=
+            *memories{memory_id, agent_id, category, content, created_at, reinforcement_count},
+            agent_id = ${escapeForCozo(agentId)},
+            category in ['decision', 'preference']
+          :order -reinforcement_count, -created_at
+          :limit ${limit}
+        `)
+        memories = result.rows.map((row: unknown[]) => ({
+          memory_id: row[0] as string,
+          category: row[1] as string,
+          content: row[2] as string,
+          created_at: row[3] as number,
+          distance: null,
+        }))
+      }
+
+      return { data: { success: true, agent_id: agentId, query: query || null, memories, count: memories.length }, status: 200 }
+    } finally {
+      if (transient) await transient.close()
+    }
+  } catch (error) {
+    console.error('[Memory Service] recallMemories Error:', error)
+    return operationFailed('recall memories', (error as Error).message)
+  }
+}
+
+async function memoryCreatedAt(
+  agentDb: AgentDatabase,
+  ids: string[]
+): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map()
+  const result = await agentDb.run(`
+    ?[memory_id, created_at] :=
+      *memories{memory_id, created_at},
+      memory_id in [${ids.map(id => escapeForCozo(id)).join(', ')}]
+  `)
+  return new Map(result.rows.map((row: unknown[]) => [row[0] as string, row[1] as number]))
+}
 
 export async function queryLongTermMemories(
   agentId: string,

@@ -1,5 +1,41 @@
 # Long-Term Memory Implementation Plan
 
+## Current implementation (v0.39.2)
+
+The plan below was the original design. What actually ships:
+
+**Writing: classification, not extraction.** Consolidation splits each new part
+of a conversation into passages (the user's turn, and each paragraph of the
+reply of 120+ characters) and asks a System One classifier (Jev by default,
+`POST {url}/v1/systemone`) three questions about each passage, judged in the
+context of the user's request: worth remembering (yes/no probability), which
+category (`fact | decision | preference | pattern | insight | reasoning | none`),
+and importance (0–4). Passages with P ≥ 0.85, importance ≥ 3 and a real category
+are stored **verbatim**. Nothing is rewritten by an LLM. Ollama and Claude
+extraction remain as fallbacks when no classifier key is configured.
+
+- Each user brings their own key and URL: Settings → Memory, stored at
+  `~/.aimaestro/memory-settings.json` (0600), never returned to the browser.
+- Incremental: `consolidated_conversations.message_count` is the offset reached,
+  so a growing conversation is resumed, never re-read and never skipped. A failed
+  classification or store stops the offset at the last complete exchange.
+- Bounded: at most 1,000 passages per agent per run, and 8 concurrent classifier
+  calls per server. More history continues on the next run.
+- Schedule: nightly 2:00–2:30 AM per agent, and on demand from the Memory tab.
+- Cost measured on real transcripts: about $0.06 for a 1,800-passage conversation.
+
+**Reading: memory before files.** `GET /api/agents/:id/memory/recall` returns
+the memories nearest to a query (cosine distance ≤ 0.32, measured: on-topic
+0.24–0.30, other topics 0.40+) or, with no query, the agent's standing decisions
+and preferences. The Claude Code hook injects these as a `## Memory:` block at
+SessionStart (primer) and on every UserPromptSubmit (nearest to the prompt),
+each memory at most once per session. `memory-search.sh` shows long-term
+memories before raw conversation history.
+
+**Retention warning.** Claude Code deletes transcripts older than
+`cleanupPeriodDays` (default 30). Long-term memory is the only record that
+outlives that window, so consolidation has to run before it closes.
+
 ## Overview
 
 Implement a two-tier memory system inspired by biological memory:

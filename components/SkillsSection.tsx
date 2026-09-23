@@ -55,7 +55,7 @@ const DEFAULT_MEMORY_SETTINGS: MemorySkillSettings = {
     nightlyHour: 2, // 2 AM
     llmProvider: 'auto',
     ollamaModel: 'llama3.2',
-    claudeModel: 'claude-3-haiku-20240307',
+    claudeModel: 'claude-haiku-4-5-20251001',
     minConfidence: 0.7
   },
   retention: {
@@ -391,7 +391,7 @@ function MemorySkillTab({
                   type="text"
                   value={settings.consolidation.claudeModel}
                   onChange={e => updateConsolidation({ claudeModel: e.target.value })}
-                  placeholder="claude-3-haiku-20240307"
+                  placeholder="claude-haiku-4-5-20251001"
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>

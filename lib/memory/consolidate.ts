@@ -24,7 +24,6 @@ import {
   recordConsolidationRun,
   updateConsolidationRun,
   markConversationConsolidated,
-  isConversationConsolidated,
   MemoryCategory
 } from '../cozo-schema-memory'
 import {
@@ -39,12 +38,31 @@ import {
 } from './types'
 import { createOllamaProvider } from './ollama-provider'
 import { createClaudeProvider } from './claude-provider'
+import { JevClassifier, ClassifierError, chunkConversation } from './jev-provider'
+import { loadClassifierSettings, isClassifierConfigured } from './settings'
+
+type ProviderChoice =
+  | { kind: 'classifier'; classifier: JevClassifier }
+  | { kind: 'llm'; llm: LLMProvider }
+  | { kind: 'none'; reason: string }
 
 /**
- * Get LLM provider based on options
+ * Pick the memory provider. 'auto' prefers the Jev classifier when the user
+ * has configured a key (Settings → Memory), then Ollama, then Claude.
  */
-async function getProvider(options: ConsolidationOptions): Promise<LLMProvider | null> {
+async function getProvider(options: ConsolidationOptions): Promise<ProviderChoice> {
   const preference = options.provider || 'auto'
+  const tried: string[] = []
+
+  if (preference === 'jev' || preference === 'auto') {
+    const settings = loadClassifierSettings()
+    if (isClassifierConfigured(settings)) {
+      console.log(`[CONSOLIDATE] Using Jev classifier (${settings.url})`)
+      return { kind: 'classifier', classifier: new JevClassifier(settings) }
+    }
+    tried.push('Jev (no API key set in Settings → Memory)')
+    if (preference === 'jev') return { kind: 'none', reason: tried.join('; ') }
+  }
 
   if (preference === 'ollama' || preference === 'auto') {
     const ollama = createOllamaProvider({
@@ -52,12 +70,10 @@ async function getProvider(options: ConsolidationOptions): Promise<LLMProvider |
     })
     if (await ollama.isAvailable()) {
       console.log('[CONSOLIDATE] Using Ollama provider')
-      return ollama
+      return { kind: 'llm', llm: ollama }
     }
-    if (preference === 'ollama') {
-      console.log('[CONSOLIDATE] Ollama not available and explicitly requested')
-      return null
-    }
+    tried.push('Ollama (not reachable)')
+    if (preference === 'ollama') return { kind: 'none', reason: tried.join('; ') }
   }
 
   if (preference === 'claude' || preference === 'auto') {
@@ -66,16 +82,14 @@ async function getProvider(options: ConsolidationOptions): Promise<LLMProvider |
     })
     if (await claude.isAvailable()) {
       console.log('[CONSOLIDATE] Using Claude provider')
-      return claude
+      return { kind: 'llm', llm: claude }
     }
-    if (preference === 'claude') {
-      console.log('[CONSOLIDATE] Claude not available and explicitly requested')
-      return null
-    }
+    tried.push('Claude (ANTHROPIC_API_KEY missing or rejected)')
   }
 
-  console.log('[CONSOLIDATE] No LLM provider available')
-  return null
+  const reason = `No memory provider available. Tried: ${tried.join('; ')}`
+  console.log(`[CONSOLIDATE] ${reason}`)
+  return { kind: 'none', reason }
 }
 
 /**
@@ -126,7 +140,7 @@ async function checkDuplicate(
 function formatConversationForExtraction(conversation: PreparedConversation): string {
   const lines: string[] = []
 
-  for (const msg of conversation.messages) {
+  for (const msg of conversation.messages.slice(conversation.consolidated_offset || 0)) {
     if (msg.tool_use) continue  // Skip tool use messages
 
     const role = msg.role.toUpperCase()
@@ -138,6 +152,136 @@ function formatConversationForExtraction(conversation: PreparedConversation): st
   }
 
   return lines.join('\n\n')
+}
+
+interface RunCounters {
+  created: number
+  reinforced: number
+  linked: number
+}
+
+/**
+ * Store one memory: dedupe by embedding (reinforce if near-identical), else create.
+ * Returns the new memory id when one was created.
+ */
+async function storeMemory(
+  agentDb: AgentDatabase,
+  agentId: string,
+  memory: ExtractedMemory,
+  sourceFile: string,
+  dryRun: boolean,
+  counters: RunCounters
+): Promise<{ memoryId: string; embedding: number[] } | null> {
+  const embedding = await embed(memory.content)
+  const dedup = await checkDuplicate(agentDb, agentId, memory, embedding)
+
+  if (dryRun) {
+    console.log(`[CONSOLIDATE] [DRY RUN] Would ${dedup.action}: ${memory.category} - ${memory.content.substring(0, 100)}...`)
+    if (dedup.action === 'create') counters.created++
+    else if (dedup.action === 'reinforce') counters.reinforced++
+    return null
+  }
+
+  if (dedup.action === 'reinforce' && dedup.existing_memory_id) {
+    await reinforceMemory(agentDb, dedup.existing_memory_id, memory.context)
+    counters.reinforced++
+    console.log(`[CONSOLIDATE] Reinforced memory: ${dedup.existing_memory_id}`)
+    return null
+  }
+
+  const memoryId = `mem-${Date.now()}-${uuidv4().substring(0, 8)}`
+  await createMemory(agentDb, {
+    memory_id: memoryId,
+    agent_id: agentId,
+    tier: 'warm',  // New memories start in warm tier
+    system: getCategorySystem(memory.category as MemoryCategory),
+    category: memory.category as MemoryCategory,
+    content: memory.content,
+    context: memory.context,
+    source_conversations: [sourceFile],
+    confidence: memory.confidence
+  })
+  await storeMemoryEmbedding(agentDb, memoryId, embedding)
+  counters.created++
+  console.log(`[CONSOLIDATE] Created memory: ${memoryId} (${memory.category})`)
+  return { memoryId, embedding }
+}
+
+/** Per-run cap on classifier calls (passages); the next run picks up where this stopped. */
+const MAX_PASSAGES_PER_RUN = 1000
+
+/**
+ * Classifier path: split new messages into exchanges and their passages, ask
+ * Jev what kind of memory each passage is, store the ones that pass verbatim.
+ *
+ * Returns the message offset reached. The budget is spent in whole exchanges
+ * and the offset never advances past an exchange with a failed classification,
+ * so a transient API error or the per-run cap loses nothing.
+ */
+async function consolidateWithClassifier(
+  agentDb: AgentDatabase,
+  agentId: string,
+  conversation: PreparedConversation,
+  classifier: JevClassifier,
+  budget: { remaining: number },
+  dryRun: boolean,
+  counters: RunCounters,
+  errors: string[]
+): Promise<{ offset: number; created: number; classified: number; fatal: boolean; capped: boolean }> {
+  const startOffset = conversation.consolidated_offset || 0
+  const allChunks = chunkConversation(conversation.messages, startOffset)
+
+  const chunks: typeof allChunks = []
+  for (const chunk of allChunks) {
+    if (chunk.passages.length > budget.remaining && chunks.length > 0) break
+    chunks.push(chunk)
+    budget.remaining -= chunk.passages.length
+  }
+  const capped = chunks.length < allChunks.length
+
+  // Classify every passage in parallel (the classifier enforces a process-wide concurrency cap)
+  const results = await Promise.all(chunks.map(async chunk => ({
+    chunk,
+    passages: await Promise.all(chunk.passages.map(async passage => {
+      try {
+        return { passage, classification: await classifier.classify(passage.state), error: null }
+      } catch (err) {
+        return { passage, classification: null, error: err as Error }
+      }
+    }))
+  })))
+
+  let offset = startOffset
+  let created = 0
+  let classified = 0
+  for (const { chunk, passages } of results) {
+    const failed = passages.find(p => p.error)
+    if (failed?.error) {
+      errors.push(`Classifier error (${conversation.file_path}): ${failed.error.message}`)
+      return { offset, created, classified, fatal: failed.error instanceof ClassifierError && failed.error.fatal, capped }
+    }
+    const when = chunk.timestamp ? new Date(chunk.timestamp).toISOString() : 'unknown time'
+    for (const { passage, classification } of passages) {
+      if (!classification) continue
+      classified++
+      if (!classifier.accepts(classification)) continue
+      try {
+        const stored = await storeMemory(agentDb, agentId, {
+          category: classification.category as MemoryCategory,
+          content: passage.text,
+          context: `${classification.model} · durable ${classification.durable.toFixed(2)} · ${classification.category} ${classification.categoryConfidence.toFixed(2)} · importance ${classification.importance.toFixed(1)} · ${when}`,
+          confidence: classification.durable
+        }, conversation.file_path, dryRun, counters)
+        if (stored) created++
+      } catch (err) {
+        // Keep the progress made so far; this exchange is retried next run
+        errors.push(`Memory storage error (${conversation.file_path}): ${(err as Error).message}`)
+        return { offset, created, classified, fatal: false, capped }
+      }
+    }
+    offset = chunk.endIndex
+  }
+  return { offset, created, classified, fatal: false, capped }
 }
 
 /**
@@ -152,16 +296,15 @@ export async function consolidateMemories(
   const startTime = Date.now()
   const runId = `run-${Date.now()}-${uuidv4().substring(0, 8)}`
   const errors: string[] = []
+  const counters: RunCounters = { created: 0, reinforced: 0, linked: 0 }
+  const dryRun = Boolean(options.dryRun)
 
   let conversationsProcessed = 0
-  let memoriesCreated = 0
-  let memoriesReinforced = 0
-  let memoriesLinked = 0
-  let providerUsed = 'none'
+  let chunksClassified = 0
+  let moreRemaining = false
 
-  // Get LLM provider
-  const provider = await getProvider(options)
-  if (!provider) {
+  const choice = await getProvider(options)
+  if (choice.kind === 'none') {
     return {
       run_id: runId,
       status: 'failed',
@@ -170,15 +313,14 @@ export async function consolidateMemories(
       memories_reinforced: 0,
       memories_linked: 0,
       duration_ms: Date.now() - startTime,
-      errors: ['No LLM provider available'],
+      errors: [choice.reason],
       provider_used: 'none'
     }
   }
 
-  providerUsed = provider.name
+  const providerUsed = choice.kind === 'classifier' ? `jev:${choice.classifier.model}` : choice.llm.name
 
-  // Record run start
-  if (!options.dryRun) {
+  if (!dryRun) {
     await recordConsolidationRun(agentDb, {
       run_id: runId,
       agent_id: agentId,
@@ -188,146 +330,91 @@ export async function consolidateMemories(
 
   const minConfidence = options.minConfidence || DEFAULT_MEMORY_SETTINGS.consolidation.minConfidence
   const maxConversations = options.maxConversations || 50
+  const withNewMessages = conversations.filter(c => (c.consolidated_offset || 0) < c.messages.length)
+  const pending = withNewMessages.slice(0, maxConversations)
+  if (withNewMessages.length > pending.length) moreRemaining = true
 
-  // Filter out already consolidated conversations
-  const unconsolidated: PreparedConversation[] = []
-  for (const conv of conversations) {
-    if (await isConversationConsolidated(agentDb, conv.file_path)) {
-      continue
-    }
-    unconsolidated.push(conv)
-    if (unconsolidated.length >= maxConversations) break
-  }
+  console.log(`[CONSOLIDATE] Processing ${pending.length} conversations with new messages (${providerUsed})`)
 
-  console.log(`[CONSOLIDATE] Processing ${unconsolidated.length} conversations (${conversations.length - unconsolidated.length} already consolidated)`)
+  const budget = { remaining: MAX_PASSAGES_PER_RUN }
 
-  // Process each conversation
-  for (const conversation of unconsolidated) {
+  for (const conversation of pending) {
     try {
-      console.log(`[CONSOLIDATE] Processing: ${conversation.file_path}`)
+      console.log(`[CONSOLIDATE] Processing: ${conversation.file_path} from message ${conversation.consolidated_offset || 0}`)
 
-      // Format conversation for extraction
-      const text = formatConversationForExtraction(conversation)
-
-      if (text.length < 100) {
-        console.log(`[CONSOLIDATE] Skipping short conversation: ${conversation.file_path}`)
-        continue
-      }
-
-      // Extract memories using LLM
-      const extraction = await provider.extractMemories(text, {
-        minConfidence,
-        maxMemories: DEFAULT_MEMORY_SETTINGS.consolidation.maxMemoriesPerConversation,
-        categories: options.categories
-      })
-
-      console.log(`[CONSOLIDATE] Extracted ${extraction.memories.length} memories from ${conversation.file_path}`)
-
+      let newOffset = conversation.messages.length
       let memoriesFromConversation = 0
 
-      // Process each extracted memory
-      for (const memory of extraction.memories) {
-        try {
-          // Generate embedding for the memory
-          const embedding = await embed(memory.content)
-
-          // Check for duplicates
-          const dedup = await checkDuplicate(agentDb, agentId, memory, embedding)
-
-          if (options.dryRun) {
-            console.log(`[CONSOLIDATE] [DRY RUN] Would ${dedup.action}: ${memory.category} - ${memory.content.substring(0, 100)}...`)
-            if (dedup.action === 'create') memoriesCreated++
-            else if (dedup.action === 'reinforce') memoriesReinforced++
-            continue
+      if (choice.kind === 'classifier') {
+        if (budget.remaining <= 0) { moreRemaining = true; break }
+        const r = await consolidateWithClassifier(agentDb, agentId, conversation, choice.classifier, budget, dryRun, counters, errors)
+        newOffset = r.offset
+        memoriesFromConversation = r.created
+        chunksClassified += r.classified
+        if (r.capped) moreRemaining = true
+        if (r.fatal) {
+          // Bad key / bad URL: every other conversation would fail the same way
+          if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
+            await markConversationConsolidated(agentDb, conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
           }
+          break
+        }
+      } else {
+        const provider = choice.llm
+        const text = formatConversationForExtraction(conversation)
 
-          if (dedup.action === 'reinforce' && dedup.existing_memory_id) {
-            // Reinforce existing memory
-            await reinforceMemory(agentDb, dedup.existing_memory_id, memory.context)
-            memoriesReinforced++
-            console.log(`[CONSOLIDATE] Reinforced memory: ${dedup.existing_memory_id}`)
-          } else if (dedup.action === 'create') {
-            // Create new memory
-            const memoryId = `mem-${Date.now()}-${uuidv4().substring(0, 8)}`
+        if (text.length >= 100) {
+          const extraction = await provider.extractMemories(text, {
+            minConfidence,
+            maxMemories: DEFAULT_MEMORY_SETTINGS.consolidation.maxMemoriesPerConversation,
+            categories: options.categories
+          })
+          console.log(`[CONSOLIDATE] Extracted ${extraction.memories.length} memories from ${conversation.file_path}`)
 
-            await createMemory(agentDb, {
-              memory_id: memoryId,
-              agent_id: agentId,
-              tier: 'warm',  // New memories start in warm tier
-              system: getCategorySystem(memory.category as MemoryCategory),
-              category: memory.category as MemoryCategory,
-              content: memory.content,
-              context: memory.context,
-              source_conversations: [conversation.file_path],
-              confidence: memory.confidence
-            })
+          for (const memory of extraction.memories) {
+            try {
+              const stored = await storeMemory(agentDb, agentId, memory, conversation.file_path, dryRun, counters)
+              if (!stored) continue
+              memoriesFromConversation++
 
-            // Store embedding
-            await storeMemoryEmbedding(agentDb, memoryId, embedding)
-
-            memoriesCreated++
-            memoriesFromConversation++
-            console.log(`[CONSOLIDATE] Created memory: ${memoryId} (${memory.category})`)
-
-            // Find and create relationships with existing memories
-            if (provider.findRelationships) {
-              try {
-                // Get some existing memories to check relationships
-                const existingMemories = await searchMemoriesByEmbedding(
-                  agentDb,
-                  agentId,
-                  embedding,
-                  { limit: 10, minConfidence: 0.5 }
-                )
-
-                if (existingMemories.length > 0) {
-                  const relationships = await provider.findRelationships(
-                    memory,
-                    existingMemories.map(m => ({
-                      memory_id: m.memory_id,
-                      content: m.content,
-                      category: m.category
-                    }))
-                  )
-
-                  for (const rel of relationships) {
-                    await linkMemories(agentDb, memoryId, rel.memory_id, rel.relationship)
-                    memoriesLinked++
-                    console.log(`[CONSOLIDATE] Linked ${memoryId} -> ${rel.memory_id} (${rel.relationship})`)
+              if (provider.findRelationships) {
+                try {
+                  const existingMemories = await searchMemoriesByEmbedding(agentDb, agentId, stored.embedding, { limit: 10, minConfidence: 0.5 })
+                  if (existingMemories.length > 0) {
+                    const relationships = await provider.findRelationships(
+                      memory,
+                      existingMemories.map(m => ({ memory_id: m.memory_id, content: m.content, category: m.category }))
+                    )
+                    for (const rel of relationships) {
+                      await linkMemories(agentDb, stored.memoryId, rel.memory_id, rel.relationship)
+                      counters.linked++
+                    }
                   }
+                } catch (relError: any) {
+                  console.log(`[CONSOLIDATE] Relationship finding failed:`, relError.message)
                 }
-              } catch (relError: any) {
-                console.log(`[CONSOLIDATE] Relationship finding failed:`, relError.message)
               }
+            } catch (memError: any) {
+              errors.push(`Memory processing error: ${memError.message}`)
+              console.error(`[CONSOLIDATE] Memory error:`, memError.message)
             }
           }
-        } catch (memError: any) {
-          errors.push(`Memory processing error: ${memError.message}`)
-          console.error(`[CONSOLIDATE] Memory error:`, memError.message)
         }
       }
 
-      // Mark conversation as consolidated
-      if (!options.dryRun) {
-        await markConversationConsolidated(
-          agentDb,
-          conversation.file_path,
-          agentId,
-          runId,
-          conversation.message_count,
-          memoriesFromConversation
-        )
+      // Record how far this conversation has been consolidated
+      if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
+        await markConversationConsolidated(agentDb, conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
       }
 
       conversationsProcessed++
 
-      // Update run progress periodically
-      if (!options.dryRun && conversationsProcessed % 5 === 0) {
+      if (!dryRun && conversationsProcessed % 5 === 0) {
         await updateConsolidationRun(agentDb, runId, {
           conversations_processed: conversationsProcessed,
-          memories_created: memoriesCreated,
-          memories_reinforced: memoriesReinforced,
-          memories_linked: memoriesLinked
+          memories_created: counters.created,
+          memories_reinforced: counters.reinforced,
+          memories_linked: counters.linked
         })
       }
     } catch (convError: any) {
@@ -336,28 +423,30 @@ export async function consolidateMemories(
     }
   }
 
-  // Final update
-  if (!options.dryRun) {
+  const status = errors.length > 0 && conversationsProcessed === 0 ? 'failed' : 'completed'
+
+  if (!dryRun) {
     await updateConsolidationRun(agentDb, runId, {
-      status: errors.length > 0 && conversationsProcessed === 0 ? 'failed' : 'completed',
+      status,
       conversations_processed: conversationsProcessed,
-      memories_created: memoriesCreated,
-      memories_reinforced: memoriesReinforced,
-      memories_linked: memoriesLinked,
+      memories_created: counters.created,
+      memories_reinforced: counters.reinforced,
+      memories_linked: counters.linked,
       error: errors.length > 0 ? errors.join('; ') : undefined
     })
   }
 
   const result: ConsolidationResult = {
     run_id: runId,
-    status: errors.length > 0 && conversationsProcessed === 0 ? 'failed' : 'completed',
+    status,
     conversations_processed: conversationsProcessed,
-    memories_created: memoriesCreated,
-    memories_reinforced: memoriesReinforced,
-    memories_linked: memoriesLinked,
+    memories_created: counters.created,
+    memories_reinforced: counters.reinforced,
+    memories_linked: counters.linked,
     duration_ms: Date.now() - startTime,
     errors,
-    provider_used: providerUsed
+    provider_used: providerUsed,
+    ...(choice.kind === 'classifier' ? { chunks_classified: chunksClassified, more_remaining: moreRemaining } : {})
   }
 
   console.log(`[CONSOLIDATE] Completed:`, result)

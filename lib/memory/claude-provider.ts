@@ -2,7 +2,7 @@
  * Claude LLM Provider for Memory Extraction
  *
  * Uses Anthropic API as fallback when Ollama is not available.
- * Default model: claude-3-haiku (fast and cheap for extraction)
+ * Default model: claude-haiku-4-5 (fast and cheap for extraction)
  *
  * Note: This provider requires @anthropic-ai/sdk to be installed.
  * If the SDK is not available, the provider will gracefully report unavailable.
@@ -62,7 +62,7 @@ export class ClaudeProvider implements LLMProvider {
   private clientChecked = false
 
   constructor(options?: { model?: string }) {
-    this.model = options?.model || 'claude-3-haiku-20240307'
+    this.model = options?.model || 'claude-haiku-4-5-20251001'
   }
 
   /**

@@ -56,6 +56,7 @@ import {
   triggerConsolidation,
   manageConsolidation,
   queryLongTermMemories,
+  recallMemories,
   deleteLongTermMemory,
   updateLongTermMemory,
   searchConversations,
@@ -66,6 +67,12 @@ import {
   getMetrics,
   updateMetrics,
 } from '@/services/agents-memory-service'
+import {
+  getMemorySettings,
+  updateMemorySettings,
+  removeMemoryApiKey,
+  testMemoryClassifier,
+} from '@/services/memory-settings-service'
 
 import {
   getDatabaseInfo,
@@ -666,6 +673,20 @@ const routes: Route[] = [
     sendServiceResult(res, await sendChatMessage(params.id, body.message))
   }},
 
+  // Memory classifier settings (host-level)
+  { method: 'GET', pattern: /^\/api\/settings\/memory$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getMemorySettings())
+  }},
+  { method: 'PUT', pattern: /^\/api\/settings\/memory$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, updateMemorySettings(await readJsonBody(req)))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/settings\/memory$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, removeMemoryApiKey())
+  }},
+  { method: 'POST', pattern: /^\/api\/settings\/memory\/test$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, await testMemoryClassifier(await readJsonBody(req)))
+  }},
+
   // Memory
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getConsolidationStatus(params.id))
@@ -677,6 +698,13 @@ const routes: Route[] = [
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await manageConsolidation(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/recall$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, await recallMemories(params.id, {
+      query: query.q,
+      limit: query.limit ? Number(query.limit) : undefined,
+      maxDistance: query.maxDistance ? Number(query.maxDistance) : undefined,
+    }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await queryLongTermMemories(params.id, {

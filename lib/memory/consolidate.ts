@@ -40,6 +40,9 @@ import { createOllamaProvider } from './ollama-provider'
 import { createClaudeProvider } from './claude-provider'
 import { JevClassifier, ClassifierError, chunkConversation, classifyRelations } from './jev-provider'
 import { redactSecrets } from './redact'
+import { buildCards, recordMemorySource } from './cards'
+import { loadAgents } from '../agent-registry'
+import { getHosts } from '../hosts-config'
 import { loadClassifierSettings, isClassifierConfigured } from './settings'
 
 type ProviderChoice =
@@ -349,7 +352,8 @@ async function consolidateWithClassifier(
   let offset = startOffset
   let created = 0
   let classified = 0
-  for (const { chunk, passages } of results) {
+  for (const [chunkIndex, { chunk, passages }] of results.entries()) {
+    const previousExchange = chunkIndex > 0 ? results[chunkIndex - 1].chunk.exchange : undefined
     const failed = passages.find(p => p.error)
     if (failed?.error) {
       errors.push(`Classifier error (${conversation.file_path}): ${failed.error.message}`)
@@ -369,6 +373,16 @@ async function consolidateWithClassifier(
         }, conversation.file_path, dryRun, counters)
         if (stored) {
           created++
+          // Keep the exchange itself: Claude Code deletes transcripts after 30 days
+          await recordMemorySource(agentDb, {
+            memory_id: stored.memoryId,
+            conversation_file: conversation.file_path,
+            msg_start: chunk.startIndex,
+            msg_end: chunk.endIndex,
+            ts: chunk.timestamp,
+            exchange: chunk.exchange,
+            previous_exchange: previousExchange,
+          })
           try {
             await linkMemory(agentDb, agentId, { memory_id: stored.memoryId, content: passage.text, embedding: stored.embedding }, classifier, counters)
           } catch (linkErr) {
@@ -385,6 +399,14 @@ async function consolidateWithClassifier(
     offset = chunk.endIndex
   }
   return { offset, created, classified, fatal: false, capped }
+}
+
+/** Agent and host names on this machine: canonical spellings for the summarizer. */
+function knownEntityNames(): string[] {
+  const names: string[] = []
+  try { names.push(...loadAgents().map(a => a.name).filter(Boolean)) } catch { /* registry unavailable */ }
+  try { names.push(...getHosts().map(h => h.name || h.id).filter(Boolean)) } catch { /* no hosts file */ }
+  return [...new Set(names)].slice(0, 60)
 }
 
 /**
@@ -535,8 +557,11 @@ export async function consolidateMemories(
   }
 
   // Give memories stored before linking existed (or whose link check failed) their edges
+  let cardPass: Awaited<ReturnType<typeof buildCards>> | null = null
   if (choice.kind === 'classifier' && !dryRun) {
     await backfillLinks(agentDb, agentId, choice.classifier, counters, errors)
+    // Memory cards + entity graph, written by the host's own Claude subscription
+    cardPass = await buildCards(agentDb, agentId, choice.classifier, knownEntityNames(), errors)
   }
 
   const status = errors.length > 0 && conversationsProcessed === 0 && counters.linked === 0 ? 'failed' : 'completed'
@@ -562,7 +587,14 @@ export async function consolidateMemories(
     duration_ms: Date.now() - startTime,
     errors,
     provider_used: providerUsed,
-    ...(choice.kind === 'classifier' ? { chunks_classified: chunksClassified, more_remaining: moreRemaining } : {})
+    ...(choice.kind === 'classifier' ? { chunks_classified: chunksClassified, more_remaining: moreRemaining } : {}),
+    ...(cardPass ? {
+      cards_created: cardPass.cards,
+      cards_skipped: cardPass.skipped,
+      cards_rejected: cardPass.rejected,
+      entities_created: cardPass.entities,
+      cards_deferred: cardPass.deferred,
+    } : {})
   }
 
   console.log(`[CONSOLIDATE] Completed:`, result)

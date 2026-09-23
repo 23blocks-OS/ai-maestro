@@ -541,6 +541,7 @@ export async function triggerConsolidation(
       && result.status !== 'failed'
       && result.memories_created === 0
       && result.memories_linked === 0
+      && !result.cards_created
     return {
       data: {
         success: result.status !== 'failed',

@@ -18,6 +18,8 @@ import {
   isCodexLine,
   codexLineToMessages,
   resolveCodexTranscriptForDir,
+  codexLiveStatus,
+  codexLiveStatusFromFile,
 } from '@/lib/transcript-codex.mjs'
 import { parseJsonlLines } from '@/lib/chat-transcript.mjs'
 
@@ -191,5 +193,58 @@ describe('resolveCodexTranscriptForDir — locating by session cwd', () => {
     const past = new Date(Date.now() - 100000)
     fs.utimesSync(older, past, past)
     expect(resolveCodexTranscriptForDir('/Users/me/p')?.path).toBe(newer)
+  })
+})
+
+describe('codexLiveStatus — the live "working" signal (Phase 2)', () => {
+  const started = JSON.stringify(env('event_msg', { type: 'task_started', turn_id: '1' }))
+  const complete = JSON.stringify(env('event_msg', { type: 'task_complete', turn_id: '1' }))
+  const noise = JSON.stringify(msg('assistant', 'thinking out loud'))
+
+  it('is working when the last turn event is task_started', () => {
+    expect(codexLiveStatus([started, noise])).toBe('working')
+  })
+
+  it('is idle when the last turn event is task_complete', () => {
+    expect(codexLiveStatus([started, noise, complete])).toBe('idle')
+  })
+
+  it('uses the LAST turn event across many turns', () => {
+    expect(codexLiveStatus([started, complete, started, complete, started])).toBe('working')
+    expect(codexLiveStatus([started, complete, started, complete])).toBe('idle')
+  })
+
+  it('is null when there is no turn event to read', () => {
+    expect(codexLiveStatus([noise, JSON.stringify(msg('user', 'hi'))])).toBeNull()
+    expect(codexLiveStatus([])).toBeNull()
+  })
+
+  it('ignores non-event_msg lines that merely contain the words', () => {
+    // A message whose TEXT says "task_started" must not be read as a turn event.
+    const decoy = JSON.stringify(msg('assistant', 'I will run task_started now'))
+    expect(codexLiveStatus([complete, decoy])).toBe('idle')
+  })
+
+  it('tolerates malformed lines', () => {
+    expect(codexLiveStatus(['{bad json', started])).toBe('working')
+  })
+})
+
+describe('codexLiveStatusFromFile — tail read', () => {
+  let dir: string
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codexstat-')) })
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  it('reads the status from the end of a large file', () => {
+    const f = path.join(dir, 'rollout.jsonl')
+    const filler = Array.from({ length: 5000 }, (_, i) =>
+      JSON.stringify(env('response_item', { type: 'message', role: 'assistant', id: `m${i}`, content: [{ type: 'output_text', text: 'x'.repeat(50) }] }))
+    ).join('\n')
+    fs.writeFileSync(f, filler + '\n' + JSON.stringify(env('event_msg', { type: 'task_started' })) + '\n')
+    expect(codexLiveStatusFromFile(f)).toBe('working')
+  })
+
+  it('returns null for a missing file', () => {
+    expect(codexLiveStatusFromFile(path.join(dir, 'nope.jsonl'))).toBeNull()
   })
 })

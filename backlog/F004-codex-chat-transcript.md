@@ -1,6 +1,6 @@
 # F004 — Codex chat support (multi-provider transcript reader)
 
-**Status:** In Progress (Phase 1 shipped v0.38.35 — history + live updates; Phase 2 live-state pending)
+**Status:** In Progress (Phase 1 v0.38.35 = history+live updates; Phase 2a v0.38.36 = live working indicator; Phase 2b = approval cards + sidebar dot, pending)
 **Type:** Feature
 **Created:** 2026-09-22
 
@@ -111,3 +111,25 @@ renders (`user` / `assistant` with `content:[{type:'text'|'tool_use'}]`,
 - Open question (Phase 2): does codex's approval prompt surface anywhere the
   hook can read it, or only in the TUI? Determines whether permission cards are
   feasible for codex at all.
+
+## Phase 2a — live working indicator (shipped v0.38.36)
+
+Codex has no AI Maestro hook, but it brackets every turn in its transcript with
+`event_msg` `task_started` … `task_complete`. `codexLiveStatus` reads the LAST
+such event: `task_started` (mid-turn) → **working**, `task_complete` → idle.
+Surfaced through the same `readHookState` seam the chat already polls
+(`getChatHistory` + the 2.5s `broadcastHookState`), as `hookState.status:
+'working'` → an amber "working" pulse in both renderers. No codex config, no
+per-agent install — it rides the Phase 1 watcher. Verified: Nico reads `idle`
+after a completed turn.
+
+## Phase 2b — remaining
+
+- **Sidebar/session-list dot** for codex (`/api/sessions` currently shows
+  `disconnected` because it reads the hook-populated `sessionActivity` map).
+  Derive it from the same `codexLiveStatus` in `sessions-service`.
+- **Approval / permission cards.** Codex's approval prompt is a different UX than
+  Claude's `AskUserQuestion`. Open question from the eval: does it surface
+  anywhere a reader can see it (pane? transcript?), or only transiently in the
+  TUI? Determines feasibility. Codex was observed in `auto mode`, which may not
+  prompt at all.

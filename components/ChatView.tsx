@@ -845,6 +845,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // are invisible — keep looking until we find user or assistant.
   const activityState = useMemo(() => {
     if (hookState?.status === 'permission_request') return 'permission' as const
+    // F004 Phase 2: codex reports 'working' from its transcript turn-lifecycle
+    // (it has no hook). Show the same amber "working" pulse Claude gets from the
+    // message heuristic below.
+    if (hookState?.status === 'working') return 'thinking' as const
     if (hookState?.status === 'waiting_for_input') return 'waiting' as const
     if (isSending) return 'sending' as const
     if (pendingMessages.length > 0) return 'thinking' as const

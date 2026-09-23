@@ -573,7 +573,9 @@ function saveRecalled(cwd, sessionId, ids) {
 function buildMemoryNotice(memories, { primer }) {
     if (!Array.isArray(memories) || memories.length === 0) return null;
     const lines = memories.map(m => {
-        const text = String(m.content || '').replace(/\s+/g, ' ').trim();
+        // A memory card's statement when there is one (short, written for
+        // reading); otherwise the verbatim passage.
+        const text = String(m.statement || m.content || '').replace(/\s+/g, ' ').trim();
         const clipped = text.length > RECALL_MEMORY_CHARS ? `${text.slice(0, RECALL_MEMORY_CHARS)}…` : text;
         const date = m.created_at ? new Date(m.created_at).toISOString().slice(0, 10) : 'undated';
         return `- [${m.category} · ${date}] ${clipped}`;

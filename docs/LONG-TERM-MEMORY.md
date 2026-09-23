@@ -1,6 +1,6 @@
 # Long-Term Memory Implementation Plan
 
-## Current implementation (v0.39.3)
+## Current implementation (v0.40.1)
 
 The plan below was the original design. What actually ships:
 
@@ -35,13 +35,30 @@ extraction remain as fallbacks when no classifier key is configured.
 - Schedule: nightly 2:00–2:30 AM per agent, and on demand from the Memory tab.
 - Cost measured on real transcripts: about $0.06 for a 1,800-passage conversation.
 
+**Memory cards and the entity graph (v0.40.1).** After classification, each
+memory without a card is summarized by the host's own Claude subscription:
+`claude -p --model haiku --tools "" --no-session-persistence --strict-mcp-config`
+with hooks and thinking off, from `~/.aimaestro/memory-worker` (no CLAUDE.md, no
+transcript written, never `--bare`, which cannot use the subscription). Batches
+of up to 12, 60 cards per agent per run, 2 concurrent calls per server. Input
+per memory: the flagged passage, its whole exchange, and the exchange before it
+(`memory_sources`). Output: `statement`, `action` (fixed vocabulary), typed
+`entities`, `relations`. Jev checks each statement against the excerpt
+(`memory_cards.status` = done | rejected | skipped). Entities are resolved to
+canonical nodes (`entities`, `entity_vec`), linked to memories
+(`memory_entities`) and to each other (`entity_relations`). On a usage limit
+the pass stops and resumes next run; the verbatim memory is always kept.
+
 **Reading: memory before files.** `GET /api/agents/:id/memory/recall` returns
 the memories nearest to a query (cosine distance ≤ 0.32, measured: on-topic
 0.24–0.30, other topics 0.40+) or, with no query, the agent's standing decisions
 and preferences. The Claude Code hook injects these as a `## Memory:` block at
 SessionStart (primer) and on every UserPromptSubmit (nearest to the prompt),
-each memory at most once per session. `memory-search.sh` shows long-term
-memories before raw conversation history.
+each memory at most once per session, as its card statement when it has one;
+a prompt that names a known entity also recalls that entity's memories.
+`memory-search.sh` shows long-term memories before raw conversation history,
+and `memory-search.sh --about "<entity>"` shows an entity's relations and cards
+(`GET /api/agents/:id/memory/entity?name=`).
 
 **Retention warning.** Claude Code deletes transcripts older than
 `cleanupPeriodDays` (default 30). Long-term memory is the only record that

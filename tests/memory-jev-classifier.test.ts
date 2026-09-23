@@ -31,6 +31,8 @@ describe('chunkConversation', () => {
     expect(texts(chunks[0])).toEqual([`USER: use CozoDB ${LONG}`, `reading ${PARA}`, `decided: CozoDB ${PARA}`])
     expect(chunks[0].endIndex).toBe(3)
     expect(chunks[1].endIndex).toBe(5)
+    expect(chunks[1].startIndex).toBe(3)
+    expect(chunks[0].exchange).toBe(`USER: use CozoDB ${LONG}\n\nASSISTANT: reading ${PARA}\n\ndecided: CozoDB ${PARA}`)
   })
 
   it('stores each passage verbatim but judges it in the context of the request', () => {
@@ -71,7 +73,8 @@ describe('chunkConversation', () => {
 
   it('consumes tiny exchanges without anything to classify', () => {
     const chunks = chunkConversation([u('go'), a('ok')], 0)
-    expect(chunks).toEqual([{ endIndex: 2, passages: [], timestamp: undefined }])
+    expect(chunks).toMatchObject([{ startIndex: 0, endIndex: 2, passages: [] }])
+    expect(chunks[0].exchange).toBe('USER: go\n\nASSISTANT: ok')
   })
 
   it('strips harness noise from user turns', () => {
@@ -90,7 +93,7 @@ describe('chunkConversation', () => {
   it('ignores the compaction summary Claude Code injects as a user turn', () => {
     const chunks = chunkConversation([u(`This session is being continued from a previous conversation. Summary: ${LONG}`), a(`resuming ${PARA}`)], 0)
     // nothing to classify, but the offset still moves past it so the conversation is not retried forever
-    expect(chunks).toEqual([{ endIndex: 2, passages: [] }])
+    expect(chunks).toEqual([{ startIndex: 0, endIndex: 2, exchange: '', passages: [] }])
   })
 
   it('keeps head and tail of very long passages', () => {

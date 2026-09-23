@@ -65,10 +65,10 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
   // Helper for HNSW index creation — uses case-insensitive multi-pattern
   // error matching because ::hnsw create DDL may throw different error codes
   // or messages across CozoDB versions (not just eval::stored_relation_conflict).
-  const createHnswIndexIfNotExists = async (db: AgentDatabase, ddl: string) => {
+  const createHnswIndexIfNotExists = async (db: AgentDatabase, ddl: string, indexName = 'memory_vec:hnsw') => {
     try {
       await withLockRetry(() => db.run(ddl))
-      console.log('[MEMORY-SCHEMA] ✓ Created HNSW index: memory_vec:hnsw')
+      console.log(`[MEMORY-SCHEMA] ✓ Created HNSW index: ${indexName}`)
     } catch (error: any) {
       // CozoDB error format varies across versions — the error code field,
       // message wording, and casing are all unstable.  We normalise to a
@@ -82,10 +82,10 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
         errMsg.includes('index_already')
       ) {
         // Index already exists — expected on every run after the first
-        console.log('[MEMORY-SCHEMA] ℹ HNSW index memory_vec:hnsw already exists')
+        console.log(`[MEMORY-SCHEMA] ℹ HNSW index ${indexName} already exists`)
       } else {
-        console.error('[MEMORY-SCHEMA] ✗ Failed to create HNSW index:', error)
-        failures.push(`memory_vec:hnsw: ${error.message ?? error}`)
+        console.error(`[MEMORY-SCHEMA] ✗ Failed to create HNSW index ${indexName}:`, error)
+        failures.push(`${indexName}: ${error.message ?? error}`)
       }
     }
   }
@@ -184,6 +184,91 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
       memory_id: String
       =>
       checked_at: Int
+    }
+  `)
+
+  // ── Memory cards and the entity graph (F006) ──────────────────────────────
+  // The exchange a memory came from, kept in the agent's own DB: Claude Code
+  // deletes its transcripts after 30 days, so a pointer into the .jsonl would
+  // rot. conversation_file + message indexes still say where it was.
+  await createTableIfNotExists('memory_sources', `
+    :create memory_sources {
+      memory_id: String
+      =>
+      conversation_file: String,
+      msg_start: Int,
+      msg_end: Int,
+      ts: Int?,
+      exchange: String,
+      previous_exchange: String?
+    }
+  `)
+
+  // The readable memory: one statement plus a fixed-vocabulary action, written
+  // by the host's own Claude (haiku) and checked against its source by Jev.
+  // status: done | skipped (nothing durable) | rejected (not faithful)
+  await createTableIfNotExists('memory_cards', `
+    :create memory_cards {
+      memory_id: String
+      =>
+      statement: String,
+      action: String,
+      status: String,
+      model: String,
+      faithfulness: Float,
+      created_at: Int
+    }
+  `)
+
+  // Entities are the graph's nodes; memories are the evidence behind edges.
+  await createTableIfNotExists('entities', `
+    :create entities {
+      entity_id: String
+      =>
+      agent_id: String,
+      name: String,
+      type: String,
+      aliases: String,
+      mention_count: Int,
+      created_at: Int,
+      updated_at: Int
+    }
+  `)
+
+  await createTableIfNotExists('entity_vec', `
+    :create entity_vec {
+      entity_id: String
+      =>
+      vec: <F32; 384>
+    }
+  `)
+
+  await createHnswIndexIfNotExists(agentDb, `
+    ::hnsw create entity_vec:hnsw {
+        dim: 384,
+        m: 32,
+        dtype: F32,
+        fields: [vec],
+        distance: Cosine,
+        ef_construction: 100,
+    }
+  `, 'entity_vec:hnsw')
+
+  await createTableIfNotExists('memory_entities', `
+    :create memory_entities {
+      memory_id: String,
+      entity_id: String
+    }
+  `)
+
+  await createTableIfNotExists('entity_relations', `
+    :create entity_relations {
+      from_entity: String,
+      predicate: String,
+      to_entity: String,
+      memory_id: String
+      =>
+      created_at: Int
     }
   `)
 

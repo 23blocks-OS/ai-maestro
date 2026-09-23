@@ -62,8 +62,12 @@ export interface Passage {
 }
 
 export interface ConversationChunk {
+  /** Index of the exchange's first message (the user turn) */
+  startIndex: number
   /** Index into the conversation's message array just past this exchange */
   endIndex: number
+  /** The whole exchange, redacted: kept as the memory's source and given to the summarizer */
+  exchange: string
   /** Classifiable passages of the exchange (may be empty) */
   passages: Passage[]
   timestamp?: number
@@ -79,6 +83,7 @@ export class ClassifierError extends Error {
 // ---------------------------------------------------------------------------
 
 const MAX_PASSAGE_CHARS = 2000
+const MAX_EXCHANGE_CHARS = 12000
 const MAX_CONTEXT_CHARS = 600
 const MIN_USER_PASSAGE_CHARS = 40
 const MIN_ASSISTANT_PASSAGE_CHARS = 120
@@ -144,10 +149,18 @@ export function chunkConversation(messages: ConversationMessage[], startIndex: n
   let user: string | null = null
   let assistant: string[] = []
   let ts: number | undefined
+  let start = startIndex
 
   const flush = (endIndex: number) => {
     if (user === null) return
-    chunks.push({ endIndex, passages: toPassages(user, assistant.join('\n\n')), timestamp: ts })
+    const reply = assistant.join('\n\n')
+    chunks.push({
+      startIndex: start,
+      endIndex,
+      exchange: clip(`USER: ${user}\n\nASSISTANT: ${reply}`, MAX_EXCHANGE_CHARS),
+      passages: toPassages(user, reply),
+      timestamp: ts,
+    })
   }
 
   for (let i = startIndex; i < messages.length; i++) {
@@ -163,6 +176,7 @@ export function chunkConversation(messages: ConversationMessage[], startIndex: n
       user = content
       assistant = []
       ts = msg.timestamp
+      start = i
     } else if (msg.role === 'assistant' && content && user !== null) {
       assistant.push(content)
     }
@@ -170,7 +184,9 @@ export function chunkConversation(messages: ConversationMessage[], startIndex: n
   // The last exchange may still be in progress; only close it if it has a reply.
   if (user !== null && assistant.length > 0) flush(messages.length)
   // No real user turn at all (only harness noise): everything here is consumed.
-  if (user === null && startIndex < messages.length) chunks.push({ endIndex: messages.length, passages: [] })
+  if (user === null && startIndex < messages.length) {
+    chunks.push({ startIndex, endIndex: messages.length, exchange: '', passages: [] })
+  }
 
   return chunks
 }

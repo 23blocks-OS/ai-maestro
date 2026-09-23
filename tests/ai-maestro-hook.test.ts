@@ -378,6 +378,12 @@ describe('ai-maestro-hook · memory recall', () => {
     expect(notice).toContain('- [decision · 2026-09-22] Store memories verbatim.')
   })
 
+  it('prefers the memory card statement over the verbatim passage', () => {
+    const notice = hook.buildMemoryNotice([{ ...mem('a', 'decision', 'long verbatim passage…'), statement: 'Memories are stored as cards.' }], { primer: false })
+    expect(notice).toContain('- [decision · 2026-09-22] Memories are stored as cards.')
+    expect(notice).not.toContain('long verbatim passage')
+  })
+
   it('uses the standing-decisions title for the session-start primer', () => {
     expect(hook.buildMemoryNotice([mem('a', 'preference')], { primer: true }))
       .toContain('## Memory: your standing decisions and preferences')

@@ -95,6 +95,13 @@ export interface ConsolidationResult {
   chunks_classified?: number
   /** True when the per-run chunk cap was hit; the next run continues */
   more_remaining?: boolean
+  /** Memory cards written this run (F006) */
+  cards_created?: number
+  cards_skipped?: number
+  cards_rejected?: number
+  entities_created?: number
+  /** The summarizer hit a usage limit; remaining cards wait for the next run */
+  cards_deferred?: boolean
 }
 
 /**

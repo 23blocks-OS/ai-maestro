@@ -29,6 +29,29 @@ import os from 'os'
 import type { Session } from '@/types/session'
 import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession, updateAgent } from '@/lib/agent-registry'
 import { loadAgents } from '@/lib/agent-registry'
+// F004 Phase 2b: a codex agent has no AI Maestro hook, so its status is not in
+// the hook-fed sessionActivity map — derive it from its own transcript instead.
+import { resolveJsonlPath } from '@/lib/chat-transcript.mjs'
+import { codexLiveStatusFromFile } from '@/lib/transcript-codex.mjs'
+const isCodexProgram = (a: any) => (a?.program || '').toLowerCase().includes('codex')
+
+/**
+ * Status for a codex session, from its transcript's turn-lifecycle events:
+ * 'active' while mid-turn, 'idle' when the turn completed. Returns null when it
+ * cannot be determined (no transcript / not codex), so the caller keeps whatever
+ * the activity map said.
+ */
+function codexSessionStatus(agent: any): 'active' | 'idle' | null {
+  if (!isCodexProgram(agent)) return null
+  try {
+    const file = resolveJsonlPath(agent)
+    if (!file) return null
+    const s = codexLiveStatusFromFile(file.path)
+    return s === 'working' ? 'active' : s === 'idle' ? 'idle' : null
+  } catch {
+    return null
+  }
+}
 import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession } from '@/types/agent'
@@ -253,6 +276,12 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
           agent = getAgent(uuidMatch[1])
         }
       }
+
+      // Codex has no hook feeding sessionActivity, so it would otherwise read as
+      // 'disconnected' even while actively working. Its transcript is the
+      // authority for a codex agent.
+      const codexStatus = codexSessionStatus(agent)
+      if (codexStatus) status = codexStatus
 
       sessions.push({
         id: disc.name,

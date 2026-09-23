@@ -1,6 +1,6 @@
 # F004 — Codex chat support (multi-provider transcript reader)
 
-**Status:** In Progress (Phase 1 v0.38.35 = history+live updates; Phase 2a v0.38.36 = live working indicator; Phase 2b = approval cards + sidebar dot, pending)
+**Status:** Done (P1 v0.38.35 history+live; P2a v0.38.36 working indicator; P2b v0.38.37 sidebar dot; approval cards deferred — codex keeps approval state in the TUI only, see finding)
 **Type:** Feature
 **Created:** 2026-09-22
 
@@ -123,13 +123,35 @@ Surfaced through the same `readHookState` seam the chat already polls
 per-agent install — it rides the Phase 1 watcher. Verified: Nico reads `idle`
 after a completed turn.
 
-## Phase 2b — remaining
+## Phase 2b — sidebar dot (shipped v0.38.37) + approval-card finding
 
-- **Sidebar/session-list dot** for codex (`/api/sessions` currently shows
-  `disconnected` because it reads the hook-populated `sessionActivity` map).
-  Derive it from the same `codexLiveStatus` in `sessions-service`.
-- **Approval / permission cards.** Codex's approval prompt is a different UX than
-  Claude's `AskUserQuestion`. Open question from the eval: does it surface
-  anywhere a reader can see it (pane? transcript?), or only transiently in the
-  TUI? Determines feasibility. Codex was observed in `auto mode`, which may not
-  prompt at all.
+**Sidebar / session-list dot — DONE.** `/api/sessions` read the hook-populated
+`sessionActivity` map, so a codex agent showed `disconnected` even while working.
+`sessions-service` now derives a codex session's status from the same
+`codexLiveStatus` (working → `active`, idle → `idle`) when the agent's program is
+codex. Verified: Nico now reads `idle` there instead of `disconnected`.
+
+**Approval / permission cards — EVALUATED, deferred with reason.** The eval is
+conclusive: codex does **not** write a "waiting for approval" event to its
+transcript. `turn_context` records the `approval_policy` (`untrusted` /
+`UnlessTrusted`) and `sandbox_policy`, and under the sandbox codex often
+*auto-handles* a disallowed command (observed: a `function_call_output` reading
+"approval policy is UnlessTrusted; reject command"). When it does need a human,
+the approval prompt lives **only in the TUI** — there is no readable event to
+build a clickable card from.
+
+So clickable approval cards for codex would require **parsing codex's approval
+menu out of the pane** (a codex-specific analogue of `parsePermissionMenu`), and
+that needs a **captured sample of the actual prompt**, which we do not have — Nico
+runs in `auto mode`, which does not prompt. Building a parser against an
+unobserved menu format would be a fragile guess, so it is deferred rather than
+shipped. **Today, codex approvals are handled in the terminal tab** (which works).
+
+### To build approval cards later (when a sample exists)
+1. Capture a real codex approval prompt from a session's pane (`tmux capture-pane`)
+   with a non-auto approval policy.
+2. Write a codex menu parser beside `lib/pane-permission.mjs`, matched to that
+   format, feeding the same `hookState.status: 'permission_request'` + options
+   the chat already renders — reuse `paneCardBelongsToTranscriptQuestion`'s
+   sibling logic so a stale codex menu cannot resurrect.
+3. Answer via send-keys (already program-agnostic).

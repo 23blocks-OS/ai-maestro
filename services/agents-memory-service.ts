@@ -653,7 +653,9 @@ export async function recallMemories(
         || !fs.existsSync(path.join(os.homedir(), '.aimaestro', 'agents', agentId, 'agent.db'))) {
         return { data: { success: true, agent_id: agentId, query: query || null, memories: [], count: 0 }, status: 200 }
       }
-      transient = new AgentDatabase({ agentId })
+      // Read-only: no migrations, no metadata write. A write here once raced the
+      // agent's own connection ("database is locked") and left a table missing.
+      transient = new AgentDatabase({ agentId, readOnly: true })
       await transient.initialize()
       agentDb = transient
     }
@@ -662,7 +664,7 @@ export async function recallMemories(
       let memories: RecalledMemory[]
       if (query) {
         const [vec] = await embedTexts([query.slice(0, 2000)])
-        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit, minConfidence: 0 })
+        const hits = await searchMemoriesByEmbedding(agentDb, agentId, Array.from(vec), { limit, minConfidence: 0, trackAccess: !transient })
         const createdAt = await memoryCreatedAt(agentDb, hits.map(h => h.memory_id))
         memories = hits
           .filter(h => h.similarity <= maxDistance) // the field is a cosine distance

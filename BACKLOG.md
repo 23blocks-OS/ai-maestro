@@ -27,6 +27,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F007** — [Measure whether recalled memory changes what an agent does](./backlog/F007-measure-memory-use.md) — `Todo`
 - **F008** — [Lessons become skills (procedural memory)](./backlog/F008-lessons-become-skills.md) — `Todo`
 - **F009** — [Corrections as their own kind of memory](./backlog/F009-memory-corrections.md) — `Done` (v0.43.0)
+- **F010** — [Deliver AMP messages through Claude Code's own session inbox](./backlog/F010-cross-session-inbox-delivery.md) — `Todo`
 
 ## Bugs
 

@@ -57,6 +57,7 @@ import {
   manageConsolidation,
   queryLongTermMemories,
   recallMemories,
+  getMemoryEntity,
   deleteLongTermMemory,
   updateLongTermMemory,
   searchConversations,
@@ -698,6 +699,9 @@ const routes: Route[] = [
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await manageConsolidation(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/entity$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, await getMemoryEntity(params.id, query.name))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/recall$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await recallMemories(params.id, {

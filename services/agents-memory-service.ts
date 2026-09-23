@@ -64,6 +64,7 @@ import {
 } from '@/lib/memory/search'
 import type { MemoryCategory } from '@/lib/cozo-schema-memory'
 import { getConsolidatedOffsets, searchMemoriesByEmbedding } from '@/lib/cozo-schema-memory'
+import { withCards, entityGraph, aboutEntity, entitiesMentionedIn } from '@/lib/memory/cards'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
@@ -672,6 +673,26 @@ export async function recallMemories(
             created_at: createdAt.get(h.memory_id) ?? null,
             distance: h.similarity,
           }))
+        // A prompt that names a known entity ("mini-lola", "pane readback") also
+        // recalls that entity's newest memories, even if the wording differs.
+        const named = await entitiesMentionedIn(agentDb, agentId, query)
+        if (named.length > 0) {
+          const byEntity = await agentDb.run(`
+            ?[memory_id, category, content, created_at] :=
+              *memory_entities{memory_id, entity_id},
+              entity_id in [${named.slice(0, 5).map(id => escapeForCozo(id)).join(', ')}],
+              *memories{memory_id, category, content, created_at}
+            :order -created_at
+            :limit ${limit}
+          `)
+          const seen = new Set(memories.map(m => m.memory_id))
+          for (const r of byEntity.rows as unknown[][]) {
+            if (memories.length >= limit + 2) break
+            if (seen.has(r[0] as string)) continue
+            seen.add(r[0] as string)
+            memories.push({ memory_id: r[0] as string, category: r[1] as string, content: r[2] as string, created_at: r[3] as number, distance: null })
+          }
+        }
       } else {
         const result = await agentDb.run(`
           ?[memory_id, category, content, created_at, reinforcement_count] :=
@@ -690,7 +711,13 @@ export async function recallMemories(
         }))
       }
 
-      return { data: { success: true, agent_id: agentId, query: query || null, memories, count: memories.length }, status: 200 }
+      const withCardRows = await withCards(agentDb, memories)
+      // A card judged unfaithful or empty is not worth injecting; its passage is.
+      const recalled = withCardRows.map(m => ({
+        ...m,
+        statement: m.card?.status === 'done' ? m.card.statement : null,
+      }))
+      return { data: { success: true, agent_id: agentId, query: query || null, memories: recalled, count: recalled.length }, status: 200 }
     } finally {
       if (transient) await transient.close()
     }
@@ -711,6 +738,25 @@ async function memoryCreatedAt(
       memory_id in [${ids.map(id => escapeForCozo(id)).join(', ')}]
   `)
   return new Map(result.rows.map((row: unknown[]) => [row[0] as string, row[1] as number]))
+}
+
+// ===========================================================================
+// PUBLIC API — Entity (GET /api/agents/:id/memory/entity?name=)
+// ===========================================================================
+
+/** What the agent knows about one entity: relations and the memories that mention it. */
+export async function getMemoryEntity(agentId: string, name: string | null | undefined): Promise<ServiceResult<any>> {
+  if (!name?.trim()) return missingField('name')
+  try {
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
+    const about = await aboutEntity(agentDb, agentId, name.trim())
+    if (!about) return notFound('Entity', name)
+    return { data: { success: true, agent_id: agentId, ...about }, status: 200 }
+  } catch (error) {
+    console.error('[Memory Service] getMemoryEntity Error:', error)
+    return operationFailed('get memory entity', (error as Error).message)
+  }
 }
 
 export async function queryLongTermMemories(
@@ -750,6 +796,11 @@ export async function queryLongTermMemories(
     if (view === 'reinforced') {
       const memories = await getMostReinforcedMemories(agentDb, agentId, limit)
       return { data: { success: true, agent_id: agentId, memories, count: memories.length }, status: 200 }
+    }
+
+    if (view === 'entity-graph') {
+      const graph = await entityGraph(agentDb, agentId, limit)
+      return { data: { success: true, agent_id: agentId, graph, count: graph.nodes.length }, status: 200 }
     }
 
     if (view === 'graph') {
@@ -804,10 +855,11 @@ export async function queryLongTermMemories(
     // Browsing (no search query): newest first, pageable, with the total so the
     // UI can say "100 of 342" instead of silently stopping at the limit.
     if (!query) {
-      const [memories, total] = await Promise.all([
+      const [page, total] = await Promise.all([
         getRecentMemories(agentDb, agentId, limit, { offset, category }),
         countMemories(agentDb, agentId, category),
       ])
+      const memories = await withCards(agentDb, page)
       return {
         data: { success: true, agent_id: agentId, ...(category ? { category } : {}), memories, count: memories.length, total, offset },
         status: 200
@@ -815,13 +867,14 @@ export async function queryLongTermMemories(
     }
 
     // Search: ranked by relevance, top `limit` only (no paging through a ranking)
-    const memories = await searchMemories(agentDb, agentId, query, {
+    const hits = await searchMemories(agentDb, agentId, query, {
       limit,
       includeRelated,
       categories: category ? [category] : undefined,
       minConfidence,
       tier: tier || undefined
     })
+    const memories = await withCards(agentDb, hits)
     return { data: { success: true, agent_id: agentId, query, memories, count: memories.length }, status: 200 }
   } catch (error) {
     console.error('[Memory Service] queryLongTermMemories Error:', error)

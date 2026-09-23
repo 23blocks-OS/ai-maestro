@@ -26,6 +26,9 @@ import {
   type CardJob, type GeneratedCard,
 } from './summarizer'
 
+/** A non-null string literal: escapeForCozo('') is `null`, which a String column rejects. */
+const str = (s: string | undefined | null) => (s ? escapeForCozo(s) : "''")
+
 /** Memories turned into cards per agent per run; the rest continue next run. */
 const CARDS_PER_RUN = 60
 /** Minimum P(statement supported by excerpt) */
@@ -53,7 +56,7 @@ export async function recordMemorySource(agentDb: AgentDatabase, source: {
       ${Math.floor(source.msg_start)},
       ${Math.floor(source.msg_end)},
       ${Number.isFinite(source.ts) ? Math.floor(source.ts as number) : 'null'},
-      ${escapeForCozo(source.exchange)},
+      ${str(source.exchange)},
       ${escapeForCozo(source.previous_exchange)}
     ]]
     :put memory_sources
@@ -240,8 +243,8 @@ async function saveCard(agentDb: AgentDatabase, memoryId: string, card: { statem
   await agentDb.run(`
     ?[memory_id, statement, action, status, model, faithfulness, created_at] <- [[
       ${escapeForCozo(memoryId)},
-      ${escapeForCozo(card.statement)},
-      ${escapeForCozo(card.action)},
+      ${str(card.statement)},
+      ${str(card.action)},
       ${escapeForCozo(card.status)},
       ${escapeForCozo(SUMMARIZER_MODEL)},
       ${card.faithfulness},
@@ -337,7 +340,8 @@ export async function buildCards(
         await saveCard(agentDb, card.memory_id, { statement: card.statement, action: card.action, status: 'done', faithfulness: score })
         result.cards++
       } catch (err) {
-        errors.push(`Card ${card.memory_id}: ${(err as Error).message}`)
+        const e = err as any
+        errors.push(`Card ${card.memory_id}: ${e.message}${e.display ? ` — ${String(e.display).replace(/\x1b\[[0-9;]*m/g, '').trim().slice(0, 300)}` : ''}`)
         if (err instanceof ClassifierError && err.fatal) return result
       }
     }
@@ -345,4 +349,164 @@ export async function buildCards(
 
   result.entities = entities.topNames(100_000).length - before
   return result
+}
+
+// ---------------------------------------------------------------------------
+// Reading cards and the entity graph
+// ---------------------------------------------------------------------------
+
+export interface MemoryCardView {
+  statement: string
+  action: string
+  status: string
+}
+
+const idList = (ids: string[]) => ids.map(id => escapeForCozo(id)).join(', ')
+
+/** Cards and entities for a set of memories, keyed by memory id. */
+export async function loadCards(agentDb: AgentDatabase, memoryIds: string[]): Promise<Map<string, { card?: MemoryCardView; entities: Array<{ name: string; type: string }> }>> {
+  const out = new Map<string, { card?: MemoryCardView; entities: Array<{ name: string; type: string }> }>()
+  if (memoryIds.length === 0) return out
+  for (const id of memoryIds) out.set(id, { entities: [] })
+  const cards = await agentDb.run(`
+    ?[memory_id, statement, action, status] :=
+      *memory_cards{memory_id, statement, action, status},
+      memory_id in [${idList(memoryIds)}]
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  for (const r of cards.rows as unknown[][]) {
+    out.get(r[0] as string)!.card = { statement: r[1] as string, action: r[2] as string, status: r[3] as string }
+  }
+  const ents = await agentDb.run(`
+    ?[memory_id, name, type] :=
+      *memory_entities{memory_id, entity_id},
+      memory_id in [${idList(memoryIds)}],
+      *entities{entity_id, name, type}
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  for (const r of ents.rows as unknown[][]) {
+    out.get(r[0] as string)!.entities.push({ name: r[1] as string, type: r[2] as string })
+  }
+  return out
+}
+
+/** Attach card + entities to memory rows (anything with a memory_id). */
+export async function withCards<T extends { memory_id: string }>(agentDb: AgentDatabase, memories: T[]): Promise<Array<T & { card?: MemoryCardView; entities: Array<{ name: string; type: string }> }>> {
+  const cards = await loadCards(agentDb, memories.map(m => m.memory_id))
+  return memories.map(m => ({ ...m, ...(cards.get(m.memory_id) || { entities: [] }) }))
+}
+
+/**
+ * The entity graph: the most-mentioned entities as nodes; edges are the typed
+ * relations between them, plus "co_mentioned" where two entities appear in the
+ * same memory without a stated relation.
+ */
+export async function entityGraph(agentDb: AgentDatabase, agentId: string, limit = 150) {
+  const nodesResult = await agentDb.run(`
+    ?[entity_id, name, type, mention_count] :=
+      *entities{entity_id, agent_id, name, type, mention_count},
+      agent_id = ${escapeForCozo(agentId)}
+    :order -mention_count
+    :limit ${limit}
+  `)
+  const nodes = (nodesResult.rows as unknown[][]).map(r => ({
+    id: r[0] as string, name: r[1] as string, type: r[2] as string, mention_count: r[3] as number,
+  }))
+  const ids = new Set(nodes.map(n => n.id))
+  if (nodes.length === 0) return { nodes, links: [] as Array<{ source: string; target: string; relationship: string; weight: number }> }
+
+  const rels = await agentDb.run(`
+    ?[from_entity, predicate, to_entity, count(memory_id)] :=
+      *entity_relations{from_entity, predicate, to_entity, memory_id}
+  `)
+  const links = new Map<string, { source: string; target: string; relationship: string; weight: number }>()
+  const related = new Set<string>()
+  for (const [from, predicate, to, weight] of rels.rows as [string, string, string, number][]) {
+    if (!ids.has(from) || !ids.has(to)) continue
+    links.set(`${from}|${predicate}|${to}`, { source: from, target: to, relationship: predicate, weight })
+    related.add([from, to].sort().join('|'))
+  }
+
+  const co = await agentDb.run(`
+    ?[a, b, count(memory_id)] :=
+      *memory_entities{memory_id, entity_id: a},
+      *memory_entities{memory_id, entity_id: b},
+      a < b
+  `)
+  for (const [a, b, weight] of co.rows as [string, string, number][]) {
+    if (!ids.has(a) || !ids.has(b) || related.has(`${a}|${b}`)) continue
+    links.set(`${a}|co|${b}`, { source: a, target: b, relationship: 'co_mentioned', weight })
+  }
+  return { nodes, links: [...links.values()] }
+}
+
+/** Find an entity by name or alias (case-insensitive). */
+export async function findEntity(agentDb: AgentDatabase, agentId: string, name: string): Promise<{ entity_id: string; name: string; type: string; aliases: string[]; mention_count: number } | null> {
+  const key = norm(name)
+  const result = await agentDb.run(`
+    ?[entity_id, name, type, aliases, mention_count] :=
+      *entities{entity_id, agent_id, name, type, aliases, mention_count},
+      agent_id = ${escapeForCozo(agentId)}
+  `)
+  let best: { entity_id: string; name: string; type: string; aliases: string[]; mention_count: number } | null = null
+  for (const r of result.rows as unknown[][]) {
+    let aliases: string[] = []
+    try { aliases = JSON.parse(r[3] as string) } catch { /* none */ }
+    const row = { entity_id: r[0] as string, name: r[1] as string, type: r[2] as string, aliases, mention_count: r[4] as number }
+    if ([row.name, ...aliases].some(n => norm(n) === key) && (!best || row.mention_count > best.mention_count)) best = row
+  }
+  return best
+}
+
+/** Everything known about one entity: its relations and the memories that mention it. */
+export async function aboutEntity(agentDb: AgentDatabase, agentId: string, name: string, limit = 20) {
+  const entity = await findEntity(agentDb, agentId, name)
+  if (!entity) return null
+  const id = escapeForCozo(entity.entity_id)
+  const relations = await agentDb.run(`
+    ?[direction, predicate, other_name, other_type] :=
+      *entity_relations{from_entity: ${id}, predicate, to_entity: other},
+      *entities{entity_id: other, name: other_name, type: other_type},
+      direction = 'out'
+    ?[direction, predicate, other_name, other_type] :=
+      *entity_relations{from_entity: other, predicate, to_entity: ${id}},
+      *entities{entity_id: other, name: other_name, type: other_type},
+      direction = 'in'
+  `)
+  const memories = await agentDb.run(`
+    ?[memory_id, category, content, created_at] :=
+      *memory_entities{memory_id, entity_id: ${id}},
+      *memories{memory_id, category, content, created_at}
+    :order -created_at
+    :limit ${limit}
+  `)
+  const rows = (memories.rows as unknown[][]).map(r => ({ memory_id: r[0] as string, category: r[1] as string, content: r[2] as string, created_at: r[3] as number }))
+  return {
+    entity,
+    relations: (relations.rows as unknown[][]).map(r => ({ direction: r[0] as string, predicate: r[1] as string, name: r[2] as string, type: r[3] as string })),
+    memories: await withCards(agentDb, rows),
+  }
+}
+
+/**
+ * Entities named in a piece of text (a user prompt): whole-word, case-insensitive
+ * matches on names and aliases of at least 3 characters.
+ */
+export async function entitiesMentionedIn(agentDb: AgentDatabase, agentId: string, text: string): Promise<string[]> {
+  const haystack = ` ${norm(text)} `
+  const result = await agentDb.run(`
+    ?[entity_id, name, aliases] :=
+      *entities{entity_id, agent_id, name, aliases},
+      agent_id = ${escapeForCozo(agentId)}
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  const hits: string[] = []
+  for (const r of result.rows as unknown[][]) {
+    let aliases: string[] = []
+    try { aliases = JSON.parse(r[2] as string) } catch { /* none */ }
+    for (const n of [r[1] as string, ...aliases]) {
+      const k = norm(n)
+      if (k.length < 3) continue
+      const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      if (new RegExp(`(^|[^a-z0-9_])${escaped}([^a-z0-9_]|$)`).test(haystack)) { hits.push(r[0] as string); break }
+    }
+  }
+  return hits
 }

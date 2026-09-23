@@ -69,7 +69,7 @@ const MAX_BATCH = 12
 const MAX_BATCH_CHARS = 60_000
 const MAX_PREVIOUS_CHARS = 2_000
 
-export const SYSTEM_PROMPT = `You write long-term memory cards for an AI software agent from excerpts of its own past conversations with its user.
+const SYSTEM_PROMPT = `You write long-term memory cards for an AI software agent from excerpts of its own past conversations with its user.
 
 For each MEMORY you get the passage that was flagged as worth remembering, the whole exchange it came from, and the exchange before it as background. Read all of it: the card must capture what the passage means in context, not just repeat it.
 
@@ -80,49 +80,17 @@ For each memory return:
 - relations: subject/predicate/object triples between entity names from your own entities list, only when the excerpt states the relation.
 - skip: true if, read in context, the passage holds nothing worth remembering beyond this conversation. Then leave statement empty.
 
-Never include secrets, passwords, tokens or keys; text shown as [REDACTED] stays redacted. Output only the JSON requested, one card per MEMORY, using its memory_id.`
+Never include secrets, passwords, tokens or keys; text shown as [REDACTED] stays redacted.
 
-export const CARDS_SCHEMA = {
-  type: 'object',
-  properties: {
-    cards: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          memory_id: { type: 'string' },
-          skip: { type: 'boolean' },
-          statement: { type: 'string' },
-          action: { type: 'string', enum: [...CARD_ACTIONS] },
-          entities: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                name: { type: 'string' },
-                type: { type: 'string', enum: [...ENTITY_TYPES] },
-              },
-              required: ['name', 'type'],
-            },
-          },
-          relations: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                subject: { type: 'string' },
-                predicate: { type: 'string', enum: [...RELATION_PREDICATES] },
-                object: { type: 'string' },
-              },
-              required: ['subject', 'predicate', 'object'],
-            },
-          },
-        },
-        required: ['memory_id', 'skip', 'statement', 'action', 'entities', 'relations'],
-      },
-    },
-  },
-  required: ['cards'],
+Reply with ONLY a JSON object, no prose and no code fence, one card per MEMORY using its memory_id:
+{"cards":[{"memory_id":"...","skip":false,"statement":"...","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${RELATION_PREDICATES.join('|')}","object":"..."}]}]}`
+
+/** The JSON object in a model reply, tolerating a stray code fence or preamble. */
+export function extractJson(text: string): unknown {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  try { return JSON.parse(text.slice(start, end + 1)) } catch { return null }
 }
 
 // ---------------------------------------------------------------------------
@@ -262,15 +230,16 @@ export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): 
   const args = [
     '-p',
     '--model', SUMMARIZER_MODEL,
-    // Summarizing is not a reasoning task; default effort thinks for ~25 s per card
-    '--effort', 'low',
     '--tools', '',
     '--no-session-persistence',
     '--strict-mcp-config',
-    '--settings', JSON.stringify({ disableAllHooks: true }),
+    // Thinking off: summarizing is not a reasoning task. With it on (even at
+    // --effort low) 3 cards took 120-160 s and ~12-16k hidden output tokens;
+    // off, 10 s and ~1k. --json-schema is not used either: it added validation
+    // turns; the reply is plain JSON checked by parseCards.
+    '--settings', JSON.stringify({ disableAllHooks: true, alwaysThinkingEnabled: false }),
     '--output-format', 'json',
     '--system-prompt', SYSTEM_PROMPT,
-    '--json-schema', JSON.stringify(CARDS_SCHEMA),
   ]
   const prompt = buildPrompt(jobs, knownEntities)
 
@@ -281,6 +250,7 @@ export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): 
     delete env.ANTHROPIC_API_KEY
     delete env.CLAUDECODE
     delete env.CLAUDE_CODE_ENTRYPOINT
+    env.MAX_THINKING_TOKENS = '0'
     const child = spawn(claude, args, {
       cwd: workerDir(),
       env,
@@ -305,7 +275,7 @@ export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): 
         reject(new SummarizerError(`summarizer failed: ${detail}`, LIMIT_PATTERN.test(detail)))
         return
       }
-      resolve(parseCards(parsed.structured_output, jobs))
+      resolve(parseCards(extractJson(String(parsed.result ?? '')), jobs))
     })
     child.stdin.end(prompt)
   }))

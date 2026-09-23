@@ -18,6 +18,9 @@ interface Memory {
   reinforcement_count: number
   created_at?: number
   access_count?: number
+  /** The readable memory (F006): statement + action, written by the host's Claude, checked by Jev */
+  card?: { statement: string; action: string; status: string }
+  entities?: Array<{ name: string; type: string }>
   related?: Array<{
     memory_id: string
     relationship: string
@@ -68,6 +71,23 @@ interface MemoryViewerProps {
 
 const PAGE_SIZE = 100
 
+/** Entity node colours for the entity graph and entity chips. */
+const ENTITY_COLORS: Record<string, string> = {
+  agent: '#ec4899',
+  person: '#f97316',
+  host: '#ef4444',
+  service: '#3b82f6',
+  repo: '#8b5cf6',
+  file: '#10b981',
+  function: '#14b8a6',
+  tool: '#f59e0b',
+  product: '#06b6d4',
+  library: '#a855f7',
+  organization: '#eab308',
+  concept: '#94a3b8',
+  other: '#6b7280',
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   fact: '#3b82f6',      // blue
   decision: '#8b5cf6',  // purple
@@ -95,6 +115,7 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
 
 export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }: MemoryViewerProps) {
   const [view, setView] = useState<'list' | 'graph'>('list')
+  const [graphMode, setGraphMode] = useState<'entities' | 'memories'>('entities')
   const [memories, setMemories] = useState<Memory[]>([])
   const [memoriesTotal, setMemoriesTotal] = useState<number | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -111,6 +132,9 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     memoriesCreated?: number
     memoriesReinforced?: number
     memoriesLinked?: number
+    cardsCreated?: number
+    entitiesCreated?: number
+    cardsDeferred?: boolean
     chunksClassified?: number
     provider?: string
     notice?: string       // e.g. nothing new to consolidate
@@ -173,6 +197,21 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
   // Fetch graph data
   const fetchGraph = useCallback(async () => {
     try {
+      if (graphMode === 'entities') {
+        // Entities are the nodes; typed relations (and co-mentions) are the edges
+        const response = await fetch(`${hostUrl}/api/agents/${agentId}/memory/long-term?view=entity-graph&limit=150`)
+        if (response.ok) {
+          const data = await response.json()
+          const g = data.graph || { nodes: [], links: [] }
+          setGraphData({
+            nodes: g.nodes.map((n: { id: string; name: string; type: string; mention_count: number }) => ({
+              id: n.id, category: n.type, tier: '', content: n.name, confidence: 1, reinforcement_count: n.mention_count,
+            })),
+            links: g.links,
+          })
+        }
+        return
+      }
       const response = await fetch(`${hostUrl}/api/agents/${agentId}/memory/long-term?view=graph&limit=100`)
       if (response.ok) {
         const data = await response.json()
@@ -181,7 +220,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     } catch (error) {
       console.error('Failed to fetch graph:', error)
     }
-  }, [agentId, hostUrl])
+  }, [agentId, hostUrl, graphMode])
 
   // Trigger consolidation
   const triggerConsolidation = async () => {
@@ -204,6 +243,9 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         memoriesCreated: data.memories_created,
         memoriesReinforced: data.memories_reinforced,
         memoriesLinked: data.memories_linked,
+        cardsCreated: data.cards_created,
+        entitiesCreated: data.entities_created,
+        cardsDeferred: data.cards_deferred,
         chunksClassified: data.chunks_classified,
         provider: data.provider_used,
         notice: data.status === 'no_data' ? data.message : undefined,
@@ -240,7 +282,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     if (view === 'graph') {
       fetchGraph()
     }
-  }, [view, agentId])
+  }, [view, agentId, graphMode])
 
   // Handle edit
   const startEdit = (memory: Memory) => {
@@ -356,11 +398,16 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
                       Created {consolidationResult.memoriesCreated || 0} memories, reinforced {consolidationResult.memoriesReinforced || 0}
                       {consolidationResult.memoriesLinked ? `, linked ${consolidationResult.memoriesLinked}` : ''}
                       {consolidationResult.chunksClassified !== undefined && ` from ${consolidationResult.chunksClassified} passages`}
+                      {consolidationResult.cardsCreated ? `; wrote ${consolidationResult.cardsCreated} cards` : ''}
+                      {consolidationResult.entitiesCreated ? `, ${consolidationResult.entitiesCreated} new entities` : ''}
                       {consolidationResult.provider && ` (${consolidationResult.provider})`}
                     </>
                   )}
                 </span>
               </div>
+              {consolidationResult.cardsDeferred && (
+                <div className="text-gray-400 pl-6">Card writing paused at the Claude usage limit; it continues on the next run.</div>
+              )}
               {consolidationResult.moreRemaining && (
                 <div className="text-gray-400 pl-6">More history left to process. It continues on the next run, or click Consolidate again.</div>
               )}
@@ -511,10 +558,24 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
           onDelete={deleteMemory}
         />
       ) : (
-        <MemoryGraph
-          data={graphData}
-          loading={loading}
-        />
+        <div className="space-y-2">
+          <div className="flex items-center gap-1 text-xs">
+            {(['entities', 'memories'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setGraphMode(mode)}
+                className={`px-3 py-1 rounded-md capitalize ${graphMode === mode ? 'bg-gray-700 text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <MemoryGraph
+            data={graphData}
+            loading={loading}
+            mode={graphMode}
+          />
+        </div>
       )}
 
       {/* Edit Modal */}
@@ -599,6 +660,72 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
 }
 
 // Memory List Component
+const ACTION_LABELS: Record<string, string> = {
+  decided: 'decided', rejected: 'rejected', prefers: 'prefers', fixed: 'fixed',
+  found_bug: 'found bug', discovered: 'discovered', configured: 'configured',
+  deployed: 'deployed', replaced: 'replaced', requires: 'requires',
+  explained: 'explained', planned: 'planned', other: 'noted',
+}
+
+/**
+ * A memory reads as its card (one statement, an action, the entities it is
+ * about); the verbatim passage it came from stays one click away. Memories
+ * without a usable card (none yet, skipped, or judged unfaithful) show the
+ * passage itself.
+ */
+function MemoryBody({ memory }: { memory: Memory }) {
+  const [showSource, setShowSource] = useState(false)
+  const card = memory.card?.status === 'done' ? memory.card : null
+
+  if (!card) {
+    return (
+      <>
+        <p className="text-gray-200 text-sm mb-2 whitespace-pre-wrap">{memory.content}</p>
+        {memory.context && (
+          <p className="text-gray-500 text-xs italic mb-2">Context: {memory.context}</p>
+        )}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex items-start gap-2 mb-2">
+        <span className="text-[10px] uppercase tracking-wide text-gray-400 border border-gray-600 rounded px-1.5 py-0.5 flex-shrink-0 mt-0.5">
+          {ACTION_LABELS[card.action] || card.action}
+        </span>
+        <p className="text-gray-100 text-sm">{card.statement}</p>
+      </div>
+      {memory.entities && memory.entities.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {memory.entities.map(e => (
+            <span
+              key={`${e.name}-${e.type}`}
+              className="text-xs px-2 py-0.5 rounded-full border"
+              style={{ borderColor: `${ENTITY_COLORS[e.type] || '#6b7280'}60`, color: ENTITY_COLORS[e.type] || '#9ca3af' }}
+              title={e.type}
+            >
+              {e.name}
+            </span>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => setShowSource(v => !v)}
+        className="text-xs text-gray-500 hover:text-gray-300 mb-2"
+      >
+        {showSource ? 'Hide source' : 'Show source'}
+      </button>
+      {showSource && (
+        <div className="mb-2 p-2 rounded bg-gray-900/60 border border-gray-700">
+          <p className="text-gray-300 text-xs whitespace-pre-wrap">{memory.content}</p>
+          {memory.context && <p className="text-gray-500 text-[11px] italic mt-1">{memory.context}</p>}
+        </div>
+      )}
+    </>
+  )
+}
+
 function MemoryList({
   memories,
   loading,
@@ -679,13 +806,7 @@ function MemoryList({
                 )}
               </div>
 
-              <p className="text-gray-200 text-sm mb-2">{memory.content}</p>
-
-              {memory.context && (
-                <p className="text-gray-500 text-xs italic mb-2">
-                  Context: {memory.context}
-                </p>
-              )}
+              <MemoryBody memory={memory} />
 
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <span className="flex items-center gap-1">
@@ -761,11 +882,20 @@ function MemoryList({
 // Force-Directed Graph Component
 function MemoryGraph({
   data,
-  loading
+  loading,
+  mode = 'memories'
 }: {
   data: { nodes: GraphNode[], links: GraphLink[] } | null
   loading: boolean
+  /** 'entities': nodes are entities (category = entity type, reinforcement_count = mentions) */
+  mode?: 'entities' | 'memories'
 }) {
+  const entityMode = mode === 'entities'
+  const nodeColors = entityMode ? ENTITY_COLORS : CATEGORY_COLORS
+  const linkColor = (rel: string) =>
+    entityMode ? (rel === 'co_mentioned' ? '#374151' : '#9ca3af') : (RELATIONSHIP_COLORS[rel] || '#4b5563')
+  const nodeRadius = (node: GraphNode) =>
+    entityMode ? Math.min(6 + Math.sqrt(node.reinforcement_count || 1) * 3, 18) : 10
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
@@ -903,8 +1033,8 @@ function MemoryGraph({
       ctx.beginPath()
       ctx.moveTo(source.x, source.y!)
       ctx.lineTo(target.x, target.y!)
-      ctx.strokeStyle = RELATIONSHIP_COLORS[link.relationship] || '#4b5563'
-      ctx.lineWidth = 1.5
+      ctx.strokeStyle = linkColor(link.relationship)
+      ctx.lineWidth = entityMode && link.relationship === 'co_mentioned' ? 0.75 : 1.5
       ctx.stroke()
     }
 
@@ -913,18 +1043,26 @@ function MemoryGraph({
       if (!node.x || !node.y) continue
 
       const isHovered = hoveredNode?.id === node.id
-      const radius = isHovered ? 14 : 10
+      const radius = nodeRadius(node) + (isHovered ? 4 : 0)
 
       // Node circle
       ctx.beginPath()
       ctx.arc(node.x, node.y, radius, 0, Math.PI * 2)
-      ctx.fillStyle = CATEGORY_COLORS[node.category] || '#6b7280'
+      ctx.fillStyle = nodeColors[node.category] || '#6b7280'
       ctx.fill()
 
       // Border
       ctx.strokeStyle = isHovered ? '#ffffff' : '#374151'
       ctx.lineWidth = isHovered ? 2 : 1
       ctx.stroke()
+
+      // Entity names are short: label every node
+      if (entityMode && !isHovered) {
+        ctx.font = '10px Inter, system-ui'
+        ctx.fillStyle = '#d1d5db'
+        ctx.textAlign = 'center'
+        ctx.fillText(node.content.substring(0, 24), node.x, node.y + radius + 11)
+      }
 
       // Label for hovered node
       if (isHovered) {
@@ -950,7 +1088,7 @@ function MemoryGraph({
       if (!node.x || !node.y) return false
       const dx = x - node.x
       const dy = y - node.y
-      return Math.sqrt(dx * dx + dy * dy) < 15
+      return Math.sqrt(dx * dx + dy * dy) < nodeRadius(node) + 5
     })
 
     setHoveredNode(found || null)
@@ -972,7 +1110,11 @@ function MemoryGraph({
       <div className="flex flex-col items-center justify-center py-12 bg-gray-800/30 rounded-lg border border-gray-700 text-gray-400">
         <Share2 className="w-12 h-12 mb-3 opacity-50" />
         <p className="text-lg font-medium">No graph data</p>
-        <p className="text-sm">Memories need relationships to form a graph</p>
+        <p className="text-sm">
+          {entityMode
+            ? 'Entities appear once memory cards are written (nightly, or Consolidate now)'
+            : 'Memories need relationships to form a graph'}
+        </p>
       </div>
     )
   }
@@ -990,15 +1132,20 @@ function MemoryGraph({
 
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
-        <div className="text-xs font-medium text-gray-400 mb-2">Categories</div>
+        <div className="text-xs font-medium text-gray-400 mb-2">{entityMode ? 'Entity types' : 'Categories'}</div>
         <div className="flex flex-wrap gap-3">
-          {Object.entries(CATEGORY_COLORS).map(([cat, color]) => (
+          {Object.entries(nodeColors)
+            .filter(([cat]) => !entityMode || data.nodes.some(n => n.category === cat))
+            .map(([cat, color]) => (
             <div key={cat} className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
               <span className="text-xs text-gray-400 capitalize">{cat}</span>
             </div>
           ))}
         </div>
+        {entityMode ? (
+          <p className="text-xs text-gray-500 mt-3">Solid: stated relation (hover a node) · faint: mentioned together</p>
+        ) : (<>
         <div className="text-xs font-medium text-gray-400 mt-3 mb-2">Relationships</div>
         <div className="flex flex-wrap gap-3">
           {Object.entries(RELATIONSHIP_COLORS).map(([rel, color]) => (
@@ -1008,6 +1155,7 @@ function MemoryGraph({
             </div>
           ))}
         </div>
+        </>)}
       </div>
 
       {/* Hovered node info */}
@@ -1017,8 +1165,8 @@ function MemoryGraph({
             <span
               className="text-xs font-medium px-2 py-0.5 rounded"
               style={{
-                backgroundColor: `${CATEGORY_COLORS[hoveredNode.category]}20`,
-                color: CATEGORY_COLORS[hoveredNode.category]
+                backgroundColor: `${nodeColors[hoveredNode.category] || '#6b7280'}20`,
+                color: nodeColors[hoveredNode.category] || '#9ca3af'
               }}
             >
               {hoveredNode.category}
@@ -1026,12 +1174,31 @@ function MemoryGraph({
             <span className="text-xs text-gray-500">{hoveredNode.tier}</span>
           </div>
           <p className="text-sm text-gray-200">{hoveredNode.content}</p>
+          {entityMode ? (
+            <div className="mt-2 space-y-1 text-xs text-gray-400">
+              <div>Mentioned in {hoveredNode.reinforcement_count} {hoveredNode.reinforcement_count === 1 ? 'memory' : 'memories'}</div>
+              {data.links
+                .filter(l => l.relationship !== 'co_mentioned' && (l.source === hoveredNode.id || l.target === hoveredNode.id))
+                .slice(0, 8)
+                .map((l, i) => {
+                  const other = data.nodes.find(n => n.id === (l.source === hoveredNode.id ? l.target : l.source))
+                  const out = l.source === hoveredNode.id
+                  return (
+                    <div key={i}>
+                      {out ? <>{l.relationship.replace('_', ' ')} <span className="text-gray-200">{other?.content}</span></>
+                           : <><span className="text-gray-200">{other?.content}</span> {l.relationship.replace('_', ' ')} this</>}
+                    </div>
+                  )
+                })}
+            </div>
+          ) : (
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
             <span>{(hoveredNode.confidence * 100).toFixed(0)}% confidence</span>
             {hoveredNode.reinforcement_count > 1 && (
               <span>{hoveredNode.reinforcement_count}x reinforced</span>
             )}
           </div>
+          )}
         </div>
       )}
     </div>

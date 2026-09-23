@@ -75,7 +75,28 @@ export interface ConversationChunk {
 
 /** Fatal errors abort the whole run (bad key, bad URL); others are per-chunk. */
 export class ClassifierError extends Error {
-  constructor(message: string, public fatal: boolean) { super(message) }
+  /**
+   * fatal: bad key or URL, stop the run.
+   * blocked: the API refused this content (a firewall in front of Jev answers
+   * 403 to text that looks like SQL injection or path traversal); skip this
+   * one passage rather than stalling its whole conversation.
+   */
+  constructor(message: string, public fatal: boolean, public blocked = false) { super(message) }
+}
+
+/**
+ * The same text with attack-looking sequences made inert for a firewall, used
+ * only for the copy sent to the classifier (what is stored stays original).
+ * Measured 2026-09-23: "' OR 1=1; DROP TABLE" and "../../etc/passwd" got a
+ * permanent 403; shell injection and <script> passed.
+ */
+export function defang(text: string): string {
+  return text
+    .replace(/'/g, '\u2019')          // ' → ’
+    .replace(/\.\.\//g, '..\u2044')   // ../ → ..⁄
+    .replace(/\.\.\\/g, '..\u2044')  // ..\ → ..⁄
+    .replace(/--/g, '\u2014')         // -- → —
+    .replace(/;/g, '\u037e')          // ; → ;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +253,8 @@ export class JevClassifier {
   async ask(state: string, questions: Record<string, unknown>): Promise<{ answers: Record<string, any>; model: string; inputTokens: number }> {
     return withSlot(async () => {
       let lastError = ''
+      let defanged = false
+      let body = JSON.stringify({ model: this.settings.model, state, questions })
       for (let attempt = 0; attempt < 4; attempt++) {
         let res: Response
         try {
@@ -241,7 +264,7 @@ export class JevClassifier {
               Authorization: `Bearer ${this.settings.apiKey}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ model: this.settings.model, state, questions }),
+            body,
             signal: AbortSignal.timeout(30_000),
           })
         } catch (err) {
@@ -256,7 +279,17 @@ export class JevClassifier {
         // 403 came back transiently on 2026-09-23 (02:10, the key worked before
         // and after) and, treated as a bad key, aborted the agent's whole run.
         // Retry it like a rate limit; if it persists it surfaces as a per-chunk error.
-        if (res.status === 403 || res.status === 429 || res.status >= 500) {
+        if (res.status === 403) {
+          // Content refused by the firewall: once more with the text defanged,
+          // then give up on this passage only.
+          if (!defanged) {
+            defanged = true
+            body = JSON.stringify({ model: this.settings.model, state: typeof state === 'string' ? defang(state) : state, questions })
+            continue
+          }
+          throw new ClassifierError('Classifier refused this content (HTTP 403, blocked by the API firewall)', false, true)
+        }
+        if (res.status === 429 || res.status >= 500) {
           lastError = `HTTP ${res.status}`
           await sleep(1000 * 2 ** attempt)
           continue

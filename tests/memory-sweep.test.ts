@@ -66,7 +66,7 @@ describe('sweepAgentMemory', () => {
   it('indexes by agent id, never hydrating an Agent object', async () => {
     mockFs.readdirSync.mockReturnValue(['agent-1'])
     await sweepAgentMemory()
-    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('agent-1')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('agent-1', { dailyWindowHours: 6 })
   })
 
   it('counts a returned {success:false} as failed, not indexed', async () => {
@@ -120,8 +120,8 @@ describe('sweepAgentMemory', () => {
   it('processes only the requested agents when told to', async () => {
     const r = await sweepAgentMemory({ only: ['x', 'y'] })
     expect(r.scanned).toBe(2)
-    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('x')
-    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('y')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('x', { dailyWindowHours: 6 })
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('y', { dailyWindowHours: 6 })
   })
 
   it('skips agents swept more recently than minAgeMs', async () => {
@@ -135,7 +135,7 @@ describe('sweepAgentMemory', () => {
     const r = await sweepAgentMemory({ minAgeMs: 3_600_000 })
 
     expect(r.scanned).toBe(1)
-    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('stale')
+    expect(mockRunner.runDueTasks).toHaveBeenCalledWith('stale', { dailyWindowHours: 6 })
   })
 
   it('totals the work done', async () => {

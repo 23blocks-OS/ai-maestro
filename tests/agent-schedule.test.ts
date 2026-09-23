@@ -110,13 +110,32 @@ describe('isDue — daily tasks', () => {
     expect(isDue(task({ everyMs: undefined, atHour: 2 }), at2am())).toBe(true)
   })
 
-  it('is not due outside the configured hour', () => {
-    expect(isDue(task({ everyMs: undefined, atHour: 2 }), at2am(0, 14))).toBe(false)
+  it('catches up later in the day when nobody reached it at the hour', () => {
+    // Required the hour to BE 2 before: only agents reached between 2:00 and
+    // 2:59 ever consolidated (11 of 170 on 2026-09-23).
+    expect(isDue(task({ everyMs: undefined, atHour: 2 }), at2am(0, 14))).toBe(true)
+    expect(isDue(task({ everyMs: undefined, atHour: 2, lastRunAt: at2am(-1, 3) }), at2am(0, 14))).toBe(true)
   })
 
-  it('does not run twice in the same window', () => {
-    const now = at2am()
-    expect(isDue(task({ everyMs: undefined, atHour: 2, lastRunAt: now - HOUR }), now)).toBe(false)
+  it('runs once a day: not again after today\'s run', () => {
+    expect(isDue(task({ everyMs: undefined, atHour: 2, lastRunAt: at2am(0, 3) }), at2am(0, 14))).toBe(false)
+  })
+
+  it('the sweep only starts it within the night window', () => {
+    const due = task({ everyMs: undefined, atHour: 2, lastRunAt: at2am(-1, 3) })
+    expect(isDue(due, at2am(0, 5), { dailyWindowHours: 6 })).toBe(true)   // 05:05, inside 02-08
+    expect(isDue(due, at2am(0, 14), { dailyWindowHours: 6 })).toBe(false) // 14:05, daytime: wait for tonight
+    expect(isDue(due, at2am(0, 14))).toBe(true)                           // an idle transition may catch up
+  })
+
+  it('before the hour, yesterday\'s run still counts', () => {
+    expect(isDue(task({ everyMs: undefined, atHour: 2, lastRunAt: at2am(-1, 3) }), at2am(0, 1))).toBe(false)
+    expect(isDue(task({ everyMs: undefined, atHour: 2, lastRunAt: at2am(-2, 3) }), at2am(0, 1))).toBe(true)
+  })
+
+  it('does not run twice for the same 2am', () => {
+    const now = at2am() // 02:05
+    expect(isDue(task({ everyMs: undefined, atHour: 2, lastRunAt: now - 2 * 60 * 1000 }), now)).toBe(false)
   })
 
   it('still runs after a day was missed', () => {

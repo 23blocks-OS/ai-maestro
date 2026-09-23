@@ -60,6 +60,9 @@ export interface SweepOptions {
   only?: string[]
 }
 
+/** A sweep starts daily tasks only this long after their scheduled hour (2 AM → until 8 AM). */
+export const SWEEP_DAILY_WINDOW_HOURS = 6
+
 const AGENTS_DIR = () => path.join(os.homedir(), '.aimaestro', 'agents')
 
 /** Agent ids that have a database on disk — the set worth sweeping. */
@@ -142,7 +145,9 @@ async function runSweep(opts: SweepOptions): Promise<SweepResult> {
       // the fallback executor for agents that stay busy and never hit an idle
       // transition; it still honours agent-owned schedules, so the host holds
       // no list of its own and an agent that moves machines keeps its cadence.
-      const r = await runDueTasks(agentId)
+      // Daily tasks (consolidation) only start within 6 hours of their time:
+      // the fleet consolidates at night, not as a daytime backfill.
+      const r = await runDueTasks(agentId, { dailyWindowHours: SWEEP_DAILY_WINDOW_HOURS })
       const messages = r.ran
         .filter((t) => t.action === 'index' && t.ok)
         .reduce((n, t) => n + (parseInt(t.detail, 10) || 0), 0)

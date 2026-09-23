@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.1] - 2026-09-23 — Daily consolidation reaches every agent, at night
+
+A daily task (consolidation, 2 AM) was only "due" while the local hour WAS 2,
+so only agents a sweep or an idle transition happened to reach between 2:00 and
+2:59 ever consolidated: 11 of 170 on 2026-09-23. A test enforced it. A daily
+task is now due once its most recent scheduled time has passed without a run.
+The server sweep starts daily tasks only within 6 hours of their time (2–8 AM),
+so the fleet consolidates at night rather than as a daytime backfill; an
+agent's own idle transition may still catch up at any time.
+
 ## [0.41.0] - 2026-09-23 — Memory weighted by recurrence, delivered, and run for every agent
 
 The first night of v0.40 showed three things: agents received zero memories

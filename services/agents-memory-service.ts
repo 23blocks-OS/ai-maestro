@@ -532,7 +532,8 @@ export async function triggerConsolidation(
   }
   consolidating.add(agentId)
   try {
-    return await runTriggeredConsolidation(agentId, options)
+    // Pinned: the agent's database must stay open for the whole run
+    return await agentRegistry.withAgent(agentId, () => runTriggeredConsolidation(agentId, options))
   } finally {
     consolidating.delete(agentId)
   }

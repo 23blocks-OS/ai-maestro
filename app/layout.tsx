@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Archivo, JetBrains_Mono } from 'next/font/google'
 import Providers from '@/components/Providers'
+import ClientDiagnostics from '@/components/ClientDiagnostics'
 import './globals.css'
 
 // Archivo: a signage grotesque with a real width axis, so one family covers UI
@@ -45,7 +46,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${sans.variable} ${mono.variable} font-sans`}><Providers>{children}</Providers></body>
+      <body className={`${sans.variable} ${mono.variable} font-sans`}><ClientDiagnostics /><Providers>{children}</Providers></body>
     </html>
   )
 }

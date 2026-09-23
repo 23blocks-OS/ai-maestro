@@ -2516,10 +2516,17 @@ async function startServer(handleRequest) {
     // after 2 AM) DUE, but they only RUN on an idle transition or a sweep, and
     // nothing ran the sweep. Agents that stay idle overnight never consolidated:
     // on 2026-09-23 only 11 of 170 agents did (the ones resident in the LRU).
-    // The sweep works from agent ids on disk, oldest-swept first, 20 at a time.
+    // The sweep works from agent ids on disk, oldest-swept first, 20 at a time,
+    // between 2 and 8 AM.
     if (process.env.MEMORY_SWEEP_ENABLED !== 'false') {
       const SWEEP_EVERY_MS = 15 * 60 * 1000
       const runMemorySweep = () => {
+        // Night only (2-8 AM local). In the day, indexing happens as it always
+        // did, on each agent's idle transition. A daytime sweep catching up weeks
+        // of backlog embedded thousands of messages in this process and the
+        // dashboard reset while it ran (2026-09-23).
+        const hour = new Date().getHours()
+        if (hour < 2 || hour >= 8) return
         fetch(`http://localhost:${port}/api/memory/sweep`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.2] - 2026-09-23 — Security conversations are no longer unrememberable
+
+A firewall in front of the Jev API answers a permanent 403 to text that looks
+like SQL injection or path traversal (measured: "' OR 1=1; DROP TABLE" and
+"../../etc/passwd" refused; shell injection and <script> accepted). Treated as a
+transient error, it made a conversation about security fixes stall at that
+passage on every run, retrying for 15 s each time. Now a 403 is retried once
+with those sequences defanged (only in the copy sent to the classifier), and a
+passage still refused is skipped instead of blocking its conversation.
+
 ## [0.41.1] - 2026-09-23 — Daily consolidation reaches every agent, at night
 
 A daily task (consolidation, 2 AM) was only "due" while the local hour WAS 2,

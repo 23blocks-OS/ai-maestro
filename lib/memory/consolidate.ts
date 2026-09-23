@@ -381,7 +381,8 @@ async function consolidateWithClassifier(
   let classified = 0
   let fatal = false
   for (const [i, { chunk, passages }] of results.entries()) {
-    const failed = passages.find(p => p.error)
+    // A passage the API refused (firewall) is skipped, not retried forever
+    const failed = passages.find(p => p.error && !(p.error instanceof ClassifierError && p.error.blocked))
     if (failed?.error) {
       errors.push(`Classifier error (${conversation.file_path}): ${failed.error.message}`)
       fatal = failed.error instanceof ClassifierError && failed.error.fatal

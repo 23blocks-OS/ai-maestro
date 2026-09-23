@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { chunkConversation, JevClassifier, ClassifierError, classifyRelations } from '@/lib/memory/jev-provider'
+import { chunkConversation, JevClassifier, ClassifierError, classifyRelations, defang } from '@/lib/memory/jev-provider'
 import { maskClassifierSettings, DEFAULT_CLASSIFIER_SETTINGS } from '@/lib/memory/settings'
 import type { ConversationMessage } from '@/lib/memory/types'
 
@@ -135,16 +135,24 @@ describe('JevClassifier', () => {
     expect(c.accepts({ ...r, importance: 1 })).toBe(false)
   })
 
-  it('retries a transient 403 instead of aborting the run', async () => {
-    vi.useFakeTimers()
+  it('retries firewall-blocked content once, defanged', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: false, status: 403, text: async () => '' })
-      .mockResolvedValueOnce(answer(0.9, 'fact', 3))
+      .mockResolvedValueOnce(answer(0.9, 'decision', 3))
     vi.stubGlobal('fetch', fetchMock)
-    const p = new JevClassifier(settings).classify('state')
-    await vi.runAllTimersAsync()
-    await expect(p).resolves.toMatchObject({ category: 'fact' })
-    vi.useRealTimers()
+    const r = await new JevClassifier(settings).classify("' OR 1=1; DROP TABLE users; --")
+    expect(r.category).toBe('decision')
+    const retried = JSON.parse(fetchMock.mock.calls[1][1].body).state
+    expect(retried).not.toContain("'")
+    expect(retried).not.toContain('--')
+  })
+
+  it('marks content the firewall keeps refusing as blocked, not fatal', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403, text: async () => '' })))
+    const err = await new JevClassifier(settings).classify('../../etc/passwd').catch(e => e)
+    expect(err).toBeInstanceOf(ClassifierError)
+    expect(err.blocked).toBe(true)
+    expect(err.fatal).toBe(false)
   })
 
   it('treats a rejected key as fatal', async () => {
@@ -233,5 +241,13 @@ describe('classifyRelations', () => {
     vi.stubGlobal('fetch', fetchMock)
     expect(await classifyRelations(new JevClassifier(settings), 'x', [])).toEqual([])
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('defang', () => {
+  it('neutralises the patterns the API firewall blocks, keeping the text readable', () => {
+    expect(defang("' OR 1=1; --")).toBe('\u2019 OR 1=1\u037e \u2014')
+    expect(defang('../../etc/passwd')).toBe('..\u2044..\u2044etc/passwd')
+    expect(defang('We decided to deploy.')).toBe('We decided to deploy.')
   })
 })

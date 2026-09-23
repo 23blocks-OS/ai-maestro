@@ -44,6 +44,48 @@ needed — the evidence was on disk. Two distinct, real, fixable bugs.
   UserPromptSubmit+UserPromptSubmit with byte-identical prompts, which pointed at
   delivery, not at Claude Code double-firing.
 
+## [0.38.35] - 2026-09-22 — Codex chat: AI Maestro now works with both main AI CLIs (F004 Phase 1)
+
+The chat panel showed "no messages" for a codex agent — not because codex has no
+conversation (it keeps a full transcript) and not because the chat is gated by
+program (it isn't), but because the chat was a **Claude Code transcript viewer**,
+hardcoded to `~/.claude/projects/*.jsonl` in Claude's schema. This makes it
+multi-provider.
+
+### Added
+- **Codex transcript reader** (`lib/transcript-codex.mjs`). Locates a codex
+  agent's session under `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` by the
+  `cwd` in its `session_meta`, and maps codex's `{timestamp, ordinal, type,
+  payload}` events onto the SAME message shapes ChatView already renders — so no
+  component changes. Handles both tool formats (`custom_tool_call` and the older
+  `function_call`), pairs each tool output to its call by `call_id`, and
+  correctly drops what should not be shown: `developer`/system setup, injected
+  AGENTS.md context, the `event_msg` mirror of the real items, metadata records,
+  and codex's **encrypted** reasoning (empty `summary` + `encrypted_content` —
+  nothing to display).
+- Dispatch at two seams, both call sites unchanged: `resolveJsonlPath(agent)`
+  picks the codex locator when `agent.program` is codex; `parseJsonlLines`
+  detects the codex envelope **per line** and routes it (required because the
+  live watcher passes only the delta, with no `session_meta` header — codex lines
+  are self-identifying).
+
+### Result
+- A codex agent's Chat tab now shows its real conversation and updates live via
+  the existing JSONL watcher. Sending already worked (send-keys is
+  program-agnostic). Verified end-to-end against a real codex session.
+
+### Not in this phase (F004 Phase 2)
+- The live **status dot, question panels, and permission cards** still require the
+  AI Maestro hook, which only Claude Code runs. Codex has its own `hooks.json`
+  and a different approval model, so that is a separate, larger piece. A codex
+  agent's chat is history + send today, not the live-state affordances.
+
+### Tests
+- 21 tests (`tests/transcript-codex.test.ts`) against the real codex schema: the
+  mapping of every event type, tool pairing by `call_id`, the skips
+  (developer/reasoning/injected/mirror), the locator matching by session cwd, a
+  >8KB `session_meta`, newest-wins, and Claude lines still parsing unchanged.
+
 ## [0.38.33] - 2026-09-21 — The last target-by-position bug: the pane permission card
 
 From the audit Juan asked for after the reply-by-`head -1` misroute: *do we

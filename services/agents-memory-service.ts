@@ -103,110 +103,123 @@ async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
   }
 }
 
-/**
- * Load and prepare conversations for consolidation
- */
-async function prepareConversations(
-  agentDb: Awaited<ReturnType<typeof agentRegistry.getAgent>>['getDatabase'],
-  limit: number = 50
-): Promise<PreparedConversation[]> {
-  const prepared: PreparedConversation[] = []
-  const offsets = await getConsolidatedOffsets(await agentDb())
-
-  const projectsResult = await (await agentDb()).run(`
-    ?[project_path, project_name, claude_dir] :=
-      *projects{project_path, project_name, claude_dir}
-  `)
-
-  for (const projectRow of projectsResult.rows) {
-    const projectPath = projectRow[0] as string
-    const claudeDir = projectRow[2] as string
-
-    if (!claudeDir || !fs.existsSync(claudeDir)) {
-      continue
-    }
-
-    const convosResult = await getConversations(await agentDb(), projectPath)
-
-    for (const convoRow of convosResult.rows) {
-      const jsonlFile = convoRow[0] as string
-      const firstMessageAt = convoRow[5] as number | null
-      const lastMessageAt = convoRow[6] as number | null
-
-      if (!fs.existsSync(jsonlFile)) {
-        continue
+/** Parse a Claude Code transcript into the user/assistant text messages consolidation reads. */
+function messagesFromTranscript(jsonlFile: string): ConversationMessage[] {
+  const messages: ConversationMessage[] = []
+  const lines = fs.readFileSync(jsonlFile, 'utf-8').split('\n').filter(line => line.trim())
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line)
+      if (!parsed.type || !['user', 'assistant'].includes(parsed.type)) continue
+      let content = ''
+      if (parsed.message?.content) {
+        if (typeof parsed.message.content === 'string') {
+          content = parsed.message.content
+        } else if (Array.isArray(parsed.message.content)) {
+          content = parsed.message.content
+            .filter((block: { type: string }) => block.type === 'text')
+            .map((block: { text: string }) => block.text || '')
+            .join('\n')
+        }
       }
-
-      try {
-        const fileContent = fs.readFileSync(jsonlFile, 'utf-8')
-        const lines = fileContent.split('\n').filter(line => line.trim())
-
-        const messages: ConversationMessage[] = []
-
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line)
-
-            if (!parsed.type || !['user', 'assistant'].includes(parsed.type)) {
-              continue
-            }
-
-            let content = ''
-            if (parsed.message?.content) {
-              if (typeof parsed.message.content === 'string') {
-                content = parsed.message.content
-              } else if (Array.isArray(parsed.message.content)) {
-                content = parsed.message.content
-                  .filter((block: { type: string }) => block.type === 'text')
-                  .map((block: { text: string }) => block.text || '')
-                  .join('\n')
-              }
-            }
-
-            if (!content.trim()) {
-              continue
-            }
-
-            messages.push({
-              role: parsed.type as 'user' | 'assistant',
-              content: content.trim(),
-              timestamp: parsed.timestamp ? new Date(parsed.timestamp).getTime() : undefined,
-              tool_use: parsed.type === 'assistant' && parsed.message?.content?.some?.(
-                (block: { type: string }) => block.type === 'tool_use'
-              )
-            })
-          } catch {
-            // Skip malformed lines
-          }
-        }
-
-        // Only conversations with messages past the last consolidation count toward the limit
-        const consolidatedOffset = offsets.get(jsonlFile) || 0
-        if (messages.length > consolidatedOffset) {
-          prepared.push({
-            consolidated_offset: consolidatedOffset,
-            file_path: jsonlFile,
-            project_path: projectPath,
-            messages,
-            message_count: messages.length,
-            first_message_at: firstMessageAt || undefined,
-            last_message_at: lastMessageAt || undefined
-          })
-        }
-
-        if (prepared.length >= limit) {
-          break
-        }
-      } catch (err) {
-        console.error(`[Memory Service] Error processing ${jsonlFile}:`, err)
-      }
-    }
-
-    if (prepared.length >= limit) {
-      break
+      if (!content.trim()) continue
+      messages.push({
+        role: parsed.type as 'user' | 'assistant',
+        content: content.trim(),
+        timestamp: parsed.timestamp ? new Date(parsed.timestamp).getTime() : undefined,
+        tool_use: parsed.type === 'assistant' && parsed.message?.content?.some?.(
+          (block: { type: string }) => block.type === 'tool_use'
+        )
+      })
+    } catch {
+      // Skip malformed lines
     }
   }
+  return messages
+}
 
+/**
+ * A conversation rebuilt from the agent's own message index, for transcripts
+ * Claude Code has deleted (cleanupPeriodDays, 30 by default). The index keeps
+ * the full text of every message; it also has duplicate rows (random ids made
+ * re-indexing insert twice), so identical consecutive messages are dropped.
+ */
+async function messagesFromIndex(agentDb: AgentDatabase, conversationFile: string): Promise<ConversationMessage[]> {
+  const result = await agentDb.run(`
+    ?[ts, role, text] := *messages{conversation_file, ts, role, text},
+      conversation_file = ${escapeForCozo(conversationFile)}
+    :order ts
+  `)
+  const messages: ConversationMessage[] = []
+  for (const [ts, role, text] of result.rows as [number, string, string][]) {
+    if (role !== 'user' && role !== 'assistant') continue
+    const content = (text || '').trim()
+    if (!content) continue
+    const last = messages[messages.length - 1]
+    if (last && last.role === role && last.content === content) continue
+    messages.push({ role, content, timestamp: ts || undefined })
+  }
+  return messages
+}
+
+/** Progress for an index-rebuilt conversation is kept apart: its message count differs from the transcript's. */
+const INDEX_OFFSET_SUFFIX = '#index'
+
+/**
+ * Conversations with messages not yet consolidated, newest first.
+ *
+ * Reads the transcript when it is still on disk, otherwise rebuilds the
+ * conversation from the agent's message index. Before this, consolidation read
+ * only transcripts: an agent with ten months of work (IaC: 422 conversations,
+ * 47k indexed messages) had one surviving transcript, and so 8 memories.
+ */
+async function prepareConversations(
+  agentDb: AgentDatabase,
+  limit: number = 50
+): Promise<PreparedConversation[]> {
+  const offsets = await getConsolidatedOffsets(agentDb)
+
+  // Every conversation the agent knows about, with its last activity
+  const known = new Map<string, { projectPath?: string; lastAt: number }>()
+  const convRows = await agentDb.run(`
+    ?[jsonl_file, project_path, last_message_at] := *conversations{jsonl_file, project_path, last_message_at}
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  for (const [file, projectPath, lastAt] of convRows.rows as [string, string, number | null][]) {
+    known.set(file, { projectPath, lastAt: lastAt || 0 })
+  }
+  const indexed = await agentDb.run(`
+    ?[conversation_file, max(ts)] := *messages{conversation_file, ts}
+  `).catch(() => ({ rows: [] as unknown[][] }))
+  for (const [file, lastTs] of indexed.rows as [string, number][]) {
+    const entry = known.get(file)
+    known.set(file, { projectPath: entry?.projectPath, lastAt: Math.max(entry?.lastAt || 0, lastTs || 0) })
+  }
+
+  const ordered = [...known.entries()].sort((a, b) => b[1].lastAt - a[1].lastAt)
+  const prepared: PreparedConversation[] = []
+  for (const [file, meta] of ordered) {
+    if (prepared.length >= limit) break
+    try {
+      const onDisk = fs.existsSync(file)
+      const offsetKey = onDisk ? file : `${file}${INDEX_OFFSET_SUFFIX}`
+      const consolidatedOffset = offsets.get(offsetKey) || 0
+      const messages = onDisk ? messagesFromTranscript(file) : await messagesFromIndex(agentDb, file)
+      // Only conversations with messages past the last consolidation count toward the limit
+      if (messages.length > consolidatedOffset) {
+        prepared.push({
+          consolidated_offset: consolidatedOffset,
+          offset_key: offsetKey,
+          file_path: file,
+          project_path: meta.projectPath,
+          messages,
+          message_count: messages.length,
+          last_message_at: meta.lastAt || undefined,
+        })
+      }
+    } catch (err) {
+      console.error(`[Memory Service] Error preparing ${file}:`, err)
+    }
+  }
   return prepared
 }
 
@@ -551,10 +564,7 @@ async function runTriggeredConsolidation(
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
-    const conversations = await prepareConversations(
-      async () => agentDb,
-      maxConversations
-    )
+    const conversations = await prepareConversations(agentDb, maxConversations)
 
     // Runs even with no new conversations: the engine also scrubs secrets from
     // stored memories and links memories that have no graph edges yet.

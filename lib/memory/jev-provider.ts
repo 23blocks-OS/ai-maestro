@@ -113,8 +113,8 @@ const MIN_ASSISTANT_PASSAGE_CHARS = 120
  * Harness noise that is not part of what the user or agent said, and secrets,
  * which must never reach the classifier, the memory store, or a later prompt.
  */
-function cleanMessage(content: string): string {
-  return redactSecrets(content)
+function cleanMessage(content: string, knownSecrets?: Set<string>): string {
+  return redactSecrets(content, knownSecrets)
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, '')
     .replace(/^Base directory for this skill:[\s\S]*/, '')
@@ -165,7 +165,7 @@ function toPassages(user: string, reply: string): Passage[] {
  * assistant text until the next user turn), each broken into passages.
  * A trailing user turn with no reply yet is left for the next run.
  */
-export function chunkConversation(messages: ConversationMessage[], startIndex: number): ConversationChunk[] {
+export function chunkConversation(messages: ConversationMessage[], startIndex: number, knownSecrets?: Set<string>): ConversationChunk[] {
   const chunks: ConversationChunk[] = []
   let user: string | null = null
   let assistant: string[] = []
@@ -186,7 +186,7 @@ export function chunkConversation(messages: ConversationMessage[], startIndex: n
 
   for (let i = startIndex; i < messages.length; i++) {
     const msg = messages[i]
-    const content = cleanMessage(msg.content)
+    const content = cleanMessage(msg.content, knownSecrets)
     if (msg.role === 'user') {
       if (!content) continue
       if (user !== null && assistant.length === 0) {

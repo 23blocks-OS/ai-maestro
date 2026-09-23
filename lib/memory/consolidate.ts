@@ -40,7 +40,7 @@ import {
 import { createOllamaProvider } from './ollama-provider'
 import { createClaudeProvider } from './claude-provider'
 import { JevClassifier, ClassifierError, chunkConversation, classifyRelations, classifyEntityRelations } from './jev-provider'
-import { redactSecrets } from './redact'
+import { redactSecrets, extractSecretValues, hashSecret } from './redact'
 import { EntityIndex, saveCard, linkCardEntities, extractEntityCandidates } from './cards'
 import { summarizeSession, batchCandidates, SummarizerError, type Candidate, type GeneratedCard } from './summarizer'
 import { findSamePoint, reinforceWithSession, addEvidence, updateLifecycle, migrateToCardMemories } from './recurrence'
@@ -284,11 +284,46 @@ async function backfillLinks(
   }
 }
 
+/** Secret-value hashes this agent has seen. */
+async function loadSecretHashes(agentDb: AgentDatabase): Promise<Set<string>> {
+  const rows = await agentDb.run(`?[hash] := *secret_hashes{hash}`).catch(() => ({ rows: [] as unknown[][] }))
+  return new Set((rows.rows as [string][]).map(r => r[0]))
+}
+
+/** Learn secret values from texts: their hashes are added to `known` and persisted. */
+async function learnSecrets(agentDb: AgentDatabase, known: Set<string>, texts: Iterable<string>): Promise<number> {
+  const fresh: string[] = []
+  for (const text of texts) {
+    if (!text) continue
+    for (const value of extractSecretValues(text)) {
+      const h = hashSecret(value)
+      if (!known.has(h)) { known.add(h); fresh.push(h) }
+    }
+  }
+  const now = Date.now()
+  for (const h of fresh) {
+    await agentDb.run(`?[hash, first_seen] <- [[${escapeForCozo(h)}, ${now}]] :put secret_hashes`).catch(() => {})
+  }
+  return fresh.length
+}
+
 /**
  * Redact secrets from memories stored before redaction existed. Rewrites the
  * content and re-embeds it. Returns how many memories were changed.
  */
-export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string): Promise<number> {
+export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string, known?: Set<string>): Promise<number> {
+  const knownSecrets = known ?? await loadSecretHashes(agentDb)
+  // Learn values from everything stored (evidence often holds the ENV=value line
+  // that identifies a secret mentioned bare elsewhere), then redact with them all
+  const learnFrom = async (query: string) => {
+    const rows = await agentDb.run(query).catch(() => ({ rows: [] as unknown[][] }))
+    await learnSecrets(agentDb, knownSecrets, (rows.rows as unknown[][]).map(r => String(r[0] ?? '')))
+  }
+  await learnFrom(`?[t] := *memory_evidence{passage: t}`)
+  await learnFrom(`?[t] := *memory_evidence{exchange: t}`)
+  await learnFrom(`?[t] := *memory_sources{exchange: t}`)
+  await learnFrom(`?[t] := *memories{content: t}`)
+
   const result = await agentDb.run(`
     ?[memory_id, content, context] :=
       *memories{memory_id, agent_id, content, context},
@@ -297,8 +332,8 @@ export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string
   let changed = 0
   for (const row of result.rows) {
     const [memoryId, content, context] = row as [string, string, string | null]
-    const clean = redactSecrets(content)
-    const cleanContext = context ? redactSecrets(context) : context
+    const clean = redactSecrets(content, knownSecrets)
+    const cleanContext = context ? redactSecrets(context, knownSecrets) : context
     if (clean === content && cleanContext === context) continue
     await agentDb.run(`
       ?[memory_id, content, context] <- [[${escapeForCozo(memoryId)}, ${escapeForCozo(clean)}, ${escapeForCozo(cleanContext ?? undefined)}]]
@@ -307,7 +342,38 @@ export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string
     await storeMemoryEmbedding(agentDb, memoryId, await embed(clean))
     changed++
   }
-  if (changed > 0) console.log(`[CONSOLIDATE] Redacted secrets from ${changed} stored memories`)
+  // The same text lives in cards, evidence and older sources: scrub them too
+  const scrubColumn = async (relation: string, keys: string[], column: string, where = '') => {
+    const rows = await agentDb.run(`?[${[...keys, column].join(', ')}] := *${relation}{${[...keys, column].join(', ')}}${where}`).catch(() => ({ rows: [] as unknown[][] }))
+    for (const row of rows.rows as unknown[][]) {
+      const text = row[keys.length] as string | null
+      if (!text) continue
+      const clean = redactSecrets(text, knownSecrets)
+      if (clean === text) continue
+      const values = [...keys.map((_, i) => escapeForCozo(row[i] as string)), escapeForCozo(clean)]
+      await agentDb.run(`?[${[...keys, column].join(', ')}] <- [[${values.join(', ')}]] :update ${relation}`)
+      changed++
+    }
+  }
+  // Entities named after a secret value: remove the node and everything tied to it
+  const ents = await agentDb.run(`?[entity_id, name] := *entities{entity_id, name}`).catch(() => ({ rows: [] as unknown[][] }))
+  for (const [entityId, name] of ents.rows as [string, string][]) {
+    if (!knownSecrets.has(hashSecret(String(name).trim())) && !String(name).includes('[REDACTED]')) continue
+    const id = escapeForCozo(entityId)
+    await agentDb.run(`?[memory_id, entity_id] := *memory_entities{memory_id, entity_id}, entity_id = ${id} :rm memory_entities`).catch(() => {})
+    await agentDb.run(`?[from_entity, predicate, to_entity, memory_id] := *entity_relations{from_entity, predicate, to_entity, memory_id}, from_entity = ${id} :rm entity_relations`).catch(() => {})
+    await agentDb.run(`?[from_entity, predicate, to_entity, memory_id] := *entity_relations{from_entity, predicate, to_entity, memory_id}, to_entity = ${id} :rm entity_relations`).catch(() => {})
+    await agentDb.run(`?[entity_id] <- [[${id}]] :rm entity_vec`).catch(() => {})
+    await agentDb.run(`?[entity_id] <- [[${id}]] :rm entities`).catch(() => {})
+    changed++
+  }
+
+  await scrubColumn('memory_cards', ['memory_id'], 'statement')
+  await scrubColumn('memory_evidence', ['memory_id', 'evidence_id'], 'passage')
+  await scrubColumn('memory_evidence', ['memory_id', 'evidence_id'], 'exchange')
+  await scrubColumn('memory_sources', ['memory_id'], 'exchange')
+
+  if (changed > 0) console.log(`[CONSOLIDATE] Redacted secrets in ${changed} stored memory texts`)
   return changed
 }
 
@@ -400,13 +466,22 @@ const MIN_FAITHFULNESS = 0.6
 
 type SessionCandidate = Candidate & { startIndex: number; endIndex: number; ts?: number }
 
-async function cardFaithfulness(classifier: JevClassifier, statement: string, evidence: SessionCandidate[]): Promise<number> {
+/**
+ * One Jev call per card, two questions: is the statement supported by its
+ * evidence, and does it reveal the VALUE of a secret. The second exists because
+ * patterns keep losing that race: a key quoted in prose, then the same key in
+ * parentheses, each reached a card (2026-09-23).
+ */
+async function checkCard(classifier: JevClassifier, statement: string, evidence: SessionCandidate[]): Promise<{ faithfulness: number; revealsSecret: number }> {
   const exchanges = [...new Map(evidence.map(e => [e.exchangeKey, e.exchange])).values()].join('\n\n---\n\n')
   const { answers } = await classifier.ask(
     `EXCERPT:\n${exchanges.slice(0, 6000)}\n\nFLAGGED PASSAGES:\n${evidence.map(e => e.passage).join('\n\n').slice(0, 3000)}\n\nSTATEMENT: ${statement}`,
-    { supported: { type: 'noul', instructions: 'Is the STATEMENT fully supported by the EXCERPT, with nothing invented or changed?', criteria: { true: 'Every claim in the statement is stated or clearly implied by the excerpt', false: 'The statement adds, changes or contradicts something' } } }
+    {
+      supported: { type: 'noul', instructions: 'Is the STATEMENT fully supported by the EXCERPT, with nothing invented or changed?', criteria: { true: 'Every claim in the statement is stated or clearly implied by the excerpt', false: 'The statement adds, changes or contradicts something' } },
+      reveals_secret: { type: 'noul', instructions: 'Does the STATEMENT itself contain the actual value of a secret (a password, API key, token, encryption key, salt or other credential)?', criteria: { true: 'The statement includes a secret value someone could use', false: 'No secret value appears in the statement (mentioning that a secret exists, or [REDACTED], is fine)' } },
+    }
   )
-  return Number(answers.supported?.noul ?? 0)
+  return { faithfulness: Number(answers.supported?.noul ?? 0), revealsSecret: Number(answers.reveals_secret?.noul ?? 0) }
 }
 
 /**
@@ -432,10 +507,11 @@ async function consolidateWithClassifier(
   budget: { remaining: number; calls: number },
   dryRun: boolean,
   counters: RunCounters,
-  errors: string[]
+  errors: string[],
+  knownSecrets: Set<string> = new Set()
 ): Promise<{ offset: number; created: number; classified: number; fatal: boolean; capped: boolean; deferred: boolean }> {
   const startOffset = conversation.consolidated_offset || 0
-  const allChunks = chunkConversation(conversation.messages, startOffset)
+  const allChunks = chunkConversation(conversation.messages, startOffset, knownSecrets)
 
   const chunks: typeof allChunks = []
   for (const chunk of allChunks) {
@@ -508,10 +584,18 @@ async function consolidateWithClassifier(
     }
 
     for (const card of cards) {
+      card.statement = redactSecrets(card.statement, knownSecrets)
       const evidence = card.evidence.map(n => batch.find(c => c.n === n)).filter((c): c is SessionCandidate => Boolean(c))
       try {
-        const faith = await cardFaithfulness(classifier, card.statement, evidence)
+        const check = await checkCard(classifier, card.statement, evidence)
+        const faith = check.faithfulness
         if (faith < MIN_FAITHFULNESS) { counters.rejected++; continue }
+        if (check.revealsSecret >= 0.5) {
+          // Patterns did not catch it, so there is nothing safe to keep
+          console.log('[CONSOLIDATE] Dropped a card that reveals a secret value')
+          counters.rejected++
+          continue
+        }
         if (dryRun) { counters.created++; continue }
 
         const [vecF] = await embedTexts([card.statement])
@@ -550,7 +634,7 @@ async function consolidateWithClassifier(
         const relations = card.entities.length >= 2
           ? [...card.relations, ...await classifyEntityRelations(classifier, card.statement, card.entities.map(e => e.name), 0.7, stated, evidence.map(e => e.passage).join('\n\n')).catch(() => [])]
           : card.relations
-        await linkCardEntities(agentDb, entities, memoryId, { ...card, relations })
+        await linkCardEntities(agentDb, entities, memoryId, { ...card, relations }, knownSecrets)
         await agentDb.run(`?[memory_id, checked_at] <- [[${escapeForCozo(memoryId)}, ${Date.now()}]] :put entity_relation_checked`)
         if (!same) {
           try {
@@ -668,9 +752,16 @@ export async function consolidateMemories(
     knownNames = knownEntityNames()
   }
 
+  // Secret values seen anywhere in this agent's conversations are redacted everywhere
+  const knownSecrets = await loadSecretHashes(agentDb)
+  try {
+    await learnSecrets(agentDb, knownSecrets, pending.flatMap(c => c.messages.map(m => m.content)))
+  } catch (err) {
+    errors.push(`Secret learning: ${(err as Error).message}`)
+  }
   if (!dryRun) {
     try {
-      await scrubStoredSecrets(agentDb, agentId)
+      await scrubStoredSecrets(agentDb, agentId, knownSecrets)
     } catch (err) {
       errors.push(`Secret scrub error: ${(err as Error).message}`)
     }
@@ -685,7 +776,7 @@ export async function consolidateMemories(
 
       if (choice.kind === 'classifier') {
         if (budget.remaining <= 0) { moreRemaining = true; break }
-        const r = await consolidateWithClassifier(agentDb, agentId, conversation, choice.classifier, entities!, knownNames, budget, dryRun, counters, errors)
+        const r = await consolidateWithClassifier(agentDb, agentId, conversation, choice.classifier, entities!, knownNames, budget, dryRun, counters, errors, knownSecrets)
         newOffset = r.offset
         memoriesFromConversation = r.created
         chunksClassified += r.classified
@@ -694,7 +785,7 @@ export async function consolidateMemories(
           // Summarizer unavailable (usage limit, not logged in): stop; unwritten exchanges are read again next run
           cardsDeferred = true
           if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
-            await markConversationConsolidated(agentDb, conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
+            await markConversationConsolidated(agentDb, conversation.offset_key || conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
           }
           conversationsProcessed++
           break
@@ -702,7 +793,7 @@ export async function consolidateMemories(
         if (r.fatal) {
           // Bad key / bad URL: every other conversation would fail the same way
           if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
-            await markConversationConsolidated(agentDb, conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
+            await markConversationConsolidated(agentDb, conversation.offset_key || conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
           }
           break
         }
@@ -751,7 +842,7 @@ export async function consolidateMemories(
 
       // Record how far this conversation has been consolidated
       if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
-        await markConversationConsolidated(agentDb, conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
+        await markConversationConsolidated(agentDb, conversation.offset_key || conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
       }
 
       conversationsProcessed++

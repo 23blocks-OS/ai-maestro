@@ -18,6 +18,7 @@
  */
 
 import { spawn, execFileSync } from 'child_process'
+import { redactSecrets } from './redact'
 import crypto from 'crypto'
 import { tmux } from '@/lib/tmux-safe.mjs'
 import fs from 'fs'
@@ -95,7 +96,7 @@ Each card:
 - relations: how the entities relate, as subject/predicate/object between your entity names. When a card has two or more entities, state how they relate if the excerpt says so (X runs_on Y, X depends_on Y, X replaces Y, X fixes Y, X part_of Y, X uses Y, X calls Y). Leave relations empty rather than guess; "related" is not a relation.
 - evidence: the numbers of the flagged passages the card rests on.
 
-Never include secrets, passwords, tokens or keys; [REDACTED] stays redacted.
+Never write the value of a secret: no passwords, API keys, tokens, encryption keys, salts or credentials, even when they appear in the excerpt; say that one exists and where ("a hardcoded encryption key in config/…"), never what it is. [REDACTED] stays redacted.
 
 Reply with ONLY a JSON object, no prose and no code fence:
 {"cards":[{"statement":"...","category":"${CARD_CATEGORIES.join('|')}","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${RELATION_PREDICATES.join('|')}","object":"..."}],"evidence":[1,2]}]}`
@@ -284,7 +285,8 @@ export function parseSessionCards(output: unknown, candidates: Candidate[], maxC
     const evidence = (Array.isArray(raw.evidence) ? raw.evidence : []).map(Number).filter((n: number) => valid.has(n))
     if (evidence.length === 0) continue // a card must rest on something that was flagged
     out.push({
-      statement,
+      // The model can still quote a secret it read in prose; redact what it wrote too
+      statement: redactSecrets(statement),
       category: categories.has(raw.category) ? raw.category : 'insight',
       action: actions.has(raw.action) ? raw.action : 'other',
       entities: (Array.isArray(raw.entities) ? raw.entities : [])

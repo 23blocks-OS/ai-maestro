@@ -44,6 +44,40 @@ needed — the evidence was on disk. Two distinct, real, fixable bugs.
   UserPromptSubmit+UserPromptSubmit with byte-identical prompts, which pointed at
   delivery, not at Claude Code double-firing.
 
+## [0.39.1] - 2026-09-22 — A themeable colour system, and the end of hardcoded colour
+
+Infrastructure only. **No visual change**: the default theme reproduces stock
+Tailwind exactly — all 33 ramp steps byte-identical — so the app looks as it did.
+
+### Added
+- **A design system for colour.** Neutrals (`gray`, `slate`), the accent
+  (`blue`) and `white` now resolve from CSS channel variables, plus a semantic
+  layer new code should reference instead of a ramp step: `surface`, `raised`,
+  `sunken`, `hairline`, `ink`, `ink-muted`, `accent`, `accent-fill`, `ok`,
+  `warn`, `danger`. **A theme is one block of variables in `app/globals.css`** —
+  no component edits, no sweeps. A complete, working example theme ships in the
+  file.
+- **The trap, documented where it bites.** `text-white` does not mean white in
+  this codebase — it means *foreground*, in roughly 278 places. A theme that
+  inverts the ground without setting `--fg-white` blanks its own text. That is
+  why `--fg-white` exists and why it is themed.
+
+### Changed
+- **Typography.** Space Grotesk retires for **Archivo** (a signage grotesque
+  with a real width axis, so one family covers UI and condensed labels) and
+  **JetBrains Mono**, confined to code, terminal, ids and quantities.
+- **Hardcoded colour is gone.** `AgentList`'s `COLOR_PALETTE` was 56 literal
+  `rgb()` values in component code; it now reads eight category identities from
+  CSS variables — **the same colours**, one source of truth. The last arbitrary
+  hexes (`bg-[#1a1b26]`, `bg-[#0a0a0a]`) became `room-*` tokens at identical
+  values.
+
+### Why
+An attempted visual redesign was rolled back in full. What it exposed is worth
+keeping: colour lived as raw utilities and hex literals across hundreds of
+files, so a palette change meant a sweep, and every sweep missed something. This
+layer means the next colour change is a one-line edit rather than an afternoon.
+
 ## [0.39.0] - 2026-09-22 — Multi-provider chat, and a reliability + security hardening cycle
 
 Milestone release. The headline is that **AI Maestro now works with both main AI

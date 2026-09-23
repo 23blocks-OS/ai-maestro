@@ -74,80 +74,24 @@ interface AgentListProps {
 /**
  * DYNAMIC COLOR SYSTEM - Same as SessionList for consistency
  */
-const COLOR_PALETTE = [
-  {
-    primary: 'rgb(59, 130, 246)',      // Blue
-    bg: 'rgba(59, 130, 246, 0.05)',
-    border: 'rgb(59, 130, 246)',
-    icon: 'rgb(96, 165, 250)',
-    hover: 'rgba(59, 130, 246, 0.1)',
-    active: 'rgba(59, 130, 246, 0.15)',
-    activeText: 'rgb(147, 197, 253)',
-  },
-  {
-    primary: 'rgb(168, 85, 247)',      // Purple
-    bg: 'rgba(168, 85, 247, 0.05)',
-    border: 'rgb(168, 85, 247)',
-    icon: 'rgb(192, 132, 252)',
-    hover: 'rgba(168, 85, 247, 0.1)',
-    active: 'rgba(168, 85, 247, 0.15)',
-    activeText: 'rgb(216, 180, 254)',
-  },
-  {
-    primary: 'rgb(34, 197, 94)',       // Green
-    bg: 'rgba(34, 197, 94, 0.05)',
-    border: 'rgb(34, 197, 94)',
-    icon: 'rgb(74, 222, 128)',
-    hover: 'rgba(34, 197, 94, 0.1)',
-    active: 'rgba(34, 197, 94, 0.15)',
-    activeText: 'rgb(134, 239, 172)',
-  },
-  {
-    primary: 'rgb(234, 179, 8)',       // Yellow/Gold
-    bg: 'rgba(234, 179, 8, 0.05)',
-    border: 'rgb(234, 179, 8)',
-    icon: 'rgb(250, 204, 21)',
-    hover: 'rgba(234, 179, 8, 0.1)',
-    active: 'rgba(234, 179, 8, 0.15)',
-    activeText: 'rgb(253, 224, 71)',
-  },
-  {
-    primary: 'rgb(236, 72, 153)',      // Pink
-    bg: 'rgba(236, 72, 153, 0.05)',
-    border: 'rgb(236, 72, 153)',
-    icon: 'rgb(244, 114, 182)',
-    hover: 'rgba(236, 72, 153, 0.1)',
-    active: 'rgba(236, 72, 153, 0.15)',
-    activeText: 'rgb(251, 207, 232)',
-  },
-  {
-    primary: 'rgb(20, 184, 166)',      // Teal
-    bg: 'rgba(20, 184, 166, 0.05)',
-    border: 'rgb(20, 184, 166)',
-    icon: 'rgb(45, 212, 191)',
-    hover: 'rgba(20, 184, 166, 0.1)',
-    active: 'rgba(20, 184, 166, 0.15)',
-    activeText: 'rgb(94, 234, 212)',
-  },
-  {
-    primary: 'rgb(249, 115, 22)',      // Orange
-    bg: 'rgba(249, 115, 22, 0.05)',
-    border: 'rgb(249, 115, 22)',
-    icon: 'rgb(251, 146, 60)',
-    hover: 'rgba(249, 115, 22, 0.1)',
-    active: 'rgba(249, 115, 22, 0.15)',
-    activeText: 'rgb(253, 186, 116)',
-  },
-  {
-    primary: 'rgb(239, 68, 68)',       // Red
-    bg: 'rgba(239, 68, 68, 0.05)',
-    border: 'rgb(239, 68, 68)',
-    icon: 'rgb(248, 113, 113)',
-    hover: 'rgba(239, 68, 68, 0.1)',
-    active: 'rgba(239, 68, 68, 0.15)',
-    activeText: 'rgb(252, 165, 165)',
-  },
-]
+const CATEGORY_COUNT = 8
+
+/**
+ * Category identity.
+ *
+ * Values live in app/globals.css as CSS variables — one source of truth — so a
+ * palette change is a stylesheet edit, not a sweep through component code. The
+ * colours themselves are unchanged from the hardcoded table this replaced.
+ */
+const COLOR_PALETTE = Array.from({ length: CATEGORY_COUNT }, (_, i) => ({
+  primary: `rgb(var(--cat-${i}-primary))`,
+  bg: `rgb(var(--cat-${i}-primary) / 0.05)`,
+  border: `rgb(var(--cat-${i}-primary))`,
+  icon: `rgb(var(--cat-${i}-icon))`,
+  hover: `rgb(var(--cat-${i}-primary) / 0.1)`,
+  active: `rgb(var(--cat-${i}-primary) / 0.15)`,
+  activeText: `rgb(var(--cat-${i}-text))`,
+}))
 
 const DEFAULT_ICON = Layers
 
@@ -1325,7 +1269,7 @@ export default function AgentList({
                                                     isActive ? 'font-semibold' : ''
                                                   }`}
                                                   style={{
-                                                    color: isActive ? colors.activeText : 'rgb(229, 231, 235)',
+                                                    color: isActive ? colors.activeText : 'rgb(var(--g-200))',
                                                   }}
                                                 >
                                                   {agent.label || agent.name || agent.alias}

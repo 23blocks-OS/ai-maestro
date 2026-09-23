@@ -1,9 +1,23 @@
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk } from 'next/font/google'
+import { Archivo, JetBrains_Mono } from 'next/font/google'
 import Providers from '@/components/Providers'
 import './globals.css'
 
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] })
+// Archivo: a signage grotesque with a real width axis, so one family covers UI
+// text and condensed labels without loading a second face.
+const sans = Archivo({
+  subsets: ['latin'],
+  axes: ['wdth'],
+  variable: '--font-sans',
+  display: 'swap',
+})
+
+// Mono is for code, terminal output, ids and quantities — not decoration.
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'AI Maestro',
@@ -31,7 +45,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={spaceGrotesk.className}><Providers>{children}</Providers></body>
+      <body className={`${sans.variable} ${mono.variable} font-sans`}><Providers>{children}</Providers></body>
     </html>
   )
 }

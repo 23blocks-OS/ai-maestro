@@ -28,7 +28,7 @@ import path from 'path'
 
 export const CARD_ACTIONS = [
   'decided', 'rejected', 'prefers', 'fixed', 'found_bug', 'discovered',
-  'configured', 'deployed', 'replaced', 'requires', 'explained', 'planned', 'other',
+  'configured', 'deployed', 'replaced', 'requires', 'explained', 'planned', 'corrected', 'other',
 ] as const
 export type CardAction = typeof CARD_ACTIONS[number]
 
@@ -53,6 +53,8 @@ export interface Candidate {
   exchangeKey: string
   exchange: string
   previous?: string
+  /** Jev judged this user turn a correction of the agent */
+  correction?: boolean
 }
 
 export interface GeneratedCard {
@@ -84,6 +86,8 @@ export function maxCardsFor(candidates: number): number {
 const SYSTEM_PROMPT = `You maintain the long-term memory of an AI software agent. You get passages from ONE of its work sessions that a filter flagged as possibly worth remembering, each shown with the exchange it came from.
 
 Write memory cards ONLY for knowledge the agent will need in a FUTURE session: decisions and their reasons, stable facts about systems, hosts, people and the environment, the user's preferences, recurring patterns and gotchas, lessons that change how to work. Merge passages that say the same thing into one card. Do NOT write cards for: what was done today, progress and status updates, narration of a debugging session, anything that only matters for this session's task. Fewer, better cards. Zero cards is a correct answer when nothing qualifies.
+
+Passages marked CORRECTION are the user correcting the agent: something it did, said or assumed was wrong. They are the most valuable thing to remember. For each, write a card that states the right way, and what was wrong if that helps ("X is the production bucket, not staging; never write test data to it"), using the BACKGROUND to see what was corrected. Use action "corrected".
 
 Each card:
 - statement: ONE self-contained sentence, at most 35 words, stating the durable knowledge and why if given. Specific names. It must make sense with no other context. Never "the user said" / "the assistant found": state the knowledge itself.
@@ -234,7 +238,7 @@ export function buildSessionPrompt(candidates: Candidate[], knownEntities: strin
     `### EXCHANGE ${i + 1}`,
     g[0].previous ? `BACKGROUND (the exchange before it):\n${clip(g[0].previous, MAX_PREVIOUS_CHARS)}` : '',
     `EXCHANGE:\n${g[0].exchange || g.map(c => c.passage).join('\n\n')}`,
-    `FLAGGED PASSAGES:\n${g.map(c => `[${c.n}] (${c.category}) >>> ${c.passage}`).join('\n\n')}`,
+    `FLAGGED PASSAGES:\n${g.map(c => `[${c.n}] (${c.correction ? 'CORRECTION' : c.category}) >>> ${c.passage}`).join('\n\n')}`,
   ].filter(Boolean).join('\n\n'))
   const known = knownEntities.length > 0
     ? `KNOWN ENTITIES (use these exact names when they refer to the same thing): ${knownEntities.slice(0, 80).join(', ')}\n\n`

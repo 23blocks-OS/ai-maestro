@@ -366,6 +366,12 @@ describe('ai-maestro-hook · memory recall', () => {
   const mem = (id: string, category = 'decision', content = `memory ${id}`) =>
     ({ memory_id: id, category, content, created_at: Date.UTC(2026, 8, 22) })
 
+  it('labels a correction as one, and the primer says what corrections are', () => {
+    const notice = hook.buildMemoryNotice([{ memory_id: 'm', category: 'fact', statement: 'products.public is production, not staging.', card: { action: 'corrected' }, sessions: 1, created_at: 1 }], { primer: true })
+    expect(notice).toContain('- [correction · ')
+    expect(notice).toContain('corrections you were given')
+  })
+
   it('entity notice: each named entity with its relations, null when there is nothing to say', () => {
     expect(hook.buildEntityNotice([])).toBeNull()
     expect(hook.buildEntityNotice([{ entity_id: 'e', name: 'x', relations: [] }])).toBeNull()
@@ -401,12 +407,12 @@ describe('ai-maestro-hook · memory recall', () => {
 
   it('uses the standing-decisions title for the session-start primer', () => {
     expect(hook.buildMemoryNotice([mem('a', 'preference')], { primer: true }))
-      .toContain('## Memory: your standing decisions and preferences')
+      .toContain('## Memory: your standing decisions, preferences, and corrections you were given')
   })
 
   it('clips long memories', () => {
     const notice = hook.buildMemoryNotice([mem('a', 'fact', 'z'.repeat(2000))], { primer: false })
-    expect(notice.length).toBeLessThan(900)
+    expect(notice.length).toBeLessThan(1000)
     expect(notice).toContain('…')
   })
 

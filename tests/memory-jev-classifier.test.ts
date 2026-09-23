@@ -106,6 +106,32 @@ describe('chunkConversation', () => {
   })
 })
 
+describe('corrections: a user turn judged against what the agent said before it', () => {
+  it('shows the previous reply to the classifier and marks the turn as one that can correct', () => {
+    const msgs = [u(`deploy it ${LONG}`), a(`I will hardcode the ALB internal address. ${PARA}`), u(`no, that makes no sense, use the service discovery name ${LONG}`), a(`ok ${PARA}`)]
+    const [first, second] = chunkConversation(msgs, 0)
+    const firstUser = first.passages[0]
+    const correction = second.passages[0]
+    expect(firstUser.canCorrect).toBe(false) // nothing said before it
+    expect(correction.canCorrect).toBe(true)
+    expect(correction.state).toContain('WHAT THE ASSISTANT SAID JUST BEFORE: I will hardcode the ALB internal address.')
+    expect(correction.state).toContain('PASSAGE TO JUDGE (said by the user): no, that makes no sense')
+  })
+
+  it('a run that starts mid-conversation still sees the reply before its first turn', () => {
+    const msgs = [u(`q ${LONG}`), a(`the bucket is staging ${PARA}`), u(`wrong, it is production ${LONG}`), a(`noted ${PARA}`)]
+    const [chunk] = chunkConversation(msgs, 2)
+    expect(chunk.passages[0].canCorrect).toBe(true)
+    expect(chunk.passages[0].state).toContain('the bucket is staging')
+  })
+
+  it('drops notifications typed into the session by AI Maestro and the harness', () => {
+    const msgs = [a(`earlier ${PARA}`), u('You have a new message from pas-lola (mini-lola) about "X". Please check your inbox using the agent-messaging skill.'), a(`checking ${PARA}`)]
+    const chunks = chunkConversation(msgs, 0)
+    expect(chunks.flatMap(c => c.passages).some(p => p.text.startsWith('USER:'))).toBe(false)
+  })
+})
+
 describe('JevClassifier', () => {
   const settings = { ...DEFAULT_CLASSIFIER_SETTINGS, apiKey: 'k' }
   afterEach(() => vi.unstubAllGlobals())
@@ -133,6 +159,32 @@ describe('JevClassifier', () => {
     expect(c.accepts({ ...r, durable: 0.1 })).toBe(false)
     expect(c.accepts({ ...r, category: 'none' })).toBe(false)
     expect(c.accepts({ ...r, importance: 1 })).toBe(false)
+  })
+
+  it('asks the correction question only when the turn can correct, and lets a correction in on a lower bar', async () => {
+    const fetchMock = vi.fn(async (_u: string, init: any) => {
+      const body = JSON.parse(init.body)
+      return {
+        ok: true, status: 200,
+        json: async () => ({
+          model: 'jev', answers: {
+            durable: { noul: 0.55 }, category: { choice: 'none', confidence: 0.5 }, importance: { score: 1.5 },
+            ...(body.questions.correction ? { correction: { noul: 0.93 } } : {}),
+          },
+        }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const c = new JevClassifier(settings)
+    const plain = await c.classify('state')
+    expect(plain.correction).toBeUndefined()
+    expect(c.accepts(plain)).toBe(false) // category none, low importance
+    const corrected = await c.classify('state', { canCorrect: true })
+    expect(corrected.correction).toBe(0.93)
+    expect(c.isCorrection(corrected)).toBe(true)
+    expect(c.accepts(corrected)).toBe(true) // a correction is kept although it scored low otherwise
+    expect(c.accepts({ ...corrected, durable: 0.3 })).toBe(false) // but not one about nothing lasting
+    expect(c.isCorrection({ ...corrected, correction: 0.7 })).toBe(false)
   })
 
   it('retries firewall-blocked content once, defanged', async () => {

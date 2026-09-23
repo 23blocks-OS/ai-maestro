@@ -45,11 +45,40 @@ export const MEMORY_QUESTIONS = {
   },
 } as const
 
+/**
+ * Asked only of a user turn that follows something the agent said. A
+ * correction ("no, that bucket is production", "stop using X, we moved to Y")
+ * is the rarest and most valuable thing to remember: the agent was wrong, and
+ * the user said what is right. Measured on real sessions, see
+ * MIN_CORRECTION below.
+ */
+export const CORRECTION_QUESTION = {
+  correction: {
+    type: 'noul',
+    instructions: 'In the PASSAGE TO JUDGE, is the user correcting the assistant: saying that something the assistant did, said, assumed or proposed was wrong, or telling it to do it differently?',
+    criteria: {
+      true: 'The user corrects or redirects the assistant (wrong assumption, wrong approach, wrong fact, do it this way instead, stop doing that)',
+      false: 'A new request, approval, question, thanks, or information that does not correct the assistant',
+    },
+  },
+} as const
+
+/**
+ * P(correction) at or above this makes a user turn a correction. Measured
+ * 2026-09-23 on 74 real user turns (IaC): 0.9+ were plainly corrections ("so
+ * you are saying we hardcode ALB internals?", "that is not a valid service
+ * name", "the key is inside each API folder"); 0.6-0.75 mixed in harness
+ * notifications and status updates. Corrections must also score durable >= 0.5.
+ */
+export const MIN_CORRECTION = 0.75
+
 export interface ChunkClassification {
   durable: number
   category: MemoryCategory | 'none'
   categoryConfidence: number
   importance: number
+  /** P(the user is correcting the assistant); only for user turns that follow a reply */
+  correction?: number
   model: string
   inputTokens: number
 }
@@ -60,6 +89,8 @@ export interface Passage {
   text: string
   /** The passage framed with the request it belongs to, sent to the classifier */
   state: string
+  /** A user turn following something the agent said: asked whether it corrects the agent */
+  canCorrect?: boolean
 }
 
 export interface ConversationChunk {
@@ -109,6 +140,8 @@ const MAX_EXCHANGE_CHARS = 12000
 const MAX_CONTEXT_CHARS = 600
 const MIN_USER_PASSAGE_CHARS = 40
 const MIN_ASSISTANT_PASSAGE_CHARS = 120
+/** The agent's reply a user turn answers, shown so a correction can be recognised */
+const MAX_PREVIOUS_REPLY_CHARS = 1500
 
 /**
  * Harness noise that is not part of what the user or agent said, and secrets,
@@ -123,6 +156,10 @@ function cleanMessage(content: string, knownSecrets?: Set<string>): string {
     .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, '')
     .replace(/<command-(name|message|args)>[\s\S]*?<\/command-\1>/g, '')
     .replace(/^\[Request interrupted[^\]]*\]$/gm, '')
+    // Notifications typed into the session by AI Maestro and the harness, not by the user
+    .replace(/^\d*You have a new message from [\s\S]*?(?:inbox[^\n]*|$)/gm, '')
+    .replace(/^.*\[MESSAGE\] From: .*$/gm, '')
+    .replace(/^Read the output file to retrieve the result: .*$/gm, '')
     .replace(/^This session is being continued from a previous conversation[\s\S]*/, '') // compaction summary
     .trim()
 }
@@ -141,13 +178,18 @@ function clip(text: string, max: number): string {
  * classifiable on their own, and a stored memory is the sentence that matters
  * rather than a 4,000-character stretch of transcript.
  */
-function toPassages(user: string, reply: string): Passage[] {
+function toPassages(user: string, reply: string, previousReply = ''): Passage[] {
   const context = `CONTEXT (the user's request this passage belongs to): ${clip(user, MAX_CONTEXT_CHARS)}`
   const passages: Passage[] = []
 
   if (user.length >= MIN_USER_PASSAGE_CHARS) {
     const text = clip(user, MAX_PASSAGE_CHARS)
-    passages.push({ text: `USER: ${text}`, state: `${context}\n\nPASSAGE TO JUDGE (said by the user): ${text}` })
+    // A user turn is judged against what the agent said just before it: that
+    // is what makes "no, use the other bucket" recognisable as a correction.
+    const before = previousReply
+      ? `WHAT THE ASSISTANT SAID JUST BEFORE: ${clip(previousReply, MAX_PREVIOUS_REPLY_CHARS)}\n\n`
+      : ''
+    passages.push({ text: `USER: ${text}`, state: `${before}PASSAGE TO JUDGE (said by the user): ${text}`, canCorrect: Boolean(previousReply) })
   }
 
   const paragraphs = reply
@@ -172,6 +214,16 @@ export function chunkConversation(messages: ConversationMessage[], startIndex: n
   let assistant: string[] = []
   let ts: number | undefined
   let start = startIndex
+  // The reply before this run's first turn, so a correction at the start of a
+  // run is still judged against what it corrects
+  let previousReply = ''
+  for (let i = startIndex - 1; i >= 0 && i >= startIndex - 20; i--) {
+    if (messages[i].role === 'user') break
+    if (messages[i].role === 'assistant') {
+      const c = cleanMessage(messages[i].content, knownSecrets)
+      if (c) previousReply = previousReply ? `${c}\n\n${previousReply}` : c
+    }
+  }
 
   const flush = (endIndex: number) => {
     if (user === null) return
@@ -180,9 +232,10 @@ export function chunkConversation(messages: ConversationMessage[], startIndex: n
       startIndex: start,
       endIndex,
       exchange: clip(`USER: ${user}\n\nASSISTANT: ${reply}`, MAX_EXCHANGE_CHARS),
-      passages: toPassages(user, reply),
+      passages: toPassages(user, reply, previousReply),
       timestamp: ts,
     })
+    previousReply = reply
   }
 
   for (let i = startIndex; i < messages.length; i++) {
@@ -314,8 +367,9 @@ export class JevClassifier {
     })
   }
 
-  async classify(state: string): Promise<ChunkClassification> {
-    const { answers: a, model, inputTokens } = await this.ask(state, MEMORY_QUESTIONS)
+  async classify(state: string, opts: { canCorrect?: boolean } = {}): Promise<ChunkClassification> {
+    const questions = opts.canCorrect ? { ...MEMORY_QUESTIONS, ...CORRECTION_QUESTION } : MEMORY_QUESTIONS
+    const { answers: a, model, inputTokens } = await this.ask(state, questions)
     if (!a.durable || !a.category || !a.importance) {
       throw new ClassifierError('Classifier response is missing answers', false)
     }
@@ -324,13 +378,25 @@ export class JevClassifier {
       category: a.category.choice as MemoryCategory | 'none',
       categoryConfidence: Number(a.category.confidence ?? 0),
       importance: Number(a.importance.score ?? 0),
+      ...(a.correction ? { correction: Number(a.correction.noul ?? 0) } : {}),
       model,
       inputTokens,
     }
   }
 
-  /** Should this classification become a memory? */
+  /** Is this user turn a correction of the agent? */
+  isCorrection(c: ChunkClassification): boolean {
+    return (c.correction ?? 0) >= MIN_CORRECTION
+  }
+
+  /**
+   * Should this classification become a memory candidate? A correction gets in
+   * on a lower bar: being corrected is itself the sign it matters, and a
+   * correction phrased casually ("no, the other one") scores low on
+   * "durable" and "important" on its own.
+   */
   accepts(c: ChunkClassification): boolean {
+    if (this.isCorrection(c) && c.durable >= 0.5) return true
     return c.category !== 'none'
       && c.durable >= this.settings.minDurable
       && c.importance >= this.settings.minImportance

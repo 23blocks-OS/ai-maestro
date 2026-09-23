@@ -98,11 +98,23 @@ describe('buildSessionPrompt', () => {
     expect(prompt).toContain('[1] (decision) >>> we store verbatim')
     expect(prompt).toContain('[2] (pattern) >>> and redact secrets')
   })
+
+  it('marks corrections so the writer states the right way', () => {
+    const prompt = buildSessionPrompt([
+      { n: 1, passage: 'USER: no, that bucket is production', category: 'fact', exchangeKey: 'a', exchange: 'USER: no\n\nASSISTANT: ok', previous: 'ASSISTANT: I will write test data to products.public', correction: true },
+    ], [], 1)
+    expect(prompt).toContain('[1] (CORRECTION) >>> USER: no, that bucket is production')
+  })
 })
 
 describe('recallScore', () => {
   it('ranks a memory seen in more sessions above an equally close one seen once', () => {
     expect(recallScore(0.28, 5, 'recurring')).toBeLessThan(recallScore(0.28, 1, 'warm'))
+  })
+
+  it('gives a correction the same small edge as recurrence, never more than relevance', () => {
+    expect(recallScore(0.28, 1, 'warm', true)).toBeLessThan(recallScore(0.28, 1, 'warm'))
+    expect(recallScore(0.24, 1, 'warm')).toBeLessThan(recallScore(0.31, 1, 'warm', true))
   })
 
   it('does not let weight beat a much closer match', () => {

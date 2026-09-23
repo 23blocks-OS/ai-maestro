@@ -169,6 +169,8 @@ interface RunCounters {
   linked: number
   /** Cards Jev judged unsupported by their evidence */
   rejected: number
+  /** User turns Jev judged to be corrections of the agent */
+  corrections: number
 }
 
 /**
@@ -471,7 +473,13 @@ type SessionCandidate = Candidate & { startIndex: number; endIndex: number; ts?:
  * parentheses, each reached a card (2026-09-23).
  */
 async function checkCard(classifier: JevClassifier, statement: string, evidence: SessionCandidate[]): Promise<{ faithfulness: number; revealsSecret: number }> {
-  const exchanges = [...new Map(evidence.map(e => [e.exchangeKey, e.exchange])).values()].join('\n\n---\n\n')
+  // A correction only makes sense next to what it corrects: include the exchange before it
+  const parts = new Map<string, string>()
+  for (const e of evidence) {
+    if (e.correction && e.previous) parts.set(`${e.exchangeKey}:before`, e.previous)
+    parts.set(e.exchangeKey, e.exchange)
+  }
+  const exchanges = [...parts.values()].join('\n\n---\n\n')
   const { answers } = await classifier.ask(
     `EXCERPT:\n${exchanges.slice(0, 6000)}\n\nFLAGGED PASSAGES:\n${evidence.map(e => e.passage).join('\n\n').slice(0, 3000)}\n\nSTATEMENT: ${statement}`,
     {
@@ -524,7 +532,7 @@ async function consolidateWithClassifier(
     chunk,
     passages: await Promise.all(chunk.passages.map(async passage => {
       try {
-        return { passage, classification: await classifier.classify(passage.state), error: null }
+        return { passage, classification: await classifier.classify(passage.state, { canCorrect: passage.canCorrect }), error: null }
       } catch (err) {
         return { passage, classification: null, error: err as Error }
       }
@@ -547,7 +555,10 @@ async function consolidateWithClassifier(
       if (!classification) continue
       classified++
       if (!classifier.accepts(classification)) continue
+      const correction = classifier.isCorrection(classification)
+      if (correction) counters.corrections++
       candidates.push({
+        correction,
         n: candidates.length + 1,
         passage: passage.text,
         category: classification.category,
@@ -581,13 +592,24 @@ async function consolidateWithClassifier(
       break
     }
 
+    const cited = new Set(cards.flatMap(c => c.evidence))
+    const uncited = batch.filter(c => c.correction && !cited.has(c.n)).length
+    if (uncited > 0) console.log(`[CONSOLIDATE] ${uncited} correction(s) in this batch got no card`)
     for (const card of cards) {
       card.statement = redactSecrets(card.statement, knownSecrets)
       const evidence = card.evidence.map(n => batch.find(c => c.n === n)).filter((c): c is SessionCandidate => Boolean(c))
+      // A card that rests only on the user correcting the agent is a correction,
+      // whatever action the summarizer picked
+      if (evidence.length > 0 && evidence.every(e => e.correction)) card.action = 'corrected'
+      const fromCorrection = evidence.some(e => e.correction)
       try {
         const check = await checkCard(classifier, card.statement, evidence)
         const faith = check.faithfulness
-        if (faith < MIN_FAITHFULNESS) { counters.rejected++; continue }
+        if (faith < MIN_FAITHFULNESS) {
+          if (fromCorrection) console.log(`[CONSOLIDATE] Correction card rejected (supported ${faith.toFixed(2)}): ${card.statement.slice(0, 160)}`)
+          counters.rejected++
+          continue
+        }
         if (check.revealsSecret >= 0.5) {
           // Patterns did not catch it, so there is nothing safe to keep
           console.log('[CONSOLIDATE] Dropped a card that reveals a secret value')
@@ -604,6 +626,11 @@ async function consolidateWithClassifier(
         if (same) {
           // Recurrence: the same knowledge in another session is the memory's weight
           if (await reinforceWithSession(agentDb, same, conversation.file_path)) counters.reinforced++
+          // The user had to correct the agent about something it already knew:
+          // that memory is now a correction
+          if (card.action === 'corrected') {
+            await agentDb.run(`?[memory_id, action] <- [[${escapeForCozo(same)}, 'corrected']] :update memory_cards`).catch(() => {})
+          }
         } else {
           await createMemory(agentDb, {
             memory_id: memoryId,
@@ -618,6 +645,7 @@ async function consolidateWithClassifier(
           })
           await storeMemoryEmbedding(agentDb, memoryId, vec)
           await saveCard(agentDb, memoryId, { statement: card.statement, action: card.action, status: 'done', faithfulness: faith })
+          if (fromCorrection) console.log(`[CONSOLIDATE] Correction card (${card.action}): ${card.statement.slice(0, 160)}`)
           counters.created++
           created++
         }
@@ -678,7 +706,7 @@ export async function consolidateMemories(
   const startTime = Date.now()
   const runId = `run-${Date.now()}-${uuidv4().substring(0, 8)}`
   const errors: string[] = []
-  const counters: RunCounters = { created: 0, reinforced: 0, linked: 0, rejected: 0 }
+  const counters: RunCounters = { created: 0, reinforced: 0, linked: 0, rejected: 0, corrections: 0 }
   const dryRun = Boolean(options.dryRun)
 
   let conversationsProcessed = 0
@@ -918,6 +946,7 @@ export async function consolidateMemories(
     ...(choice.kind === 'classifier' ? { chunks_classified: chunksClassified, more_remaining: moreRemaining } : {}),
     ...(choice.kind === 'classifier' ? {
       cards_rejected: counters.rejected,
+      corrections_found: counters.corrections,
       cards_deferred: cardsDeferred,
       entities_created: entities ? entities.size - entitiesBefore : 0,
       memories_promoted: lifecycle?.promoted ?? 0,

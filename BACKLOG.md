@@ -25,6 +25,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F005** — [Warn when a host's AMP scripts drift from the fleet](./backlog/F005-host-amp-script-staleness.md) — `Todo`
 - **F006** — [Memory cards and an entity graph (the agent summarizes its own memory)](./backlog/F006-memory-cards-entity-graph.md) — `Done` (v0.40.1)
 - **F007** — [Measure whether recalled memory changes what an agent does](./backlog/F007-measure-memory-use.md) — `Todo`
+- **F008** — [Lessons become skills (procedural memory)](./backlog/F008-lessons-become-skills.md) — `Todo`
+- **F009** — [Corrections as their own kind of memory](./backlog/F009-memory-corrections.md) — `Done` (v0.43.0)
 
 ## Bugs
 

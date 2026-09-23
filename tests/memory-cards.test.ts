@@ -120,3 +120,29 @@ describe('claude version selection', () => {
     expect(newerVersion([2, 1, 278], [2, 1, 278])).toBe(false)
   })
 })
+
+describe('isGenericEntity', () => {
+  it('drops words that name a kind of thing, not a thing', async () => {
+    const { isGenericEntity } = await import('@/lib/memory/summarizer')
+    for (const w of ['attachments', 'Config', 'tests', 'API', 'users']) expect(isGenericEntity(w)).toBe(true)
+    for (const w of ['mini-lola', 'CozoDB', 'lib/wake-chain.ts', 'wakeAgent', 'Jev']) expect(isGenericEntity(w)).toBe(false)
+  })
+
+  it('drops snake_case concepts but keeps real snake_case tables and functions', async () => {
+    const { isGenericEntity } = await import('@/lib/memory/summarizer')
+    expect(isGenericEntity('attachment_limits', 'concept')).toBe(true)
+    expect(isGenericEntity('memory_link_checked', 'service')).toBe(false)
+    expect(isGenericEntity('consolidated_conversations', 'file')).toBe(false)
+  })
+})
+
+describe('related_to is not a relation', () => {
+  it('drops the vague predicate so Jev decides from the evidence instead', async () => {
+    const { parseSessionCards } = await import('@/lib/memory/summarizer')
+    const [c] = parseSessionCards({ cards: [{ statement: 's', category: 'fact', action: 'discovered', entities: [], evidence: [1], relations: [
+      { subject: 'a', predicate: 'related_to', object: 'b' },
+      { subject: 'a', predicate: 'runs_on', object: 'b' },
+    ] }] }, [cand(1)], 5)
+    expect(c.relations).toEqual([{ subject: 'a', predicate: 'runs_on', object: 'b' }])
+  })
+})

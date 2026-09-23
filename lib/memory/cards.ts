@@ -20,7 +20,7 @@ import { AgentDatabase } from '../cozo-db'
 import { escapeForCozo } from '../cozo-utils'
 import { embedTexts } from '../rag/embeddings'
 import { toCozoVector } from '../cozo-schema-memory'
-import { SUMMARIZER_MODEL, type GeneratedCard } from './summarizer'
+import { SUMMARIZER_MODEL, isGenericEntity, type GeneratedCard } from './summarizer'
 import type { JevClassifier } from './jev-provider'
 
 /** A non-null string literal: escapeForCozo('') is `null`, which a String column rejects. */
@@ -276,48 +276,99 @@ export async function withCards<T extends { memory_id: string }>(agentDb: AgentD
   return memories.map(m => ({ ...m, ...(cards.get(m.memory_id) || { entities: [], evidence: [] }) }))
 }
 
+type GraphLinkRow = { source: string; target: string; relationship: string; weight: number }
+type GraphNodeRow = { id: string; name: string; type: string; mention_count: number; hub: boolean }
+
+/** Co-mention edges shown at most (strongest first); stated relations are always shown. */
+const MAX_CO_MENTION_EDGES = 120
+
 /**
- * The entity graph: the most-mentioned entities as nodes; edges are the typed
- * relations between them, plus "co_mentioned" where two entities appear in the
- * same memory without a stated relation.
+ * The entity graph. Nodes: the most-mentioned entities (generic words such as
+ * "config" or "tests" excluded). Edges: the relations stated between them, plus
+ * "co_mentioned" where two entities share a memory with no stated relation.
+ *
+ * A hub (an entity in a quarter of all memories, e.g. the agent's own project)
+ * keeps its stated relations but not its co-mentions: it co-occurs with
+ * everything, so those edges say nothing and bury the rest of the graph.
+ *
+ * With `focus`, the graph is one entity's neighbourhood: the entity, everything
+ * it relates to or shares a memory with, and the edges among them.
  */
-export async function entityGraph(agentDb: AgentDatabase, agentId: string, limit = 150) {
-  const nodesResult = await agentDb.run(`
+export async function entityGraph(agentDb: AgentDatabase, agentId: string, limit = 150, focus?: string | null) {
+  const empty = { nodes: [] as GraphNodeRow[], links: [] as GraphLinkRow[], focus: null as string | null }
+  const all = await agentDb.run(`
     ?[entity_id, name, type, mention_count] :=
       *entities{entity_id, agent_id, name, type, mention_count},
       agent_id = ${escapeForCozo(agentId)}
     :order -mention_count
-    :limit ${limit}
   `)
-  const nodes = (nodesResult.rows as unknown[][]).map(r => ({
-    id: r[0] as string, name: r[1] as string, type: r[2] as string, mention_count: r[3] as number,
-  }))
-  const ids = new Set(nodes.map(n => n.id))
-  if (nodes.length === 0) return { nodes, links: [] as Array<{ source: string; target: string; relationship: string; weight: number }> }
+  const entityRows = (all.rows as unknown[][])
+    .map(r => ({ id: r[0] as string, name: r[1] as string, type: r[2] as string, mention_count: r[3] as number }))
+    .filter(e => !isGenericEntity(e.name, e.type))
+  if (entityRows.length === 0) return empty
+
+  const total = await agentDb.run(`
+    ?[count(memory_id)] := *memories{memory_id, agent_id, tier}, agent_id = ${escapeForCozo(agentId)}, tier != 'faded'
+  `)
+  const memoryCount = (total.rows[0]?.[0] as number) || 0
+  const hubAt = Math.max(8, Math.ceil(memoryCount * 0.25))
+  const byId = new Map(entityRows.map(e => [e.id, { ...e, hub: e.mention_count >= hubAt }]))
 
   const rels = await agentDb.run(`
     ?[from_entity, predicate, to_entity, count(memory_id)] :=
       *entity_relations{from_entity, predicate, to_entity, memory_id}
   `)
-  const links = new Map<string, { source: string; target: string; relationship: string; weight: number }>()
-  const related = new Set<string>()
-  for (const [from, predicate, to, weight] of rels.rows as [string, string, string, number][]) {
-    if (!ids.has(from) || !ids.has(to)) continue
-    links.set(`${from}|${predicate}|${to}`, { source: from, target: to, relationship: predicate, weight })
-    related.add([from, to].sort().join('|'))
-  }
-
   const co = await agentDb.run(`
     ?[a, b, count(memory_id)] :=
       *memory_entities{memory_id, entity_id: a},
       *memory_entities{memory_id, entity_id: b},
       a < b
   `)
+
+  let focusId: string | null = null
+  if (focus) {
+    const key = norm(focus)
+    focusId = entityRows.find(e => norm(e.name) === key)?.id ?? null
+    if (!focusId) return empty
+  }
+
+  // Candidate node set
+  let ids: Set<string>
+  if (focusId) {
+    ids = new Set([focusId])
+    for (const [from, , to] of rels.rows as [string, string, string][]) {
+      if (from === focusId && byId.has(to)) ids.add(to)
+      if (to === focusId && byId.has(from)) ids.add(from)
+    }
+    for (const [a, b] of co.rows as [string, string][]) {
+      if (a === focusId && byId.has(b)) ids.add(b)
+      if (b === focusId && byId.has(a)) ids.add(a)
+    }
+  } else {
+    ids = new Set(entityRows.slice(0, limit).map(e => e.id))
+  }
+
+  const links = new Map<string, GraphLinkRow>()
+  const related = new Set<string>()
+  for (const [from, predicate, to, weight] of rels.rows as [string, string, string, number][]) {
+    // related_to predates the vocabulary change: it says no more than a co-mention
+    if (!ids.has(from) || !ids.has(to) || from === to || predicate === 'related_to') continue
+    links.set(`${from}|${predicate}|${to}`, { source: from, target: to, relationship: predicate, weight })
+    related.add([from, to].sort().join('|'))
+  }
+  const coEdges: GraphLinkRow[] = []
   for (const [a, b, weight] of co.rows as [string, string, number][]) {
     if (!ids.has(a) || !ids.has(b) || related.has(`${a}|${b}`)) continue
-    links.set(`${a}|co|${b}`, { source: a, target: b, relationship: 'co_mentioned', weight })
+    const touchesFocus = a === focusId || b === focusId
+    // Hubs co-occur with everything; their co-mentions only matter when they are the focus
+    if (!touchesFocus && (byId.get(a)?.hub || byId.get(b)?.hub)) continue
+    coEdges.push({ source: a, target: b, relationship: 'co_mentioned', weight })
   }
-  return { nodes, links: [...links.values()] }
+  coEdges.sort((x, y) => y.weight - x.weight)
+  for (const e of coEdges.slice(0, MAX_CO_MENTION_EDGES)) links.set(`${e.source}|co|${e.target}`, e)
+
+  const nodes = [...ids].map(id => byId.get(id)!).filter(Boolean)
+  return { nodes, links: [...links.values()], focus: focusId }
 }
 
 /** Find an entity by name or alias (case-insensitive). */

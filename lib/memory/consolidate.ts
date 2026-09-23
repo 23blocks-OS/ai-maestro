@@ -39,7 +39,7 @@ import {
 } from './types'
 import { createOllamaProvider } from './ollama-provider'
 import { createClaudeProvider } from './claude-provider'
-import { JevClassifier, ClassifierError, chunkConversation, classifyRelations } from './jev-provider'
+import { JevClassifier, ClassifierError, chunkConversation, classifyRelations, classifyEntityRelations } from './jev-provider'
 import { redactSecrets } from './redact'
 import { EntityIndex, saveCard, linkCardEntities, extractEntityCandidates } from './cards'
 import { summarizeSession, batchCandidates, SummarizerError, type Candidate, type GeneratedCard } from './summarizer'
@@ -263,8 +263,9 @@ async function backfillLinks(
 ): Promise<void> {
   const result = await agentDb.run(`
     ?[memory_id, content, vec] :=
-      *memories{memory_id, agent_id, content},
+      *memories{memory_id, agent_id, content, tier},
       agent_id = ${escapeForCozo(agentId)},
+      tier != 'faded',
       *memory_vec{memory_id, vec},
       not *memory_link_checked{memory_id}
     :limit ${LINK_BACKFILL_PER_RUN}
@@ -308,6 +309,86 @@ export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string
   }
   if (changed > 0) console.log(`[CONSOLIDATE] Redacted secrets from ${changed} stored memories`)
   return changed
+}
+
+/** Existing memories whose entity relations are backfilled per run */
+const RELATION_BACKFILL_PER_RUN = 60
+
+/**
+ * Memories with 2+ entities get Jev's verbs for every pair the summarizer left
+ * unconnected, so the entity graph shows "X runs_on Y" instead of only
+ * "mentioned together".
+ */
+async function backfillEntityRelations(
+  agentDb: AgentDatabase,
+  agentId: string,
+  classifier: JevClassifier,
+  errors: string[]
+): Promise<number> {
+  const rows = await agentDb.run(`
+    with_entities[memory_id, count(entity_id)] := *memory_entities{memory_id, entity_id}
+    ?[memory_id, content] :=
+      with_entities[memory_id, n], n >= 2,
+      *memories{memory_id, agent_id, content, tier},
+      agent_id = ${escapeForCozo(agentId)},
+      tier != 'faded',
+      not *entity_relation_checked{memory_id}
+    :limit ${RELATION_BACKFILL_PER_RUN}
+  `)
+  let added = 0
+  for (const [memoryId, content] of rows.rows as [string, string][]) {
+    try {
+      const names = await agentDb.run(`
+        ?[entity_id, name] := *memory_entities{memory_id: ${escapeForCozo(memoryId)}, entity_id}, *entities{entity_id, name}
+      `)
+      const idByName = new Map((names.rows as [string, string][]).map(([id, name]) => [name, id]))
+      const nameById = new Map([...idByName].map(([n, id]) => [id, n]))
+      const existing = await agentDb.run(`?[from_entity, to_entity] := *entity_relations{memory_id: ${escapeForCozo(memoryId)}, from_entity, to_entity}`)
+      const related = new Set((existing.rows as [string, string][]).map(([a, b]) => [nameById.get(a) || a, nameById.get(b) || b].sort().join('|')))
+      {
+        const ev = await agentDb.run(`?[passage] := *memory_evidence{memory_id: ${escapeForCozo(memoryId)}, passage} :limit 3`)
+        const evidenceText = (ev.rows as [string][]).map(r => r[0]).join('\n\n')
+        for (const r of await classifyEntityRelations(classifier, content, [...idByName.keys()], 0.7, related, evidenceText)) {
+          const from = idByName.get(r.subject)
+          const to = idByName.get(r.object)
+          if (!from || !to || from === to) continue
+          await agentDb.run(`
+            ?[from_entity, predicate, to_entity, memory_id, created_at] <- [[
+              ${escapeForCozo(from)}, ${escapeForCozo(r.predicate)}, ${escapeForCozo(to)}, ${escapeForCozo(memoryId)}, ${Date.now()}
+            ]]
+            :put entity_relations
+          `)
+          added++
+        }
+      }
+      await agentDb.run(`?[memory_id, checked_at] <- [[${escapeForCozo(memoryId)}, ${Date.now()}]] :put entity_relation_checked`)
+    } catch (err) {
+      errors.push(`Entity relations (${memoryId}): ${(err as Error).message}`)
+      if (err instanceof ClassifierError && err.fatal) break
+    }
+  }
+  return added
+}
+
+/**
+ * Before the "related" option existed, "supports" was Jev's default for any
+ * on-topic pair (352 of 382 links on the first real graph). Drop those links
+ * once and let the link backfill re-judge every memory under the new rules.
+ */
+async function pruneWeakSupportsLinks(agentDb: AgentDatabase): Promise<void> {
+  const name = 'prune-supports-v1'
+  const done = await agentDb.run(`?[applied_at] := *memory_migrations{name: ${escapeForCozo(name)}, applied_at}`)
+  if (done.rows.length > 0) return
+  const links = await agentDb.run(`?[from_memory_id, to_memory_id] := *memory_links{from_memory_id, to_memory_id, relationship}, relationship = 'supports'`)
+  for (const [from, to] of links.rows as [string, string][]) {
+    await agentDb.run(`?[from_memory_id, to_memory_id] <- [[${escapeForCozo(from)}, ${escapeForCozo(to)}]] :rm memory_links`)
+  }
+  const checked = await agentDb.run(`?[memory_id] := *memory_link_checked{memory_id}`)
+  for (const [id] of checked.rows as [string][]) {
+    await agentDb.run(`?[memory_id] <- [[${escapeForCozo(id)}]] :rm memory_link_checked`)
+  }
+  await agentDb.run(`?[name, applied_at] <- [[${escapeForCozo(name)}, ${Date.now()}]] :put memory_migrations`)
+  console.log(`[MEMORY] ${name}: dropped ${links.rows.length} weak supports links; memories will be re-linked`)
 }
 
 /** Per-run cap on classifier calls (passages); the next run picks up where this stopped. */
@@ -464,7 +545,13 @@ async function consolidateWithClassifier(
             ts: e.ts, passage: e.passage, exchange: e.exchange,
           })
         }
-        await linkCardEntities(agentDb, entities, memoryId, card)
+        // Pairs of entities the summarizer left unconnected: let Jev read the verbs from the statement
+        const stated = new Set(card.relations.map(r => [r.subject, r.object].sort().join('|')))
+        const relations = card.entities.length >= 2
+          ? [...card.relations, ...await classifyEntityRelations(classifier, card.statement, card.entities.map(e => e.name), 0.7, stated, evidence.map(e => e.passage).join('\n\n')).catch(() => [])]
+          : card.relations
+        await linkCardEntities(agentDb, entities, memoryId, { ...card, relations })
+        await agentDb.run(`?[memory_id, checked_at] <- [[${escapeForCozo(memoryId)}, ${Date.now()}]] :put entity_relation_checked`)
         if (!same) {
           try {
             await linkMemory(agentDb, agentId, { memory_id: memoryId, content: card.statement, embedding: vec }, classifier, counters)
@@ -571,6 +658,7 @@ export async function consolidateMemories(
       try {
         // Verbatim-passage memories from before cards: cards become the memory, raw passages fade
         await migrateToCardMemories(agentDb, agentId)
+        await pruneWeakSupportsLinks(agentDb)
       } catch (err) {
         errors.push(`Card migration: ${(err as Error).message}`)
       }
@@ -683,12 +771,19 @@ export async function consolidateMemories(
   }
 
   let lifecycle: { promoted: number; faded: number } | null = null
+  let entityRelationsAdded = 0
   if (choice.kind === 'classifier' && !dryRun) {
     // Give memories stored before linking existed (or whose link check failed) their edges
     try {
       await backfillLinks(agentDb, agentId, choice.classifier, counters, errors)
     } catch (err) {
       errors.push(`Link backfill: ${(err as Error).message}`)
+    }
+    // Verbs between entities of memories that have none yet
+    try {
+      entityRelationsAdded = await backfillEntityRelations(agentDb, agentId, choice.classifier, errors)
+    } catch (err) {
+      errors.push(`Entity relation backfill: ${(err as Error).message}`)
     }
     // Seen in 2+ sessions → long-term; one-off and never used for 30 days → faded
     try {
@@ -728,6 +823,7 @@ export async function consolidateMemories(
       entities_created: entities ? entities.size - entitiesBefore : 0,
       memories_promoted: lifecycle?.promoted ?? 0,
       memories_faded: lifecycle?.faded ?? 0,
+      entity_relations_added: entityRelationsAdded,
     } : {})
   }
 

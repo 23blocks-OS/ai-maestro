@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { chunkConversation, JevClassifier, ClassifierError, classifyRelations, defang } from '@/lib/memory/jev-provider'
+import { chunkConversation, JevClassifier, ClassifierError, classifyRelations, classifyEntityRelations, defang } from '@/lib/memory/jev-provider'
 import { maskClassifierSettings, DEFAULT_CLASSIFIER_SETTINGS } from '@/lib/memory/settings'
 import type { ConversationMessage } from '@/lib/memory/types'
 
@@ -249,5 +249,58 @@ describe('defang', () => {
     expect(defang("' OR 1=1; --")).toBe('\u2019 OR 1=1\u037e \u2014')
     expect(defang('../../etc/passwd')).toBe('..\u2044..\u2044etc/passwd')
     expect(defang('We decided to deploy.')).toBe('We decided to deploy.')
+  })
+})
+
+describe('classifyEntityRelations', () => {
+  const settings = { ...DEFAULT_CLASSIFIER_SETTINGS, apiKey: 'k' }
+  afterEach(() => vi.unstubAllGlobals())
+  const reply = (answers: Record<string, unknown>) => ({ ok: true, status: 200, json: async () => ({ model: 'jev', answers }) })
+
+  it('reads verbs per pair, including reversed direction, and skips none/low confidence', async () => {
+    const fetchMock = vi.fn(async () => reply({
+      pair_1: { choice: 'runs_on', confidence: 0.95 },      // gateway runs_on host
+      pair_2: { choice: 'calls__rev', confidence: 0.9 },    // reversed: C calls A
+      pair_3: { choice: 'none', confidence: 0.8 },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const rels = await classifyEntityRelations(new JevClassifier(settings), 'statement', ['gateway', 'host', 'C'])
+    expect(rels).toEqual([
+      { subject: 'gateway', predicate: 'runs_on', object: 'host', confidence: 0.95 },
+      { subject: 'C', predicate: 'calls', object: 'gateway', confidence: 0.9 },
+    ])
+  })
+
+  it('only asks about pairs that have no relation yet, and passes the evidence', async () => {
+    const fetchMock = vi.fn(async (_u: string, init: any) => {
+      const body = JSON.parse(init.body)
+      expect(Object.keys(body.questions)).toHaveLength(2) // 3 pairs minus 1 already related
+      expect(body.state).toContain('EVIDENCE (where it was said):')
+      return reply({})
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await classifyEntityRelations(new JevClassifier(settings), 's', ['a', 'b', 'c'], 0.7, new Set(['a|b']), 'the passage')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes no call when every pair is already related', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await classifyEntityRelations(new JevClassifier(settings), 's', ['a', 'b'], 0.7, new Set(['a|b']))).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('classifyRelations — related is not an edge', () => {
+  const settings = { ...DEFAULT_CLASSIFIER_SETTINGS, apiKey: 'k' }
+  afterEach(() => vi.unstubAllGlobals())
+  it('drops "related" and requires high confidence for "supports"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ model: 'jev', answers: {
+      relation_1: { choice: 'related', confidence: 0.99 },
+      relation_2: { choice: 'supports', confidence: 0.7 },
+      relation_3: { choice: 'supports', confidence: 0.85 },
+    } }) })))
+    const rels = await classifyRelations(new JevClassifier(settings), 'new', ['a', 'b', 'c'])
+    expect(rels).toEqual([{ index: 2, relation: 'supports', confidence: 0.85 }])
   })
 })

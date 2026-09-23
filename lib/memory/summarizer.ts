@@ -39,7 +39,6 @@ export type EntityType = typeof ENTITY_TYPES[number]
 export const RELATION_PREDICATES = [
   'uses', 'depends_on', 'runs_on', 'part_of', 'replaces', 'fixes', 'breaks',
   'configures', 'owns', 'stores', 'calls', 'prefers', 'decided_on', 'rejected',
-  'related_to',
 ] as const
 export type RelationPredicate = typeof RELATION_PREDICATES[number]
 
@@ -93,7 +92,7 @@ Each card:
 - category: fact | decision | preference | pattern | insight | reasoning
 - action: what kind of knowledge it is, from the allowed list.
 - entities: the NAMED specific things it is about (systems, services, hosts, agents, people, repos, files, functions, tools, products, libraries, organizations; a concept only if it has a proper name here). Never generic words. Usually 1 to 5. When a name in KNOWN ENTITIES is the same thing, use that exact spelling.
-- relations: subject/predicate/object between your entity names, only when stated.
+- relations: how the entities relate, as subject/predicate/object between your entity names. When a card has two or more entities, state how they relate if the excerpt says so (X runs_on Y, X depends_on Y, X replaces Y, X fixes Y, X part_of Y, X uses Y, X calls Y). Leave relations empty rather than guess; "related" is not a relation.
 - evidence: the numbers of the flagged passages the card rests on.
 
 Never include secrets, passwords, tokens or keys; [REDACTED] stays redacted.
@@ -243,6 +242,32 @@ export function buildSessionPrompt(candidates: Candidate[], knownEntities: strin
   return `${known}${candidates.length} flagged passages from one work session follow. Write AT MOST ${maxCards} memory cards (zero is fine).\n\n${parts.join('\n\n---\n\n')}`
 }
 
+/**
+ * Words that name a kind of thing, not a thing. As graph nodes they connect
+ * unrelated memories ("attachments", "config", "tests" appear everywhere) and
+ * turn the entity graph into a hairball. Measured on the first real graph:
+ * "attachments" was the second-biggest node.
+ */
+const GENERIC_ENTITIES = new Set([
+  'agent', 'agents', 'api', 'apis', 'app', 'application', 'attachment', 'attachments', 'backend', 'bug', 'bugs',
+  'cache', 'cli', 'client', 'code', 'codebase', 'config', 'configuration', 'data', 'database', 'db', 'deploy',
+  'deployment', 'dashboard', 'docs', 'documentation', 'endpoint', 'endpoints', 'error', 'errors', 'feature',
+  'file', 'files', 'fix', 'fixes', 'frontend', 'function', 'hook', 'hooks', 'host', 'hosts', 'issue', 'issues',
+  'key', 'keys', 'log', 'logs', 'memory', 'memories', 'message', 'messages', 'model', 'models', 'network',
+  'pr', 'prs', 'project', 'prompt', 'repo', 'repository', 'request', 'requests', 'script', 'scripts', 'server',
+  'servers', 'service', 'services', 'session', 'sessions', 'settings', 'system', 'task', 'tasks', 'test', 'tests',
+  'token', 'tokens', 'tool', 'tools', 'ui', 'user', 'users', 'version', 'workflow',
+])
+
+export function isGenericEntity(name: string, type?: string): boolean {
+  const n = name.trim().toLowerCase().replace(/[`"'.]/g, '')
+  if (GENERIC_ENTITIES.has(n)) return true
+  // A snake_case "concept" (attachment_limits) is an attribute, not a thing;
+  // a snake_case table, file or function is a real named entity.
+  if ((type === 'concept' || type === 'other') && /^[a-z]+(_[a-z]+)+$/.test(n)) return true
+  return false
+}
+
 /** Keep well-formed cards; coerce off-list values; drop evidence that was never offered. */
 export function parseSessionCards(output: unknown, candidates: Candidate[], maxCards: number): GeneratedCard[] {
   const cards = (output as { cards?: unknown[] })?.cards
@@ -263,7 +288,7 @@ export function parseSessionCards(output: unknown, candidates: Candidate[], maxC
       category: categories.has(raw.category) ? raw.category : 'insight',
       action: actions.has(raw.action) ? raw.action : 'other',
       entities: (Array.isArray(raw.entities) ? raw.entities : [])
-        .filter((e: any) => e && typeof e.name === 'string' && e.name.trim())
+        .filter((e: any) => e && typeof e.name === 'string' && e.name.trim() && !isGenericEntity(e.name, e.type))
         .map((e: any) => ({ name: e.name.trim().slice(0, 120), type: types.has(e.type) ? e.type : 'other' })),
       relations: (Array.isArray(raw.relations) ? raw.relations : [])
         .filter((r: any) => r && r.subject && r.object && predicates.has(r.predicate))

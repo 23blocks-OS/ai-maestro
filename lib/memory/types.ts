@@ -104,6 +104,8 @@ export interface ConsolidationResult {
   memories_promoted?: number
   /** One-off memories never used for 30 days, faded this run */
   memories_faded?: number
+  /** Entity-to-entity verbs added by the relation backfill this run */
+  entity_relations_added?: number
 }
 
 /**

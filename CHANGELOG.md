@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.7] - 2026-09-23 — A memory graph you can read and walk
+
+The first real entity graph was a hairball: 69 of 93 edges were "mentioned
+together", "attachments" was the second-biggest node, the agent's own project
+connected to everything, and 352 of 382 memory links were "supports".
+
+- **Nodes:** generic words (config, tests, attachments, users…) and snake_case
+  concepts are no longer entities.
+- **Edges:** the summarizer must state how entities relate, and `related_to` is
+  gone (it was the model's default, like "supports" was Jev's). For every pair
+  a card leaves unconnected, Jev reads the verb from the statement and its
+  evidence (at ≥ 0.7 confidence; it answers "none" rather than invent). Existing
+  memories are backfilled 60 per run.
+- **Hubs:** an entity in a quarter of all memories keeps its stated relations
+  but not its co-mentions.
+- **Memory links:** Jev can now answer "related" (not stored), and "supports"
+  needs 0.8 confidence; the old supports links are dropped once and re-judged.
+- **Exploring:** click an entity to centre the graph on its neighbourhood, with
+  a panel of its relations (clickable) and the memories behind them.
+
 ## [0.41.5] - 2026-09-23 — The dashboard no longer "restarts" when a refresh is slow
 
 The agent list refreshes from each host's /api/agents. When this host's own

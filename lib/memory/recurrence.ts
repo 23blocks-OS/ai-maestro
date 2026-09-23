@@ -6,8 +6,12 @@
  * an existing memory already states does not become a second memory: it
  * reinforces the first (one more session, one more piece of evidence).
  *
- *   warm   new, seen in one session
- *   long   seen in 2+ distinct sessions (promoted)
+ * Every consolidated memory is LONG-TERM memory; the agent's context window is
+ * its short-term memory. Recurrence is strength, not a different kind of memory,
+ * like rehearsal for people:
+ *
+ *   warm       seen in one session
+ *   recurring  seen in 2+ distinct sessions (called "long" until v0.42)
  *   faded  one session, never recalled, older than 30 days; or a legacy raw
  *          passage from before cards. Kept, never recalled or injected. A
  *          faded CARD that comes up in a new session is revived.
@@ -164,7 +168,7 @@ export async function updateLifecycle(agentDb: AgentDatabase, agentId: string): 
       reinforcement_count >= ${PROMOTE_AT_SESSIONS}
   `)
   for (const [id] of promote.rows as [string][]) {
-    await agentDb.run(`?[memory_id, tier, promoted_at] <- [[${escapeForCozo(id)}, 'long', ${now}]] :update memories`)
+    await agentDb.run(`?[memory_id, tier, promoted_at] <- [[${escapeForCozo(id)}, 'recurring', ${now}]] :update memories`)
   }
   const cutoff = now - FADE_AFTER_DAYS * 24 * 60 * 60 * 1000
   const fade = await agentDb.run(`
@@ -239,4 +243,45 @@ export async function migrateToCardMemories(agentDb: AgentDatabase, agentId: str
   await agentDb.run(`?[name, applied_at] <- [[${escapeForCozo(MIGRATION)}, ${Date.now()}]] :put memory_migrations`)
   console.log(`[MEMORY] ${MIGRATION}: ${converted} memories now cards, ${faded} raw passages faded`)
   return { converted, faded }
+}
+
+// ---------------------------------------------------------------------------
+// One-time migrations (v0.42)
+// ---------------------------------------------------------------------------
+
+async function runOnce(agentDb: AgentDatabase, name: string, fn: () => Promise<number>): Promise<void> {
+  const done = await agentDb.run(`?[applied_at] := *memory_migrations{name: ${escapeForCozo(name)}, applied_at}`)
+  if (done.rows.length > 0) return
+  const n = await fn()
+  await agentDb.run(`?[name, applied_at] <- [[${escapeForCozo(name)}, ${Date.now()}]] :put memory_migrations`)
+  console.log(`[MEMORY] ${name}: ${n} memories`)
+}
+
+/**
+ * "long" becomes "recurring": every consolidated memory is long-term memory, so
+ * naming one level of strength "long" said the others were not.
+ */
+export async function migrateTierNames(agentDb: AgentDatabase): Promise<void> {
+  await runOnce(agentDb, 'tier-recurring-v1', async () => {
+    const rows = await agentDb.run(`?[memory_id] := *memories{memory_id, tier}, tier = 'long'`)
+    for (const [id] of rows.rows as [string][]) {
+      await agentDb.run(`?[memory_id, tier] <- [[${escapeForCozo(id)}, 'recurring']] :update memories`)
+    }
+    return rows.rows.length
+  })
+}
+
+/**
+ * access_count was bumped by consolidation's own searches, so every memory
+ * looked "recalled". Start it over; from now on only injections count
+ * (lib/memory/recall-log.ts).
+ */
+export async function resetAccessCounts(agentDb: AgentDatabase): Promise<void> {
+  await runOnce(agentDb, 'access-count-reset-v1', async () => {
+    const rows = await agentDb.run(`?[memory_id] := *memories{memory_id, access_count}, access_count > 0`)
+    for (const [id] of rows.rows as [string][]) {
+      await agentDb.run(`?[memory_id, access_count, last_accessed_at] <- [[${escapeForCozo(id)}, 0, null]] :update memories`)
+    }
+    return rows.rows.length
+  })
 }

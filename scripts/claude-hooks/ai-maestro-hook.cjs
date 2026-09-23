@@ -594,6 +594,34 @@ function saveRecalled(cwd, sessionId, ids) {
     } catch (e) { debugLog({ event: 'save_recalled_failed', error: e.message }); }
 }
 
+// Pure: what the agent knows about the entities its prompt names — their
+// relations, current first, "no longer" when one ended. Returns null when empty.
+function buildEntityNotice(entities) {
+    if (!Array.isArray(entities) || entities.length === 0) return null;
+    const blocks = entities
+        .filter(e => e && e.name && Array.isArray(e.relations) && e.relations.length > 0)
+        .map(e => [`**${e.name}**${e.type && e.type !== 'other' ? ` (${e.type})` : ''}`, ...e.relations.map(r => `- ${r}`)].join('\n'));
+    if (blocks.length === 0) return null;
+    return [
+        '## Memory: what you know about the things this prompt names',
+        'Relations from your earlier sessions: what each one runs on, stores, depends on, and what depends on it. Consider what else a change affects. "no longer" means a later session said it ended. Verify before acting; memory-search.sh --about <name> shows the memories behind them.',
+        '',
+        blocks.join('\n\n'),
+    ].join('\n');
+}
+
+// Append one line per injection to the agent's own recall log. Consolidation
+// folds it into access counts; it is also the raw data for "did the agent use
+// its memory". Never throws.
+function logRecall(agentId, entry) {
+    try {
+        if (!/^[A-Za-z0-9_-]+$/.test(agentId)) return;
+        const dir = path.join(os.homedir(), '.aimaestro', 'agents', agentId);
+        if (!fs.existsSync(dir)) return;
+        fs.appendFileSync(path.join(dir, 'memory-recalls.jsonl'), JSON.stringify({ at: Date.now(), ...entry }) + '\n');
+    } catch (e) { debugLog({ event: 'recall_log_failed', error: e.message }); }
+}
+
 // Pure: turn recalled memories into the context block. Returns null when empty.
 function buildMemoryNotice(memories, { primer }) {
     if (!Array.isArray(memories) || memories.length === 0) return null;
@@ -602,7 +630,9 @@ function buildMemoryNotice(memories, { primer }) {
         // reading); otherwise the verbatim passage.
         const text = String(m.statement || m.content || '').replace(/\s+/g, ' ').trim();
         const clipped = text.length > RECALL_MEMORY_CHARS ? `${text.slice(0, RECALL_MEMORY_CHARS)}…` : text;
-        const date = m.created_at ? new Date(m.created_at).toISOString().slice(0, 10) : 'undated';
+        // When it was last said in a session; created_at is when it was consolidated
+        const when = m.said_at || m.created_at;
+        const date = when ? new Date(when).toISOString().slice(0, 10) : 'undated';
         // Weight: knowledge that came up in several sessions is more likely to matter
         const weight = m.sessions > 1 ? ` · seen in ${m.sessions} sessions` : '';
         return `- [${m.category}${weight} · ${date}] ${clipped}`;
@@ -640,12 +670,21 @@ async function recallMemories(cwd, sessionId, prompt) {
         if (!res.ok) return null;
 
         const already = loadRecalled(cwd, sessionId);
-        const fresh = selectFreshMemories((await res.json()).memories, already, limit);
-        if (fresh.length === 0) return null;
+        const body = await res.json();
+        const fresh = selectFreshMemories(body.memories, already, limit);
+        // An entity's relations are shown once per session, like a memory
+        const freshEntities = (body.entities || []).filter(e => e && e.entity_id && !already.includes(`entity:${e.entity_id}`));
+        if (fresh.length === 0 && freshEntities.length === 0) return null;
 
-        saveRecalled(cwd, sessionId, [...already, ...fresh.map(m => m.memory_id)]);
-        debugLog({ event: 'memory_recalled', agentId: agent.id, primer, count: fresh.length });
-        return buildMemoryNotice(fresh, { primer });
+        saveRecalled(cwd, sessionId, [...already, ...fresh.map(m => m.memory_id), ...freshEntities.map(e => `entity:${e.entity_id}`)]);
+        logRecall(agent.id, {
+            session: sessionId || null,
+            kind: primer ? 'primer' : 'prompt',
+            ids: fresh.map(m => m.memory_id),
+            entities: freshEntities.map(e => e.name),
+        });
+        debugLog({ event: 'memory_recalled', agentId: agent.id, primer, count: fresh.length, entities: freshEntities.length });
+        return [buildEntityNotice(freshEntities), buildMemoryNotice(fresh, { primer })].filter(Boolean).join('\n\n') || null;
     } catch (err) {
         debugLog({ event: 'memory_recall_error', error: err.message });
         return null;
@@ -1022,6 +1061,7 @@ if (require.main === module) {
 module.exports = {
     readLocalRegistry,
     buildMemoryNotice,
+    buildEntityNotice,
     selectFreshMemories,
     buildAmpBlockReason,
     filterFreshMessages,

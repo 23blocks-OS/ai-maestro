@@ -857,8 +857,8 @@ function MemoryList({
                 >
                   {memory.category}
                 </span>
-                <span className={`text-xs ${memory.tier === 'long' ? 'text-emerald-400' : 'text-gray-500'}`}>
-                  {memory.tier === 'long' ? 'long-term' : memory.tier}
+                <span className={`text-xs ${memory.tier === 'recurring' ? 'text-emerald-400' : 'text-gray-500'}`}>
+                  {memory.tier}
                 </span>
                 {memory.reinforcement_count > 1 && (
                   <span className="text-xs text-amber-400 flex items-center gap-1" title="Came up in this many distinct sessions">
@@ -944,7 +944,7 @@ function MemoryList({
 // Force-Directed Graph Component
 interface EntityDetail {
   entity: { name: string; type: string; aliases: string[]; mention_count: number }
-  relations: Array<{ direction: 'in' | 'out'; predicate: string; name: string; type: string }>
+  relations: Array<{ direction: 'in' | 'out'; predicate: string; name: string; type: string; holds?: boolean; weight?: number }>
   memories: Array<Memory>
 }
 
@@ -991,10 +991,12 @@ function EntityPanel({ detail, onSelect }: { detail: EntityDetail; onSelect: (na
           <div className="text-xs font-medium text-gray-400 mb-1">Relations</div>
           <div className="flex flex-col gap-1 text-sm">
             {relations.map((r, i) => (
-              <div key={i} className="text-gray-300">
+              <div key={i} className={r.holds === false ? 'text-gray-500 line-through decoration-gray-600' : 'text-gray-300'}>
                 {r.direction === 'out'
-                  ? <><span className="text-gray-500">{r.predicate.replace('_', ' ')}</span>{' '}<button onClick={() => onSelect(r.name)} className="text-blue-400 hover:underline">{r.name}</button></>
-                  : <><button onClick={() => onSelect(r.name)} className="text-blue-400 hover:underline">{r.name}</button>{' '}<span className="text-gray-500">{r.predicate.replace('_', ' ')} this</span></>}
+                  ? <><span className="text-gray-500">{r.predicate.replace(/_/g, ' ')}</span>{' '}<button onClick={() => onSelect(r.name)} className="text-blue-400 hover:underline">{r.name}</button></>
+                  : <><button onClick={() => onSelect(r.name)} className="text-blue-400 hover:underline">{r.name}</button>{' '}<span className="text-gray-500">{r.predicate.replace(/_/g, ' ')} this</span></>}
+                {r.holds === false && <span className="ml-2 text-xs no-underline text-gray-500">no longer</span>}
+                {(r.weight || 0) > 1 && <span className="ml-2 text-xs text-amber-400">{r.weight} sessions</span>}
               </div>
             ))}
           </div>

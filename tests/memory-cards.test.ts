@@ -33,6 +33,21 @@ describe('parseSessionCards', () => {
     expect(c.entities).toEqual([{ name: 'Jev', type: 'other' }])
   })
 
+  it('keeps whether a relation ended, and drops verbs off the list', () => {
+    const [c] = parseSessionCards({ cards: [{ statement: 'api moved off mini-lola to mac-mini.', category: 'fact', action: 'deployed',
+      entities: [{ name: 'api', type: 'service' }, { name: 'mini-lola', type: 'host' }, { name: 'mac-mini', type: 'host' }],
+      relations: [
+        { subject: 'api', predicate: 'runs_on', object: 'mini-lola', holds: false },
+        { subject: 'api', predicate: 'runs_on', object: 'mac-mini' },
+        { subject: 'api', predicate: 'stores', object: 'mac-mini' },
+        { subject: 'api', predicate: 'related_to', object: 'mac-mini' },
+      ], evidence: [1] }] }, cands, 5)
+    expect(c.relations).toEqual([
+      { subject: 'api', predicate: 'runs_on', object: 'mini-lola', holds: false },
+      { subject: 'api', predicate: 'runs_on', object: 'mac-mini', holds: true },
+    ])
+  })
+
   it('never returns more cards than asked for', () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ statement: `s${i}`, category: 'fact', action: 'discovered', entities: [], relations: [], evidence: [1] }))
     expect(parseSessionCards({ cards: many }, cands, 2)).toHaveLength(2)
@@ -87,11 +102,11 @@ describe('buildSessionPrompt', () => {
 
 describe('recallScore', () => {
   it('ranks a memory seen in more sessions above an equally close one seen once', () => {
-    expect(recallScore(0.28, 5, 'long')).toBeLessThan(recallScore(0.28, 1, 'warm'))
+    expect(recallScore(0.28, 5, 'recurring')).toBeLessThan(recallScore(0.28, 1, 'warm'))
   })
 
   it('does not let weight beat a much closer match', () => {
-    expect(recallScore(0.24, 1, 'warm')).toBeLessThan(recallScore(0.31, 10, 'long'))
+    expect(recallScore(0.24, 1, 'warm')).toBeLessThan(recallScore(0.31, 10, 'recurring'))
   })
 })
 
@@ -143,6 +158,6 @@ describe('related_to is not a relation', () => {
       { subject: 'a', predicate: 'related_to', object: 'b' },
       { subject: 'a', predicate: 'runs_on', object: 'b' },
     ] }] }, [cand(1)], 5)
-    expect(c.relations).toEqual([{ subject: 'a', predicate: 'runs_on', object: 'b' }])
+    expect(c.relations).toEqual([{ subject: 'a', predicate: 'runs_on', object: 'b', holds: true }])
   })
 })

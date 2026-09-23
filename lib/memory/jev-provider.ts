@@ -14,6 +14,7 @@ import type { MemoryCategory } from '../cozo-schema-memory'
 import type { ConversationMessage } from './types'
 import type { ClassifierSettings } from './settings'
 import { redactSecrets } from './redact'
+import { STATED_PREDICATES, type RelationPredicate } from './relations'
 
 export const MEMORY_QUESTIONS = {
   durable: {
@@ -400,14 +401,12 @@ export async function classifyRelations(
 }
 
 /** Entity-to-entity verbs, the same vocabulary the summarizer uses. */
-export const ENTITY_PREDICATES = [
-  'uses', 'depends_on', 'runs_on', 'part_of', 'replaces', 'fixes', 'breaks',
-  'configures', 'owns', 'stores', 'calls', 'prefers', 'decided_on', 'rejected',
-] as const
+/** Jev picks from the same verbs the summarizer uses */
+export const ENTITY_PREDICATES = STATED_PREDICATES
 
 export interface EntityRelationJudgement {
   subject: string
-  predicate: typeof ENTITY_PREDICATES[number]
+  predicate: RelationPredicate
   object: string
   confidence: number
 }
@@ -439,8 +438,8 @@ export async function classifyEntityRelations(
   chosen.forEach(([a, b], k) => {
     const criteria: Record<string, string> = { none: `The statement does not say how ${a} and ${b} relate` }
     for (const p of ENTITY_PREDICATES) {
-      criteria[`${p}`] = `${a} ${p.replace('_', ' ')} ${b}`
-      criteria[`${p}__rev`] = `${b} ${p.replace('_', ' ')} ${a}`
+      criteria[`${p}`] = `${a} ${p.replace(/_/g, ' ')} ${b}`
+      criteria[`${p}__rev`] = `${b} ${p.replace(/_/g, ' ')} ${a}`
     }
     questions[`pair_${k + 1}`] = {
       type: 'choice',

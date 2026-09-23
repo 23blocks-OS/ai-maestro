@@ -35,7 +35,7 @@ export async function GET(
     limit: parseInt(searchParams.get('limit') || '20'),
     includeRelated: searchParams.get('includeRelated') === 'true',
     minConfidence: parseFloat(searchParams.get('minConfidence') || '0'),
-    tier: searchParams.get('tier') as 'warm' | 'long' | null,
+    tier: searchParams.get('tier') as 'warm' | 'recurring' | null,
     view: searchParams.get('view'),
     memoryId: searchParams.get('id'),
     maxTokens: parseInt(searchParams.get('maxTokens') || '2000'),

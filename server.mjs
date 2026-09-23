@@ -2537,6 +2537,13 @@ async function startServer(handleRequest) {
             if (r && !r.skipped && r.scanned) console.log(`[Memory Sweep] ${r.scanned} agents, ${r.failed} failed, ${Math.round((r.ms || 0) / 1000)}s`)
           })
           .catch(err => console.error('[Memory Sweep] failed:', err?.message || err))
+        // History backlog: agents whose consolidation left conversations behind
+        // keep consolidating, one at a time, until 8 AM (lib/memory/backlog.ts).
+        // Starting it again while it runs is a no-op.
+        fetch(`http://localhost:${port}/api/memory/backlog`, { method: 'POST' })
+          .then(res => res.json())
+          .then(r => { if (r?.started) console.log(`[Memory Backlog] started: ${r.pending} agents with history to consolidate`) })
+          .catch(err => console.error('[Memory Backlog] failed to start:', err?.message || err))
       }
       setTimeout(runMemorySweep, 5 * 60 * 1000)
       setInterval(runMemorySweep, SWEEP_EVERY_MS)

@@ -13,6 +13,7 @@
  * - Each agent is truly autonomous and self-sufficient
  */
 
+import { isMemorySkillEnabled } from './memory/skill'
 import { AgentDatabase } from './cozo-db'
 import { hostHints } from './host-hints'
 import { getAgent as getAgentFromRegistry } from './agent-registry'
@@ -300,7 +301,9 @@ class AgentSubconscious {
 
     // Set timer for consolidation
     this.consolidationTimer = setTimeout(() => {
-      this.runConsolidation().catch(err => {
+      // Long-term memory is a per-agent skill (lib/memory/skill.ts)
+      const run = isMemorySkillEnabled(this.agentId) ? this.runConsolidation() : Promise.resolve()
+      run.catch(err => {
         console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation failed:`, err)
       }).finally(() => {
         // Schedule next run after this one completes

@@ -26,8 +26,8 @@ export type MemoryCategory =
   | 'insight'     // System 2: Learned understanding
   | 'reasoning'   // System 2: How problems were solved
 
-/** warm: new; long: came up in 2+ sessions; faded: one-off, unused, or a legacy raw passage (kept, not recalled) */
-export type MemoryTier = 'warm' | 'long' | 'faded'
+/** All three are long-term memory (the agent's context window is its short-term memory). warm: seen in one session; recurring: came up in 2+ sessions; faded: one-off, unused, or a legacy raw passage (kept, not recalled) */
+export type MemoryTier = 'warm' | 'recurring' | 'faded'
 export type MemorySystem = 1 | 2  // 1 = knowledge, 2 = reasoning
 
 export type RelationshipType =
@@ -273,6 +273,20 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  // When each relation was stated and whether it was said to hold or to have
+  // ended (lib/memory/relations.ts). A relation's state is its latest statement.
+  await createTableIfNotExists('relation_statements', `
+    :create relation_statements {
+      from_entity: String,
+      predicate: String,
+      to_entity: String,
+      memory_id: String
+      =>
+      said_at: Int,
+      holds: Bool
+    }
+  `)
+
   // Evidence behind a memory: one row per passage that stated it, across every
   // session where it came up. Recurrence (distinct sessions) is a memory's weight.
   await createTableIfNotExists('memory_evidence', `
@@ -487,7 +501,7 @@ export async function searchMemoriesByEmbedding(
     categories?: MemoryCategory[]
     minConfidence?: number
     tier?: MemoryTier
-    /** Bump access_count on the hits (a write). Off for read-only connections. */
+    /** Bump access_count on the hits (a write). Off by default: only an injection counts (lib/memory/recall-log.ts). */
     trackAccess?: boolean
   } = {}
 ): Promise<Array<{
@@ -534,7 +548,7 @@ export async function searchMemoriesByEmbedding(
 
   // Update access counts for returned memories
   const now = Date.now()
-  for (const row of options.trackAccess === false ? [] : result.rows) {
+  for (const row of options.trackAccess ? result.rows : []) {
     const memId = row[0] as string
     await agentDb.run(`
       ?[memory_id, access_count, last_accessed_at] :=
@@ -848,7 +862,7 @@ export async function getMemoryStats(
 }
 
 /**
- * Promote memory from warm to long tier
+ * Promote a memory from warm to recurring (seen in 2+ sessions)
  */
 export async function promoteMemory(
   agentDb: AgentDatabase,
@@ -859,7 +873,7 @@ export async function promoteMemory(
   await agentDb.run(`
     ?[memory_id, tier, promoted_at] <- [[
       ${escapeForCozo(memoryId)},
-      'long',
+      'recurring',
       ${now}
     ]]
     :update memories

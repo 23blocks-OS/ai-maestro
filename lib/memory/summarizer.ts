@@ -19,6 +19,7 @@
 
 import { spawn, execFileSync } from 'child_process'
 import { redactSecrets } from './redact'
+import { STATED_PREDICATES, PREDICATE_GLOSS, type RelationPredicate } from './relations'
 import crypto from 'crypto'
 import { tmux } from '@/lib/tmux-safe.mjs'
 import fs from 'fs'
@@ -37,11 +38,6 @@ export const ENTITY_TYPES = [
 ] as const
 export type EntityType = typeof ENTITY_TYPES[number]
 
-export const RELATION_PREDICATES = [
-  'uses', 'depends_on', 'runs_on', 'part_of', 'replaces', 'fixes', 'breaks',
-  'configures', 'owns', 'stores', 'calls', 'prefers', 'decided_on', 'rejected',
-] as const
-export type RelationPredicate = typeof RELATION_PREDICATES[number]
 
 export const CARD_CATEGORIES = ['fact', 'decision', 'preference', 'pattern', 'insight', 'reasoning'] as const
 export type CardCategory = typeof CARD_CATEGORIES[number]
@@ -64,7 +60,8 @@ export interface GeneratedCard {
   category: CardCategory
   action: CardAction
   entities: Array<{ name: string; type: EntityType }>
-  relations: Array<{ subject: string; predicate: RelationPredicate; object: string }>
+  /** holds=false: the excerpt says it no longer holds (moved off, removed, replaced) */
+  relations: Array<{ subject: string; predicate: RelationPredicate; object: string; holds: boolean }>
   /** Candidate numbers this card rests on */
   evidence: number[]
 }
@@ -93,13 +90,15 @@ Each card:
 - category: fact | decision | preference | pattern | insight | reasoning
 - action: what kind of knowledge it is, from the allowed list.
 - entities: the NAMED specific things it is about (systems, services, hosts, agents, people, repos, files, functions, tools, products, libraries, organizations; a concept only if it has a proper name here). Never generic words. Usually 1 to 5. When a name in KNOWN ENTITIES is the same thing, use that exact spelling.
-- relations: how the entities relate, as subject/predicate/object between your entity names. When a card has two or more entities, state how they relate if the excerpt says so (X runs_on Y, X depends_on Y, X replaces Y, X fixes Y, X part_of Y, X uses Y, X calls Y). Leave relations empty rather than guess; "related" is not a relation.
+- relations: how the entities relate, as subject/predicate/object between your entity names, read "subject predicate object". These matter most: they tell a future session what else is affected when something changes. When a card has two or more entities, state every relation the excerpt supports, using these verbs:
+${STATED_PREDICATES.map(p => `  ${p}: ${PREDICATE_GLOSS[p]}`).join('\n')}
+  Set "holds": false when the excerpt says the relation ENDED (moved off a host, stopped using, removed); otherwise true. Leave relations empty rather than guess; "related" is not a relation.
 - evidence: the numbers of the flagged passages the card rests on.
 
 Never write the value of a secret: no passwords, API keys, tokens, encryption keys, salts or credentials, even when they appear in the excerpt; say that one exists and where ("a hardcoded encryption key in config/…"), never what it is. [REDACTED] stays redacted.
 
 Reply with ONLY a JSON object, no prose and no code fence:
-{"cards":[{"statement":"...","category":"${CARD_CATEGORIES.join('|')}","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${RELATION_PREDICATES.join('|')}","object":"..."}],"evidence":[1,2]}]}`
+{"cards":[{"statement":"...","category":"${CARD_CATEGORIES.join('|')}","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${STATED_PREDICATES.join('|')}","object":"...","holds":true}],"evidence":[1,2]}]}`
 
 /** The JSON object in a model reply, tolerating a stray code fence or preamble. */
 export function extractJson(text: string): unknown {
@@ -277,7 +276,7 @@ export function parseSessionCards(output: unknown, candidates: Candidate[], maxC
   const categories = new Set<string>(CARD_CATEGORIES)
   const actions = new Set<string>(CARD_ACTIONS)
   const types = new Set<string>(ENTITY_TYPES)
-  const predicates = new Set<string>(RELATION_PREDICATES)
+  const predicates = new Set<string>(STATED_PREDICATES)
   const out: GeneratedCard[] = []
   for (const raw of cards as any[]) {
     const statement = String(raw?.statement || '').trim()
@@ -294,7 +293,7 @@ export function parseSessionCards(output: unknown, candidates: Candidate[], maxC
         .map((e: any) => ({ name: e.name.trim().slice(0, 120), type: types.has(e.type) ? e.type : 'other' })),
       relations: (Array.isArray(raw.relations) ? raw.relations : [])
         .filter((r: any) => r && r.subject && r.object && predicates.has(r.predicate))
-        .map((r: any) => ({ subject: String(r.subject).trim(), predicate: r.predicate, object: String(r.object).trim() })),
+        .map((r: any) => ({ subject: String(r.subject).trim(), predicate: r.predicate, object: String(r.object).trim(), holds: r.holds !== false })),
       evidence: [...new Set<number>(evidence)],
     })
     if (out.length >= maxCards) break

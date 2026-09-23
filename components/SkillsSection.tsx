@@ -14,8 +14,6 @@ import {
   Save,
   RefreshCw,
   Clock,
-  Server,
-  Cpu,
   ToggleLeft,
   ToggleRight,
   ChevronRight,
@@ -23,24 +21,25 @@ import {
   Check
 } from 'lucide-react'
 
+/**
+ * The long-term memory skill (lib/memory/skill.ts). Only these two switches are
+ * read; the classifier (Jev) and summarizer are host-level, in Settings → Memory.
+ */
 interface MemorySkillSettings {
   enabled: boolean
-  consolidation: {
-    schedule: 'nightly' | 'weekly' | 'manual'
-    nightlyHour: number // 0-23
-    llmProvider: 'auto' | 'ollama' | 'claude'
-    ollamaModel: string
-    claudeModel: string
-    minConfidence: number // 0.0-1.0
-  }
-  retention: {
-    shortTermDays: number // 0 = keep forever
-    pruneAfterConsolidation: boolean
-  }
+  recall: boolean
 }
 
 interface SkillSettings {
   memory: MemorySkillSettings
+  [other: string]: unknown
+}
+
+interface MemoryBacklog {
+  moreRemaining: boolean
+  at: number
+  conversationsProcessed: number
+  memoriesCreated: number
 }
 
 interface SkillsSectionProps {
@@ -48,21 +47,7 @@ interface SkillsSectionProps {
   hostUrl?: string
 }
 
-const DEFAULT_MEMORY_SETTINGS: MemorySkillSettings = {
-  enabled: true,
-  consolidation: {
-    schedule: 'nightly',
-    nightlyHour: 2, // 2 AM
-    llmProvider: 'auto',
-    ollamaModel: 'llama3.2',
-    claudeModel: 'claude-haiku-4-5-20251001',
-    minConfidence: 0.7
-  },
-  retention: {
-    shortTermDays: 30,
-    pruneAfterConsolidation: false
-  }
-}
+const DEFAULT_MEMORY_SETTINGS: MemorySkillSettings = { enabled: true, recall: true }
 
 type TabId = 'memory'
 
@@ -77,6 +62,7 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [originalSettings, setOriginalSettings] = useState<SkillSettings | null>(null)
+  const [backlog, setBacklog] = useState<MemoryBacklog | null>(null)
 
   // Load settings
   const loadSettings = useCallback(async () => {
@@ -86,9 +72,14 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
       const res = await fetch(`${hostUrl}/api/agents/${agentId}/skills/settings`)
       if (res.ok) {
         const data = await res.json()
-        if (data.success && data.settings) {
-          setSettings(data.settings)
-          setOriginalSettings(data.settings)
+        if (data.success) {
+          // Older files carry fields nothing reads (provider, retention); keep them, show the switches
+          const loaded = data.settings || {}
+          const memory = { enabled: loaded.memory?.enabled !== false, recall: loaded.memory?.recall !== false }
+          const next = { ...loaded, memory }
+          setSettings(next)
+          setOriginalSettings(next)
+          setBacklog(data.memory_backlog || null)
         }
       } else if (res.status !== 404) {
         throw new Error('Failed to load settings')
@@ -141,26 +132,6 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
     setSettings(prev => ({
       ...prev,
       memory: { ...prev.memory, ...updates }
-    }))
-  }
-
-  const updateConsolidation = (updates: Partial<MemorySkillSettings['consolidation']>) => {
-    setSettings(prev => ({
-      ...prev,
-      memory: {
-        ...prev.memory,
-        consolidation: { ...prev.memory.consolidation, ...updates }
-      }
-    }))
-  }
-
-  const updateRetention = (updates: Partial<MemorySkillSettings['retention']>) => {
-    setSettings(prev => ({
-      ...prev,
-      memory: {
-        ...prev.memory,
-        retention: { ...prev.memory.retention, ...updates }
-      }
     }))
   }
 
@@ -245,8 +216,7 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
           <MemorySkillTab
             settings={settings.memory}
             updateSettings={updateMemorySettings}
-            updateConsolidation={updateConsolidation}
-            updateRetention={updateRetention}
+            backlog={backlog}
           />
         )}
       </div>
@@ -257,193 +227,70 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
 interface MemorySkillTabProps {
   settings: MemorySkillSettings
   updateSettings: (updates: Partial<MemorySkillSettings>) => void
-  updateConsolidation: (updates: Partial<MemorySkillSettings['consolidation']>) => void
-  updateRetention: (updates: Partial<MemorySkillSettings['retention']>) => void
+  backlog: MemoryBacklog | null
 }
 
-function MemorySkillTab({
-  settings,
-  updateSettings,
-  updateConsolidation,
-  updateRetention
-}: MemorySkillTabProps) {
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
-    <div className="space-y-6">
-      {/* Enable/Disable */}
+    <button onClick={onClick} className={`p-1 rounded transition-colors ${on ? 'text-emerald-400' : 'text-gray-500'}`}>
+      {on ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
+    </button>
+  )
+}
+
+function MemorySkillTab({ settings, updateSettings, backlog }: MemorySkillTabProps) {
+  return (
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-medium text-gray-200">Enable Long-Term Memory</div>
-          <div className="text-xs text-gray-500 mt-0.5">
-            Consolidate conversations into lasting memories
+          <div className="text-sm font-medium text-gray-200">Long-term memory</div>
+          <div className="text-xs text-gray-500 mt-0.5 max-w-md">
+            Every night (2 to 8 AM) this agent&apos;s conversations become memory: short statements with their evidence,
+            and a graph of the entities it works with and how they relate. History Claude Code deleted after 30 days is
+            rebuilt from the agent&apos;s own message index.
           </div>
         </div>
-        <button
-          onClick={() => updateSettings({ enabled: !settings.enabled })}
-          className={`p-1 rounded transition-colors ${
-            settings.enabled ? 'text-emerald-400' : 'text-gray-500'
-          }`}
-        >
-          {settings.enabled ? (
-            <ToggleRight className="w-8 h-8" />
-          ) : (
-            <ToggleLeft className="w-8 h-8" />
-          )}
-        </button>
+        <Toggle on={settings.enabled} onClick={() => updateSettings({ enabled: !settings.enabled })} />
       </div>
 
       {settings.enabled && (
-        <>
-          {/* Consolidation Settings */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-              <Clock className="w-4 h-4" />
-              Consolidation Schedule
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pl-6">
-              {/* Schedule Type */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Schedule</label>
-                <select
-                  value={settings.consolidation.schedule}
-                  onChange={e => updateConsolidation({ schedule: e.target.value as 'nightly' | 'weekly' | 'manual' })}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="nightly">Nightly</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="manual">Manual Only</option>
-                </select>
-              </div>
-
-              {/* Time */}
-              {settings.consolidation.schedule !== 'manual' && (
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1.5">Time (Hour)</label>
-                  <select
-                    value={settings.consolidation.nightlyHour}
-                    onChange={e => updateConsolidation({ nightlyHour: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <option key={i} value={i}>
-                        {i.toString().padStart(2, '0')}:00
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+        <div className="flex items-center justify-between pl-4 border-l border-gray-800">
+          <div>
+            <div className="text-sm font-medium text-gray-200">Recall into prompts</div>
+            <div className="text-xs text-gray-500 mt-0.5 max-w-md">
+              At session start the agent gets its standing decisions; on each prompt, the memories nearest to it and
+              the relations of any entity it names. Off: memory is still built, and the agent can search it with memory-search.
             </div>
           </div>
-
-          {/* LLM Provider Settings */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-              <Server className="w-4 h-4" />
-              LLM Provider
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pl-6">
-              {/* Provider */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Provider</label>
-                <select
-                  value={settings.consolidation.llmProvider}
-                  onChange={e => updateConsolidation({ llmProvider: e.target.value as 'auto' | 'ollama' | 'claude' })}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="auto">Auto (Ollama first, then Claude)</option>
-                  <option value="ollama">Ollama Only</option>
-                  <option value="claude">Claude Only</option>
-                </select>
-              </div>
-
-              {/* Min Confidence */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Min Confidence</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={settings.consolidation.minConfidence}
-                  onChange={e => updateConsolidation({ minConfidence: parseFloat(e.target.value) || 0.7 })}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Model Names */}
-            <div className="grid grid-cols-2 gap-4 pl-6">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Ollama Model</label>
-                <input
-                  type="text"
-                  value={settings.consolidation.ollamaModel}
-                  onChange={e => updateConsolidation({ ollamaModel: e.target.value })}
-                  placeholder="llama3.2"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Claude Model</label>
-                <input
-                  type="text"
-                  value={settings.consolidation.claudeModel}
-                  onChange={e => updateConsolidation({ claudeModel: e.target.value })}
-                  placeholder="claude-haiku-4-5-20251001"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Retention Settings */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-              <Cpu className="w-4 h-4" />
-              Memory Retention
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pl-6">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Short-Term Retention (days)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="365"
-                  value={settings.retention.shortTermDays}
-                  onChange={e => updateRetention({ shortTermDays: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <div className="text-xs text-gray-600 mt-1">0 = keep forever</div>
-              </div>
-
-              <div className="flex items-center">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settings.retention.pruneAfterConsolidation}
-                    onChange={e => updateRetention({ pruneAfterConsolidation: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-                  />
-                  <span className="text-sm text-gray-300">Prune after consolidation</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Info Box */}
-          <div className="bg-gray-800/50 rounded-lg p-3 flex items-start gap-3">
-            <ChevronRight className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-gray-400">
-              <strong className="text-gray-300">How it works:</strong> The subconscious process runs in the background,
-              consolidating short-term conversation memories into long-term insights. Use &quot;Auto&quot; provider to try
-              Ollama first (free, local) and fall back to Claude API if unavailable.
-            </div>
-          </div>
-        </>
+          <Toggle on={settings.recall} onClick={() => updateSettings({ recall: !settings.recall })} />
+        </div>
       )}
+
+      {settings.enabled && backlog && (
+        <div className="bg-gray-800/50 rounded-lg p-3 flex items-start gap-3">
+          <Clock className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-gray-400">
+            Last run {new Date(backlog.at).toLocaleString()}: {backlog.conversationsProcessed} conversations, {backlog.memoriesCreated} new memories.{' '}
+            {backlog.moreRemaining
+              ? 'Older history is still waiting; it is consolidated a few conversations at a time, newest first, each night.'
+              : 'All history is consolidated.'}
+          </div>
+        </div>
+      )}
+
+      {!settings.enabled && (
+        <div className="bg-gray-800/50 rounded-lg p-3 flex items-start gap-3">
+          <ChevronRight className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-gray-400">
+            Off: no memory is built and nothing is injected. What was already built is kept. Agents that work well
+            within one session do not need this skill.
+          </div>
+        </div>
+      )}
+
+      <div className="text-xs text-gray-500">
+        The classifier and its key are set per host in Settings → Memory.
+      </div>
     </div>
   )
 }

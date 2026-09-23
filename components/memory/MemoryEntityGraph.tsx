@@ -24,6 +24,8 @@ export interface EntityLink {
   target: string
   relationship: string
   weight: number
+  /** The relation was said to have ended (moved off, removed, replaced) */
+  ended?: boolean
 }
 
 interface Props {
@@ -80,8 +82,9 @@ export default function MemoryEntityGraph({ nodes, links, colors, focusId, onSel
               id: `e${i}`,
               source: l.source,
               target: l.target,
-              label: l.relationship === 'co_mentioned' ? '' : l.relationship.replace('_', ' '),
+              label: l.relationship === 'co_mentioned' ? '' : l.relationship.replace(/_/g, ' '),
               co: l.relationship === 'co_mentioned' ? 1 : 0,
+              ended: l.ended ? 1 : 0,
             },
           })),
         ],
@@ -127,6 +130,7 @@ export default function MemoryEntityGraph({ nodes, links, colors, focusId, onSel
             selector: 'edge[co = 1]',
             style: { width: 0.8, 'line-style': 'dotted', 'line-color': muted, opacity: 0.5, 'target-arrow-shape': 'none' },
           },
+          { selector: 'edge[ended = 1]', style: { 'line-style': 'dashed', opacity: 0.45 } },
           { selector: '.faded', style: { opacity: 0.15 } },
         ],
         layout: focusId
@@ -203,7 +207,7 @@ export default function MemoryEntityGraph({ nodes, links, colors, focusId, onSel
         )}
       </div>
       <p className="mt-1 text-[11px] text-gray-500">
-        Arrows are stated relations (the verb is on the edge) · dotted: mentioned together · dashed ring: hub · hover to highlight, click to explore, scroll to zoom
+        Arrows are stated relations (the verb is on the edge) · dashed arrow: no longer true · dotted: mentioned together · dashed ring: hub · hover to highlight, click to explore, scroll to zoom
       </p>
     </div>
   )

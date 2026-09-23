@@ -24,6 +24,10 @@ const cases: Array<[string, string, string]> = [
   ['yaml secret', 'client_secret: abcd1234efgh5678', 'abcd1234efgh5678'],
   ['JWT', 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.c2lnbmF0dXJlZmFrZQ', 'eyJhbGciOiJIUzI1NiJ9'],
   ['private key', '-----BEGIN RSA PRIVATE KEY-----\nMIIfake\n-----END RSA PRIVATE KEY-----', 'MIIfake'],
+  ['quoted key in prose', "apps use a hardcoded encryption key ('fakeKeyValue9' + salt 'fakeSaltValue7'), identical everywhere", 'fakeKeyValue9'],
+  ['quoted salt after a key', "apps use a hardcoded encryption key ('fakeKeyValue9' + salt 'fakeSaltValue7'), identical everywhere", 'fakeSaltValue7'],
+  ['token is "value"', 'the token is "tok_fake_12345" for staging', 'tok_fake_12345'],
+  ['bare key in parentheses', 'Zoom does not need the legacy shared encryption key (fakeLegacy42); it has no data', 'fakeLegacy42'],
 ]
 
 describe('redactSecrets', () => {
@@ -56,5 +60,33 @@ describe('chunkConversation redacts before classification and storage', () => {
     expect(passages.length).toBeGreaterThan(0)
     expect(everything).not.toContain('Fak3Pass99')
     expect(everything).not.toContain('sk_live_51FakeFakeFake0000abcd')
+  })
+})
+
+// Learn a secret once, redact it everywhere. The real key reached cards as
+// ENV=value, "hardcoded `value`", "key (value)" and bare "retain value because…".
+describe('secret values: learned once, redacted in any form', () => {
+  it('learns values from assignments, quotes and parentheses, not ordinary words', async () => {
+    const { extractSecretValues } = await import('@/lib/memory/redact')
+    const text = "wire ENCRYPTION_SERVICE_KEY=fakeK3yValue9 and ENCRYPTION_SERVICE_SALT=fakesaltvaluelong; the sort key is name; password: changeme"
+    const values = extractSecretValues(text)
+    expect(values).toContain('fakeK3yValue9')
+    expect(values).toContain('fakesaltvaluelong')
+    expect(values).not.toContain('name')
+    expect(values).not.toContain('changeme')
+  })
+
+  it('redacts every later mention of a known value, however it is written', async () => {
+    const { extractSecretValues, hashSecret, redactSecrets } = await import('@/lib/memory/redact')
+    const known = new Set(extractSecretValues('ENCRYPTION_SERVICE_KEY=fakeK3yValue9').map(hashSecret))
+    const bare = '23blocks production must retain fakeK3yValue9 because other tenants use it. RAG had hardcoded `fakeK3yValue9`.'
+    const out = redactSecrets(bare, known)
+    expect(out).not.toContain('fakeK3yValue9')
+    expect(out).toContain('must retain [REDACTED] because')
+  })
+
+  it('never stores or needs the value: only its hash', async () => {
+    const { hashSecret } = await import('@/lib/memory/redact')
+    expect(hashSecret('fakeK3yValue9')).toMatch(/^[0-9a-f]{64}$/)
   })
 })

@@ -217,6 +217,8 @@ export interface PreparedConversation {
   project_path?: string
   /** Messages already consolidated in earlier runs; only messages past this are processed */
   consolidated_offset?: number
+  /** Key progress is stored under (differs from file_path when rebuilt from the message index) */
+  offset_key?: string
 }
 
 /**

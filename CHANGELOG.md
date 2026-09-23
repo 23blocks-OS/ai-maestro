@@ -3,6 +3,34 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.13] - 2026-09-23 — Memory from months of history, not only surviving transcripts
+
+Consolidation read only Claude Code transcripts, and Claude Code deletes them
+after 30 days. The IaC agent had worked for ten months (422 conversations,
+47,166 messages kept in its own index) but one transcript survived, so it had 8
+memories. Consolidation now rebuilds a conversation from the agent's message
+index when its transcript is gone (full text; duplicate index rows dropped),
+processes conversations newest first, and keeps index progress under its own
+key so a transcript deleted later is neither skipped nor double-counted.
+First run on IaC: 8 → 32 memories from 3 conversations (more on later runs).
+
+**Secrets.** That run put a real hardcoded encryption key and salt into a card:
+the value was quoted in prose ("key ('…' + salt '…')"), which no pattern caught,
+and the summarizer copied it. Redaction now covers quoted values after key /
+salt / secret / token / password words, runs on card statements as well as on
+transcripts, and the summarizer is told to say a secret exists but never its
+value. Each run's scrub now covers cards, evidence and sources too. The same
+key then leaked again in parentheses ("key (…)"): a pattern covers that, and
+every card now also gets a Jev check, "does this statement contain a secret
+value?" (leak 0.72, redacted 0.04, ordinary 0.02); a card that does is dropped.
+Then the same key turned up bare ("must retain … because"), which no pattern can
+catch. So a value found once (ENV=value, quoted after key/salt, in parentheses)
+is learned as a SHA-256 hash per agent, and every token with a known hash is
+redacted everywhere: transcripts, cards, evidence. The value itself is never
+stored. The model had also listed the key as a graph entity: an entity whose
+name is a known secret is never created, and existing ones are removed with
+their links.
+
 ## [0.41.8] - 2026-09-23 — A real graph viewer for agent memory
 
 - **Cytoscape.js** (already used for the code graph) replaces the hand-drawn

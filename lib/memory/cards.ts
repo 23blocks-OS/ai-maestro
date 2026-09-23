@@ -22,6 +22,7 @@ import { embedTexts } from '../rag/embeddings'
 import { toCozoVector } from '../cozo-schema-memory'
 import { SUMMARIZER_MODEL, isGenericEntity, type GeneratedCard } from './summarizer'
 import type { JevClassifier } from './jev-provider'
+import { hashSecret } from './redact'
 
 /** A non-null string literal: escapeForCozo('') is `null`, which a String column rejects. */
 const str = (s: string | undefined | null) => (s ? escapeForCozo(s) : "''")
@@ -185,10 +186,18 @@ export async function saveCard(agentDb: AgentDatabase, memoryId: string, card: {
 }
 
 /** Entities become graph nodes linked to the memory; stated relations become edges. */
-export async function linkCardEntities(agentDb: AgentDatabase, entities: EntityIndex, memoryId: string, card: Pick<GeneratedCard, 'statement' | 'entities' | 'relations'>) {
+export async function linkCardEntities(
+  agentDb: AgentDatabase,
+  entities: EntityIndex,
+  memoryId: string,
+  card: Pick<GeneratedCard, 'statement' | 'entities' | 'relations'>,
+  knownSecrets?: Set<string>
+) {
   const idByName = new Map<string, string>()
   for (const e of card.entities) {
     if (idByName.has(norm(e.name))) continue
+    // A secret value is never a node (the model once listed a key as an entity)
+    if (knownSecrets?.has(hashSecret(e.name.trim())) || e.name.includes('[REDACTED]')) continue
     const id = await entities.resolve(e.name, e.type, card.statement)
     idByName.set(norm(e.name), id)
     await entities.mention(id)

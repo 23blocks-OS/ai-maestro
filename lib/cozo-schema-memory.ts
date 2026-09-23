@@ -299,6 +299,17 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  // SHA-256 of secret values found in this agent's conversations. Lets every
+  // later occurrence of the same value be redacted, in any form, without the
+  // database ever holding the value itself.
+  await createTableIfNotExists('secret_hashes', `
+    :create secret_hashes {
+      hash: String
+      =>
+      first_seen: Int
+    }
+  `)
+
   // One-time data migrations already applied to this database
   await createTableIfNotExists('memory_migrations', `
     :create memory_migrations {

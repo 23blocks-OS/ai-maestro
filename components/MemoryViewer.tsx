@@ -6,6 +6,7 @@ import {
   ChevronDown, RefreshCw, Lightbulb, Settings, FileText, Heart,
   GitBranch, Zap, ArrowRight, Clock, TrendingUp, AlertCircle, Play
 } from 'lucide-react'
+import MemoryEntityGraph, { type EntityNode, type EntityLink } from '@/components/memory/MemoryEntityGraph'
 
 // Types
 interface Memory {
@@ -124,6 +125,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
   const [graphMode, setGraphMode] = useState<'entities' | 'memories'>('entities')
   const [entityFocus, setEntityFocus] = useState<string | null>(null)
   const [entityDetail, setEntityDetail] = useState<EntityDetail | null>(null)
+  const [entityGraph, setEntityGraph] = useState<{ nodes: EntityNode[]; links: EntityLink[] }>({ nodes: [], links: [] })
   const [memories, setMemories] = useState<Memory[]>([])
   const [memoriesTotal, setMemoriesTotal] = useState<number | null>(null)
   const [showFaded, setShowFaded] = useState(false)
@@ -216,13 +218,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         const response = await fetch(`${hostUrl}/api/agents/${agentId}/memory/long-term?view=entity-graph&limit=120${focusParam}`)
         if (response.ok) {
           const data = await response.json()
-          const g = data.graph || { nodes: [], links: [] }
-          setGraphData({
-            nodes: g.nodes.map((n: { id: string; name: string; type: string; mention_count: number; hub?: boolean }) => ({
-              id: n.id, category: n.type, tier: '', content: n.name, confidence: 1, reinforcement_count: n.mention_count, hub: n.hub,
-            })),
-            links: g.links,
-          })
+          setEntityGraph({ nodes: data.graph?.nodes || [], links: data.graph?.links || [] })
         }
         if (entityFocus) {
           const detail = await fetch(`${hostUrl}/api/agents/${agentId}/memory/entity?name=${encodeURIComponent(entityFocus)}`)
@@ -457,8 +453,11 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
       {stats && (
         <div className="grid grid-cols-4 gap-3">
           <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-            <div className="text-2xl font-bold text-gray-100">{stats.total_memories}</div>
-            <div className="text-xs text-gray-400">Total Memories</div>
+            {/* Faded memories (raw passages, one-offs) are hidden from the list, so count them apart */}
+            <div className="text-2xl font-bold text-gray-100">{stats.total_memories - (stats.by_tier?.faded || 0)}</div>
+            <div className="text-xs text-gray-400">
+              Memories{stats.by_tier?.faded ? ` · ${stats.by_tier.faded} faded` : ''}
+            </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
             <div className="text-2xl font-bold text-gray-100">{stats.total_reinforcements}</div>
@@ -602,22 +601,34 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
               </button>
             ))}
           </div>
-          {graphMode === 'entities' && entityFocus && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <button onClick={() => setEntityFocus(null)} className="hover:text-gray-200">← All entities</button>
-              <span>/</span>
-              <span className="text-gray-200">{entityFocus}</span>
+          {graphMode === 'entities' ? (
+            // Graph gets the space; the side panel explains what is selected
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+              <div className="xl:col-span-2 h-[70vh] flex flex-col">
+                {entityFocus && (
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                    <button onClick={() => setEntityFocus(null)} className="hover:text-gray-200">← All entities</button>
+                    <span>/</span>
+                    <span className="text-gray-200">{entityFocus}</span>
+                  </div>
+                )}
+                <MemoryEntityGraph
+                  nodes={entityGraph.nodes}
+                  links={entityGraph.links}
+                  colors={ENTITY_COLORS}
+                  focusId={entityFocus ? entityGraph.nodes.find(n => n.name === entityFocus)?.id ?? null : null}
+                  onSelect={name => setEntityFocus(name)}
+                  loading={loading}
+                />
+              </div>
+              <div className="xl:h-[70vh] overflow-y-auto">
+                {entityDetail
+                  ? <EntityPanel detail={entityDetail} onSelect={name => setEntityFocus(name)} />
+                  : <TopEntities nodes={entityGraph.nodes} onSelect={name => setEntityFocus(name)} />}
+              </div>
             </div>
-          )}
-          <MemoryGraph
-            data={graphData}
-            loading={loading}
-            mode={graphMode}
-            focusId={graphMode === 'entities' && entityFocus ? graphData?.nodes.find(n => n.content === entityFocus)?.id ?? null : null}
-            onNodeClick={graphMode === 'entities' ? (node) => setEntityFocus(node.content) : undefined}
-          />
-          {graphMode === 'entities' && entityDetail && (
-            <EntityPanel detail={entityDetail} onSelect={name => setEntityFocus(name)} />
+          ) : (
+            <MemoryGraph data={graphData} loading={loading} mode="memories" />
           )}
         </div>
       )}
@@ -935,6 +946,31 @@ interface EntityDetail {
   entity: { name: string; type: string; aliases: string[]; mention_count: number }
   relations: Array<{ direction: 'in' | 'out'; predicate: string; name: string; type: string }>
   memories: Array<Memory>
+}
+
+/** Nothing selected: the entities this agent's memory is most about. */
+function TopEntities({ nodes, onSelect }: { nodes: EntityNode[]; onSelect: (name: string) => void }) {
+  const top = [...nodes].sort((a, b) => b.mention_count - a.mention_count).slice(0, 20)
+  return (
+    <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4 space-y-3">
+      <div>
+        <div className="text-sm font-semibold text-gray-100">What this memory is about</div>
+        <div className="text-xs text-gray-500">{nodes.length} entities. Click one, here or in the graph, to see its relations and memories.</div>
+      </div>
+      <div className="space-y-1">
+        {top.map(n => (
+          <button key={n.id} onClick={() => onSelect(n.name)} className="w-full flex items-center justify-between gap-2 text-left text-sm px-2 py-1 rounded hover:bg-gray-700/50">
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: ENTITY_COLORS[n.type] || '#6b7280' }} />
+              <span className="truncate text-gray-200">{n.name}</span>
+              {n.hub && <span className="text-[10px] text-gray-500">hub</span>}
+            </span>
+            <span className="text-xs text-gray-500 flex-shrink-0">{n.mention_count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /** One entity: what it relates to (click to walk the graph) and the memories behind it. */

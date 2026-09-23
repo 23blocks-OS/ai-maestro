@@ -167,7 +167,7 @@ message index.
    password. A secret found once is remembered as a SHA-256 hash (never the
    value) and redacted wherever it appears later, even with no hint around it.
 2. **Classify.** Each passage (a user turn, or a paragraph of the reply) is
-   judged in the context of its exchange by a small classifier (Jev, a System
+   judged in the context of its exchange by a small classifier ([Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev), a System
    One model): is it worth remembering, what kind of knowledge is it, how
    important. Most of a conversation is not memory; this step finds the
    candidates cheaply.

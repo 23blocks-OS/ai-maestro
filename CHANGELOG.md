@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.42.2] - 2026-09-23 — Docs: link Jev
+
+The memory page and LONG-TERM-MEMORY.md now link Jev, the System One
+classifier by TypeSafe AI that decides what an agent remembers.
+
 ## [0.42.1] - 2026-09-23 — Windows (WSL): agents get their own Linux folder, and you can find it from Windows
 
 A Windows user who had installed WSL minutes earlier saw an empty Linux home

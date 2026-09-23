@@ -172,6 +172,17 @@ _install_pkg() {
 }
 
 # Detect OS and WSL
+# A command installed on the Linux side. Inside WSL, Windows programs are on
+# PATH too (/mnt/c/...); a Windows node, npm or claude must not count.
+have_linux_cmd() {
+    local p
+    p=$(command -v "$1" 2>/dev/null) || return 1
+    case "$p" in
+        /mnt/*) return 1 ;;
+    esac
+    return 0
+}
+
 detect_os() {
     # Check if running in WSL
     if grep -qi microsoft /proc/version 2>/dev/null || grep -qi wsl /proc/version 2>/dev/null; then
@@ -287,7 +298,7 @@ fi
 
 # Check Node.js
 print_info "Checking for Node.js..."
-if command -v node &> /dev/null; then
+if have_linux_cmd node; then
     NODE_VERSION=$(node --version)
     # Check if version is >= 18
     NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
@@ -303,14 +314,14 @@ else
 fi
 
 # Check npm (comes with Node)
-if command -v npm &> /dev/null; then
+if have_linux_cmd npm; then
     NPM_VERSION=$(npm --version)
     print_success "npm installed ($NPM_VERSION)"
 fi
 
 # Check Yarn
 print_info "Checking for Yarn..."
-if command -v yarn &> /dev/null; then
+if have_linux_cmd yarn; then
     YARN_VERSION=$(yarn --version)
     print_success "Yarn installed ($YARN_VERSION)"
 else
@@ -330,7 +341,7 @@ fi
 
 # Check Claude Code
 print_info "Checking for Claude Code..."
-if command -v claude &> /dev/null; then
+if have_linux_cmd claude; then
     CLAUDE_VERSION=$(claude --version 2>/dev/null | head -n1 || echo "unknown")
     print_success "Claude Code installed ($CLAUDE_VERSION)"
 else

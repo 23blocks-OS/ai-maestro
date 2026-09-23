@@ -1,25 +1,52 @@
 # Windows Installation Guide
 
-AI Maestro runs on Windows through **WSL2 (Windows Subsystem for Linux)**, Microsoft's official solution for running Linux tools on Windows. This gives you the full power of tmux and Linux shell commands while still using your Windows browser and applications.
+AI Maestro runs on Windows through **WSL2 (Windows Subsystem for Linux)**, Microsoft's built-in way to run Linux on Windows. AI Maestro, your agents and their tools live inside WSL; you use them from your normal Windows browser.
+
+**New to WSL or Linux?** Read the next section first. It takes five minutes and saves the most common confusion.
+
+---
+
+## Windows in 5 minutes (read this first)
+
+**1. WSL is a separate Linux computer inside your PC, with its own disk.**
+When you open **Ubuntu** from the Start menu you get a Linux terminal. Its home folder is `/home/<your-linux-name>`, usually written `~`. On a new install it is **empty**. That is normal: your Windows files are not "missing", they are on a different disk.
+
+**2. Your Windows files are still reachable, under `/mnt`.**
+`C:\Users\you\Projects` is `/mnt/c/Users/you/Projects` inside WSL. But **do not put your agents there.** Across the WSL/Windows boundary, file access is many times slower, file watching is unreliable, and git sees line-ending and permission changes that are not real. Agents feel slow and flaky on `/mnt/c`.
+
+**3. Keep agents in Linux; open their files from Windows.**
+When you create an agent and don't pick a folder, AI Maestro gives it its own: `~/agents/<agent-name>`. To see those files from Windows, paste this into File Explorer's address bar:
+
+```
+\\wsl.localhost\Ubuntu\home\<your-linux-name>\agents
+```
+
+(Pin it to Quick Access.) Or, in the agent's folder, run `code .` to open it in VS Code with the WSL extension. That is the easiest way to read and edit an agent's files.
+
+**4. Bringing a project from Windows? Clone it inside WSL, don't work on the Windows copy.**
+
+```bash
+mkdir -p ~/agents && cd ~/agents
+git clone https://github.com/you/your-project.git
+```
+
+Then pick `~/agents/your-project` as the agent's folder. (Copying with `cp -r /mnt/c/...` works too, but a fresh clone avoids line-ending surprises.)
+
+**5. Everything the agents use is installed inside Ubuntu, not on Windows.**
+Node.js, tmux, and Claude Code itself must be the Linux versions, installed from the Ubuntu terminal. A Claude Code or Node.js installed on Windows does not count. The AI Maestro installer takes care of this.
+
+---
 
 ## Why WSL2?
 
-AI Maestro is built on `tmux`, a powerful terminal multiplexer that has no native Windows equivalent. Rather than building a limited Windows port, we leverage WSL2 to give you the complete, battle-tested Linux experience - the same one macOS and Linux users enjoy.
-
-**Benefits of WSL2:**
-- Full tmux support with all features
-- Native Linux shell environment (bash, zsh)
-- Seamless integration with Windows (access Windows files, use Windows browser)
-- Used by millions of developers worldwide
-- Microsoft's official recommendation for Linux development on Windows
-- No dual-boot or virtual machine needed
+AI Maestro is built on `tmux`, a terminal multiplexer with no native Windows equivalent. WSL2 gives you the same Linux environment macOS and Linux users have, with full tmux support, and it is Microsoft's own recommendation for Linux development on Windows. No dual-boot or separate virtual machine is needed.
 
 ---
 
 ## Prerequisites
 
 - **Windows 10 version 2004+** (Build 19041+) or **Windows 11**
-- **Administrator access** (for WSL2 installation)
+- **Administrator access** (for installing WSL2)
 - **8GB+ RAM recommended** (4GB minimum)
 - **5GB free disk space** for WSL2 + AI Maestro
 
@@ -29,227 +56,111 @@ AI Maestro is built on `tmux`, a powerful terminal multiplexer that has no nativ
 
 ### Step 1: Install WSL2
 
-**Option A: Automatic Installation (Recommended - Windows 11 or Windows 10 2004+)**
-
-Open **PowerShell as Administrator** and run:
+Open **PowerShell as Administrator** (Start menu, type "PowerShell", right-click, *Run as administrator*) and run:
 
 ```powershell
 wsl --install
 ```
 
-This single command:
-- Enables WSL and Virtual Machine Platform
-- Downloads and installs Ubuntu (default distribution)
-- Sets WSL2 as the default version
-- Configures everything automatically
+This enables WSL, installs Ubuntu and sets WSL2 as the default.
 
-**After installation completes:**
-1. **Restart your computer** (required)
-2. Ubuntu will launch automatically on first boot
-3. Create a username and password when prompted (this is your Linux user - remember it!)
+**After it completes:**
+1. **Restart your computer** (required).
+2. Ubuntu opens by itself after the restart (if not: Start menu → **Ubuntu**).
+3. Choose a Linux username and password. This is separate from your Windows login; remember the password, `sudo` asks for it.
 
-**Option B: Manual Installation (if automatic fails)**
+If `wsl --install` doesn't work, follow Microsoft's manual guide:
+[https://learn.microsoft.com/windows/wsl/install-manual](https://learn.microsoft.com/windows/wsl/install-manual)
 
-If `wsl --install` doesn't work, follow Microsoft's detailed guide:
-[https://docs.microsoft.com/en-us/windows/wsl/install-manual](https://docs.microsoft.com/en-us/windows/wsl/install-manual)
+### Step 2: Check it is WSL **2**
 
----
-
-### Step 2: Verify WSL2 Installation
-
-Open **PowerShell** (no admin needed) and run:
+In **PowerShell** (no admin needed):
 
 ```powershell
 wsl --list --verbose
 ```
 
-**Expected output:**
 ```
-  NAME                   STATE           VERSION
-* Ubuntu                 Running         2
-```
-
-The `VERSION` column must show `2`. If it shows `1`, upgrade to WSL2:
-
-```powershell
-wsl --set-version Ubuntu 2
+  NAME      STATE     VERSION
+* Ubuntu    Running   2
 ```
 
----
+If `VERSION` shows `1`, run `wsl --set-version Ubuntu 2`.
 
-### Step 3: Update Ubuntu and Install Prerequisites
+### Step 3: Install AI Maestro
 
-Launch Ubuntu from the Start Menu (or type `wsl` in PowerShell). Run these commands:
+In the **Ubuntu** terminal (not PowerShell):
 
 ```bash
-# Update package list
-sudo apt update
-
-# Install required packages
-sudo apt install -y curl git tmux build-essential
-
-# Verify tmux installation
-tmux -V
-# Should show: tmux 3.x or higher
-```
-
----
-
-### Step 4: Install Node.js and Yarn
-
-**Using nvm (Node Version Manager - Recommended):**
-
-```bash
-# Install nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-
-# Load nvm (or restart your terminal)
-source ~/.bashrc
-
-# Install Node.js 20 (LTS)
-nvm install 20
-nvm use 20
-
-# Verify installation
-node --version  # Should show v20.x.x
-npm --version   # Should show 10.x.x
-
-# Install Yarn globally
-npm install -g yarn
-
-# Verify Yarn
-yarn --version  # Should show 1.22.x
-```
-
----
-
-### Step 5: Install AI Maestro
-
-**Option A: Automatic Installation (Easiest)**
-
-```bash
-# Run the official installer
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
 ```
 
-**Unattended installation** (skips all prompts):
-```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- -y --auto-start
-```
+The installer detects WSL and installs everything inside Ubuntu: Node.js, Yarn, tmux, AI Maestro itself (it also offers to install Claude Code or Codex if you have neither) (in `~/ai-maestro`), the tmux and SSH-agent configuration, and it starts the dashboard. It ignores Windows copies of Node.js or Claude Code that WSL can see on your Windows PATH, and installs the Linux versions.
 
-The installer will:
-- Detect WSL2 environment
-- Clone the repository
-- Install dependencies
-- Configure tmux
-- Set up SSH agent (for git operations)
+Unattended (no prompts): add `-s -- -y --auto-start` after `sh`.
 
-**Option B: Manual Installation**
-
-```bash
-# Clone the repository
-cd ~
-git clone https://github.com/23blocks-OS/ai-maestro.git
-cd ai-maestro
-
-# Install dependencies
-yarn install
-
-# Configure tmux for optimal scrolling
-./scripts/setup-tmux.sh
-
-# Configure SSH agent (CRITICAL for git operations)
-cat << 'EOF' >> ~/.tmux.conf
-
-# SSH Agent Configuration - AI Maestro
-set-option -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
-set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock
-EOF
-
-cat << 'EOF' >> ~/.bashrc
-
-# SSH Agent for tmux - AI Maestro
-if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
-    mkdir -p ~/.ssh
-    ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
-fi
-EOF
-
-# Apply SSH configuration
-source ~/.bashrc
-mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock 2>/dev/null
-tmux source-file ~/.tmux.conf 2>/dev/null || true
-```
-
----
-
-### Step 6: Start AI Maestro
-
-```bash
-cd ~/ai-maestro
-yarn dev
-```
-
-**Expected output:**
-```
-> Ready on http://0.0.0.0:23000
-```
-
----
-
-### Step 7: Access from Windows Browser
-
-AI Maestro is now running in WSL2, but you can access it from your **Windows browser**:
-
-**Open your browser (Chrome, Edge, Firefox) and navigate to:**
+### Step 4: Open the dashboard in your Windows browser
 
 ```
 http://localhost:23000
 ```
 
-**That's it!** You should see the AI Maestro dashboard.
+### Step 5: Create your first agent
+
+In the dashboard, create an agent. When it asks **where the agent should work**:
+
+- **Recommended:** choose nothing (or *Skip*). The agent gets its own folder, `~/agents/<name>`, and the dashboard shows the Windows path to open it in File Explorer.
+- **Existing project:** clone it into `~/agents` first (see *Windows in 5 minutes*, point 4), then pick that folder. You can type or paste a path in the folder picker, and create folders with **New folder**.
+- **A Windows folder** (`C:\...` or `/mnt/c/...`): allowed, and the picker accepts a pasted `C:\` path, but it warns you. Agents are much slower there.
+
+<details>
+<summary><b>Manual installation (instead of Step 3)</b></summary>
+
+```bash
+# Prerequisites
+sudo apt update
+sudo apt install -y curl git tmux build-essential
+
+# Node.js 20 via nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc
+nvm install 20
+npm install -g yarn
+
+# Check these are the LINUX versions: the paths must not start with /mnt/
+which node npm yarn
+
+# Claude Code, inside Ubuntu
+npm install -g @anthropic-ai/claude-code
+
+# AI Maestro
+cd ~
+git clone https://github.com/23blocks-OS/ai-maestro.git
+cd ai-maestro
+yarn install
+./scripts/setup-tmux.sh
+yarn build
+yarn start          # or: pm2 start ecosystem.config.js
+```
+
+For git over SSH inside tmux sessions, add the SSH-agent snippet from *Issue 6* below.
+
+</details>
 
 ---
 
-## Understanding WSL2 File System
+## Understanding the WSL2 file system
 
-WSL2 has its own Linux file system, separate from your Windows files. Here's how they interact:
+| You want | Where it is |
+|---|---|
+| Your Linux home (agents live here) | `~` = `/home/<linux-name>`; from Windows: `\\wsl.localhost\Ubuntu\home\<linux-name>` |
+| Agents' folders | `~/agents/<agent-name>`; from Windows: `\\wsl.localhost\Ubuntu\home\<linux-name>\agents` |
+| AI Maestro itself | `~/ai-maestro` |
+| Your Windows `C:` drive, from WSL | `/mnt/c` (slow for agents; fine for copying a file in or out) |
 
-### Accessing Windows Files from WSL2
+In File Explorer you can also find it under **Linux → Ubuntu** in the left sidebar (Windows 11), or type `\\wsl.localhost\Ubuntu`. Older Windows 10 builds use `\\wsl$\Ubuntu`.
 
-Your Windows drives are mounted at `/mnt/`:
-
-```bash
-# Access C:\ drive
-cd /mnt/c/Users/YourUsername/Documents
-
-# Access D:\ drive
-cd /mnt/d/
-```
-
-**Example: Clone a repo from Windows Documents folder:**
-```bash
-cd /mnt/c/Users/YourUsername/Documents
-git clone https://github.com/your/project.git
-cd project
-tmux new-session -s myproject-dev
-```
-
-### Accessing WSL2 Files from Windows
-
-Open Windows File Explorer and type in the address bar:
-
-```
-\\wsl$\Ubuntu\home\your-linux-username
-```
-
-Or navigate to: **Network > \\wsl$\Ubuntu**
-
-**Example paths:**
-- AI Maestro code: `\\wsl$\Ubuntu\home\your-username\ai-maestro`
-- Session logs: `\\wsl$\Ubuntu\home\your-username\ai-maestro\logs`
-
-**Pro tip:** Pin this location to Quick Access in File Explorer for easy access.
+Moving files in or out is fine either way (`cp /mnt/c/Users/you/Downloads/file.pdf ~/agents/x/`); it is *working* on files across the boundary, all day, that is slow.
 
 ---
 
@@ -732,12 +643,7 @@ A: WSL2 uses about 2-4GB of RAM when running. If you have 8GB+ RAM, you won't no
 
 **Q: Can I access Windows files from AI Maestro agents?**
 
-A: Yes! All Windows drives are mounted at `/mnt/c/`, `/mnt/d/`, etc. You can create tmux sessions anywhere:
-
-```bash
-cd /mnt/c/Users/YourName/Documents/my-project
-tmux new-session -s my-project
-```
+A: Yes, under `/mnt/c/`, `/mnt/d/`, etc., and an agent can read or write them. But an agent should not *work* in a Windows folder: it is much slower and file watching and git misbehave. Keep the agent's folder in Linux (`~/agents/<name>`) and open it from Windows at `\\wsl.localhost\Ubuntu\home\<linux-name>\agents`.
 
 ---
 
@@ -747,27 +653,17 @@ A: Yes! tmux sessions run in WSL2's background. Close Windows Terminal, reopen i
 
 ---
 
-**Q: Can I use this with Claude Code / Aider / Cursor?**
+**Q: Can I use this with Claude Code / Codex / Aider?**
 
-A: Absolutely! Install your AI agent inside WSL2:
+A: Yes. Install them **inside Ubuntu** (the installer offers to install Claude Code). A copy installed on Windows is not used: agents run in Linux. Check with `which claude`; the path must not start with `/mnt/`.
 
-```bash
-# Example: Claude Code
-# Download and install according to their docs
-
-# Create an agent
-tmux new-session -s claude-backend
-claude
-
-# Detach: Ctrl+B then D
-# View in AI Maestro dashboard
-```
+Then create agents from the dashboard (**New Agent**), not with raw tmux commands.
 
 ---
 
 **Q: Is WSL2 slower than native Linux?**
 
-A: WSL2 file system performance is near-native Linux speed (within 5-10%). Network performance is identical. For terminal-based development, you won't notice any difference.
+A: Inside the Linux file system (`~`), it is close to native. Working on Windows files through `/mnt/c` is much slower, which is why agents should live in `~/agents`.
 
 ---
 
@@ -787,10 +683,10 @@ A: They'll appear as agents in the dashboard automatically! AI Maestro auto-disc
 
 ```bash
 cd ~/ai-maestro
-git pull origin main
-yarn install
-# Restart the dashboard (Ctrl+C, then yarn dev)
+./update-aimaestro.sh
 ```
+
+It pulls the latest version, rebuilds, reinstalls the hooks and plugin, and restarts the service.
 
 ---
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Check, AlertCircle, Terminal, AlertTriangle } from 'lucide-react'
 import CreateAgentAnimation from '../CreateAgentAnimation'
+import DirectoryPicker from '../DirectoryPicker'
 
 interface FirstAgentWizardProps {
   onComplete: () => void
@@ -12,6 +13,8 @@ interface FirstAgentWizardProps {
 export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWizardProps) {
   const [step, setStep] = useState<'name' | 'directory' | 'creating' | 'success'>('name')
   const [programWarning, setProgramWarning] = useState('')
+  // Where the agent's folder ended up, and anything to know about it (WSL)
+  const [folderNotes, setFolderNotes] = useState<{ workingDirectory?: string; warnings?: string[]; windowsPath?: string } | null>(null)
   const [agentName, setAgentName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -93,6 +96,7 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
       if (data?.programStarted === false && data?.programError) {
         setProgramWarning(data.programError)
       }
+      setFolderNotes({ workingDirectory: data.workingDirectory, warnings: data.warnings, windowsPath: data.windowsPath })
 
       // Animate completion
       setAnimationProgress(80)
@@ -200,21 +204,13 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Working Directory (optional)
                 </label>
-                <input
-                  type="text"
-                  value={workingDirectory}
-                  onChange={(e) => setWorkingDirectory(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleDirectoryNext()
-                    }
-                  }}
-                  placeholder={process.env.HOME || '/home/user'}
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
-                  autoFocus
-                />
+                <DirectoryPicker value={workingDirectory} onChange={setWorkingDirectory} />
                 <p className="mt-2 text-xs text-gray-400">
-                  Leave blank to use current directory. This is where the AI agent will work.
+                  This is where the AI agent will work. Pick nothing and it gets its own folder,{' '}
+                  <code className="text-gray-300">~/agents/{agentName}</code>.
+                  {workingDirectory && (
+                    <button onClick={() => setWorkingDirectory('')} className="ml-2 underline text-gray-300 hover:text-white">Use its own folder instead</button>
+                  )}
                 </p>
               </div>
 
@@ -231,7 +227,7 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
                     <Check className="w-4 h-4 text-green-400" />
                     <span className="text-gray-300">
                       Directory: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">
-                        {workingDirectory || process.env.HOME || '~'}
+                        {workingDirectory || `~/agents/${agentName}`}
                       </code>
                     </span>
                   </div>
@@ -274,6 +270,28 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
                   is the whole point of #441: this is someone's FIRST agent, and
                   the reporter of #426 was in exactly this position — their first
                   message to it was executed by bash. */}
+              {folderNotes?.workingDirectory && (
+                <div className="w-full mb-5 rounded-xl border border-gray-700 bg-gray-800/40 p-4 text-left space-y-2">
+                  <p className="text-xs text-gray-400">
+                    It works in <code className="text-gray-200">{folderNotes.workingDirectory}</code>
+                  </p>
+                  {folderNotes.warnings?.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-200/90 leading-relaxed">{w}</p>
+                  ))}
+                  {folderNotes.windowsPath && (
+                    <div className="text-xs">
+                      <p className="text-gray-400 mb-1">To open its files from Windows, paste this into File Explorer&apos;s address bar:</p>
+                      <div className="flex items-center gap-2">
+                        <code className="font-mono text-gray-200 bg-gray-900/70 rounded px-2 py-1 truncate">{folderNotes.windowsPath}</code>
+                        <button
+                          onClick={() => navigator.clipboard?.writeText(folderNotes.windowsPath || '').catch(() => {})}
+                          className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 flex-shrink-0"
+                        >Copy</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {programWarning && (
                 <div className="w-full mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
                   <h4 className="text-sm font-semibold text-amber-300 mb-2 flex items-center gap-2">

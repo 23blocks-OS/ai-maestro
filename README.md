@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.42.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.42.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -67,13 +67,13 @@ This installs everything you need:
 <details>
 <summary>Windows (WSL2) / Linux notes</summary>
 
-**Windows:** Install WSL2 first, then run the curl command inside Ubuntu:
+**Windows:** Install WSL2 first (PowerShell as Administrator, then restart), then open **Ubuntu** from the Start menu and run the curl command there:
 
 ```powershell
 wsl --install
 ```
 
-[Full Windows guide](./docs/WINDOWS-INSTALLATION.md)
+New to WSL? WSL is a Linux system with its own disk, so its home folder starts empty. Keep agents there (`~/agents/<name>`, the default), not in `C:\` folders, which are much slower from WSL. Open their files from Windows at `\\wsl.localhost\Ubuntu\home\<you>\agents`. [Windows in 5 minutes](./docs/WINDOWS-INSTALLATION.md#windows-in-5-minutes-read-this-first) · [Full Windows guide](./docs/WINDOWS-INSTALLATION.md)
 
 **Linux:** Ensure build tools are installed: `sudo apt install tmux build-essential`
 </details>

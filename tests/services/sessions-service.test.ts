@@ -97,6 +97,13 @@ vi.mock('@/lib/session-persistence', () => mockSessionPersistence)
 vi.mock('@/lib/amp-inbox-writer', () => mockAmpInboxWriter)
 vi.mock('@/services/shared-state', () => mockSharedState)
 vi.mock('fs', () => mockFs)
+// Folder resolution has its own tests (tests/working-directory.test.ts); here
+// it passes a given folder through and gives ~/agents/<name> for none.
+const mockResolveWorkingDirectory = vi.hoisted(() => vi.fn((input: string | undefined, name: string) =>
+  input === '/missing'
+    ? { ok: false, warnings: [], error: 'The folder /missing does not exist.' }
+    : { ok: true, cwd: input || `/home/u/agents/${name}`, warnings: [] }))
+vi.mock('@/lib/working-directory', () => ({ resolveWorkingDirectory: mockResolveWorkingDirectory }))
 vi.mock('child_process', () => ({
   // exec/execFile must be callback-style for promisify to work
   exec: vi.fn((_cmd: string, cb: Function) => cb(null, { stdout: '', stderr: '' })),
@@ -325,6 +332,27 @@ describe('createSession', () => {
     await createSession({ name: 'agent', workingDirectory: '/custom/path' })
 
     expect(mockRuntime.createSession).toHaveBeenCalledWith('agent', '/custom/path')
+  })
+
+  it('with no folder, the agent gets its own ~/agents/<name>, not the server cwd', async () => {
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.getAgentByName.mockReturnValue(null)
+    mockAgentRegistry.createAgent.mockReturnValue({ id: 'id', name: 'agent' })
+
+    const r = await createSession({ name: 'agent' })
+
+    expect(mockRuntime.createSession).toHaveBeenCalledWith('agent', '/home/u/agents/agent')
+    expect((r.data as any).workingDirectory).toBe('/home/u/agents/agent')
+  })
+
+  it('refuses an unusable folder before creating anything', async () => {
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockRuntime.createSession.mockClear()
+
+    const r = await createSession({ name: 'agent', workingDirectory: '/missing' })
+
+    expect(r.status).toBe(400)
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 
   it('registers a new agent when not found in registry', async () => {

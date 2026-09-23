@@ -3,6 +3,40 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.42.1] - 2026-09-23 — Windows (WSL): agents get their own Linux folder, and you can find it from Windows
+
+A Windows user who had installed WSL minutes earlier saw an empty Linux home
+in the folder picker, could not reach his Windows folders (the picker said
+"Access denied"), and did not know where an agent's files would be.
+
+- **An agent without a chosen folder gets its own, `~/agents/<name>`**
+  (created). "Skip (use home directory)" actually used the AI Maestro install
+  directory (`process.cwd()`), on every platform.
+- **The folder is checked when the agent is created.** `~` is expanded; a
+  pasted `C:\...` path is translated to `/mnt/c/...` on WSL; a missing or
+  relative folder is refused with a plain explanation. Before, a Windows path
+  was stored as the agent's working directory while tmux started it somewhere
+  else.
+- **WSL is detected**, and a folder on a Windows drive gets a warning (not a
+  block): agents are much slower there and file watching and git misbehave.
+- **Where the files are, from Windows.** After creation the wizard shows
+  `\\wsl.localhost\<distro>\...` with a Copy button and a `code .` hint.
+- **Folder picker:** type or paste a path (a `C:\` path works on WSL), New
+  folder, an empty home explained as normal on a new WSL install, the Windows
+  path of the current folder, no silent selection of the bare home, `/mnt`
+  reachable on WSL, the allowlist a real prefix check, and it now works on
+  headless hosts (`/api/browse` was Next-only). The onboarding wizard uses the
+  same picker instead of a free-text field.
+- **Installer:** a Windows `node`, `npm`, `yarn` or `claude` visible on the
+  WSL PATH (`/mnt/c/...`) no longer counts as installed; the Linux version is
+  installed. WSL tips now say where agents' files live and how to open them.
+- **Docs:** "Windows in 5 minutes" at the top of the Windows guide; the
+  example that cloned a project into `/mnt/c`, the "5-10% slower" claim and the
+  "create sessions anywhere" FAQ are gone; `\\wsl.localhost`; README and
+  website notes.
+- **Memory:** entity recall skips hubs (entities in a quarter or more of the
+  agent's memories), whose relations tell the agent nothing.
+
 ## [0.42.0] - 2026-09-23 — Long-term memory is a skill: entities, relations and what a change affects
 
 The agent is the product and long-term memory is one of its skills. Not every

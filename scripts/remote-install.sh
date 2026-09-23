@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.42.0"
+VERSION="0.42.1"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -78,6 +78,19 @@ maestro_info() {
 
 maestro_warn() {
     printf "   ${YELLOW}!${NC} %s\n" "$1"
+}
+
+# A command installed on the Linux side. Inside WSL, Windows programs are on
+# PATH too (/mnt/c/...): a Windows node.exe, npm or claude would pass a plain
+# `command -v` check, and then npm installs would go to Windows. Those count
+# as missing, so the Linux version is installed.
+have_linux_cmd() {
+    local p
+    p=$(command -v "$1" 2>/dev/null) || return 1
+    case "$p" in
+        /mnt/*) return 1 ;;
+    esac
+    return 0
 }
 
 maestro_check() {
@@ -488,7 +501,7 @@ act1_hello_and_discovery() {
 
     # Node.js
     NEED_NODE=false
-    if command -v node &>/dev/null; then
+    if have_linux_cmd node; then
         local node_ver
         node_ver=$(node --version)
         local node_major
@@ -506,7 +519,7 @@ act1_hello_and_discovery() {
 
     # Yarn
     NEED_YARN=false
-    if command -v yarn &>/dev/null; then
+    if have_linux_cmd yarn; then
         maestro_check "Yarn" "$(yarn --version) ${GREEN}✓${NC}"
     else
         maestro_check "Yarn" "${YELLOW}not found${NC}"
@@ -546,7 +559,7 @@ act1_hello_and_discovery() {
     # Claude Code
     NEED_CLAUDE=false
     HAS_CLAUDE=false
-    if command -v claude &>/dev/null; then
+    if have_linux_cmd claude; then
         local claude_ver
         claude_ver=$(claude --version 2>/dev/null | head -n1 || echo "installed")
         maestro_check "Claude Code" "${claude_ver} ${GREEN}✓${NC}"
@@ -1322,6 +1335,10 @@ act4_start_and_register() {
         echo "   - Dashboard: open http://localhost:${PORT} in your Windows browser"
         echo "   - tmux sessions persist while WSL is running (lost on wsl --shutdown or reboot)"
         echo "   - Use 'tmux ls' to list active sessions"
+        echo "   - Agents work in Linux folders (~/agents/<name> by default). Keep them there:"
+        echo "     Windows folders (/mnt/c/...) are much slower from WSL."
+        echo "   - Open an agent's files from Windows: File Explorer -> \\\\wsl.localhost\\${WSL_DISTRO_NAME:-Ubuntu}\\home\\$(whoami)\\agents"
+        echo "     or run 'code .' in its folder (VS Code with the WSL extension)"
     fi
 }
 
@@ -1334,7 +1351,7 @@ act5_grand_finale() {
 
     # Determine which AI tool to use
     AI_TOOL=""
-    command -v claude &>/dev/null && AI_TOOL="claude"
+    have_linux_cmd claude && AI_TOOL="claude"
     [ -z "$AI_TOOL" ] && command -v codex &>/dev/null && AI_TOOL="codex"
 
     # On update, skip tutorial — just show completion summary

@@ -238,6 +238,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   // be executed by the shell rather than read (#426). Shown on the success
   // screen rather than swallowed.
   const [creationWarning, setCreationWarning] = useState('')
+  // Where the agent's folder ended up, and anything to know about it (WSL)
+  const [folderNotes, setFolderNotes] = useState<{ workingDirectory?: string; warnings?: string[]; windowsPath?: string } | null>(null)
 
   // Input state
   const [nameInput, setNameInput] = useState('')
@@ -324,13 +326,13 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   }, [nameInput, advance])
 
   const handleDirectoryConfirm = useCallback(() => {
-    advance(workingDirectory || '~ (home directory)', 'deployment')
-  }, [workingDirectory, advance])
+    advance(workingDirectory || `~/agents/${agentName} (its own folder)`, 'deployment')
+  }, [workingDirectory, agentName, advance])
 
   const handleDirectorySkip = useCallback(() => {
     setWorkingDirectory('')
-    advance('Skipped (use home directory)', 'deployment')
-  }, [advance])
+    advance(`~/agents/${agentName} (its own folder)`, 'deployment')
+  }, [agentName, advance])
 
   const handleDeploymentSelect = useCallback((option: DeploymentOption) => {
     if (!option.available) return
@@ -442,6 +444,9 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
         }
         if (data?.programStarted === false && data?.programError) {
           setCreationWarning(data.programError)
+        }
+        if (data?.warnings?.length || data?.windowsPath) {
+          setFolderNotes({ workingDirectory: data.workingDirectory, warnings: data.warnings, windowsPath: data.windowsPath })
         }
       }
       setCreationSuccess(true)
@@ -581,6 +586,26 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                     >
                       Let&apos;s Go!
                     </button>
+                  </div>
+                )}
+                {folderNotes && (
+                  <div className="mt-4 mx-auto max-w-md rounded-xl border border-gray-700 bg-gray-800/60 p-4 text-left space-y-2">
+                    {folderNotes.warnings?.map((w, i) => (
+                      <p key={i} className="text-amber-200/90 text-xs leading-relaxed">{w}</p>
+                    ))}
+                    {folderNotes.windowsPath && (
+                      <div className="text-xs text-gray-300">
+                        <p className="text-gray-400 mb-1">Its files, from Windows (paste into File Explorer&apos;s address bar):</p>
+                        <div className="flex items-center gap-2">
+                          <code className="font-mono text-gray-200 bg-gray-900/70 rounded px-2 py-1 truncate">{folderNotes.windowsPath}</code>
+                          <button
+                            onClick={() => navigator.clipboard?.writeText(folderNotes.windowsPath || '').catch(() => {})}
+                            className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 flex-shrink-0"
+                          >Copy</button>
+                        </div>
+                        <p className="text-gray-500 mt-1">Or, in the agent&apos;s terminal, run <code className="font-mono">code .</code> to open it in VS Code.</p>
+                      </div>
+                    )}
                   </div>
                 )}
                 {creationWarning && (
@@ -901,7 +926,7 @@ function DirectoryStep({
           onClick={onSkip}
           className="px-3 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
         >
-          Skip (use home directory)
+          Skip (give it its own folder, ~/agents/&lt;name&gt;)
         </button>
       </div>
     </div>
@@ -1030,7 +1055,7 @@ function SummaryCard({
     <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4 space-y-2.5">
       <SummaryRow label="Name" value={state.agentName} />
       {state.runtime !== 'ec2' && state.runtime !== 'ecs' && (
-        <SummaryRow label="Directory" value={state.workingDirectory || '~ (home directory)'} />
+        <SummaryRow label="Directory" value={state.workingDirectory || (state.runtime === 'tmux' ? `~/agents/${state.agentName}` : 'default')} />
       )}
       <SummaryRow label="Deployment" value={runtimeLabel} />
       <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || state.hostId || 'Local')} />

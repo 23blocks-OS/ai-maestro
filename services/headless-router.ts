@@ -690,6 +690,20 @@ const routes: Route[] = [
     }
   }},
 
+  // Folder picker (was Next-only, so the picker failed on headless hosts)
+  { method: 'GET', pattern: /^\/api\/browse$/, paramNames: [], handler: async (req, res) => {
+    const url = new URL(req.url || '/', 'http://localhost')
+    const { browseDirectory, browseRemote } = await import('@/services/browse-service')
+    const host = url.searchParams.get('host')
+    const requestedPath = url.searchParams.get('path')
+    sendServiceResult(res, host ? await browseRemote(host, requestedPath) : browseDirectory(requestedPath))
+  }},
+  { method: 'POST', pattern: /^\/api\/browse$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    const { createFolder } = await import('@/services/browse-service')
+    sendServiceResult(res, createFolder(body?.parent, body?.name))
+  }},
+
   // Night backlog: keep consolidating agents with unprocessed history (2-8 AM)
   { method: 'POST', pattern: /^\/api\/memory\/backlog$/, paramNames: [], handler: async (_req, res) => {
     const { startMemoryBacklog } = await import('@/services/agents-memory-service')

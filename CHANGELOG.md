@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.8] - 2026-09-23 — A real graph viewer for agent memory
+
+- **Cytoscape.js** (already used for the code graph) replaces the hand-drawn
+  canvas for the entity graph: relation verbs as edge labels, force layout,
+  zoom and pan, hover to highlight a neighbourhood, click to explore, search,
+  type filters, "mentioned together" toggle, fit to view. Canvas colours are
+  read from the page theme.
+- **Space:** the graph takes two thirds of the width and 70% of the height; the
+  side panel shows the agent's top entities, or the selected entity's relations
+  and memories.
+- **Counts:** the stats bar counted faded memories (hidden from the list), so an
+  agent showing 8 memories said 15. It now says "8 memories · 7 faded".
+
 ## [0.41.7] - 2026-09-23 — A memory graph you can read and walk
 
 The first real entity graph was a hairball: 69 of 93 edges were "mentioned

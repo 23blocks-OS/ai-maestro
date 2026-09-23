@@ -3,6 +3,45 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.40.1] - 2026-09-23 — Agent memory that works: Jev-classified, written as cards, walked as a graph
+
+Long-term memory had never stored a single memory on any agent. It now writes,
+reads and explains itself. (0.39.2–0.39.5 shipped the first half; this closes it.)
+
+**Why nothing was ever stored (fixed in 0.39.2–0.39.5).** No provider was
+configured; the Memory tab read the wrong error field; memory vectors were
+written as `<…>`, which CozoDB cannot parse, so every store and search threw;
+conversations were consolidated once and never revisited; a lock from a second
+connection could abort the schema migration silently; the stats query was
+invalid CozoScript.
+
+**Writing.** A System One classifier (Jev, bring your own key and URL in
+Settings → Memory) judges every passage of a conversation in the context of the
+request: worth remembering, category, importance. Secrets are redacted before
+anything leaves the transcript. The exchange behind each memory is kept in the
+agent's own database, because Claude Code deletes its transcripts after 30 days.
+
+**Memory cards (new).** Each memory becomes a card: one statement, an action
+(decided, fixed, found bug, discovered…), and the entities it is about. The
+host's own Claude subscription writes them (`claude -p`, haiku, thinking off:
+~10 s per batch of 12, no transcript, no extra key), reading the whole exchange
+and the one before it; Jev rejects any card the excerpt does not support.
+
+**Entity graph (new).** Entities are canonicalised (exact name or alias, then
+embedding + a Jev "same thing?" check) and become graph nodes; stated relations
+(runs_on, depends_on, part_of, fixes, replaces…) and co-mentions are the edges.
+The Memory tab's graph opens on entities.
+
+**macOS + pm2.** A pm2 daemon started outside the login session cannot read the
+login Keychain, so `claude` spawned by the server looked logged out while every
+agent on the host was logged in. The summarizer detects "Not logged in" and runs
+inside a short-lived hidden tmux session instead, the same way agents run.
+
+**Reading.** Agents get a `## Memory:` block at session start and with every
+prompt: card statements nearest to the prompt, plus the memories of any entity
+the prompt names. `memory-search.sh --about "<entity>"` prints what memory knows
+about one host, agent, service or file.
+
 ## [0.38.34] - 2026-09-21 — The "hook fires twice" and the 5s timeout — both ours
 
 Chasing the last open item (two hook fires one second apart) and Juan's separate

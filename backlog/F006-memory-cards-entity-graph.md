@@ -1,6 +1,6 @@
 # F006 — Memory cards and an entity graph (the agent summarizes its own memory)
 
-**Status:** Todo
+**Status:** Done (v0.40.1)
 **Type:** Feature
 **Created:** 2026-09-22
 
@@ -91,9 +91,20 @@ claude -p --model haiku --tools "" --no-session-persistence --strict-mcp-config 
 6. (S) Recall: the hook injects card statements (much shorter than passages, so
    more fit); `memory-search.sh` gains "about <entity>".
 
+**Edge cases:**
+- Every agent host has Claude logged in (the login is per OS user, shared by
+  its agents). Codex-only hosts and Docker cloud agents may not: cards are
+  skipped there (claude not found → reported, retried next run) and the
+  verbatim memories stay.
+
+**Shipped (v0.40.1), measured:** thinking must be off (`alwaysThinkingEnabled:
+false` + `MAX_THINKING_TOKENS=0`): with it, 3 cards took 120–160 s and
+12–16k hidden output tokens; without, ~10 s and ~1k. `--json-schema` is not
+used (it added validation turns); the reply is plain JSON checked by
+`parseCards`. End to end on real data: 150 passages → 57 memories (all with a
+kept source) → 46 cards, 8 rejected by the Jev faithfulness gate, 36 entities.
+
 **Open questions:**
-- Hosts where Claude Code is not logged in: skip cards and keep verbatim, or
-  fall back to a BYO key?
 - Faithfulness threshold for the Jev gate: calibrate on real cards, the same
   way the recall distance was calibrated.
 - How much of the preceding exchange fits before a batch gets too big: measure.

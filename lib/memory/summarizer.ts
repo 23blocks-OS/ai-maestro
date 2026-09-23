@@ -15,6 +15,8 @@
  */
 
 import { spawn, execFileSync } from 'child_process'
+import crypto from 'crypto'
+import { tmux } from '@/lib/tmux-safe.mjs'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -223,6 +225,87 @@ function workerDir(): string {
 
 const LIMIT_PATTERN = /usage limit|rate limit|limit reached|too many requests|\b429\b|quota|overloaded/i
 
+const NOT_LOGGED_IN = /not logged in|please run \/login|invalid api key|authentication/i
+
+/**
+ * macOS: a pm2 daemon started outside the login session cannot read the login
+ * Keychain, so `claude` spawned from the server reports "Not logged in" even
+ * though every agent on the host is logged in. Agents work because they run
+ * inside tmux, whose server was started from the user's session. Once a direct
+ * spawn fails that way, route through a short-lived hidden tmux session
+ * (`…__call` names are excluded from agent discovery) for the rest of the
+ * process's life.
+ */
+let viaTmux = false
+
+function shellQuote(arg: string): string {
+  return `'${arg.replace(/'/g, `'\\''`)}'`
+}
+
+function childEnv(): NodeJS.ProcessEnv {
+  // Use the host's own login: a server-level API key would turn this into API
+  // billing, and a parent Claude Code session's markers must not leak in.
+  const env = { ...process.env }
+  delete env.ANTHROPIC_API_KEY
+  delete env.CLAUDECODE
+  delete env.CLAUDE_CODE_ENTRYPOINT
+  env.MAX_THINKING_TOKENS = '0'
+  return env
+}
+
+interface RawResult { code: number | null; stdout: string; stderr: string }
+
+function runDirect(claude: string, args: string[], prompt: string): Promise<RawResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(claude, args, { cwd: workerDir(), env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      reject(new SummarizerError(`summarizer timed out after ${CALL_TIMEOUT_MS / 1000}s`, false))
+    }, CALL_TIMEOUT_MS)
+    child.stdout.on('data', d => { stdout += d })
+    child.stderr.on('data', d => { stderr += d })
+    child.on('error', err => { clearTimeout(timer); reject(new SummarizerError(`could not start claude: ${err.message}`, false)) })
+    child.on('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr }) })
+    child.stdin.end(prompt)
+  })
+}
+
+async function runViaTmux(claude: string, args: string[], prompt: string): Promise<RawResult> {
+  const dir = workerDir()
+  const id = `memsum-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`
+  const file = (ext: string) => path.join(dir, `${id}.${ext}`)
+  fs.writeFileSync(file('prompt'), prompt, { mode: 0o600 })
+  fs.writeFileSync(file('sh'), [
+    '#!/bin/bash',
+    `cd ${shellQuote(dir)}`,
+    'unset ANTHROPIC_API_KEY CLAUDECODE CLAUDE_CODE_ENTRYPOINT',
+    'export MAX_THINKING_TOKENS=0',
+    `${[claude, ...args].map(shellQuote).join(' ')} < ${shellQuote(file('prompt'))} > ${shellQuote(file('tmp'))} 2> ${shellQuote(file('err'))}`,
+    `echo $? > ${shellQuote(file('code'))}`,
+    `mv ${shellQuote(file('tmp'))} ${shellQuote(file('out'))}`,
+  ].join('\n'), { mode: 0o700 })
+
+  const session = `${id}__call`
+  const cleanup = () => {
+    for (const ext of ['prompt', 'sh', 'tmp', 'out', 'err', 'code']) fs.rmSync(file(ext), { force: true })
+    tmux(['kill-session', '-t', session]).catch(() => { /* already gone */ })
+  }
+  try {
+    await tmux(['new-session', '-d', '-s', session, `bash ${shellQuote(file('sh'))}`])
+    const deadline = Date.now() + CALL_TIMEOUT_MS
+    while (!fs.existsSync(file('out'))) {
+      if (Date.now() > deadline) throw new SummarizerError(`summarizer timed out after ${CALL_TIMEOUT_MS / 1000}s`, false)
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+    const read = (ext: string) => { try { return fs.readFileSync(file(ext), 'utf8') } catch { return '' } }
+    return { code: Number(read('code').trim() || 0), stdout: read('out'), stderr: read('err') }
+  } finally {
+    cleanup()
+  }
+}
+
 export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): Promise<GeneratedCard[]> {
   const claude = resolveClaudeBinary()
   if (!claude) throw new SummarizerError('claude CLI not found on this host (set CLAUDE_BIN to its path)', false)
@@ -243,40 +326,27 @@ export async function summarizeBatch(jobs: CardJob[], knownEntities: string[]): 
   ]
   const prompt = buildPrompt(jobs, knownEntities)
 
-  return withSlot(() => new Promise<GeneratedCard[]>((resolve, reject) => {
-    // Use the host's own login: a server-level API key would turn this into API
-    // billing, and a parent Claude Code session's markers must not leak in.
-    const env = { ...process.env }
-    delete env.ANTHROPIC_API_KEY
-    delete env.CLAUDECODE
-    delete env.CLAUDE_CODE_ENTRYPOINT
-    env.MAX_THINKING_TOKENS = '0'
-    const child = spawn(claude, args, {
-      cwd: workerDir(),
-      env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
-    let stdout = ''
-    let stderr = ''
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      reject(new SummarizerError(`summarizer timed out after ${CALL_TIMEOUT_MS / 1000}s`, false))
-    }, CALL_TIMEOUT_MS)
+  return withSlot(async () => {
+    let raw = viaTmux ? await runViaTmux(claude, args, prompt) : await runDirect(claude, args, prompt)
+    let parsed = parseResult(raw)
+    if (!viaTmux && isNotLoggedIn(raw, parsed)) {
+      console.log('[MEMORY-CARDS] claude reports "Not logged in" from the server process; retrying inside tmux (keychain access)')
+      viaTmux = true
+      raw = await runViaTmux(claude, args, prompt)
+      parsed = parseResult(raw)
+    }
+    if (raw.code !== 0 || !parsed || parsed.is_error) {
+      const detail = String(parsed?.result || raw.stderr || raw.stdout || `exit ${raw.code}`).slice(0, 300)
+      throw new SummarizerError(`summarizer failed: ${detail}`, LIMIT_PATTERN.test(detail))
+    }
+    return parseCards(extractJson(String(parsed.result ?? '')), jobs)
+  })
+}
 
-    child.stdout.on('data', d => { stdout += d })
-    child.stderr.on('data', d => { stderr += d })
-    child.on('error', err => { clearTimeout(timer); reject(new SummarizerError(`could not start claude: ${err.message}`, false)) })
-    child.on('close', code => {
-      clearTimeout(timer)
-      let parsed: any = null
-      try { parsed = JSON.parse(stdout) } catch { /* handled below */ }
-      if (code !== 0 || !parsed || parsed.is_error) {
-        const detail = String(parsed?.result || stderr || stdout || `exit ${code}`).slice(0, 300)
-        reject(new SummarizerError(`summarizer failed: ${detail}`, LIMIT_PATTERN.test(detail)))
-        return
-      }
-      resolve(parseCards(extractJson(String(parsed.result ?? '')), jobs))
-    })
-    child.stdin.end(prompt)
-  }))
+function parseResult(raw: RawResult): any {
+  try { return JSON.parse(raw.stdout) } catch { return null }
+}
+
+function isNotLoggedIn(raw: RawResult, parsed: any): boolean {
+  return NOT_LOGGED_IN.test(String(parsed?.result || '') + raw.stderr + (parsed ? '' : raw.stdout))
 }

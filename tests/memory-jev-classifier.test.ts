@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { chunkConversation, JevClassifier, ClassifierError } from '@/lib/memory/jev-provider'
+import { chunkConversation, JevClassifier, ClassifierError, classifyRelations } from '@/lib/memory/jev-provider'
 import { maskClassifierSettings, DEFAULT_CLASSIFIER_SETTINGS } from '@/lib/memory/settings'
 import type { ConversationMessage } from '@/lib/memory/types'
 
@@ -181,5 +181,42 @@ describe('toCozoVector', () => {
   it('replaces non-finite values so the query still parses', async () => {
     const { toCozoVector } = await import('@/lib/cozo-schema-memory')
     expect(toCozoVector([NaN, Infinity, 1])).toBe('vec([0, 0, 1])')
+  })
+})
+
+// The memory graph: edges come from one classifier call per new memory.
+describe('classifyRelations', () => {
+  const settings = { ...DEFAULT_CLASSIFIER_SETTINGS, apiKey: 'k' }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('asks one question per candidate and keeps confident, non-none answers', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: any) => {
+      const body = JSON.parse(init.body)
+      expect(Object.keys(body.questions)).toEqual(['relation_1', 'relation_2', 'relation_3'])
+      expect(body.state).toContain('NEW MEMORY: store verbatim')
+      expect(body.state).toContain('EXISTING MEMORY 2: use haiku')
+      return {
+        ok: true, status: 200,
+        json: async () => ({ model: 'jev', answers: {
+          relation_1: { choice: 'supports', confidence: 0.9 },
+          relation_2: { choice: 'supersedes', confidence: 0.8 },
+          relation_3: { choice: 'contradicts', confidence: 0.4 }, // below cutoff
+        } }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const rels = await classifyRelations(new JevClassifier(settings), 'store verbatim', ['a', 'use haiku', 'c'])
+    expect(rels).toEqual([
+      { index: 0, relation: 'supports', confidence: 0.9 },
+      { index: 1, relation: 'supersedes', confidence: 0.8 },
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes no call without candidates', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await classifyRelations(new JevClassifier(settings), 'x', [])).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -27,8 +27,8 @@ export const DEFAULT_CLASSIFIER_SETTINGS: ClassifierSettings = {
   url: 'https://api.typesafe.ai',
   model: 'jev-latest',
   apiKey: '',
-  minDurable: 0.85,
-  minImportance: 3,
+  minDurable: 0.75,
+  minImportance: 2.5,
 }
 
 const SETTINGS_FILE = path.join(os.homedir(), '.aimaestro', 'memory-settings.json')

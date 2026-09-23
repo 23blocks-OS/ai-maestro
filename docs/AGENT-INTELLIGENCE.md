@@ -68,7 +68,7 @@ This ensures that even with 100+ agents, they don't all try to run at the same t
 
 Long-term memory consolidation does **not** follow these intervals. It runs once
 a night per agent (2:00–2:30 AM, staggered by agent id) and on demand from the
-Memory tab. See [LONG-TERM-MEMORY.md](./LONG-TERM-MEMORY.md#current-implementation-v0392).
+Memory tab. See [LONG-TERM-MEMORY.md](./LONG-TERM-MEMORY.md#current-implementation-v0393).
 
 **API Endpoint:**
 ```

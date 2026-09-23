@@ -13,6 +13,7 @@
 import type { MemoryCategory } from '../cozo-schema-memory'
 import type { ConversationMessage } from './types'
 import type { ClassifierSettings } from './settings'
+import { redactSecrets } from './redact'
 
 export const MEMORY_QUESTIONS = {
   durable: {
@@ -82,9 +83,12 @@ const MAX_CONTEXT_CHARS = 600
 const MIN_USER_PASSAGE_CHARS = 40
 const MIN_ASSISTANT_PASSAGE_CHARS = 120
 
-/** Harness noise that is not part of what the user or agent said. */
+/**
+ * Harness noise that is not part of what the user or agent said, and secrets,
+ * which must never reach the classifier, the memory store, or a later prompt.
+ */
 function cleanMessage(content: string): string {
-  return content
+  return redactSecrets(content)
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, '')
     .replace(/^Base directory for this skill:[\s\S]*/, '')
@@ -208,7 +212,8 @@ export class JevClassifier {
     return `${this.settings.url.replace(/\/+$/, '')}/v1/systemone`
   }
 
-  async classify(state: string): Promise<ChunkClassification> {
+  /** One classifier call with any set of typed questions. */
+  async ask(state: string, questions: Record<string, unknown>): Promise<{ answers: Record<string, any>; model: string; inputTokens: number }> {
     return withSlot(async () => {
       let lastError = ''
       for (let attempt = 0; attempt < 4; attempt++) {
@@ -220,7 +225,7 @@ export class JevClassifier {
               Authorization: `Bearer ${this.settings.apiKey}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ model: this.settings.model, state, questions: MEMORY_QUESTIONS }),
+            body: JSON.stringify({ model: this.settings.model, state, questions }),
             signal: AbortSignal.timeout(30_000),
           })
         } catch (err) {
@@ -246,21 +251,29 @@ export class JevClassifier {
         }
 
         const data = await res.json()
-        const a = data?.answers
-        if (!a?.durable || !a?.category || !a?.importance) {
-          throw new ClassifierError('Classifier response is missing answers', false)
-        }
         return {
-          durable: Number(a.durable.noul ?? 0),
-          category: a.category.choice as MemoryCategory | 'none',
-          categoryConfidence: Number(a.category.confidence ?? 0),
-          importance: Number(a.importance.score ?? 0),
-          model: String(data.model || this.settings.model),
-          inputTokens: Number(data.usage?.input_tokens ?? 0),
+          answers: data?.answers || {},
+          model: String(data?.model || this.settings.model),
+          inputTokens: Number(data?.usage?.input_tokens ?? 0),
         }
       }
       throw new ClassifierError(`Classifier unavailable after retries (${lastError})`, false)
     })
+  }
+
+  async classify(state: string): Promise<ChunkClassification> {
+    const { answers: a, model, inputTokens } = await this.ask(state, MEMORY_QUESTIONS)
+    if (!a.durable || !a.category || !a.importance) {
+      throw new ClassifierError('Classifier response is missing answers', false)
+    }
+    return {
+      durable: Number(a.durable.noul ?? 0),
+      category: a.category.choice as MemoryCategory | 'none',
+      categoryConfidence: Number(a.category.confidence ?? 0),
+      importance: Number(a.importance.score ?? 0),
+      model,
+      inputTokens,
+    }
   }
 
   /** Should this classification become a memory? */
@@ -269,6 +282,62 @@ export class JevClassifier {
       && c.durable >= this.settings.minDurable
       && c.importance >= this.settings.minImportance
   }
+}
+
+export type MemoryRelation = 'supports' | 'contradicts' | 'supersedes' | 'leads_to'
+
+export interface RelationJudgement {
+  /** Index into the candidates passed in */
+  index: number
+  relation: MemoryRelation
+  confidence: number
+}
+
+const MAX_RELATION_CANDIDATES = 6
+const RELATION_CHARS = 700
+
+/**
+ * How a new memory relates to its nearest existing memories — the edges of
+ * the memory graph. One classifier call for all candidates. 'leads_to' means
+ * the EXISTING memory led to the new one (an earlier step or a cause).
+ */
+export async function classifyRelations(
+  classifier: JevClassifier,
+  newMemory: string,
+  candidates: string[],
+  minConfidence = 0.6
+): Promise<RelationJudgement[]> {
+  const list = candidates.slice(0, MAX_RELATION_CANDIDATES)
+  if (list.length === 0) return []
+
+  const state = [
+    `NEW MEMORY: ${clip(newMemory, RELATION_CHARS)}`,
+    ...list.map((c, i) => `EXISTING MEMORY ${i + 1}: ${clip(c, RELATION_CHARS)}`),
+  ].join('\n\n')
+
+  const questions: Record<string, unknown> = {}
+  list.forEach((_, i) => {
+    questions[`relation_${i + 1}`] = {
+      type: 'choice',
+      instructions: `How does the NEW MEMORY relate to EXISTING MEMORY ${i + 1}?`,
+      criteria: {
+        supports: `The new memory agrees with, confirms or adds evidence to existing memory ${i + 1}`,
+        contradicts: `The new memory conflicts with existing memory ${i + 1}`,
+        supersedes: `The new memory replaces or updates existing memory ${i + 1} (a newer decision or fact on the same point)`,
+        leads_to: `Existing memory ${i + 1} is an earlier step, cause or reason that led to the new memory`,
+        none: 'Different topics, or only loosely related',
+      },
+    }
+  })
+
+  const { answers } = await classifier.ask(state, questions)
+  const out: RelationJudgement[] = []
+  list.forEach((_, i) => {
+    const a = answers[`relation_${i + 1}`]
+    if (!a || a.choice === 'none' || Number(a.confidence ?? 0) < minConfidence) return
+    out.push({ index: i, relation: a.choice as MemoryRelation, confidence: Number(a.confidence) })
+  })
+  return out
 }
 
 /** One cheap live call, used by Settings → Memory "Test connection". */

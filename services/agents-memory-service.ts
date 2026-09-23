@@ -534,32 +534,23 @@ export async function triggerConsolidation(
       maxConversations
     )
 
-    if (conversations.length === 0) {
-      return {
-        data: {
-          success: true,
-          status: 'no_data',
-          agent_id: agentId,
-          message: 'Nothing new to consolidate: no conversations with messages since the last run',
-          conversations_processed: 0,
-          memories_created: 0,
-          memories_reinforced: 0,
-          memories_linked: 0
-        },
-        status: 200
-      }
-    }
-
+    // Runs even with no new conversations: the engine also scrubs secrets from
+    // stored memories and links memories that have no graph edges yet.
     const result = await consolidateMemories(agentDb, agentId, conversations, {
       dryRun,
       provider,
       maxConversations
     })
 
+    const nothingNew = conversations.length === 0
+      && result.status !== 'failed'
+      && result.memories_created === 0
+      && result.memories_linked === 0
     return {
       data: {
         success: result.status !== 'failed',
-        ...result
+        ...result,
+        ...(nothingNew ? { status: 'no_data', message: 'Nothing new to consolidate: no conversations with messages since the last run' } : {})
       },
       status: 200
     }

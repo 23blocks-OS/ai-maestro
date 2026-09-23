@@ -171,6 +171,15 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  // Memories already checked for relationships, so the backfill never pays twice
+  await createTableIfNotExists('memory_link_checked', `
+    :create memory_link_checked {
+      memory_id: String
+      =>
+      checked_at: Int
+    }
+  `)
+
   console.log('[MEMORY-SCHEMA] ✅ Long-term memory schema initialized')
 }
 

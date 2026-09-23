@@ -104,6 +104,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     success: boolean
     memoriesCreated?: number
     memoriesReinforced?: number
+    memoriesLinked?: number
     chunksClassified?: number
     provider?: string
     notice?: string       // e.g. nothing new to consolidate
@@ -190,6 +191,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         success: Boolean(data.success),
         memoriesCreated: data.memories_created,
         memoriesReinforced: data.memories_reinforced,
+        memoriesLinked: data.memories_linked,
         chunksClassified: data.chunks_classified,
         provider: data.provider_used,
         notice: data.status === 'no_data' ? data.message : undefined,
@@ -340,6 +342,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
                   {consolidationResult.notice || (
                     <>
                       Created {consolidationResult.memoriesCreated || 0} memories, reinforced {consolidationResult.memoriesReinforced || 0}
+                      {consolidationResult.memoriesLinked ? `, linked ${consolidationResult.memoriesLinked}` : ''}
                       {consolidationResult.chunksClassified !== undefined && ` from ${consolidationResult.chunksClassified} passages`}
                       {consolidationResult.provider && ` (${consolidationResult.provider})`}
                     </>

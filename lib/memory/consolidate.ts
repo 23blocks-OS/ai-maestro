@@ -38,7 +38,8 @@ import {
 } from './types'
 import { createOllamaProvider } from './ollama-provider'
 import { createClaudeProvider } from './claude-provider'
-import { JevClassifier, ClassifierError, chunkConversation } from './jev-provider'
+import { JevClassifier, ClassifierError, chunkConversation, classifyRelations } from './jev-provider'
+import { redactSecrets } from './redact'
 import { loadClassifierSettings, isClassifierConfigured } from './settings'
 
 type ProviderChoice =
@@ -207,6 +208,100 @@ async function storeMemory(
   return { memoryId, embedding }
 }
 
+/** Only memories this close are worth asking about (cosine distance). */
+const LINK_MAX_DISTANCE = 0.35
+/** Existing unlinked memories checked per run; the rest continue next run. */
+const LINK_BACKFILL_PER_RUN = 60
+
+/**
+ * Link a memory to its nearest neighbours: one classifier call judges how it
+ * relates to each (supports / contradicts / supersedes / leads_to). These are
+ * the edges of the memory graph.
+ */
+async function linkMemory(
+  agentDb: AgentDatabase,
+  agentId: string,
+  memory: { memory_id: string; content: string; embedding: number[] },
+  classifier: JevClassifier,
+  counters: RunCounters
+): Promise<void> {
+  const candidates = (await searchMemoriesByEmbedding(agentDb, agentId, memory.embedding, { limit: 7, minConfidence: 0 }))
+    .filter(c => c.memory_id !== memory.memory_id && c.similarity <= LINK_MAX_DISTANCE)
+    .slice(0, 6)
+
+  if (candidates.length > 0) {
+    const relations = await classifyRelations(classifier, memory.content, candidates.map(c => c.content))
+    for (const rel of relations) {
+      const other = candidates[rel.index].memory_id
+      // leads_to: the existing memory led to the new one
+      if (rel.relation === 'leads_to') await linkMemories(agentDb, other, memory.memory_id, 'leads_to')
+      else await linkMemories(agentDb, memory.memory_id, other, rel.relation)
+      counters.linked++
+    }
+  }
+  await agentDb.run(`
+    ?[memory_id, checked_at] <- [[${escapeForCozo(memory.memory_id)}, ${Date.now()}]]
+    :put memory_link_checked
+  `)
+}
+
+/** Link memories stored before linking existed (or whose check failed). */
+async function backfillLinks(
+  agentDb: AgentDatabase,
+  agentId: string,
+  classifier: JevClassifier,
+  counters: RunCounters,
+  errors: string[]
+): Promise<void> {
+  const result = await agentDb.run(`
+    ?[memory_id, content, vec] :=
+      *memories{memory_id, agent_id, content},
+      agent_id = ${escapeForCozo(agentId)},
+      *memory_vec{memory_id, vec},
+      not *memory_link_checked{memory_id}
+    :limit ${LINK_BACKFILL_PER_RUN}
+  `)
+  for (const row of result.rows) {
+    try {
+      await linkMemory(agentDb, agentId, {
+        memory_id: row[0] as string,
+        content: row[1] as string,
+        embedding: Array.from(row[2] as ArrayLike<number>),
+      }, classifier, counters)
+    } catch (err) {
+      errors.push(`Linking error (${row[0]}): ${(err as Error).message}`)
+      if (err instanceof ClassifierError && err.fatal) return
+    }
+  }
+}
+
+/**
+ * Redact secrets from memories stored before redaction existed. Rewrites the
+ * content and re-embeds it. Returns how many memories were changed.
+ */
+export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string): Promise<number> {
+  const result = await agentDb.run(`
+    ?[memory_id, content, context] :=
+      *memories{memory_id, agent_id, content, context},
+      agent_id = ${escapeForCozo(agentId)}
+  `)
+  let changed = 0
+  for (const row of result.rows) {
+    const [memoryId, content, context] = row as [string, string, string | null]
+    const clean = redactSecrets(content)
+    const cleanContext = context ? redactSecrets(context) : context
+    if (clean === content && cleanContext === context) continue
+    await agentDb.run(`
+      ?[memory_id, content, context] <- [[${escapeForCozo(memoryId)}, ${escapeForCozo(clean)}, ${escapeForCozo(cleanContext ?? undefined)}]]
+      :update memories
+    `)
+    await storeMemoryEmbedding(agentDb, memoryId, await embed(clean))
+    changed++
+  }
+  if (changed > 0) console.log(`[CONSOLIDATE] Redacted secrets from ${changed} stored memories`)
+  return changed
+}
+
 /** Per-run cap on classifier calls (passages); the next run picks up where this stopped. */
 const MAX_PASSAGES_PER_RUN = 1000
 
@@ -272,7 +367,15 @@ async function consolidateWithClassifier(
           context: `${classification.model} · durable ${classification.durable.toFixed(2)} · ${classification.category} ${classification.categoryConfidence.toFixed(2)} · importance ${classification.importance.toFixed(1)} · ${when}`,
           confidence: classification.durable
         }, conversation.file_path, dryRun, counters)
-        if (stored) created++
+        if (stored) {
+          created++
+          try {
+            await linkMemory(agentDb, agentId, { memory_id: stored.memoryId, content: passage.text, embedding: stored.embedding }, classifier, counters)
+          } catch (linkErr) {
+            // Unlinked memories are retried by the backfill; never lose the memory over a link
+            console.log(`[CONSOLIDATE] Linking failed for ${stored.memoryId}: ${(linkErr as Error).message}`)
+          }
+        }
       } catch (err) {
         // Keep the progress made so far; this exchange is retried next run
         errors.push(`Memory storage error (${conversation.file_path}): ${(err as Error).message}`)
@@ -337,6 +440,14 @@ export async function consolidateMemories(
   console.log(`[CONSOLIDATE] Processing ${pending.length} conversations with new messages (${providerUsed})`)
 
   const budget = { remaining: MAX_PASSAGES_PER_RUN }
+
+  if (!dryRun) {
+    try {
+      await scrubStoredSecrets(agentDb, agentId)
+    } catch (err) {
+      errors.push(`Secret scrub error: ${(err as Error).message}`)
+    }
+  }
 
   for (const conversation of pending) {
     try {
@@ -423,7 +534,12 @@ export async function consolidateMemories(
     }
   }
 
-  const status = errors.length > 0 && conversationsProcessed === 0 ? 'failed' : 'completed'
+  // Give memories stored before linking existed (or whose link check failed) their edges
+  if (choice.kind === 'classifier' && !dryRun) {
+    await backfillLinks(agentDb, agentId, choice.classifier, counters, errors)
+  }
+
+  const status = errors.length > 0 && conversationsProcessed === 0 && counters.linked === 0 ? 'failed' : 'completed'
 
   if (!dryRun) {
     await updateConsolidationRun(agentDb, runId, {

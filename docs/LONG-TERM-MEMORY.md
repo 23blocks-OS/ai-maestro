@@ -1,6 +1,6 @@
 # Long-Term Memory Implementation Plan
 
-## Current implementation (v0.39.2)
+## Current implementation (v0.39.3)
 
 The plan below was the original design. What actually ships:
 
@@ -10,8 +10,19 @@ reply of 120+ characters) and asks a System One classifier (Jev by default,
 `POST {url}/v1/systemone`) three questions about each passage, judged in the
 context of the user's request: worth remembering (yes/no probability), which
 category (`fact | decision | preference | pattern | insight | reasoning | none`),
-and importance (0–4). Passages with P ≥ 0.85, importance ≥ 3 and a real category
-are stored **verbatim**. Nothing is rewritten by an LLM. Ollama and Claude
+and importance (0–4). Passages with P ≥ 0.75, importance ≥ 2.5 and a real
+category are stored **verbatim**. Nothing is rewritten by an LLM. (0.85 / 3 kept
+1.6% of a real 857-passage conversation and dropped plainly useful decisions;
+0.75 / 2.5 keeps ~15%.)
+
+- **Secrets are redacted first** (`lib/memory/redact.ts`): private keys,
+  connection-string passwords, provider tokens, `password = …` assignments and
+  passwords quoted in prose. Nothing unredacted reaches the classifier, the
+  store or a prompt, and each run also scrubs memories stored before redaction.
+- **The graph:** each new memory is compared with its nearest existing
+  memories (distance ≤ 0.35), and one classifier call labels each pair
+  `supports | contradicts | supersedes | leads_to` (or none). Memories stored
+  before linking are backfilled, 60 per run, tracked in `memory_link_checked`. Ollama and Claude
 extraction remain as fallbacks when no classifier key is configured.
 
 - Each user brings their own key and URL: Settings → Memory, stored at

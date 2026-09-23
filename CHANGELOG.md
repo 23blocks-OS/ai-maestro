@@ -44,6 +44,37 @@ needed — the evidence was on disk. Two distinct, real, fixable bugs.
   UserPromptSubmit+UserPromptSubmit with byte-identical prompts, which pointed at
   delivery, not at Claude Code double-firing.
 
+## [0.38.37] - 2026-09-22 — Codex sidebar status; approval cards evaluated (F004 Phase 2b — complete)
+
+### Fixed
+- **The sidebar / session-list dot showed `disconnected` for a codex agent even
+  while it was working.** `/api/sessions` read the hook-populated
+  `sessionActivity` map, which codex never feeds (no AI Maestro hook).
+  `sessions-service` now derives a codex session's status from the same
+  transcript signal as the chat (`codexLiveStatus`: working → `active`, idle →
+  `idle`) when the agent's program is codex. Verified: Nico now reads `idle`
+  there instead of `disconnected`.
+
+### Evaluated, deliberately not shipped
+- **Clickable approval cards for codex.** The eval is conclusive and worth
+  recording: codex writes **no "waiting for approval" event** to its transcript.
+  `turn_context` carries the `approval_policy` and `sandbox_policy`, and under the
+  sandbox codex frequently auto-handles a disallowed command rather than
+  prompting (observed: `function_call_output` = "approval policy is UnlessTrusted;
+  reject command"). When it does need a human, the prompt lives **only in the
+  TUI**. Building clickable cards would mean parsing codex's approval menu out of
+  the pane, which needs a captured sample of the real format — and Nico runs in
+  `auto mode`, which does not prompt. Rather than guess a parser against an
+  unobserved menu (the exact "confident finding with no sample" trap we have hit
+  before), this is deferred with a concrete build plan in F004. **Codex approvals
+  are handled in the terminal tab today.**
+
+### F004 status
+- **Done** for what codex's architecture exposes: history, live message updates,
+  send, the chat working indicator, and now the sidebar status. Approval cards
+  remain deferred (TUI-only) with a documented path to build them once a real
+  prompt can be captured.
+
 ## [0.38.36] - 2026-09-22 — Codex live "working" indicator (F004 Phase 2a)
 
 Phase 1 gave a codex agent its conversation in the chat. This gives it a live

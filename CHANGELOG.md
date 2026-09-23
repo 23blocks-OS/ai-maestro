@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.4] - 2026-09-23 — The dashboard no longer "restarts" when a refresh is slow
+
+The agent list refreshes from each host's /api/agents. When this host's own
+request failed or passed its 8 s timeout (it takes 1.7-3.6 s normally, more
+under load), the refresh dropped every local agent; every agent view unmounted
+and remounted on the next good refresh, which looked exactly like the app
+restarting. Remote hosts already fell back to cached agents; this host did not.
+A failed refresh now keeps each host's last good list, and reports the failure
+to the server log ([CLIENT] agents_fetch_failed_kept_previous).
+
 ## [0.41.3] - 2026-09-23 — Memory work at night; agents stay open while in use
 
 - **Dashboard resets after v0.41.0.** The new maintenance sweep ran all day and

@@ -3,6 +3,47 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.0] - 2026-09-23 — Memory weighted by recurrence, delivered, and run for every agent
+
+The first night of v0.40 showed three things: agents received zero memories
+(every hook call timed out), only 11 of 170 agents consolidated, and memory kept
+15–37% of every conversation. This release fixes the first two and redesigns
+the third around one idea: a paragraph never shows that something will matter
+again; the same knowledge coming up in another session does.
+
+**A card is the memory; recurrence is its weight.** Jev still flags candidate
+passages. The host's own Claude now reads a whole session's candidates and
+writes at most a few cards for knowledge a future session needs (zero is a valid
+answer); passages are kept as the card's evidence. A card that states what an
+existing memory already states reinforces it instead: one more distinct
+session, one more piece of evidence. Memories seen in 2+ sessions are promoted
+to long-term; one-off memories nobody used fade after 30 days; a faded card
+that comes up again is revived. Recall ranks by relevance, then weight; the
+session-start primer leads with the most-repeated decisions, preferences and
+patterns; the hook tells the agent "seen in N sessions".
+Measured on real sessions: 338 passages → 10 memories (was ~22% of passages
+kept). Replaying a session under another name: 8 of 12 cards recognised as the
+same knowledge and promoted; zero false merges with an unrelated session.
+"Same point" = cosine ≤ 0.25 and Jev ≥ 0.5 (≤ 0.12: Jev ≥ 0.35), calibrated
+on real cards (true repeats 0.55–0.77, different knowledge 0.02–0.30).
+
+**Existing memories migrate once.** Carded memories become card memories (the
+passage becomes evidence); raw passages fade (hidden, not deleted).
+
+**Delivery.** The hook resolved its agent through GET /api/agents, which took
+2.1–2.6 s under load against a 1.5 s budget: every inbox check, memory recall
+and Stop-path check timed out. It now reads the local registry (1 ms), with
+HTTP only as the fallback.
+
+**Coverage.** Agent schedules made consolidation due but it only ran on an idle
+transition, and nothing ran the sweep. The server now sweeps 20 agents every 15
+minutes (oldest first; MEMORY_SWEEP_ENABLED=false turns it off); the headless
+router gained /api/memory/sweep; a per-agent guard stops two consolidations of
+the same agent running at once.
+
+**Also.** A transient Jev 403 no longer aborts an agent's whole run (only 401
+is fatal).
+
 ## [0.40.1] - 2026-09-23 — Agent memory that works: Jev-classified, written as cards, walked as a graph
 
 Long-term memory had never stored a single memory on any agent. It now writes,

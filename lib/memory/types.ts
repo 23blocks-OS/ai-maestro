@@ -95,13 +95,15 @@ export interface ConsolidationResult {
   chunks_classified?: number
   /** True when the per-run chunk cap was hit; the next run continues */
   more_remaining?: boolean
-  /** Memory cards written this run (F006) */
-  cards_created?: number
-  cards_skipped?: number
+  /** Cards Jev judged unsupported by their evidence (not stored) */
   cards_rejected?: number
   entities_created?: number
-  /** The summarizer hit a usage limit; remaining cards wait for the next run */
+  /** The summarizer was unavailable (usage limit, not logged in); the rest waits for the next run */
   cards_deferred?: boolean
+  /** Memories seen in 2+ sessions, moved to the long-term tier this run */
+  memories_promoted?: number
+  /** One-off memories never used for 30 days, faded this run */
+  memories_faded?: number
 }
 
 /**

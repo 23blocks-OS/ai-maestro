@@ -2511,6 +2511,30 @@ async function startServer(handleRequest) {
       }
     } catch { /* tmux not available or no sessions */ }
 
+    // ── Memory maintenance sweep ─────────────────────────────────────────
+    // Each agent's schedule makes indexing (hourly) and consolidation (daily,
+    // after 2 AM) DUE, but they only RUN on an idle transition or a sweep, and
+    // nothing ran the sweep. Agents that stay idle overnight never consolidated:
+    // on 2026-09-23 only 11 of 170 agents did (the ones resident in the LRU).
+    // The sweep works from agent ids on disk, oldest-swept first, 20 at a time.
+    if (process.env.MEMORY_SWEEP_ENABLED !== 'false') {
+      const SWEEP_EVERY_MS = 15 * 60 * 1000
+      const runMemorySweep = () => {
+        fetch(`http://localhost:${port}/api/memory/sweep`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 20, minAgeMs: 10 * 60 * 1000 }),
+        })
+          .then(res => res.json())
+          .then(r => {
+            if (r && !r.skipped && r.scanned) console.log(`[Memory Sweep] ${r.scanned} agents, ${r.failed} failed, ${Math.round((r.ms || 0) / 1000)}s`)
+          })
+          .catch(err => console.error('[Memory Sweep] failed:', err?.message || err))
+      }
+      setTimeout(runMemorySweep, 5 * 60 * 1000)
+      setInterval(runMemorySweep, SWEEP_EVERY_MS)
+    }
+
     // Restore agents that were RUNNING when the server stopped.
     //
     // A server restart used to leave every agent offline: the intent was

@@ -6,52 +6,50 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parseCards, batchJobs, buildPrompt, extractJson, type CardJob } from '@/lib/memory/summarizer'
+import { parseSessionCards, batchCandidates, buildSessionPrompt, extractJson, maxCardsFor, MAX_SESSION_CHARS, type Candidate } from '@/lib/memory/summarizer'
 import { extractEntityCandidates } from '@/lib/memory/cards'
+import { recallScore } from '@/services/agents-memory-service'
 
-const job = (id: string, size = 100): CardJob => ({
-  memory_id: id, category: 'decision', passage: `passage ${id}`, exchange: 'x'.repeat(size),
+const cand = (n: number, exchangeKey = `x${n}`, size = 100): Candidate => ({
+  n, passage: `passage ${n}`, category: 'decision', exchangeKey, exchange: 'e'.repeat(size),
 })
 
-describe('parseCards', () => {
-  const jobs = [job('m1'), job('m2')]
+describe('parseSessionCards', () => {
+  const cands = [cand(1), cand(2), cand(3)]
 
-  it('keeps well-formed cards for requested memories only', () => {
-    const cards = parseCards({ cards: [
-      { memory_id: 'm1', skip: false, statement: 'Use CozoDB.', action: 'decided', entities: [{ name: 'CozoDB', type: 'library' }], relations: [] },
-      { memory_id: 'nope', skip: false, statement: 'x', action: 'decided', entities: [], relations: [] },
-    ] }, jobs)
+  it('keeps cards that rest on flagged passages, drops evidence never offered', () => {
+    const cards = parseSessionCards({ cards: [
+      { statement: 'Use CozoDB.', category: 'decision', action: 'decided', entities: [{ name: 'CozoDB', type: 'library' }], relations: [], evidence: [1, 3, 9] },
+      { statement: 'No evidence.', category: 'fact', action: 'discovered', entities: [], relations: [], evidence: [42] },
+    ] }, cands, 5)
     expect(cards).toHaveLength(1)
-    expect(cards[0]).toMatchObject({ memory_id: 'm1', statement: 'Use CozoDB.', action: 'decided', skip: false })
+    expect(cards[0]).toMatchObject({ statement: 'Use CozoDB.', category: 'decision', action: 'decided', evidence: [1, 3] })
   })
 
-  it('coerces off-list actions and entity types instead of storing free text', () => {
-    const [c] = parseCards({ cards: [{ memory_id: 'm1', skip: false, statement: 's', action: 'Implement verbatim storage', entities: [{ name: 'Jev', type: 'model' }], relations: [] }] }, jobs)
+  it('coerces off-list category, action and entity type instead of storing free text', () => {
+    const [c] = parseSessionCards({ cards: [{ statement: 's', category: 'lore', action: 'Implement verbatim storage', entities: [{ name: 'Jev', type: 'model' }], relations: [], evidence: [2] }] }, cands, 5)
+    expect(c.category).toBe('insight')
     expect(c.action).toBe('other')
     expect(c.entities).toEqual([{ name: 'Jev', type: 'other' }])
   })
 
-  it('drops relations with unknown predicates or missing ends', () => {
-    const [c] = parseCards({ cards: [{ memory_id: 'm1', skip: false, statement: 's', action: 'fixed', entities: [], relations: [
-      { subject: 'a', predicate: 'uses', object: 'b' },
-      { subject: 'a', predicate: 'loves', object: 'b' },
-      { subject: '', predicate: 'uses', object: 'b' },
-    ] }] }, jobs)
-    expect(c.relations).toEqual([{ subject: 'a', predicate: 'uses', object: 'b' }])
+  it('never returns more cards than asked for', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ statement: `s${i}`, category: 'fact', action: 'discovered', entities: [], relations: [], evidence: [1] }))
+    expect(parseSessionCards({ cards: many }, cands, 2)).toHaveLength(2)
   })
 
-  it('treats an empty statement as skip, and keeps the first card per memory', () => {
-    const cards = parseCards({ cards: [
-      { memory_id: 'm2', skip: false, statement: '  ', action: 'other', entities: [], relations: [] },
-      { memory_id: 'm2', skip: false, statement: 'second', action: 'other', entities: [], relations: [] },
-    ] }, jobs)
-    expect(cards).toHaveLength(1)
-    expect(cards[0].skip).toBe(true)
+  it('accepts zero cards and returns nothing for malformed output', () => {
+    expect(parseSessionCards({ cards: [] }, cands, 5)).toEqual([])
+    expect(parseSessionCards(null, cands, 5)).toEqual([])
+    expect(parseSessionCards({ cards: 'no' }, cands, 5)).toEqual([])
   })
+})
 
-  it('returns nothing for malformed output', () => {
-    expect(parseCards(null, jobs)).toEqual([])
-    expect(parseCards({ cards: 'no' }, jobs)).toEqual([])
+describe('maxCardsFor', () => {
+  it('asks for few cards: about one per three flagged passages, 1 to 5', () => {
+    expect(maxCardsFor(1)).toBe(1)
+    expect(maxCardsFor(7)).toBe(3)
+    expect(maxCardsFor(40)).toBe(5)
   })
 })
 
@@ -64,26 +62,36 @@ describe('extractJson', () => {
   })
 })
 
-describe('batchJobs', () => {
-  it('caps a batch at 12 memories', () => {
-    const batches = batchJobs(Array.from({ length: 30 }, (_, i) => job(`m${i}`)))
-    expect(batches.map(b => b.length)).toEqual([12, 12, 6])
-  })
-
-  it('caps a batch by total size, never leaving a job out', () => {
-    const batches = batchJobs([job('a', 40_000), job('b', 40_000), job('c', 100)])
-    expect(batches.map(b => b.map(j => j.memory_id))).toEqual([['a'], ['b', 'c']])
+describe('batchCandidates', () => {
+  it('never splits one exchange across calls', () => {
+    const big = Math.floor(MAX_SESSION_CHARS * 0.6)
+    const batches = batchCandidates([cand(1, 'a', big), cand(2, 'a', big), cand(3, 'b', big), cand(4, 'c', 10)])
+    expect(batches.map(b => b.map(c => c.n))).toEqual([[1, 2], [3, 4]])
   })
 })
 
-describe('buildPrompt', () => {
-  it('gives the whole exchange and background, and marks the flagged passage', () => {
-    const prompt = buildPrompt([{ memory_id: 'm1', category: 'decision', passage: 'we store verbatim', exchange: 'USER: q\n\nASSISTANT: a', previous: 'earlier talk' }], ['mini-lola'])
+describe('buildSessionPrompt', () => {
+  it('shows each exchange once, with its flagged passages numbered and the card cap', () => {
+    const prompt = buildSessionPrompt([
+      { n: 1, passage: 'we store verbatim', category: 'decision', exchangeKey: 'a', exchange: 'USER: q\n\nASSISTANT: a', previous: 'earlier talk' },
+      { n: 2, passage: 'and redact secrets', category: 'pattern', exchangeKey: 'a', exchange: 'USER: q\n\nASSISTANT: a' },
+    ], ['mini-lola'], 1)
     expect(prompt).toContain('KNOWN ENTITIES (use these exact names when they refer to the same thing): mini-lola')
-    expect(prompt).toContain('### MEMORY m1')
-    expect(prompt).toContain('PREVIOUS EXCHANGE (background only):\nearlier talk')
-    expect(prompt).toContain('EXCHANGE:\nUSER: q\n\nASSISTANT: a')
-    expect(prompt).toContain('>>> we store verbatim')
+    expect(prompt).toContain('Write AT MOST 1 memory cards (zero is fine)')
+    expect(prompt.match(/### EXCHANGE/g)).toHaveLength(1)
+    expect(prompt).toContain('BACKGROUND (the exchange before it):\nearlier talk')
+    expect(prompt).toContain('[1] (decision) >>> we store verbatim')
+    expect(prompt).toContain('[2] (pattern) >>> and redact secrets')
+  })
+})
+
+describe('recallScore', () => {
+  it('ranks a memory seen in more sessions above an equally close one seen once', () => {
+    expect(recallScore(0.28, 5, 'long')).toBeLessThan(recallScore(0.28, 1, 'warm'))
+  })
+
+  it('does not let weight beat a much closer match', () => {
+    expect(recallScore(0.24, 1, 'warm')).toBeLessThan(recallScore(0.31, 10, 'long'))
   })
 })
 

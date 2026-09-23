@@ -21,6 +21,8 @@ interface Memory {
   /** The readable memory (F006): statement + action, written by the host's Claude, checked by Jev */
   card?: { statement: string; action: string; status: string }
   entities?: Array<{ name: string; type: string }>
+  /** Passages the memory rests on, newest first */
+  evidence?: Array<{ passage: string; conversation_file: string; ts: number | null }>
   related?: Array<{
     memory_id: string
     relationship: string
@@ -118,6 +120,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
   const [graphMode, setGraphMode] = useState<'entities' | 'memories'>('entities')
   const [memories, setMemories] = useState<Memory[]>([])
   const [memoriesTotal, setMemoriesTotal] = useState<number | null>(null)
+  const [showFaded, setShowFaded] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const memoriesRef = useRef<Memory[]>([])
   memoriesRef.current = memories
@@ -132,9 +135,10 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     memoriesCreated?: number
     memoriesReinforced?: number
     memoriesLinked?: number
-    cardsCreated?: number
+    cardsRejected?: number
     entitiesCreated?: number
     cardsDeferred?: boolean
+    promoted?: number
     chunksClassified?: number
     provider?: string
     notice?: string       // e.g. nothing new to consolidate
@@ -165,6 +169,9 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
       if (categoryFilter) {
         url += `&category=${categoryFilter}`
       }
+      if (showFaded) {
+        url += '&includeFaded=true'
+      }
 
       const response = await fetch(url)
       if (response.ok) {
@@ -179,7 +186,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [agentId, hostUrl, searchQuery, categoryFilter])
+  }, [agentId, hostUrl, searchQuery, categoryFilter, showFaded])
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -243,12 +250,13 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
         memoriesCreated: data.memories_created,
         memoriesReinforced: data.memories_reinforced,
         memoriesLinked: data.memories_linked,
-        cardsCreated: data.cards_created,
+        cardsRejected: data.cards_rejected,
         entitiesCreated: data.entities_created,
         cardsDeferred: data.cards_deferred,
+        promoted: data.memories_promoted,
         chunksClassified: data.chunks_classified,
         provider: data.provider_used,
-        notice: data.status === 'no_data' ? data.message : undefined,
+        notice: data.status === 'no_data' || data.status === 'already_running' ? data.message : undefined,
         moreRemaining: data.more_remaining,
         error: errorText || (response.ok ? undefined : `HTTP ${response.status}`)
       })
@@ -276,6 +284,11 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     if (!isActive) return
     Promise.all([fetchMemories(), fetchStats()])
   }, [agentId, isActive])
+
+  // Faded memories (one-off, unused, or legacy raw passages) are hidden unless asked for
+  useEffect(() => {
+    if (isActive) fetchMemories()
+  }, [showFaded])
 
   // Fetch graph when view changes to graph
   useEffect(() => {
@@ -395,18 +408,18 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
                 <span>
                   {consolidationResult.notice || (
                     <>
-                      Created {consolidationResult.memoriesCreated || 0} memories, reinforced {consolidationResult.memoriesReinforced || 0}
-                      {consolidationResult.memoriesLinked ? `, linked ${consolidationResult.memoriesLinked}` : ''}
-                      {consolidationResult.chunksClassified !== undefined && ` from ${consolidationResult.chunksClassified} passages`}
-                      {consolidationResult.cardsCreated ? `; wrote ${consolidationResult.cardsCreated} cards` : ''}
-                      {consolidationResult.entitiesCreated ? `, ${consolidationResult.entitiesCreated} new entities` : ''}
+                      {consolidationResult.memoriesCreated || 0} new memories, {consolidationResult.memoriesReinforced || 0} came up again
+                      {consolidationResult.chunksClassified !== undefined && ` (from ${consolidationResult.chunksClassified} passages)`}
+                      {consolidationResult.promoted ? `; ${consolidationResult.promoted} promoted to long-term` : ''}
+                      {consolidationResult.entitiesCreated ? `; ${consolidationResult.entitiesCreated} new entities` : ''}
+                      {consolidationResult.cardsRejected ? `; ${consolidationResult.cardsRejected} unsupported cards dropped` : ''}
                       {consolidationResult.provider && ` (${consolidationResult.provider})`}
                     </>
                   )}
                 </span>
               </div>
               {consolidationResult.cardsDeferred && (
-                <div className="text-gray-400 pl-6">Card writing paused at the Claude usage limit; it continues on the next run.</div>
+                <div className="text-gray-400 pl-6">Card writing paused (Claude usage limit or not available); those exchanges are read again on the next run.</div>
               )}
               {consolidationResult.moreRemaining && (
                 <div className="text-gray-400 pl-6">More history left to process. It continues on the next run, or click Consolidate again.</div>
@@ -548,6 +561,11 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
 
       {/* Content */}
       {view === 'list' ? (
+        <div className="space-y-2">
+        <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none w-fit">
+          <input type="checkbox" checked={showFaded} onChange={e => setShowFaded(e.target.checked)} className="accent-gray-500" />
+          Show faded memories (seen once and never used, or raw passages from before cards)
+        </label>
         <MemoryList
           memories={memories}
           loading={loading}
@@ -557,6 +575,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
           onEdit={startEdit}
           onDelete={deleteMemory}
         />
+        </div>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-1 text-xs">
@@ -714,12 +733,19 @@ function MemoryBody({ memory }: { memory: Memory }) {
         onClick={() => setShowSource(v => !v)}
         className="text-xs text-gray-500 hover:text-gray-300 mb-2"
       >
-        {showSource ? 'Hide source' : 'Show source'}
+        {showSource ? 'Hide evidence' : `Show evidence${memory.evidence?.length ? ` (${memory.evidence.length})` : ''}`}
       </button>
       {showSource && (
-        <div className="mb-2 p-2 rounded bg-gray-900/60 border border-gray-700">
-          <p className="text-gray-300 text-xs whitespace-pre-wrap">{memory.content}</p>
-          {memory.context && <p className="text-gray-500 text-[11px] italic mt-1">{memory.context}</p>}
+        <div className="mb-2 space-y-2">
+          {(memory.evidence && memory.evidence.length > 0
+            ? memory.evidence
+            : [{ passage: memory.content, conversation_file: '', ts: null }]
+          ).map((ev, i) => (
+            <div key={i} className="p-2 rounded bg-gray-900/60 border border-gray-700">
+              <p className="text-gray-300 text-xs whitespace-pre-wrap">{ev.passage}</p>
+              {ev.ts && <p className="text-gray-500 text-[11px] mt-1">{new Date(ev.ts).toLocaleString()}</p>}
+            </div>
+          ))}
         </div>
       )}
     </>
@@ -795,13 +821,13 @@ function MemoryList({
                 >
                   {memory.category}
                 </span>
-                <span className="text-xs text-gray-500">
-                  {memory.tier}
+                <span className={`text-xs ${memory.tier === 'long' ? 'text-emerald-400' : 'text-gray-500'}`}>
+                  {memory.tier === 'long' ? 'long-term' : memory.tier}
                 </span>
                 {memory.reinforcement_count > 1 && (
-                  <span className="text-xs text-amber-400 flex items-center gap-1">
+                  <span className="text-xs text-amber-400 flex items-center gap-1" title="Came up in this many distinct sessions">
                     <TrendingUp className="w-3 h-3" />
-                    {memory.reinforcement_count}x reinforced
+                    seen in {memory.reinforcement_count} sessions
                   </span>
                 )}
               </div>

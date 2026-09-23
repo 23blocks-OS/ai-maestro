@@ -41,7 +41,9 @@ import { createOllamaProvider } from './ollama-provider'
 import { createClaudeProvider } from './claude-provider'
 import { JevClassifier, ClassifierError, chunkConversation, classifyRelations } from './jev-provider'
 import { redactSecrets } from './redact'
-import { buildCards, recordMemorySource } from './cards'
+import { EntityIndex, saveCard, linkCardEntities, extractEntityCandidates } from './cards'
+import { summarizeSession, batchCandidates, SummarizerError, type Candidate, type GeneratedCard } from './summarizer'
+import { findSamePoint, reinforceWithSession, addEvidence, updateLifecycle, migrateToCardMemories } from './recurrence'
 import { loadAgents } from '../agent-registry'
 import { getHosts } from '../hosts-config'
 import { loadClassifierSettings, isClassifierConfigured } from './settings'
@@ -163,6 +165,8 @@ interface RunCounters {
   created: number
   reinforced: number
   linked: number
+  /** Cards Jev judged unsupported by their evidence */
+  rejected: number
 }
 
 /**
@@ -308,25 +312,47 @@ export async function scrubStoredSecrets(agentDb: AgentDatabase, agentId: string
 
 /** Per-run cap on classifier calls (passages); the next run picks up where this stopped. */
 const MAX_PASSAGES_PER_RUN = 1000
+/** Per-run cap on summarizer calls (each covers up to ~60k chars of one session) */
+const MAX_SUMMARY_CALLS_PER_RUN = 10
+/** Minimum P(card statement supported by its evidence) */
+const MIN_FAITHFULNESS = 0.6
+
+type SessionCandidate = Candidate & { startIndex: number; endIndex: number; ts?: number }
+
+async function cardFaithfulness(classifier: JevClassifier, statement: string, evidence: SessionCandidate[]): Promise<number> {
+  const exchanges = [...new Map(evidence.map(e => [e.exchangeKey, e.exchange])).values()].join('\n\n---\n\n')
+  const { answers } = await classifier.ask(
+    `EXCERPT:\n${exchanges.slice(0, 6000)}\n\nFLAGGED PASSAGES:\n${evidence.map(e => e.passage).join('\n\n').slice(0, 3000)}\n\nSTATEMENT: ${statement}`,
+    { supported: { type: 'noul', instructions: 'Is the STATEMENT fully supported by the EXCERPT, with nothing invented or changed?', criteria: { true: 'Every claim in the statement is stated or clearly implied by the excerpt', false: 'The statement adds, changes or contradicts something' } } }
+  )
+  return Number(answers.supported?.noul ?? 0)
+}
 
 /**
- * Classifier path: split new messages into exchanges and their passages, ask
- * Jev what kind of memory each passage is, store the ones that pass verbatim.
+ * Classifier path:
+ *   1. Jev flags passages that MIGHT be worth remembering (cheap, per passage)
+ *   2. the host's Claude writes at most a few cards for the whole session from
+ *      those candidates, each citing its evidence (zero is a valid answer)
+ *   3. Jev checks each card against its evidence
+ *   4. a card that states what an existing memory states REINFORCES it (weight
+ *      = distinct sessions); otherwise it becomes a new memory
  *
- * Returns the message offset reached. The budget is spent in whole exchanges
- * and the offset never advances past an exchange with a failed classification,
- * so a transient API error or the per-run cap loses nothing.
+ * Returns the message offset reached. It never advances past exchanges whose
+ * cards were not written, so a classifier error, a summarizer usage limit or a
+ * per-run cap loses nothing: those exchanges are read again next run.
  */
 async function consolidateWithClassifier(
   agentDb: AgentDatabase,
   agentId: string,
   conversation: PreparedConversation,
   classifier: JevClassifier,
-  budget: { remaining: number },
+  entities: EntityIndex,
+  knownNames: string[],
+  budget: { remaining: number; calls: number },
   dryRun: boolean,
   counters: RunCounters,
   errors: string[]
-): Promise<{ offset: number; created: number; classified: number; fatal: boolean; capped: boolean }> {
+): Promise<{ offset: number; created: number; classified: number; fatal: boolean; capped: boolean; deferred: boolean }> {
   const startOffset = conversation.consolidated_offset || 0
   const allChunks = chunkConversation(conversation.messages, startOffset)
 
@@ -336,9 +362,9 @@ async function consolidateWithClassifier(
     chunks.push(chunk)
     budget.remaining -= chunk.passages.length
   }
-  const capped = chunks.length < allChunks.length
+  let capped = chunks.length < allChunks.length
 
-  // Classify every passage in parallel (the classifier enforces a process-wide concurrency cap)
+  // 1. Classify every passage (the classifier enforces a process-wide concurrency cap)
   const results = await Promise.all(chunks.map(async chunk => ({
     chunk,
     passages: await Promise.all(chunk.passages.map(async passage => {
@@ -350,56 +376,114 @@ async function consolidateWithClassifier(
     }))
   })))
 
-  let offset = startOffset
-  let created = 0
+  const candidates: SessionCandidate[] = []
+  let classifiedUpTo = startOffset
   let classified = 0
-  for (const [chunkIndex, { chunk, passages }] of results.entries()) {
-    const previousExchange = chunkIndex > 0 ? results[chunkIndex - 1].chunk.exchange : undefined
+  let fatal = false
+  for (const [i, { chunk, passages }] of results.entries()) {
     const failed = passages.find(p => p.error)
     if (failed?.error) {
       errors.push(`Classifier error (${conversation.file_path}): ${failed.error.message}`)
-      return { offset, created, classified, fatal: failed.error instanceof ClassifierError && failed.error.fatal, capped }
+      fatal = failed.error instanceof ClassifierError && failed.error.fatal
+      break
     }
-    const when = chunk.timestamp ? new Date(chunk.timestamp).toISOString() : 'unknown time'
     for (const { passage, classification } of passages) {
       if (!classification) continue
       classified++
       if (!classifier.accepts(classification)) continue
+      candidates.push({
+        n: candidates.length + 1,
+        passage: passage.text,
+        category: classification.category,
+        exchangeKey: String(chunk.startIndex),
+        exchange: chunk.exchange,
+        previous: i > 0 ? results[i - 1].chunk.exchange : undefined,
+        startIndex: chunk.startIndex,
+        endIndex: chunk.endIndex,
+        ts: chunk.timestamp,
+      })
+    }
+    classifiedUpTo = chunk.endIndex
+  }
+
+  // 2-4. Cards for the session, a batch at a time
+  let offset = startOffset
+  let created = 0
+  let deferred = false
+  const batches = batchCandidates(candidates)
+  let batchesDone = 0
+  for (const batch of batches) {
+    if (budget.calls <= 0) { capped = true; break }
+    budget.calls--
+    let cards: GeneratedCard[]
+    try {
+      cards = await summarizeSession(batch, [...new Set([...knownNames, ...entities.topNames(), ...batch.flatMap(c => extractEntityCandidates(c.exchange))])])
+    } catch (err) {
+      const e = err as SummarizerError
+      errors.push(`Card summarizer: ${e.message}`)
+      deferred = true
+      break
+    }
+
+    for (const card of cards) {
+      const evidence = card.evidence.map(n => batch.find(c => c.n === n)).filter((c): c is SessionCandidate => Boolean(c))
       try {
-        const stored = await storeMemory(agentDb, agentId, {
-          category: classification.category as MemoryCategory,
-          content: passage.text,
-          context: `${classification.model} · durable ${classification.durable.toFixed(2)} · ${classification.category} ${classification.categoryConfidence.toFixed(2)} · importance ${classification.importance.toFixed(1)} · ${when}`,
-          confidence: classification.durable
-        }, conversation.file_path, dryRun, counters)
-        if (stored) {
-          created++
-          // Keep the exchange itself: Claude Code deletes transcripts after 30 days
-          await recordMemorySource(agentDb, {
-            memory_id: stored.memoryId,
-            conversation_file: conversation.file_path,
-            msg_start: chunk.startIndex,
-            msg_end: chunk.endIndex,
-            ts: chunk.timestamp,
-            exchange: chunk.exchange,
-            previous_exchange: previousExchange,
+        const faith = await cardFaithfulness(classifier, card.statement, evidence)
+        if (faith < MIN_FAITHFULNESS) { counters.rejected++; continue }
+        if (dryRun) { counters.created++; continue }
+
+        const [vecF] = await embedTexts([card.statement])
+        const vec = Array.from(vecF)
+        const same = await findSamePoint(agentDb, agentId, classifier, card.statement, vec)
+        const memoryId = same ?? `mem-${Date.now()}-${uuidv4().substring(0, 8)}`
+
+        if (same) {
+          // Recurrence: the same knowledge in another session is the memory's weight
+          if (await reinforceWithSession(agentDb, same, conversation.file_path)) counters.reinforced++
+        } else {
+          await createMemory(agentDb, {
+            memory_id: memoryId,
+            agent_id: agentId,
+            tier: 'warm',
+            system: getCategorySystem(card.category as MemoryCategory),
+            category: card.category as MemoryCategory,
+            content: card.statement,
+            context: card.action,
+            source_conversations: [conversation.file_path],
+            confidence: faith
           })
+          await storeMemoryEmbedding(agentDb, memoryId, vec)
+          await saveCard(agentDb, memoryId, { statement: card.statement, action: card.action, status: 'done', faithfulness: faith })
+          counters.created++
+          created++
+        }
+        for (const e of evidence) {
+          await addEvidence(agentDb, memoryId, {
+            conversation_file: conversation.file_path, msg_start: e.startIndex, msg_end: e.endIndex,
+            ts: e.ts, passage: e.passage, exchange: e.exchange,
+          })
+        }
+        await linkCardEntities(agentDb, entities, memoryId, card)
+        if (!same) {
           try {
-            await linkMemory(agentDb, agentId, { memory_id: stored.memoryId, content: passage.text, embedding: stored.embedding }, classifier, counters)
+            await linkMemory(agentDb, agentId, { memory_id: memoryId, content: card.statement, embedding: vec }, classifier, counters)
           } catch (linkErr) {
-            // Unlinked memories are retried by the backfill; never lose the memory over a link
-            console.log(`[CONSOLIDATE] Linking failed for ${stored.memoryId}: ${(linkErr as Error).message}`)
+            console.log(`[CONSOLIDATE] Linking failed for ${memoryId}: ${(linkErr as Error).message}`)
           }
         }
       } catch (err) {
-        // Keep the progress made so far; this exchange is retried next run
-        errors.push(`Memory storage error (${conversation.file_path}): ${(err as Error).message}`)
-        return { offset, created, classified, fatal: false, capped }
+        errors.push(`Card "${card.statement.slice(0, 60)}": ${(err as Error).message}`)
+        if (err instanceof ClassifierError && err.fatal) { fatal = true; break }
       }
     }
-    offset = chunk.endIndex
+    if (fatal) break
+    batchesDone++
+    offset = batch[batch.length - 1].endIndex
   }
-  return { offset, created, classified, fatal: false, capped }
+
+  // Every batch written (or nothing flagged): everything classified is consumed
+  if (!fatal && !deferred && batchesDone === batches.length) offset = classifiedUpTo
+  return { offset, created, classified, fatal, capped, deferred }
 }
 
 /** Agent and host names on this machine: canonical spellings for the summarizer. */
@@ -422,7 +506,7 @@ export async function consolidateMemories(
   const startTime = Date.now()
   const runId = `run-${Date.now()}-${uuidv4().substring(0, 8)}`
   const errors: string[] = []
-  const counters: RunCounters = { created: 0, reinforced: 0, linked: 0 }
+  const counters: RunCounters = { created: 0, reinforced: 0, linked: 0, rejected: 0 }
   const dryRun = Boolean(options.dryRun)
 
   let conversationsProcessed = 0
@@ -476,7 +560,24 @@ export async function consolidateMemories(
 
   console.log(`[CONSOLIDATE] Processing ${pending.length} conversations with new messages (${providerUsed})`)
 
-  const budget = { remaining: MAX_PASSAGES_PER_RUN }
+  const budget = { remaining: MAX_PASSAGES_PER_RUN, calls: MAX_SUMMARY_CALLS_PER_RUN }
+  let cardsDeferred = false
+  let entities: EntityIndex | null = null
+  let entitiesBefore = 0
+  let knownNames: string[] = []
+  if (choice.kind === 'classifier') {
+    if (!dryRun) {
+      try {
+        // Verbatim-passage memories from before cards: cards become the memory, raw passages fade
+        await migrateToCardMemories(agentDb, agentId)
+      } catch (err) {
+        errors.push(`Card migration: ${(err as Error).message}`)
+      }
+    }
+    entities = await EntityIndex.load(agentDb, agentId, choice.classifier)
+    entitiesBefore = entities.size
+    knownNames = knownEntityNames()
+  }
 
   if (!dryRun) {
     try {
@@ -495,11 +596,20 @@ export async function consolidateMemories(
 
       if (choice.kind === 'classifier') {
         if (budget.remaining <= 0) { moreRemaining = true; break }
-        const r = await consolidateWithClassifier(agentDb, agentId, conversation, choice.classifier, budget, dryRun, counters, errors)
+        const r = await consolidateWithClassifier(agentDb, agentId, conversation, choice.classifier, entities!, knownNames, budget, dryRun, counters, errors)
         newOffset = r.offset
         memoriesFromConversation = r.created
         chunksClassified += r.classified
         if (r.capped) moreRemaining = true
+        if (r.deferred) {
+          // Summarizer unavailable (usage limit, not logged in): stop; unwritten exchanges are read again next run
+          cardsDeferred = true
+          if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
+            await markConversationConsolidated(agentDb, conversation.file_path, agentId, runId, newOffset, memoriesFromConversation)
+          }
+          conversationsProcessed++
+          break
+        }
         if (r.fatal) {
           // Bad key / bad URL: every other conversation would fail the same way
           if (!dryRun && newOffset > (conversation.consolidated_offset || 0)) {
@@ -571,16 +681,20 @@ export async function consolidateMemories(
     }
   }
 
-  // Give memories stored before linking existed (or whose link check failed) their edges
-  let cardPass: Awaited<ReturnType<typeof buildCards>> | null = null
+  let lifecycle: { promoted: number; faded: number } | null = null
   if (choice.kind === 'classifier' && !dryRun) {
+    // Give memories stored before linking existed (or whose link check failed) their edges
     try {
       await backfillLinks(agentDb, agentId, choice.classifier, counters, errors)
     } catch (err) {
       errors.push(`Link backfill: ${(err as Error).message}`)
     }
-    // Memory cards + entity graph, written by the host's own Claude subscription
-    cardPass = await buildCards(agentDb, agentId, choice.classifier, knownEntityNames(), errors)
+    // Seen in 2+ sessions → long-term; one-off and never used for 30 days → faded
+    try {
+      lifecycle = await updateLifecycle(agentDb, agentId)
+    } catch (err) {
+      errors.push(`Lifecycle: ${(err as Error).message}`)
+    }
   }
 
   const status = errors.length > 0 && conversationsProcessed === 0 && counters.linked === 0 ? 'failed' : 'completed'
@@ -607,12 +721,12 @@ export async function consolidateMemories(
     errors,
     provider_used: providerUsed,
     ...(choice.kind === 'classifier' ? { chunks_classified: chunksClassified, more_remaining: moreRemaining } : {}),
-    ...(cardPass ? {
-      cards_created: cardPass.cards,
-      cards_skipped: cardPass.skipped,
-      cards_rejected: cardPass.rejected,
-      entities_created: cardPass.entities,
-      cards_deferred: cardPass.deferred,
+    ...(choice.kind === 'classifier' ? {
+      cards_rejected: counters.rejected,
+      cards_deferred: cardsDeferred,
+      entities_created: entities ? entities.size - entitiesBefore : 0,
+      memories_promoted: lifecycle?.promoted ?? 0,
+      memories_faded: lifecycle?.faded ?? 0,
     } : {})
   }
 

@@ -68,14 +68,44 @@ function withDeadline(promise, ms, fallback) {
     ]);
 }
 
-// The agent list, fetched at most once per hook run: the inbox check and
-// memory recall both need it and run in parallel. Resolves null on a non-OK
-// response; rejects on a network error so callers keep their own fallbacks.
+// The agent list, loaded at most once per hook run: the inbox check and
+// memory recall both need it and run in parallel.
+//
+// Read from the registry file first. The hook runs on the same host as its
+// agent, and GET /api/agents took 2.1-2.6 s under load (2026-09-23) against the
+// 1.5 s per-fetch budget: every inbox check and every memory recall timed out,
+// so no agent was told about messages or shown a memory. The HTTP call is kept
+// only as the fallback for hosts without a local registry (cloud containers).
+// Resolves null on a non-OK response; rejects on a network error so callers
+// keep their own fallbacks.
+function readLocalRegistry() {
+    try {
+        const file = path.join(os.homedir(), '.aimaestro', 'agents', 'registry.json');
+        const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const list = Array.isArray(data) ? data : (data && Array.isArray(data.agents) ? data.agents : null);
+        if (!list) return null;
+        return list
+            .filter(a => a && a.id && a.status !== 'deleted' && !a.deletedAt)
+            .map(a => ({
+                id: a.id,
+                name: a.name,
+                alias: a.alias,
+                workingDirectory: a.workingDirectory,
+                session: { workingDirectory: a.sessions && a.sessions[0] && a.sessions[0].workingDirectory },
+            }));
+    } catch (e) {
+        return null;
+    }
+}
+
 let agentsPromise = null;
 function fetchAgentsOnce() {
     if (!agentsPromise) {
-        agentsPromise = fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) })
-            .then(res => (res.ok ? res.json().then(d => d.agents || []) : null));
+        const local = readLocalRegistry();
+        agentsPromise = local
+            ? Promise.resolve(local)
+            : fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) })
+                .then(res => (res.ok ? res.json().then(d => d.agents || []) : null));
     }
     return agentsPromise;
 }
@@ -134,11 +164,9 @@ function resolveAgent(cwd, agents) {
 async function broadcastStatusUpdate(cwd, state) {
     try {
         // Find the session name for this working directory
-        const agentsResponse = await fetch('http://localhost:23000/api/agents');
-        if (!agentsResponse.ok) return;
-
-        const agentsData = await agentsResponse.json();
-        const agent = resolveAgent(cwd, agentsData.agents || []);
+        const agents = await fetchAgentsOnce();
+        if (!agents) return;
+        const agent = resolveAgent(cwd, agents);
 
         if (!agent) return;
 
@@ -345,11 +373,9 @@ async function checkUnreadMessages(cwd) {
 async function drainMeetingInjectQueue(cwd) {
     try {
         // Resolve agent to get session name
-        const agentsResponse = await fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) });
-        if (!agentsResponse.ok) return null;
-
-        const agentsData = await agentsResponse.json();
-        const agent = resolveAgent(cwd, agentsData.agents || []);
+        const agents = await fetchAgentsOnce();
+        if (!agents) return null;
+        const agent = resolveAgent(cwd, agents);
         if (!agent) return null;
 
         const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
@@ -379,10 +405,9 @@ async function drainMeetingInjectQueue(cwd) {
 // Fetch raw unread messages (with IDs) for dedup on the Stop-hook block path.
 // Returns { agentId, messages } or null.
 async function fetchUnreadMessages(cwd) {
-    const agentsResponse = await fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(2500) });
-    if (!agentsResponse.ok) return null;
-    const agentsData = await agentsResponse.json();
-    const agent = resolveAgent(cwd, agentsData.agents || []);
+    const agents = await fetchAgentsOnce();
+    if (!agents) return null;
+    const agent = resolveAgent(cwd, agents);
     if (!agent) { debugLog({ event: 'no_agent_for_cwd', cwd }); return null; }
 
     const messagesResponse = await fetch(
@@ -578,14 +603,16 @@ function buildMemoryNotice(memories, { primer }) {
         const text = String(m.statement || m.content || '').replace(/\s+/g, ' ').trim();
         const clipped = text.length > RECALL_MEMORY_CHARS ? `${text.slice(0, RECALL_MEMORY_CHARS)}…` : text;
         const date = m.created_at ? new Date(m.created_at).toISOString().slice(0, 10) : 'undated';
-        return `- [${m.category} · ${date}] ${clipped}`;
+        // Weight: knowledge that came up in several sessions is more likely to matter
+        const weight = m.sessions > 1 ? ` · seen in ${m.sessions} sessions` : '';
+        return `- [${m.category}${weight} · ${date}] ${clipped}`;
     });
     const title = primer
         ? '## Memory: your standing decisions and preferences'
         : '## Memory: notes from your past sessions on this topic';
     return [
         title,
-        'Check these before re-reading files or re-deciding. They are verbatim excerpts from earlier sessions and may be outdated, so verify anything you act on. Search for more with memory-search.sh.',
+        'Check these before re-reading files or re-deciding. They come from your earlier sessions; "seen in N sessions" means the same knowledge came up that often. They may be outdated, so verify anything you act on. Search for more with memory-search.sh.',
         '',
         ...lines,
     ].join('\n');
@@ -993,6 +1020,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+    readLocalRegistry,
     buildMemoryNotice,
     selectFreshMemories,
     buildAmpBlockReason,

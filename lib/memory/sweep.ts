@@ -100,7 +100,22 @@ function markSwept(agentId: string, result: Omit<SweepAgentResult, 'agentId'>): 
  * disruptive than the slow path is valuable. One agent failing never stops the
  * sweep — a single corrupt database must not strand the other 124.
  */
-export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepResult> {
+/** One sweep at a time per process: a slow sweep must not be joined by the next tick. */
+let sweepInProgress = false
+
+export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepResult & { skipped?: boolean }> {
+  if (sweepInProgress) {
+    return { scanned: 0, indexed: 0, failed: 0, messagesProcessed: 0, ms: 0, agents: [], skipped: true }
+  }
+  sweepInProgress = true
+  try {
+    return await runSweep(opts)
+  } finally {
+    sweepInProgress = false
+  }
+}
+
+async function runSweep(opts: SweepOptions): Promise<SweepResult> {
   const { limit, minAgeMs = 0, only } = opts
   const started = Date.now()
 

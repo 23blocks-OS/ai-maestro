@@ -26,7 +26,8 @@ export type MemoryCategory =
   | 'insight'     // System 2: Learned understanding
   | 'reasoning'   // System 2: How problems were solved
 
-export type MemoryTier = 'warm' | 'long'
+/** warm: new; long: came up in 2+ sessions; faded: one-off, unused, or a legacy raw passage (kept, not recalled) */
+export type MemoryTier = 'warm' | 'long' | 'faded'
 export type MemorySystem = 1 | 2  // 1 = knowledge, 2 = reasoning
 
 export type RelationshipType =
@@ -272,6 +273,32 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  // Evidence behind a memory: one row per passage that stated it, across every
+  // session where it came up. Recurrence (distinct sessions) is a memory's weight.
+  await createTableIfNotExists('memory_evidence', `
+    :create memory_evidence {
+      memory_id: String,
+      evidence_id: String
+      =>
+      conversation_file: String,
+      msg_start: Int,
+      msg_end: Int,
+      ts: Int?,
+      passage: String,
+      exchange: String,
+      created_at: Int
+    }
+  `)
+
+  // One-time data migrations already applied to this database
+  await createTableIfNotExists('memory_migrations', `
+    :create memory_migrations {
+      name: String
+      =>
+      applied_at: Int
+    }
+  `)
+
   if (failures.length > 0) {
     throw new Error(`Memory schema incomplete: ${failures.join('; ')}`)
   }
@@ -450,6 +477,7 @@ export async function searchMemoriesByEmbedding(
   context: string | null
   confidence: number
   reinforcement_count: number
+  tier: string
   similarity: number
 }>> {
   const limit = options.limit || 10
@@ -470,7 +498,7 @@ export async function searchMemoriesByEmbedding(
   }
 
   const query = `
-    ?[memory_id, category, content, context, confidence, reinforcement_count, similarity] :=
+    ?[memory_id, category, content, context, confidence, reinforcement_count, tier, similarity] :=
       ~memory_vec:hnsw{memory_id, vec | query: ${vecString}, k: ${limit * 2}, ef: 50, bind_distance: similarity},
       *memories{memory_id, agent_id, category, content, context, confidence, reinforcement_count, tier},
       agent_id = ${escapeForCozo(agentId)},
@@ -505,7 +533,8 @@ export async function searchMemoriesByEmbedding(
     context: row[3] as string | null,
     confidence: row[4] as number,
     reinforcement_count: row[5] as number,
-    similarity: row[6] as number
+    tier: row[6] as string,
+    similarity: row[7] as number
   }))
 }
 

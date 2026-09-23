@@ -1,5 +1,7 @@
 'use client'
 
+import AgentHeaderBar from './AgentHeaderBar'
+import { agentWorkingDirectory } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
@@ -864,36 +866,34 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
-      {/* Header with activity indicator */}
-      <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-            !isOnline ? 'bg-red-500'
-            : activityState === 'sending' ? 'bg-blue-400 animate-pulse'
-            : activityState === 'thinking' ? 'bg-amber-400 animate-pulse'
-            : activityState === 'permission' ? 'bg-red-400 animate-pulse'
-            : activityState === 'waiting' ? 'bg-green-400'
-            : 'bg-gray-500'
-          }`} />
-          <div>
-            <h3 className="text-sm font-medium text-gray-200">
-              {!isOnline ? 'Offline'
-              : activityState === 'sending' ? 'Sending...'
-              : activityState === 'thinking'
-                ? (liveActivity
-                  ? `${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}...`
-                  : 'Agent is working...')
-              : activityState === 'permission' ? 'Permission needed'
-              : activityState === 'waiting' ? 'Ready for input'
-              : agent.label || agent.name || agent.alias || 'Chat'}
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {messages.length} messages
-              {lastModified && ` \u00b7 ${formatTimestamp(lastModified)}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
+      {/* Header: which agent, where, what it is doing (shared with the terminal tab) */}
+      <AgentHeaderBar
+        hostId={agent.hostId}
+        name={agent.label || agent.name || agent.alias || 'Agent'}
+        workingDirectory={agentWorkingDirectory(agent)}
+        dotClass={
+          !isOnline ? 'bg-red-500'
+          : activityState === 'sending' ? 'bg-blue-400 animate-pulse'
+          : activityState === 'thinking' ? 'bg-amber-400 animate-pulse'
+          : activityState === 'permission' ? 'bg-red-400 animate-pulse'
+          : activityState === 'waiting' ? 'bg-green-400'
+          : 'bg-gray-500'
+        }
+        dotTitle={!isOnline ? 'Offline' : activityState}
+        status={
+          !isOnline ? <span className="text-red-400">offline</span>
+          : activityState === 'sending' ? <span className="text-blue-300">sending…</span>
+          : activityState === 'thinking'
+            ? <span className="text-amber-300">{liveActivity
+              ? `${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…`
+              : 'working…'}</span>
+          : activityState === 'permission' ? <span className="text-red-300">permission needed</span>
+          : activityState === 'waiting' ? <span className="text-green-300">ready for input</span>
+          : <span className="text-gray-500">idle</span>
+        }
+        detail={<>{messages.length} messages{lastModified && ` \u00b7 ${formatTimestamp(lastModified)}`}</>}
+        actions={
+          <div className="flex items-center gap-1">
           {/* Chat mode toggle */}
           <button
             onClick={toggleChatMode}
@@ -915,7 +915,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
-      </div>
+        }
+      />
 
       {/* Messages Area */}
       <div

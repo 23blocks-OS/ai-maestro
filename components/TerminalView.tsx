@@ -1,5 +1,6 @@
 'use client'
 
+import AgentHeaderBar from './AgentHeaderBar'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -736,30 +737,15 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
 
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
-      {/* Terminal Header */}
+      {/* Header: which agent, where, and the terminal's tools (shared with the chat tab) */}
       {!hideHeader && (
-      <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 md:gap-3 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Connection indicator - just the green/red dot */}
-              <div
-                className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  isConnected ? 'bg-green-500' : 'bg-red-500'
-                }`}
-              />
-              {/* Host name and session name */}
-              <h3 className="font-medium text-gray-400 text-xs md:text-sm truncate">
-                {session.hostId !== 'local' ? session.hostId : 'local'}
-              </h3>
-              <span className="text-gray-600">/</span>
-              <h3 className="font-medium text-gray-100 text-sm md:text-base truncate">
-                {session.name || session.id}
-              </h3>
-            </div>
-          </div>
-          {terminal && (
-            <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">
+        <AgentHeaderBar
+          hostId={session.hostId}
+          name={session.name || session.id}
+          workingDirectory={session.workingDirectory}
+          dotClass={isConnected ? 'bg-green-500' : 'bg-red-500'}
+          dotTitle={isConnected ? 'Terminal connected' : 'Terminal disconnected'}
+          actions={terminal ? (<>
               {/* Mobile: Notes toggle button */}
               {!hideFooter && (
                 <>
@@ -842,10 +828,8 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
               >
                 🧹 <span className="hidden md:inline">Clear</span>
               </button>
-            </div>
-          )}
-        </div>
-      </div>
+            </>) : undefined}
+        />
       )}
 
       {/* Connection Status (retry messages for remote connections) */}

@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.43.1] - 2026-09-23 — One agent header on every tab
+
+The terminal always showed which agent and host you were on; the chat replaced
+the agent's name with its activity ("Agent is working…"), and never showed the
+host or folder, so in the chat you needed the sidebar open to know which agent
+you were talking to.
+
+- New `AgentHeaderBar`, used by the Terminal, Chat and Streaming tabs: status
+  dot, `host / agent`, what the agent is doing next to the name (not instead of
+  it), the agent's folder (`~`-shortened, on wide screens), and each tab's own
+  tools on the right.
+- The folder comes from the agent's stored working directory first (the
+  registry is the source of truth), then its session, then its default.
+
 ## [0.43.0] - 2026-09-23 — Memory: corrections
 
 When the user corrects the agent ("no, that bucket is production", "that makes

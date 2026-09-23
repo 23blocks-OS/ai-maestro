@@ -1,5 +1,7 @@
 'use client'
 
+import AgentHeaderBar from './AgentHeaderBar'
+import { agentWorkingDirectory } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle, ShieldAlert } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
@@ -273,26 +275,25 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-            !connected ? 'bg-red-500' : thinking ? 'bg-amber-400 animate-pulse' : 'bg-green-500'
-          }`} />
-          <div>
-            <h3 className="text-sm font-medium text-gray-200 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              {!connected ? 'Connecting…' : thinking ? 'Streaming…' : (agent.label || agent.name || 'Streaming chat')}
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
-              stream-json (no tmux){meta.model ? ` · ${meta.model}` : ''}
-              {meta.turns ? ` · ${meta.turns} turns` : ''}
-              {meta.cost ? ` · $${meta.cost.toFixed(4)}` : ''}
-            </p>
-          </div>
-        </div>
-        <span className="text-[10px] uppercase tracking-wide text-amber-400/70 border border-amber-400/30 rounded px-1.5 py-0.5">PoC</span>
-      </div>
+      {/* Header: which agent, where, what it is doing (shared with the terminal and chat tabs) */}
+      <AgentHeaderBar
+        hostId={agent.hostId}
+        name={agent.label || agent.name || agent.alias || 'Agent'}
+        workingDirectory={agentWorkingDirectory(agent)}
+        dotClass={!connected ? 'bg-red-500' : thinking ? 'bg-amber-400 animate-pulse' : 'bg-green-500'}
+        dotTitle={!connected ? 'Connecting' : thinking ? 'Streaming' : 'Connected'}
+        status={
+          !connected ? <span className="text-red-400">connecting…</span>
+          : thinking ? <span className="text-amber-300">streaming…</span>
+          : <span className="text-gray-500">idle</span>
+        }
+        detail={<>stream-json{meta.model ? ` \u00b7 ${meta.model}` : ''}{meta.turns ? ` \u00b7 ${meta.turns} turns` : ''}{meta.cost ? ` \u00b7 $${meta.cost.toFixed(4)}` : ''}</>}
+        actions={
+          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-400/70 border border-amber-400/30 rounded px-1.5 py-0.5">
+            <Zap className="w-3 h-3" /> PoC
+          </span>
+        }
+      />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4" style={{ minHeight: 0 }}>

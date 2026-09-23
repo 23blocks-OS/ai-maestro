@@ -171,6 +171,15 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  // Memories already checked for relationships, so the backfill never pays twice
+  await createTableIfNotExists('memory_link_checked', `
+    :create memory_link_checked {
+      memory_id: String
+      =>
+      checked_at: Int
+    }
+  `)
+
   console.log('[MEMORY-SCHEMA] ✅ Long-term memory schema initialized')
 }
 
@@ -219,6 +228,11 @@ export async function createMemory(agentDb: AgentDatabase, memory: {
   `)
 }
 
+/** A float list as a CozoDB vector literal. Non-finite values would break the query. */
+export function toCozoVector(values: number[]): string {
+  return `vec([${values.map(v => (Number.isFinite(v) ? v : 0)).join(', ')}])`
+}
+
 /**
  * Store memory embedding
  */
@@ -227,8 +241,10 @@ export async function storeMemoryEmbedding(
   memoryId: string,
   embedding: number[]
 ): Promise<void> {
-  // Convert embedding array to CozoDB vector format
-  const vecString = `<${embedding.join(', ')}>`
+  // CozoDB builds a vector from a list with vec([...]); `<...>` is only the
+  // column type syntax and fails to parse as a value, which meant no memory
+  // embedding was ever stored.
+  const vecString = toCozoVector(embedding)
 
   await agentDb.run(`
     ?[memory_id, vec] <- [[
@@ -328,7 +344,7 @@ export async function searchMemoriesByEmbedding(
 }>> {
   const limit = options.limit || 10
   const minConfidence = options.minConfidence || 0.5
-  const vecString = `<${queryEmbedding.join(', ')}>`
+  const vecString = toCozoVector(queryEmbedding)
 
   // Build category filter
   let categoryFilter = ''
@@ -578,6 +594,19 @@ export async function markConversationConsolidated(
     ]]
     :put consolidated_conversations
   `)
+}
+
+/**
+ * How far each conversation has been consolidated (message offset), keyed by file.
+ */
+export async function getConsolidatedOffsets(
+  agentDb: AgentDatabase
+): Promise<Map<string, number>> {
+  const result = await agentDb.run(`
+    ?[conversation_file, message_count] :=
+      *consolidated_conversations{conversation_file, message_count}
+  `)
+  return new Map(result.rows.map((row: unknown[]) => [row[0] as string, row[1] as number]))
 }
 
 /**

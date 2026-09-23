@@ -68,6 +68,18 @@ function withDeadline(promise, ms, fallback) {
     ]);
 }
 
+// The agent list, fetched at most once per hook run: the inbox check and
+// memory recall both need it and run in parallel. Resolves null on a non-OK
+// response; rejects on a network error so callers keep their own fallbacks.
+let agentsPromise = null;
+function fetchAgentsOnce() {
+    if (!agentsPromise) {
+        agentsPromise = fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) })
+            .then(res => (res.ok ? res.json().then(d => d.agents || []) : null));
+    }
+    return agentsPromise;
+}
+
 // Resolve the agent for this hook invocation.
 // Priority: AIM_AGENT_ID env (exact) > AIM_AGENT_NAME / CLAUDE_AGENT_NAME env
 // (exact) > cwd exact match.
@@ -281,11 +293,8 @@ async function checkUnreadMessagesStandalone() {
 async function checkUnreadMessages(cwd) {
     try {
         // Find agent by working directory
-        const agentsResponse = await fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) });
-        if (!agentsResponse.ok) return null;
-
-        const agentsData = await agentsResponse.json();
-        const agents = agentsData.agents || [];
+        const agents = await fetchAgentsOnce();
+        if (!agents) return null;
         const agent = resolveAgent(cwd, agents);
 
         if (!agent) {
@@ -533,6 +542,85 @@ function saveNotifiedIds(cwd, ids) {
         fs.mkdirSync(path.join(os.homedir(), '.aimaestro', 'chat-state'), { recursive: true });
         fs.writeFileSync(notifiedIdsFile(cwd), JSON.stringify(ids.slice(-200)));
     } catch (e) { debugLog({ event: 'save_notified_ids_failed', error: e.message }); }
+}
+
+// ── Memory recall ────────────────────────────────────────────────────────────
+// Agents should check memory before re-reading files. On SessionStart the hook
+// injects the agent's standing decisions and preferences; on each user prompt,
+// the long-term memories nearest to that prompt. Each memory is injected at most
+// once per session, so a long session is not re-told the same thing every turn.
+const RECALL_PROMPT_LIMIT = 3;
+const RECALL_PRIMER_LIMIT = 6;
+const RECALL_MEMORY_CHARS = 500;
+
+function recalledFile(cwd) {
+    return path.join(os.homedir(), '.aimaestro', 'chat-state', `${hashCwd(cwd)}.recalled.json`);
+}
+function loadRecalled(cwd, sessionId) {
+    try {
+        const o = JSON.parse(fs.readFileSync(recalledFile(cwd), 'utf8'));
+        return (o && o.sessionId === sessionId && Array.isArray(o.ids)) ? o.ids : [];
+    } catch (e) { return []; }
+}
+function saveRecalled(cwd, sessionId, ids) {
+    try {
+        fs.mkdirSync(path.join(os.homedir(), '.aimaestro', 'chat-state'), { recursive: true });
+        fs.writeFileSync(recalledFile(cwd), JSON.stringify({ sessionId, ids: ids.slice(-300) }));
+    } catch (e) { debugLog({ event: 'save_recalled_failed', error: e.message }); }
+}
+
+// Pure: turn recalled memories into the context block. Returns null when empty.
+function buildMemoryNotice(memories, { primer }) {
+    if (!Array.isArray(memories) || memories.length === 0) return null;
+    const lines = memories.map(m => {
+        const text = String(m.content || '').replace(/\s+/g, ' ').trim();
+        const clipped = text.length > RECALL_MEMORY_CHARS ? `${text.slice(0, RECALL_MEMORY_CHARS)}…` : text;
+        const date = m.created_at ? new Date(m.created_at).toISOString().slice(0, 10) : 'undated';
+        return `- [${m.category} · ${date}] ${clipped}`;
+    });
+    const title = primer
+        ? '## Memory: your standing decisions and preferences'
+        : '## Memory: notes from your past sessions on this topic';
+    return [
+        title,
+        'Check these before re-reading files or re-deciding. They are verbatim excerpts from earlier sessions and may be outdated, so verify anything you act on. Search for more with memory-search.sh.',
+        '',
+        ...lines,
+    ].join('\n');
+}
+
+// Pure: drop memories already injected this session.
+function selectFreshMemories(memories, alreadyIds, limit) {
+    const seen = new Set(alreadyIds);
+    return (memories || []).filter(m => m && m.memory_id && !seen.has(m.memory_id)).slice(0, limit);
+}
+
+async function recallMemories(cwd, sessionId, prompt) {
+    try {
+        const agents = await fetchAgentsOnce();
+        if (!agents) return null;
+        const agent = resolveAgent(cwd, agents);
+        if (!agent) return null;
+
+        const primer = !prompt;
+        const limit = primer ? RECALL_PRIMER_LIMIT : RECALL_PROMPT_LIMIT;
+        const qs = primer ? `limit=${limit}` : `limit=${limit + 3}&q=${encodeURIComponent(String(prompt).slice(0, 2000))}`;
+        const res = await fetch(`http://localhost:23000/api/agents/${encodeURIComponent(agent.id)}/memory/recall?${qs}`, {
+            signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS * 2),
+        });
+        if (!res.ok) return null;
+
+        const already = loadRecalled(cwd, sessionId);
+        const fresh = selectFreshMemories((await res.json()).memories, already, limit);
+        if (fresh.length === 0) return null;
+
+        saveRecalled(cwd, sessionId, [...already, ...fresh.map(m => m.memory_id)]);
+        debugLog({ event: 'memory_recalled', agentId: agent.id, primer, count: fresh.length });
+        return buildMemoryNotice(fresh, { primer });
+    } catch (err) {
+        debugLog({ event: 'memory_recall_error', error: err.message });
+        return null;
+    }
 }
 
 // Multi-line reason handed back to Claude on a Stop-hook block — its instruction
@@ -831,13 +919,16 @@ async function main() {
             });
 
             // Check for unread messages and meeting inject queue
-            const [startMessagePrompt, startMeetingContext] = await withDeadline(Promise.all([
-                checkUnreadMessages(cwd),
-                drainMeetingInjectQueue(cwd)
-            ]), INJECT_DEADLINE_MS, [null, null]);
-            const startCombined = [startMessagePrompt, startMeetingContext].filter(Boolean).join('\n\n');
+            // ...and the agent's standing decisions/preferences from long-term memory.
+            // Each part has its own deadline so a slow recall never costs the inbox.
+            const [startMessagePrompt, startMeetingContext, startMemory] = await Promise.all([
+                withDeadline(checkUnreadMessages(cwd), INJECT_DEADLINE_MS, null),
+                withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
+                withDeadline(recallMemories(cwd, sessionId, null), INJECT_DEADLINE_MS, null)
+            ]);
+            const startCombined = [startMessagePrompt, startMeetingContext, startMemory].filter(Boolean).join('\n\n');
             if (startCombined) {
-                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'session_start', hasInbox: !!startMessagePrompt, hasMeeting: !!startMeetingContext });
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'session_start', hasInbox: !!startMessagePrompt, hasMeeting: !!startMeetingContext, hasMemory: !!startMemory });
                 hookResponse = buildContextResponse(agent, rawEvent, startCombined);
             }
             break;
@@ -859,13 +950,18 @@ async function main() {
             // Drain on every user prompt — this is the reliable delivery slot
             // for Claude Code. SessionStart can be preempted by other plugins'
             // hooks; UserPromptSubmit fires once per user turn and is rarely contended.
-            const [upsInbox, upsMeeting] = await withDeadline(Promise.all([
-                checkUnreadMessages(cwd),
-                drainMeetingInjectQueue(cwd)
-            ]), INJECT_DEADLINE_MS, [null, null]);
-            const upsContext = [upsMeeting, upsInbox].filter(Boolean).join('\n\n');
+            //
+            // Memory recall runs alongside: the long-term memories nearest to what
+            // the user just asked, so the agent sees past decisions before it
+            // starts reading files.
+            const [upsInbox, upsMeeting, upsMemory] = await Promise.all([
+                withDeadline(checkUnreadMessages(cwd), INJECT_DEADLINE_MS, null),
+                withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
+                input.prompt ? withDeadline(recallMemories(cwd, sessionId, input.prompt), INJECT_DEADLINE_MS, null) : null
+            ]);
+            const upsContext = [upsMeeting, upsInbox, upsMemory].filter(Boolean).join('\n\n');
             if (upsContext) {
-                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting });
+                debugLog({ event: 'injecting_context', cwd, agent, trigger: 'user_prompt_submit', hasInbox: !!upsInbox, hasMeeting: !!upsMeeting, hasMemory: !!upsMemory });
                 hookResponse = buildContextResponse(agent, rawEvent, upsContext);
             }
             break;
@@ -895,6 +991,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+    buildMemoryNotice,
+    selectFreshMemories,
     buildAmpBlockReason,
     filterFreshMessages,
     decideStopDelivery,

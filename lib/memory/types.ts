@@ -68,7 +68,8 @@ export interface LLMProvider {
  * Consolidation options
  */
 export interface ConsolidationOptions {
-  provider?: 'ollama' | 'claude' | 'auto'
+  /** 'auto' prefers the Jev classifier when configured, then Ollama, then Claude */
+  provider?: 'jev' | 'ollama' | 'claude' | 'auto'
   dryRun?: boolean
   maxConversations?: number
   minConfidence?: number
@@ -90,6 +91,10 @@ export interface ConsolidationResult {
   duration_ms: number
   errors: string[]
   provider_used: string
+  /** Classifier runs only: passages sent to the classifier */
+  chunks_classified?: number
+  /** True when the per-run chunk cap was hit; the next run continues */
+  more_remaining?: boolean
 }
 
 /**
@@ -131,7 +136,7 @@ export interface MemorySettings {
     enabled: boolean
     schedule: 'nightly' | 'weekly' | 'manual'
     nightlyTime: string  // "02:00" format (24h)
-    llmProvider: 'ollama' | 'claude' | 'auto'
+    llmProvider: 'jev' | 'ollama' | 'claude' | 'auto'
     ollamaModel: string
     ollamaEndpoint: string
     claudeModel: string
@@ -162,7 +167,7 @@ export const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
     llmProvider: 'auto',
     ollamaModel: 'llama3.2',
     ollamaEndpoint: 'http://localhost:11434',
-    claudeModel: 'claude-3-haiku-20240307',
+    claudeModel: 'claude-haiku-4-5-20251001',
     minConfidence: 0.7,
     maxMemoriesPerConversation: 10
   },
@@ -199,6 +204,8 @@ export interface PreparedConversation {
   first_message_at?: number
   last_message_at?: number
   project_path?: string
+  /** Messages already consolidated in earlier runs; only messages past this are processed */
+  consolidated_offset?: number
 }
 
 /**

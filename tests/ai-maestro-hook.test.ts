@@ -359,3 +359,42 @@ describe('ai-maestro-hook · pruneAnnounced', () => {
     expect(hook.pruneAnnounced({ a: 'not-a-number' } as never, 0)).toEqual({})
   })
 })
+
+// Memory recall: agents should see past decisions before re-reading files,
+// and a long session should not be re-told the same memory every turn.
+describe('ai-maestro-hook · memory recall', () => {
+  const mem = (id: string, category = 'decision', content = `memory ${id}`) =>
+    ({ memory_id: id, category, content, created_at: Date.UTC(2026, 8, 22) })
+
+  it('returns null when there is nothing to recall', () => {
+    expect(hook.buildMemoryNotice([], { primer: false })).toBeNull()
+    expect(hook.buildMemoryNotice(undefined, { primer: true })).toBeNull()
+  })
+
+  it('formats category, date and verbatim content, and tells the agent to check before reading files', () => {
+    const notice = hook.buildMemoryNotice([mem('a', 'decision', 'Store memories\n\nverbatim.')], { primer: false })
+    expect(notice).toContain('## Memory: notes from your past sessions on this topic')
+    expect(notice).toContain('before re-reading files')
+    expect(notice).toContain('- [decision · 2026-09-22] Store memories verbatim.')
+  })
+
+  it('uses the standing-decisions title for the session-start primer', () => {
+    expect(hook.buildMemoryNotice([mem('a', 'preference')], { primer: true }))
+      .toContain('## Memory: your standing decisions and preferences')
+  })
+
+  it('clips long memories', () => {
+    const notice = hook.buildMemoryNotice([mem('a', 'fact', 'z'.repeat(2000))], { primer: false })
+    expect(notice.length).toBeLessThan(900)
+    expect(notice).toContain('…')
+  })
+
+  it('never re-injects a memory already shown this session', () => {
+    const fresh = hook.selectFreshMemories([mem('a'), mem('b'), mem('c'), mem('d')], ['a', 'c'], 3)
+    expect(fresh.map((m: any) => m.memory_id)).toEqual(['b', 'd'])
+  })
+
+  it('respects the limit', () => {
+    expect(hook.selectFreshMemories([mem('a'), mem('b'), mem('c')], [], 2)).toHaveLength(2)
+  })
+})

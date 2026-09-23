@@ -10,12 +10,13 @@ import AboutSection from '@/components/settings/AboutSection'
 import OnboardingSection from '@/components/settings/OnboardingSection'
 import ExperimentsSection from '@/components/settings/ExperimentsSection'
 import MarketplaceSection from '@/components/settings/MarketplaceSection'
+import MemorySection from '@/components/settings/MemorySection'
 import { VersionChecker } from '@/components/VersionChecker'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState<'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'>('hosts')
+  const [activeSection, setActiveSection] = useState<'hosts' | 'domains' | 'webhooks' | 'memory' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'>('hosts')
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white">
@@ -42,6 +43,7 @@ export default function SettingsPage() {
           {activeSection === 'hosts' && <HostsSection />}
           {activeSection === 'domains' && <DomainsSection />}
           {activeSection === 'webhooks' && <WebhooksSection />}
+          {activeSection === 'memory' && <MemorySection />}
           {activeSection === 'marketplace' && <MarketplaceSection />}
           {activeSection === 'experiments' && <ExperimentsSection />}
           {activeSection === 'onboarding' && <OnboardingSection />}

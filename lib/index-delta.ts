@@ -454,6 +454,15 @@ export async function runIndexDelta(
   agentId: string,
   options: { dryRun?: boolean; batchSize?: number } = {}
 ): Promise<IndexDeltaResult> {
+  // Pinned for the whole run: a large index (1,700+ batches) outlives many
+  // LRU evictions, and eviction closes the agent's database mid-write.
+  return agentRegistry.withAgent(agentId, () => runIndexDeltaPinned(agentId, options))
+}
+
+async function runIndexDeltaPinned(
+  agentId: string,
+  options: { dryRun?: boolean; batchSize?: number }
+): Promise<IndexDeltaResult> {
   const { dryRun = false, batchSize = 10 } = options
 
   const releaseSlot = await acquireIndexSlot(agentId)

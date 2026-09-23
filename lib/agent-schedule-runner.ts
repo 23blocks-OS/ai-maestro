@@ -118,7 +118,16 @@ async function runTask(agentId: string, task: ScheduledTask): Promise<TaskRunRes
  * transition — an agent that goes idle frequently would otherwise hammer a
  * broken task continuously.
  */
-export async function runDueTasks(agentId: string, opts: DueOptions = {}): Promise<ScheduleRunResult> {
+/**
+ * Automatic triggers (idle transitions and the sweep) only start daily tasks
+ * in the 6 hours after their scheduled time: consolidation is heavy, runs in
+ * the server process, and belongs to the night (2-8 AM). Letting idle
+ * transitions catch up at any hour (v0.41.1) put multi-minute consolidations
+ * into the working day. The Memory tab's Consolidate button is unaffected.
+ */
+export const DAILY_TASK_WINDOW_HOURS = 6
+
+export async function runDueTasks(agentId: string, opts: DueOptions = { dailyWindowHours: DAILY_TASK_WINDOW_HOURS }): Promise<ScheduleRunResult> {
   if (inFlight.has(agentId)) return { agentId, ran: [], skipped: 1 }
   inFlight.add(agentId)
   try {

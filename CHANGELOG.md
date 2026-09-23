@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.3] - 2026-09-23 — Memory work at night; agents stay open while in use
+
+- **Dashboard resets after v0.41.0.** The new maintenance sweep ran all day and
+  its first passes caught up 26 days of unindexed conversations, embedding
+  thousands of messages inside the server process; the dashboard reset while it
+  ran. The sweep now runs only between 2 and 8 AM; in the day, indexing happens
+  on each agent's idle transition as before. Automatic consolidation (idle
+  transitions included) also starts only in that window; the Memory tab's
+  Consolidate button is unaffected.
+- **Consolidation failing with HTTP 500 "Database not initialized".** A
+  multi-minute consolidation lost its database when the 10-slot agent LRU
+  evicted that agent to load another. Agents doing consolidation or indexing
+  are now pinned; eviction skips them (going over capacity rather than closing
+  a database in use).
+- **Diagnostics.** Each dashboard page load reports its navigation type, how
+  long the previous page lived and its last uncaught error to the server log
+  (`[CLIENT]`), so an unexplained reset can be traced.
+
 ## [0.41.2] - 2026-09-23 — Security conversations are no longer unrememberable
 
 A firewall in front of the Jev API answers a permanent 403 to text that looks

@@ -995,10 +995,17 @@ export class Agent {
  *
  * Default: max 10 agents in memory at once
  */
-class AgentRegistry {
+export class AgentRegistry {
   private agents = new Map<string, Agent>()
   private accessOrder: string[] = []  // Most recently accessed at the end
   private maxAgents: number
+  /**
+   * Agents in the middle of long work (consolidation, indexing), ref-counted.
+   * Eviction closes an agent's database; evicting one mid-consolidation made the
+   * run fail with "Database not initialized" and HTTP 500 (2026-09-23), because
+   * the sweep kept loading other agents into the 10-slot LRU meanwhile.
+   */
+  private pins = new Map<string, number>()
 
   constructor(maxAgents = 10) {
     this.maxAgents = maxAgents
@@ -1021,7 +1028,11 @@ class AgentRegistry {
    */
   private async evictIfNeeded(): Promise<void> {
     while (this.agents.size >= this.maxAgents && this.accessOrder.length > 0) {
-      const lruAgentId = this.accessOrder.shift()!
+      // Least recently used agent that is not pinned. If every resident agent
+      // is busy, go over capacity rather than close a database in use.
+      const index = this.accessOrder.findIndex(id => !this.pins.has(id))
+      if (index === -1) return
+      const lruAgentId = this.accessOrder.splice(index, 1)[0]
       const agent = this.agents.get(lruAgentId)
       if (agent) {
         console.log(`[AgentRegistry] Evicting LRU agent ${lruAgentId.substring(0, 8)} (${this.agents.size}/${this.maxAgents})`)
@@ -1032,6 +1043,22 @@ class AgentRegistry {
         }
         this.agents.delete(lruAgentId)
       }
+    }
+  }
+
+  /**
+   * Run `fn` with the agent loaded and protected from LRU eviction for its
+   * whole duration (its database stays open).
+   */
+  async withAgent<T>(agentId: string, fn: (agent: Agent) => Promise<T>): Promise<T> {
+    this.pins.set(agentId, (this.pins.get(agentId) || 0) + 1)
+    try {
+      const agent = await this.getAgent(agentId)
+      return await fn(agent)
+    } finally {
+      const n = (this.pins.get(agentId) || 1) - 1
+      if (n <= 0) this.pins.delete(agentId)
+      else this.pins.set(agentId, n)
     }
   }
 

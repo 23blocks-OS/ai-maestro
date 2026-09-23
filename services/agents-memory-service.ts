@@ -707,11 +707,16 @@ interface RecalledEntity {
 async function recallEntities(agentDb: AgentDatabase, entityIds: string[]): Promise<RecalledEntity[]> {
   if (entityIds.length === 0) return []
   const rows = await agentDb.run(`
-    ?[entity_id, name, type] := *entities{entity_id, name, type}, entity_id in [${entityIds.map(id => escapeForCozo(id)).join(', ')}]
+    ?[entity_id, name, type, mention_count] := *entities{entity_id, name, type, mention_count}, entity_id in [${entityIds.map(id => escapeForCozo(id)).join(', ')}]
   `)
+  // A hub (in a quarter or more of the agent's memories, like the product it
+  // works on) relates to everything; its relations tell the agent nothing.
+  // Same rule as the graph view (lib/memory/cards.ts entityGraph).
+  const total = await agentDb.run(`?[count(memory_id)] := *memories{memory_id, tier}, tier != 'faded'`)
+  const hubAt = Math.max(8, Math.ceil(((total.rows[0]?.[0] as number) || 0) * 0.25))
   const out: RecalledEntity[] = []
-  for (const [id, name, type] of rows.rows as [string, string, string][]) {
-    if (isGenericEntity(name, type)) continue
+  for (const [id, name, type, mentions] of rows.rows as [string, string, string, number][]) {
+    if (isGenericEntity(name, type) || (mentions || 0) >= hubAt) continue
     const rels = await entityNeighbourhood(agentDb, id, RECALL_RELATIONS_PER_ENTITY)
     if (rels.length === 0) continue // a name with no relations adds nothing the memories do not say
     out.push({ entity_id: id, name, type, relations: rels.map(r => describeRelation(name, r)) })

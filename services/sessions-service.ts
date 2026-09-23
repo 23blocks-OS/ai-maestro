@@ -19,6 +19,7 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
+import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import http from 'http'
@@ -782,6 +783,12 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   programError?: string
   /** The shell's own complaint, verbatim. */
   shellSaid?: string
+  /** The folder the agent works in, after resolving (~/agents/<name> when none was given) */
+  workingDirectory?: string
+  /** Things to tell the person (a Windows path translated, a Windows folder chosen) */
+  warnings?: string[]
+  /** On WSL: where Windows Explorer can open the agent's folder */
+  windowsPath?: string
 }>> {
   const { name, workingDirectory, agentId, hostId, label, avatar, programArgs, program } = params
 
@@ -841,7 +848,14 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     return alreadyExists('Session', actualSessionName)
   }
 
-  const cwd = workingDirectory || process.cwd()
+  // An empty folder is ~/agents/<name> (created), a Windows path is translated
+  // (WSL), a missing folder is refused. It used to be process.cwd() — the AI
+  // Maestro install directory — while the UI said "home directory".
+  const where = resolveWorkingDirectory(workingDirectory, normalizedName)
+  if (!where.ok || !where.cwd) {
+    return invalidField('workingDirectory', where.error || 'Unusable working directory')
+  }
+  const cwd = where.cwd
   await runtime.createSession(actualSessionName, cwd)
 
   // Register agent
@@ -948,6 +962,10 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
       name: actualSessionName,
       agentId: registeredAgent?.id,
       programStarted: launchVerdict.started,
+      workingDirectory: cwd,
+      ...(where.warnings.length ? { warnings: where.warnings } : {}),
+      // On Windows: where Explorer / VS Code can open the agent's files
+      ...(where.windowsPath ? { windowsPath: where.windowsPath } : {}),
       // Surfaced so the UI can say what is wrong at the moment the agent is
       // created, rather than leaving someone to discover it by talking to a shell.
       ...(launchVerdict.error ? { programError: launchVerdict.error, shellSaid: launchVerdict.shellSaid } : {}),

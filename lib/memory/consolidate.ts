@@ -24,6 +24,7 @@ import {
   recordConsolidationRun,
   updateConsolidationRun,
   markConversationConsolidated,
+  initializeMemorySchema,
   MemoryCategory
 } from '../cozo-schema-memory'
 import {
@@ -406,6 +407,20 @@ export async function consolidateMemories(
   let chunksClassified = 0
   let moreRemaining = false
 
+  // Heal the schema first: a database whose migration was interrupted (a lock
+  // from another connection) would otherwise fail below on a missing table.
+  if (!dryRun) {
+    try {
+      await initializeMemorySchema(agentDb)
+    } catch (err) {
+      return {
+        run_id: runId, status: 'failed', conversations_processed: 0, memories_created: 0,
+        memories_reinforced: 0, memories_linked: 0, duration_ms: Date.now() - startTime,
+        errors: [`Memory schema: ${(err as Error).message}`], provider_used: 'none'
+      }
+    }
+  }
+
   const choice = await getProvider(options)
   if (choice.kind === 'none') {
     return {
@@ -536,7 +551,11 @@ export async function consolidateMemories(
 
   // Give memories stored before linking existed (or whose link check failed) their edges
   if (choice.kind === 'classifier' && !dryRun) {
-    await backfillLinks(agentDb, agentId, choice.classifier, counters, errors)
+    try {
+      await backfillLinks(agentDb, agentId, choice.classifier, counters, errors)
+    } catch (err) {
+      errors.push(`Link backfill: ${(err as Error).message}`)
+    }
   }
 
   const status = errors.length > 0 && conversationsProcessed === 0 && counters.linked === 0 ? 'failed' : 'completed'

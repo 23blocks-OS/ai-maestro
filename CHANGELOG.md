@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.43.2] - 2026-09-23 — Backlog: F010
+
+Logged F010: deliver AMP messages through Claude Code's own cross-session inbox
+(documented for scripts; wakes idle sessions; not plan-gated like Channels).
+
 ## [0.43.1] - 2026-09-23 — One agent header on every tab
 
 The terminal always showed which agent and host you were on; the chat replaced

@@ -20,6 +20,10 @@ import {
   readHookState,
   hookStateFilePath,
 } from './lib/chat-transcript.mjs'
+// F004 Phase 2: a codex agent has no AI Maestro hook, so its live "working"
+// indicator is derived from the turn-lifecycle events in its own transcript.
+import { codexLiveStatus, codexLiveStatusFromFile } from './lib/transcript-codex.mjs'
+const isCodexProgram = (agent) => (agent?.program || '').toLowerCase().includes('codex')
 import {
   getOrCreateStreamSession,
   destroyAllStreamSessions,
@@ -206,6 +210,14 @@ async function getChatHistory(sessionName, agentId) {
   const workingDir = getAgentWorkingDir(agent)
   let hookState = readHookState(workingDir)
 
+  // F004 Phase 2: codex has no hook-written state. Derive its live "working"
+  // pulse from the turn-lifecycle events in the transcript we just parsed.
+  // 'working' → an amber indicator; anything else falls through to ChatView's
+  // message heuristic (last message ⇒ idle).
+  if (isCodexProgram(agent)) {
+    hookState = codexLiveStatus(lines) === 'working' ? { status: 'working', source: 'codex' } : null
+  }
+
   // If the file no longer has permission_request but the server remembers one,
   // serve the remembered one — this is what keeps a pending approval visible
   // across a tab switch, when the component unmounts and remounts.
@@ -308,6 +320,7 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
     }, 10000)
 
     sessionState.jsonlWatcher = true
+    sessionState._codexAgent = isCodexProgram(agent)
 
     // Watch hook state file for real-time permission/status updates
     const workingDir = getAgentWorkingDir(agent)
@@ -366,6 +379,23 @@ function detectPermissionFromPane(sessionName) {
  */
 function broadcastHookState(sessionName, sessionState) {
   if (!sessionState.chatClients || sessionState.chatClients.size === 0) return
+
+  // F004 Phase 2: codex has no hook state and no AskUserQuestion/permission menu
+  // we can parse yet (Phase 2b). Its live status comes from its own transcript's
+  // turn-lifecycle events. Read only the tail of the watched rollout.
+  if (sessionState._codexAgent) {
+    if (!sessionState.jsonlFilePath) return
+    const s = codexLiveStatusFromFile(sessionState.jsonlFilePath)
+    const codexState = s === 'working' ? { status: 'working', source: 'codex' } : null
+    const codexJson = JSON.stringify(codexState)
+    if (codexJson !== sessionState._lastHookState) {
+      sessionState._lastHookState = codexJson
+      const msg = JSON.stringify({ type: 'chat:hookState', data: codexState })
+      sessionState.chatClients.forEach(ws => { if (ws.readyState === 1) ws.send(msg) })
+    }
+    return
+  }
+
   const workingDir = sessionState._hookStateWorkingDir
   if (!workingDir) return
   let state = readHookState(workingDir)

@@ -572,8 +572,10 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const showPermission = isPermission && !paneCardBelongsToTranscriptQuestion(messages, hookState)
   const isWaiting = hookState?.status === 'waiting_for_input'
   const isSendingMsg = sending
-  const isWorking = !sending && (pendingMessages.length > 0 || (messages.length > 0 && !isWaiting && !showPermission &&
-    (messages[messages.length - 1]?.type === 'user' || messages[messages.length - 1]?.type === 'human')))
+  // F004 Phase 2: codex reports 'working' from its transcript (no hook).
+  const isCodexWorking = hookState?.status === 'working'
+  const isWorking = isCodexWorking || (!sending && (pendingMessages.length > 0 || (messages.length > 0 && !isWaiting && !showPermission &&
+    (messages[messages.length - 1]?.type === 'user' || messages[messages.length - 1]?.type === 'human'))))
 
   return (
     <div className="flex flex-col h-full bg-gray-900">

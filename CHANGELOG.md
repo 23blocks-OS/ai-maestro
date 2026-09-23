@@ -44,6 +44,45 @@ needed — the evidence was on disk. Two distinct, real, fixable bugs.
   UserPromptSubmit+UserPromptSubmit with byte-identical prompts, which pointed at
   delivery, not at Claude Code double-firing.
 
+## [0.38.36] - 2026-09-22 — Codex live "working" indicator (F004 Phase 2a)
+
+Phase 1 gave a codex agent its conversation in the chat. This gives it a live
+state: an amber "working" pulse while codex is mid-turn, the same one Claude
+agents show.
+
+### Added
+- **`codexLiveStatus`** — codex has no AI Maestro hook (that is Claude Code's),
+  but it brackets every turn in its own transcript with `event_msg`
+  `task_started` … `task_complete`. The LAST such event is the live signal:
+  `task_started` with nothing after it → **working**; `task_complete` → idle.
+  `codexLiveStatusFromFile` reads only the file tail so a large rollout is not
+  re-read every poll.
+- Surfaced through the **same seam the chat already uses** for hook state —
+  `getChatHistory` (initial) and the 2.5s `broadcastHookState` poll (live) — as
+  `hookState.status: 'working'`. Both chat renderers map that to their existing
+  amber "working" indicator. No codex config and no per-agent install: it rides
+  the Phase 1 transcript watcher, so it updates the moment codex starts or
+  finishes a turn.
+
+### Result
+- A codex agent's chat now shows working ↔ idle live, not just static history.
+  Verified: Nico reads `idle` after a completed turn; the working transition is
+  covered by tests.
+
+### Still Phase 2b (not here)
+- The **sidebar/session-list dot** still reads the hook-populated
+  `sessionActivity` map, so codex can show `disconnected` there — a follow-up
+  deriving it from the same `codexLiveStatus`.
+- **Approval / permission cards** for codex — a different approval UX than
+  Claude's `AskUserQuestion`; needs its own eval on whether codex's prompt is
+  readable outside the TUI.
+
+### Tests
+- 8 more (`tests/transcript-codex.test.ts`, now 29): last-event-wins across many
+  turns, no-turn-event → null, a message whose TEXT contains "task_started" is
+  not misread, malformed lines tolerated, and the tail read on a large file.
+  Full suite 1532/1532.
+
 ## [0.38.35] - 2026-09-22 — Codex chat: AI Maestro now works with both main AI CLIs (F004 Phase 1)
 
 The chat panel showed "no messages" for a codex agent — not because codex has no

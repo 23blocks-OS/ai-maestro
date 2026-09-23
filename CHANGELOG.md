@@ -44,6 +44,59 @@ needed — the evidence was on disk. Two distinct, real, fixable bugs.
   UserPromptSubmit+UserPromptSubmit with byte-identical prompts, which pointed at
   delivery, not at Claude Code double-firing.
 
+## [0.39.0] - 2026-09-22 — Multi-provider chat, and a reliability + security hardening cycle
+
+Milestone release. The headline is that **AI Maestro now works with both main AI
+coding CLIs** — Claude Code *and* Codex — in the chat, not just the terminal. It
+lands on top of a full cycle of messaging-reliability and security fixes, each
+already shipped and deployed across the fleet as a 0.38.x patch and consolidated
+here.
+
+### Headline — Codex is a first-class chat citizen (F004)
+The chat was a Claude Code transcript viewer, hardcoded to `~/.claude/projects`.
+It is now multi-provider through a clean transcript-source seam:
+- **History + live updates** — a codex agent's real conversation, read from
+  `~/.codex/sessions/**/rollout-*.jsonl`, mapped to the shapes the chat already
+  renders. Dispatch by `agent.program` + per-line format detection; both call
+  sites (initial load and the live watcher) unchanged. (0.38.35)
+- **Live "working" indicator** — derived from codex's own `task_started` /
+  `task_complete` turn events, since codex runs no AI Maestro hook. (0.38.36)
+- **Sidebar status** — the session dot no longer shows a working codex agent as
+  `disconnected`; it reads the same transcript signal. (0.38.37)
+- Approval cards were **evaluated and deferred with reason**: codex keeps
+  approval state in the TUI only, so cards need a captured prompt sample we do
+  not have — the terminal tab handles codex approvals today. The seam admits
+  Gemini/Aider next, one adapter each.
+
+### Security
+- **Closed a critical unauthenticated tmux command-injection RCE**
+  (GHSA-2vm8-3q4q-wqv3) — a bypass of the earlier CVE fix — as a whole class:
+  every tmux call now runs through `lib/tmux-safe.mjs` (execFile + argument
+  vector, validated session name), plus a validated `/term` WebSocket entry.
+  (0.38.27). Confirmed the `gray-matter` RCE (GHSA-g7qj) was already closed.
+- **Reply-target safety** — `amp-reply` now enforces "reply to the message you
+  just read," closing the `amp-inbox | head -1` misroute that put one party's
+  detail in another agent's mailbox. Fixed at the upstream source. It has since
+  caught multiple real misroutes in the field. (0.38.29)
+- Documented the deliberate **no-auth-by-design** posture (network/Tailscale is
+  the trust boundary) with a per-host exposure check. (0.38.31–32)
+
+### Messaging reliability (the notifier arc)
+- Inbox notifier no longer re-announces the same message every turn, names the
+  message with an id that `amp-read` accepts, and words repeats honestly
+  ("Still unread" not "new"). (0.38.24–25)
+- The wake queue no longer re-fires a message the agent already read — the actual
+  source of the "answered message keeps coming back" reports. (0.38.28)
+- Duplicate pane delivery collapsed, and the UserPromptSubmit hook's fetches are
+  bounded so a slow server can't blow Claude Code's 5s hook budget. (0.38.34)
+- `markMessageAsRead` writes what it claims to; the pane permission card defers
+  to transcript identity instead of screen position, so an answered question
+  can't resurrect. (0.38.25, 0.38.33)
+
+### Housekeeping
+- Backlog restructured to the 23blocks convention (`BACKLOG.md` index +
+  `backlog/`), with F001–F004 and B001–B005 filed. (0.38.26)
+
 ## [0.38.37] - 2026-09-22 — Codex sidebar status; approval cards evaluated (F004 Phase 2b — complete)
 
 ### Fixed

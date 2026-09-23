@@ -290,6 +290,15 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  // Memories whose entities were checked for relations (so the backfill never pays twice)
+  await createTableIfNotExists('entity_relation_checked', `
+    :create entity_relation_checked {
+      memory_id: String
+      =>
+      checked_at: Int
+    }
+  `)
+
   // One-time data migrations already applied to this database
   await createTableIfNotExists('memory_migrations', `
     :create memory_migrations {

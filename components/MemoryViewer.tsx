@@ -33,6 +33,8 @@ interface Memory {
 
 interface GraphNode {
   id: string
+  /** Entity mode: mentioned in a quarter of all memories (e.g. the agent's own project) */
+  hub?: boolean
   category: string
   tier: string
   content: string
@@ -72,6 +74,8 @@ interface MemoryViewerProps {
 }
 
 const PAGE_SIZE = 100
+const GRAPH_W = 900
+const GRAPH_H = 540
 
 /** Entity node colours for the entity graph and entity chips. */
 const ENTITY_COLORS: Record<string, string> = {
@@ -118,6 +122,8 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
 export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }: MemoryViewerProps) {
   const [view, setView] = useState<'list' | 'graph'>('list')
   const [graphMode, setGraphMode] = useState<'entities' | 'memories'>('entities')
+  const [entityFocus, setEntityFocus] = useState<string | null>(null)
+  const [entityDetail, setEntityDetail] = useState<EntityDetail | null>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [memoriesTotal, setMemoriesTotal] = useState<number | null>(null)
   const [showFaded, setShowFaded] = useState(false)
@@ -206,16 +212,23 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     try {
       if (graphMode === 'entities') {
         // Entities are the nodes; typed relations (and co-mentions) are the edges
-        const response = await fetch(`${hostUrl}/api/agents/${agentId}/memory/long-term?view=entity-graph&limit=150`)
+        const focusParam = entityFocus ? `&focus=${encodeURIComponent(entityFocus)}` : ''
+        const response = await fetch(`${hostUrl}/api/agents/${agentId}/memory/long-term?view=entity-graph&limit=120${focusParam}`)
         if (response.ok) {
           const data = await response.json()
           const g = data.graph || { nodes: [], links: [] }
           setGraphData({
-            nodes: g.nodes.map((n: { id: string; name: string; type: string; mention_count: number }) => ({
-              id: n.id, category: n.type, tier: '', content: n.name, confidence: 1, reinforcement_count: n.mention_count,
+            nodes: g.nodes.map((n: { id: string; name: string; type: string; mention_count: number; hub?: boolean }) => ({
+              id: n.id, category: n.type, tier: '', content: n.name, confidence: 1, reinforcement_count: n.mention_count, hub: n.hub,
             })),
             links: g.links,
           })
+        }
+        if (entityFocus) {
+          const detail = await fetch(`${hostUrl}/api/agents/${agentId}/memory/entity?name=${encodeURIComponent(entityFocus)}`)
+          setEntityDetail(detail.ok ? await detail.json() : null)
+        } else {
+          setEntityDetail(null)
         }
         return
       }
@@ -227,7 +240,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     } catch (error) {
       console.error('Failed to fetch graph:', error)
     }
-  }, [agentId, hostUrl, graphMode])
+  }, [agentId, hostUrl, graphMode, entityFocus])
 
   // Trigger consolidation
   const triggerConsolidation = async () => {
@@ -295,7 +308,7 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
     if (view === 'graph') {
       fetchGraph()
     }
-  }, [view, agentId, graphMode])
+  }, [view, agentId, graphMode, entityFocus])
 
   // Handle edit
   const startEdit = (memory: Memory) => {
@@ -589,11 +602,23 @@ export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }
               </button>
             ))}
           </div>
+          {graphMode === 'entities' && entityFocus && (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <button onClick={() => setEntityFocus(null)} className="hover:text-gray-200">← All entities</button>
+              <span>/</span>
+              <span className="text-gray-200">{entityFocus}</span>
+            </div>
+          )}
           <MemoryGraph
             data={graphData}
             loading={loading}
             mode={graphMode}
+            focusId={graphMode === 'entities' && entityFocus ? graphData?.nodes.find(n => n.content === entityFocus)?.id ?? null : null}
+            onNodeClick={graphMode === 'entities' ? (node) => setEntityFocus(node.content) : undefined}
           />
+          {graphMode === 'entities' && entityDetail && (
+            <EntityPanel detail={entityDetail} onSelect={name => setEntityFocus(name)} />
+          )}
         </div>
       )}
 
@@ -906,15 +931,68 @@ function MemoryList({
 }
 
 // Force-Directed Graph Component
+interface EntityDetail {
+  entity: { name: string; type: string; aliases: string[]; mention_count: number }
+  relations: Array<{ direction: 'in' | 'out'; predicate: string; name: string; type: string }>
+  memories: Array<Memory>
+}
+
+/** One entity: what it relates to (click to walk the graph) and the memories behind it. */
+function EntityPanel({ detail, onSelect }: { detail: EntityDetail; onSelect: (name: string) => void }) {
+  const { entity, relations, memories } = detail
+  return (
+    <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4 space-y-3">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="text-base font-semibold text-gray-100">{entity.name}</span>
+          <span className="text-xs px-2 py-0.5 rounded-full border" style={{ borderColor: `${ENTITY_COLORS[entity.type] || '#6b7280'}60`, color: ENTITY_COLORS[entity.type] || '#9ca3af' }}>{entity.type}</span>
+          <span className="text-xs text-gray-500">in {entity.mention_count} {entity.mention_count === 1 ? 'memory' : 'memories'}</span>
+        </div>
+        {entity.aliases.length > 0 && <div className="text-xs text-gray-500 mt-1">also: {entity.aliases.join(', ')}</div>}
+      </div>
+      {relations.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-gray-400 mb-1">Relations</div>
+          <div className="flex flex-col gap-1 text-sm">
+            {relations.map((r, i) => (
+              <div key={i} className="text-gray-300">
+                {r.direction === 'out'
+                  ? <><span className="text-gray-500">{r.predicate.replace('_', ' ')}</span>{' '}<button onClick={() => onSelect(r.name)} className="text-blue-400 hover:underline">{r.name}</button></>
+                  : <><button onClick={() => onSelect(r.name)} className="text-blue-400 hover:underline">{r.name}</button>{' '}<span className="text-gray-500">{r.predicate.replace('_', ' ')} this</span></>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div>
+        <div className="text-xs font-medium text-gray-400 mb-1">Memories</div>
+        <div className="space-y-2">
+          {memories.map(m => (
+            <div key={m.memory_id} className="text-sm text-gray-200 border-l-2 pl-2" style={{ borderColor: CATEGORY_COLORS[m.category] || '#6b7280' }}>
+              {m.card?.status === 'done' ? m.card.statement : m.content.slice(0, 300)}
+              {m.reinforcement_count > 1 && <span className="ml-2 text-xs text-amber-400">seen in {m.reinforcement_count} sessions</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MemoryGraph({
   data,
   loading,
-  mode = 'memories'
+  mode = 'memories',
+  focusId = null,
+  onNodeClick
 }: {
   data: { nodes: GraphNode[], links: GraphLink[] } | null
   loading: boolean
   /** 'entities': nodes are entities (category = entity type, reinforcement_count = mentions) */
   mode?: 'entities' | 'memories'
+  /** Entity mode: the entity the graph is centred on */
+  focusId?: string | null
+  onNodeClick?: (node: GraphNode) => void
 }) {
   const entityMode = mode === 'entities'
   const nodeColors = entityMode ? ENTITY_COLORS : CATEGORY_COLORS
@@ -931,8 +1009,8 @@ function MemoryGraph({
   useEffect(() => {
     if (!data) return
 
-    const width = 800
-    const height = 400
+    const width = GRAPH_W
+    const height = GRAPH_H
     const initializedNodes = data.nodes.map((node, i) => ({
       ...node,
       x: width / 2 + (Math.random() - 0.5) * 300,
@@ -948,8 +1026,8 @@ function MemoryGraph({
   useEffect(() => {
     if (!data || nodes.length === 0) return
 
-    const width = 800
-    const height = 400
+    const width = GRAPH_W
+    const height = GRAPH_H
     const centerX = width / 2
     const centerY = height / 2
 
@@ -974,7 +1052,7 @@ function MemoryGraph({
             const dx = node.x! - other.x!
             const dy = node.y! - other.y!
             const dist = Math.sqrt(dx * dx + dy * dy) || 1
-            const force = 500 / (dist * dist)
+            const force = (entityMode ? 1400 : 500) / (dist * dist)
 
             node.vx! += (dx / dist) * force
             node.vy! += (dy / dist) * force
@@ -992,7 +1070,7 @@ function MemoryGraph({
           const dx = target.x! - source.x!
           const dy = target.y! - source.y!
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
-          const force = (dist - 100) * 0.01
+          const force = (dist - (entityMode ? 110 : 100)) * (link.relationship === 'co_mentioned' ? 0.004 : 0.01)
 
           source.vx! += (dx / dist) * force
           target.vx! -= (dx / dist) * force
@@ -1010,6 +1088,8 @@ function MemoryGraph({
           // Boundary constraints
           node.x = Math.max(30, Math.min(width - 30, node.x!))
           node.y = Math.max(30, Math.min(height - 30, node.y!))
+          // The focused entity stays at the centre of its neighbourhood
+          if (node.id === focusId) { node.x = centerX; node.y = centerY; node.vx = 0; node.vy = 0 }
         }
 
         return newNodes
@@ -1081,9 +1161,18 @@ function MemoryGraph({
       ctx.strokeStyle = isHovered ? '#ffffff' : '#374151'
       ctx.lineWidth = isHovered ? 2 : 1
       ctx.stroke()
+      if (entityMode && (node.hub || node.id === focusId)) {
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, radius + 4, 0, Math.PI * 2)
+        ctx.strokeStyle = node.id === focusId ? '#ffffff' : '#9ca3af'
+        ctx.setLineDash(node.id === focusId ? [] : [3, 3])
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
 
-      // Entity names are short: label every node
-      if (entityMode && !isHovered) {
+      // Label the entities that matter (all of them in a small graph)
+      if (entityMode && !isHovered && (node.id === focusId || nodes.length <= 40 || (node.reinforcement_count || 0) >= 2)) {
         ctx.font = '10px Inter, system-ui'
         ctx.fillStyle = '#d1d5db'
         ctx.textAlign = 'center'
@@ -1105,9 +1194,10 @@ function MemoryGraph({
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return
 
+    // The canvas is CSS-scaled to the panel width: map screen pixels to canvas pixels
     const rect = canvasRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const x = (e.clientX - rect.left) * (canvasRef.current.width / rect.width)
+    const y = (e.clientY - rect.top) * (canvasRef.current.height / rect.height)
 
     // Find hovered node
     const found = nodes.find(node => {
@@ -1149,10 +1239,11 @@ function MemoryGraph({
     <div className="relative">
       <canvas
         ref={canvasRef}
-        width={800}
-        height={400}
+        width={GRAPH_W}
+        height={GRAPH_H}
         onMouseMove={handleMouseMove}
-        className="w-full rounded-lg border border-gray-700 cursor-crosshair"
+        onClick={() => { if (hoveredNode && onNodeClick) onNodeClick(hoveredNode) }}
+        className={`w-full rounded-lg border border-gray-700 ${onNodeClick ? 'cursor-pointer' : 'cursor-crosshair'}`}
         style={{ background: '#111827' }}
       />
 
@@ -1170,7 +1261,7 @@ function MemoryGraph({
           ))}
         </div>
         {entityMode ? (
-          <p className="text-xs text-gray-500 mt-3">Solid: stated relation (hover a node) · faint: mentioned together</p>
+          <p className="text-xs text-gray-500 mt-3">Solid: stated relation · faint: mentioned together · dashed ring: hub · click a node to explore it</p>
         ) : (<>
         <div className="text-xs font-medium text-gray-400 mt-3 mb-2">Relationships</div>
         <div className="flex flex-wrap gap-3">

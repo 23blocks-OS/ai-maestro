@@ -346,6 +346,7 @@ export interface RelationJudgement {
 }
 
 const MAX_RELATION_CANDIDATES = 6
+const SUPPORTS_MIN_CONFIDENCE = 0.8
 const RELATION_CHARS = 700
 
 /**
@@ -373,11 +374,12 @@ export async function classifyRelations(
       type: 'choice',
       instructions: `How does the NEW MEMORY relate to EXISTING MEMORY ${i + 1}?`,
       criteria: {
-        supports: `The new memory agrees with, confirms or adds evidence to existing memory ${i + 1}`,
+        supports: `The new memory is independent evidence for the SAME claim as existing memory ${i + 1} (it confirms that exact point)`,
         contradicts: `The new memory conflicts with existing memory ${i + 1}`,
         supersedes: `The new memory replaces or updates existing memory ${i + 1} (a newer decision or fact on the same point)`,
         leads_to: `Existing memory ${i + 1} is an earlier step, cause or reason that led to the new memory`,
-        none: 'Different topics, or only loosely related',
+        related: `Same topic or system as existing memory ${i + 1}, but neither confirms, contradicts, replaces nor causes the other`,
+        none: 'Different topics',
       },
     }
   })
@@ -386,8 +388,81 @@ export async function classifyRelations(
   const out: RelationJudgement[] = []
   list.forEach((_, i) => {
     const a = answers[`relation_${i + 1}`]
-    if (!a || a.choice === 'none' || Number(a.confidence ?? 0) < minConfidence) return
+    // "related" is not an edge: same-topic is what the entity graph already shows.
+    // "supports" was Jev's default for anything on-topic (352 of 382 links on the
+    // first real graph), so it must be confident.
+    if (!a || a.choice === 'none' || a.choice === 'related') return
+    const needed = a.choice === 'supports' ? Math.max(minConfidence, SUPPORTS_MIN_CONFIDENCE) : minConfidence
+    if (Number(a.confidence ?? 0) < needed) return
     out.push({ index: i, relation: a.choice as MemoryRelation, confidence: Number(a.confidence) })
+  })
+  return out
+}
+
+/** Entity-to-entity verbs, the same vocabulary the summarizer uses. */
+export const ENTITY_PREDICATES = [
+  'uses', 'depends_on', 'runs_on', 'part_of', 'replaces', 'fixes', 'breaks',
+  'configures', 'owns', 'stores', 'calls', 'prefers', 'decided_on', 'rejected',
+] as const
+
+export interface EntityRelationJudgement {
+  subject: string
+  predicate: typeof ENTITY_PREDICATES[number]
+  object: string
+  confidence: number
+}
+
+/**
+ * The verbs between a memory's entities, when the summarizer stated none: one
+ * classifier call, one question per ordered pair (at most 6 pairs). Turns
+ * "mentioned together" into "X runs_on Y" where the statement says so.
+ */
+export async function classifyEntityRelations(
+  classifier: JevClassifier,
+  statement: string,
+  entities: string[],
+  minConfidence = 0.7,
+  /** Pairs that already have a relation, as "a|b" with names sorted */
+  alreadyRelated: Set<string> = new Set(),
+  /** The passages the statement came from: they often say more than the one-line card */
+  evidence = ''
+): Promise<EntityRelationJudgement[]> {
+  const names = [...new Set(entities)].slice(0, 4)
+  const pairs: Array<[string, string]> = []
+  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+    if (!alreadyRelated.has([names[i], names[j]].sort().join('|'))) pairs.push([names[i], names[j]])
+  }
+  if (pairs.length === 0) return []
+  const chosen = pairs.slice(0, 6)
+
+  const questions: Record<string, unknown> = {}
+  chosen.forEach(([a, b], k) => {
+    const criteria: Record<string, string> = { none: `The statement does not say how ${a} and ${b} relate` }
+    for (const p of ENTITY_PREDICATES) {
+      criteria[`${p}`] = `${a} ${p.replace('_', ' ')} ${b}`
+      criteria[`${p}__rev`] = `${b} ${p.replace('_', ' ')} ${a}`
+    }
+    questions[`pair_${k + 1}`] = {
+      type: 'choice',
+      instructions: `According to the STATEMENT${evidence ? ' and its EVIDENCE' : ''}, how does "${a}" relate to "${b}"?`,
+      criteria,
+    }
+  })
+
+  const state = evidence
+    ? `STATEMENT: ${clip(statement, 1000)}\n\nEVIDENCE (where it was said):\n${clip(evidence, 2500)}`
+    : `STATEMENT: ${clip(statement, 1500)}`
+  const { answers } = await classifier.ask(state, questions)
+  const out: EntityRelationJudgement[] = []
+  chosen.forEach(([a, b], k) => {
+    const ans = answers[`pair_${k + 1}`]
+    if (!ans || !ans.choice || ans.choice === 'none') return
+    const confidence = Number(ans.confidence ?? 0)
+    if (confidence < minConfidence) return
+    const reversed = String(ans.choice).endsWith('__rev')
+    const predicate = String(ans.choice).replace(/__rev$/, '') as EntityRelationJudgement['predicate']
+    if (!(ENTITY_PREDICATES as readonly string[]).includes(predicate)) return
+    out.push(reversed ? { subject: b, predicate, object: a, confidence } : { subject: a, predicate, object: b, confidence })
   })
   return out
 }

@@ -41,6 +41,7 @@ export async function GET(
     maxTokens: parseInt(searchParams.get('maxTokens') || '2000'),
     offset: parseInt(searchParams.get('offset') || '0'),
     includeFaded: searchParams.get('includeFaded') === 'true',
+    focus: searchParams.get('focus'),
   })
 
   return toResponse(result)

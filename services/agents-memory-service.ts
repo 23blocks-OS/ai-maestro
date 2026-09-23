@@ -824,6 +824,8 @@ export async function queryLongTermMemories(
     maxTokens?: number
     offset?: number
     includeFaded?: boolean
+    /** entity-graph view: one entity's neighbourhood */
+    focus?: string | null
   }
 ): Promise<ServiceResult<any>> {
   try {
@@ -851,7 +853,7 @@ export async function queryLongTermMemories(
     }
 
     if (view === 'entity-graph') {
-      const graph = await entityGraph(agentDb, agentId, limit)
+      const graph = await entityGraph(agentDb, agentId, limit, params.focus)
       return { data: { success: true, agent_id: agentId, graph, count: graph.nodes.length }, status: 200 }
     }
 

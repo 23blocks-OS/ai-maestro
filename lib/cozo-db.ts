@@ -17,6 +17,12 @@ import { escapeForCozo } from './cozo-utils'
 export interface AgentDatabaseConfig {
   agentId: string
   workingDirectory?: string
+  /**
+   * Open for reads only: no metadata write, no schema migrations. For short
+   * side connections (per-prompt memory recall) that must never take the
+   * write lock from the agent's own connection.
+   */
+  readOnly?: boolean
 }
 
 export class AgentDatabase {
@@ -24,8 +30,11 @@ export class AgentDatabase {
   private dbPath: string
   private agentId: string
 
+  private readOnly: boolean
+
   constructor(config: AgentDatabaseConfig) {
     this.agentId = config.agentId
+    this.readOnly = Boolean(config.readOnly)
 
     // Database location: ~/.aimaestro/agents/{agentId}/agent.db
     const aiMaestroDir = path.join(os.homedir(), '.aimaestro', 'agents', config.agentId)
@@ -53,6 +62,8 @@ export class AgentDatabase {
       const result = this.db.run('::relations')
       console.log(`[CozoDB] Database initialized successfully`)
       console.log(`[CozoDB] Existing relations:`, result)
+
+      if (this.readOnly) return
 
       // Store agent metadata
       await this.initializeAgentMetadata()

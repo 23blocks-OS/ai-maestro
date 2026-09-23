@@ -41,16 +41,23 @@ export type RelationshipType =
 export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<void> {
   console.log('[MEMORY-SCHEMA] Initializing long-term memory schema...')
 
+  // A table that fails to create must not stop the ones after it, and a
+  // "database is locked" from another connection is transient: retry it.
+  // Before this, one lock (a second connection opening the same DB) aborted
+  // the whole migration, the caller swallowed the error, and every table after
+  // the failed one stayed missing until the next restart.
+  const failures: string[] = []
+
   const createTableIfNotExists = async (tableName: string, schema: string) => {
     try {
-      await agentDb.run(schema)
+      await withLockRetry(() => agentDb.run(schema))
       console.log(`[MEMORY-SCHEMA] ✓ Created table: ${tableName}`)
     } catch (error: any) {
       if (error.code === 'eval::stored_relation_conflict') {
         console.log(`[MEMORY-SCHEMA] ℹ Table ${tableName} already exists`)
       } else {
         console.error(`[MEMORY-SCHEMA] ✗ Failed to create ${tableName}:`, error)
-        throw error
+        failures.push(`${tableName}: ${error.message ?? error}`)
       }
     }
   }
@@ -60,7 +67,7 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
   // or messages across CozoDB versions (not just eval::stored_relation_conflict).
   const createHnswIndexIfNotExists = async (db: AgentDatabase, ddl: string) => {
     try {
-      await db.run(ddl)
+      await withLockRetry(() => db.run(ddl))
       console.log('[MEMORY-SCHEMA] ✓ Created HNSW index: memory_vec:hnsw')
     } catch (error: any) {
       // CozoDB error format varies across versions — the error code field,
@@ -78,7 +85,7 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
         console.log('[MEMORY-SCHEMA] ℹ HNSW index memory_vec:hnsw already exists')
       } else {
         console.error('[MEMORY-SCHEMA] ✗ Failed to create HNSW index:', error)
-        throw error
+        failures.push(`memory_vec:hnsw: ${error.message ?? error}`)
       }
     }
   }
@@ -180,7 +187,23 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   `)
 
+  if (failures.length > 0) {
+    throw new Error(`Memory schema incomplete: ${failures.join('; ')}`)
+  }
   console.log('[MEMORY-SCHEMA] ✅ Long-term memory schema initialized')
+}
+
+/** Retry an operation that failed only because another connection held the lock. */
+export async function withLockRetry<T>(fn: () => Promise<T> | T, attempts = 6): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn()
+    } catch (error: any) {
+      const locked = /database is locked|code 5\b|SQLITE_BUSY/i.test(String(error?.message ?? error))
+      if (!locked || i >= attempts - 1) throw error
+      await new Promise(resolve => setTimeout(resolve, 150 * 2 ** i))
+    }
+  }
 }
 
 /**
@@ -332,6 +355,8 @@ export async function searchMemoriesByEmbedding(
     categories?: MemoryCategory[]
     minConfidence?: number
     tier?: MemoryTier
+    /** Bump access_count on the hits (a write). Off for read-only connections. */
+    trackAccess?: boolean
   } = {}
 ): Promise<Array<{
   memory_id: string
@@ -376,7 +401,7 @@ export async function searchMemoriesByEmbedding(
 
   // Update access counts for returned memories
   const now = Date.now()
-  for (const row of result.rows) {
+  for (const row of options.trackAccess === false ? [] : result.rows) {
     const memId = row[0] as string
     await agentDb.run(`
       ?[memory_id, access_count, last_accessed_at] :=
@@ -645,16 +670,13 @@ export async function getMemoryStats(
   total_reinforcements: number
   total_accesses: number
 }> {
+  // Aggregations belong in the rule head; `count = count(x)` in the body is not
+  // valid CozoScript and made every stats request fail ("No implementation
+  // found for op count"), so the Memory tab's stats bar never loaded.
   const result = await agentDb.run(`
-    stats[category, tier, system, count, conf_sum, reinf_sum, access_sum] :=
-      *memories{agent_id, category, tier, system, confidence, reinforcement_count, access_count},
-      agent_id = ${escapeForCozo(agentId)},
-      count = count(category),
-      conf_sum = sum(confidence),
-      reinf_sum = sum(reinforcement_count),
-      access_sum = sum(access_count)
-
-    ?[category, tier, system, count, conf_sum, reinf_sum, access_sum] := stats[category, tier, system, count, conf_sum, reinf_sum, access_sum]
+    ?[category, tier, system, count(memory_id), sum(confidence), sum(reinforcement_count), sum(access_count)] :=
+      *memories{memory_id, agent_id, category, tier, system, confidence, reinforcement_count, access_count},
+      agent_id = ${escapeForCozo(agentId)}
   `)
 
   const by_category: Record<string, number> = {}

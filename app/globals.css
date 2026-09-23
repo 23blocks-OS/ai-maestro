@@ -4,8 +4,89 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══ DESIGN SYSTEM ═══════════════════════════════════════════════════════════
+   Colour lives here and nowhere else. Components reference a semantic role
+   (bg-surface, text-ink, border-hairline) or a themed ramp step (bg-gray-800) —
+   never a hex literal.
+
+   ADDING A THEME is one block of variables; no component edits, no sweeps. Put
+   the class on the app shell to switch. Worked example, complete and usable:
+
+     .theme-paper {
+       --g-900: 255 255 255; --g-800: 243 244 246; --g-700: 229 231 235;
+       --g-400: 107 114 128; --g-300: 55 65 81;    --g-100: 17 24 39;
+       --fg-white: 17 24 39;
+       --c-surface: 255 255 255; --c-raised: 249 250 251;
+       --c-hairline: 229 231 235; --c-ink: 17 24 39; --c-ink-muted: 107 114 128;
+     }
+
+   THE ONE TRAP: `text-white` does not mean white in this codebase — it means
+   "foreground", in roughly 278 places. A theme that inverts the ground without
+   setting --fg-white makes its own text invisible. That mistake cost an
+   afternoon; it is why --fg-white exists.
+
+   The DEFAULT theme below reproduces stock Tailwind exactly, so this layer
+   changed nothing visually when it was introduced.
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+
+  /* Neutrals — stock Tailwind gray */
+  --g-50: 249 250 251;  --g-100: 243 244 246; --g-200: 229 231 235;
+  --g-300: 209 213 219; --g-400: 156 163 175; --g-500: 107 114 128;
+  --g-600: 75 85 99;    --g-700: 55 65 81;    --g-800: 31 41 55;
+  --g-900: 17 24 39;    --g-950: 3 7 18;
+
+  /* Neutrals — stock Tailwind slate */
+  --s-50: 248 250 252;  --s-100: 241 245 249; --s-200: 226 232 240;
+  --s-300: 203 213 225; --s-400: 148 163 184; --s-500: 100 116 139;
+  --s-600: 71 85 105;   --s-700: 51 65 85;    --s-800: 30 41 59;
+  --s-900: 15 23 42;    --s-950: 2 6 23;
+
+  /* Accent — stock Tailwind blue */
+  --a-50: 239 246 255;  --a-100: 219 234 254; --a-200: 191 219 254;
+  --a-300: 147 197 253; --a-400: 96 165 250;  --a-500: 59 130 246;
+  --a-600: 37 99 235;   --a-700: 29 78 216;   --a-800: 30 64 175;
+  --a-900: 30 58 138;   --a-950: 23 37 84;
+
+  /* Foreground. See THE ONE TRAP above. */
+  --fg-white: 255 255 255;
+
+  /* Semantic roles */
+  --c-surface: 17 24 39;   --c-raised: 31 41 55;  --c-sunken: 3 7 18;
+  --c-hairline: 55 65 81;  --c-ink: 243 244 246;  --c-ink-muted: 156 163 175;
+  --c-accent: 96 165 250;  --c-accent-fill: 37 99 235;
+  --c-ok: 34 197 94;       --c-warn: 245 158 11;  --c-danger: 239 68 68;
+
+  /* Deliberately dark surfaces */
+  --room-bg: 26 27 38;     --room-raised: 33 30 25;  --room-deep: 10 10 10;
+
+  /* Category identity — the agent board's group colours, one source of truth.
+     Values are the originals, moved out of component code. */
+  --cat-0-primary: 59 130 246;
+  --cat-0-icon: 96 165 250;
+  --cat-0-text: 147 197 253;
+  --cat-1-primary: 168 85 247;
+  --cat-1-icon: 192 132 252;
+  --cat-1-text: 216 180 254;
+  --cat-2-primary: 34 197 94;
+  --cat-2-icon: 74 222 128;
+  --cat-2-text: 134 239 172;
+  --cat-3-primary: 234 179 8;
+  --cat-3-icon: 250 204 21;
+  --cat-3-text: 253 224 71;
+  --cat-4-primary: 236 72 153;
+  --cat-4-icon: 244 114 182;
+  --cat-4-text: 251 207 232;
+  --cat-5-primary: 20 184 166;
+  --cat-5-icon: 45 212 191;
+  --cat-5-text: 94 234 212;
+  --cat-6-primary: 249 115 22;
+  --cat-6-icon: 251 146 60;
+  --cat-6-text: 253 186 116;
+  --cat-7-primary: 239 68 68;
+  --cat-7-icon: 248 113 113;
+  --cat-7-text: 252 165 165;
 }
 
 html {

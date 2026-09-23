@@ -906,7 +906,7 @@ function CompanionContent() {
       </div>
 
       {/* ===== RIGHT: Terminal Panel ===== */}
-      <div className="flex-1 relative overflow-hidden min-w-0 bg-[#1a1b26]">
+      <div className="flex-1 relative overflow-hidden min-w-0 bg-room-bg">
         {/* Mobile header (shown only on small screens) */}
         <div className="md:hidden bg-black/80 backdrop-blur-md px-4 py-2 flex items-center justify-between z-20 relative">
           <div className="flex items-center gap-3">
@@ -943,7 +943,7 @@ function CompanionContent() {
           style={{ top: 'var(--mobile-header-h, 0)' }}
         />
         {!tmuxSessionName && activeAgentId && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1b26]">
+          <div className="absolute inset-0 flex items-center justify-center bg-room-bg">
             <div className="text-center text-gray-400">
               <WifiOff className="w-12 h-12 mx-auto mb-4 text-gray-600" />
               <p className="text-lg mb-2">Agent is offline</p>
@@ -952,7 +952,7 @@ function CompanionContent() {
           </div>
         )}
         {!activeAgentId && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1b26]">
+          <div className="absolute inset-0 flex items-center justify-center bg-room-bg">
             <div className="text-center text-gray-400">
               <UserCircle className="w-12 h-12 mx-auto mb-4 text-gray-600" />
               <p className="text-lg mb-2">No agent selected</p>

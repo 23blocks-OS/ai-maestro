@@ -1,5 +1,7 @@
 'use client'
 
+import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Phone } from 'lucide-react'
@@ -119,7 +121,7 @@ export default function RingingAnimation({
                     hasJoined ? 'border-emerald-500' : 'border-gray-600'
                   }`}>
                     {agent.avatar ? (
-                      <img src={agent.avatar} alt={displayName} className="w-full h-full object-cover" />
+                      <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={hasJoined ? 'idle' : 'waiting'} fill rounded={false} ring={false} alt={displayName} />
                     ) : (
                       <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-400 text-3xl font-bold">
                         {displayName.charAt(0).toUpperCase()}

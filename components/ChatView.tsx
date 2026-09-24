@@ -5,7 +5,7 @@ import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
@@ -881,51 +881,36 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
       {/* Header: which agent, where, what it is doing (shared with the terminal tab) */}
       <AgentHeaderBar
         hostId={agent.hostId}
+        remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
-        avatar={{
-          agentId: agent.id,
-          src: agent.avatar,
-          hostUrl: getAgentBaseUrl(agent),
-          state: avatarStateForPresence(presence),
-        }}
-        dotClass={presenceStyle.dot}
-        dotTitle={presenceStyle.title}
+        presence={presence}
+        avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presence) }}
         status={
-          <span className={presenceStyle.text}>
-            {presence === 'working'
-              ? (activityState === 'sending' ? 'Sending…'
-                : liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…`
-                : 'Working…')
-              : presence === 'needs-you'
-                ? (activityState === 'permission' ? 'Needs you · approval' : 'Needs you')
-                : presenceStyle.label}
-          </span>
+          presence === 'working'
+            ? (activityState === 'sending' ? 'Sending…'
+              : liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…`
+              : 'Working…')
+            : presence === 'needs-you'
+              ? (activityState === 'permission' ? 'Needs you · approval' : 'Needs you')
+              : presenceStyle.label
         }
-        detail={<>{messages.length} messages{lastModified && ` \u00b7 ${formatTimestamp(lastModified)}`}</>}
         actions={
-          <div className="flex items-center gap-1">
-          {/* Chat mode toggle */}
+          // X-Ray changes what the chat shows (thinking and tool calls), so it
+          // stays, with a label. Refresh went: the chat is live and reconnects.
           <button
             onClick={toggleChatMode}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
               chatMode === 'power'
-                ? 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
-                : 'text-gray-500 hover:bg-gray-700 hover:text-gray-300'
+                ? 'text-amber-300 bg-amber-400/15 hover:bg-amber-400/25'
+                : 'text-gray-300 hover:bg-gray-700'
             }`}
-            title={chatMode === 'power' ? 'X-Ray on — click to turn off' : 'X-Ray off — click to see thinking & tools'}
+            title={chatMode === 'power' ? 'X-Ray on: showing thinking and tool calls. Click to hide them' : 'X-Ray off: click to show thinking and tool calls'}
+            aria-pressed={chatMode === 'power'}
           >
             <ScanEye className="w-4 h-4" />
+            X-Ray
           </button>
-          <button
-            onClick={requestHistory}
-            disabled={isLoading}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh messages"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
         }
       />
 

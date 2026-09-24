@@ -78,6 +78,8 @@ export interface PresenceStyle {
   text: string
   /** Avatar ring colour */
   ring: string
+  /** Bottom edge of the agent header, in the state colour */
+  line: string
 }
 
 export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
@@ -87,6 +89,7 @@ export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
     dot: 'bg-emerald-500 ring-2 ring-emerald-500/30 animate-pulse',
     text: 'text-emerald-400',
     ring: 'ring-emerald-500/80',
+    line: 'border-emerald-500',
   },
   'needs-you': {
     label: 'Needs you',
@@ -94,6 +97,7 @@ export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
     dot: 'bg-orange-500 ring-2 ring-orange-500/40 animate-pulse',
     text: 'text-orange-400',
     ring: 'ring-orange-500/90',
+    line: 'border-orange-500',
   },
   ready: {
     label: 'Ready',
@@ -101,6 +105,7 @@ export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
     dot: 'bg-yellow-400 ring-2 ring-yellow-400/25',
     text: 'text-yellow-300',
     ring: 'ring-yellow-400/60',
+    line: 'border-yellow-400',
   },
   offline: {
     label: 'Offline',
@@ -108,5 +113,6 @@ export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
     dot: 'bg-gray-500 ring-2 ring-gray-500/30',
     text: 'text-gray-400',
     ring: 'ring-gray-600/40',
+    line: 'border-gray-600',
   },
 }

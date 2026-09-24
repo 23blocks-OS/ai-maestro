@@ -1,10 +1,10 @@
 'use client'
 
-import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Brain } from 'lucide-react'
+import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Brain, SquareTerminal } from 'lucide-react'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'domains' | 'webhooks' | 'memory' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
-  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'memory' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
+  activeSection: 'hosts' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
+  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -32,6 +32,12 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
       label: 'Memory',
       icon: Brain,
       description: 'Memory classifier',
+    },
+    {
+      id: 'terminal' as const,
+      label: 'Terminal',
+      icon: SquareTerminal,
+      description: 'Copy on select, scrolling',
     },
     {
       id: 'marketplace' as const,

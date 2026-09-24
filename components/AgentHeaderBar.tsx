@@ -11,21 +11,20 @@
 import type { ReactNode } from 'react'
 import { Folder } from 'lucide-react'
 import LiveAvatar, { type LiveAvatarState } from './LiveAvatar'
+import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 
 export interface AgentHeaderBarProps {
   hostId?: string | null
+  /** Show the host: only for an agent on another machine ("local" on every agent says nothing) */
+  remote?: boolean
   /** Display name (label, else name) */
   name: string
   workingDirectory?: string | null
-  /** Tailwind classes for the status dot, e.g. "bg-green-500" or "bg-amber-400 animate-pulse" */
-  dotClass: string
-  /** Tooltip for the dot */
-  dotTitle?: string
-  /** What the agent is doing, shown after the name (chat: "working…", "ready for input") */
+  /** The agent's state: colours the dot and the header's bottom edge */
+  presence: AgentPresence
+  /** What it is doing, next to the name ("Working · Bash · yarn test"); defaults to the state label */
   status?: ReactNode
-  /** Small muted detail after the status (chat: "120 messages · 2m ago") */
-  detail?: ReactNode
-  /** The tab's own tools */
+  /** The tab's own tools (keep to the few that are used every time) */
   actions?: ReactNode
   /** The agent's face, alive for its state (components/LiveAvatar.tsx) */
   avatar?: { agentId: string; src?: string | null; hostUrl?: string; state: LiveAvatarState }
@@ -36,41 +35,46 @@ export function shortenPath(p: string): string {
   return p.replace(/^\/(Users|home)\/[^/]+(?=\/|$)/, '~')
 }
 
-export default function AgentHeaderBar({ hostId, name, workingDirectory, dotClass, dotTitle, status, detail, actions, avatar }: AgentHeaderBarProps) {
-  const host = hostId && hostId !== 'local' ? hostId : 'local'
+/**
+ * Who, what it is doing, where; then the tab's tools. Everything else was
+ * removed on purpose (v0.45.4): message counts, "time ago", terminal size and
+ * buffer lines, scroll hints, a Refresh for a live view, and "local" as a host.
+ * The bottom edge carries the state colour, so the state reads from across the
+ * room. Same height as before: the 32 px avatar sets it.
+ */
+export default function AgentHeaderBar({ hostId, remote = false, name, workingDirectory, presence, status, actions, avatar }: AgentHeaderBarProps) {
+  const style = PRESENCE_STYLE[presence]
+  const showHost = remote && hostId && hostId !== 'local'
   return (
-    // Same height as before: the 32px avatar sets it; the two text lines use
-    // tight leading so they fit inside it (14px name + 11px host line ≈ 31px).
-    <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800 flex-shrink-0">
-      <div className="flex items-center justify-between gap-2">
+    <div className={`px-3 md:px-4 py-2 bg-gray-800 border-b-2 ${style.line} flex-shrink-0`}>
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           {avatar && (
             <LiveAvatar agentId={avatar.agentId} avatar={avatar.src} hostUrl={avatar.hostUrl} state={avatar.state} size={32} alt={name} />
           )}
           <div className="flex flex-col min-w-0 justify-center">
-            {/* Who, first; what it is doing next to it */}
             <div className="flex items-center gap-2 min-w-0 leading-tight">
-              <h3 className="font-semibold text-gray-100 text-sm leading-tight truncate min-w-0">{name}</h3>
-              <span className="flex items-center gap-1.5 flex-shrink min-w-0" title={dotTitle}>
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} />
-                {status && <span className="text-xs leading-tight truncate min-w-0">{status}</span>}
+              <h3 className="font-semibold text-gray-50 text-[15px] leading-tight truncate min-w-0">{name}</h3>
+              <span className="flex items-center gap-1.5 flex-shrink min-w-0" title={style.title}>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
+                <span className={`text-xs leading-tight truncate min-w-0 ${style.text}`}>{status ?? style.label}</span>
               </span>
             </div>
-            {/* Where, small, underneath */}
-            <div className="flex items-center gap-1.5 min-w-0 text-[11px] leading-tight text-gray-500">
-              <span className="truncate flex-shrink-0 max-w-[45%]">{host}</span>
-              {workingDirectory && (
-                <span className="flex items-center gap-1 font-mono truncate min-w-0" title={workingDirectory}>
-                  <span className="text-gray-600">·</span>
-                  <Folder className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{shortenPath(workingDirectory)}</span>
-                </span>
-              )}
-            </div>
+            {(showHost || workingDirectory) && (
+              <div className="flex items-center gap-1.5 min-w-0 text-[11px] leading-tight text-gray-400">
+                {showHost && <span className="truncate flex-shrink-0 max-w-[45%]">{hostId}</span>}
+                {showHost && workingDirectory && <span className="text-gray-600">·</span>}
+                {workingDirectory && (
+                  <span className="flex items-center gap-1 font-mono truncate min-w-0" title={workingDirectory}>
+                    <Folder className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{shortenPath(workingDirectory)}</span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-          {detail && <span className="hidden xl:inline text-xs text-gray-500 flex-shrink-0 ml-2">{detail}</span>}
         </div>
-        {actions && <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">{actions}</div>}
+        {actions && <div className="flex items-center gap-1.5 text-xs text-gray-300 flex-shrink-0">{actions}</div>}
       </div>
     </div>
   )

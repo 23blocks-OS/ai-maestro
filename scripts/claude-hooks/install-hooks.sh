@@ -144,6 +144,18 @@ install_claude_hooks() {
           }
         ]
       }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }

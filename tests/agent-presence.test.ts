@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { presenceFrom, hookNeedsYou, PRESENCE_STYLE } from '@/lib/agent-presence'
+import { presenceFrom, hookNeedsYou, PRESENCE_STYLE, normalizeActivityStatus } from '@/lib/agent-presence'
 import { avatarStateForPresence, avatarStateFrom } from '@/components/LiveAvatar'
 
 describe('hookNeedsYou', () => {
@@ -49,5 +49,24 @@ describe('the avatar follows the same presence', () => {
     expect(avatarStateForPresence('ready')).toBe('idle')
     expect(avatarStateForPresence('offline')).toBe('sleeping')
     expect(avatarStateFrom({ online: true, activity: 'waiting', hookStatus: 'waiting_for_input', notificationType: 'idle_prompt' })).toBe('idle')
+  })
+})
+
+describe('normalizeActivityStatus (every broadcast goes through it)', () => {
+  it('turns raw hook words into the sidebar vocabulary', () => {
+    expect(normalizeActivityStatus('waiting_for_input', 'permission_prompt')).toBe('waiting')
+    expect(normalizeActivityStatus('waiting_for_input', 'idle_prompt')).toBe('idle')
+    expect(normalizeActivityStatus('permission_request')).toBe('waiting')
+    expect(normalizeActivityStatus('active')).toBe('active')
+    expect(normalizeActivityStatus('working')).toBe('active')
+    expect(normalizeActivityStatus('idle')).toBe('idle')
+    expect(normalizeActivityStatus('waiting')).toBe('waiting')
+  })
+
+  it('reads a raw word that reached the sidebar anyway (older server) correctly', () => {
+    // The Titania case: header said "Needs you", sidebar said "Ready"
+    expect(presenceFrom({ online: true, activity: 'waiting_for_input', notificationType: 'permission_prompt' })).toBe('needs-you')
+    expect(presenceFrom({ online: true, activity: 'permission_request' })).toBe('needs-you')
+    expect(presenceFrom({ online: true, activity: 'waiting_for_input', notificationType: 'idle_prompt' })).toBe('ready')
   })
 })

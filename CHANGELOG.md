@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.2] - 2026-09-23 — Status that is right, and right away
+
+"Titania says Needs you in the header and Ready in the sidebar; they take
+forever to update; agents doing nothing show green before they go yellow."
+
+- **The sidebar read the raw hook word.** The hook posts `waiting_for_input`,
+  the server rebroadcast it verbatim over the status WebSocket, and the sidebar
+  took the unknown word for "Ready" (the header reads the hook state directly,
+  so it was right). Every broadcast now carries the shared vocabulary
+  (`normalizeActivityStatus`), the heartbeat's too, and the client reads a raw
+  word correctly if one still arrives.
+- **Terminal redraws no longer count as work.** With a terminal open, any
+  output marked the agent "active" for a few seconds, and a finished-turn
+  report was ignored after 60 s, so idle agents flickered green for minutes.
+  The hook's state file is now the authority while fresh (15 min for
+  working/idle, 24 h for blocked): a turn shows as Working the moment it starts
+  and Ready the moment it ends. Terminal activity decides only for agents with
+  no hook report (Codex, a shell).
+- **After you approve**, output arriving well after the permission report
+  turns the agent back to Working instead of leaving it orange until the turn
+  ends.
+
 ## [0.45.1] - 2026-09-23 — Agent header: name first, host underneath
 
 The shared header (Terminal, Chat, Streaming) read "host / agent". It now puts

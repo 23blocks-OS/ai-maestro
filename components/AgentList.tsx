@@ -1,8 +1,8 @@
 'use client'
 
 import PresenceLegend from './PresenceLegend'
-import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
-import LiveAvatar, { avatarStateFrom } from './LiveAvatar'
+import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
+import LiveAvatar from './LiveAvatar'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import type { UnifiedAgent } from '@/types/agent'
 import { formatDistanceToNow } from '@/lib/utils'
@@ -180,7 +180,7 @@ export default function AgentList({
   })
 
   // Session activity tracking (for waiting/active/idle status)
-  const { getSessionActivity } = useSessionActivity()
+  const { getSessionActivity, presenceOf } = useSessionActivity()
 
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
@@ -775,7 +775,7 @@ export default function AgentList({
                             agentId={agent.id}
                             avatar={avatarUrl}
                             hostUrl={getAgentBaseUrl(agent)}
-                            state={avatarStateFrom({ online: isOnline, activity: agent.name ? getSessionActivity(agent.name)?.status : undefined })}
+                            of={agent}
                             size={36}
                             ring={false}
                             alt={agent.label || agent.name}
@@ -1260,7 +1260,7 @@ export default function AgentList({
                                                 agentId={agent.id}
                                                 avatar={agent.avatar}
                                                 hostUrl={getAgentBaseUrl(agent)}
-                                                state={avatarStateFrom({ online: isOnline, hibernated: isHibernated, activity: activityStatus })}
+                                                of={agent}
                                                 size={48}
                                               />
                                             ) : agent.avatar ? (
@@ -1323,7 +1323,7 @@ export default function AgentList({
                                                 <AgentStatusIndicator
                                                   isOnline={isOnline}
                                                   isHibernated={isHibernated}
-                                                  activityStatus={activityStatus}
+                                                  presence={presenceOf(agent, { online: isOnline })}
                                                 />
                                               </div>
 
@@ -1532,11 +1532,12 @@ export default function AgentList({
 function AgentStatusIndicator({
   isOnline,
   isHibernated,
-  activityStatus
+  presence,
 }: {
   isOnline: boolean
   isHibernated?: boolean
-  activityStatus?: SessionActivityStatus
+  /** From the shared status store (hooks/useSessionActivity.ts presenceOf) */
+  presence: AgentPresence
 }) {
   if (!isOnline && isHibernated) {
     return (
@@ -1546,8 +1547,7 @@ function AgentStatusIndicator({
       </div>
     )
   }
-  // One rule for every view (lib/agent-presence.ts)
-  const style = PRESENCE_STYLE[presenceFrom({ online: isOnline, activity: activityStatus })]
+  const style = PRESENCE_STYLE[presence]
   return (
     <div className="flex items-center gap-1.5 flex-shrink-0" title={style.title}>
       <div className={`w-2 h-2 rounded-full ${style.dot}`} />

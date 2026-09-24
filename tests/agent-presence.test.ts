@@ -85,3 +85,19 @@ describe('transcriptResumedSince (fallback for hosts without the PostToolBatch h
     expect(transcriptResumedSince('/nope/none.jsonl', 0)).toBe(false)
   })
 })
+
+describe('presenceFromActivity: the one mapping every view uses', () => {
+  it('reads an agent by session name, then by id, with the full hook detail', async () => {
+    const { presenceFromActivity } = await import('@/hooks/useSessionActivity')
+    const activity: any = {
+      'api-jarvis': { status: 'active', lastActivity: '' },
+      'b-id': { status: 'waiting', hookStatus: 'waiting_for_input', notificationType: 'permission_prompt', lastActivity: '' },
+    }
+    const online = { status: 'online' }
+    expect(presenceFromActivity(activity, { name: 'api-jarvis', id: 'a-id', session: online })).toBe('working')
+    expect(presenceFromActivity(activity, { name: 'other', id: 'b-id', session: online })).toBe('needs-you')
+    expect(presenceFromActivity(activity, { name: 'nobody', id: 'x', session: online })).toBe('ready')
+    expect(presenceFromActivity(activity, { name: 'api-jarvis', id: 'a-id', session: { status: 'offline' } })).toBe('offline')
+    expect(presenceFromActivity(activity, { name: 'api-jarvis' }, { online: true })).toBe('working')
+  })
+})

@@ -1,6 +1,7 @@
 'use client'
 
-import { PRESENCE_STYLE, hookNeedsYou } from '@/lib/agent-presence'
+import { PRESENCE_STYLE } from '@/lib/agent-presence'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
@@ -245,6 +246,8 @@ function ThinkingBlock({ text }: { text: string }) {
 }
 
 export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId }: MobileChatViewProps) {
+  // One status for every view (the sidebar and terminal read the same feed)
+  const { presenceOf } = useSessionActivity()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [hookState, setHookState] = useState<{
     status?: string;
@@ -941,20 +944,18 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             {/* One rule for every view (lib/agent-presence.ts): a permission
                 prompt is "needs you"; idle_prompt / a finished turn is "ready" */}
             {(() => {
-              const presence = isSendingMsg || isWorking ? 'working'
-                : isWaiting && hookNeedsYou(hookState?.status, hookState?.notificationType) ? 'needs-you'
-                : 'ready'
+              // The shared store's status: the same value every other view shows
+              const presence = presenceOf({ name: sessionNameProp || agentName, id: agentId }, { online: true })
               const style = PRESENCE_STYLE[presence]
               return (
                 <>
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} title={style.title} />
                   <span className={`text-xs ${style.text}`}>
-                    {isSendingMsg ? 'Sending…'
-                     : isWorking
-                       ? (liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}` : 'Working…')
-                       : style.label}
+                    {presence === 'working' && liveActivity
+                      ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}`
+                      : style.label}
                   </span>
-                  {(isSendingMsg || isWorking) && <Loader2 className={`w-3 h-3 animate-spin ${style.text}`} />}
+                  {presence === 'working' && <Loader2 className={`w-3 h-3 animate-spin ${style.text}`} />}
                 </>
               )
             })()}

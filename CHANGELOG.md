@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.5] - 2026-09-24 — One status source, every view, every device
+
+"Zaiden: terminal says Working, chat says Ready, the sidebar is accurate."
+"Those status need to come from a single source ... desktop, mobile, tablet."
+
+- **One store in the browser.** `hooks/useSessionActivity.ts` is now a
+  module-level store with ONE WebSocket per page (it was one socket and one
+  poll per component that asked). `presenceOf(agent)` is the only function
+  that turns an agent into Working / Needs you / Ready / Offline.
+- **No view derives status itself any more.** The chat (desktop and
+  mobile/tablet) guessed from its own transcript: a reply followed by tool
+  calls read "Ready" while the agent worked, and it never heard the hook's
+  "turn started". Chat, mobile chat, terminal, streaming, the companion, the
+  sidebar (rows, cards, favourites), the mobile hosts list and every avatar
+  (`LiveAvatar of={agent}`: zoom, meetings, profiles, tablet) now read the same
+  store. The chat's own data only words the detail ("Working · Bash · yarn test").
+- The heartbeat update no longer overwrites a richer status entry.
+
 ## [0.45.4] - 2026-09-23 — Agent header: only what you use
 
 Every item in the Terminal and Chat header was judged on whether it answers a

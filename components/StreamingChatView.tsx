@@ -1,5 +1,7 @@
 'use client'
 
+import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
@@ -55,6 +57,8 @@ let idCounter = 0
 const nextId = () => `t${++idCounter}`
 
 export default function StreamingChatView({ agent, isActive = false }: StreamingChatViewProps) {
+  // Status from the shared store, the same value every other view shows
+  const { presenceOf } = useSessionActivity()
   const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState('')
   const [connected, setConnected] = useState(false)
@@ -281,9 +285,9 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
-        presence={!connected ? 'offline' : thinking ? 'working' : 'ready'}
-        avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: !connected ? 'sleeping' : thinking ? 'working' : 'idle' }}
-        status={!connected ? 'Connecting…' : thinking ? 'Working…' : undefined}
+        presence={presenceOf(agent, { online: connected })}
+        avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presenceOf(agent, { online: connected })) }}
+        status={!connected ? 'Connecting…' : undefined}
         actions={
           <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-400/70 border border-amber-400/30 rounded px-1.5 py-0.5" title="Streaming mode is experimental">
             <Zap className="w-3 h-3" /> PoC

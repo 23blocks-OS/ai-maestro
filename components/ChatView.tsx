@@ -1,6 +1,7 @@
 'use client'
 
-import { PRESENCE_STYLE, hookNeedsYou, type AgentPresence } from '@/lib/agent-presence'
+import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
@@ -123,6 +124,8 @@ const PENDING_EXPIRY_MS = 30000
 const QUESTION_OTHER_SETTLE_MS = 400
 
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
+  // What the sidebar and terminal read: one status for every view
+  const { presenceOf } = useSessionActivity()
   const [messages, setMessages] = useState<Message[]>([])
   // Pending bubbles survive leaving the chat.
   //
@@ -866,14 +869,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return 'idle' as const
   }, [hookState, pendingMessages.length, isSending, messages])
 
-  // One rule for every view (lib/agent-presence.ts): green working, orange
-  // needs you, yellow ready, grey offline. waiting_for_input is "needs you"
-  // only for a permission prompt; Claude Code's idle_prompt just means ready.
-  const presence: AgentPresence = !isOnline ? 'offline'
-    : activityState === 'permission' ? 'needs-you'
-    : activityState === 'waiting' ? (hookNeedsYou(hookState?.status, hookState?.notificationType) ? 'needs-you' : 'ready')
-    : activityState === 'thinking' || activityState === 'sending' ? 'working'
-    : 'ready'
+  // The status is the shared store's (hooks/useSessionActivity.ts), the same
+  // value the sidebar and the terminal show. The chat's own data only adds the
+  // detail wording ("Working · Bash · yarn test", "Needs you · approval").
+  const presence: AgentPresence = presenceOf(agent, { online: !!isOnline })
   const presenceStyle = PRESENCE_STYLE[presence]
 
   return (
@@ -888,9 +887,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presence) }}
         status={
           presence === 'working'
-            ? (activityState === 'sending' ? 'Sending…'
-              : liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…`
-              : 'Working…')
+            ? (liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…` : 'Working…')
             : presence === 'needs-you'
               ? (activityState === 'permission' ? 'Needs you · approval' : 'Needs you')
               : presenceStyle.label

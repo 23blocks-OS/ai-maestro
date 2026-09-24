@@ -1,6 +1,6 @@
 'use client'
 
-import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useState } from 'react'
 import { LayoutGrid, List, Plus, ListTodo, Mail, Play, Moon, Loader2, X, ExternalLink, Circle } from 'lucide-react'
@@ -197,7 +197,7 @@ export default function MeetingSidebar({
                       : 'bg-gradient-to-br from-violet-900/40 to-purple-950/60'
                   }`}>
                     {isAvatarUrl ? (
-                      <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={displayName} />
+                      <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
                     ) : agent.avatar ? (
                       <span className="text-5xl leading-none opacity-90">{agent.avatar}</span>
                     ) : (
@@ -310,7 +310,7 @@ export default function MeetingSidebar({
               <div className="relative flex-shrink-0">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
                   {agent.avatar ? (
-                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={displayName} />
+                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-bold">
                       {displayName.charAt(0).toUpperCase()}

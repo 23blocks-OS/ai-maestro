@@ -1,5 +1,6 @@
 'use client'
 
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -142,6 +143,7 @@ function CompanionContent() {
   }, [loading, agents, activeAgentId, agentParam])
 
   const activeAgent = agents.find(a => a.id === activeAgentId)
+  const { presenceOf } = useSessionActivity()
   const tmuxSessionName = activeAgent?.session?.tmuxSessionName
   const isOnline = activeAgent?.session?.status === 'online'
 
@@ -496,9 +498,9 @@ function CompanionContent() {
             <div className="flex flex-col items-center">
               <span className="text-white font-semibold text-sm drop-shadow-lg">{displayName}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                {/* One rule for every view (lib/agent-presence.ts) */}
+                {/* The shared status store: the same value every other view shows */}
                 <span className={`w-1.5 h-1.5 rounded-full ${
-                  PRESENCE_STYLE[!isOnline ? 'offline' : activityState === 'active' || activityState === 'thinking' ? 'working' : 'ready'].dot
+                  PRESENCE_STYLE[activeAgent ? presenceOf(activeAgent, { online: !!isOnline }) : 'offline'].dot
                 }`} />
                 <span className={`text-xs drop-shadow-lg ${
                   tts.isSpeaking ? 'text-teal-300'
@@ -744,9 +746,9 @@ function CompanionContent() {
             <div className="flex flex-col items-center">
               <span className="text-white font-semibold text-sm drop-shadow-lg">{displayName}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                {/* One rule for every view (lib/agent-presence.ts) */}
+                {/* The shared status store: the same value every other view shows */}
                 <span className={`w-1.5 h-1.5 rounded-full ${
-                  PRESENCE_STYLE[!isOnline ? 'offline' : activityState === 'active' || activityState === 'thinking' ? 'working' : 'ready'].dot
+                  PRESENCE_STYLE[activeAgent ? presenceOf(activeAgent, { online: !!isOnline }) : 'offline'].dot
                 }`} />
                 <AnimatePresence mode="wait">
                   <motion.span

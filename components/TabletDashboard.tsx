@@ -1,6 +1,6 @@
 'use client'
 
-import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import LiveAvatar from '@/components/LiveAvatar'
 import { useState, useEffect, useMemo } from 'react'
 import TerminalView from './TerminalView'
 import MobileChatView from './MobileChatView'
@@ -175,7 +175,7 @@ export default function TabletDashboard({
                 {/* Avatar */}
                 <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center flex-shrink-0">
                   {isAvatarUrl ? (
-                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} />
+                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} />
                   ) : agent.avatar ? (
                     <span className="text-sm">{agent.avatar}</span>
                   ) : (

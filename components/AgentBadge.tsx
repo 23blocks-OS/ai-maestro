@@ -1,8 +1,9 @@
 'use client'
 
-import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { PRESENCE_STYLE, presenceFrom, type AgentPresence } from '@/lib/agent-presence'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
-import LiveAvatar, { avatarStateFrom } from './LiveAvatar'
+import LiveAvatar from './LiveAvatar'
 import React from 'react'
 import {
   MoreVertical,
@@ -73,14 +74,16 @@ function getStatusInfo(
   session: AgentSession | undefined,
   isHibernated: boolean,
   activityStatus?: SessionActivityStatus,
-  standaloneOnline?: boolean
+  standaloneOnline?: boolean,
+  /** From the shared status store; wins over the bare activity word */
+  presenceOverride?: AgentPresence
 ): { color: string; bgColor: string; label: string; pulse?: boolean } {
   const isOnline = session?.status === 'online' || standaloneOnline
 
   // One rule for every view (lib/agent-presence.ts). Hibernated is grey: yellow
   // now means "ready", and a hibernated agent is not.
   if (isOnline) {
-    const presence = presenceFrom({ online: true, activity: activityStatus })
+    const presence = presenceOverride ?? presenceFrom({ online: true, activity: activityStatus })
     const s = PRESENCE_STYLE[presence]
     // Literal class names: Tailwind only compiles classes it can see in source
     const [color, bgColor] = presence === 'working' ? ['bg-emerald-500', 'bg-emerald-500/20']
@@ -121,7 +124,8 @@ export default function AgentBadge({
   const isOnline = session?.status === 'online' || agent.session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const statusInfo = getStatusInfo(session, isHibernated, activityStatus, agent.session?.status === 'online')
+  const { presenceOf } = useSessionActivity()
+  const statusInfo = getStatusInfo(session, isHibernated, activityStatus, agent.session?.status === 'online', presenceOf(agent, { online: true }))
   const ringColor = stringToRingColor(agent.name)
 
   // Avatar priority: stored URL > stored emoji > computed from ID
@@ -348,7 +352,7 @@ export default function AgentBadge({
                 agentId={agent.id}
                 avatar={avatarUrl}
                 hostUrl={getAgentBaseUrl(agent)}
-                state={avatarStateFrom({ online: isOnline, hibernated: isHibernated, activity: activityStatus })}
+                of={agent}
                 size={80}
                 ring={false}
                 alt={agent.label || agent.name}

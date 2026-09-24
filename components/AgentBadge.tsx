@@ -1,5 +1,7 @@
 'use client'
 
+import { getAgentBaseUrl } from '@/lib/agent-utils'
+import LiveAvatar, { avatarStateFrom } from './LiveAvatar'
 import React from 'react'
 import {
   MoreVertical,
@@ -338,11 +340,16 @@ export default function AgentBadge({
                 </span>
               </div>
             ) : (
-              <img
-                src={avatarUrl}
+              // Alive: the agent's loop for its state, or a breathing still
+              <LiveAvatar
+                agentId={agent.id}
+                avatar={avatarUrl}
+                hostUrl={getAgentBaseUrl(agent)}
+                state={avatarStateFrom({ online: isOnline, hibernated: isHibernated, activity: activityStatus })}
+                size={80}
+                ring={false}
                 alt={agent.label || agent.name}
-                className="w-full h-full object-cover"
-                onError={() => setImageError(true)}
+                onImageError={() => setImageError(true)}
               />
             )}
           </div>

@@ -30,6 +30,8 @@ export interface LiveAvatarProps {
   ring?: boolean
   className?: string
   alt?: string
+  /** The still image failed to load (the caller can show initials instead) */
+  onImageError?: () => void
 }
 
 const loopCache = new Map<string, Promise<string[]>>()
@@ -56,7 +58,7 @@ const RING: Record<LiveAvatarState, string> = {
   sleeping: 'ring-gray-600/30',
 }
 
-export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size, ring = true, className = '', alt }: LiveAvatarProps) {
+export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size, ring = true, className = '', alt, onImageError }: LiveAvatarProps) {
   const [loops, setLoops] = useState<string[]>([])
   useEffect(() => {
     let alive = true
@@ -100,7 +102,7 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size,
   return (
     <div className={frame} style={{ width: size, height: size }} title={alt}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src || undefined} alt={alt || ''} className={`w-full h-full object-cover ${motion}`} />
+      <img src={src || undefined} alt={alt || ''} className={`w-full h-full object-cover ${motion}`} onError={onImageError} />
     </div>
   )
 }

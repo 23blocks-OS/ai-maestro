@@ -42,6 +42,18 @@ mini-lola, `women_43.png`), Jarvis (`23blocks-api-jarvis`, label Zaiden,
   Get it at https://aistudio.google.com/apikey and set up billing on its project.
 - Plan: generate Titania idle first, review quality, then the rest.
 
+## Principle: precompiled, never real time
+
+Most machines (hosts, laptops, phones, tablets) cannot generate these in real
+time, and must not have to. Loops are **rendered once, offline, on a machine
+that can** (an Apple Silicon Mac with LivePortrait, or a video API), then
+stored as plain MP4 files in the agent's directory. Everything else only
+**plays** them: 384 px, 60-120 KB, looped like a GIF, cached by the browser.
+Hosts only store and serve files; agent export/transfer carries the `avatar/`
+folder (v0.44.1), so a moved agent keeps its face without re-rendering.
+Future "generate loops" UI should route the job to a capable machine in the
+mesh, never run it on the agent's host by default.
+
 ## Why It's Needed
 
 "I want those agents to look alive." Agents are presented as employees with a

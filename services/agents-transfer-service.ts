@@ -422,6 +422,12 @@ export async function exportAgentZip(agentIdOrName: string): Promise<ServiceResu
     archive.file(agentDbFile, { name: 'agent.db' })
   }
 
+  // Living-avatar loops (lib/avatar-loops.ts): precompiled once, on a machine
+  // that can render them, then they travel with the agent. The destination
+  // only plays them, so it never needs to render anything.
+  const avatarLoopsDir = path.join(agentDbDir, 'avatar')
+  if (fs.existsSync(avatarLoopsDir)) archive.directory(avatarLoopsDir, 'avatar')
+
   if (hasInbox) archive.directory(inboxDir, 'messages/inbox')
   if (hasSent) archive.directory(sentDir, 'messages/sent')
   if (hasArchived) archive.directory(archivedDir, 'messages/archived')
@@ -689,6 +695,16 @@ export async function importAgent(
       stats.databaseImported = true
     } else if (manifest.contents.hasDatabase) {
       warnings.push('Manifest indicated database exists but agent.db not found in archive')
+    }
+
+    // Living-avatar loops travel with the agent (precompiled video; no rendering here)
+    const avatarSrc = path.join(tempDir, 'avatar')
+    if (fs.existsSync(avatarSrc)) {
+      const avatarDest = path.join(AGENTS_DIR, agentToImport.id, 'avatar')
+      ensureDir(avatarDest)
+      for (const f of fs.readdirSync(avatarSrc).filter(f => /^(idle|working|waiting|sleeping)\.mp4$/.test(f))) {
+        fs.copyFileSync(path.join(avatarSrc, f), path.join(avatarDest, f))
+      }
     }
 
     // Import messages

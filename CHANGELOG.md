@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.44.1] - 2026-09-23 — Living avatars travel with the agent
+
+Agent export/transfer now includes the precompiled avatar loops (`avatar/`),
+so a moved agent keeps its face without re-rendering: loops are rendered once
+on a capable machine and only ever played elsewhere (F012).
+
 ## [0.44.0] - 2026-09-23 — Agents that look alive
 
 "I want those agents to look alive." Meta's Muse shows a working agent typing

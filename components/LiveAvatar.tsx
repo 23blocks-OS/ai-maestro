@@ -24,8 +24,12 @@ export interface LiveAvatarProps {
   /** Where the agent's API lives, for agents on other hosts ('' = this host) */
   hostUrl?: string
   state: LiveAvatarState
-  /** Pixel size (square) */
-  size: number
+  /** Pixel size (square). Ignored with `fill`. */
+  size?: number
+  /** Fill the parent (a tile or rounded square that sets its own size and clipping) */
+  fill?: boolean
+  /** Clip to a circle (default). Off when the parent already clips. */
+  rounded?: boolean
   /** Ring colour for the state (default: on) */
   ring?: boolean
   className?: string
@@ -58,7 +62,7 @@ const RING: Record<LiveAvatarState, string> = {
   sleeping: 'ring-gray-600/30',
 }
 
-export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size, ring = true, className = '', alt, onImageError }: LiveAvatarProps) {
+export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size = 40, fill = false, rounded = true, ring = true, className = '', alt, onImageError }: LiveAvatarProps) {
   const [loops, setLoops] = useState<string[]>([])
   useEffect(() => {
     let alive = true
@@ -69,11 +73,12 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size,
   const isImage = !!avatar && (avatar.startsWith('http') || avatar.startsWith('/'))
   const src = isImage ? avatar : null
   const hasLoop = loops.includes(state)
-  const frame = `relative rounded-full overflow-hidden flex-shrink-0 ${ring ? `ring-2 ${RING[state]}` : ''} ${className}`
+  const frame = `relative overflow-hidden flex-shrink-0 ${rounded ? 'rounded-full' : ''} ${fill ? 'w-full h-full' : ''} ${ring ? `ring-2 ${RING[state]}` : ''} ${className}`
+  const box = fill ? undefined : { width: size, height: size }
 
   if (hasLoop) {
     return (
-      <div className={frame} style={{ width: size, height: size }} title={alt}>
+      <div className={frame} style={box} title={alt}>
         <video
           key={state}
           src={`${hostUrl}/api/agents/${encodeURIComponent(agentId)}/avatar-loops/${state}`}
@@ -92,15 +97,15 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size,
 
   if (!isImage) {
     return (
-      <div className={`${frame} bg-slate-700 flex items-center justify-center`} style={{ width: size, height: size }} title={alt}>
-        <span style={{ fontSize: size * 0.55 }}>{avatar || '🤖'}</span>
+      <div className={`${frame} bg-slate-700 flex items-center justify-center`} style={box} title={alt}>
+        <span style={{ fontSize: fill ? '2.5em' : size * 0.55 }}>{avatar || '🤖'}</span>
       </div>
     )
   }
 
   const motion = state === 'working' ? 'live-avatar-work' : state === 'sleeping' ? 'live-avatar-sleep' : 'live-avatar-breathe'
   return (
-    <div className={frame} style={{ width: size, height: size }} title={alt}>
+    <div className={frame} style={box} title={alt}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src || undefined} alt={alt || ''} className={`w-full h-full object-cover ${motion}`} onError={onImageError} />
     </div>
@@ -113,4 +118,10 @@ export function avatarStateFrom(opts: { online: boolean; hibernated?: boolean; a
   if (opts.activity === 'active') return 'working'
   if (opts.activity === 'waiting') return 'waiting'
   return 'idle'
+}
+
+/** An agent's avatar state from the agent itself, when a view has no activity feed */
+export function agentAvatarState(agent: { session?: { status?: string } | null; sessions?: Array<{ status?: string }> | null }, activity?: string | null): LiveAvatarState {
+  const online = agent.session?.status === 'online' || agent.sessions?.[0]?.status === 'online'
+  return avatarStateFrom({ online, activity })
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -105,11 +106,7 @@ function ZoomAgentContent() {
                       : 'bg-violet-600/30 text-violet-300'
                   }`}>
                     {isAvatarUrl ? (
-                      <img
-                        src={agent.avatar}
-                        alt={displayName}
-                        className="w-full h-full object-cover"
-                      />
+                      <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={displayName} />
                     ) : agent.avatar ? (
                       <span className="text-xl">{agent.avatar}</span>
                     ) : (

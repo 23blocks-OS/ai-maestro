@@ -1,5 +1,6 @@
 'use client'
 
+import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
 import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -361,11 +362,7 @@ export default function ZoomPage() {
                         : 'bg-violet-600/30 text-violet-300'
                     }`}>
                       {isAvatarUrl ? (
-                        <img
-                          src={selectedAgent.avatar}
-                          alt={displayName}
-                          className="w-full h-full object-cover"
-                        />
+                        <LiveAvatar agentId={selectedAgent.id} avatar={selectedAgent.avatar} hostUrl={getAgentBaseUrl(selectedAgent)} state={agentAvatarState(selectedAgent)} fill rounded={false} ring={false} alt={displayName} />
                       ) : selectedAgent.avatar ? (
                         <span className="text-3xl">{selectedAgent.avatar}</span>
                       ) : (

@@ -1,5 +1,7 @@
 'use client'
 
+import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import { getAgentBaseUrl } from '@/lib/agent-utils'
 import React, { useState, useEffect } from 'react'
 import {
   User, Building2, Briefcase, Code2, Cpu, Tag,
@@ -319,7 +321,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                   title="Click to change avatar"
                 >
                   {isAvatarUrl ? (
-                    <img src={agent.avatar} alt={displayName} className="w-full h-full object-cover" />
+                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={displayName} />
                   ) : agent.avatar ? (
                     agent.avatar
                   ) : (

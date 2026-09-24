@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.44.3] - 2026-09-23 — Living avatars everywhere an agent appears
+
+`LiveAvatar` (loop per state, or a breathing still) now also drives the avatar
+in the zoom grid tiles, the zoom page and single-agent page, both agent profile
+screens, the tablet dashboard, the meeting sidebar (tiles and list), the agent
+picker and the ringing screen (waiting until the agent joins). It can now fill
+tiles and rounded squares, not only circles. Left still on purpose: 20 px chips
+(team list, selected-agents bar, team card stack), the avatar picker, and agent
+creation; the voice companion and call overlay keep their real-time lip-synced
+face.
+
 ## [0.44.2] - 2026-09-23 — Living avatars in the card view
 
 The sidebar's card (grid) view, used when the sidebar is 480 px or wider, drew

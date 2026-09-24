@@ -1,5 +1,7 @@
 'use client'
 
+import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useState } from 'react'
 import {
   Power,
@@ -125,11 +127,7 @@ export default function AgentCard({
               : 'bg-gradient-to-br from-violet-900/40 to-purple-950/60'
           }`}>
             {isAvatarUrl ? (
-              <img
-                src={agent.avatar}
-                alt={displayName}
-                className="w-full h-full object-cover"
-              />
+              <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={displayName} />
             ) : agent.avatar ? (
               <span className="text-[8rem] leading-none opacity-90">{agent.avatar}</span>
             ) : (

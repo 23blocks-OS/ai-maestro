@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.43.4] - 2026-09-23 — Backlog: F012
+
+Logged F012 (agents that look alive: per-state avatar loops) with the prepared,
+not-yet-run Veo script `scripts/avatars/generate-veo-loops.mjs`; blocked on a
+paid Gemini key.
+
 ## [0.43.3] - 2026-09-23 — Backlog: F011
 
 Logged F011: each agent has its own browser (vercel-labs/agent-browser, per-agent

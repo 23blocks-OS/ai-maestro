@@ -29,6 +29,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F009** — [Corrections as their own kind of memory](./backlog/F009-memory-corrections.md) — `Done` (v0.43.0)
 - **F010** — [Deliver AMP messages through Claude Code's own session inbox](./backlog/F010-cross-session-inbox-delivery.md) — `Todo`
 - **F011** — [Each agent has its own browser, and you can watch it work](./backlog/F011-agent-browser.md) — `Todo`
+- **F012** — [Agents that look alive (animated avatars)](./backlog/F012-living-avatars.md) — `Blocked`
 
 ## Bugs
 

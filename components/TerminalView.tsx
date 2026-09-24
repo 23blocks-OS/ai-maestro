@@ -1,7 +1,7 @@
 'use client'
 
 import { useSessionActivity } from '@/hooks/useSessionActivity'
-import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
+import { presenceFrom } from '@/lib/agent-presence'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -155,16 +155,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
 
   // Copy-on-select: opt-in (global setting). useTerminal reads the same
   // localStorage key on each selection, so no re-init is needed on toggle.
-  const [copyOnSelect, setCopyOnSelect] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('terminal-copy-on-select') === 'true'
-  })
-  const toggleCopyOnSelect = () => {
-    setCopyOnSelect(prev => {
-      localStorage.setItem('terminal-copy-on-select', String(!prev))
-      return !prev
-    })
-  }
+  // Copy-on-select is a preference now: Settings → Terminal (useTerminal reads it)
 
   // Copy/paste handlers defined after useTerminal below
 
@@ -752,98 +743,57 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
       {!hideHeader && (
         <AgentHeaderBar
           hostId={session.hostId}
+          remote={!!avatar?.hostUrl}
           name={session.name || session.id}
           workingDirectory={session.workingDirectory}
+          presence={presence}
           avatar={avatar && session.agentId ? { agentId: session.agentId, src: avatar.src, hostUrl: avatar.hostUrl, state: avatarStateForPresence(presence) } : undefined}
-          dotClass={PRESENCE_STYLE[presence].dot}
-          dotTitle={PRESENCE_STYLE[presence].title}
-          status={
-            isConnected
-              ? <span className={PRESENCE_STYLE[presence].text}>{PRESENCE_STYLE[presence].label}</span>
-              : <span className="text-red-400">terminal disconnected</span>
-          }
+          status={isConnected ? undefined : <span className="text-red-400">terminal disconnected</span>}
           actions={terminal ? (<>
-              {/* Mobile: Notes toggle button */}
+              {/* Mobile: notes panel */}
               {!hideFooter && (
-                <>
-                  <button
-                    onClick={() => setNotesCollapsed(!notesCollapsed)}
-                    className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
-                    title={notesCollapsed ? "Show footer" : "Hide footer"}
-                  >
-                    📝
-                  </button>
-                  <span className="text-gray-500 md:hidden">|</span>
-                </>
+                <button
+                  onClick={() => setNotesCollapsed(!notesCollapsed)}
+                  className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-100 rounded text-xs"
+                  title={notesCollapsed ? 'Show notes' : 'Hide notes'}
+                >
+                  📝
+                </button>
               )}
-
-              {/* Hide on mobile except Clear and Notes buttons */}
-              <span className="hidden md:inline">
-                {terminal.cols}x{terminal.rows}
-              </span>
-              <span className="text-gray-500 hidden md:inline">|</span>
-              <span className="hidden md:inline" title={`Buffer: ${terminal.buffer.active.length} lines (scrollback: 10000)`}>
-                📜 {terminal.buffer.active.length} lines
-              </span>
-              <span className="text-gray-500 hidden md:inline">|</span>
-              <span className="hidden md:inline" title="Shift+PageUp/PageDown: Scroll by page&#10;Shift+Arrow Up/Down: Scroll 5 lines&#10;Shift+Home/End: Jump to top/bottom&#10;Or use mouse wheel/trackpad">
-                ⌨️ Shift+PgUp/PgDn • Shift+↑/↓
-              </span>
-              <span className="text-gray-500 hidden md:inline">|</span>
-              <button
-                onClick={globalLoggingEnabled ? toggleLogging : undefined}
-                disabled={!globalLoggingEnabled}
-                className={`px-2 py-1 rounded transition-colors text-xs ${
-                  !globalLoggingEnabled
-                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
-                    : loggingEnabled
-                    ? 'bg-green-700 hover:bg-green-600 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                }`}
-                title={
-                  !globalLoggingEnabled
-                    ? 'Session logging disabled globally (set ENABLE_LOGGING=true in .env.local to enable)'
-                    : loggingEnabled
-                    ? 'Logging enabled - Click to disable'
-                    : 'Logging disabled - Click to enable'
-                }
-              >
-                {loggingEnabled ? '📝' : '🚫'} <span className="hidden md:inline">{loggingEnabled ? 'Logging' : 'No Log'}</span>
-              </button>
-              <span className="text-gray-500 hidden md:inline">|</span>
+              {/* Only when session logging is enabled for this install; otherwise it was a dead, greyed-out button */}
+              {globalLoggingEnabled && (
+                <button
+                  onClick={toggleLogging}
+                  className={`px-2 py-1 rounded text-xs transition-colors ${loggingEnabled ? 'bg-green-700 hover:bg-green-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
+                  title={loggingEnabled ? 'Session logging on. Click to turn off' : 'Session logging off. Click to turn on'}
+                >
+                  {loggingEnabled ? 'Logging' : 'No log'}
+                </button>
+              )}
+              {/* Selecting inside tmux does not always reach the clipboard */}
               <button
                 onClick={copySelection}
-                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
-                title="Copy selected text to clipboard"
+                className="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-100 rounded-md text-xs font-medium"
+                title="Copy the selected text"
               >
-                📋 <span className="hidden md:inline">Copy</span>
+                Copy
               </button>
-              <button
-                onClick={toggleCopyOnSelect}
-                className={`px-2 py-1 rounded transition-colors text-xs hidden md:inline-block ${
-                  copyOnSelect
-                    ? 'bg-green-700 hover:bg-green-600 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                }`}
-                title={copyOnSelect
-                  ? 'Copy-on-select ON: selecting text copies it automatically — click to disable'
-                  : 'Copy-on-select OFF: selection leaves your clipboard alone — click to enable'}
-              >
-                ✂️ <span className="hidden md:inline">{copyOnSelect ? 'Auto-copy' : 'Auto-copy off'}</span>
-              </button>
-              <button
-                onClick={pasteFromClipboard}
-                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
-                title="Paste from clipboard (mobile-friendly)"
-              >
-                📥 <span className="hidden md:inline">Paste</span>
-              </button>
+              {/* ⌘V works on desktop; touch devices have no shortcut */}
+              {isTouch && (
+                <button
+                  onClick={pasteFromClipboard}
+                  className="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-100 rounded-md text-xs font-medium"
+                  title="Paste from the clipboard"
+                >
+                  Paste
+                </button>
+              )}
               <button
                 onClick={() => terminal.clear()}
-                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
-                title="Clear terminal scrollback buffer (removes duplicate lines from Claude Code status updates)"
+                className="px-2 py-1 text-gray-400 hover:text-gray-100 hover:bg-gray-700 rounded-md text-xs"
+                title="Clear this view's scrollback (removes duplicate lines from Claude Code redraws; does not touch the agent or tmux)"
               >
-                🧹 <span className="hidden md:inline">Clear</span>
+                Clear
               </button>
             </>) : undefined}
         />

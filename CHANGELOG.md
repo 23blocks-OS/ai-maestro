@@ -3,6 +3,27 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.4] - 2026-09-23 — Agent header: only what you use
+
+Every item in the Terminal and Chat header was judged on whether it answers a
+question you actually have.
+
+- **Kept:** avatar and name; the state with what the agent is doing
+  ("Working · Bash · yarn test"); the folder, small, underneath; the host only
+  for an agent on another machine ("local" on every agent said nothing).
+- **The bottom edge takes the state colour** (green / orange / yellow / grey),
+  so the state reads from across the room. Brighter name, same height.
+- **Chat:** X-Ray keeps its place with a label (it changes what you see).
+  Removed the message count, "time ago" (it repeated the state) and Refresh
+  (the chat is live and reconnects).
+- **Terminal:** Copy (selection inside tmux does not always reach the
+  clipboard), Paste on touch devices only (⌘V works on desktop), Clear as a
+  quiet button. Removed the terminal size and buffer line count (debug
+  readouts) and the scroll hint. The Logging button shows only when session
+  logging is enabled for the install, instead of a dead greyed-out button.
+- **Settings → Terminal:** Copy on select (a preference, not a per-use tool)
+  and the scroll keys.
+
 ## [0.45.3] - 2026-09-23 — An agent you answer turns green right away
 
 "Titania was in Needs you, I responded and she started working; the status

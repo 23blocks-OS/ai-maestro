@@ -1,6 +1,5 @@
 'use client'
 
-import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import AgentHeaderBar from './AgentHeaderBar'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
@@ -279,19 +278,14 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
       {/* Header: which agent, where, what it is doing (shared with the terminal and chat tabs) */}
       <AgentHeaderBar
         hostId={agent.hostId}
+        remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
+        presence={!connected ? 'offline' : thinking ? 'working' : 'ready'}
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: !connected ? 'sleeping' : thinking ? 'working' : 'idle' }}
-        dotClass={PRESENCE_STYLE[!connected ? 'offline' : thinking ? 'working' : 'ready'].dot}
-        dotTitle={!connected ? 'Connecting' : PRESENCE_STYLE[thinking ? 'working' : 'ready'].title}
-        status={
-          !connected ? <span className={PRESENCE_STYLE.offline.text}>Connecting…</span>
-          : thinking ? <span className={PRESENCE_STYLE.working.text}>Working…</span>
-          : <span className={PRESENCE_STYLE.ready.text}>Ready</span>
-        }
-        detail={<>stream-json{meta.model ? ` \u00b7 ${meta.model}` : ''}{meta.turns ? ` \u00b7 ${meta.turns} turns` : ''}{meta.cost ? ` \u00b7 $${meta.cost.toFixed(4)}` : ''}</>}
+        status={!connected ? 'Connecting…' : thinking ? 'Working…' : undefined}
         actions={
-          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-400/70 border border-amber-400/30 rounded px-1.5 py-0.5">
+          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-400/70 border border-amber-400/30 rounded px-1.5 py-0.5" title="Streaming mode is experimental">
             <Zap className="w-3 h-3" /> PoC
           </span>
         }

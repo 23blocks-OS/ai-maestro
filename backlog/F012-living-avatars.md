@@ -1,6 +1,6 @@
 # F012 — Agents that look alive (animated avatars)
 
-**Status:** Blocked (paid video key)
+**Status:** In Progress (free path shipped; Veo blocked on a paid key)
 **Type:** Feature
 **Created:** 2026-09-23
 
@@ -16,7 +16,20 @@ First three: Titania (23blocks-iac, `women_62.png`), Lola (pas-lola on
 mini-lola, `women_43.png`), Jarvis (`23blocks-api-jarvis`, label Zaiden,
 `men_39.png`; crop its white frame).
 
-## Status (2026-09-23)
+## Status (2026-09-23, evening)
+
+- **Free path works (LivePortrait, local):** idle / working / waiting loops for
+  Titania, Lola and Jarvis, rendered on the M4 Max (~90 s per clip), 384 px,
+  8 s seamless (forward + reverse), 60-120 KB each; installed in each agent's
+  `avatar/` folder. Recipe: `scripts/avatars/liveportrait-loops.sh`.
+- **Shipped in the app (v0.44.0):** `LiveAvatar` plays the loop for the agent's
+  state in the sidebar, the favourites strip and the shared tab header; agents
+  without loops get CSS life (breathing, state ring, dimmed when asleep).
+- **Still open:** "sleeping" (no sample driver closes the eyes; shows the
+  dimmed still); "working" is a calm head motion, not typing hands (Veo would
+  do better); a UI to generate loops per agent.
+
+## Status (2026-09-23, Veo)
 
 - **Prepared, never run:** `scripts/avatars/generate-veo-loops.mjs`. Veo 3.1
   Lite via the Gemini API (`predictLongRunning`), image-to-video, the portrait

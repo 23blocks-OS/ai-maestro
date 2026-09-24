@@ -3,6 +3,25 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.44.0] - 2026-09-23 — Agents that look alive
+
+"I want those agents to look alive." Meta's Muse shows a working agent typing
+at a laptop; ours now breathe, glance and smile, and show what they are doing.
+
+- **Living avatars.** An agent can have short seamless loops of its own
+  portrait per state (idle, working, waiting), stored in its directory
+  (`~/.aimaestro/agents/<id>/avatar/<state>.mp4`) so they move with it.
+  Served by `GET /api/agents/:id/avatar-loops[/:state]` (Range support for
+  Safari; headless too).
+- **`LiveAvatar`** plays the loop for the agent's live state in the sidebar,
+  the favourites strip and the shared tab header (Terminal, Chat, Streaming).
+  Agents without loops stay alive in CSS: a slow breath, a quicker one while
+  working, a state ring matching the sidebar dot, dimmed when asleep; honours
+  reduced motion.
+- **Made for free, locally:** `scripts/avatars/liveportrait-loops.sh`
+  (LivePortrait on Apple Silicon, ~90 s per clip). First three: Titania, Lola,
+  Jarvis. Veo remains the paid option for richer motion (F012).
+
 ## [0.43.4] - 2026-09-23 — Backlog: F012
 
 Logged F012 (agents that look alive: per-state avatar loops) with the prepared,

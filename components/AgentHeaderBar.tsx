@@ -10,6 +10,7 @@
 
 import type { ReactNode } from 'react'
 import { Folder } from 'lucide-react'
+import LiveAvatar, { type LiveAvatarState } from './LiveAvatar'
 
 export interface AgentHeaderBarProps {
   hostId?: string | null
@@ -26,6 +27,8 @@ export interface AgentHeaderBarProps {
   detail?: ReactNode
   /** The tab's own tools */
   actions?: ReactNode
+  /** The agent's face, alive for its state (components/LiveAvatar.tsx) */
+  avatar?: { agentId: string; src?: string | null; hostUrl?: string; state: LiveAvatarState }
 }
 
 /** /Users/me/x or /home/me/x → ~/x, so the folder fits */
@@ -33,12 +36,15 @@ export function shortenPath(p: string): string {
   return p.replace(/^\/(Users|home)\/[^/]+(?=\/|$)/, '~')
 }
 
-export default function AgentHeaderBar({ hostId, name, workingDirectory, dotClass, dotTitle, status, detail, actions }: AgentHeaderBarProps) {
+export default function AgentHeaderBar({ hostId, name, workingDirectory, dotClass, dotTitle, status, detail, actions, avatar }: AgentHeaderBarProps) {
   const host = hostId && hostId !== 'local' ? hostId : 'local'
   return (
     <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800 flex-shrink-0">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
+          {avatar && (
+            <LiveAvatar agentId={avatar.agentId} avatar={avatar.src} hostUrl={avatar.hostUrl} state={avatar.state} size={32} alt={name} className="mr-1" />
+          )}
           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} title={dotTitle} />
           <h3 className="font-medium text-gray-400 text-xs md:text-sm truncate flex-shrink-0 max-w-[30%]">{host}</h3>
           <span className="text-gray-600">/</span>

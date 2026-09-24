@@ -27,10 +27,12 @@ interface TerminalViewProps {
   isVisible?: boolean
   hideFooter?: boolean  // Hide notes/prompt footer (used in MobileDashboard)
   hideHeader?: boolean  // Hide terminal header (used in MobileDashboard)
+  /** The agent's avatar and API base, for the live face in the header */
+  avatar?: { src?: string | null; hostUrl?: string }
   onConnectionStatusChange?: (isConnected: boolean) => void  // Callback for connection status changes
 }
 
-export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, avatar }: TerminalViewProps) {
   const { addToast } = useToast()
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -743,6 +745,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
           hostId={session.hostId}
           name={session.name || session.id}
           workingDirectory={session.workingDirectory}
+          avatar={avatar && session.agentId ? { agentId: session.agentId, src: avatar.src, hostUrl: avatar.hostUrl, state: isConnected ? 'idle' : 'sleeping' } : undefined}
           dotClass={isConnected ? 'bg-green-500' : 'bg-red-500'}
           dotTitle={isConnected ? 'Terminal connected' : 'Terminal disconnected'}
           actions={terminal ? (<>

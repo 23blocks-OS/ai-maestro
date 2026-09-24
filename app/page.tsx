@@ -1025,7 +1025,7 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <ErrorBoundary fallbackLabel="Terminal">
-                          <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} />
+                          <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} avatar={{ src: agent.avatar, hostUrl: getAgentBaseUrl(agent) }} />
                         </ErrorBoundary>
                       )
                     ) : !isActive ? (

@@ -1,7 +1,7 @@
 'use client'
 
 import AgentHeaderBar from './AgentHeaderBar'
-import { agentWorkingDirectory } from '@/lib/agent-utils'
+import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
@@ -871,6 +871,15 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         hostId={agent.hostId}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
+        avatar={{
+          agentId: agent.id,
+          src: agent.avatar,
+          hostUrl: getAgentBaseUrl(agent),
+          state: !isOnline ? 'sleeping'
+            : activityState === 'thinking' || activityState === 'sending' ? 'working'
+            : activityState === 'waiting' || activityState === 'permission' ? 'waiting'
+            : 'idle',
+        }}
         dotClass={
           !isOnline ? 'bg-red-500'
           : activityState === 'sending' ? 'bg-blue-400 animate-pulse'

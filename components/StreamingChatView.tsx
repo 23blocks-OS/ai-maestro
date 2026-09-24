@@ -1,7 +1,7 @@
 'use client'
 
 import AgentHeaderBar from './AgentHeaderBar'
-import { agentWorkingDirectory } from '@/lib/agent-utils'
+import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle, ShieldAlert } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
@@ -280,6 +280,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         hostId={agent.hostId}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
+        avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: !connected ? 'sleeping' : thinking ? 'working' : 'idle' }}
         dotClass={!connected ? 'bg-red-500' : thinking ? 'bg-amber-400 animate-pulse' : 'bg-green-500'}
         dotTitle={!connected ? 'Connecting' : thinking ? 'Streaming' : 'Connected'}
         status={

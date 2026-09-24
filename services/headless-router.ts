@@ -690,6 +690,28 @@ const routes: Route[] = [
     }
   }},
 
+  // Living avatars (lib/avatar-loops.ts)
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/avatar-loops$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    const { listAvatarLoops } = await import('@/lib/avatar-loops')
+    sendJson(res, 200, { states: listAvatarLoops(params.id) }, { 'Cache-Control': 'max-age=60' })
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/avatar-loops\/([^/]+)$/, paramNames: ['id', 'state'], handler: async (req, res, params) => {
+    const { avatarLoopPath, parseRange } = await import('@/lib/avatar-loops')
+    const fsMod = await import('fs')
+    const file = avatarLoopPath(params.id, params.state.replace(/\.mp4$/, ''))
+    if (!file) { sendJson(res, 404, { error: 'not_found' }); return }
+    const size = fsMod.statSync(file).size
+    const range = parseRange(req.headers.range || null, size)
+    const headers: Record<string, string> = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'max-age=3600' }
+    if (range) {
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${range.start}-${range.end}/${size}`, 'Content-Length': String(range.end - range.start + 1) })
+      fsMod.createReadStream(file, { start: range.start, end: range.end }).pipe(res)
+    } else {
+      res.writeHead(200, { ...headers, 'Content-Length': String(size) })
+      fsMod.createReadStream(file).pipe(res)
+    }
+  }},
+
   // Folder picker (was Next-only, so the picker failed on headless hosts)
   { method: 'GET', pattern: /^\/api\/browse$/, paramNames: [], handler: async (req, res) => {
     const url = new URL(req.url || '/', 'http://localhost')

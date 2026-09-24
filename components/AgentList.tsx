@@ -1,5 +1,6 @@
 'use client'
 
+import LiveAvatar, { avatarStateFrom } from './LiveAvatar'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import type { UnifiedAgent } from '@/types/agent'
 import { formatDistanceToNow } from '@/lib/utils'
@@ -765,10 +766,14 @@ export default function AgentList({
                             <span className="text-lg">{agent.avatar}</span>
                           </div>
                         ) : (
-                          <img
-                            src={avatarUrl}
+                          <LiveAvatar
+                            agentId={agent.id}
+                            avatar={avatarUrl}
+                            hostUrl={getAgentBaseUrl(agent)}
+                            state={avatarStateFrom({ online: isOnline, activity: agent.name ? getSessionActivity(agent.name)?.status : undefined })}
+                            size={36}
+                            ring={false}
                             alt={agent.label || agent.name}
-                            className="w-full h-full object-cover"
                           />
                         )}
                         {/* Online dot */}
@@ -1246,10 +1251,12 @@ export default function AgentList({
                                           <div className="flex-1 min-w-0 flex items-center gap-3">
                                             {/* Avatar or Icon */}
                                             {agent.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/')) ? (
-                                              <img
-                                                src={agent.avatar}
-                                                alt=""
-                                                className="w-12 h-12 rounded-full flex-shrink-0 object-cover"
+                                              <LiveAvatar
+                                                agentId={agent.id}
+                                                avatar={agent.avatar}
+                                                hostUrl={getAgentBaseUrl(agent)}
+                                                state={avatarStateFrom({ online: isOnline, hibernated: isHibernated, activity: activityStatus })}
+                                                size={48}
                                               />
                                             ) : agent.avatar ? (
                                               <span className="text-3xl flex-shrink-0">{agent.avatar}</span>

@@ -1,6 +1,6 @@
 'use client'
 
-import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import React, { useState, useEffect, useRef } from 'react'
 import {
@@ -426,7 +426,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         title="Click to change avatar"
                       >
                         {agent.avatar ? (
-                          <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={agent.label || agent.name || 'Agent'} />
+                          <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={agent.label || agent.name || 'Agent'} />
                         ) : (
                           '🤖'
                         )}

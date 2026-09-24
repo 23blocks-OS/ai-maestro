@@ -13,6 +13,7 @@
  * Loops are looked up once per agent and host, then cached for the session.
  */
 
+import { useSessionActivity, type PresenceSubject } from '@/hooks/useSessionActivity'
 import { PRESENCE_STYLE, presenceFrom, type AgentPresence } from '@/lib/agent-presence'
 import { useEffect, useState } from 'react'
 
@@ -24,7 +25,9 @@ export interface LiveAvatarProps {
   avatar?: string | null
   /** Where the agent's API lives, for agents on other hosts ('' = this host) */
   hostUrl?: string
-  state: LiveAvatarState
+  /** The state to show. Or pass `of` (the agent) and it comes from the shared status store */
+  state?: LiveAvatarState
+  of?: PresenceSubject
   /** Pixel size (square). Ignored with `fill`. */
   size?: number
   /** Fill the parent (a tile or rounded square that sets its own size and clipping) */
@@ -70,7 +73,9 @@ export function avatarStateForPresence(p: AgentPresence): LiveAvatarState {
   return p === 'working' ? 'working' : p === 'needs-you' ? 'waiting' : p === 'ready' ? 'idle' : 'sleeping'
 }
 
-export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size = 40, fill = false, rounded = true, ring = true, className = '', alt, onImageError }: LiveAvatarProps) {
+export default function LiveAvatar({ agentId, avatar, hostUrl = '', state: stateProp, of, size = 40, fill = false, rounded = true, ring = true, className = '', alt, onImageError }: LiveAvatarProps) {
+  const { presenceOf } = useSessionActivity()
+  const state: LiveAvatarState = stateProp ?? (of ? avatarStateForPresence(presenceOf(of)) : 'idle')
   const [loops, setLoops] = useState<string[]>([])
   useEffect(() => {
     let alive = true
@@ -123,10 +128,4 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size 
 /** Sidebar/session activity → avatar state */
 export function avatarStateFrom(opts: { online: boolean; hibernated?: boolean; activity?: 'active' | 'idle' | 'waiting' | string | null; hookStatus?: string | null; notificationType?: string | null }): LiveAvatarState {
   return avatarStateForPresence(presenceFrom(opts))
-}
-
-/** An agent's avatar state from the agent itself, when a view has no activity feed */
-export function agentAvatarState(agent: { session?: { status?: string } | null; sessions?: Array<{ status?: string }> | null }, activity?: string | null): LiveAvatarState {
-  const online = agent.session?.status === 'online' || agent.sessions?.[0]?.status === 'online'
-  return avatarStateFrom({ online, activity })
 }

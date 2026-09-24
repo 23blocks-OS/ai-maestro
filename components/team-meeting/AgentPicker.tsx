@@ -1,6 +1,6 @@
 'use client'
 
-import LiveAvatar, { agentAvatarState } from '@/components/LiveAvatar'
+import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useState, useMemo } from 'react'
 import { Search, Check } from 'lucide-react'
@@ -74,7 +74,7 @@ export default function AgentPicker({ agents, selectedAgentIds, onToggleAgent }:
               <div className="relative">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700">
                   {agent.avatar ? (
-                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={agentAvatarState(agent)} fill rounded={false} ring={false} alt={displayName} />
+                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-bold">
                       {displayName.charAt(0).toUpperCase()}

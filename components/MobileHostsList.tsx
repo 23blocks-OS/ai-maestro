@@ -38,7 +38,7 @@ export default function MobileHostsList({
   onRefresh
 }: MobileHostsListProps) {
   const { hosts, loading: hostsLoading, error: hostsError } = useHosts()
-  const { getSessionActivity } = useSessionActivity()
+  const { getSessionActivity, presenceOf } = useSessionActivity()
 
   // Find the local host (type === 'local') to use as default
   const localHost = useMemo(() => hosts.find(h => h.type === 'local'), [hosts])
@@ -379,7 +379,7 @@ export default function MobileHostsList({
 
                           if (isOnline) {
                             // One rule for every view (lib/agent-presence.ts)
-                            const presence = presenceFrom({ online: true, activity: activityStatus })
+                            const presence = presenceOf(agent, { online: true })
                             statusColor = presence === 'working' ? 'bg-emerald-500' : presence === 'needs-you' ? 'bg-orange-500' : 'bg-yellow-400'
                             statusLabel = PRESENCE_STYLE[presence].label
                           } else if (isHibernated) {

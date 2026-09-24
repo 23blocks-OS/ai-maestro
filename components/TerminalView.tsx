@@ -1,7 +1,6 @@
 'use client'
 
 import { useSessionActivity } from '@/hooks/useSessionActivity'
-import { presenceFrom } from '@/lib/agent-presence'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -36,7 +35,7 @@ interface TerminalViewProps {
 }
 
 export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, avatar }: TerminalViewProps) {
-  const { getSessionActivity } = useSessionActivity()
+  const { presenceOf } = useSessionActivity()
   const { addToast } = useToast()
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -734,8 +733,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
 
   // The header dot is the agent's presence, the same rule as every other view
   // (lib/agent-presence.ts); a lost terminal connection is said in words.
-  const activityInfo = getSessionActivity(session.id, session.agentId)
-  const presence = presenceFrom({ online: true, activity: activityInfo?.status, hookStatus: activityInfo?.hookStatus, notificationType: activityInfo?.notificationType })
+  const presence = presenceOf({ name: session.id, id: session.agentId }, { online: true })
 
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">

@@ -43,13 +43,13 @@ const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'activity-'))
 process.env.HOME = tmpHome
 vi.spyOn(os, 'homedir').mockReturnValue(tmpHome)
 
-function writeHookFile(cwd: string, status: string, at: number = Date.now()) {
+function writeHookFile(cwd: string, status: string, at: number = Date.now(), notificationType?: string) {
   const dir = path.join(tmpHome, '.aimaestro', 'chat-state')
   fs.mkdirSync(dir, { recursive: true })
   const hash = crypto.createHash('md5').update(cwd).digest('hex').substring(0, 16)
   fs.writeFileSync(
     path.join(dir, `${hash}.json`),
-    JSON.stringify({ status, cwd, updatedAt: new Date(at).toISOString() })
+    JSON.stringify({ status, cwd, updatedAt: new Date(at).toISOString(), ...(notificationType ? { notificationType } : {}) })
   )
 }
 
@@ -83,10 +83,13 @@ describe('an agent nobody is watching', () => {
   })
 
   it.each([
-    ['waiting_for_input', 'waiting'],
-    ['permission_request', 'waiting'],
-  ])('maps hook status %s to %s', async (hook, expected) => {
-    hookStatus.set('backend-api', { status: hook, at: Date.now() })
+    ['waiting_for_input', 'permission_prompt', 'waiting'],
+    ['permission_request', undefined, 'waiting'],
+    // Claude Code's idle_prompt only means "still idle after a minute": the
+    // agent is done and holding, not blocked on the user (lib/agent-presence.ts)
+    ['waiting_for_input', 'idle_prompt', 'idle'],
+  ])('maps hook status %s (%s) to %s', async (hook, notificationType, expected) => {
+    hookStatus.set('backend-api', { status: hook, at: Date.now(), ...(notificationType ? { notificationType } : {}) })
     expect((await getActivity())['backend-api'].status).toBe(expected)
   })
 
@@ -116,7 +119,7 @@ describe('trust boundaries', () => {
     // Pre-existing behaviour, and a distinction worth keeping straight: the
     // terminal-upgrade path reads the hook's STATE FILE (keyed by cwd hash), not
     // the broadcast map (keyed by session name). Two different stores.
-    writeHookFile('/repos/api', 'waiting_for_input')
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now(), 'permission_prompt')
     sessionActivity.set('backend-api', Date.now())
     expect((await getActivity())['backend-api'].status).toBe('waiting')
   })
@@ -161,7 +164,7 @@ describe('staleness bounds', () => {
 
   it('keeps a "waiting" report from overnight', async () => {
     // Genuinely blocked since yesterday evening must still be flagged this morning.
-    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 14 * HOURS)
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 14 * HOURS, 'permission_prompt')
     expect((await getActivity())['backend-api'].status).toBe('waiting')
   })
 

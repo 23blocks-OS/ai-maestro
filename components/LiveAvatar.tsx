@@ -13,6 +13,7 @@
  * Loops are looked up once per agent and host, then cached for the session.
  */
 
+import { PRESENCE_STYLE, presenceFrom, type AgentPresence } from '@/lib/agent-presence'
 import { useEffect, useState } from 'react'
 
 export type LiveAvatarState = 'idle' | 'working' | 'waiting' | 'sleeping'
@@ -53,13 +54,20 @@ function loopsFor(agentId: string, hostUrl: string): Promise<string[]> {
   return p
 }
 
-// Same colours as the sidebar's status dot next to it: green = active,
-// amber = waiting for input
+// The shared presence colours (lib/agent-presence.ts): green = working,
+// orange = needs you, yellow = ready, grey = offline. The loop follows the same
+// state: working → working loop, needs you → waiting loop (looking at you),
+// ready → idle loop, offline → dimmed still.
 const RING: Record<LiveAvatarState, string> = {
-  idle: 'ring-emerald-500/25',
-  working: 'ring-emerald-400/80 live-avatar-ring-pulse',
-  waiting: 'ring-amber-400/80',
-  sleeping: 'ring-gray-600/30',
+  working: `${PRESENCE_STYLE.working.ring} live-avatar-ring-pulse`,
+  waiting: `${PRESENCE_STYLE['needs-you'].ring} live-avatar-ring-pulse-orange`,
+  idle: PRESENCE_STYLE.ready.ring,
+  sleeping: PRESENCE_STYLE.offline.ring,
+}
+
+/** Presence → which loop plays */
+export function avatarStateForPresence(p: AgentPresence): LiveAvatarState {
+  return p === 'working' ? 'working' : p === 'needs-you' ? 'waiting' : p === 'ready' ? 'idle' : 'sleeping'
 }
 
 export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size = 40, fill = false, rounded = true, ring = true, className = '', alt, onImageError }: LiveAvatarProps) {
@@ -113,11 +121,8 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state, size 
 }
 
 /** Sidebar/session activity → avatar state */
-export function avatarStateFrom(opts: { online: boolean; hibernated?: boolean; activity?: 'active' | 'idle' | 'waiting' | string | null }): LiveAvatarState {
-  if (!opts.online) return 'sleeping'
-  if (opts.activity === 'active') return 'working'
-  if (opts.activity === 'waiting') return 'waiting'
-  return 'idle'
+export function avatarStateFrom(opts: { online: boolean; hibernated?: boolean; activity?: 'active' | 'idle' | 'waiting' | string | null; hookStatus?: string | null; notificationType?: string | null }): LiveAvatarState {
+  return avatarStateForPresence(presenceFrom(opts))
 }
 
 /** An agent's avatar state from the agent itself, when a view has no activity feed */

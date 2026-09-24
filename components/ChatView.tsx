@@ -1,5 +1,7 @@
 'use client'
 
+import { PRESENCE_STYLE, hookNeedsYou, type AgentPresence } from '@/lib/agent-presence'
+import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
@@ -864,6 +866,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     return 'idle' as const
   }, [hookState, pendingMessages.length, isSending, messages])
 
+  // One rule for every view (lib/agent-presence.ts): green working, orange
+  // needs you, yellow ready, grey offline. waiting_for_input is "needs you"
+  // only for a permission prompt; Claude Code's idle_prompt just means ready.
+  const presence: AgentPresence = !isOnline ? 'offline'
+    : activityState === 'permission' ? 'needs-you'
+    : activityState === 'waiting' ? (hookNeedsYou(hookState?.status, hookState?.notificationType) ? 'needs-you' : 'ready')
+    : activityState === 'thinking' || activityState === 'sending' ? 'working'
+    : 'ready'
+  const presenceStyle = PRESENCE_STYLE[presence]
+
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
       {/* Header: which agent, where, what it is doing (shared with the terminal tab) */}
@@ -875,30 +887,20 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           agentId: agent.id,
           src: agent.avatar,
           hostUrl: getAgentBaseUrl(agent),
-          state: !isOnline ? 'sleeping'
-            : activityState === 'thinking' || activityState === 'sending' ? 'working'
-            : activityState === 'waiting' || activityState === 'permission' ? 'waiting'
-            : 'idle',
+          state: avatarStateForPresence(presence),
         }}
-        dotClass={
-          !isOnline ? 'bg-red-500'
-          : activityState === 'sending' ? 'bg-blue-400 animate-pulse'
-          : activityState === 'thinking' ? 'bg-amber-400 animate-pulse'
-          : activityState === 'permission' ? 'bg-red-400 animate-pulse'
-          : activityState === 'waiting' ? 'bg-green-400'
-          : 'bg-gray-500'
-        }
-        dotTitle={!isOnline ? 'Offline' : activityState}
+        dotClass={presenceStyle.dot}
+        dotTitle={presenceStyle.title}
         status={
-          !isOnline ? <span className="text-red-400">offline</span>
-          : activityState === 'sending' ? <span className="text-blue-300">sending…</span>
-          : activityState === 'thinking'
-            ? <span className="text-amber-300">{liveActivity
-              ? `${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…`
-              : 'working…'}</span>
-          : activityState === 'permission' ? <span className="text-red-300">permission needed</span>
-          : activityState === 'waiting' ? <span className="text-green-300">ready for input</span>
-          : <span className="text-gray-500">idle</span>
+          <span className={presenceStyle.text}>
+            {presence === 'working'
+              ? (activityState === 'sending' ? 'Sending…'
+                : liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…`
+                : 'Working…')
+              : presence === 'needs-you'
+                ? (activityState === 'permission' ? 'Needs you · approval' : 'Needs you')
+                : presenceStyle.label}
+          </span>
         }
         detail={<>{messages.length} messages{lastModified && ` \u00b7 ${formatTimestamp(lastModified)}`}</>}
         actions={

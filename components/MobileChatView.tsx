@@ -1,5 +1,6 @@
 'use client'
 
+import { PRESENCE_STYLE, hookNeedsYou } from '@/lib/agent-presence'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
@@ -261,6 +262,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
       label: string;
       action: string;
     }>;
+    notificationType?: string
     updatedAt?: string;
   } | null>(null)
   const [input, setInput] = useState('')
@@ -936,19 +938,26 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
         {!showPermission && (
           <div className="px-3 py-1.5 flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                isWaiting ? 'bg-green-500' : isSendingMsg ? 'bg-blue-400 animate-pulse' : isWorking ? 'bg-amber-500 animate-pulse' : 'bg-gray-500'
-              }`}
-            />
-            <span className="text-xs text-gray-400">
-              {isWaiting ? 'Ready for input'
-               : isSendingMsg ? 'Sending...'
-               : isWorking
-                 ? (liveActivity ? `${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}` : 'Working...')
-                 : 'Idle'}
-            </span>
-            {(isSendingMsg || isWorking) && <Loader2 className={`w-3 h-3 animate-spin ${isSendingMsg ? 'text-blue-400' : 'text-amber-500'}`} />}
+            {/* One rule for every view (lib/agent-presence.ts): a permission
+                prompt is "needs you"; idle_prompt / a finished turn is "ready" */}
+            {(() => {
+              const presence = isSendingMsg || isWorking ? 'working'
+                : isWaiting && hookNeedsYou(hookState?.status, hookState?.notificationType) ? 'needs-you'
+                : 'ready'
+              const style = PRESENCE_STYLE[presence]
+              return (
+                <>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} title={style.title} />
+                  <span className={`text-xs ${style.text}`}>
+                    {isSendingMsg ? 'Sending…'
+                     : isWorking
+                       ? (liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}` : 'Working…')
+                       : style.label}
+                  </span>
+                  {(isSendingMsg || isWorking) && <Loader2 className={`w-3 h-3 animate-spin ${style.text}`} />}
+                </>
+              )
+            })()}
           </div>
         )}
       </div>

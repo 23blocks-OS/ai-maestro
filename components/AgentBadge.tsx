@@ -1,5 +1,6 @@
 'use client'
 
+import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import LiveAvatar, { avatarStateFrom } from './LiveAvatar'
 import React from 'react'
@@ -76,18 +77,20 @@ function getStatusInfo(
 ): { color: string; bgColor: string; label: string; pulse?: boolean } {
   const isOnline = session?.status === 'online' || standaloneOnline
 
+  // One rule for every view (lib/agent-presence.ts). Hibernated is grey: yellow
+  // now means "ready", and a hibernated agent is not.
   if (isOnline) {
-    if (activityStatus === 'waiting') {
-      return { color: 'bg-amber-400', bgColor: 'bg-amber-400/20', label: 'Waiting', pulse: true }
-    }
-    if (activityStatus === 'active') {
-      return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Active', pulse: true }
-    }
-    return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Idle' }
+    const presence = presenceFrom({ online: true, activity: activityStatus })
+    const s = PRESENCE_STYLE[presence]
+    // Literal class names: Tailwind only compiles classes it can see in source
+    const [color, bgColor] = presence === 'working' ? ['bg-emerald-500', 'bg-emerald-500/20']
+      : presence === 'needs-you' ? ['bg-orange-500', 'bg-orange-500/20']
+      : ['bg-yellow-400', 'bg-yellow-400/20']
+    return { color, bgColor, label: s.label, pulse: presence !== 'ready' }
   }
 
   if (isHibernated) {
-    return { color: 'bg-yellow-400', bgColor: 'bg-yellow-400/20', label: 'Hibernated' }
+    return { color: 'bg-gray-500', bgColor: 'bg-gray-500/20', label: 'Hibernated' }
   }
 
   return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Offline' }

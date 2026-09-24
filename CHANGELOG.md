@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.1] - 2026-09-23 — Agent header: name first, host underneath
+
+The shared header (Terminal, Chat, Streaming) read "host / agent". It now puts
+the avatar and the agent's name first, with its status next to the name, and
+the host and folder underneath in small type. Same height: the 32 px avatar
+sets it and the two text lines use tight leading.
+
 ## [0.45.0] - 2026-09-23 — One meaning per colour: working, needs you, ready, offline
 
 "I have no idea what the colors mean ... it seems they are mixed." They were:

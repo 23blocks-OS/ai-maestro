@@ -19,7 +19,7 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
-import { hookNeedsYou } from '@/lib/agent-presence'
+import { hookNeedsYou, normalizeActivityStatus } from '@/lib/agent-presence'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -598,14 +598,22 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     const workingDir = sessionToWorkingDir.get(sessionName)
     // Bounded the same way: a live terminal must not be labelled "waiting" on the
     // strength of a report from months ago.
-    const hookState = workingDir ? getHookState(workingDir, 60000, WAITING_STATE_TTL_MS) : null
+    const hookState = workingDir ? getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS) : null
 
-    let status: SessionActivityStatus = terminalIdle ? 'idle' : 'active'
-    // 'waiting' means blocked on the user (approval, open question). Claude
-    // Code's idle_prompt ("still idle after a minute") is not: that agent is
-    // simply done and holding (lib/agent-presence.ts).
-    if (hookState && hookNeedsYou(hookState.status, hookState.notificationType)) {
-      status = 'waiting'
+    // The hook is the authority when it has a fresh report: it fires the moment
+    // a turn starts (UserPromptSubmit) and ends (Stop), and when the agent
+    // blocks on you. Terminal output is not: Claude Code redraws its screen and
+    // status line while idle, so an open terminal made idle agents look busy
+    // (green) for minutes. Terminal activity only decides for agents with no
+    // hook report (Codex, a plain shell).
+    let status: SessionActivityStatus = hookState
+      ? normalizeActivityStatus(hookState.status, hookState.notificationType)
+      : (terminalIdle ? 'idle' : 'active')
+    // After you approve, the agent resumes but the hook says nothing until the
+    // turn ends: fresh terminal output well after the permission report is the
+    // proof it is working again. (An unanswered dialog does not redraw.)
+    if (status === 'waiting' && hookState && !terminalIdle && timestamp > hookState.at + 5000) {
+      status = 'active'
     }
 
     activity[sessionName] = {
@@ -726,7 +734,8 @@ export function broadcastActivityUpdate(
       .catch((err) => console.warn('[Schedule] idle-triggered run failed:', err))
   }
 
-  broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)
+  // The sidebar vocabulary, never the raw hook word (lib/agent-presence.ts)
+  broadcastStatusUpdate(sessionName, normalizeActivityStatus(hookStatus || status, notificationType), hookStatus, notificationType, agentId)
 
   // Push hookState to chat-subscribed WebSocket clients in real-time
   if (hookState) {
@@ -769,7 +778,7 @@ export function heartbeat(agentId: string, status?: string, claudeSessionId?: st
   if (agent && claudeSessionId && agent.claudeSessionId !== claudeSessionId) {
     updateAgent(agent.id, { claudeSessionId } as any)
   }
-  broadcastStatusUpdate('', status || 'active', undefined, undefined, resolvedId)
+  broadcastStatusUpdate('', normalizeActivityStatus(status || 'active'), status, undefined, resolvedId)
   return { data: { success: true }, status: 200 }
 }
 

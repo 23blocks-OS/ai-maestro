@@ -108,8 +108,10 @@ describe('trust boundaries', () => {
     expect(await getActivity()).toEqual({})
   })
 
-  it('lets TERMINAL activity win over a hook report', async () => {
-    // Terminal output is measured; the hook report is claimed.
+  it('with no hook STATE FILE, terminal activity decides (the broadcast map alone does not override it)', async () => {
+    // The state file is the hook's authoritative record (written before any
+    // network call); when it exists it wins over terminal redraws — see
+    // "the hook is the authority over terminal redraws" below.
     sessionActivity.set('backend-api', Date.now())
     hookStatus.set('backend-api', { status: 'idle', at: Date.now() })
     expect((await getActivity())['backend-api'].status).toBe('active')
@@ -148,6 +150,38 @@ describe('trust boundaries', () => {
 
   it('returns an empty map when nothing is running at all', async () => {
     expect(await getActivity()).toEqual({})
+  })
+})
+
+describe('the hook is the authority over terminal redraws (v0.45.2)', () => {
+  it('an idle agent with an open terminal stays idle: redraws are not work', async () => {
+    // Claude Code redraws its screen and status line while idle; with a
+    // terminal open that used to show idle agents green for minutes.
+    writeHookFile('/repos/api', 'idle', Date.now() - 30_000)
+    sessionActivity.set('backend-api', Date.now())
+    expect((await getActivity())['backend-api'].status).toBe('idle')
+  })
+
+  it('a turn that started shows as active at once', async () => {
+    writeHookFile('/repos/api', 'active')
+    expect((await getActivity())['backend-api'].status).toBe('active')
+  })
+
+  it('stays "needs you" while the permission dialog sits unanswered', async () => {
+    writeHookFile('/repos/api', 'permission_request', Date.now() - 20_000)
+    sessionActivity.set('backend-api', Date.now() - 60_000) // no output since
+    expect((await getActivity())['backend-api'].status).toBe('waiting')
+  })
+
+  it('turns back to active once the agent resumes after you approve', async () => {
+    writeHookFile('/repos/api', 'permission_request', Date.now() - 20_000)
+    sessionActivity.set('backend-api', Date.now()) // output well after the report
+    expect((await getActivity())['backend-api'].status).toBe('active')
+  })
+
+  it('uses terminal activity only when there is no hook report', async () => {
+    sessionActivity.set('backend-api', Date.now())
+    expect((await getActivity())['backend-api'].status).toBe('active')
   })
 })
 

@@ -32,6 +32,20 @@ export function hookNeedsYou(hookStatus?: string | null, notificationType?: stri
   return false
 }
 
+/**
+ * Any status word (a raw hook status, or the sidebar's own) → the sidebar
+ * vocabulary 'active' | 'waiting' | 'idle'. Every broadcast goes through this:
+ * the hook posted its raw word ('waiting_for_input'), the server rebroadcast it
+ * verbatim, and the sidebar read an unknown word as "Ready" while the chat
+ * header, which reads the hook state directly, said "Needs you".
+ */
+export function normalizeActivityStatus(status?: string | null, notificationType?: string | null): 'active' | 'waiting' | 'idle' {
+  if (status === 'active' || status === 'working') return 'active'
+  if (status === 'waiting') return 'waiting'
+  if (hookNeedsYou(status, notificationType)) return 'waiting'
+  return 'idle'
+}
+
 export function presenceFrom(opts: {
   online: boolean
   /** Sidebar activity: 'active' | 'waiting' | 'idle' */
@@ -41,6 +55,11 @@ export function presenceFrom(opts: {
 }): AgentPresence {
   if (!opts.online) return 'offline'
   if (hookNeedsYou(opts.hookStatus, opts.notificationType)) return 'needs-you'
+  // A raw hook word in the activity field (older broadcasts): read it as one
+  if (opts.activity && !['active', 'waiting', 'idle'].includes(opts.activity)) {
+    const n = normalizeActivityStatus(opts.activity, opts.notificationType)
+    return n === 'active' ? 'working' : n === 'waiting' ? 'needs-you' : 'ready'
+  }
   if (opts.activity === 'waiting') {
     // Older servers report idle_prompt as 'waiting'; only a real block is needs-you
     return opts.hookStatus || opts.notificationType ? 'ready' : 'needs-you'

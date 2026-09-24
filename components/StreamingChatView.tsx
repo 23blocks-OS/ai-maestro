@@ -1,5 +1,6 @@
 'use client'
 
+import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import AgentHeaderBar from './AgentHeaderBar'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
@@ -281,12 +282,12 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: !connected ? 'sleeping' : thinking ? 'working' : 'idle' }}
-        dotClass={!connected ? 'bg-red-500' : thinking ? 'bg-amber-400 animate-pulse' : 'bg-green-500'}
-        dotTitle={!connected ? 'Connecting' : thinking ? 'Streaming' : 'Connected'}
+        dotClass={PRESENCE_STYLE[!connected ? 'offline' : thinking ? 'working' : 'ready'].dot}
+        dotTitle={!connected ? 'Connecting' : PRESENCE_STYLE[thinking ? 'working' : 'ready'].title}
         status={
-          !connected ? <span className="text-red-400">connecting…</span>
-          : thinking ? <span className="text-amber-300">streaming…</span>
-          : <span className="text-gray-500">idle</span>
+          !connected ? <span className={PRESENCE_STYLE.offline.text}>Connecting…</span>
+          : thinking ? <span className={PRESENCE_STYLE.working.text}>Working…</span>
+          : <span className={PRESENCE_STYLE.ready.text}>Ready</span>
         }
         detail={<>stream-json{meta.model ? ` \u00b7 ${meta.model}` : ''}{meta.turns ? ` \u00b7 ${meta.turns} turns` : ''}{meta.cost ? ` \u00b7 $${meta.cost.toFixed(4)}` : ''}</>}
         actions={

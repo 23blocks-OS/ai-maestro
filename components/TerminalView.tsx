@@ -1,5 +1,8 @@
 'use client'
 
+import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
+import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTerminal } from '@/hooks/useTerminal'
@@ -33,6 +36,7 @@ interface TerminalViewProps {
 }
 
 export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, avatar }: TerminalViewProps) {
+  const { getSessionActivity } = useSessionActivity()
   const { addToast } = useToast()
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -737,6 +741,11 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
     [handlePromptSubmit]
   )
 
+  // The header dot is the agent's presence, the same rule as every other view
+  // (lib/agent-presence.ts); a lost terminal connection is said in words.
+  const activityInfo = getSessionActivity(session.id, session.agentId)
+  const presence = presenceFrom({ online: true, activity: activityInfo?.status, hookStatus: activityInfo?.hookStatus, notificationType: activityInfo?.notificationType })
+
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
       {/* Header: which agent, where, and the terminal's tools (shared with the chat tab) */}
@@ -745,9 +754,14 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
           hostId={session.hostId}
           name={session.name || session.id}
           workingDirectory={session.workingDirectory}
-          avatar={avatar && session.agentId ? { agentId: session.agentId, src: avatar.src, hostUrl: avatar.hostUrl, state: isConnected ? 'idle' : 'sleeping' } : undefined}
-          dotClass={isConnected ? 'bg-green-500' : 'bg-red-500'}
-          dotTitle={isConnected ? 'Terminal connected' : 'Terminal disconnected'}
+          avatar={avatar && session.agentId ? { agentId: session.agentId, src: avatar.src, hostUrl: avatar.hostUrl, state: avatarStateForPresence(presence) } : undefined}
+          dotClass={PRESENCE_STYLE[presence].dot}
+          dotTitle={PRESENCE_STYLE[presence].title}
+          status={
+            isConnected
+              ? <span className={PRESENCE_STYLE[presence].text}>{PRESENCE_STYLE[presence].label}</span>
+              : <span className="text-red-400">terminal disconnected</span>
+          }
           actions={terminal ? (<>
               {/* Mobile: Notes toggle button */}
               {!hideFooter && (

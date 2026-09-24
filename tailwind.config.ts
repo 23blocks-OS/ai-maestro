@@ -5,6 +5,8 @@ const config: Config = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    // Shared class maps live here too (lib/agent-presence.ts)
+    './lib/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

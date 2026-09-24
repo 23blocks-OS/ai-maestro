@@ -3,6 +3,34 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.0] - 2026-09-23 — One meaning per colour: working, needs you, ready, offline
+
+"I have no idea what the colors mean ... it seems they are mixed." They were:
+each view picked its own colours, green meant "working" in the sidebar and
+"ready for input" in the chat, amber meant "waiting" in one and "working" in
+the other, and the sidebar called an agent "waiting" after a minute of plain
+idleness (Claude Code's idle_prompt notification), so "needs you" and "done,
+holding" looked the same.
+
+Now one rule (`lib/agent-presence.ts`) drives every dot, label, avatar ring and
+avatar loop:
+
+| | colour | avatar loop |
+|---|---|---|
+| **Working** (a turn is running) | green, pulsing | working |
+| **Needs you** (approval or an open question) | orange, pulsing | waiting (looks at you) |
+| **Ready** (finished, holding for the next task) | yellow, steady | idle |
+| **Offline / hibernated** | grey | dimmed still |
+
+- Server: only a real block counts as `waiting` (permission request, or a
+  permission / elicitation notification); `idle_prompt` is idle.
+- Applied to the sidebar (list, cards, favourites), the header on every tab
+  (the terminal's dot no longer means "connected"; a lost connection is said
+  in words), mobile hosts list and mobile chat, meeting chat, the companion.
+- Hibernated agents are grey everywhere (the card view painted them yellow).
+- A one-line legend at the top of the sidebar; every dot has a tooltip.
+- Tailwind now scans `lib/` (shared class maps live there).
+
 ## [0.44.3] - 2026-09-23 — Living avatars everywhere an agent appears
 
 `LiveAvatar` (loop per state, or a breathing still) now also drives the avatar

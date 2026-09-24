@@ -1,5 +1,7 @@
 'use client'
 
+import PresenceLegend from './PresenceLegend'
+import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
 import LiveAvatar, { avatarStateFrom } from './LiveAvatar'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import type { UnifiedAgent } from '@/types/agent'
@@ -730,6 +732,9 @@ export default function AgentList({
             </div>
           )}
         </div>
+
+        {/* What the status colours mean */}
+        <PresenceLegend className="px-4 pt-1 pb-2" />
 
         {/* Favorites Speed Dial */}
         {(() => {
@@ -1533,47 +1538,20 @@ function AgentStatusIndicator({
   isHibernated?: boolean
   activityStatus?: SessionActivityStatus
 }) {
-  if (isOnline) {
-    // Online states: waiting, active, or idle
-    if (activityStatus === 'waiting') {
-      return (
-        <div className="flex items-center gap-1.5 flex-shrink-0" title="Waiting for input">
-          <div className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30 animate-pulse" />
-          <span className="text-xs text-amber-400 hidden lg:inline">Waiting</span>
-        </div>
-      )
-    }
-
-    if (activityStatus === 'active') {
-      return (
-        <div className="flex items-center gap-1.5 flex-shrink-0" title="Processing">
-          <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30 animate-pulse" />
-          <span className="text-xs text-green-400 hidden lg:inline">Active</span>
-        </div>
-      )
-    }
-
-    // Idle or unknown activity status - show as online/idle
+  if (!isOnline && isHibernated) {
     return (
-      <div className="flex items-center gap-1.5 flex-shrink-0" title="Online - Idle">
-        <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30" />
-        <span className="text-xs text-gray-400 hidden lg:inline">Idle</span>
-      </div>
-    )
-  }
-
-  if (isHibernated) {
-    return (
-      <div className="flex items-center flex-shrink-0" title="Hibernated - Click to wake">
+      <div className="flex items-center gap-1.5 flex-shrink-0" title="Hibernated: no session running. Click to wake">
         <Power className="w-3.5 h-3.5 text-gray-500" />
+        <span className="text-xs text-gray-500 hidden lg:inline">Hibernated</span>
       </div>
     )
   }
-
+  // One rule for every view (lib/agent-presence.ts)
+  const style = PRESENCE_STYLE[presenceFrom({ online: isOnline, activity: activityStatus })]
   return (
-    <div className="flex items-center gap-1.5 flex-shrink-0" title="Offline">
-      <div className="w-2 h-2 rounded-full bg-gray-500 ring-2 ring-gray-500/30" />
-      <span className="text-xs text-gray-400 hidden lg:inline">Offline</span>
+    <div className="flex items-center gap-1.5 flex-shrink-0" title={style.title}>
+      <div className={`w-2 h-2 rounded-full ${style.dot}`} />
+      <span className={`text-xs hidden lg:inline ${style.text}`}>{style.label}</span>
     </div>
   )
 }

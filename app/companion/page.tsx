@@ -1,5 +1,6 @@
 'use client'
 
+import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAgents } from '@/hooks/useAgents'
@@ -495,12 +496,9 @@ function CompanionContent() {
             <div className="flex flex-col items-center">
               <span className="text-white font-semibold text-sm drop-shadow-lg">{displayName}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
+                {/* One rule for every view (lib/agent-presence.ts) */}
                 <span className={`w-1.5 h-1.5 rounded-full ${
-                  isOnline
-                    ? activityState === 'active' ? 'bg-blue-400 animate-pulse'
-                    : activityState === 'thinking' ? 'bg-amber-400 animate-pulse'
-                    : 'bg-green-400'
-                    : 'bg-gray-500'
+                  PRESENCE_STYLE[!isOnline ? 'offline' : activityState === 'active' || activityState === 'thinking' ? 'working' : 'ready'].dot
                 }`} />
                 <span className={`text-xs drop-shadow-lg ${
                   tts.isSpeaking ? 'text-teal-300'
@@ -746,12 +744,9 @@ function CompanionContent() {
             <div className="flex flex-col items-center">
               <span className="text-white font-semibold text-sm drop-shadow-lg">{displayName}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
+                {/* One rule for every view (lib/agent-presence.ts) */}
                 <span className={`w-1.5 h-1.5 rounded-full ${
-                  isOnline
-                    ? activityState === 'active' ? 'bg-blue-400 animate-pulse'
-                    : activityState === 'thinking' ? 'bg-amber-400 animate-pulse'
-                    : 'bg-green-400'
-                    : 'bg-gray-500'
+                  PRESENCE_STYLE[!isOnline ? 'offline' : activityState === 'active' || activityState === 'thinking' ? 'working' : 'ready'].dot
                 }`} />
                 <AnimatePresence mode="wait">
                   <motion.span

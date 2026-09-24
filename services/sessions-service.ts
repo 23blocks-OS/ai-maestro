@@ -19,6 +19,7 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
+import { hookNeedsYou } from '@/lib/agent-presence'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -600,7 +601,10 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     const hookState = workingDir ? getHookState(workingDir, 60000, WAITING_STATE_TTL_MS) : null
 
     let status: SessionActivityStatus = terminalIdle ? 'idle' : 'active'
-    if (hookState && (hookState.status === 'waiting_for_input' || hookState.status === 'permission_request')) {
+    // 'waiting' means blocked on the user (approval, open question). Claude
+    // Code's idle_prompt ("still idle after a minute") is not: that agent is
+    // simply done and holding (lib/agent-presence.ts).
+    if (hookState && hookNeedsYou(hookState.status, hookState.notificationType)) {
       status = 'waiting'
     }
 
@@ -630,9 +634,9 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   const isFresh = (status: string, at: number): boolean =>
     Date.now() - at <= (isWaitingStatus(status) ? WAITING_STATE_TTL_MS : HOOK_STATUS_TTL_MS)
 
-  const toActivityStatus = (hookStatus: string): SessionActivityStatus =>
+  const toActivityStatus = (hookStatus: string, notificationType?: string): SessionActivityStatus =>
     hookStatus === 'active' ? 'active'
-    : (hookStatus === 'waiting_for_input' || hookStatus === 'permission_request') ? 'waiting'
+    : hookNeedsYou(hookStatus, notificationType) ? 'waiting'
     : 'idle'
 
   // Prefer the state FILE over the broadcast map. Both come from the same hook,
@@ -652,7 +656,7 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
 
     activity[sessionName] = {
       lastActivity: new Date(reported.at).toISOString(),
-      status: toActivityStatus(reported.status),
+      status: toActivityStatus(reported.status, reported.notificationType),
       hookStatus: reported.status,
       notificationType: reported.notificationType,
     }

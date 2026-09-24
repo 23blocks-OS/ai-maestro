@@ -253,12 +253,14 @@ body {
 @keyframes live-avatar-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 @keyframes live-avatar-work { 0%, 100% { transform: scale(1) translateY(0); } 50% { transform: scale(1.03) translateY(1.5%); } }
 @keyframes live-avatar-ring { 0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.35); } 50% { box-shadow: 0 0 0 4px rgba(52, 211, 153, 0); } }
+@keyframes live-avatar-ring-orange { 0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.45); } 50% { box-shadow: 0 0 0 5px rgba(249, 115, 22, 0); } }
 @keyframes live-avatar-in { from { opacity: 0; } to { opacity: 1; } }
 .live-avatar-breathe { animation: live-avatar-breathe 5s ease-in-out infinite; transform-origin: 50% 70%; }
 .live-avatar-work { animation: live-avatar-work 1.8s ease-in-out infinite; transform-origin: 50% 70%; }
 .live-avatar-sleep { filter: grayscale(0.7) brightness(0.8); animation: live-avatar-breathe 7s ease-in-out infinite; transform-origin: 50% 70%; }
 .live-avatar-ring-pulse { animation: live-avatar-ring 1.8s ease-out infinite; }
+.live-avatar-ring-pulse-orange { animation: live-avatar-ring-orange 1.4s ease-out infinite; }
 .live-avatar-fade { animation: live-avatar-in 0.4s ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .live-avatar-breathe, .live-avatar-work, .live-avatar-sleep, .live-avatar-ring-pulse { animation: none; }
+  .live-avatar-breathe, .live-avatar-work, .live-avatar-sleep, .live-avatar-ring-pulse, .live-avatar-ring-pulse-orange { animation: none; }
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useState, useRef, useEffect } from 'react'
 import { Send, Users, User, X, Loader2 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
@@ -174,9 +175,9 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
               {activeAgents.map(a => (
                 <div key={`activity-${a.id}`} className="flex flex-col items-start">
                   <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-gray-800/50 text-gray-400">
-                    <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                    <Loader2 className={`w-3 h-3 animate-spin ${PRESENCE_STYLE.working.text}`} />
                     <span className={isOverlay ? 'text-sm' : 'text-[11px]'}>
-                      {a.label || a.name} is working...
+                      {a.label || a.name} is working…
                     </span>
                   </div>
                 </div>
@@ -184,9 +185,9 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
               {waitingAgents.map(a => (
                 <div key={`waiting-${a.id}`} className="flex flex-col items-start">
                   <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-gray-800/50 text-gray-400">
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className={`w-2 h-2 rounded-full ${PRESENCE_STYLE['needs-you'].dot}`} />
                     <span className={isOverlay ? 'text-sm' : 'text-[11px]'}>
-                      {a.label || a.name} is waiting for input
+                      {a.label || a.name} needs you
                     </span>
                   </div>
                 </div>

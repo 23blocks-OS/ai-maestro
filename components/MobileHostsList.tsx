@@ -1,5 +1,6 @@
 'use client'
 
+import { PRESENCE_STYLE, presenceFrom } from '@/lib/agent-presence'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Server,
@@ -377,18 +378,12 @@ export default function MobileHostsList({
                           let statusLabel = 'Offline'
 
                           if (isOnline) {
-                            if (activityStatus === 'waiting') {
-                              statusColor = 'bg-amber-500'
-                              statusLabel = 'Waiting'
-                            } else if (activityStatus === 'active') {
-                              statusColor = 'bg-green-500'
-                              statusLabel = 'Active'
-                            } else {
-                              statusColor = 'bg-green-500'
-                              statusLabel = 'Idle'
-                            }
+                            // One rule for every view (lib/agent-presence.ts)
+                            const presence = presenceFrom({ online: true, activity: activityStatus })
+                            statusColor = presence === 'working' ? 'bg-emerald-500' : presence === 'needs-you' ? 'bg-orange-500' : 'bg-yellow-400'
+                            statusLabel = PRESENCE_STYLE[presence].label
                           } else if (isHibernated) {
-                            statusColor = 'bg-yellow-500'
+                            statusColor = 'bg-gray-500'
                             statusLabel = 'Hibernated'
                           }
 

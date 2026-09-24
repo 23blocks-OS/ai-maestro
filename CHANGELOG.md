@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.44.2] - 2026-09-23 — Living avatars in the card view
+
+The sidebar's card (grid) view, used when the sidebar is 480 px or wider, drew
+its own still `<img>`, so its avatars never moved. It now uses `LiveAvatar`
+(loops per state, breathing stills), keeping the card's ring and initials
+fallback.
+
 ## [0.44.1] - 2026-09-23 — Living avatars travel with the agent
 
 Agent export/transfer now includes the precompiled avatar loops (`avatar/`),

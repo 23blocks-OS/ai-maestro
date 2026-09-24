@@ -207,7 +207,7 @@ function getHookState(
   workingDir: string,
   maxAgeMs: number = 60000,
   maxWaitingAgeMs: number = WAITING_STATE_TTL_MS
-): { status: string; notificationType?: string; at: number } | null {
+): { status: string; notificationType?: string; at: number; transcriptPath?: string } | null {
   if (!workingDir) return null
 
   const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
@@ -223,7 +223,7 @@ function getHookState(
       const age = Date.now() - at
       if (age > (isWaitingStatus(state.status) ? maxWaitingAgeMs : maxAgeMs)) return null
 
-      return { status: state.status, notificationType: state.notificationType, at }
+      return { status: state.status, notificationType: state.notificationType, at, transcriptPath: state.transcriptPath }
     }
   } catch {
     // Ignore errors reading state files
@@ -615,6 +615,9 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     if (status === 'waiting' && hookState && !terminalIdle && timestamp > hookState.at + 5000) {
       status = 'active'
     }
+    if (status === 'waiting' && hookState && transcriptResumedSince(hookState.transcriptPath, hookState.at)) {
+      status = 'active'
+    }
 
     activity[sessionName] = {
       lastActivity: new Date(timestamp).toISOString(),
@@ -662,9 +665,10 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
       : mapFresh
     if (!reported) continue
 
+    const resumed = fromFile && reported === fromFile && transcriptResumedSince(fromFile.transcriptPath, fromFile.at)
     activity[sessionName] = {
       lastActivity: new Date(reported.at).toISOString(),
-      status: toActivityStatus(reported.status, reported.notificationType),
+      status: resumed ? 'active' : toActivityStatus(reported.status, reported.notificationType),
       hookStatus: reported.status,
       notificationType: reported.notificationType,
     }
@@ -1291,4 +1295,30 @@ export function deletePersistedSession(sessionId: string): ServiceResult<{ succe
     return operationFailed('delete session')
   }
   return { data: { success: true }, status: 200 }
+}
+
+
+// ---------------------------------------------------------------------------
+// Resumed after you answered
+// ---------------------------------------------------------------------------
+
+/** Transcript growth this long after a block was reported means the agent resumed */
+const RESUME_MARGIN_MS = 3000
+
+/**
+ * Has the agent written to its transcript since it reported being blocked?
+ *
+ * Claude Code fires no event when you answer a permission or a question. The
+ * hook reports the resume itself on PostToolBatch (async, after the approved
+ * tool ran); this is the fallback for hosts whose hooks predate that, checked
+ * only when the status is read (one stat, no watcher). The transcript is
+ * written the moment the agent resumes; an unanswered dialog does not write.
+ */
+export function transcriptResumedSince(transcriptPath: string | undefined, reportedAt: number): boolean {
+  if (!transcriptPath) return false
+  try {
+    return fs.statSync(transcriptPath).mtimeMs > reportedAt + RESUME_MARGIN_MS
+  } catch {
+    return false
+  }
 }

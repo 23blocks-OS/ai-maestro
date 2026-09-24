@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.3] - 2026-09-23 — An agent you answer turns green right away
+
+"Titania was in Needs you, I responded and she started working; the status
+never went to green." Claude Code fires no event when you answer a permission
+or a question; the next one is Stop, at the end of the whole turn, so the agent
+stayed orange while it worked (v0.45.2's terminal-output rule only helped with
+a terminal open).
+
+- **The hook reports the resume itself**, on `PostToolBatch` (fires after the
+  approved tool ran, before the model continues), registered with
+  `async: true` so it never delays the agent. On every other batch it reads one
+  small file and exits (~130 ms, in the background, no network).
+- **No watcher.** A first version polled blocked agents every 3 s; replaced by
+  the event, which is exact and costs nothing while nothing is blocked.
+- Fallback for hosts whose hooks predate this: when the status is read, a
+  transcript written well after the block counts as resumed (one stat).
+
 ## [0.45.2] - 2026-09-23 — Status that is right, and right away
 
 "Titania says Needs you in the header and Ready in the sidebar; they take

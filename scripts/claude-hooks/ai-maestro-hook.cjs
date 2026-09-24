@@ -768,6 +768,24 @@ async function main() {
 
     // Handle different hook events
     switch (hookEvent) {
+        case 'PostToolBatch': {
+            // Registered async (runs in the background, never delays the agent).
+            // Claude Code fires no event when you answer a permission or a
+            // question; the next one is Stop, at the end of the whole turn, so an
+            // agent you had just unblocked stayed "needs you" while it worked.
+            // A tool batch finishing IS the resume. Cheap on every other batch:
+            // read one small file and exit, no network.
+            let current = null;
+            try { current = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.aimaestro', 'chat-state', `${hashCwd(cwd)}.json`), 'utf8')); } catch (e) {}
+            const blocked = current && (current.status === 'permission_request'
+                || (current.status === 'waiting_for_input' && current.notificationType === 'permission_prompt'));
+            if (blocked) {
+                await writeState(cwd, { status: 'active', sessionId, transcriptPath });
+                debugLog({ event: 'resumed_after_answer', cwd });
+            }
+            break;
+        }
+
         case 'PermissionRequest':
             // Claude is asking for permission to use a tool
             // Input includes: tool_name, tool_input, tool_use_id, permission_suggestions

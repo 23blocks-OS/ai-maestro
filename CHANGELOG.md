@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.7] - 2026-09-25 — Benchmark: agentlog vs AMP
+
+Added `docs/benchmark/agentlog-comparison.md` (pub/sub on topics vs addressed,
+signed mail) and backlog F015: AMP topics (channels) with replayable offsets.
+
 ## [0.45.6] - 2026-09-25 — Benchmark: firstmate, one month later
 
 Updated `docs/benchmark/firstmate-comparison.md` (7.2k stars, AFK supervision,

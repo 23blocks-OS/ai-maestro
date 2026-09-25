@@ -32,6 +32,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F012** — [Agents that look alive (animated avatars)](./backlog/F012-living-avatars.md) — `In Progress`
 - **F013** — [Stall alarm: tell a human when an agent is stuck](./backlog/F013-stall-alarm.md) — `Todo`
 - **F014** — [Ambiguity-aware restore: when unsure, do nothing](./backlog/F014-ambiguity-aware-restore.md) — `Todo`
+- **F015** — [AMP topics (channels) with replayable offsets](./backlog/F015-amp-topics.md) — `Todo`
 
 ## Bugs
 

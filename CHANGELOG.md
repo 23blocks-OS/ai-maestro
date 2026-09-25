@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.6] - 2026-09-25 — Benchmark: firstmate, one month later
+
+Updated `docs/benchmark/firstmate-comparison.md` (7.2k stars, AFK supervision,
+activity ledger, inbox receipts, curated memory) with what we adopted from it;
+backlog F013 (stall alarm) and F014 (ambiguity-aware restore).
+
 ## [0.45.5] - 2026-09-24 — One status source, every view, every device
 
 "Zaiden: terminal says Working, chat says Ready, the sidebar is accurate."

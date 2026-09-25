@@ -30,6 +30,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F010** — [Deliver AMP messages through Claude Code's own session inbox](./backlog/F010-cross-session-inbox-delivery.md) — `Todo`
 - **F011** — [Each agent has its own browser, and you can watch it work](./backlog/F011-agent-browser.md) — `Todo`
 - **F012** — [Agents that look alive (animated avatars)](./backlog/F012-living-avatars.md) — `In Progress`
+- **F013** — [Stall alarm: tell a human when an agent is stuck](./backlog/F013-stall-alarm.md) — `Todo`
+- **F014** — [Ambiguity-aware restore: when unsure, do nothing](./backlog/F014-ambiguity-aware-restore.md) — `Todo`
 
 ## Bugs
 

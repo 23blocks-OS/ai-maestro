@@ -3,15 +3,41 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.10] - 2026-09-29 — Spend less on Claude: the status line tells you when to /compact
+
+**Why:** to help you save money, on a Claude subscription and on the API.
+Every step an agent takes re-sends its whole conversation. A session that has
+grown to 800k tokens pays for 800k tokens on every tool call, even with prompt
+caching. We measured one of our own agents doing exactly that at about
+$0.35–0.69 per step, $110–215 an hour, with nothing on screen to say so: the
+status line read a calm `ctx 79%`. On a subscription the same session eats
+your usage limit just as fast.
+
+**What changed:** the status line under every Claude Code session now shows
+the context in tokens, next to the percentage, and tells you when to act:
+
+```
+Sonnet 5 | ctx 42k (4%) | $1.20                              normal
+Sonnet 5 | ctx 168k (17%) · /compact soon | $3.40             yellow, from 150k
+Sonnet 5 | ctx 789k (79%) · ⚠ /compact now: 2× cost | $48.10  red, past 200k
+```
+
+- **`/compact soon`** from 150k tokens: a margin to compact at a natural break.
+  Change the threshold with `AMP_STATUSLINE_COMPACT_AT`.
+- **`⚠ /compact now: 2× cost`** past 200k, where API input is billed at the
+  long-context rate: every token costs double.
+- One `/compact` takes a session from hundreds of thousands of tokens back to a
+  few tens of thousands, and every step after it costs a fraction.
+
+Installed by `install-plugin.sh` and `update-aimaestro.sh`; running sessions
+pick it up on their next refresh. First step of F016 (context budget); next,
+agents compact themselves at a natural break.
+Upstream: agentmessaging/claude-plugin#31; plugin rebuilt (#46); shipped in
+v0.45.9 (#514).
+
 ## [0.45.9] - 2026-09-29 — Status line recommends /compact
 
-The status line under every Claude Code session showed `ctx N%`. On 1M-context
-models a percentage hides the cost: 79% was ~790k tokens re-read on every step
-(measured on vg-64: ~$0.35–0.69 per request). It now shows the context in
-tokens, `/compact soon` from 150k (`AMP_STATUSLINE_COMPACT_AT`) and a red
-`⚠ /compact now: 2× cost` past 200k, where every token is billed at the
-long-context rate. First, smallest step of F016 (context budget).
-Upstream: agentmessaging/claude-plugin#31; plugin rebuilt (#46).
+The code change described under 0.45.10 (plugin pointer bump).
 
 ## [0.45.8] - 2026-09-29 — Backlog: context cost
 

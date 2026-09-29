@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.9] - 2026-09-29 — Status line recommends /compact
+
+The status line under every Claude Code session showed `ctx N%`. On 1M-context
+models a percentage hides the cost: 79% was ~790k tokens re-read on every step
+(measured on vg-64: ~$0.35–0.69 per request). It now shows the context in
+tokens, `/compact soon` from 150k (`AMP_STATUSLINE_COMPACT_AT`) and a red
+`⚠ /compact now: 2× cost` past 200k, where every token is billed at the
+long-context rate. First, smallest step of F016 (context budget).
+Upstream: agentmessaging/claude-plugin#31; plugin rebuilt (#46).
+
 ## [0.45.8] - 2026-09-29 — Backlog: context cost
 
 Logged F016 (context budget: compact agents at a natural break before they get

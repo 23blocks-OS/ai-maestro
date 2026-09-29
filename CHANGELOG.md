@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.8] - 2026-09-29 — Backlog: context cost
+
+Logged F016 (context budget: compact agents at a natural break before they get
+expensive; measured a 789k-token session at ~$110–215/hour) and F017 (research:
+prune stale tool output through a local proxy).
+
 ## [0.45.7] - 2026-09-25 — Benchmark: agentlog vs AMP
 
 Added `docs/benchmark/agentlog-comparison.md` (pub/sub on topics vs addressed,

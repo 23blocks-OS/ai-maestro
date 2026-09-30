@@ -34,3 +34,12 @@ full compaction. Research first: the risks may outweigh the gains.
 - **Compared with F016** (Claude Code's own `/compact` at a budget): is pruning
   worth the complexity at all once F016 exists?
 - Effort: research spike S; product M–L.
+
+## Update 2026-09-29 (from F018's research)
+
+- Measured on our largest transcripts: tool output is 34–48% of a session, but
+  calls over 2k tokens are only 7–19% of it. Most of it is thousands of small
+  results, which weakens the case for pruning big stale outputs.
+- For NEW output there is a native alternative to a proxy: a `PostToolUse`
+  hook can replace any tool's result before Claude sees it
+  (`updatedToolOutput`). See F018.

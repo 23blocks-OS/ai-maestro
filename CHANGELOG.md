@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.11] - 2026-09-29 — Backlog: cheap models for tool work
+
+Logged F018 with the research so far. Keep the expensive model for the
+thinking and give tool work to cheap models, either through a `PostToolUse`
+hook that summarises large outputs or through a "tools agent" that writes and
+runs throwaway scripts. Measured on our own transcripts: large outputs are
+only 7–19% of tool output, while scripts the agent writes itself are 35–64%
+of what it sends. F016 and F017 updated.
+
 ## [0.45.10] - 2026-09-29 — Spend less on Claude: the status line tells you when to /compact
 
 **Why:** to help you save money, on a Claude subscription and on the API.

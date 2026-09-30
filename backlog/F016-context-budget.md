@@ -1,6 +1,6 @@
 # F016 — Context budget: agents compact before they get expensive
 
-**Status:** Todo
+**Status:** Todo (step one shipped: the status line recommends /compact, v0.45.9)
 **Type:** Feature
 **Created:** 2026-09-29
 

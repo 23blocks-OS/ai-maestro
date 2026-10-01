@@ -109,10 +109,14 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   // route hands the agent a bare "check your inbox" pointer it could ignore.
   const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
   const injectBody = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
+  //
+  // "If it needs an answer", not an unconditional "reply": told to reply to
+  // everything, two agents answer each other's acknowledgements, and each
+  // reply wakes the other side for another paid turn.
   const injectText =
     `[AMP #${messageRef(envelope.id)}] New message from ${sender}${subject ? ` — "${subject}"` : ''}:\n` +
     `${injectBody}\n\n` +
-    `(Reply using the agent-messaging skill, then continue.)`
+    `(Reply with the agent-messaging skill if it needs an answer, then continue.)`
 
   // 2. Wake the agent. The chain tries each route in preference order and stops
   // at the first one that can PROVE arrival — see lib/wake-chain.ts for why an

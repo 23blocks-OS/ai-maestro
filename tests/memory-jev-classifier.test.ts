@@ -130,6 +130,12 @@ describe('corrections: a user turn judged against what the agent said before it'
     const chunks = chunkConversation(msgs, 0)
     expect(chunks.flatMap(c => c.passages).some(p => p.text.startsWith('USER:'))).toBe(false)
   })
+
+  it('drops the current pane notification format too', () => {
+    const msgs = [a(`earlier ${PARA}`), u('[#zl8spaj1] [MESSAGE] Deploy finished — from pas-lola@mini-lola — the staging deploy is green, nothing for you to do'), a(`checking ${PARA}`)]
+    const chunks = chunkConversation(msgs, 0)
+    expect(chunks.flatMap(c => c.passages).some(p => p.text.startsWith('USER:'))).toBe(false)
+  })
 })
 
 describe('JevClassifier', () => {

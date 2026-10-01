@@ -77,12 +77,23 @@ describe('ai-maestro-hook · filterFreshMessages', () => {
 })
 
 describe('ai-maestro-hook · buildAmpBlockReason', () => {
-  it('flags a single urgent message and points at the agent-messaging skill', () => {
+  it('flags a single urgent message and gives the commands to read and reply', () => {
     const reason = hook.buildAmpBlockReason([msg('1', { priority: 'urgent' })])
     expect(reason).toContain('[URGENT]')
     expect(reason).toContain('1 unread AMP message in your inbox')
-    expect(reason).toContain('agent-messaging skill')
-    expect(reason).toContain('amp-inbox.sh')
+    expect(reason).toContain('amp-read.sh <id>')
+    expect(reason).toContain('amp-reply.sh <id>')
+  })
+
+  it('lists each message with the id amp-read.sh accepts', () => {
+    const reason = hook.buildAmpBlockReason([msg('msg-1789863849489-zl8spaj')])
+    expect(reason).toContain('(msg_1789863849489_zl8spaj)')
+  })
+
+  it('asks for a reply only where one is needed, so agents do not answer acknowledgements forever', () => {
+    const reason = hook.buildAmpBlockReason([msg('1')])
+    expect(reason).toContain('where a reply is needed')
+    expect(reason).not.toMatch(/respond to these now/i)
   })
 
   it('counts urgent messages in the plural header', () => {
@@ -95,7 +106,7 @@ describe('ai-maestro-hook · buildAmpBlockReason', () => {
     const many = Array.from({ length: 13 }, (_, i) => msg(String(i)))
     const reason = hook.buildAmpBlockReason(many)
     expect(reason).toContain('13 unread AMP messages')
-    expect(reason).toContain('…and 3 more')
+    expect(reason).toContain('…and 3 more (amp-inbox.sh lists them)')
   })
 
   it('renders the sender with host', () => {
@@ -244,6 +255,9 @@ describe('ai-maestro-hook · decideInboxAnnouncement', () => {
   it('announces a message it has never seen', () => {
     const d = hook.decideInboxAnnouncement({ messages: [msg('a')], announced: {}, now: 1000 })
     expect(d.notice).toContain('new message')
+    expect(d.notice).toContain('amp-read.sh a')
+    // One instruction per notice: the command, not a second "check your inbox"
+    expect(d.notice).not.toContain('agent-messaging skill')
     expect(d.freshIds).toEqual(['a'])
   })
 
@@ -379,6 +393,16 @@ describe('ai-maestro-hook · memory recall', () => {
     expect(notice).toContain('## Memory: what you know about the things this prompt names')
     expect(notice).toContain('**products.public** (service)')
     expect(notice).toContain('- products.public runs on mini-lola (no longer)')
+  })
+
+  it('explains a marker only when it appears, and adds no standing verify/search instruction', () => {
+    const plain = hook.buildMemoryNotice([mem('a')], { primer: false })
+    expect(plain).not.toContain('"correction"')
+    expect(plain).not.toMatch(/verify/i)
+    expect(plain).not.toContain('memory-search.sh')
+    const entity = hook.buildEntityNotice([{ entity_id: 'e', name: 'api', relations: ['api runs on host-a'] }])
+    expect(entity).not.toContain('(no longer)')
+    expect(entity).not.toMatch(/verify/i)
   })
 
   it('returns null when there is nothing to recall', () => {

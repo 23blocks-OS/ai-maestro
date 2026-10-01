@@ -328,15 +328,18 @@ async function waitForPrompt(
  * the primer in the future, run the interpolation loop over finalPrompt
  * instead of resolved.
  *
- * Command syntax here MUST match the real amp-* CLI surface in
+ * Command syntax here must match the real amp-* CLI surface in
  * plugins/ai-maestro/scripts/amp-*.sh — if you edit this string, re-run
- * `amp-send --help` (or equivalent) to verify the flags and values stay
- * in sync. The test suite contains a regex smoke check as a safety net.
+ * `amp-send --help` to verify the flags and values stay in sync
+ * (tests/mesh-primer.test.ts checks every command it names is shipped).
+ *
+ * It used to end by pointing at `amp-primer` "for the full mesh protocol" —
+ * a command that exists nowhere, so an agent following it spent a tool call
+ * on "command not found" on every wake.
  */
 export const MESH_PRIMER = [
-  'You are running as part of an AI Maestro agent mesh. Other agents in the mesh can send you messages and you can send messages to them.',
-  'To send a message: use your agent-messaging skill if available, otherwise invoke amp-send <recipient> "<subject>" "<body>" [--priority low|normal|high|urgent] [--type request|response|notification|task|status]. Quote multi-word subjects and bodies so the shell does not split them into separate positional args.',
-  'For the full mesh protocol, command reference, and peer list, run: amp-primer (available in your PATH alongside the other amp-* commands).',
+  'You are running as part of an AI Maestro agent mesh: other agents can send you messages, and you can message them.',
+  'Use your agent-messaging skill if you have it; otherwise send with amp-send <recipient> "<subject>" "<body>" [--priority low|normal|high|urgent] [--type request|response|notification|task|status], read with amp-inbox and amp-read <id>, and see amp-send --help for the rest.',
 ].join(' ')
 
 /**

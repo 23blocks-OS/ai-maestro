@@ -12,7 +12,7 @@
 import type { Subsystem, SubsystemContext, SubsystemStatus, ActivityState } from './types'
 import type { TerminalOutputBuffer } from './terminal-buffer'
 import {
-  VOICE_CONVERSATIONAL_PROMPT, VOICE_SUMMARY_MODEL, VOICE_SUMMARY_MAX_TOKENS,
+  VOICE_CONVERSATIONAL_PROMPT, VOICE_SUMMARY_MODEL, VOICE_SUMMARY_MAX_TOKENS, VOICE_SILENT,
   classifyTerminalEvent, EVENT_COOLDOWNS, templateSummarize,
   type TerminalEventType,
 } from './voice-prompts'
@@ -246,7 +246,9 @@ export class VoiceSubsystem implements Subsystem {
     try {
       // Try LLM summarization with full conversation context
       const summary = await this.summarizeWithLLM(stripped, eventType)
-      if (summary) {
+      if (summary === '') {
+        // The model decided there is nothing worth saying
+      } else if (summary) {
         this.emitSpeech(summary, eventType)
       } else {
         // LLM not available, use template or simple fallback
@@ -379,7 +381,9 @@ export class VoiceSubsystem implements Subsystem {
 
       // Assemble the prompt
       const now = Date.now()
-      let prompt = VOICE_CONVERSATIONAL_PROMPT + '\n\n'
+      // The fixed instructions go in `system`; only the per-call context goes in
+      // the user turn.
+      let prompt = ''
 
       // Inject speech history (ring buffer) for anti-repetition and narrative continuity
       if (this.speechHistory.length > 0) {
@@ -390,7 +394,7 @@ export class VoiceSubsystem implements Subsystem {
           const agoLabel = agoMin < 1 ? 'just now' : `${agoMin} min ago`
           prompt += `- ${agoLabel}: "${entry.text}"\n`
         }
-        prompt += 'Do NOT repeat information the user already heard. Build on it.\n\n'
+        prompt += '\n'
       }
 
       if (conversationTurns.length > 0) {
@@ -415,6 +419,7 @@ export class VoiceSubsystem implements Subsystem {
       const response = await client.messages.create({
         model: VOICE_SUMMARY_MODEL,
         max_tokens: VOICE_SUMMARY_MAX_TOKENS,
+        system: VOICE_CONVERSATIONAL_PROMPT,
         messages: [{
           role: 'user',
           content: prompt,
@@ -422,8 +427,10 @@ export class VoiceSubsystem implements Subsystem {
       })
 
       this.llmAvailable = true
-      const text = response.content?.[0]?.type === 'text' ? response.content[0].text : null
-      return text?.trim() || null
+      const text = response.content?.[0]?.type === 'text' ? response.content[0].text.trim() : ''
+      // '' = the model chose silence (say nothing); null = no usable answer (fall back)
+      if (text.replace(/[^A-Za-z]/g, '').toUpperCase() === VOICE_SILENT) return ''
+      return text || null
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string }
       if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {

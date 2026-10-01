@@ -112,14 +112,14 @@ interface Subsystem {
         │
         ▼
 6. LLM Summarization (voice-subsystem.ts → Claude Haiku)
-   Builds prompt with:
-   - VOICE_CONVERSATIONAL_PROMPT (5 decision rules)
+   System prompt: VOICE_CONVERSATIONAL_PROMPT (4 decision rules; reply SILENT to say nothing)
+   User turn:
    - Speech history ring buffer (last 5 spoken events with timestamps)
    - Recent conversation turns from JSONL (last 6 turns)
    - Last user message from companion
    - Event type hint: [Event type: error]
    - Terminal output (last 2000 chars)
-   Model: claude-3-5-haiku, max_tokens: 150
+   Model: claude-haiku-4-5, max_tokens: 150
         │
         ▼
 7. Fallback Chain (if LLM unavailable)

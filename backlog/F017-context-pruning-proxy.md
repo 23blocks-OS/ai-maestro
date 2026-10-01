@@ -1,6 +1,6 @@
 # F017 — Research: prune stale tool output before a request is sent
 
-**Status:** Todo (research)
+**Status:** Wontfix
 **Type:** Feature
 **Created:** 2026-09-29
 
@@ -43,3 +43,13 @@ full compaction. Research first: the risks may outweigh the gains.
 - For NEW output there is a native alternative to a proxy: a `PostToolUse`
   hook can replace any tool's result before Claude sees it
   (`updatedToolOutput`). See F018.
+
+## Decision 2026-09-30: Wontfix
+
+Anthropic's cost guide (`anthropics/skills`, `claude-api/shared/cost-optimization.md` § 2.3):
+- Clearing old tool results "is a context-window tool, not a savings lever".
+  In the run measured for the platform docs, context editing cost more than it saved.
+- On models that run the preserved-thinking check, a client-side prune of
+  earlier turns invalidates every later thinking block, with no workaround.
+
+Compaction (F016) is the supported way. See `docs/COST-OPTIMIZATION.md`.

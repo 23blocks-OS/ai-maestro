@@ -1,6 +1,6 @@
 # F018 — Research: keep the intelligence, give the tool work to cheap models
 
-**Status:** Todo (research done, nothing built)
+**Status:** Todo (deprioritized 2026-09-30: output is 4–6% of cost)
 **Type:** Feature
 **Created:** 2026-09-29
 
@@ -98,3 +98,20 @@ Findings:
   - Latency per call.
   - Which cheap model does the job: Haiku, local, or Jev deciding pass-through vs summarise.
 - Related: F016 (compact at a budget; step one, the status line advice, shipped in v0.45.9) and F017 (prune stale tool output).
+
+## Update 2026-09-30: deprioritized, and two corrections
+
+- **The table above counted transcript characters, not billed usage.**
+  Measured on billed usage (`scripts/cost-breakdown.mjs`), everything the
+  agent writes (code, commands, text and thinking) is only **4–6% of a
+  session's cost**. Re-reading the context is 53–74%, and cold wakes are 15–27%.
+  The scripts cost money mainly because they stay in the context, which
+  F016 handles.
+- **Thinking was missing from that measurement.** Transcripts don't store
+  the thinking text, but the usage records report `thinking_tokens`: about
+  20–27% of output tokens, 1–1.6% of cost.
+- **Anthropic's cost guide on this design.** A planner delegating to cheaper
+  workers pays only with bulk to hand off. On one chain of dependent steps,
+  the smart model alone at lower effort came out ahead. Try effort (F019)
+  first.
+- Revisit only if F016, F020 and F019 leave script output significant.

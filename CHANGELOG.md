@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.2] - 2026-10-01 — No more permission warnings at session start
+
+Every Claude Code session started by printing 16–18 warnings like
+`Permission allow rule … Bash(AMP_DIR=* amp-read.sh:*) mixes * with the trailing
+:* prefix syntax … will likely never match`, which flashed past before the
+session drew its screen.
+
+- **The cause:** the AMP permission rules `install-plugin.sh` wrote for agents
+  launched with a `CLAUDE_AGENT_NAME=` or `AMP_DIR=` prefix combined a `*` with
+  the `:*` suffix. Claude Code reads that `*` literally, so the rules never
+  matched. Agents launched that way were asked for approval on every AMP
+  command, which is the problem the rules were meant to prevent (#337).
+- **The fix:** the installer writes the space form (`Bash(AMP_DIR=* amp-read.sh)`
+  and `Bash(AMP_DIR=* amp-read.sh *)`). It removes the old rules from
+  `~/.claude/settings.json` and from the current project's settings, keeping a
+  backup. Verified by recording a session start: 18 warnings before, none after.
+- 4 new tests.
+
 ## [0.47.1] - 2026-10-01 — AMP fixes and agent-browser update
 
 - **amp-read finds a message by either id spelling.** AI Maestro shows ids as

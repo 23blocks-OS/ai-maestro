@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.13] - 2026-10-01 — Benchmark: local models for agents
+
+Added `docs/benchmark/local-llm-agents.md`: where local models stand for
+coding and agents, how Claude Code runs on them (Ollama, LM Studio), and
+speeds measured on our M4 Max. Reading a 30k-token prompt takes 186 s the
+first time and 1.1 s after that; writing runs at 12–44 tokens/s. They fit
+small, short-context jobs, not our main agents. Backlog F022 (blocked: not
+ready yet).
+
 ## [0.45.12] - 2026-09-30 — Where an agent's money goes, and the plan
 
 - **`scripts/cost-breakdown.mjs`** reads the billed usage in a Claude Code

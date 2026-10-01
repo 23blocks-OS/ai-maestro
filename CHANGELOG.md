@@ -3,6 +3,25 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.12] - 2026-09-30 — Where an agent's money goes, and the plan
+
+- **`scripts/cost-breakdown.mjs`** reads the billed usage in a Claude Code
+  transcript and shows where the session's cost went: re-reading the
+  context, cold wakes, other cache writes, visible output and thinking.
+- **Measured on the 7 largest sessions:**
+  - re-reading the context is **53–74%** of the cost (average context ~500k tokens);
+  - waking an agent after more than an hour idle is **15–27%**;
+  - everything the agent writes, thinking included, is only **4–6%**.
+- **`docs/COST-OPTIMIZATION.md`** maps Anthropic's cost-optimization guide
+  (`anthropics/skills`, `claude-api`) onto these numbers and sets the plan:
+  1. keep the context small (F016);
+  2. no cold wakes on a large context (F020);
+  3. effort per agent (F019);
+  4. audit instructions that trigger extra actions (F021).
+- **Backlog:** F017 (pruning) is Wontfix: per the guide it costs more than it
+  saves. F018 (cheap models for tool work) is deprioritized: output is too
+  small a share to matter.
+
 ## [0.45.11] - 2026-09-29 — Backlog: cheap models for tool work
 
 Logged F018 with the research so far. Keep the expensive model for the

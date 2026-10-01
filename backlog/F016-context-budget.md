@@ -39,3 +39,12 @@ Maestro.
 - Settings: per-agent budget (Skills or profile), fleet default, on/off.
 - Alert (F013) when an agent keeps growing past 2× budget while Working.
 - Effort: S–M.
+
+## Update 2026-09-30: confirmed as the biggest lever
+
+Measured across the 7 largest sessions (`scripts/cost-breakdown.mjs`, see
+`docs/COST-OPTIMIZATION.md`): re-reading the context is **53–74% of each
+session's cost**, at an average context of ~500k tokens per request.
+Anthropic's cost guide measured compaction taking roughly a third off long
+runs. Step 1 of the cost plan. Pair with F020: going idle is the natural
+break that matters most.

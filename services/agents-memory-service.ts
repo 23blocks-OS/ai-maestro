@@ -540,6 +540,13 @@ export async function triggerConsolidation(
   agentId: string,
   options: { dryRun?: boolean; provider?: string; maxConversations?: number }
 ): Promise<ServiceResult<any>> {
+  const { isConsolidationPaused } = await import('@/lib/memory/settings')
+  if (isConsolidationPaused() && !options.dryRun) {
+    return {
+      data: { success: true, status: 'paused', agent_id: agentId, message: 'Memory consolidation is paused for this host (memory-settings.json consolidation.paused)' },
+      status: 200
+    }
+  }
   if (consolidating.has(agentId)) {
     return {
       data: { success: true, status: 'already_running', agent_id: agentId, message: 'Consolidation is already running for this agent' },

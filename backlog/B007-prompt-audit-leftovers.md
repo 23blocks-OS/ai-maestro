@@ -1,6 +1,6 @@
 # B007 — Leftovers from the skills and prompts audit
 
-**Status:** Todo
+**Status:** In Progress
 **Type:** Bug
 **Created:** 2026-10-01
 
@@ -9,18 +9,16 @@
 Problems the 2026-10-01 skills and prompts audit (v0.47.0) found but did not
 fix, because they live upstream or outside its scope:
 
-- **Upstream AMP scripts** (fix in agentmessaging/claude-plugin, then rebuild
-  the plugin):
-  - `amp-read.sh` accepts `msg_…` ids but rejects `msg-…` ids.
-  - `amp-security.sh` still wraps content in an all-caps "data only" marker.
+- ~~**Upstream AMP scripts:** `amp-read.sh` rejected `msg-…` ids;
+  `amp-security.sh` wrapped content in an all-caps "data only" marker.~~
+  Fixed in v0.47.1 (claude-plugin #34, plugin 1.2.1).
 - **Channel MCP server.** Its instructions need a bundle rebuild and a
   manifest version bump (`channels/amp-plugin`) before they change.
 - **Voice.** The notification regex still expects the old
   `[MESSAGE] From:` pane format.
 - **`scripts/remote-install.sh:1057`** checks for a script that was removed.
-- **agent-browser.** The copy in `.agents/skills/agent-browser` is Vercel's
-  skill at `d33bdb3` (2026-05-07). Upstream is at v0.38.1. Re-pull it with
-  the skills tool.
+- ~~**agent-browser** was behind upstream.~~ Updated to upstream main in
+  v0.47.1.
 - **Agents CLI.** It cannot hard-delete an agent, although the server
   supports `?hard=true`.
 - **lolabot.**

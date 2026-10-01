@@ -44,8 +44,8 @@ async function runIndex(agentId: string): Promise<{ ok: boolean; detail: string 
 
 async function runConsolidate(agentId: string): Promise<{ ok: boolean; detail: string }> {
   // Long-term memory is a per-agent skill: an agent without it builds none
-  const { isMemorySkillEnabled } = await import('@/lib/memory/skill')
-  if (!isMemorySkillEnabled(agentId)) return { ok: true, detail: 'memory skill off' }
+  const { isMemoryConsolidationEnabled } = await import('@/lib/memory/skill')
+  if (!isMemoryConsolidationEnabled(agentId)) return { ok: true, detail: 'memory consolidation off for this agent' }
   // Consolidation needs the agent's database. Import lazily so an agent whose
   // schedule has no consolidate task never pays for loading it.
   const { agentRegistry } = await import('@/lib/agent')
@@ -135,7 +135,21 @@ export async function runDueTasks(agentId: string, opts: DueOptions = { dailyWin
   inFlight.add(agentId)
   try {
     const schedule = readSchedule(agentId)
-    const due = dueTasks(schedule, Date.now(), opts)
+    // Consolidation follows the host's window (Settings → Memory): it spends
+    // money, so when it may run is the host owner's call. Other daily tasks
+    // keep their own hour.
+    const { loadConsolidationSettings, consolidationWindowHours } = await import('@/lib/memory/settings')
+    const host = loadConsolidationSettings()
+    const isConsolidate = (t: ScheduledTask) => t.action === 'consolidate'
+    const now = Date.now()
+    const due = [
+      ...dueTasks({ ...schedule, tasks: schedule.tasks.filter(t => !isConsolidate(t)) }, now, opts),
+      ...dueTasks(
+        { ...schedule, tasks: schedule.tasks.filter(isConsolidate).map(t => typeof t.atHour === 'number' ? { ...t, atHour: host.startHour } : t) },
+        now,
+        opts.dailyWindowHours !== undefined ? { ...opts, dailyWindowHours: consolidationWindowHours(host) } : opts
+      ),
+    ]
     const ran: TaskRunResult[] = []
     for (const task of due) {
       const r = await runTask(agentId, task)

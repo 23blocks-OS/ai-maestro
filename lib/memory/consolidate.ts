@@ -48,7 +48,7 @@ import { findSamePoint, reinforceWithSession, addEvidence, updateLifecycle, migr
 import { foldRecallLog } from './recall-log'
 import { loadAgents } from '../agent-registry'
 import { getHosts } from '../hosts-config'
-import { loadClassifierSettings, isClassifierConfigured } from './settings'
+import { loadClassifierSettings, isClassifierConfigured, loadConsolidationSettings } from './settings'
 
 type ProviderChoice =
   | { kind: 'classifier'; classifier: JevClassifier }
@@ -457,10 +457,10 @@ async function pruneWeakSupportsLinks(agentDb: AgentDatabase): Promise<void> {
   console.log(`[MEMORY] ${name}: dropped ${links.rows.length} weak supports links; memories will be re-linked`)
 }
 
-/** Per-run cap on classifier calls (passages); the next run picks up where this stopped. */
-const MAX_PASSAGES_PER_RUN = 1000
-/** Per-run cap on summarizer calls (each covers up to ~60k chars of one session) */
-const MAX_SUMMARY_CALLS_PER_RUN = 10
+// Per-run caps on classifier calls (passages) and summarizer calls (each covers
+// up to ~60k chars of one session) are host settings: Settings → Memory
+// (lib/memory/settings.ts, maxPassagesPerRun / maxSummaryCallsPerRun). The
+// next run picks up where a capped one stopped.
 /** Minimum P(card statement supported by its evidence) */
 const MIN_FAITHFULNESS = 0.6
 
@@ -760,7 +760,8 @@ export async function consolidateMemories(
 
   console.log(`[CONSOLIDATE] Processing ${pending.length} conversations with new messages (${providerUsed})`)
 
-  const budget = { remaining: MAX_PASSAGES_PER_RUN, calls: MAX_SUMMARY_CALLS_PER_RUN }
+  const host = loadConsolidationSettings()
+  const budget = { remaining: host.maxPassagesPerRun, calls: host.maxSummaryCallsPerRun }
   let cardsDeferred = false
   let entities: EntityIndex | null = null
   let entitiesBefore = 0

@@ -683,7 +683,7 @@ const routes: Route[] = [
     const body = await readJsonBody(req).catch(() => ({}))
     const { sweepAgentMemory } = await import('@/lib/memory/sweep')
     try {
-      const result = await sweepAgentMemory({ limit: body?.limit, minAgeMs: body?.minAgeMs, only: body?.only })
+      const result = await sweepAgentMemory({ limit: body?.limit, minAgeMs: body?.minAgeMs, only: body?.only, scheduled: body?.scheduled === true })
       sendJson(res, 200, { success: true, ...result })
     } catch (error) {
       sendJson(res, 500, { success: false, error: error instanceof Error ? error.message : 'Unknown error' })

@@ -13,7 +13,8 @@
  * - Each agent is truly autonomous and self-sufficient
  */
 
-import { isMemorySkillEnabled } from './memory/skill'
+import { isMemoryConsolidationEnabled } from './memory/skill'
+import { loadConsolidationSettings } from './memory/settings'
 import { AgentDatabase } from './cozo-db'
 import { hostHints } from './host-hints'
 import { getAgent as getAgentFromRegistry } from './agent-registry'
@@ -278,7 +279,8 @@ class AgentSubconscious {
     // Calculate time until next scheduled consolidation
     const now = new Date()
     const nextRun = new Date(now)
-    nextRun.setHours(this.consolidationHour, 0, 0, 0)
+    // The host's consolidation window decides the hour (Settings → Memory)
+    nextRun.setHours(loadConsolidationSettings().startHour, 0, 0, 0)
 
     // If we've already passed the scheduled hour today, schedule for tomorrow
     if (now >= nextRun) {
@@ -302,7 +304,7 @@ class AgentSubconscious {
     // Set timer for consolidation
     this.consolidationTimer = setTimeout(() => {
       // Long-term memory is a per-agent skill (lib/memory/skill.ts)
-      const run = isMemorySkillEnabled(this.agentId) ? this.runConsolidation() : Promise.resolve()
+      const run = isMemoryConsolidationEnabled(this.agentId) ? this.runConsolidation() : Promise.resolve()
       run.catch(err => {
         console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation failed:`, err)
       }).finally(() => {
@@ -797,7 +799,7 @@ class AgentSubconscious {
       cumulativeConversationsIndexed: this.cumulativeConversationsIndexed,
       consolidation: {
         enabled: this.consolidationEnabled,
-        scheduledHour: this.consolidationHour,
+        scheduledHour: loadConsolidationSettings().startHour,
         lastRun: this.lastConsolidationRun,
         nextRun: this.nextConsolidationRun,
         lastResult: this.lastConsolidationResult,
@@ -838,7 +840,7 @@ class AgentSubconscious {
         cumulativeConversationsIndexed: this.cumulativeConversationsIndexed,
         consolidation: {
           enabled: this.consolidationEnabled,
-          scheduledHour: this.consolidationHour,
+          scheduledHour: loadConsolidationSettings().startHour,
           lastRun: this.lastConsolidationRun,
           nextRun: this.nextConsolidationRun,
           lastResult: this.lastConsolidationResult,

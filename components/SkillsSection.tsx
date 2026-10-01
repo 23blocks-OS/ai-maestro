@@ -22,12 +22,21 @@ import {
 } from 'lucide-react'
 
 /**
- * The long-term memory skill (lib/memory/skill.ts). Only these two switches are
- * read; the classifier (Jev) and summarizer are host-level, in Settings → Memory.
+ * The long-term memory skill (lib/memory/skill.ts). Only these switches are
+ * read; the classifier (Jev), the summarizer and when consolidation runs are
+ * host-level, in Settings → Memory.
  */
 interface MemorySkillSettings {
   enabled: boolean
   recall: boolean
+  consolidate: boolean
+}
+
+/** The host's consolidation settings, for the schedule line (GET /api/settings/memory) */
+interface HostConsolidation {
+  paused: boolean
+  startHour: number
+  endHour: number
 }
 
 interface SkillSettings {
@@ -47,7 +56,7 @@ interface SkillsSectionProps {
   hostUrl?: string
 }
 
-const DEFAULT_MEMORY_SETTINGS: MemorySkillSettings = { enabled: true, recall: true }
+const DEFAULT_MEMORY_SETTINGS: MemorySkillSettings = { enabled: true, recall: true, consolidate: true }
 
 type TabId = 'memory'
 
@@ -63,6 +72,7 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
   const [hasChanges, setHasChanges] = useState(false)
   const [originalSettings, setOriginalSettings] = useState<SkillSettings | null>(null)
   const [backlog, setBacklog] = useState<MemoryBacklog | null>(null)
+  const [host, setHost] = useState<HostConsolidation | null>(null)
 
   // Load settings
   const loadSettings = useCallback(async () => {
@@ -75,7 +85,11 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
         if (data.success) {
           // Older files carry fields nothing reads (provider, retention); keep them, show the switches
           const loaded = data.settings || {}
-          const memory = { enabled: loaded.memory?.enabled !== false, recall: loaded.memory?.recall !== false }
+          const memory = {
+            enabled: loaded.memory?.enabled !== false,
+            recall: loaded.memory?.recall !== false,
+            consolidate: loaded.memory?.consolidate !== false,
+          }
           const next = { ...loaded, memory }
           setSettings(next)
           setOriginalSettings(next)
@@ -84,6 +98,11 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
       } else if (res.status !== 404) {
         throw new Error('Failed to load settings')
       }
+      // The agent's host decides when consolidation runs; an older host has no such settings
+      fetch(`${hostUrl}/api/settings/memory`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => setHost(d?.consolidation || null))
+        .catch(() => setHost(null))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings')
     } finally {
@@ -217,6 +236,7 @@ export default function SkillsSection({ agentId, hostUrl = '' }: SkillsSectionPr
             settings={settings.memory}
             updateSettings={updateMemorySettings}
             backlog={backlog}
+            host={host}
           />
         )}
       </div>
@@ -228,7 +248,10 @@ interface MemorySkillTabProps {
   settings: MemorySkillSettings
   updateSettings: (updates: Partial<MemorySkillSettings>) => void
   backlog: MemoryBacklog | null
+  host: HostConsolidation | null
 }
+
+const hourLabel = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
@@ -238,20 +261,43 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   )
 }
 
-function MemorySkillTab({ settings, updateSettings, backlog }: MemorySkillTabProps) {
+function MemorySkillTab({ settings, updateSettings, backlog, host }: MemorySkillTabProps) {
+  const nightly = host ? `${hourLabel(host.startHour)} to ${hourLabel(host.endHour)}` : '2 to 8 AM'
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-medium text-gray-200">Long-term memory</div>
           <div className="text-xs text-gray-500 mt-0.5 max-w-md">
-            Every night (2 to 8 AM) this agent&apos;s conversations become memory: short statements with their evidence,
+            Every night ({nightly}) this agent&apos;s conversations become memory: short statements with their evidence,
             and a graph of the entities it works with and how they relate. History Claude Code deleted after 30 days is
             rebuilt from the agent&apos;s own message index.
           </div>
         </div>
         <Toggle on={settings.enabled} onClick={() => updateSettings({ enabled: !settings.enabled })} />
       </div>
+
+      {settings.enabled && (
+        <div className="flex items-center justify-between pl-4 border-l border-gray-800">
+          <div>
+            <div className="text-sm font-medium text-gray-200">Build new memories</div>
+            <div className="text-xs text-gray-500 mt-0.5 max-w-md">
+              Consolidation: the nightly run and the history catch-up, which call the classifier and the summarizer
+              (they cost money). Off: the agent keeps recalling what it already knows, and nothing new is built.
+            </div>
+          </div>
+          <Toggle on={settings.consolidate} onClick={() => updateSettings({ consolidate: !settings.consolidate })} />
+        </div>
+      )}
+
+      {settings.enabled && settings.consolidate && host?.paused && (
+        <div className="bg-orange-500/10 rounded-lg p-3 flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-orange-300">
+            Consolidation is paused on this agent&apos;s host (Settings → Memory). Nothing new is built until it resumes.
+          </div>
+        </div>
+      )}
 
       {settings.enabled && (
         <div className="flex items-center justify-between pl-4 border-l border-gray-800">
@@ -289,7 +335,7 @@ function MemorySkillTab({ settings, updateSettings, backlog }: MemorySkillTabPro
       )}
 
       <div className="text-xs text-gray-500">
-        The classifier and its key are set per host in Settings → Memory.
+        The classifier, its key, and when consolidation runs are set per host in Settings → Memory.
       </div>
     </div>
   )

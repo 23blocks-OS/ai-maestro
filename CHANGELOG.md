@@ -3,6 +3,30 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.46.0] - 2026-10-01 — Memory management: pause, schedule and limits in Settings
+
+Consolidation, the part of long-term memory that costs money (the Jev
+classifier on your key, the summarizer on your Claude subscription), can now
+be managed from the app instead of a settings file.
+
+- **Settings → Memory → Consolidation:**
+  - **Pause / Resume.** No new run starts on any path; a run in progress finishes.
+  - **The night window:** start and end hour, which may wrap past midnight.
+    Every path follows it: each agent's nightly run, the night sweep and the
+    history catch-up.
+  - **Catch up older history during the window:** on/off.
+  - **Limits per run:** classifier calls, summarizer calls (0 keeps
+    verbatim memories only) and agents per sweep pass.
+  - **Live status:** agents building memory, agents with history still
+    waiting, the last run, and the last 24 hours' memories and conversations.
+- **Per agent (Skills tab):** a new **Build new memories** switch. Off, the
+  agent keeps recalling what it already knows and nothing new is built. The
+  tab shows the host's window, and warns when the host is paused.
+- **One source for the schedule.** It was hard-coded in five places (each
+  agent's timer, its schedule, the sweep, the backlog and its window).
+  Everything now reads `consolidation` in `memory-settings.json`.
+- Tests: 10 new; 1687 pass.
+
 ## [0.45.14] - 2026-10-01 — Pause memory consolidation for the whole host
 
 Consolidation is the part of long-term memory that costs money (Jev

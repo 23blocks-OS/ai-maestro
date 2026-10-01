@@ -18,7 +18,8 @@ vi.mock('os', async (orig) => {
   return { ...real, default: { ...real, homedir: () => HOME }, homedir: () => HOME }
 })
 
-import { readMemorySkill, isMemorySkillEnabled } from '@/lib/memory/skill'
+import { readMemorySkill, isMemorySkillEnabled, isMemoryConsolidationEnabled } from '@/lib/memory/skill'
+import { saveConsolidationSettings } from '@/lib/memory/settings'
 import { writeBacklog, agentsWithBacklog, runBacklogPass, inNightWindow } from '@/lib/memory/backlog'
 import { readNewRecalls, RECALL_LOG } from '@/lib/memory/recall-log'
 import { relationState, describeRelation, STATED_PREDICATES, type NeighbourRelation } from '@/lib/memory/relations'
@@ -39,22 +40,28 @@ afterAll(() => fs.rmSync(HOME, { recursive: true, force: true }))
 describe('memory skill switch', () => {
   it('is on by default: the fleet builds memory until an agent is switched off', () => {
     makeAgent('a1')
-    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: true })
+    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: true, consolidate: true })
   })
 
   it('reads old settings files, which only had enabled', () => {
     makeAgent('a1', { memory: { enabled: true, consolidation: { schedule: 'nightly' } } })
-    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: true })
+    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: true, consolidate: true })
   })
 
   it('off turns recall off too: an agent without memory has nothing to recall', () => {
     makeAgent('a1', { memory: { enabled: false, recall: true } })
-    expect(readMemorySkill('a1')).toEqual({ enabled: false, recall: false })
+    expect(readMemorySkill('a1')).toEqual({ enabled: false, recall: false, consolidate: false })
   })
 
   it('recall can be off while memory is still built', () => {
     makeAgent('a1', { memory: { enabled: true, recall: false } })
-    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: false })
+    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: false, consolidate: true })
+  })
+
+  it('building can be off while recall keeps working: no new spend, old memories still used', () => {
+    makeAgent('a1', { memory: { enabled: true, consolidate: false } })
+    expect(readMemorySkill('a1')).toEqual({ enabled: true, recall: true, consolidate: false })
+    expect(isMemoryConsolidationEnabled('a1')).toBe(false)
   })
 
   it('never reads outside the agents directory', () => {
@@ -71,7 +78,22 @@ describe('night backlog', () => {
     makeAgent('done'); writeBacklog('done', state(false, 50))
     makeAgent('off', { memory: { enabled: false } }); writeBacklog('off', state(true, 10))
     makeAgent('never')
+    makeAgent('nobuild', { memory: { enabled: true, consolidate: false } }); writeBacklog('nobuild', state(true, 20))
     expect(agentsWithBacklog()).toEqual(['old', 'new'])
+  })
+
+  it('stops after the agent in progress when the host is paused', async () => {
+    makeAgent('a'); writeBacklog('a', state(true, 100))
+    makeAgent('b'); writeBacklog('b', state(true, 200))
+    const seen: string[] = []
+    const r = await runBacklogPass(async (id) => {
+      seen.push(id)
+      saveConsolidationSettings({ paused: true })
+      return { conversations_processed: 1 }
+    }, { inWindow: () => true })
+    saveConsolidationSettings({ paused: false })
+    expect(seen).toEqual(['a'])
+    expect(r.stoppedBecause).toBe('paused')
   })
 
   it('works the backlog round-robin until nothing is left', async () => {

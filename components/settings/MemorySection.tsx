@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Brain, KeyRound, CheckCircle2, AlertCircle, Loader2, Trash2 } from 'lucide-react'
+import MemoryConsolidationCard from './MemoryConsolidationCard'
 
 interface ClassifierView {
   provider: 'jev'
@@ -114,6 +115,10 @@ export default function MemorySection() {
         </p>
       </div>
 
+      <div className="mb-6">
+        <MemoryConsolidationCard />
+      </div>
+
       <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-5 space-y-5">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">Classifier</h3>
@@ -185,14 +190,6 @@ export default function MemorySection() {
         </div>
       </div>
 
-      <div className="mt-6 p-4 bg-gray-800/30 rounded-xl border border-gray-700">
-        <h4 className="text-sm font-semibold text-gray-300 mb-2">When memory runs</h4>
-        <p className="text-xs text-gray-500">
-          Each agent consolidates nightly between 2:00 and 2:30 AM, or when you click Consolidate in its Memory tab.
-          Each run picks up where the last one stopped and classifies at most 1,000 passages per agent.
-          These settings apply to every agent on this host.
-        </p>
-      </div>
     </div>
   )
 }

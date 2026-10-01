@@ -18,7 +18,8 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { isMemorySkillEnabled } from './skill'
+import { isMemoryConsolidationEnabled } from './skill'
+import { inConsolidationWindow, loadConsolidationSettings } from './settings'
 
 export interface BacklogState {
   moreRemaining: boolean
@@ -59,21 +60,25 @@ export function agentsWithBacklog(): string[] {
   }
   return ids
     .map(id => ({ id, state: readBacklog(id) }))
-    .filter(a => a.state?.moreRemaining && isMemorySkillEnabled(a.id))
+    .filter(a => a.state?.moreRemaining && isMemoryConsolidationEnabled(a.id))
     .sort((a, b) => (a.state!.at || 0) - (b.state!.at || 0))
     .map(a => a.id)
 }
 
-/** The night window: 2 to 8 AM local, the same as the nightly sweep. */
+/** The host's consolidation window (Settings → Memory; 2 to 8 AM by default), shared with the sweep. */
 export function inNightWindow(now = new Date()): boolean {
-  const h = now.getHours()
-  return h >= 2 && h < 8
+  return inConsolidationWindow(now)
+}
+
+/** Is a backlog pass running in this process right now? */
+export function isBacklogRunning(): boolean {
+  return running
 }
 
 export interface BacklogPassResult {
   runs: number
   agents: number
-  stoppedBecause: 'window_closed' | 'no_backlog' | 'already_running'
+  stoppedBecause: 'window_closed' | 'no_backlog' | 'already_running' | 'paused'
 }
 
 let running = false
@@ -96,6 +101,9 @@ export async function runBacklogPass(
   try {
     while (runs < maxRuns) {
       if (!inWindow()) return { runs, agents: touched.size, stoppedBecause: 'window_closed' }
+      // Pause (Settings → Memory) stops the pass after the agent in progress
+      const host = loadConsolidationSettings()
+      if (host.paused || !host.backlog) return { runs, agents: touched.size, stoppedBecause: 'paused' }
       const next = agentsWithBacklog().find(id => !stalled.has(id))
       if (!next) return { runs, agents: touched.size, stoppedBecause: 'no_backlog' }
       touched.add(next)

@@ -2521,16 +2521,16 @@ async function startServer(handleRequest) {
     if (process.env.MEMORY_SWEEP_ENABLED !== 'false') {
       const SWEEP_EVERY_MS = 15 * 60 * 1000
       const runMemorySweep = () => {
-        // Night only (2-8 AM local). In the day, indexing happens as it always
-        // did, on each agent's idle transition. A daytime sweep catching up weeks
-        // of backlog embedded thousands of messages in this process and the
+        // Night only: the host's consolidation window (Settings → Memory, 2-8 AM
+        // by default), checked by the sweep itself (scheduled: true), which also
+        // sets how many agents a pass visits. In the day, indexing happens as it
+        // always did, on each agent's idle transition. A daytime sweep catching up
+        // weeks of backlog embedded thousands of messages in this process and the
         // dashboard reset while it ran (2026-09-23).
-        const hour = new Date().getHours()
-        if (hour < 2 || hour >= 8) return
         fetch(`http://localhost:${port}/api/memory/sweep`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 20, minAgeMs: 10 * 60 * 1000 }),
+          body: JSON.stringify({ scheduled: true, minAgeMs: 10 * 60 * 1000 }),
         })
           .then(res => res.json())
           .then(r => {

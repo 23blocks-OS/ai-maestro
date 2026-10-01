@@ -58,6 +58,12 @@ export interface SweepOptions {
   minAgeMs?: number
   /** Process only these agent ids. */
   only?: string[]
+  /**
+   * The server's 15-minute timer. A scheduled sweep runs only inside the host's
+   * consolidation window and, without an explicit limit, visits the host's
+   * "agents per sweep" (Settings → Memory).
+   */
+  scheduled?: boolean
 }
 
 /** A sweep starts daily tasks only this long after their scheduled hour (2 AM → until 8 AM). */
@@ -106,7 +112,7 @@ function markSwept(agentId: string, result: Omit<SweepAgentResult, 'agentId'>): 
 /** One sweep at a time per process: a slow sweep must not be joined by the next tick. */
 let sweepInProgress = false
 
-export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepResult & { skipped?: boolean }> {
+export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepResult & { skipped?: boolean; reason?: string }> {
   if (sweepInProgress) {
     return { scanned: 0, indexed: 0, failed: 0, messagesProcessed: 0, ms: 0, agents: [], skipped: true }
   }
@@ -118,8 +124,17 @@ export async function sweepAgentMemory(opts: SweepOptions = {}): Promise<SweepRe
   }
 }
 
-async function runSweep(opts: SweepOptions): Promise<SweepResult> {
-  const { limit, minAgeMs = 0, only } = opts
+async function runSweep(opts: SweepOptions): Promise<SweepResult & { skipped?: boolean; reason?: string }> {
+  const { minAgeMs = 0, only } = opts
+  let { limit } = opts
+  if (opts.scheduled) {
+    const { loadConsolidationSettings, inConsolidationWindow } = await import('./settings')
+    const host = loadConsolidationSettings()
+    if (!inConsolidationWindow(new Date(), host)) {
+      return { scanned: 0, indexed: 0, failed: 0, messagesProcessed: 0, ms: 0, agents: [], skipped: true, reason: 'outside the consolidation window' }
+    }
+    limit = limit ?? host.agentsPerSweep
+  }
   const started = Date.now()
 
   let candidates = only ?? listIndexableAgents()

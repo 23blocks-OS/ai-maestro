@@ -12,8 +12,11 @@
  * it moves with the agent. Default ON: the fleet builds memory until an agent
  * is switched off.
  *
- *   enabled  nightly consolidation and history backfill run for this agent
- *   recall   memories are injected into its prompts (session start + each prompt)
+ *   enabled      the skill: off means nothing is built and nothing is injected
+ *   recall       memories are injected into its prompts (session start + each prompt)
+ *   consolidate  new memories are built from its conversations (nightly run and
+ *                history backfill). Off keeps recall of what was already built
+ *                without spending anything on new memories.
  *
  * Off means nothing runs and nothing is injected. What was already built is
  * kept, and memory-search can still read it.
@@ -26,9 +29,10 @@ import path from 'path'
 export interface MemorySkill {
   enabled: boolean
   recall: boolean
+  consolidate: boolean
 }
 
-export const DEFAULT_MEMORY_SKILL: MemorySkill = { enabled: true, recall: true }
+export const DEFAULT_MEMORY_SKILL: MemorySkill = { enabled: true, recall: true, consolidate: true }
 
 function settingsPath(agentId: string): string {
   return path.join(os.homedir(), '.aimaestro', 'agents', agentId, 'skill-settings.json')
@@ -43,6 +47,7 @@ export function readMemorySkill(agentId: string): MemorySkill {
       enabled: memory.enabled !== false,
       // Recall follows the skill: an agent without memory has nothing to recall
       recall: memory.enabled !== false && memory.recall !== false,
+      consolidate: memory.enabled !== false && memory.consolidate !== false,
     }
   } catch {
     return { ...DEFAULT_MEMORY_SKILL }
@@ -51,4 +56,9 @@ export function readMemorySkill(agentId: string): MemorySkill {
 
 export function isMemorySkillEnabled(agentId: string): boolean {
   return readMemorySkill(agentId).enabled
+}
+
+/** Does this agent build new memories? (The host may still be paused; see lib/memory/settings.ts) */
+export function isMemoryConsolidationEnabled(agentId: string): boolean {
+  return readMemorySkill(agentId).consolidate
 }

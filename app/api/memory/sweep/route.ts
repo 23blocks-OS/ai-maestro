@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       limit: body.limit,
       minAgeMs: body.minAgeMs,
       only: body.only,
+      scheduled: body.scheduled === true,
     })
     return NextResponse.json({ success: true, ...result })
   } catch (error) {

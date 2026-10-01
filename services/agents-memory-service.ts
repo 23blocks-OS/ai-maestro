@@ -1414,9 +1414,17 @@ export function updateMetrics(
  */
 export async function startMemoryBacklog(): Promise<ServiceResult<any>> {
   const { runBacklogPass, agentsWithBacklog, inNightWindow } = await import('@/lib/memory/backlog')
+  const { loadConsolidationSettings } = await import('@/lib/memory/settings')
+  const host = loadConsolidationSettings()
   const pending = agentsWithBacklog().length
+  if (host.paused) {
+    return { data: { success: true, started: false, reason: 'consolidation is paused', pending }, status: 200 }
+  }
+  if (!host.backlog) {
+    return { data: { success: true, started: false, reason: 'history backfill is off', pending }, status: 200 }
+  }
   if (!inNightWindow()) {
-    return { data: { success: true, started: false, reason: 'outside the night window (2-8 AM)', pending }, status: 200 }
+    return { data: { success: true, started: false, reason: `outside the consolidation window (${host.startHour}:00-${host.endHour}:00)`, pending }, status: 200 }
   }
   if (pending === 0) {
     return { data: { success: true, started: false, reason: 'no backlog', pending }, status: 200 }

@@ -3,6 +3,34 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.0] - 2026-10-01 — Skills and prompts for current models, measured
+
+Every skill AI Maestro ships, and every prompt it injects into agents, was
+rewritten to Anthropic's current guidance and measured with
+`claude plugin eval`. Method and numbers: `docs/SKILLS-QUALITY.md`.
+
+- **Skills fire when they should.** In the trigger suite (16 cases, Sonnet,
+  3 runs each), plugin 1.0.0 scored 0.85 (13 of 16 cases). Plugin 1.2.0
+  scores 1.00 (16 of 16). No skill fires on unrelated requests.
+- **And cost less.** The 12 core skills (AI Maestro, AMP, AID, canvas and
+  lolabot) went from 25,386 to 9,619 tokens (−62%). They have no shouted
+  rules and no "on every turn" instructions. The same eval suite costs 21%
+  less to run.
+- **Prompts injected into agents:**
+  - Leaner inbox, memory and entity notices.
+  - Agents reply to a message only when it needs an answer, so two agents
+    no longer wake each other to trade acknowledgements.
+  - The mesh primer no longer points at a command that doesn't exist (now
+    tested), and the mailman and first-run templates use the AMP commands.
+  - The fallback memory prompt no longer asks agents to record API keys.
+- **Voice works again.** The companion's voice called a model retired in
+  February, so every line fell back to a template. It now uses Haiku 4.5,
+  and SILENT is respected.
+- **Plugin 1.2.0** (ai-maestro-plugins #48), with its eval suite in
+  `evals/triggers`. Upstream: claude-plugin #33, agent-identity #21,
+  agent-actions #2. lolabot #3: its 4 skills scored 0.71 before and 1.00
+  after.
+
 ## [0.46.1] - 2026-10-01 — Skills: no duplicates, clearer triggers
 
 From a skill audit against Anthropic's skill best practices and the measured

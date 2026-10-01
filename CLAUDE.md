@@ -1,1059 +1,158 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+AI Maestro is a dashboard and orchestrator for fleets of AI coding agents
+(Claude Code, Codex, others) running in tmux, on one machine or across hosts.
+Next.js 14 (App Router) + a custom `server.mjs` (HTTP and WebSockets on one
+port), React 18, xterm.js, node-pty, Tailwind, CozoDB per agent. Port **23000**.
 
-## ⚠️ The Claude Code hook has ONE source of truth
+How the subsystems work is in `docs/ARCHITECTURE.md`; read the section you need.
 
-`ai-maestro-hook.cjs` ships from three byte-identical locations. **Edit only the canonical one, then run the sync script:**
-
-```bash
-# 1. Edit the canonical hook:
-scripts/claude-hooks/ai-maestro-hook.cjs        # used by install.sh + docker cloud agents
-# 2. Propagate to the plugin copies:
-bash scripts/sync-plugin-hook.sh                # -> plugin/src + plugin/plugins/.../scripts
-```
-
-`tests/plugin-hook-sync.test.ts` fails in CI if the three copies drift. They previously diverged into two implementations and every fix had to be applied twice — do not hand-edit the plugin copies. (The AMP shell scripts — `amp-*.sh`, `amp-statusline.sh`, `amp-helper.sh` — have their own upstream source at `agentmessaging/claude-plugin`, pulled by the plugin builder at `ref: main`; never hand-edit those downstream either.)
-
-## Project Overview
-
-**Claude Code Dashboard** - A browser-based terminal dashboard for managing multiple Claude Code agents running in tmux on macOS. The application auto-discovers agents from tmux sessions and provides a unified web interface with real-time terminal streaming.
-
-**Current Phase:** Phase 1 - Local-only, auto-discovery, no authentication
-**Tech Stack:** Next.js 14 (App Router), React 18, xterm.js, WebSocket, node-pty, Tailwind CSS, lucide-react
-**Platform:** macOS 12.0+, Node.js 18.17+/20.x, tmux 3.0+
-**Branding:** Space Grotesk font, titled "AI Maestro"
-**Port:** Application runs on port 23000 (http://localhost:23000)
-
-## Development Commands
+## Commands
 
 ```bash
-# Development
-yarn install             # Install all dependencies
-yarn dev                 # Start dev server with hot reload (http://localhost:23000)
-
-# Production
-yarn build               # Build optimized production bundle
-yarn start               # Start production server (http://localhost:23000)
-pm2 restart ai-maestro   # Restart production server via PM2
-
-# Testing
-yarn test                # Run unit tests (vitest)
-yarn test:watch          # Run tests in watch mode
-
-# Testing tmux sessions (for development)
-tmux new-session -s test-session     # Create test session
-tmux list-sessions                   # List all sessions (what the app discovers)
-tmux kill-session -t test-session    # Clean up test session
+yarn install
+yarn dev                 # dev server with hot reload, http://localhost:23000
+yarn build && yarn start # production
+yarn headless:prod       # API-only mode (no UI), used on worker hosts
+yarn test                # vitest; CI runs it on every push
+pm2 restart ai-maestro   # restart the production server
 ```
 
-**Port Configuration:** The application is configured to run on port 23000. This is set in the PM2 configuration.
-
-**Health Check:** Do NOT use `/api/health` to check if the site is live (it doesn't exist). Use `/api/sessions` instead - it returns the list of agents and confirms the server is running.
-
-## Version Management
-
-**IMPORTANT:** When bumping the version, ALWAYS use the centralized script:
-
-```bash
-./scripts/bump-version.sh patch    # 0.17.12 -> 0.17.13
-./scripts/bump-version.sh minor    # 0.17.12 -> 0.18.0
-./scripts/bump-version.sh major    # 0.17.12 -> 1.0.0
-./scripts/bump-version.sh 1.0.0    # Set specific version
-```
-
-This script updates ALL version references across the codebase:
-- `version.json` (source of truth)
-- `package.json`
-- `scripts/remote-install.sh`
-- `README.md` (badge)
-- `docs/index.html` (schema + display)
-- `docs/ai-index.html`
-- `docs/BACKLOG.md`
-
-**DO NOT manually edit version numbers in individual files.** Always use the script to ensure consistency.
-
-**CLI Script Versioning:** The `aimaestro-agent.sh` CLI tool uses an independent semver (`v1.x.x`) separate from the app version (`0.24.x`). The CLI is distributed via the plugin repo and has its own release cadence.
-
-## Pre-PR Checklist (MANDATORY)
-
-**⚠️ STOP! Before creating ANY Pull Request to main, complete this checklist:**
-
-```
-□ 1. TESTS PASS: yarn test
-□ 2. BUMP VERSION: ./scripts/bump-version.sh patch
-□ 3. BUILD PASSES: yarn build
-□ 4. PROPAGATE PLUGIN (if you touched claude-plugin scripts, amp-*.sh, or the hook):
-       cd plugin && ./build-plugin.sh --clean       # rebuild built output from upstream
-       git -C plugin commit -am "build: rebuild plugin" && git -C plugin push
-       git add plugin                                # bump the submodule pointer
-     (Skipping this ships STALE scripts — fresh installs (install-plugin.sh) and host
-      updates (update-aimaestro.sh) read the built submodule, NOT claude-plugin directly.)
-□ 5. COMMIT version bump with your changes
-```
-
-**This is NON-NEGOTIABLE.** Every PR to main MUST include a version bump. No exceptions.
-
-**Deploy to hosts via `update-aimaestro.sh`** (git pull + submodule update + build + install-hooks.sh + install-plugin.sh + pm2 restart) — NOT a raw `git reset + build + restart`, which skips the hook/statusline install steps and forces manual syncing.
-
----
-
-## Release & Marketing Workflow
-
-### Pull Request Protocol
-
-**IMPORTANT:** Every time you create a Pull Request to main, also draft an X (Twitter) post to announce the release.
-
-**PR Creation Checklist:**
-1. ✅ **VERSION BUMPED** (see Pre-PR Checklist above - this should already be done)
-2. Create PR with comprehensive description (summary, features, bug fixes, breaking changes)
-3. Draft X post highlighting key features and improvements
-4. Include release notes or link to PR in the post
-5. Use relevant hashtags: #AIcoding #DevTools #OpenSource
-6. Consider adding screenshots/GIFs for visual features
-7. Post during peak hours (9-11am or 1-3pm EST)
-
-**X Post Template:**
-```
-[Emoji] Shipping [Feature Name] today!
-
-Key improvements:
-• [Feature 1]
-• [Feature 2]
-• [Feature 3]
-
-[Call to action - Star/Try/Share]
-[Link to PR or GitHub]
-
-#AIcoding #DevTools
-```
-
-**Examples:**
-- Major release: "Shipping AI Maestro v0.3.3! 🚀"
-- Feature addition: "New feature: SSH configuration for tmux 🔐"
-- Bug fixes: "Squashed bugs and improved stability 🐛"
-
-Keep posts concise (<280 chars when possible), engaging, and focused on user benefits rather than technical implementation.
-
-### Marketing Content Location
-
-**IMPORTANT:** All marketing content files MUST be created in the `marketing/` folder:
-
-```
-marketing/
-  medium-article.md      # Blog posts for Medium
-  linkedin-post.md       # LinkedIn content
-  x-post.md              # X/Twitter posts
-  findings.md            # Research notes (planning skill)
-  task_plan.md           # Task tracking (planning skill)
-  progress.md            # Progress logs (planning skill)
-```
-
-- The `marketing/` folder is gitignored - content is deleted after publishing
-- Never create these files in the project root
-- When using the planning skill for marketing tasks, set the output directory to `marketing/`
-
-## Architecture: Critical Design Patterns
-
-### 1. Custom Server Architecture (server.mjs)
-
-**Why it exists:** Next.js alone doesn't support WebSocket on the same port as HTTP. The custom server combines both.
-
-```
-HTTP Requests → Next.js handlers (API routes, pages)
-WebSocket Upgrades → Custom WS server (terminal streaming)
-Both on port 3000
-```
-
-**Key constraint:** The server must handle:
-- HTTP/HTTPS for Next.js (pages, API routes)
-- WebSocket upgrade requests for `/term?name=<sessionName>`
-- Session discovery via `tmux ls` command execution
-
-When modifying `server.mjs`:
-- Preserve the upgrade handler that intercepts WebSocket requests
-- Maintain the session pooling logic (multiple clients → one PTY)
-- Never block the event loop during PTY operations
-
-### 2. Agent-First Architecture (CRITICAL)
-
-**AGENTS ARE THE CORE ENTITY.** Sessions are optional properties of agents.
-
-```
-Agent (core entity)
-├── id (UUID)
-├── name (agent identity, used as session name)
-├── label (optional display override)
-├── workingDirectory (stored property, NOT derived from tmux)
-├── sessions[] (array of AgentSession, typically 0 or 1)
-│   ├── index (0 for primary session)
-│   ├── status ('online' | 'offline')
-│   └── workingDirectory (optional override)
-└── preferences.defaultWorkingDirectory
-```
-
-**Key principles:**
-1. **Agents can exist without sessions** - An agent for querying repos/documents doesn't need a tmux session
-2. **workingDirectory is STORED on the agent** - Set when agent is created or session is linked
-3. **NEVER query tmux to derive agent properties** - All agent data comes from the registry
-4. **Sessions are discovered and LINKED to existing agents** - Not the other way around
-
-**Two agent systems:**
-- **`lib/agent-registry.ts`** - File-based registry (`~/.aimaestro/agents/registry.json`) with full agent metadata
-- **`lib/agent.ts`** - In-memory Agent class for runtime (database, subconscious)
-
-When you need agent metadata (workingDirectory, etc.), use the file-based registry:
-```typescript
-import { getAgent, getAgentBySession } from '@/lib/agent-registry'
-const agent = getAgent(agentId) || getAgentBySession(sessionName)
-const workingDir = agent?.workingDirectory || agent?.sessions?.[0]?.workingDirectory
-```
-
-**DO NOT:**
-- Query tmux to get working directories
-- Derive agent properties from tmux session state
-- Assume an agent always has a session
-- Create runtime lookups for data that should be stored
-
-**Subconscious runs LOCAL to the agent:**
-
-The subconscious process runs on the **same machine where the agent lives**. This means it has direct access to:
-- Local conversation files (`~/.claude/projects/`)
-- The agent's CozoDB database (`~/.aimaestro/agents/<id>/`)
-- The local file system (workingDirectory, repos, etc.)
-
-The subconscious does NOT need remote API calls to access agent data - everything is local. This is why `index-delta` can read `.jsonl` files directly from disk.
-
-**Subconscious timers (v0.18.10+):**
-- `maintainMemory()` - Indexes conversations for semantic search (runs periodically)
-- `triggerConsolidation()` - Long-term memory consolidation (runs periodically)
-- `checkMessages()` - **ENABLED by default**, every 5 minutes
-
-**This entry previously said polling was disabled and had been "replaced by push notifications". That was wrong, and the error mattered.** The code default is `config.messagePollingEnabled !== false` — i.e. on unless explicitly turned off — and the poll is not a legacy leftover. It is the fallback that actually delivers when a push wake reaches the pane but never submits.
-
-Measured on a customer estate (2026-09-02): four agents that a push wake had not woken all answered 4m22s–4m31s after the message, clustered within 9 seconds of each other. That is this 5-minute poll firing, not push. Anyone reading the old note would have believed there was no safety net underneath push — and would have drawn the wrong conclusion from an agent that "eventually" woke.
-
-Set `messagePollingEnabled: false` to turn it off. Do not, unless you have proven the push path submits on every agent in the fleet.
-
-### 3. Session Discovery Pattern
-
-Sessions are discovered from tmux and LINKED to agents:
-
-```
-/api/sessions → Execute `tmux ls` → Parse output → Link to registry agents → Return JSON
-```
-
-**Implementation details:**
-- Agents are ephemeral - they exist only while tmux is running
-- No persistent state between dashboard restarts
-- Agent metadata comes from tmux directly (creation time, working directory)
-- The dashboard does NOT create or manage agents (Phase 1 limitation)
-
-When implementing agent-related features:
-- Always assume agents can disappear between API calls
-- Never cache agent data longer than 5-10 seconds
-- Handle `tmux ls` returning empty results gracefully
-- Session IDs must match tmux session names exactly (alphanumeric + hyphens/underscores only)
-
-### 3. WebSocket-PTY Bridge
-
-**Critical data flow:**
-```
-Browser (xterm.js)
-  ↕ WebSocket messages (text/binary)
-Server (node-pty)
-  ↕ PTY (tmux attach-session -t <name>)
-tmux session
-  ↕ Claude Code CLI
-```
-
-**Important constraints:**
-- PTY instances are pooled: Multiple WebSocket clients can connect to the same tmux session
-- PTY is created on first client connect, destroyed when last client disconnects
-- Terminal resize events must be propagated: Browser → WebSocket → PTY → tmux
-- Input/output is binary-safe (supports ANSI escape codes, Unicode, etc.)
-
-When working with terminal components:
-- xterm.js handles rendering only - it doesn't know about tmux
-- WebSocket is the only communication channel (no polling)
-- PTY errors (session not found, tmux crashed) must close WebSocket gracefully
-- Terminal dimensions (cols/rows) must sync on window resize
-
-### 4. Tab-Based Multi-Terminal Architecture
-
-**Critical architectural pattern (v0.3.0+):** All agents are mounted simultaneously as "virtual tabs" with CSS visibility toggling.
-
-**Why this architecture:**
-- Eliminates complex agent-switching logic (was 85+ lines of race condition handling)
-- Terminals initialize once on mount, never re-initialize on agent switch
-- Instant agent switching (no unmount/remount cycle)
-- Preserves terminal state, scrollback, and WebSocket connections
-- Agent notes stay in memory (no localStorage reload on switch)
-
-**Implementation:**
-```tsx
-// app/page.tsx - All sessions rendered, toggle visibility
-{sessions.map(session => {
-  const isActive = session.id === activeSessionId
-  return (
-    <div
-      key={session.id}
-      className="absolute inset-0 flex flex-col"
-      style={{
-        visibility: isActive ? 'visible' : 'hidden',
-        pointerEvents: isActive ? 'auto' : 'none',
-        zIndex: isActive ? 10 : 0
-      }}
-    >
-      <TerminalView session={session} />
-    </div>
-  )
-})}
-```
-
-**Why visibility:hidden instead of display:none:**
-- `display: none` removes element from layout → getBoundingClientRect() returns 0 dimensions → terminal initializes with incorrect width
-- `visibility: hidden` keeps element in layout → correct dimensions → proper terminal sizing
-- `pointerEvents: none` prevents hidden tabs from capturing mouse events
-- Text selection works immediately without agent switching
-
-**Terminal initialization pattern:**
-```typescript
-// components/TerminalView.tsx
-useEffect(() => {
-  // Initialize ONCE on mount, never cleanup until unmount
-  const init = async () => {
-    cleanup = await initializeTerminal(containerElement)
-    setIsReady(true)
-  }
-  init()
-
-  return () => {
-    if (cleanup) cleanup()
-  }
-}, []) // Empty deps = mount once, no session.id dependency
-```
-
-**What was removed:**
-- Agent change detection (currentSessionRef, sessionChanged checks)
-- Race condition handling (initializingRef, duplicate initialization prevention)
-- Stale initialization cleanup verification
-- Notes/logging re-sync on agent change (loaded once on mount)
-
-### 5. React State Management Pattern
-
-**Deliberately minimal:** No Redux, Zustand, or complex state libraries.
-
-```
-App State:
-- Active agent ID (localStorage persistence, drives visibility toggle)
-- Agent list (fetched from /api/sessions every 10s)
-- WebSocket connection state (per agent, persistent)
-
-Component State:
-- Terminal instance (xterm.js, created once per agent)
-- Connection errors (transient, cleared on retry)
-- Agent notes (loaded once, persist in component state)
-```
-
-**Key hooks:**
-- `useSessions()` - Fetches session list, auto-refreshes
-- `useTerminal()` - Manages xterm.js lifecycle (init once, resize, dispose)
-- `useWebSocket()` - Handles WebSocket connection, reconnection, message routing
-- `useActiveSession()` - Tracks selected agent with localStorage
-
-When adding new state:
-- Keep it in the nearest component that needs it
-- Use Context only if 3+ components need the same state
-- Never store terminal content in React state (xterm.js manages this)
-- Consider if state needs to persist across agent switches (keep in component) vs. reload (use effect with session.id dependency)
-
-### 6. UI Enhancement Patterns
-
-**Hierarchical Agent Organization:**
-
-Agents are organized in a 3-level hierarchy based on their names:
-```
-fluidmind/agents/backend-architect  →  Level 1: "fluidmind"
-                                        Level 2: "agents"
-                                        Agent: "backend-architect"
-```
-
-**Dynamic Color System:**
-- Colors assigned via hash function (same category = same color)
-- 8-color palette in `SessionList.tsx` (easily customizable)
-- Supports localStorage overrides per category
-- No hardcoded category names - works with ANY category
-
-```typescript
-const getCategoryColor = (category: string) => {
-  // Hash-based color assignment from COLOR_PALETTE
-  const hash = category.split('').reduce((acc, char) =>
-    char.charCodeAt(0) + ((acc << 5) - acc), 0)
-  const colorIndex = Math.abs(hash) % COLOR_PALETTE.length
-  return COLOR_PALETTE[colorIndex]
-}
-```
-
-**Icon System:**
-- Uses lucide-react for consistent, accessible icons
-- Default icon: `Layers` (can be customized per category)
-- Icons for: folders, terminals, actions (edit, delete, create)
-
-**Agent Notes Feature:**
-- Collapsible textarea below terminal for per-agent notes
-- Auto-saves to localStorage (`session-notes-${sessionId}`)
-- Collapse state persisted (`session-notes-collapsed-${sessionId}`)
-- Full copy/paste/edit support
-
-**Agent Management:**
-- Rename agents with validation (API call to backend)
-- Delete agents with confirmation modal
-- Create new agents with optional working directory
-- All actions update UI optimistically with error handling
-
-**UI Best Practices:**
-- Avoid nested buttons (causes React hydration errors)
-- Use `<div>` with `cursor-pointer` for clickable containers
-- Always use `e.stopPropagation()` for nested interactive elements
-- Keep hover states smooth with `transition-all duration-200`
-
-### 7. Team Meeting Architecture (v0.20.19+)
-
-**State machine pattern:** Team meetings use a `useReducer` with a `TeamMeetingState` that tracks meeting phase (`idle` → `selecting` → `ringing` → `active`), selected agents, and UI state (sidebar mode, right panel, kanban open).
-
-**Task system:**
-- Tasks stored per-team in `~/.aimaestro/teams/tasks-{teamId}.json`
-- 5 statuses: `backlog` → `pending` → `in_progress` → `review` → `completed`
-- Dependency chains: tasks can block other tasks, auto-unblock on completion
-- `useTasks` hook polls every 5s for multi-tab sync
-
-**Kanban board:**
-- Full-screen overlay (`fixed inset-0 z-40`) matching agent picker overlay pattern
-- Native HTML5 drag-and-drop (same pattern as AgentList.tsx)
-- `KanbanCard`: `draggable={!task.isBlocked}`, stores taskId in `dataTransfer`
-- `KanbanColumn`: `onDragOver`/`onDrop` handlers update task status
-- Escape key closes modals in priority order: detail view → quick-add → board
-- Blocked tasks show lock icon, not draggable
-
-### 8. TypeScript Type System Organization
-
-**Strict separation by domain:**
-
-```
-types/session.ts    - Session metadata, status enums
-types/terminal.ts   - xterm.js configuration, dimensions
-types/websocket.ts  - Message protocol, connection states
-```
-
-**WebSocket message protocol:**
-```typescript
-{ type: 'input', data: string }           // User typed in terminal
-{ type: 'output', data: string }          // Terminal output from tmux
-{ type: 'resize', cols: number, rows: number }  // Terminal resized
-{ type: 'ping' / 'pong' }                 // Heartbeat
-{ type: 'error', error: string }          // Protocol error
-```
-
-All WebSocket messages are JSON. Raw terminal output (ANSI codes) is wrapped in `{ type: 'output', data: ... }`.
-
-## File Structure Conventions
-
-**DO NOT create these directories** (they don't exist yet in Phase 1):
-- `tests/` - No test suite in Phase 1
-- `server/` - Server logic lives in root `server.mjs`
-- `public/` - No static assets currently needed
-- `styles/` - Styles in `app/globals.css` + Tailwind only
-
-**Current structure:**
-```
-app/
-  page.tsx              - Main dashboard with footer (SessionList + TerminalView)
-  layout.tsx            - Root layout, Space Grotesk font, app title "AI Maestro"
-  globals.css           - Tailwind imports + terminal scrollbar styles
-  api/sessions/route.ts - GET endpoint for tmux session discovery
-
-components/
-  SessionList.tsx       - Hierarchical sidebar with icons, colors, session management
-  TerminalView.tsx      - Terminal display with collapsible notes area
-  [Other components]    - Keep them small, single responsibility
-  team-meeting/
-    MeetingHeader.tsx         - Meeting header with status, controls, kanban toggle
-    MeetingSidebar.tsx        - Agent list sidebar during meetings
-    MeetingTerminalArea.tsx   - Terminal grid for active meeting agents
-    MeetingRightPanel.tsx     - Right panel wrapper (tasks + chat tabs)
-    MeetingChatPanel.tsx      - Meeting chat using AMP messages
-    TaskPanel.tsx             - Task list panel with filtering and quick-add
-    TaskCard.tsx              - Task card with status, assignee, dependencies
-    TaskCreateForm.tsx        - Full task creation form with all fields
-    TaskDetailView.tsx        - Detailed task view with edit capabilities
-    TaskKanbanBoard.tsx       - Full-screen kanban overlay with 5 columns + drag-and-drop
-    KanbanColumn.tsx          - Single kanban column with drop zone
-    KanbanCard.tsx            - Compact draggable task card for kanban
-    DependencyPicker.tsx      - Dependency selection for task relationships
-
-hooks/
-  useWebSocket.ts       - WebSocket connection (reconnection, heartbeat)
-  useTerminal.ts        - xterm.js lifecycle (init, fit, dispose)
-  useSessions.ts        - Session list fetching + auto-refresh
-  useTasks.ts           - Task CRUD with tasksByStatus, optimistic updates, 5s polling
-  useMeetingMessages.ts - Meeting chat messages via AMP with 7s polling
-
-lib/
-  api.ts                - Fetch wrappers for /api/sessions
-  websocket.ts          - WebSocket message creators
-  terminal.ts           - Terminal utility functions
-  utils.ts              - Shared utilities (date formatting, etc.)
-
-types/
-  session.ts            - Session metadata, status enums, hierarchical structure
-  terminal.ts           - xterm.js configuration, dimensions
-  websocket.ts          - Message protocol, connection states
-
-docs/
-  images/               - Screenshots for README documentation
-  REQUIREMENTS.md       - Installation prerequisites
-  OPERATIONS-GUIDE.md   - Session management, troubleshooting
-
-plugin/                 - Plugin submodule (git submodule from 23blocks-OS/ai-maestro-plugins)
-  .claude-plugin/       - Marketplace manifest
-  plugins/ai-maestro/   - The AI Maestro plugin
-    scripts/            - All CLI scripts (AMP, graph, docs, memory, agent management)
-    skills/             - All 6 Claude Code skills
-    hooks/              - Session tracking hooks
-    .claude-plugin/     - Plugin manifest
-
-scripts/
-  generate-social-logos.js        - Generate social media logos from SVG
-  init-all-agents.mjs             - Initialize memory for all agents
-  register-agent-from-session.mjs - Register agent(s) from tmux session(s)
-  setup-tmux.sh                   - Setup tmux configuration
-
-install-plugin.sh    - Plugin installer (skills, scripts, CLI tools)
-
-server.mjs              - Custom Next.js server (HTTP + WebSocket)
-CLAUDE.md               - This file - guidance for Claude Code
-```
-
-## Agent Messaging Protocol (AMP)
-
-**Overview:** AI Maestro uses the Agent Messaging Protocol (AMP) for inter-agent communication. AMP is like email for AI agents - it works locally by default and can optionally federate with external providers.
-
-**Key Features:**
-- **Local-first**: Works immediately without external dependencies
-- **Cryptographic signing**: Ed25519 signatures for message authenticity
-- **Federation**: Connect to external providers (CrabMail, etc.) for global messaging
-- **Provider-agnostic**: Same CLI works with any AMP provider
-
-### Installation
-
-The AMP plugin is bundled in the plugin submodule at `plugin/plugins/ai-maestro/`.
-
-```bash
-# Install AMP scripts and skills
-./install-plugin.sh
-
-# Non-interactive installation
-./install-plugin.sh -y
-
-# Migrate existing messages only
-./install-plugin.sh --migrate
-```
-
-**What gets installed:**
-- AMP scripts (`amp-*.sh`) → `~/.local/bin/`
-- AMP skill → `~/.claude/skills/agent-messaging/`
-- Message storage → `~/.agent-messaging/`
-
-### Quick Start
-
-```bash
-# 1. Initialize your agent identity (first time only)
-amp-init.sh --auto
-
-# 2. Send a message
-amp-send.sh alice "Hello" "How are you?"
-
-# 3. Check your inbox
-amp-inbox.sh
-
-# 4. Read a message
-amp-read.sh <message-id>
-```
-
-### Architecture
-
-**Two Components:**
-
-1. **AMP Plugin (Client)** - Installed on each agent machine
-   - Location: `plugin/plugins/ai-maestro/` (submodule)
-   - Storage: `~/.agent-messaging/`
-   - Commands: `amp-init`, `amp-send`, `amp-inbox`, `amp-read`, etc.
-   - Handles: Key generation, message signing, local storage
-
-2. **AI Maestro (Provider)** - Server that routes messages
-   - Endpoints: `/api/v1/register`, `/api/v1/route`, `/api/v1/messages/pending`
-   - Handles: Message routing, relay queue, push notifications
-   - Optional: Agents can use external providers (CrabMail) instead
-
-**Message Storage (Client-side):**
-```
-~/.agent-messaging/
-├── config.json           # Agent configuration
-├── keys/
-│   ├── private.pem       # Ed25519 private key (never shared)
-│   └── public.pem        # Ed25519 public key
-├── messages/
-│   ├── inbox/            # Received messages
-│   └── sent/             # Sent messages
-└── registrations/        # External provider registrations
-```
-
-### AMP CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `amp-init.sh --auto` | Initialize agent identity |
-| `amp-status.sh` | Show agent status and registrations |
-| `amp-inbox.sh` | Check inbox for messages |
-| `amp-read.sh <id>` | Read a specific message |
-| `amp-send.sh <to> <subject> <message>` | Send a message |
-| `amp-reply.sh <id> <message>` | Reply to a message |
-| `amp-delete.sh <id>` | Delete a message |
-| `amp-register.sh --provider <url>` | Register with external provider |
-| `amp-fetch.sh` | Fetch messages from external providers |
-
-### Address Formats
-
-**Local addresses** (work immediately):
-- `alice` → `alice@default.local`
-- `bob@myteam.local` → Local delivery
-
-**External addresses** (require registration):
-- `alice@acme.crabmail.ai` → Via CrabMail provider
-- `backend@company.otherprovider.com` → Via other provider
-
-### Provider API (v0.20.0+)
-
-AI Maestro can act as an AMP provider. Agents register with AI Maestro and it handles routing.
-
-**Endpoints:**
-- `GET /api/v1/health` - Provider health status (no auth)
-- `GET /api/v1/info` - Provider capabilities (no auth)
-- `POST /api/v1/register` - Register agent, get API key
-- `POST /api/v1/route` - Route a signed message
-- `GET /api/v1/messages/pending` - Poll for offline messages
-- `DELETE /api/v1/messages/pending?id=X` - Acknowledge message
-
-**Registration flow:**
-```bash
-# Agent registers with local AI Maestro
-amp-register.sh --provider localhost:23000 --tenant myorg
-# Returns API key, stores in ~/.agent-messaging/registrations/
-```
-
-### Push Notifications
-
-When a message is routed to a local agent, AI Maestro sends a push notification via tmux:
-
-```
-[MESSAGE] From: alice - Subject line - check your inbox
-```
-
-**Configuration (environment variables):**
-- `NOTIFICATIONS_ENABLED=false` - Disable push notifications
-- `NOTIFICATION_FORMAT` - Customize notification format
-
-### Message Storage
-
-All messages are stored in AMP per-agent directories:
-```
-~/.agent-messaging/agents/<agentName>/messages/inbox/
-~/.agent-messaging/agents/<agentName>/messages/sent/
-```
-
-Per-agent directories are auto-created when agents first use AMP commands.
-The old `~/.aimaestro/messages/` system is no longer used.
-
-### Claude Code Skill
-
-The AMP skill (`plugin/plugins/ai-maestro/skills/agent-messaging/SKILL.md`) provides natural language:
-
-```
-"Check my messages" → amp-inbox.sh
-"Send a message to backend-api about deployment" → amp-send.sh backend-api "Deployment" "..."
-"Reply to the last message" → amp-reply.sh <id> "..."
-```
-
-### Development Notes
-
-- **Submodule**: Plugin repo is at `plugin/` - update with `git submodule update --remote`
-- **Protocol spec**: https://agentmessaging.org
-- **Security**: Messages are signed with Ed25519; AI Maestro verifies signatures
-- **Relay queue**: Offline agents get messages via polling (`/api/v1/messages/pending`)
-
-## Critical Implementation Details
-
-### Terminal Rendering Performance
-
-xterm.js uses **Canvas or WebGL** for rendering. The WebGL addon significantly improves performance for high-output scenarios (e.g., large file dumps).
-
-```typescript
-// In useTerminal hook
-try {
-  const webglAddon = new WebglAddon()
-  terminal.loadAddon(webglAddon)
-} catch (e) {
-  // Fallback to canvas if WebGL unavailable
-}
-```
-
-**Never** read terminal content via React state. Always use xterm.js APIs (`terminal.write()`, `terminal.onData()`).
-
-### Critical Terminal Configuration for PTY/tmux
-
-**IMPORTANT:** The following terminal settings are critical for proper Claude Code CLI behavior:
-
-1. **`convertEol: false`** - PTY and tmux handle line endings correctly. Setting this to `true` causes character duplication and incorrect line breaks because xterm.js will convert `\n` to `\r\n`, but the PTY has already handled this.
-
-2. **Alternate Screen Buffer Support** - Claude Code (like vim, less, etc.) uses tmux's alternate screen buffer. This means:
-   - When Claude is active, it uses a separate screen that doesn't mix with your shell history
-   - Scrollback must be captured from tmux's buffer, not just xterm.js's buffer
-   - The `windowOptions: { setWinLines: true }` setting enables proper alternate buffer support
-
-3. **Scrollback Capture Strategy** - On initial connection, capture both normal and alternate screen content:
-   ```bash
-   # Try to capture full history (50000 lines)
-   tmux capture-pane -t <session> -p -S -50000 -e -1
-   # Fallback to visible content only
-   tmux capture-pane -t <session> -p
-   ```
-
-**Common Issues and Fixes:**
-
-- **Every character creates a new line**: `convertEol` was set to `true` - must be `false` for PTY connections
-- **Can't scroll back during Claude session**: Claude Code uses alternate screen buffer - use Shift+PageUp/Down to scroll xterm.js buffer, or tmux copy mode (Ctrl-b [) to access tmux's scrollback
-- **Lost history after switching agents**: History capture timeout was too short or tmux session not fully initialized - increased timeout to 150ms
-
-### WebSocket Reconnection Strategy
-
-```typescript
-const reconnect = {
-  maxAttempts: 5,
-  backoff: [100, 500, 1000, 2000, 5000], // Exponential backoff
-  strategy: 'exponential'
-}
-```
-
-After 5 failed reconnection attempts, show error to user. Do NOT retry indefinitely (would waste resources if tmux session truly ended).
-
-### Session Naming Constraints
-
-tmux session names are limited to: `^[a-zA-Z0-9_-]+$`
-
-**Enforce this** in any UI that creates sessions (Phase 2+). Invalid characters will cause `tmux attach` to fail silently.
-
-### Localhost-Only Security Model
-
-**Phase 1 security assumptions:**
-- Application binds to `localhost` (127.0.0.1) ONLY
-- No authentication required (OS-level user security)
-- No CORS, no origin validation
-- WebSocket connections accepted from any localhost origin
-
-**DO NOT implement:**
-- User authentication (not needed for localhost)
-- Agent-level permissions (all agents accessible to local user)
-- HTTPS/TLS (overkill for localhost)
-
-These are deferred to Phase 2+ if remote access is needed.
-
-## ⚠️ The chat has TWO paths and THREE question renderers
-
-**Read [docs/CHAT-ARCHITECTURE.md](./docs/CHAT-ARCHITECTURE.md) before touching chat code.**
-Seven releases on 15 Sep 2026 went into one user-visible symptom, and most of that
-time was spent fixing the *wrong copy* of the right code.
-
-**Two functions named `sendChatMessage`:**
-
-| file | called by |
-|---|---|
-| `server.mjs` (~735) | **the chat UI** — WebSocket `chat:send` |
-| `services/agents-chat-service.ts` | the REST endpoint `/api/agents/:id/chat` |
-
-Verification was added to the TypeScript one, tested through REST, seen returning
-`verified: true`, and reported fixed. The chat UI never calls it.
-
-**Three places render a question panel**, and only two mention `AskUserQuestion`:
-
-1. transcript card in `ChatView.tsx`
-2. **a second copy** in `MobileChatView.tsx` — *not phone-only*: a `layoutOverride`
-   in localStorage makes `TabletDashboard` render it on desktop
-3. `hookState.options`, **synthesised from 200 lines of pane scrollback** by
-   `detectPermissionFromPane` — this one never reads the transcript, which is why
-   a question answered hours ago kept reappearing
-
-**Pane readback rules** (`lib/pane-readback.mjs`, imported by both server.mjs and TS):
-
-- proof of submission is **position** — the text must be ABOVE the input box
-- capture with `-e` and strip SGR dim, or Claude Code's greyed placeholder reads
-  as staged text
-- clear the input with **backspaces**, never `C-u` (verified: `C-u` is a no-op there)
-- a live menu is the **last thing on the pane**; if the agent has spoken since, it is history
-
-**`_lastPermission` is a cache, never an authority.** Re-validate against the pane
-before refusing a send, or a false positive deadlocks the chat permanently.
-
----
-
-## Common Gotchas
-
-### 1. Terminal Not Fitting Container
-
-```typescript
-// After terminal.open(container), ALWAYS call:
-fitAddon.fit()
-
-// And on window resize:
-window.addEventListener('resize', () => fitAddon.fit())
-```
-
-Without this, terminal dimensions won't match the container, causing ugly scrollbars.
-
-### 2. Hidden Terminals Must Use visibility:hidden, NOT display:none
-
-**CRITICAL (v0.3.0+):** When hiding inactive terminal tabs, use `visibility: hidden` instead of `display: none`.
-
-```tsx
-// ✅ CORRECT - Keeps element in layout
-style={{
-  visibility: isActive ? 'visible' : 'hidden',
-  pointerEvents: isActive ? 'auto' : 'none',
-  zIndex: isActive ? 10 : 0
-}}
-
-// ❌ WRONG - Removes from layout
-style={{
-  display: isActive ? 'flex' : 'none'
-}}
-```
-
-**Why this matters:**
-- `display: none` removes element from layout → `getBoundingClientRect()` returns width/height = 0
-- Terminal initializes with 0 dimensions → gets minimum columns (2) instead of full width
-- Hidden elements don't receive mouse events → selection/copy doesn't work
-- Using `visibility: hidden` + `pointerEvents: none` keeps correct dimensions while preventing interaction
-
-### 3. WebSocket Lifecycle vs React Lifecycle
-
-```typescript
-useEffect(() => {
-  const ws = new WebSocket(url)
-  // ... setup handlers ...
-
-  return () => {
-    ws.close()  // CRITICAL: Clean up on unmount
-  }
-}, []) // Empty deps with tab architecture - WebSocket persists across visibility changes
-```
-
-**Tab-based architecture change (v0.3.0+):** WebSocket connections are no longer recreated on agent switch. They're created once on mount and persist until component unmounts (when agent is removed from the list).
-
-### 4. tmux Session Name Parsing
-
-`tmux list-sessions` output format:
-```
-session-name: 1 windows (created Tue Jan 10 14:23:45 2025)
-```
-
-Parsing must handle:
-- Session names with hyphens/underscores
-- Timestamps in various formats (locale-dependent)
-- Multiple windows (number can be > 9)
-
-Use robust regex: `/^([a-zA-Z0-9_-]+):/`
-
-### 5. xterm.js Addon Loading Order
-
-```typescript
-terminal.loadAddon(fitAddon)       // 1. Load addons first
-terminal.loadAddon(webLinksAddon)
-terminal.open(container)           // 2. Then open
-fitAddon.fit()                     // 3. Then fit
-```
-
-Wrong order causes crashes or non-functional addons.
-
-## Environment Variables
-
-All optional, with sensible defaults:
-
-```bash
-PORT=3000                            # Server port
-NODE_ENV=development|production      # Next.js environment
-WS_RECONNECT_DELAY=3000              # WebSocket reconnect delay (ms)
-WS_MAX_RECONNECT_ATTEMPTS=5          # Max reconnection attempts
-TERMINAL_FONT_SIZE=14                # xterm.js font size
-TERMINAL_SCROLLBACK=10000            # Terminal scrollback buffer
-```
-
-Set via `.env.local` (gitignored). Never commit `.env.local`.
-
-## Server Modes
-
-AI Maestro supports two server modes controlled by the `MAESTRO_MODE` environment variable:
-
-### Full Mode (default)
-```bash
-yarn dev        # Development with hot reload
-yarn start      # Production
-```
-- Uses Next.js for both UI pages and API routes
-- All features available: dashboard, terminal WebSockets, API endpoints
-- Startup: ~5s, Memory: ~300MB
-
-### Headless Mode
-```bash
-yarn headless        # Development
-yarn headless:prod   # Production
-```
-- API-only mode — no Next.js, no UI pages
-- All ~100 API endpoints served via standalone HTTP router (`services/headless-router.ts`)
-- WebSocket connections (terminal, AMP, status, companion) work identically
-- Uses `tsx` for TypeScript support (resolves `@/*` paths via tsconfig.json)
-- Startup: ~1s, Memory: ~100MB
-- Ideal for worker nodes that only need the API surface
-
-**Architecture:**
-- `server.mjs` branches on `MAESTRO_MODE` at startup
-- Full mode: `node server.mjs` → Next.js `app.prepare()` → `handle(req, res)`
-- Headless mode: `tsx server.mjs` → `createHeadlessRouter()` → `router.handle(req, res)`
-- All WebSocket servers, PTY handling, startup tasks, and graceful shutdown are shared between modes
-- The `/api/internal/pty-sessions` endpoint is served directly from `server.mjs` in both modes
-
-## Testing the Application
-
-**Manual testing workflow:**
-
-1. Start the dashboard: `npm run dev`
-2. Create test tmux sessions:
-   ```bash
-   tmux new-session -s test1 -d
-   tmux send-keys -t test1 'claude' C-m
-   tmux new-session -s test2 -d
-   tmux send-keys -t test2 'claude' C-m
-   ```
-3. Verify auto-discovery: Sessions appear in sidebar
-4. Click sessions: Terminal content loads
-5. Type in terminal: Input reaches Claude
-6. Kill session: `tmux kill-session -t test1`
-7. Verify: Session removed after refresh
-
-### Unit Tests (CI — runs in GitHub Actions)
-
-Unit tests use vitest and run on every push/PR via `.github/workflows/ci.yml`:
-
-```bash
-yarn test          # Run all unit tests
-yarn test:watch    # Watch mode
-```
-
-Tests cover: agent utilities, session service, agents-core service, AMP auth/address/canonical-json, task registry, team registry, document registry, container utils, meeting inject, content security. All service tests mock the runtime layer — no tmux/network required.
-
-### Integration Test Suites (Manual — requires running AI Maestro)
-
-These scripts test end-to-end behavior against a live AI Maestro instance with tmux:
-
-```bash
-# AMP local routing tests (single host)
-# Tests: health, registration, internal→internal, external polling, federation, acknowledgment
-./scripts/test-amp-routing.sh
-
-# AMP cross-host mesh tests (multi-host via Tailscale)
-# Tests: host health, agent registration on each host, cross-host delivery, replies, inbox counts
-./scripts/test-amp-cross-host.sh              # Auto-detect hosts from ~/.aimaestro/hosts.json
-./scripts/test-amp-cross-host.sh --local-only  # Only test local→remote
-./scripts/test-amp-cross-host.sh --skip-inbox  # Skip inbox verification
-
-# Companion call session fork tests
-# Tests: __call session spawn, sidebar/agent hiding, transcript routing, disconnect cleanup, multi-client
-./scripts/test-call-session.sh               # Auto-picks first online agent
-./scripts/test-call-session.sh <agent-id>    # Specific agent
-```
-
-**Prerequisites:** AI Maestro running on localhost:23000, jq installed, tmux installed. AMP tests also require AMP scripts (`./install-plugin.sh -y`).
-
-## Backlog
-
-Features and bugs are tracked in [`BACKLOG.md`](./BACKLOG.md), an index pointing to
-detail files under [`backlog/`](./backlog/). Use the `backlog-management` skill to
-log, update, or triage items. (Not to be confused with `docs/BACKLOG.md`, which is
-the version-stamped product roadmap.)
-
-## Documentation References
-
-- **[README.md](./README.md)** - Project overview, quick start, architecture
-- **[docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md)** - Installation prerequisites
-- **[docs/OPERATIONS-GUIDE.md](./docs/OPERATIONS-GUIDE.md)** - Agent management, troubleshooting
-- **[docs/CHAT-ARCHITECTURE.md](./docs/CHAT-ARCHITECTURE.md)** - Both chat paths, the three question renderers, pane readback rules, and a debugging checklist
-- **[docs/CEREBELLUM.md](./docs/CEREBELLUM.md)** - Cerebellum subsystem architecture, voice pipeline, TTS providers
-
-Refer to these when users ask about setup or usage.
-
-## Roadmap Context
-
-**Phase 1 (Current):** Auto-discovery, localhost-only, read-only agent interaction
-**Phase 2 (Planned):** Agent creation from UI, grouping, search
-**Phase 3 (Future):** Remote SSH sessions, authentication, collaboration
-
-When implementing features:
-- Check if they belong in current phase
-- Don't over-engineer for future phases
-- Document phase boundaries clearly
-
-## What NOT to Do
-
-- **Don't query tmux to get agent properties** - workingDirectory, etc. are STORED on the agent in the registry, not derived from tmux. See "Agent-First Architecture" section.
-- **Don't assume agents need sessions** - Agents are the core entity; sessions are optional. An agent can exist for querying repos/docs without a tmux session.
-- **Don't use sessions.json** - Sessions are auto-discovered from tmux
-- **Don't implement authentication** - Phase 1 is localhost-only
-- **Don't store terminal history** - xterm.js manages scrollback in-memory
-- **Don't use polling** - WebSocket only for terminal I/O
-- **Don't support remote SSH** - Phase 3 feature, not Phase 1
-- **Don't nest interactive elements** - Causes React hydration errors (use div with onClick instead)
-- **Don't hardcode category colors** - Use the hash-based dynamic color system
-- **Don't use display:none for hidden terminals** - Use visibility:hidden to maintain correct dimensions and enable selection (v0.3.0+)
-- **Don't add session.id to terminal initialization useEffect** - Terminals initialize once with empty dependency array in tab architecture (v0.3.0+)
-
-## Key Files to Understand
-
-**Must read to understand the system:**
-
-1. `lib/agent-registry.ts` - **File-based agent registry** (stores agents in `~/.aimaestro/agents/registry.json`) - THE source of truth for agent metadata including workingDirectory
-2. `lib/agent.ts` - **In-memory Agent class** for runtime operations (database, subconscious)
-3. `server.mjs` - Custom server combining HTTP and WebSocket
-4. `app/page.tsx` - Main UI composition with footer (SessionList + TerminalView)
-5. `components/SessionList.tsx` - Hierarchical sidebar with dynamic colors, icons, agent management
-6. `components/TerminalView.tsx` - Terminal display with collapsible notes feature
-7. `hooks/useWebSocket.ts` - WebSocket connection management
-8. `hooks/useTerminal.ts` - xterm.js lifecycle management
-9. `app/api/sessions/route.ts` - tmux session discovery logic
-
-**Team Meeting & Kanban (v0.20.19+):**
-10. `app/team-meeting/page.tsx` - Team meeting page with reducer state machine
-11. `components/team-meeting/TaskKanbanBoard.tsx` - Full-screen kanban overlay with 5 columns + drag-and-drop
-12. `components/team-meeting/KanbanColumn.tsx` - Single kanban column with drop zone
-13. `components/team-meeting/KanbanCard.tsx` - Compact draggable task card
-14. `types/task.ts` - Task types with 5 statuses: backlog, pending, in_progress, review, completed
-15. `lib/task-registry.ts` - File-based CRUD for team task persistence
-16. `hooks/useTasks.ts` - Task hook with tasksByStatus, optimistic updates, polling
-
-**Read these in order** to understand agents and data flow.
-
-**Key UI patterns:**
-- Tab-based multi-terminal architecture (v0.3.0+) - all agents mounted, visibility toggling
-- Dynamic color assignment (hash-based, no hardcoding)
-- Hierarchical grouping (3-level: category/subcategory/agent)
-- Agent notes (per-agent localStorage)
-- Avoid nested buttons (use div with cursor-pointer)
-- Use visibility:hidden for inactive tabs (not display:none)
+- Is the server up? `curl localhost:23000/api/sessions` (there is no `/api/health`).
+- **Never run `yarn build` in the checkout a live server runs from.** It
+  replaces `.next/` under the running process, and the UI stops loading (it
+  asks for chunks that no longer exist). Build in a separate worktree, or build
+  and restart together.
+
+## Versions and pull requests
+
+- Bump with `./scripts/bump-version.sh patch|minor|major`. It updates every
+  version reference; do not edit version numbers by hand. Every PR to main
+  carries a version bump and a CHANGELOG entry.
+- Before a PR: `yarn test` passes, `yarn build` passes (outside the live
+  checkout), version bumped.
+- `aimaestro-agent.sh` (the agents CLI) has its own `v1.x` version, released
+  through the plugin.
+- Draft an X post (in `marketing/`, which is gitignored) for **releases** only,
+  not for every PR.
+
+## The Claude Code hook has one source of truth
+
+`ai-maestro-hook.cjs` ships from three byte-identical copies. Edit only
+`scripts/claude-hooks/ai-maestro-hook.cjs`, then run
+`bash scripts/sync-plugin-hook.sh`. `tests/plugin-hook-sync.test.ts` fails CI
+if the copies drift.
+
+## The plugin (`plugin/` submodule)
+
+`plugin/` is the **plugin builder** (23blocks-OS/ai-maestro-plugins), not a
+plugin. `plugin.manifest.json` lists sources; `build-plugin.sh --clean`
+assembles them into `plugin/plugins/ai-maestro/` (build output, committed).
+
+- Local skills and scripts: edit `plugin/src/`, never the build output.
+- AMP scripts (`amp-*.sh`, `amp-helper.sh`, `amp-statusline.sh`) and the
+  agent-messaging, agent-identity and canvas-actions skills come from
+  agentmessaging/* repos at `ref: main`. Fix them upstream and merge, or the
+  next build reverts your fix.
+- After any plugin change: `cd plugin && ./build-plugin.sh --clean`, commit
+  and push the submodule, bump `version` in `plugin.manifest.json` and
+  `.claude-plugin/marketplace.json` (otherwise `claude plugin update` ships
+  nothing), then `git add plugin` in this repo.
+- Skills follow Anthropic's skill best practices: the description says what
+  the skill does and when to use it, the body has only what the model doesn't
+  know, no shouted rules. `tests/plugin-skill-frontmatter.test.ts` strict-parses
+  every skill. Measure trigger changes with `plugin/evals` (see
+  `docs/SKILLS-QUALITY.md`).
+
+## Deploying to hosts
+
+Use `./update-aimaestro.sh -y` on each host (pull, submodules, build,
+install-hooks, install-plugin, restart). A raw `git reset` + build skips the
+hook and plugin installs.
+
+## Agents come first
+
+Agents are the core entity; a tmux session is an optional property of one.
+
+- Agent data (working directory, name, sessions) lives in the registry,
+  `~/.aimaestro/agents/registry.json` (`lib/agent-registry.ts`). Read it from
+  there: `getAgent(id) || getAgentBySession(name)`.
+- Never derive agent properties from tmux. Sessions are discovered and linked
+  to registry agents, not the other way round.
+- An agent can exist without a session.
+- Build tmux commands with `lib/tmux-safe.mjs` (execFile + argv). Session names
+  must match `^[a-zA-Z0-9_-]+$`.
+- The subconscious (indexing, memory consolidation, inbox polling) runs on the
+  host where the agent lives and reads its files directly.
+
+## Agent status has one source
+
+Working / Needs you / Ready / Offline comes only from the server feed
+(`services/sessions-service.ts` `getActivity`, normalised by
+`lib/agent-presence.ts`) through one browser store,
+`hooks/useSessionActivity.ts`, read with `presenceOf(agent)`. No view computes
+status from its own data, and no view opens its own status socket. Fix wrong
+status at the server, never in a view.
+
+## Messaging (AMP)
+
+Agents message each other with the Agent Messaging Protocol (signed, local by
+default, federated optionally). Storage: `~/.agent-messaging/agents/<name>/`.
+AI Maestro is also an AMP provider (`/api/v1/*`). Details:
+`docs/ARCHITECTURE.md` and the agent-messaging skill.
+
+- Agents learn about new messages three ways: the Stop hook, prompt injection,
+  and a push into the tmux pane. Find which path a bug is on before fixing it.
+- The inbox poll (`checkMessages`, every 5 minutes) is **on by default**
+  (`messagePollingEnabled !== false`). It is the safety net when a push reaches
+  the pane but never submits. Do not turn it off unless push is proven on every
+  agent.
+
+## The chat has two send paths and three question renderers
+
+Read `docs/CHAT-ARCHITECTURE.md` before touching chat code. In short:
+
+- The chat UI sends through `sendChatMessage` in `server.mjs` (WebSocket
+  `chat:send`), not the one in `services/agents-chat-service.ts` (REST).
+- Questions render in `ChatView.tsx`, in `MobileChatView.tsx` (also used on
+  desktop through a layout override), and from pane scrollback
+  (`detectPermissionFromPane`).
+- Pane readback (`lib/pane-readback.mjs`): text counts as submitted only when
+  it sits above the input box; capture with `-e` and strip dim text; clear
+  input with backspaces, not `C-u`. `_lastPermission` is a cache, never an
+  authority.
+
+## Terminal rules
+
+- Inactive terminal tabs are hidden with `visibility: hidden` and
+  `pointerEvents: none`, never `display: none` (zero size breaks xterm).
+- Terminals initialise once on mount (empty dependency array); do not add
+  `session.id` to that effect.
+- xterm: `convertEol: false`; load addons, then `open()`, then `fitAddon.fit()`.
+
+## Security model
+
+No app-level authentication, by design: the server binds `0.0.0.0` for the
+local network and Tailscale, and the network is the trust boundary. Do not
+propose auth or a localhost-only bind. Do fix injection: external commands go
+through argv, never shell strings.
+
+## Conventions
+
+- Services in `services/` are pure functions returning `ServiceResult<T>`; API
+  routes are thin wrappers. Headless mode serves the same functions through
+  `services/headless-router.ts`, so new routes need both.
+- Next.js 14 route params are a Promise: `{ params: Promise<{ id: string }> }`.
+- No nested buttons (hydration errors); use a `div` with `onClick`.
+- Category colours are hash-based (`AgentList.tsx`), never hardcoded.
+- Marketing content goes in `marketing/` (gitignored).
+
+## Where things are
+
+- `server.mjs` — HTTP + WebSockets (terminal, status, AMP, companion), PTY pool, startup tasks
+- `app/` — pages and API routes; `services/` — logic behind the routes
+- `lib/` — registry, memory (`lib/memory/`), AMP, tmux, cerebellum, schedules
+- `components/`, `hooks/` — UI; `types/` — shared types
+- `scripts/` — hook, installers, version bump; `tests/` — vitest suites
+- `plugin/` — plugin builder submodule; `channels/` — AMP channel plugin
+- `docs/` — architecture and feature docs; `backlog/` + `BACKLOG.md` — features and bugs (use the backlog-management skill; `docs/BACKLOG.md` is the versioned roadmap)

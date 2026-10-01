@@ -3,6 +3,25 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.4] - 2026-10-01 — CLAUDE.md: true, and 83% smaller
+
+The project CLAUDE.md, read at the start of every session in this repo, was
+1,059 lines (~11k tokens). Several of its rules were no longer true:
+- "the dashboard does not create agents" and "agents are ephemeral";
+- "there is no test suite, do not create tests/" (there are 75 test files);
+- "binds to localhost only" (it binds 0.0.0.0, by design);
+- "don't support remote SSH" (multi-host is core);
+- port 3000;
+- a file map of files that no longer exist.
+It also told every session to draft an X post on every PR.
+
+It is now 158 lines (~1.9k tokens), with no shouted rules. It keeps the rules
+every session needs (hook source of truth, version script, plugin
+propagation, deploy, agents first, one status source, the chat's two paths,
+terminal rules, the inbox safety net, the security model) and adds one new
+one: never build in the live checkout. The detailed architecture moved to
+`docs/ARCHITECTURE.md`, corrected, with a contents list.
+
 ## [0.47.3] - 2026-10-01 — Skill frontmatter strict YAML accepts
 
 - **Quoted descriptions.** memory-search and docs-search (plugin 1.2.2), and

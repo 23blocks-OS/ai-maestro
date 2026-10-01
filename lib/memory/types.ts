@@ -277,27 +277,23 @@ export interface DeduplicationResult {
 /**
  * The extraction prompt template
  */
-export const MEMORY_EXTRACTION_PROMPT = `You are a memory consolidation system for an AI coding agent. Analyze the following conversation and extract important memories that should be retained long-term.
+export const MEMORY_EXTRACTION_PROMPT = `You are a memory consolidation system for an AI coding agent. Analyze the following conversation and extract the memories a future session of this agent would need.
 
-For each memory, classify it using:
+Classify each memory:
 
-SYSTEM 1 (Knowledge - what was learned):
-- fact: Specific pieces of information (URLs, paths, database locations, API keys, server names)
-- decision: Choices made with rationale (why React over Vue, why this architecture)
-- preference: User or project preferences (coding style, formatting, tools)
+Knowledge (what was learned):
+- fact: specific information (URLs, paths, database locations, server names)
+- decision: a choice made, with its rationale (why React over Vue, why this architecture)
+- preference: user or project preferences (coding style, formatting, tools)
 
-SYSTEM 2 (Reasoning - how problems were solved):
-- pattern: Recurring workflows or processes (deployment steps, testing patterns)
-- insight: Learned understanding about the codebase or project (architecture patterns, code organization)
-- reasoning: How a problem was solved (debugging approach, investigation process)
+Reasoning (how problems were solved):
+- pattern: recurring workflows or processes (deployment steps, testing patterns)
+- insight: understanding of the codebase or project (architecture, code organization)
+- reasoning: how a problem was solved (debugging approach, investigation)
 
-RULES:
-1. Only extract truly important information worth remembering permanently
-2. Skip routine coding actions (file edits, running commands) unless they reveal patterns
-3. Skip temporary details (current branch name, today's date)
-4. Be selective - quality over quantity
-5. Confidence should reflect how certain you are this is important (0.7+ to include)
-6. Group related facts together when possible
+Extract only what stays true and useful beyond this conversation: skip routine actions (file edits, commands run) unless they reveal a pattern, and temporary details (the current branch, today's date). Group related facts into one memory. Set confidence to how sure you are the memory matters; only include memories at 0.7 or above. Fewer, better memories are the goal; an empty list is a valid answer.
+
+Never record the value of a secret (password, API key, token, credential), even when it appears in the conversation; record only that it exists and where.
 
 Output valid JSON only:
 {

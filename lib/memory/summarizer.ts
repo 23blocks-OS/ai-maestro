@@ -85,23 +85,23 @@ export function maxCardsFor(candidates: number): number {
 
 const SYSTEM_PROMPT = `You maintain the long-term memory of an AI software agent. You get passages from ONE of its work sessions that a filter flagged as possibly worth remembering, each shown with the exchange it came from.
 
-Write memory cards ONLY for knowledge the agent will need in a FUTURE session: decisions and their reasons, stable facts about systems, hosts, people and the environment, the user's preferences, recurring patterns and gotchas, lessons that change how to work. Merge passages that say the same thing into one card. Do NOT write cards for: what was done today, progress and status updates, narration of a debugging session, anything that only matters for this session's task. Fewer, better cards. Zero cards is a correct answer when nothing qualifies.
+Write memory cards only for knowledge the agent will need in a future session: decisions and their reasons, stable facts about systems, hosts, people and the environment, the user's preferences, recurring patterns and gotchas, lessons that change how to work. Merge passages that say the same thing into one card. Skip what was done today, progress and status updates, narration of a debugging session, and anything that only matters for this session's task. Fewer, better cards; zero cards is a correct answer when nothing qualifies.
 
 Passages marked CORRECTION are the user correcting the agent: something it did, said or assumed was wrong. They are the most valuable thing to remember. For each, write a card that states the right way, and what was wrong if that helps ("X is the production bucket, not staging; never write test data to it"), using the BACKGROUND to see what was corrected. Use action "corrected".
 
 Each card:
-- statement: ONE self-contained sentence, at most 35 words, stating the durable knowledge and why if given. Specific names. It must make sense with no other context. Never "the user said" / "the assistant found": state the knowledge itself.
+- statement: one self-contained sentence, at most 35 words, stating the durable knowledge and why if given. Specific names. It must make sense with no other context, so state the knowledge itself rather than "the user said" or "the assistant found".
 - category: fact | decision | preference | pattern | insight | reasoning
 - action: what kind of knowledge it is, from the allowed list.
-- entities: the NAMED specific things it is about (systems, services, hosts, agents, people, repos, files, functions, tools, products, libraries, organizations; a concept only if it has a proper name here). Never generic words. Usually 1 to 5. When a name in KNOWN ENTITIES is the same thing, use that exact spelling.
+- entities: the NAMED specific things it is about (systems, services, hosts, agents, people, repos, files, functions, tools, products, libraries, organizations; a concept only if it has a proper name here). No generic words; usually 1 to 5. When a name in KNOWN ENTITIES is the same thing, use that exact spelling.
 - relations: how the entities relate, as subject/predicate/object between your entity names, read "subject predicate object". These matter most: they tell a future session what else is affected when something changes. When a card has two or more entities, state every relation the excerpt supports, using these verbs:
 ${STATED_PREDICATES.map(p => `  ${p}: ${PREDICATE_GLOSS[p]}`).join('\n')}
-  Set "holds": false when the excerpt says the relation ENDED (moved off a host, stopped using, removed); otherwise true. Leave relations empty rather than guess; "related" is not a relation.
+  Set "holds": false when the excerpt says the relation ended (moved off a host, stopped using, removed); otherwise true. Leave relations empty rather than guess; "related" is not a relation.
 - evidence: the numbers of the flagged passages the card rests on.
 
 Never write the value of a secret: no passwords, API keys, tokens, encryption keys, salts or credentials, even when they appear in the excerpt; say that one exists and where ("a hardcoded encryption key in config/…"), never what it is. [REDACTED] stays redacted.
 
-Reply with ONLY a JSON object, no prose and no code fence:
+Reply with only the JSON object, no prose and no code fence:
 {"cards":[{"statement":"...","category":"${CARD_CATEGORIES.join('|')}","action":"${CARD_ACTIONS.join('|')}","entities":[{"name":"...","type":"${ENTITY_TYPES.join('|')}"}],"relations":[{"subject":"...","predicate":"${STATED_PREDICATES.join('|')}","object":"...","holds":true}],"evidence":[1,2]}]}`
 
 /** The JSON object in a model reply, tolerating a stray code fence or preamble. */

@@ -158,7 +158,9 @@ function cleanMessage(content: string, knownSecrets?: Set<string>): string {
     .replace(/^\[Request interrupted[^\]]*\]$/gm, '')
     // Notifications typed into the session by AI Maestro and the harness, not by the user
     .replace(/^\d*You have a new message from [\s\S]*?(?:inbox[^\n]*|$)/gm, '')
-    .replace(/^.*\[MESSAGE\] From: .*$/gm, '')
+    // Pane notifications: "[#ref] [MESSAGE] <subject> — from <sender> — <body>",
+    // and the older "[MESSAGE] From: <sender> - <subject>" format
+    .replace(/^.*\[MESSAGE\] .*$/gm, '')
     .replace(/^Read the output file to retrieve the result: .*$/gm, '')
     .replace(/^This session is being continued from a previous conversation[\s\S]*/, '') // compaction summary
     .trim()

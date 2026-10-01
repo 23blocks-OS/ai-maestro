@@ -935,16 +935,47 @@ fi
 #
 # Each command is allowed in three invocation forms, because agents are launched
 # in different ways: bare, and with the CLAUDE_AGENT_NAME= or AMP_DIR= prefix
-# that AI Maestro's launcher and the detached-session hint use.
+# that AI Maestro's launcher and the detached-session hint use. An allow rule
+# does not match past an assignment of a variable Claude Code doesn't know is
+# safe, so the prefixed forms need their own rules.
+#
+# Rule syntax: the prefixed forms used to be written `Bash(AMP_DIR=* cmd:*)`.
+# The `:*` suffix can't be combined with another `*` (the `*` is then read
+# literally), so those rules never matched anything, and Claude Code printed a
+# warning for each of the 16 on every session start. The space form allows `*`
+# anywhere; it needs one rule without arguments and one with, because a
+# trailing ` *` only also matches the bare command when it is the rule's only
+# wildcard (code.claude.com/docs/en/permissions, "Wildcard patterns").
 configure_amp_permissions() {
     local settings="$HOME/.claude/settings.json"
     local cmds=(amp-inbox.sh amp-read.sh amp-reply.sh amp-send.sh amp-download.sh amp-status.sh amp-fetch.sh amp-identity.sh)
 
-    local entries=()
+    local entries=() legacy=()
     for c in "${cmds[@]}"; do
         entries+=("Bash(${c}:*)")
-        entries+=("Bash(CLAUDE_AGENT_NAME=* ${c}:*)")
-        entries+=("Bash(AMP_DIR=* ${c}:*)")
+        for v in CLAUDE_AGENT_NAME AMP_DIR; do
+            entries+=("Bash(${v}=* ${c})" "Bash(${v}=* ${c} *)")
+            legacy+=("Bash(${v}=* ${c}:*)")
+        done
+    done
+
+    # Remove the old rules that never matched, from this file and from the
+    # project settings in the current directory, without asking: they grant
+    # nothing, and each one prints a warning on every session start.
+    local f
+    for f in "$settings" "$PWD/.claude/settings.local.json" "$PWD/.claude/settings.json"; do
+        [ -f "$f" ] || continue
+        node -e "
+            const fs=require('fs'); const file=process.argv[1]; const bad=new Set(process.argv.slice(2));
+            let s; try { s = JSON.parse(fs.readFileSync(file,'utf8')); } catch (_) { process.exit(0); }
+            const allow = (s.permissions && s.permissions.allow) || [];
+            const kept = allow.filter(a => !bad.has(a));
+            if (kept.length === allow.length) process.exit(0);
+            fs.copyFileSync(file, file + '.bak-' + Date.now());
+            s.permissions.allow = kept;
+            fs.writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
+            console.log('Removed ' + (allow.length - kept.length) + ' invalid AMP permission rule(s) from ' + file);
+        " "$f" "${legacy[@]}" 2>/dev/null || true
     done
 
     # What is genuinely missing? Re-running the installer must not re-ask.

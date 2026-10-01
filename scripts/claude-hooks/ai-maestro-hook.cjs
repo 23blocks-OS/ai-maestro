@@ -310,7 +310,7 @@ async function checkUnreadMessagesStandalone() {
         const count = parseInt(output, 10);
         if (isNaN(count) || count === 0) return null;
 
-        return `You have ${count} unread message${count === 1 ? '' : 's'} in your AMP inbox. Check them with: amp-inbox.sh`;
+        return `${count} unread AMP message${count === 1 ? '' : 's'} in your inbox. List them with: amp-inbox.sh`;
     } catch (err) {
         debugLog({ event: 'standalone_inbox_check_failed', error: err.message });
         return null;
@@ -486,19 +486,23 @@ function ampMessageId(id) {
 // -identical to the repeats around it. That is not a cosmetic problem: it is
 // precisely what made a real message indistinguishable from noise on
 // 2026-09-19. An id is the one thing that tells them apart.
+//
+// This text rides on up to every user prompt, so it states facts and the one
+// command that acts on them. It used to end with "Please check your inbox
+// using the agent-messaging skill." as well: a second instruction for the same
+// action, added to every notice, that the skill's own trigger already covers.
 function buildInboxNotice(fresh, reminders) {
     const parts = [];
     if (fresh.length === 1) {
         const m = fresh[0];
         const subject = m.subject ? ` about "${m.subject}"` : '';
         const urgent = m.priority === 'urgent' ? '[URGENT] ' : '';
-        parts.push(`${urgent}You have a new message from ${formatMessageSender(m)}${subject}.`);
-        parts.push(`Read it with: amp-read.sh ${ampMessageId(m.id)}`);
+        parts.push(`${urgent}You have a new message from ${formatMessageSender(m)}${subject}. Read it with: amp-read.sh ${ampMessageId(m.id)}`);
     } else if (fresh.length > 1) {
         const urgentCount = fresh.filter(m => m.priority === 'urgent').length;
         const senders = [...new Set(fresh.map(formatMessageSender))].slice(0, 3).join(', ');
         const urgent = urgentCount > 0 ? `[${urgentCount} URGENT] ` : '';
-        parts.push(`${urgent}You have ${fresh.length} new messages from ${senders}.`);
+        parts.push(`${urgent}You have ${fresh.length} new messages from ${senders}. List them with: amp-inbox.sh`);
     }
     if (reminders.length > 0) {
         const senders = [...new Set(reminders.map(formatMessageSender))].slice(0, 3).join(', ');
@@ -507,7 +511,6 @@ function buildInboxNotice(fresh, reminders) {
             ? `Still unread from earlier: a message from ${senders} (${ids}).`
             : `Still unread from earlier: ${reminders.length} messages from ${senders} (${ids}).`);
     }
-    parts.push('Please check your inbox using the agent-messaging skill.');
     return parts.join(' ');
 }
 
@@ -602,9 +605,13 @@ function buildEntityNotice(entities) {
         .filter(e => e && e.name && Array.isArray(e.relations) && e.relations.length > 0)
         .map(e => [`**${e.name}**${e.type && e.type !== 'other' ? ` (${e.type})` : ''}`, ...e.relations.map(r => `- ${r}`)].join('\n'));
     if (blocks.length === 0) return null;
+    // The legend explains only markers that appear. It used to end with "Verify
+    // before acting" on every notice: an open-ended instruction to re-check,
+    // attached to every prompt that names a known entity.
+    const ended = blocks.some(b => b.includes('(no longer)'));
     return [
         '## Memory: what you know about the things this prompt names',
-        'Relations from your earlier sessions: what each one runs on, stores, depends on, and what depends on it. Consider what else a change affects. "no longer" means a later session said it ended. Verify before acting; memory-search.sh --about <name> shows the memories behind them.',
+        `Relations from your earlier sessions; before changing one of these, consider what depends on it.${ended ? ' "(no longer)" means a later session said the relation ended.' : ''} memory-search.sh --about <name> shows the memories behind them.`,
         '',
         blocks.join('\n\n'),
     ].join('\n');
@@ -642,9 +649,18 @@ function buildMemoryNotice(memories, { primer }) {
     const title = primer
         ? '## Memory: your standing decisions, preferences, and corrections you were given'
         : '## Memory: notes from your past sessions on this topic';
+    // Rides on any prompt that recalls something, so it carries only what the
+    // agent cannot infer from the lines themselves. Dropped: "verify anything
+    // you act on" (an open-ended re-check on every recall) and "Search for more
+    // with memory-search.sh" (a standing nudge to make a tool call that the
+    // memory-search skill already describes). The correction note appears only
+    // when a correction does.
+    const hasCorrection = memories.some(m => m && m.card && m.card.action === 'corrected');
+    const legend = 'From your earlier sessions. Check them before re-reading files or re-deciding; they can be out of date.'
+        + (hasCorrection ? ' A "correction" is something the user told you that you had wrong.' : '');
     return [
         title,
-        'Check these before re-reading files or re-deciding. They come from your earlier sessions; "seen in N sessions" means the same knowledge came up that often, and "correction" means the user told you that you had it wrong: do not repeat it. They may be outdated, so verify anything you act on. Search for more with memory-search.sh.',
+        legend,
         '',
         ...lines,
     ].join('\n');
@@ -712,16 +728,20 @@ function buildAmpBlockReason(messages) {
     const header = messages.length === 1
         ? `1 unread AMP message in your inbox:`
         : `${messages.length} unread AMP messages in your inbox${urgentCount > 0 ? ` (${urgentCount} urgent)` : ''}:`;
+    // Each line carries the id amp-read.sh accepts, so the agent can open a
+    // message directly instead of first listing the inbox to find it.
     const lines = messages.slice(0, 10).map((m, i) => {
         const urgent = m.priority === 'urgent' ? '[URGENT] ' : '';
         const subj = m.subject ? ` — "${m.subject}"` : '';
-        return `  ${i + 1}. ${urgent}from ${formatMessageSender(m)}${subj}`;
+        return `  ${i + 1}. ${urgent}from ${formatMessageSender(m)}${subj} (${ampMessageId(m.id)})`;
     });
-    const more = messages.length > 10 ? `  …and ${messages.length - 10} more` : '';
+    const more = messages.length > 10 ? `  …and ${messages.length - 10} more (amp-inbox.sh lists them)` : '';
+    // "Reply where one is needed", not "respond to these": an unconditional
+    // reply instruction makes two agents answer each other's acknowledgements,
+    // and every reply wakes the other side for another turn.
     return [
         header, ...lines, more, '',
-        'Read and respond to these now using the agent-messaging skill',
-        '(amp-inbox.sh, amp-read.sh <id>, amp-reply.sh <id> "..."), then continue.',
+        `Read ${messages.length === 1 ? 'it' : 'them'} with amp-read.sh <id>, reply with amp-reply.sh <id> "..." where a reply is needed, then continue.`,
     ].filter(Boolean).join('\n');
 }
 

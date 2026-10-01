@@ -3,6 +3,33 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.46.1] - 2026-10-01 — Skills: no duplicates, clearer triggers
+
+From a skill audit against Anthropic's skill best practices and the measured
+studies of skill activation (SkillsBench, Vercel, Coder-Eval).
+
+- **No more duplicate skills.** `install-plugin.sh` kept its skill backups
+  inside `~/.claude/skills`, which Claude Code loads, so every machine offered
+  16 old copies of the 8 AI Maestro skills next to the real ones. Duplicates
+  lower how often the right skill is chosen. Backups now live in
+  `~/.aimaestro/backups/skills` (two per skill), and old ones are moved out on
+  the next install.
+- **Triggers that don't compete.** memory-search, docs-search and graph-query
+  each said to run "proactively, before any task". Each now has its own scope:
+  - memory-search: history, and what depends on something;
+  - docs-search: signatures before a call;
+  - graph-query: callers before changing shared code.
+- **Upstream skills:** agent-messaging and agent-identity now say when to use
+  them. canvas-actions triggers only when a page is wanted (it used to send
+  logs and test results to a canvas) and is under 500 lines.
+- **Smaller fixes:**
+  - installer paths that exist on every machine;
+  - planning's `user-invocable` setting now takes effect;
+  - a table of contents in the agent-management reference.
+- **Plugin 1.1.0** (ai-maestro-plugins #47; upstream claude-plugin #32,
+  agent-identity #20, agent-actions #1). The plugin version had never changed
+  from 1.0.0, so `claude plugin update` never delivered anything.
+
 ## [0.46.0] - 2026-10-01 — Memory management: pause, schedule and limits in Settings
 
 Consolidation, the part of long-term memory that costs money (the Jev

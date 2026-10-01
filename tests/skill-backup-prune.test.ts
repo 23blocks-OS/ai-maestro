@@ -20,6 +20,11 @@
  * dir and only removes the old skill once that copy has succeeded, so the
  * "restore from backup" branch is nearly unreachable — and the restore reads
  * only the newest backup, never the other forty.
+ *
+ * Pruning to two (v0.38) still left 16 duplicates of the 8 skills on every
+ * machine (audit, 2026-10-01). Backups now live in ~/.aimaestro/backups/skills,
+ * outside the namespace Claude Code enumerates, and old in-place backups are
+ * moved there on the next install.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -32,7 +37,7 @@ const SCRIPT = path.join(__dirname, '..', 'install-plugin.sh')
 
 let home: string
 
-/** Extract the function and run it against a fake ~/.claude/skills. */
+/** Extract the function and run it against a fake backup directory. */
 function prune(skill: string, keep?: number): string {
   const src = fs.readFileSync(SCRIPT, 'utf8')
   const fn = src.match(/^    prune_skill_backups\(\) \{[\s\S]*?^    \}/m)
@@ -42,6 +47,7 @@ function prune(skill: string, keep?: number): string {
   fs.writeFileSync(
     harness,
     'print_info() { echo "INFO: $*"; }\n' +
+      `SKILL_BACKUP_DIR="${backupDir()}"\n` +
       fn[0].replace(/^ {4}/gm, '') + '\n' +
       `${keep !== undefined ? `SKILL_BACKUPS_KEEP=${keep}\n` : ''}` +
       `prune_skill_backups ${skill}\n`
@@ -52,15 +58,18 @@ function prune(skill: string, keep?: number): string {
 }
 
 const skillsDir = () => path.join(home, '.claude', 'skills')
-const mk = (name: string) => {
-  fs.mkdirSync(path.join(skillsDir(), name), { recursive: true })
-  fs.writeFileSync(path.join(skillsDir(), name, 'SKILL.md'), name)
+const backupDir = () => path.join(home, '.aimaestro', 'backups', 'skills')
+/** A live skill goes in ~/.claude/skills; a backup goes in the backup directory */
+const mk = (name: string, dir = name.includes('.backup-') ? backupDir() : skillsDir()) => {
+  fs.mkdirSync(path.join(dir, name), { recursive: true })
+  fs.writeFileSync(path.join(dir, name, 'SKILL.md'), name)
 }
-const ls = () => fs.readdirSync(skillsDir()).sort()
+const ls = () => [...fs.readdirSync(skillsDir()), ...fs.readdirSync(backupDir())].sort()
 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-'))
   fs.mkdirSync(skillsDir(), { recursive: true })
+  fs.mkdirSync(backupDir(), { recursive: true })
 })
 afterEach(() => fs.rmSync(home, { recursive: true, force: true }))
 
@@ -127,6 +136,34 @@ describe('pruning old skill backups', () => {
     const out = prune('agent-messaging')
     expect(ls().filter(n => n.includes('.backup-'))).toHaveLength(2)
     expect(out).toContain('Pruned 39')
+  })
+})
+
+describe('backups live outside ~/.claude/skills', () => {
+  /** Run the block that moves old in-place backups out of the skills directory */
+  function migrate(): string {
+    const src = fs.readFileSync(SCRIPT, 'utf8')
+    const block = src.match(/^    SKILL_BACKUP_DIR=[\s\S]*?print_info "Moved[^\n]*\n/m)
+    if (!block) throw new Error('backup migration block not found in install-plugin.sh')
+    const harness = path.join(home, 'm.sh')
+    fs.writeFileSync(harness, 'print_info() { echo "INFO: $*"; }\n' + block[0].replace(/^ {4}/gm, ''))
+    return execFileSync('bash', [harness], { encoding: 'utf8', env: { ...process.env, HOME: home } })
+  }
+
+  it('moves old in-place backups out, leaving only live skills where Claude Code looks', () => {
+    mk('planning')
+    mk('planning.backup-20260919125300', skillsDir())
+    mk('planning.backup-20260920122442', skillsDir())
+    const out = migrate()
+    expect(fs.readdirSync(skillsDir())).toEqual(['planning'])
+    expect(fs.readdirSync(backupDir()).sort()).toEqual(['planning.backup-20260919125300', 'planning.backup-20260920122442'])
+    expect(out).toContain('Moved 2')
+  })
+
+  it('never writes a backup or a staging copy into ~/.claude/skills', () => {
+    const src = fs.readFileSync(SCRIPT, 'utf8')
+    expect(src).not.toMatch(/~\/\.claude\/skills\/[^\s"]*\.backup-"?\$\(date/)
+    expect(src).not.toMatch(/mktemp -d ~\/\.claude\/skills/)
   })
 })
 

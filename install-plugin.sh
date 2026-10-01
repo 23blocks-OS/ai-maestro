@@ -722,28 +722,43 @@ if [ "$INSTALL_SKILL" = true ]; then
 
     mkdir -p ~/.claude/skills
 
-    # Keep the most recent SKILL_BACKUPS_KEEP backups of one skill, delete the rest.
+    # Skill backups live OUTSIDE ~/.claude/skills.
     #
-    # WHY THIS EXISTS
+    # WHY
     #
     # Each install copies the current skill to <skill>.backup-<timestamp> before
-    # replacing it, and nothing ever deleted them. Every install, every update and
-    # every fleet deploy left 8 more directories behind. By September 2026 the
-    # hosts held 313, 304 and 447 of them, some dating to February.
+    # replacing it. Those copies used to sit next to the skill, in
+    # ~/.claude/skills, which is a namespace Claude Code ENUMERATES: every backup
+    # was offered to agents as an invokable skill. By September 2026 the hosts
+    # held 313, 304 and 447 of them; pruning to two per skill (v0.38) still left
+    # 16 duplicates of the 8 AI Maestro skills on every machine, competing with
+    # the real ones for the same prompts. Measured on skill sets, duplicates and
+    # near-duplicates lower how often the right skill is chosen
+    # (docs/COST-OPTIMIZATION.md sources; coder-eval.com skill trigger study).
     #
-    # The cost is not disk (about 6 MB). ~/.claude/skills is a namespace Claude
-    # Code ENUMERATES, so every stale copy is offered to agents as an invokable
-    # skill. Agents were choosing between the current agent-messaging skill and
-    # forty-one older ones, the oldest describing AMP scripts as they behaved
-    # seven months ago.
-    #
+    # So backups now go to ~/.aimaestro/backups/skills, two kept per skill, and
+    # any old in-place backups are moved there on the next install.
+    SKILL_BACKUP_DIR="${SKILL_BACKUP_DIR:-$HOME/.aimaestro/backups/skills}"
+    mkdir -p "$SKILL_BACKUP_DIR"
+    moved_legacy=0
+    for legacy in ~/.claude/skills/*.backup-*; do
+        [ -d "$legacy" ] || continue
+        if mv "$legacy" "$SKILL_BACKUP_DIR/" 2>/dev/null; then
+            moved_legacy=$((moved_legacy + 1))
+        else
+            rm -rf "$legacy"
+        fi
+    done
+    [ "$moved_legacy" -gt 0 ] && print_info "Moved $moved_legacy old skill backup(s) out of ~/.claude/skills to $SKILL_BACKUP_DIR"
+
+    # Keep the most recent SKILL_BACKUPS_KEEP backups of one skill, delete the rest.
     # Sorted lexically, which is chronological: the timestamp is %Y%m%d%H%M%S.
     prune_skill_backups() {
         local skill="$1"
         local keep="${SKILL_BACKUPS_KEEP:-2}"
         local -a backups
         # shellcheck disable=SC2207
-        backups=($(ls -1d ~/.claude/skills/"$skill".backup-* 2>/dev/null | sort))
+        backups=($(ls -1d "$SKILL_BACKUP_DIR/$skill".backup-* 2>/dev/null | sort))
         local total=${#backups[@]}
         [ "$total" -le "$keep" ] && return 0
         local remove=$(( total - keep ))
@@ -759,7 +774,7 @@ if [ "$INSTALL_SKILL" = true ]; then
         SKILL_INSTALL_OK=true
         # Back up existing skill before replacing (preserves user customizations)
         if [ -d ~/.claude/skills/agent-messaging ]; then
-            if ! cp -r ~/.claude/skills/agent-messaging ~/.claude/skills/agent-messaging.backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
+            if ! cp -r ~/.claude/skills/agent-messaging "$SKILL_BACKUP_DIR/agent-messaging.backup-$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
                 print_warning "Backup failed for agent-messaging skill, skipping install (existing skill preserved)"
                 SKILL_INSTALL_OK=false
             fi
@@ -767,7 +782,7 @@ if [ "$INSTALL_SKILL" = true ]; then
 
         if [ "$SKILL_INSTALL_OK" = true ]; then
             # Copy new version to temp location first, then swap (safe against cp failure)
-            TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/agent-messaging.tmp.XXXXXX)
+            TEMP_SKILL_DIR=$(mktemp -d "$SKILL_BACKUP_DIR/agent-messaging.tmp.XXXXXX")
             if cp -r "$PLUGIN_DIR/skills/agent-messaging/." "$TEMP_SKILL_DIR/"; then
                 # Copy succeeded - remove old and rename temp to final
                 rm -rf ~/.claude/skills/agent-messaging
@@ -787,7 +802,7 @@ if [ "$INSTALL_SKILL" = true ]; then
                 rm -rf "$TEMP_SKILL_DIR"
                 if [ ! -d ~/.claude/skills/agent-messaging ]; then
                     # Original was removed somehow, restore from latest backup
-                    LATEST_BACKUP=$(ls -1d ~/.claude/skills/agent-messaging.backup-* 2>/dev/null | tail -1)
+                    LATEST_BACKUP=$(ls -1d "$SKILL_BACKUP_DIR"/agent-messaging.backup-* 2>/dev/null | tail -1)
                     if [ -n "$LATEST_BACKUP" ]; then
                         mv "$LATEST_BACKUP" ~/.claude/skills/agent-messaging
                         print_warning "Install failed, restored agent-messaging from backup"
@@ -810,7 +825,7 @@ if [ "$INSTALL_SKILL" = true ]; then
             SKILL_INSTALL_OK=true
             # Back up existing skill before replacing (preserves user customizations)
             if [ -d ~/.claude/skills/"$skill" ]; then
-                if ! cp -r ~/.claude/skills/"$skill" ~/.claude/skills/"$skill".backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
+                if ! cp -r ~/.claude/skills/"$skill" "$SKILL_BACKUP_DIR/$skill.backup-$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
                     print_warning "Backup failed for $skill skill, skipping install (existing skill preserved)"
                     SKILL_INSTALL_OK=false
                 fi
@@ -818,7 +833,7 @@ if [ "$INSTALL_SKILL" = true ]; then
 
             if [ "$SKILL_INSTALL_OK" = true ]; then
                 # Copy new version to temp location first, then swap (safe against cp failure)
-                TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/"$skill".tmp.XXXXXX)
+                TEMP_SKILL_DIR=$(mktemp -d "$SKILL_BACKUP_DIR/$skill.tmp.XXXXXX")
                 if cp -r "$PLUGIN_DIR/skills/$skill/." "$TEMP_SKILL_DIR/"; then
                     # Copy succeeded - remove old and rename temp to final
                     rm -rf ~/.claude/skills/"$skill"
@@ -829,7 +844,7 @@ if [ "$INSTALL_SKILL" = true ]; then
                     # Copy failed - clean up temp, restore backup if needed
                     rm -rf "$TEMP_SKILL_DIR"
                     if [ ! -d ~/.claude/skills/"$skill" ]; then
-                        LATEST_BACKUP=$(ls -1d ~/.claude/skills/"$skill".backup-* 2>/dev/null | tail -1)
+                        LATEST_BACKUP=$(ls -1d "$SKILL_BACKUP_DIR/$skill".backup-* 2>/dev/null | tail -1)
                         if [ -n "$LATEST_BACKUP" ]; then
                             mv "$LATEST_BACKUP" ~/.claude/skills/"$skill"
                             print_warning "Install failed for $skill, restored from backup"

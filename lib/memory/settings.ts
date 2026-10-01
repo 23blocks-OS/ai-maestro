@@ -42,6 +42,34 @@ export function loadClassifierSettings(): ClassifierSettings {
   }
 }
 
+/**
+ * Fleet-wide pause for consolidation, the part of memory that spends money
+ * (Jev classification and the claude -p summarizer). Indexing, search and
+ * recall are local and keep running. Every consolidation path (each agent's
+ * nightly timer, the sweep, the history backlog, a manual run) goes through
+ * triggerConsolidation in services/agents-memory-service.ts, which checks this.
+ * Stored as `consolidation.paused` in memory-settings.json, or forced with
+ * MEMORY_CONSOLIDATION_PAUSED=true.
+ */
+export function isConsolidationPaused(): boolean {
+  if (process.env.MEMORY_CONSOLIDATION_PAUSED === 'true') return true
+  try {
+    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'))
+    return raw?.consolidation?.paused === true
+  } catch {
+    return false
+  }
+}
+
+export function setConsolidationPaused(paused: boolean): void {
+  let fileData: Record<string, any> = {}
+  try { fileData = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) } catch { /* new file */ }
+  fileData.consolidation = { ...(fileData.consolidation || {}), paused }
+  fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true })
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(fileData, null, 2), { mode: 0o600 })
+  fs.chmodSync(SETTINGS_FILE, 0o600)
+}
+
 export function isClassifierConfigured(s: ClassifierSettings = loadClassifierSettings()): boolean {
   return Boolean(s.apiKey && s.url && s.model)
 }

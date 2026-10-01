@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.45.14] - 2026-10-01 — Pause memory consolidation for the whole host
+
+Consolidation is the part of long-term memory that costs money (Jev
+classification and the summarizer, which runs on the Claude subscription).
+It can now be paused for a whole host with `"consolidation": { "paused": true }`
+in `~/.aimaestro/memory-settings.json`, or with `MEMORY_CONSOLIDATION_PAUSED=true`.
+Every consolidation path is covered: each agent's nightly timer, the sweep,
+the history backlog and manual runs. Indexing, search and recall are local and
+keep working. A settings screen for this is planned.
+
 ## [0.45.13] - 2026-10-01 — Benchmark: local models for agents
 
 Added `docs/benchmark/local-llm-agents.md`: where local models stand for

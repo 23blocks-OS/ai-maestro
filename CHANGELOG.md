@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.3] - 2026-10-01 — Skill frontmatter strict YAML accepts
+
+- **Quoted descriptions.** memory-search and docs-search (plugin 1.2.2), and
+  lolabot's mail-handler and pa-onboarding, had descriptions with an unquoted
+  `: `. Claude Code's parser tolerates that, so they loaded and passed the
+  trigger evals, but strict YAML parsers reject the whole frontmatter (Agent
+  Skills spec validators, other agent tools). Claude Code's doctor caught it
+  in Lola's session. The text is unchanged.
+- **New test:** `tests/plugin-skill-frontmatter.test.ts` parses every shipped
+  skill with a strict YAML parser. It also checks that each name matches its
+  directory and that each description says when to use the skill.
+
 ## [0.47.2] - 2026-10-01 — No more permission warnings at session start
 
 Every Claude Code session started by printing 16–18 warnings like

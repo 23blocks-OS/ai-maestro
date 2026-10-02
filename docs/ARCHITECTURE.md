@@ -437,13 +437,41 @@ amp-register.sh --provider localhost:23000 --tenant myorg
 # Returns API key, stores in ~/.agent-messaging/registrations/
 ```
 
-### Push Notifications
+### Telling an agent it has mail
 
-When a message is routed to a local agent, AI Maestro sends a push notification via tmux:
+A message is delivered when it is written to the recipient's mailbox. Telling
+the agent about it is a separate, best-effort step. The rules below exist
+because each one was broken in the field.
 
-```
-[MESSAGE] From: alice - Subject line - check your inbox
-```
+1. **The mailbox is the truth.** Whether anyone still needs telling is decided
+   by the message's state (unread, read, deleted), never by the notifier's own
+   memory. A notification is a hint about the mailbox, not a record of it.
+2. **Check the state when you fire, not when you queued.** A wake can wait up
+   to ten minutes for an idle agent. By then the agent may have read the message
+   through another route. `stillNeedsDelivery` (`lib/wake-queue.ts`) re-reads the
+   status for every queued wake, the first attempt included.
+3. **Say what you can prove.** A route that cannot confirm delivery reports
+   `deferred` or `unconfirmed`, never `sent`. A route that confirms reports how
+   (`pane:confirmed`).
+4. **Fail open on unreadable state.** A duplicate is recoverable; a dropped
+   message is not.
+5. **No route is required.** Any one of them can be absent, so none may be the
+   only way a message is found. The mailbox plus a client on the recipient's side
+   is the floor; every route above it is an upgrade.
+
+| Route | Reaches | Needs | Limit |
+|---|---|---|---|
+| Live stream | Agents open in the dashboard | A browser session | None while open |
+| Channel | Claude Code started with `--channels` | The amp channel plugin, an allowlisted or development channel | Research preview; org policy can block it |
+| Pane push | Agents in a tmux session AI Maestro launched | tmux | Waits for idle; typing into a busy TUI loses text |
+| Stop hook, prompt injection | A session at a turn boundary | The AI Maestro hook | Does nothing for an idle session |
+| Inbox poll (5 min) | Agents on a host AI Maestro runs | Polling on (the default) | Up to five minutes late |
+
+A host with no channel flag and no dashboard has the pane push as its only
+immediate route, which is why a bug there (v0.47.5) left agents never told. An
+agent that does not run on an AI Maestro host has no server push at all: the
+provider's job ends at the signed write to its mailbox, and waking the agent is
+the job of whatever client runs beside it.
 
 **Configuration (environment variables):**
 - `NOTIFICATIONS_ENABLED=false` - Disable push notifications

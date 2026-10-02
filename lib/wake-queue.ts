@@ -160,12 +160,20 @@ export function enqueueWake(
  * question directly: if the message is no longer unread, the agent has
  * demonstrably seen it — drop the wake, however unverified the earlier send was.
  *
- * Only retries are gated. A first attempt (attempts === 0) always goes: the
- * message is unread by definition when it was just stored, and skipping the
- * initial notify would be the opposite failure.
+ * Every wake that reaches this flush has WAITED, so every one is gated, the
+ * first attempt of a 'busy' wake included. Until v0.47.6 a first attempt
+ * (attempts === 0) skipped the check on the grounds that a message just stored
+ * is unread by definition. That holds for the immediate send in the routing
+ * path, which never comes through here. It does not hold for a wake that sat
+ * here while the agent was mid-turn: the agent finishes the turn, its own hook
+ * reports the message, it reads it, and the queue then types the same message
+ * into the pane as a prompt. Measured 2026-10-02 on mini-lola: pas-lola read a
+ * message at 14:43 and the queue delivered it "confirmed on attempt 1 after
+ * 55s". The state of the message, not the age of the attempt, decides.
+ *
+ * Failing open stays: when the status cannot be read the wake goes out.
  */
 export async function stillNeedsDelivery(item: QueuedWake): Promise<boolean> {
-  if (item.attempts === 0) return true
   try {
     const msg = await getMessage(item.agentId, item.messageId, 'inbox')
     // No message found: it was deleted/moved — nothing left to deliver.
@@ -209,11 +217,12 @@ export async function flushDueWakes(): Promise<void> {
     if (fresh.length === 0) queues.delete(agentId)
     else queues.set(agentId, fresh)
 
-    // A retry for a message the agent has already read is a re-fire, not a
-    // delivery. Drop it here rather than retype it into the pane.
+    // A wake for a message the agent has already read is a re-fire, not a
+    // delivery, whether it is a retry or a first attempt that waited for idle.
+    // Drop it here rather than retype it into the pane.
     if (!(await stillNeedsDelivery(next))) {
       console.log(
-        `[WakeQueue] ${next.agentName}: dropping retry for ${next.messageId} — already read`
+        `[WakeQueue] ${next.agentName}: dropping wake for ${next.messageId} — already read`
       )
       continue
     }

@@ -20,7 +20,7 @@ const { mockNotify, mockIdle, mockQueue } = vi.hoisted(() => ({
 
 vi.mock('@/lib/notification-service', () => mockNotify)
 vi.mock('@/lib/session-idle', () => mockIdle)
-// wake-queue now re-checks unread status before RE-delivering (see the
+// wake-queue re-checks unread status before delivering anything it queued (see the
 // stillNeedsDelivery tests below); it reads that through getMessage.
 vi.mock('@/lib/messageQueue', () => mockQueue)
 
@@ -283,13 +283,44 @@ describe('a retry must not re-fire a message the agent already read', () => {
   // keystrokes land", never "does this still need delivering".
   const first = () => wake({ messageId: 'msg-refire', attempts: 0 })
 
-  it('still delivers the FIRST attempt even though it checks nothing', async () => {
-    // attempts === 0: unread by definition, must always go.
+  it('delivers a deferred FIRST attempt while the message is still unread', async () => {
     mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockResolvedValue({ id: 'msg-refire', status: 'unread' })
     enqueueWake(first())
     await flushDueWakes()
     expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
-    expect(mockQueue.getMessage).not.toHaveBeenCalled()
+  })
+
+  it('DROPS a deferred first attempt the agent read while it waited — pas-lola 2026-10-02', async () => {
+    // The wake was queued because she was mid-turn. Her own hook then reported
+    // the message and she read it. Typing it into the pane at the idle
+    // transition 55 s later was the late duplicate she saw.
+    mockIdle.isSessionIdle.mockReturnValue(false)
+    enqueueWake(first())
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+    mockQueue.getMessage.mockResolvedValue({ id: 'msg-refire', status: 'read' })
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+    expect(pendingWakeCount('agent-1')).toBe(0)
+  })
+
+  it('DROPS a deferred first attempt whose message was deleted while it waited', async () => {
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockResolvedValue(null)
+    enqueueWake(first())
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).not.toHaveBeenCalled()
+  })
+
+  it('DELIVERS a deferred first attempt when the status cannot be read', async () => {
+    // A duplicate is recoverable; a dropped real message is not.
+    mockIdle.isSessionIdle.mockReturnValue(true)
+    mockQueue.getMessage.mockRejectedValue(new Error('disk'))
+    enqueueWake(first())
+    await flushDueWakes()
+    expect(mockNotify.notifyAgent).toHaveBeenCalledTimes(1)
   })
 
   it('re-delivers a retry while the message is STILL unread', async () => {
@@ -343,9 +374,12 @@ describe('a retry must not re-fire a message the agent already read', () => {
 })
 
 describe('stillNeedsDelivery (unit)', () => {
-  it('always true for a first attempt', async () => {
+  it('checks a first attempt too: true while unread, false once read', async () => {
     const { stillNeedsDelivery } = await import('@/lib/wake-queue')
+    mockQueue.getMessage.mockResolvedValueOnce({ id: 'm', status: 'unread' })
     expect(await stillNeedsDelivery({ agentId: 'a', messageId: 'm', attempts: 0 } as any)).toBe(true)
+    mockQueue.getMessage.mockResolvedValueOnce({ id: 'm', status: 'read' })
+    expect(await stillNeedsDelivery({ agentId: 'a', messageId: 'm', attempts: 0 } as any)).toBe(false)
   })
 
   it('true for an unread retry, false for a read one', async () => {

@@ -3,6 +3,31 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.6] - 2026-10-02 — A queued wake no longer re-tells an agent about a message it already read
+
+When an agent was mid-turn, the wake for a new message waited in the queue and
+was typed into its pane at the next idle moment. If the agent had read the
+message in the meantime (its own hook reports mail at the turn boundary), the
+queue still delivered it, so the agent saw the same message twice. Measured on
+mini-lola on 2026-10-02: `pas-lola` read a message at 14:43 and the queue
+logged `confirmed on attempt 1 after 55s`, a push she had no use for.
+
+Cause: `stillNeedsDelivery` skipped its read-check on a wake's first attempt
+(`attempts === 0`), on the grounds that a message just stored is unread. That
+is true for the immediate send in the routing path and false for a wake that
+waited in the queue. The retry path already had the check; the first attempt
+did not.
+
+- Every wake that reaches the queue's flush is now checked against the message's
+  state first: unread is delivered, read or deleted is dropped, and an unreadable
+  status still delivers (a duplicate is recoverable, a lost message is not).
+- Tests changed on purpose: "a first attempt checks nothing" is replaced by the
+  opposite, with the 2026-10-02 case as a regression test. The new tests fail on
+  the old code.
+- `docs/ARCHITECTURE.md`: the stale "Push Notifications" note (it said tmux only)
+  is now "Telling an agent it has mail": the five rules, the routes and what each
+  needs. The same section says what an agent outside an AI Maestro host can rely on.
+
 ## [0.47.5] - 2026-10-02 — The push into an agent's pane works again
 
 A message could be "delivered" and the agent never told. On a host where the

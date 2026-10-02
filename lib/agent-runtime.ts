@@ -14,7 +14,7 @@ import { promisify } from 'util'
 // They use execFile with an argument vector and reject malformed session names,
 // so no caller can reach a shell with attacker-controlled text. See the header
 // of lib/tmux-safe.mjs for why validation lives here and not at the routes.
-import { tmux, assertSessionName, splitKeySpec } from '@/lib/tmux-safe.mjs'
+import { tmux, assertSessionName, assertPaneTarget, splitKeySpec } from '@/lib/tmux-safe.mjs'
 
 const execAsync = promisify(exec)
 
@@ -222,7 +222,7 @@ export class TmuxRuntime implements AgentRuntime {
       'session_created=#{session_created}',
     ].join(' ')
     try {
-      const { stdout } = await tmux(['display-message', '-t', assertSessionName(name), '-p', FORMAT])
+      const { stdout } = await tmux(['display-message', '-t', assertPaneTarget(name), '-p', FORMAT])
       return Object.fromEntries(
         stdout
           .trim()
@@ -285,21 +285,21 @@ export class TmuxRuntime implements AgentRuntime {
 
     if (literal) {
       // No escaping: -l takes the text as one argv entry, verbatim.
-      await tmux(['send-keys', '-t', assertSessionName(name), '-l', keys])
+      await tmux(['send-keys', '-t', assertPaneTarget(name), '-l', keys])
       if (enter) {
         // Send Enter separately with a delay so TUIs (Claude Code, Codex)
         // process the literal text before receiving the submit. Without this,
         // Enter can arrive in the same tmux tick and be processed before the
         // input field updates, causing the submit to be silently lost.
         await new Promise(r => setTimeout(r, 100))
-        await tmux(['send-keys', '-t', assertSessionName(name), 'Enter'])
+        await tmux(['send-keys', '-t', assertPaneTarget(name), 'Enter'])
       }
     } else {
       // Non-literal: keys is a raw key sequence (e.g. "C-c", "exit Enter", quoted command)
       if (enter) {
-        await tmux(['send-keys', '-t', assertSessionName(name), ...splitKeySpec(keys), 'Enter'])
+        await tmux(['send-keys', '-t', assertPaneTarget(name), ...splitKeySpec(keys), 'Enter'])
       } else {
-        await tmux(['send-keys', '-t', assertSessionName(name), ...splitKeySpec(keys)])
+        await tmux(['send-keys', '-t', assertPaneTarget(name), ...splitKeySpec(keys)])
       }
     }
   }
@@ -311,7 +311,7 @@ export class TmuxRuntime implements AgentRuntime {
    */
   async repeatKey(name: string, key: string, times: number): Promise<void> {
     const n = Math.max(1, Math.min(2000, Math.floor(times)))
-    await tmux(['send-keys', '-t', assertSessionName(name), '-N', String(n), ...splitKeySpec(key)])
+    await tmux(['send-keys', '-t', assertPaneTarget(name), '-N', String(n), ...splitKeySpec(key)])
   }
 
   /**
@@ -321,7 +321,7 @@ export class TmuxRuntime implements AgentRuntime {
   async capturePaneRaw(name: string, lines: number = 200): Promise<string> {
     try {
       // The shell `||` fallback became a JS try/catch — same behaviour, no shell.
-      const session = assertSessionName(name)
+      const session = assertPaneTarget(name)
       const n = Math.max(1, Math.min(100000, Math.floor(lines)))
       try {
         const { stdout } = await tmux(
@@ -339,7 +339,7 @@ export class TmuxRuntime implements AgentRuntime {
 
   async capturePane(name: string, lines: number = 2000): Promise<string> {
     try {
-      const session = assertSessionName(name)
+      const session = assertPaneTarget(name)
       const n = Math.max(1, Math.min(100000, Math.floor(lines)))
       try {
         const { stdout } = await tmux(

@@ -3,6 +3,36 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.5] - 2026-10-02 — The push into an agent's pane works again
+
+A message could be "delivered" and the agent never told. On a host where the
+live stream and the Claude channel were both down (a headless host, a non-Claude
+agent), the server's last route, typing a notice into the agent's tmux pane,
+threw on every attempt:
+`Invalid tmux session name: "pas-lola:0.0"`. It retried three times, expired the
+wake after 600 s, and left the message unread in the inbox. An idle agent runs
+no turn, so the Stop hook never fired, and the 5-minute inbox poll uses the same
+pane path. Found when a test message to `pas-lola` on mini-lola sat unread for
+15 minutes.
+
+Cause: the notification code targets the pane as `<session>:0.0` so a
+multi-pane session cannot receive the text in the wrong place. The tmux
+hardening in v0.38.27 made every runtime method run `assertSessionName` on that
+string, and a session name cannot contain `:`. The notification tests mock the
+runtime, so nothing ever ran the validator against that target.
+
+- New `assertPaneTarget` in `lib/tmux-safe.mjs`: a session name, optionally
+  `:window` or `:window.pane` as digits, anchored at both ends. Used only by the
+  pane methods (`sendKeys`, `repeatKey`, `capturePane`, `capturePaneRaw`,
+  `describePane`). Session-level calls keep `assertSessionName`.
+- Same fix, same cause: the canvas-interaction notice (silently swallowed by a
+  try/catch) and the program-launch check (`describePane` always returned empty)
+  used the same target.
+- Tests run the real validator through the real `TmuxRuntime` with only `tmux`
+  faked, and check that every injection shape is still refused.
+
+Hosts that depend on the pane push need this release: `./update-aimaestro.sh -y`.
+
 ## [0.47.4] - 2026-10-01 — CLAUDE.md: true, and 83% smaller
 
 The project CLAUDE.md, read at the start of every session in this repo, was

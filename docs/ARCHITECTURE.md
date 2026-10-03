@@ -466,6 +466,7 @@ because each one was broken in the field.
 | Pane push | Agents in a tmux session AI Maestro launched | tmux | Waits for idle; typing into a busy TUI loses text |
 | Stop hook, prompt injection | A session at a turn boundary | The AI Maestro hook | Does nothing for an idle session |
 | Inbox poll (5 min) | Agents on a host AI Maestro runs | Polling on (the default) | Up to five minutes late |
+| Inbox mod (`mods/amp-inbox-band`, experimental) | Claude Code sessions with no tmux and no channel | Claude Code 2.1.287+; the AMP scripts | Polls every 20 s; early-access API; draws only in the terminal and Desktop app. See [Claude Code mods](CLAUDE-CODE-MODS.md) |
 
 A host with no channel flag and no dashboard has the pane push as its only
 immediate route, which is why a bug there (v0.47.5) left agents never told. An

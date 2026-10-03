@@ -3,6 +3,71 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.48.0] - 2026-10-02 — Agents that get told: a notification system built on Claude Code mods
+
+One day of work on one question: when mail arrives, does the agent find out, once, on any setup? This release adds an inbox **mod** for Claude Code sessions with no tmux, repairs the push for agents in tmux, and writes down the rules every notifier now follows. It rolls up 0.47.5 to 0.47.8 (each has its own entry below) and adds the mod, its documentation and the Claude Code version requirements.
+
+### Claude Code version
+
+| Feature | Needs Claude Code |
+|---|---|
+| AI Maestro, its hooks, skills, plugin and statusline | Any current version |
+| **The inbox mod (new)** | **2.1.287 or later** |
+| Channels (`--channels`) | Research preview; unchanged here |
+
+Live tests ran on 2.1.287; the mod's unit tests were re-run on 2.1.288. Older versions are untested. New: [`docs/CLAUDE-CODE-MODS.md`](docs/CLAUDE-CODE-MODS.md) (versions, where mods run, install, limits). The README requirements line now names the optional 2.1.287+.
+
+### New: the inbox mod (`mods/amp-inbox-band`, experimental, opt-in)
+
+For a Claude Code session with no tmux and no channel, which AI Maestro cannot type into. The mod runs inside the session and reads the agent's own mailbox.
+
+- Every 20 s it counts unread AMP messages. Shows `✉ N unread` in the status line, a toast when the count rises, a band above the prompt with Read and Hide, and a `/amp-inbox` command that lists mail without a model turn.
+- **Optional wake** (`autoWake`, off by default): submits a content-free prompt telling the agent to read its inbox. The message body never goes into the prompt, because bodies are untrusted data. At most one wake per 5 minutes.
+- **No stale wakes.** If mail arrives mid-turn, the mod does not queue a prompt (it would arrive after the message was read). It flags it, re-counts when the turn ends, and wakes only if something is still unread.
+- Four tests (`claude plugin test`), including both busy-session cases; they fail when the deferral is removed. `claude plugin validate` shows every call it makes: it runs `amp-inbox.sh`, reads `HOME` and submits one prompt; no network, no files.
+- Not part of the default install. Opt in with `claude --plugin-dir <repo>/mods/amp-inbox-band`. `tsconfig.json` now excludes `mods/` so the app build never compiles it.
+
+### Fixes shipped today
+
+| Version | PR | What was wrong | Seen on |
+|---|---|---|---|
+| 0.47.5 | #528 | The server's push into an agent's pane threw `Invalid tmux session name: "pas-lola:0.0"` on every call. Where the stream and channel were also down, the agent was never told. | A headless Linux host |
+| 0.47.6 | #529 | A wake that waited for an idle agent was delivered after the agent had read the message | Same host |
+| 0.47.7 | #530 | After a server restart, every push arrived as `echo '[#ref] [MESSAGE] …'`, which reads like something the user typed | Same host, after each deploy |
+| 0.47.8 | #531, plugin #51 | The sender was shown as `name@<host id>` and not the signed address; a push was announced twice in one turn | Same host |
+
+### Protocol
+
+The optional **`notify:v1`** extension (Section 12 of the AMP spec: delivery basis, a cheap "what is new" call, ack and replay rules, principles for notifiers) was merged into the protocol repo (agentmessaging/protocol #16). It is a proposal on a 0.1.x draft; the version headers are unchanged and AI Maestro does not implement its endpoints yet. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#telling-an-agent-it-has-mail) now states the five rules the server follows and lists every route with what it needs.
+
+### Verified live
+
+| Case | Result |
+|---|---|
+| Message arrives; the person sees it in Claude Code with no dashboard | Pass |
+| Message arrives while the session is idle; the session wakes within one poll | Pass |
+| Message arrives mid-turn and is read before the turn ends | Pass, no wake after |
+| Reply from another host wakes the idle session | Pass |
+| First push after a server restart is plain text | Pass (pane capture and the agent's own report) |
+| Banner shows the signed sender; told once | Pass (reported by the agent) |
+
+### Known limits
+
+- Anthropic's mods API is early access and moves between releases.
+- `claude plugin test` refused to run for most of the day ("rollout switch served off") while the mod worked. On 2.1.288 the message said the switch was saved off by an earlier session and not refreshed; starting `claude` once with network cleared it. This was a stale cached flag, not a remote shutdown (Anthropic's docs say that if the message returns after a refresh, mods are off remotely).
+- Admins can block mods (`allowManagedModsOnly`). Mods draw only in the terminal and Desktop app. Claude Code only; the poll adds up to 20 s.
+
+### Not done
+
+- Smarter delivery: telling an agent mid-task that mail exists without making it switch tasks. Sender-set priority is unreliable on this fleet (44% of 8,131 messages are `high` or `urgent`; `notification` is the default type), so this needs a receiver-side design first.
+- The statusline's "N unread" goes stale on an idle agent: Claude Code stops refreshing it. The fix is `statusLine.refreshInterval`, in an upstream script.
+- `AIMAESTRO_CHANNEL_FLAG` stays off by default: the production form needs an allowlisted plugin and an org admin, and the development form shows a consent dialog.
+- The notice text is still cut with an ellipsis at a length limit.
+
+### Upgrade
+
+`./update-aimaestro.sh -y` on each host. Hosts keep working without the mod; to try it, see [`docs/CLAUDE-CODE-MODS.md`](docs/CLAUDE-CODE-MODS.md).
+
 ## [0.47.8] - 2026-10-02 — Notices name the sender the envelope signs, and say it once
 
 Two things an agent on a headless host (`pas-lola`) reported after the day's

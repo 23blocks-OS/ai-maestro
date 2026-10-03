@@ -1,0 +1,19 @@
+{
+  "name": "amp-inbox-band",
+  "version": "0.2.0",
+  "description": "Shows unread AMP messages above the prompt, in the status line and as a toast, and can wake an idle Claude Code session to read them. Needs Claude Code 2.1.287 or later.",
+  "author": {
+    "name": "23blocks-OS",
+    "url": "https://github.com/23blocks-OS/ai-maestro"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "autoWake": {
+      "type": "boolean",
+      "title": "Wake on new messages",
+      "description": "Submit a prompt to read the inbox when new AMP messages arrive and the session is idle. Spends usage. Off by default.",
+      "default": false
+    }
+  }
+}

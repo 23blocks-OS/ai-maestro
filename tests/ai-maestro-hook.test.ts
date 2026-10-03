@@ -488,3 +488,49 @@ describe('ai-maestro-hook · readLocalRegistry', () => {
     }
   })
 })
+
+describe('ai-maestro-hook · a prompt that already carries the message is not announced again', () => {
+  // mini-lola, 2026-10-02: the pane push is typed in and submitted as the
+  // agent's prompt, so UserPromptSubmit fired for that very prompt and announced
+  // the same message a second time in the same turn.
+  const id = 'msg_1790988703994_e0m4tr3'
+  const prompt = "[#4e0m4tr3] [MESSAGE] post-restart push check (0.47.7) — from ai-maestro@rnd23blocks.aimaestro.local"
+
+  it('messageRefOf matches the server token (last 8 letters and digits)', () => {
+    expect(hook.messageRefOf(id)).toBe('4e0m4tr3')
+    expect(hook.messageRefOf('msg-1789863849489-zl8spaj')).toBe('3849489zl8spaj'.slice(-8))
+  })
+
+  it('carriedByPrompt finds exactly the messages whose [#ref] is in the prompt', () => {
+    const other = msg('msg_1790988703995_zzzzzzz')
+    expect(hook.carriedByPrompt([msg(id), other], prompt).map((m: { id: string }) => m.id)).toEqual([id])
+    expect(hook.carriedByPrompt([msg(id)], 'something unrelated')).toEqual([])
+    expect(hook.carriedByPrompt([msg(id)], undefined)).toEqual([])
+  })
+
+  it('does not announce a message the prompt carries, and records it as announced', () => {
+    const d = hook.decideInboxAnnouncement({ messages: [msg(id)], announced: {}, now: 1000, prompt })
+    expect(d.notice).toBeNull()
+    expect(d.announced[id]).toBe(1000)
+    expect(d.carriedIds).toEqual([id])
+  })
+
+  it('still announces a DIFFERENT unread message in the same turn', () => {
+    const other = msg('msg_1790988703995_zzzzzzz')
+    const d = hook.decideInboxAnnouncement({ messages: [msg(id), other], announced: {}, now: 1000, prompt })
+    expect(d.notice).toContain('amp-read.sh msg_1790988703995_zzzzzzz')
+    expect(d.notice).not.toContain(id)
+  })
+
+  it('announces normally when the prompt carries nothing (the usual case)', () => {
+    const d = hook.decideInboxAnnouncement({ messages: [msg(id)], announced: {}, now: 1000, prompt: 'fix the bug' })
+    expect(d.notice).toContain(`amp-read.sh ${id}`)
+    expect(d.carriedIds).toEqual([])
+  })
+
+  it('a carried message is not announced as "new" on the next turn either', () => {
+    const first = hook.decideInboxAnnouncement({ messages: [msg(id)], announced: {}, now: 1000, prompt })
+    const next = hook.decideInboxAnnouncement({ messages: [msg(id)], announced: first.announced, now: 2000, prompt: 'next prompt' })
+    expect(next.notice).toBeNull()
+  })
+})

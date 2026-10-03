@@ -279,6 +279,28 @@ describe('notifyAgent — pane readback', () => {
     })
   })
 
+  describe('the sender shown is the one the envelope signs', () => {
+    // pas-lola, 2026-10-02: banner said ai-maestro@juans-macbook-pro, envelope
+    // said ai-maestro@rnd23blocks.aimaestro.local.
+    async function bannerFor(extra: Record<string, unknown>) {
+      mockIdle.hasHookReport.mockReturnValue(true)
+      mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+      await notifyAgent({ ...BASE, fromName: 'ai-maestro', fromHost: 'juans-macbook-pro', ...extra } as any)
+      return mockRuntime.sendKeys.mock.calls[0][1] as string
+    }
+
+    it('shows the signed address, not name@host-id', async () => {
+      const sent = await bannerFor({ fromAddress: 'ai-maestro@rnd23blocks.aimaestro.local' })
+      expect(sent).toContain('from ai-maestro@rnd23blocks.aimaestro.local')
+      expect(sent).not.toContain('juans-macbook-pro')
+    })
+
+    it('falls back to name@host when the envelope gave no address', async () => {
+      const sent = await bannerFor({})
+      expect(sent).toContain('from ai-maestro@juans-macbook-pro')
+    })
+  })
+
   it('leads with the subject so stacked notifications are distinguishable', async () => {
     mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
 

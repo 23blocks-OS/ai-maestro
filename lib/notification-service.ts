@@ -12,6 +12,7 @@ import { computeSessionName } from '@/types/agent'
 import { getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
 import { hasHookReport } from '@/lib/session-idle'
+import { paneHoldsProgram } from '@/lib/pane-occupant'
 
 // Configuration (can be overridden via environment variables)
 const NOTIFICATIONS_ENABLED = process.env.NOTIFICATIONS_ENABLED !== 'false'
@@ -226,10 +227,13 @@ async function sendTmuxNotification(
   // no such signal, so everything got the echo wrapper and every notification
   // landed in the agent's transcript looking like a shell command.
   //
-  // No report ⇒ assume shell and keep the wrapper. That is the safe default:
-  // an unnecessary `echo` is ugly, an unquoted message at a shell prompt is a
-  // command.
-  const isTui = hasHookReport(sessionName)
+  // The report is server memory, so a restart empties it and every agent looked
+  // like a shell until its next hook event. When there is no report, look at the
+  // pane: a program other than a shell in it is the same evidence. If the pane
+  // cannot be read, ⇒ assume shell and keep the wrapper. That is the safe
+  // default: an unnecessary `echo` is ugly, an unquoted message at a shell
+  // prompt is a command.
+  const isTui = hasHookReport(sessionName) || (await paneHoldsProgram(sessionName))
   const payload = isTui ? message : `echo '${message.replace(/'/g, "'\\''")}'`
   let sawPane = false
   let staged = false

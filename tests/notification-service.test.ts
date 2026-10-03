@@ -22,6 +22,7 @@ const mockRuntime = {
   capturePaneRaw: vi.fn().mockResolvedValue(''),
   repeatKey: vi.fn().mockResolvedValue(undefined),
   sessionExists: vi.fn().mockResolvedValue(true),
+  describePane: vi.fn().mockResolvedValue({}),
 }
 
 vi.mock('@/lib/agent-runtime', () => ({
@@ -75,6 +76,8 @@ beforeEach(() => {
   mockRuntime.repeatKey.mockResolvedValue(undefined)
   mockRuntime.sessionExists.mockResolvedValue(true)
   mockIdle.hasHookReport.mockReturnValue(false)
+  mockRuntime.describePane.mockReset()
+  mockRuntime.describePane.mockResolvedValue({})
 })
 
 describe('messageRef', () => {
@@ -216,6 +219,64 @@ describe('notifyAgent — pane readback', () => {
 
     const sent = mockRuntime.sendKeys.mock.calls[0][1] as string
     expect(sent.startsWith("echo '")).toBe(true)
+  })
+
+  describe('no hook report (a server restart empties them): the pane decides', () => {
+    // mini-lola, 2026-10-02: the first pushes after each deploy arrived as
+    // `echo '[#ref] [MESSAGE] ...'` typed into an agent's prompt, because the
+    // in-memory hook report was gone. The pane already said it was not a shell.
+    async function sentFor(paneInfo: Record<string, string> | Error) {
+      mockIdle.hasHookReport.mockReturnValue(false)
+      if (paneInfo instanceof Error) mockRuntime.describePane.mockRejectedValue(paneInfo)
+      else mockRuntime.describePane.mockResolvedValue(paneInfo)
+      mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+      await notifyAgent(BASE)
+      return mockRuntime.sendKeys.mock.calls[0][1] as string
+    }
+
+    it.each(['claude', '2.1.287', 'node', 'codex'])('sends PLAIN text when the pane runs %s', async command => {
+      const sent = await sentFor({ command })
+      expect(sent.startsWith('echo ')).toBe(false)
+      expect(sent).toContain('[MESSAGE]')
+    })
+
+    it.each(['bash', 'zsh', '-zsh', 'sh', 'fish', 'login'])('keeps the echo wrapper when the pane is at %s', async command => {
+      expect((await sentFor({ command })).startsWith("echo '")).toBe(true)
+    })
+
+    it('keeps the wrapper when the pane cannot say what runs in it', async () => {
+      expect((await sentFor({})).startsWith("echo '")).toBe(true)
+      expect((await sentFor({ command: '' })).startsWith("echo '")).toBe(true)
+    })
+
+    it('keeps the wrapper when tmux fails — absence of evidence is not evidence', async () => {
+      expect((await sentFor(new Error('no server running'))).startsWith("echo '")).toBe(true)
+    })
+
+    it('probes the first pane, the same target the notice is typed into', async () => {
+      await sentFor({ command: 'claude' })
+      expect(mockRuntime.describePane).toHaveBeenCalledWith('receiver:0.0')
+    })
+
+    it('does not probe at all while a hook report is fresh', async () => {
+      mockIdle.hasHookReport.mockReturnValue(true)
+      mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+      await notifyAgent(BASE)
+      expect(mockRuntime.describePane).not.toHaveBeenCalled()
+      expect((mockRuntime.sendKeys.mock.calls[0][1] as string).startsWith('echo ')).toBe(false)
+    })
+
+    it('stays safe when the runtime cannot introspect panes at all', async () => {
+      const original = mockRuntime.describePane
+      ;(mockRuntime as { describePane?: unknown }).describePane = undefined
+      try {
+        mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
+        await notifyAgent(BASE)
+        expect((mockRuntime.sendKeys.mock.calls[0][1] as string).startsWith("echo '")).toBe(true)
+      } finally {
+        mockRuntime.describePane = original
+      }
+    })
   })
 
   it('leads with the subject so stacked notifications are distinguishable', async () => {

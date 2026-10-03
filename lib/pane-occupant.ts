@@ -58,6 +58,39 @@ export async function isPaneAtBareShell(sessionName: string): Promise<boolean> {
 }
 
 /**
+ * True only when we can SEE a program other than a shell in the pane.
+ *
+ * The mirror of isPaneAtBareShell, with the same asymmetry pointed the other
+ * way: a notification is typed as plain text only on POSITIVE evidence that
+ * something is running in the pane that can take it as input. Anything short of
+ * that (the runtime cannot introspect, tmux errors, the command is empty or
+ * unreadable) is `false`, and the caller keeps the `echo` wrapper that makes
+ * text harmless at a shell. A wrong `true` types prose at a shell prompt and it
+ * runs; a wrong `false` is only an ugly line in a transcript.
+ *
+ * Why this exists: the hook report that normally says "an agent TUI is live"
+ * lives in server memory, so a restart empties it, and every agent was sent
+ * `echo '[#ref] [MESSAGE] ...'` until its next hook event, even though its pane
+ * was plainly not a shell. Seen on mini-lola on 2026-10-02, twice, right after
+ * each deploy. The pane itself answers the question without waiting for a hook.
+ *
+ * Not an agent check: a non-agent program in the foreground (an editor, a REPL)
+ * also returns true. That pane could not take the old `echo` wrapper sensibly
+ * either, and the registry, not the pane, says what an agent is.
+ */
+export async function paneHoldsProgram(sessionName: string): Promise<boolean> {
+  try {
+    const runtime = getRuntime()
+    if (!runtime.describePane) return false
+    const info = await runtime.describePane(`${sessionName}:0.0`)
+    const command = info?.command?.trim()
+    return !!command && !isShellCommand(command)
+  } catch {
+    return false
+  }
+}
+
+/**
  * What to tell someone whose agent has no program running.
  *
  * The reporter's question was "Did I do something wrong in the installation?" —

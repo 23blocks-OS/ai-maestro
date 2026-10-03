@@ -3,6 +3,31 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.7] - 2026-10-02 — After a restart, a push no longer looks like a shell command
+
+The first notifications an agent got after every server restart arrived as
+`echo '[#ref] [MESSAGE] From: ... - subject'` typed into its prompt. In the
+agent's session that reads like something its user typed. Seen on mini-lola after
+each of the day's deploys.
+
+Cause: the notifier sends plain text only when it knows an agent TUI is live in
+the pane, and that knowledge was only the Claude Code hook's last report, held
+in server memory. A restart empties it, so every agent looked like a bare shell
+(the safe default is the `echo` wrapper) until its next hook event. Agents that
+never send hook reports got the wrapper permanently.
+
+- With no fresh hook report, the notifier now looks at the pane itself:
+  `paneHoldsProgram` (`lib/pane-occupant.ts`) is true only when tmux reports a
+  command that is not a shell in the first pane. The hook report still wins when
+  it is fresh, and then the pane is not probed.
+- Same asymmetry as the existing bare-shell check, pointed the other way: plain
+  text needs positive evidence. An unreadable pane, a tmux error, an empty
+  command or a runtime that cannot introspect all keep the `echo` wrapper.
+- Tests: five new cases fail on the old code (claude, a version string, node,
+  codex, and the probe target); the safe-default cases pass on both.
+- Not changed: the notice text is cut with an ellipsis at a length limit (seen
+  as "typed into y…"). That looks deliberate and is a separate decision.
+
 ## [0.47.6] - 2026-10-02 — A queued wake no longer re-tells an agent about a message it already read
 
 When an agent was mid-turn, the wake for a new message waited in the queue and

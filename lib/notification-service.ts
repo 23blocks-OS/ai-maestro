@@ -13,6 +13,7 @@ import { getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
 import { hasHookReport } from '@/lib/session-idle'
 import { paneHoldsProgram } from '@/lib/pane-occupant'
+import { senderLabel } from '@/lib/sender-label'
 
 // Configuration (can be overridden via environment variables)
 const NOTIFICATIONS_ENABLED = process.env.NOTIFICATIONS_ENABLED !== 'false'
@@ -31,6 +32,7 @@ export interface NotificationOptions {
   // Message info for notification content
   fromName: string        // Sender name/alias for display
   fromHost?: string       // Sender host for display
+  fromAddress?: string    // Sender's signed AMP address; shown instead of name@host when present
   subject: string         // Message subject
   messageId: string       // Message ID (for reference)
   priority?: string       // Message priority (urgent, high, normal, low)
@@ -285,12 +287,11 @@ async function sendTmuxNotification(
  * Format a notification message using the configured template
  */
 function formatNotification(options: NotificationOptions): string {
-  const { fromName, fromHost, subject, priority, body, messageId } = options
+  const { fromName, fromHost, fromAddress, subject, priority, body, messageId } = options
 
-  // Build sender info with optional host
-  const senderWithHost = fromHost && fromHost !== 'local'
-    ? `${fromName}@${fromHost}`
-    : fromName
+  // The signed address when the envelope has one; `name@host id` only as a
+  // fallback (see lib/sender-label.ts for why the host id is not an address).
+  const senderWithHost = senderLabel({ address: fromAddress, name: fromName, host: fromHost })
 
   // Add priority indicator for urgent/high
   const priorityPrefix = priority === 'urgent' ? '🔴 [URGENT] '

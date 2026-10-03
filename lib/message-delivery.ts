@@ -23,6 +23,7 @@ import { runWakeChain, describeWakeResult } from '@/lib/wake-chain'
 import { enqueueWake } from '@/lib/wake-queue'
 import { computeSessionName } from '@/types/agent'
 import { getAgent } from '@/lib/agent-registry'
+import { senderAddressOf, senderLabel } from '@/lib/sender-label'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { WakeOutcome } from '@/lib/wake-chain'
 
@@ -68,13 +69,18 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     subject, priority, messageType,
   } = input
 
+  // The sender as the envelope signs it. Shown wherever the agent reads a sender,
+  // so the pane notice, the wake text and the content wrapper all agree with it.
+  const senderAddress = senderAddressOf(envelope.from)
+
   // 1a. Apply content security (S6 fix — previously only applied on Web UI path)
   const fromVerified = !!senderPublicKeyHex
   const { content: securedPayload } = applyContentSecurity(
     { type: payload.type, message: payload.message, ...payload.context ? { context: payload.context } : {} },
     fromVerified,
     senderName,
-    senderHost
+    senderHost,
+    senderAddress
   )
   const securedEnvelopePayload: AMPPayload = { ...payload, message: securedPayload.message }
   if (securedPayload.security) {
@@ -107,7 +113,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   // The wake text. Every route in the chain carries the same sender/subject/
   // body — the pane route re-wraps `injectBody` under its own header — so no
   // route hands the agent a bare "check your inbox" pointer it could ignore.
-  const sender = senderHost && senderHost !== 'local' ? `${senderName}@${senderHost}` : senderName
+  const sender = senderLabel({ address: senderAddress, name: senderName, host: senderHost })
   const injectBody = (securedEnvelopePayload.message || '').toString().slice(0, 2000)
   //
   // "If it needs an answer", not an unconditional "reply": told to reply to
@@ -129,6 +135,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     injectBody,
     senderName,
     senderHost,
+    senderAddress,
     subject,
     messageId: envelope.id,
     priority,
@@ -165,6 +172,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
       injectBody,
       senderName,
       senderHost,
+      senderAddress,
       subject,
       messageId: envelope.id,
       priority,

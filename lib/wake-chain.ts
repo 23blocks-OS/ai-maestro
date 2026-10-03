@@ -52,6 +52,8 @@ export interface WakeContext {
   injectBody: string
   senderName: string
   senderHost?: string
+  /** The envelope's signed sender address; what the notice shows when present. */
+  senderAddress?: string
   subject: string
   messageId: string
   priority?: string
@@ -166,6 +168,7 @@ export const paneAdapter: WakeAdapter = {
         injectBody: ctx.injectBody,
         senderName: ctx.senderName,
         senderHost: ctx.senderHost,
+        senderAddress: ctx.senderAddress,
         subject: ctx.subject,
         messageId: ctx.messageId,
         priority: ctx.priority,
@@ -183,6 +186,7 @@ export const paneAdapter: WakeAdapter = {
       agentName: ctx.agentName,
       fromName: ctx.senderName,
       fromHost: ctx.senderHost || 'unknown',
+      fromAddress: ctx.senderAddress,
       subject: ctx.subject,
       messageId: ctx.messageId,
       priority: ctx.priority,

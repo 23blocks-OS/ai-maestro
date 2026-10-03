@@ -3,6 +3,42 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.47.8] - 2026-10-02 — Notices name the sender the envelope signs, and say it once
+
+Two things an agent on a headless host (`pas-lola`) reported after the day's
+deploys, both about the line that tells it it has mail.
+
+**The sender was shown under the wrong name.** The pane notice, the wake text
+and the `<external-content sender="…">` wrapper all built the sender as
+`<name>@<AI Maestro host id>`: `ai-maestro@juans-macbook-pro`. That looks like an
+AMP address and is not one. The envelope, signed, said
+`ai-maestro@rnd23blocks.aimaestro.local`. An agent comparing the two saw two
+senders and had good reason to doubt both.
+
+- New `lib/sender-label.ts`: `senderAddressOf(envelope.from)` accepts an address
+  only in a narrow alphabet (no quotes, angle brackets, whitespace or control
+  characters, since it goes into an XML attribute and a tmux pane) and
+  `senderLabel` prefers it, falling back to the old `name@host` so nothing that
+  worked stops working.
+- Threaded from `deliver()` through the wake chain, the queued wake and its
+  operator view (`pendingWakes`), the notification text and the content wrapper.
+
+**A pane push was announced twice in the same turn.** A push is typed in and
+submitted as the agent's prompt, so the `UserPromptSubmit` hook ran on that very
+prompt and added "You have a new message from X … Read it with …" for the same
+message. The hook now skips a message whose `[#ref]` is already in the prompt
+and records it as announced, so it is not re-announced next turn either. A
+different unread message in the same turn is still announced. Ships in plugin
+1.2.3 (ai-maestro-plugins #51, which must merge first).
+
+- Tests: seven of the new cases fail on the old code (banner, wrapper, hook).
+- Not changed, with reasons: the notice's body preview is cut with an ellipsis
+  at a length limit (looks deliberate); `AIMAESTRO_CHANNEL_FLAG` stays off by
+  default (the production form needs an allowlisted plugin and an org admin, the
+  dev form shows a consent dialog that would block an unattended boot); the
+  statusline's "N unread" is recomputed from disk on every run, so a stale count
+  on an idle agent is when Claude Code re-runs the status line, not a cache.
+
 ## [0.47.7] - 2026-10-02 — After a restart, a push no longer looks like a shell command
 
 The first notifications an agent got after every server restart arrived as

@@ -139,3 +139,18 @@ describe('applyContentSecurity', () => {
     expect(result.content.message).toContain('sender="unknown@unknown"')
   })
 })
+
+describe('applyContentSecurity: the wrapper names the sender the envelope signs', () => {
+  it('uses the signed address in sender="…" when given', () => {
+    const { content } = applyContentSecurity(
+      { type: 'request', message: 'hello' }, false, 'pas-lola', 'mini-lola', 'pas-lola@rnd23blocks.aimaestro.local'
+    )
+    expect(content.message).toContain('sender="pas-lola@rnd23blocks.aimaestro.local"')
+    expect(content.message).not.toContain('sender="pas-lola@mini-lola"')
+  })
+
+  it('keeps the old name@host form when no address is given', () => {
+    const { content } = applyContentSecurity({ type: 'request', message: 'hello' }, false, 'pas-lola', 'mini-lola')
+    expect(content.message).toContain('sender="pas-lola@mini-lola"')
+  })
+})

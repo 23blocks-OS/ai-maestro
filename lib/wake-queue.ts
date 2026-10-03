@@ -42,6 +42,7 @@
 import { notifyAgent } from '@/lib/notification-service'
 import { isSessionIdle } from '@/lib/session-idle'
 import { getMessage } from '@/lib/messageQueue'
+import { senderLabel } from '@/lib/sender-label'
 
 /** How often to re-check queued agents for idleness. */
 const FLUSH_INTERVAL_MS = 5_000
@@ -75,6 +76,8 @@ export interface QueuedWake {
   injectBody: string
   senderName: string
   senderHost?: string
+  /** The envelope's signed sender address; what the notice shows when present. */
+  senderAddress?: string
   subject: string
   messageId: string
   priority?: string
@@ -236,6 +239,7 @@ export async function flushDueWakes(): Promise<void> {
         agentName: next.agentName,
         fromName: next.senderName,
         fromHost: next.senderHost || 'unknown',
+        fromAddress: next.senderAddress,
         subject: next.subject,
         messageId: next.messageId,
         priority: next.priority,
@@ -323,9 +327,7 @@ export function pendingWakes(): PendingWakeView[] {
         agentName: item.agentName,
         messageId: item.messageId,
         subject: item.subject,
-        from: item.senderHost && item.senderHost !== 'local'
-          ? `${item.senderName}@${item.senderHost}`
-          : item.senderName,
+        from: senderLabel({ address: item.senderAddress, name: item.senderName, host: item.senderHost }),
         reason: item.reason,
         attempts: item.attempts,
         waitingMs: now - item.queuedAt,

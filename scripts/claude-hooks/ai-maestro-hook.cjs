@@ -318,7 +318,7 @@ async function checkUnreadMessagesStandalone() {
 }
 
 // Check for unread messages for this agent
-async function checkUnreadMessages(cwd) {
+async function checkUnreadMessages(cwd, prompt) {
     try {
         // Find agent by working directory
         const agents = await fetchAgentsOnce();
@@ -348,8 +348,9 @@ async function checkUnreadMessages(cwd) {
         // one of them, 17:57 through 19:46. Same message, twenty-odd identical
         // "you have a new message" announcements.
         const announced = loadAnnounced(cwd);
-        const decision = decideInboxAnnouncement({ messages, announced, now: Date.now() });
+        const decision = decideInboxAnnouncement({ messages, announced, now: Date.now(), prompt });
         if (!decision.notice) {
+            if (decision.carriedIds && decision.carriedIds.length) saveAnnounced(cwd, decision.announced);
             debugLog({ event: 'inbox_announce_suppressed', agentId: agent.id, count: messages.length });
             return null;
         }
@@ -514,22 +515,48 @@ function buildInboxNotice(fresh, reminders) {
     return parts.join(' ');
 }
 
+// The token the server types into an agent's pane for a message: the last eight
+// letters and digits of its id, as `[#abc12345]`. Must stay the same as
+// messageRef() in lib/notification-service.ts.
+function messageRefOf(id) {
+    const alnum = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
+    return alnum.slice(-8) || 'nomsgid';
+}
+
+// Messages the PROMPT ITSELF already announced. A pane push is typed into the
+// agent's input and submitted as its prompt, so UserPromptSubmit then fires for
+// that very prompt and, without this, announced the same message a second time
+// in the same turn ("You have a new message from X ... Read it with ..."), on
+// top of the push that carries it. Seen on mini-lola 2026-10-02, repeatedly.
+// A message whose [#ref] is already in the prompt has been announced; say so
+// once, not twice.
+function carriedByPrompt(messages, prompt) {
+    if (typeof prompt !== 'string' || prompt.length === 0) return [];
+    return (messages || []).filter(m => m && m.id && prompt.includes(`[#${messageRefOf(m.id)}]`));
+}
+
 // Pure decision — no I/O, unit-testable. `announced` maps message id to the ms
 // timestamp it was last announced at. Returns notice:null when there is nothing
 // worth saying, which is the common case and the whole point.
-function decideInboxAnnouncement({ messages, announced, now, remindAfterMs }) {
-    const seen = (announced && typeof announced === 'object' && !Array.isArray(announced)) ? announced : {};
+function decideInboxAnnouncement({ messages, announced, now, remindAfterMs, prompt }) {
+    const seen0 = (announced && typeof announced === 'object' && !Array.isArray(announced)) ? announced : {};
     const gap = typeof remindAfterMs === 'number' ? remindAfterMs : INBOX_REMIND_MS;
+    // Messages the prompt already carries count as announced right now: record
+    // them so they are not announced as "new" on the next turn either.
+    const carried = carriedByPrompt(messages, prompt);
+    const carriedIds = carried.map(m => m.id);
+    const seen = carried.length ? { ...seen0, ...Object.fromEntries(carriedIds.map(id => [id, now])) } : seen0;
+    const skip = new Set(carriedIds);
     const fresh = [];
     const reminders = [];
     for (const m of messages || []) {
-        if (!m || !m.id) continue;
+        if (!m || !m.id || skip.has(m.id)) continue;
         const last = seen[m.id];
         if (typeof last !== 'number') fresh.push(m);
         else if (now - last >= gap) reminders.push(m);
     }
     if (fresh.length === 0 && reminders.length === 0) {
-        return { notice: null, announced: seen, freshIds: [], reminderIds: [] };
+        return { notice: null, announced: seen, freshIds: [], reminderIds: [], carriedIds };
     }
     const next = { ...seen };
     for (const m of fresh.concat(reminders)) next[m.id] = now;
@@ -538,6 +565,7 @@ function decideInboxAnnouncement({ messages, announced, now, remindAfterMs }) {
         announced: pruneAnnounced(next, now),
         freshIds: fresh.map(m => m.id),
         reminderIds: reminders.map(m => m.id),
+        carriedIds,
     };
 }
 
@@ -1063,7 +1091,7 @@ async function main() {
             // the user just asked, so the agent sees past decisions before it
             // starts reading files.
             const [upsInbox, upsMeeting, upsMemory] = await Promise.all([
-                withDeadline(checkUnreadMessages(cwd), INJECT_DEADLINE_MS, null),
+                withDeadline(checkUnreadMessages(cwd, input.prompt), INJECT_DEADLINE_MS, null),
                 withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
                 input.prompt ? withDeadline(recallMemories(cwd, sessionId, input.prompt), INJECT_DEADLINE_MS, null) : null
             ]);
@@ -1108,6 +1136,8 @@ module.exports = {
     decideStopDelivery,
     formatMessageSender,
     decideInboxAnnouncement,
+    carriedByPrompt,
+    messageRefOf,
     buildInboxNotice,
     pruneAnnounced,
     ampMessageId,

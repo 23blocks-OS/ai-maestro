@@ -1,6 +1,6 @@
 # F024 — Agent Files Protocol (AFP) and the agent-files skill, backed by Garage
 
-**Status:** Todo (spec drafted locally, nothing published or installed)
+**Status:** In progress (spec published, AMP PR #17 merged, Garage spike running on mini-lola; results in `docs/AFP-SPIKE-RESULTS.md`)
 **Type:** Feature (cross-repo: protocol, plugin, AI Maestro)
 **Created:** 2026-10-04
 

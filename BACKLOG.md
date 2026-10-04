@@ -40,6 +40,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F020** — [No cold wakes on a large context](./backlog/F020-cold-wakes.md) — `Todo`
 - **F021** — [Audit instructions that trigger extra actions](./backlog/F021-action-instruction-audit.md) — `Todo`
 - **F022** — [Local models for small agents and AI Maestro's own background jobs](./backlog/F022-local-models.md) — `Blocked` (not ready yet)
+- **F023** — [Prompt-cache notes](./backlog/F023-prompt-cache-notes.md) — `Todo` (parked, low gain)
+- **F024** — [Agent Files Protocol (AFP) and the agent-files skill, backed by Garage](./backlog/F024-agent-files-afp.md) — `Todo` (spec drafted locally)
 
 ## Bugs
 

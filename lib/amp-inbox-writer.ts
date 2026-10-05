@@ -296,6 +296,17 @@ export async function initAgentAMPHome(agentName: string, agentId?: string): Pro
 // ============================================================================
 
 /**
+ * The attachments array travels inside the payload, so the sender's signature
+ * covers it. A stored copy that leaves it out no longer matches what was signed,
+ * and the recipient cannot see the attachments at all (AMP spec 04, both the
+ * provider and the `storage: "afp"` kinds). Keep it as sent.
+ */
+function attachmentsField(payload: AMPPayload): { attachments?: unknown[] } {
+  const atts = (payload as { attachments?: unknown }).attachments
+  return Array.isArray(atts) && atts.length > 0 ? { attachments: atts } : {}
+}
+
+/**
  * Write a message to a specific agent's AMP inbox in envelope format.
  * Prefers UUID-based directory when recipientAgentId is provided.
  */
@@ -338,7 +349,8 @@ export async function writeToAMPInbox(
       payload: {
         type: payload.type,
         message: payload.message,
-        context: payload.context || null
+        context: payload.context || null,
+        ...attachmentsField(payload)
       },
       metadata: {
         status: 'unread',
@@ -405,7 +417,8 @@ export async function writeToAMPSent(
       payload: {
         type: payload.type,
         message: payload.message,
-        context: payload.context || null
+        context: payload.context || null,
+        ...attachmentsField(payload)
       },
       local: {
         sent_at: new Date().toISOString()

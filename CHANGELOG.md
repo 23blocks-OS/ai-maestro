@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.2] - 2026-10-05 - Local delivery keeps a message's attachments
+
+- **Fix: the stored copy of a message dropped its attachments.** `lib/amp-inbox-writer.ts` rebuilt each stored payload from `type`, `message` and `context` only, so `payload.attachments` never reached the recipient's inbox or the sender's sent copy on this server's local delivery. The recipient could not see the attachments, and the stored payload no longer matched what the sender signed (the attachments array is inside the signed payload). Found by the first real `amp-send.sh --attach-afp` message: it was delivered, with no attachment in the inbox copy. Both writers now keep the attachments array exactly as sent, for the provider kind and for `storage: "afp"`. New test `tests/amp-inbox-writer-attachments.test.ts` (fails on the old code).
+- **Not verified:** federated and relay delivery paths, which were not exercised. A provider attachment sent to an agent on this server will now also arrive; that path had no test before.
+
 ## [0.49.1] - 2026-10-05 - Agents can send file references in messages
 
 - **`amp-send.sh --attach-afp`** (plugin 1.3.1, from agentmessaging/claude-plugin#36). A message can carry an Agent Files Protocol reference instead of bytes: `storage: "afp"` with the reference, digest and size, inside the signed payload. `amp-read`, `amp-inbox` and `amp-download` show AFP references and print the `afp-get.sh` command to fetch them. Existing attachments are unchanged.

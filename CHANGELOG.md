@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.8] - 2026-10-05 - The chat header and the terminal bar show the same facts, on desktop and on a phone
+
+F025 is done. One question for the day: why did the chat show so little of what the terminal status bar shows? This release rolls up 0.49.3 to 0.49.8 (each has its own entry below) and adds the last piece, the phone.
+
+- **Phone and tablet chat now show the agent's folder and AMP address** (new `AgentIdentityLine`), above the status row. Before, the mobile chat had the context and `/compact` row but not where the agent works or its address. The mobile terminal tab keeps no header on purpose: the terminal itself shows Claude Code's own status line.
+- **What every chat header shows now:** name, status, folder, AMP address, and a status row: model, context size and percent with the `/compact soon` or `/compact now` hint, session cost, effort, permission mode, cache warm (with minutes left) or cold, and `last turn N ago`. Unknown values are left out. On a narrow screen the context and hint stay visible and the rest is one tap away.
+- **What the terminal status bar shows:** row 1 is `name · address · folder | N unread`; row 2 is the same facts as the header (without the permission mode, which Claude Code's own footer already shows). A test runs the real status line script and the header's formatter on the same sample data and checks that the text matches.
+- **Where the numbers come from:** the status line reports the live session values (session cost, context, effort, cache) to the server, and the header reads them. The transcript fills in the rest. The header used to show a lifetime cost total that did not match any session; that is gone.
+- **Staying right:** another host's agents refresh every 15 s on the server and every 30 s in the browser; an idle agent keeps its last reported cost (it cannot change); reports survive an update (`~/.aimaestro/status-reports.json`).
+- Needs plugin 1.4.0 (installed by `update-aimaestro.sh`). A phone cannot be rendered by the tests: they check the markup and that the mobile and tablet dashboards pass the folder and address in.
+
 ## [0.49.7] - 2026-10-05 - An idle agent keeps its cost in the header, and costs survive an update
 
 - **Fix: the cost disappeared from the header a few minutes after an agent went idle** while its terminal bar still showed it (`3m-web`: `$16.07` in the terminal, nothing in the header). The server threw away a reported value after 5 minutes, but an idle agent's status line reports nothing, and an idle agent's cost cannot change. A report now stays good, for up to a day, as long as the agent has had no turn since it was sent. If the agent has worked since and has not reported, the cost is hidden, never shown wrong.

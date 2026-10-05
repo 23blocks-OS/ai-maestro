@@ -42,7 +42,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F022** — [Local models for small agents and AI Maestro's own background jobs](./backlog/F022-local-models.md) — `Blocked` (not ready yet)
 - **F023** — [Prompt-cache notes](./backlog/F023-prompt-cache-notes.md) — `Todo` (parked, low gain)
 - **F024** — [Agent Files Protocol (AFP) and the agent-files skill, backed by Garage](./backlog/F024-agent-files-afp.md) — `In progress` (spec published, spike running)
-- **F025** — [The chat header shows what the terminal status bar shows](./backlog/F025-chat-header-parity.md) — `In progress` (terminal bar done in 0.49.3)
+- **F025** — [The chat header shows what the terminal status bar shows](./backlog/F025-chat-header-parity.md) — `Done` (0.49.8)
 
 ## Bugs
 

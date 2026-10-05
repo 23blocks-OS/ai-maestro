@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import TerminalView from './TerminalView'
 import MobileChatView from './MobileChatView'
+import { primaryAmpAddress } from '@/lib/status-format'
 import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
@@ -225,6 +226,8 @@ export default function MobileDashboard({
                           agentName={getAgentDisplayName(agent)}
                           sessionName={(agent as any).session?.tmuxSessionName || agent.name || agent.alias}
                           hostId={agent.hostId}
+                          workingDirectory={agent.workingDirectory || (agent as any).session?.workingDirectory || null}
+                          address={primaryAmpAddress(agent as any)}
                         />
                       </div>
                     )}

@@ -3,6 +3,7 @@
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import AgentStatusRow from './AgentStatusRow'
+import AgentIdentityLine from './AgentIdentityLine'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
@@ -19,6 +20,8 @@ interface MobileChatViewProps {
   agentName: string
   sessionName?: string  // tmux session name for WebSocket (falls back to agentName)
   hostId?: string       // Host ID for remote agent routing (e.g., 'mac-mini')
+  workingDirectory?: string | null  // shown under the status, like the desktop header
+  address?: string | null           // the agent's AMP address
 }
 
 interface ChatMessage {
@@ -246,7 +249,7 @@ function ThinkingBlock({ text }: { text: string }) {
   )
 }
 
-export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId }: MobileChatViewProps) {
+export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, workingDirectory, address }: MobileChatViewProps) {
   // One status for every view (the sidebar and terminal read the same feed)
   const { presenceOf, snapshotOf } = useSessionActivity()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -961,6 +964,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               )
             })()}
           </div>
+        )}
+
+        {/* Where the agent works and its AMP address, as the desktop header shows them */}
+        {(workingDirectory || address) && (
+          <div className="px-3 pb-1"><AgentIdentityLine workingDirectory={workingDirectory} address={address} /></div>
         )}
 
         {/* The terminal status bar's facts (F025): context + /compact hint, the rest behind the chevron */}

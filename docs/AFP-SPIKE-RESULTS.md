@@ -26,12 +26,26 @@ Date: 2026-10-04. Part of F024 Phase 1. Single measurements, one network path (M
 | Container stopped | Connection refused (curl exit 7, HTTP 000). A client must map this to `unreachable` |
 | Container started again | Healthy node, object intact |
 
+## After the release (2026-10-05, AI Maestro 0.49.0, plugin 1.3.0)
+
+The `afp-*` scripts and the `agent-files` skill were installed with `update-aimaestro.sh` on mini-lola, mac-mini and the local Mac, and the `shared` space was registered on each (one spike key, shared).
+
+| Check | Result |
+|-------|--------|
+| put, get, link, rm on mini-lola (Linux, Ubuntu 24.04) | Pass. Presigned link returned 200 without credentials |
+| `capabilities --probe` on mini-lola | `expire`, `link`. Without `--probe` the list is `link` only, so agents should probe |
+| put on mac-mini (macOS, bash 3.2), get on mini-lola | Digest verified, bytes identical |
+| Agent to agent: put on the local Mac, AMP message to `pas-lola` carrying the reference in `--context`, `pas-lola` fetched it | Replied `verified: true`, correct second line, no errors, in about a minute. Owner recorded as the sender's AMP address |
+
+Notes from the agent test: `pas-lola` saved the file in its session scratchpad rather than the `--dest` path given (same bytes, verified), and it ran the command from the message body, in a session that had not restarted since the update. The skill's own trigger is therefore still untested.
+
 ## Not run
 
 - Recovery after an unclean shutdown (power cut, `docker kill`). Restart and stop were tested with a clean stop only. They were first blocked by the permission check and run later once Juan switched to manual approval.
 - A presigned link from outside the tailnet (expected to fail on a local-only store, which is why the cloud topology exists).
 - Behavior when the disk is full, and when a Mac client sleeps mid-transfer.
 - A hosted S3 service and a VPS Garage, for comparison.
+- The `agent-files` skill triggering in a restarted session (the agent test above ran the scripts from the message text).
 - Whether the lifecycle rule actually deletes objects at the stated age (needs days to observe).
 
 ## Findings for the spec

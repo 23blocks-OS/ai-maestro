@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.1] - 2026-10-05 - Agents can send file references in messages
+
+- **`amp-send.sh --attach-afp`** (plugin 1.3.1, from agentmessaging/claude-plugin#36). A message can carry an Agent Files Protocol reference instead of bytes: `storage: "afp"` with the reference, digest and size, inside the signed payload. `amp-read`, `amp-inbox` and `amp-download` show AFP references and print the `afp-get.sh` command to fetch them. Existing attachments are unchanged.
+- **AI Maestro advertises `attachments:afp`** in `/api/v1/info`, as AMP spec section 04 requires of a provider that carries them. It never fetches, scans or rewrites an AFP attachment.
+- **Docs and backlog.** `docs/AFP-SPIKE-RESULTS.md` now has the Linux, cross-host and agent-to-agent results. F024 progress is updated. New F025: make the chat header show what the terminal status bar shows, and add the agent's name and folder to the terminal bar.
+- **Not verified:** a real end-to-end send of an AFP attachment between hosts. That needs this release on the hosts first.
+
 ## [0.49.0] - 2026-10-05 - Agents can share files: the Agent Files Protocol (AFP)
 
 Agents and people on any host can now share files through an S3-compatible store (Garage is the reference), by reference instead of through a mounted folder. Nothing is mounted, so nothing drops.

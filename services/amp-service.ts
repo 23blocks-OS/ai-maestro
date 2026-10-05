@@ -503,6 +503,10 @@ export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
         'relay-queue',
         'mesh-routing',
         'attachments',
+        // AMP spec 04, "AFP Attachments": the provider carries an attachment
+        // that references an Agent Files Protocol object and never fetches,
+        // scans or rewrites it.
+        'attachments:afp',
       ],
       // Spec section 9: providers advertise their attachment limits here, and
       // section 5 REQUIRES a provider without antivirus infrastructure to

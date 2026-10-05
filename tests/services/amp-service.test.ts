@@ -212,6 +212,7 @@ describe('getProviderInfo', () => {
     expect((result.data as any)?.capabilities).toContain('local-delivery')
     expect((result.data as any)?.capabilities).toContain('relay-queue')
     expect((result.data as any)?.capabilities).toContain('mesh-routing')
+    expect((result.data as any)?.capabilities).toContain('attachments:afp')
     expect((result.data as any)?.registration_modes).toEqual(['open'])
     expect((result.data as any)?.rate_limits).toBeDefined()
   })

@@ -41,7 +41,9 @@ AMP is extended so an attachment can be either what it is today (`storage: provi
 - Phase 0 done: repos `agentmessaging/agent-files` and `afp-website` created; AMP PR protocol#17 merged.
 - Phase 1 mostly done: Garage single node on mini-lola (see `docs/AFP-SPIKE-RESULTS.md`). Still open: unclean-shutdown recovery, link from outside the tailnet, VPS and hosted S3 comparison.
 - Phase 2 done: skill and `afp-*.sh` scripts merged (agent-files #1), plugin 1.3.0 (#52), installer in this repo (0.49.0). Not verified on Linux.
-- Next: Phase 3 (settings, a space per host, Files view, `storage: afp` attachments in `amp-send.sh`), and put a space on each host.
+- Rolled out (0.49.0): mini-lola, mac-mini and the local Mac, with the `shared` space on each. Linux, cross-host and agent-to-agent handoff verified (`docs/AFP-SPIKE-RESULTS.md`).
+- 0.49.1: AI Maestro advertises `attachments:afp`; `amp-send.sh --attach-afp` lands through claude-plugin and the plugin builder.
+- Next: Phase 3 (settings, Files view, a per-host or per-agent key instead of the shared spike key), leonidas, the skill trigger test in a restarted session, VPS and hosted S3 comparison.
 
 ## Work plan
 

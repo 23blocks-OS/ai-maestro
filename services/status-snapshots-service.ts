@@ -302,6 +302,38 @@ function refreshRemote(hostId: string, url: string, httpGet: HttpGetJson, now: n
     .finally(() => { entry.inflight = false; entry.at = Date.now() })
 }
 
+// A copy that is refreshed only when someone asks is old at the moment they ask:
+// the first request after a quiet spell got the old copy and only then started a
+// refresh (an agent on another host showed a cost eight hours old). While requests
+// keep coming, a timer keeps every host's copy within one refresh window; it stops
+// by itself ten minutes after the last request.
+const REFRESHER_IDLE_MS = 10 * 60_000
+let refresher: ReturnType<typeof setInterval> | null = null
+let lastRequestAt = 0
+let refresherGet: HttpGetJson | null = null
+
+function stopRefresher(): void {
+  if (refresher) { clearInterval(refresher); refresher = null }
+}
+
+function ensureRefresher(httpGet: HttpGetJson, now: number): void {
+  lastRequestAt = now
+  refresherGet = httpGet
+  if (refresher) return
+  refresher = setInterval(() => {
+    if (!refresherGet || Date.now() - lastRequestAt > REFRESHER_IDLE_MS) { stopRefresher(); return }
+    let hosts: any[] = []
+    try { hosts = getHosts() } catch { return }
+    for (const host of hosts) {
+      if (host.enabled === false || !host.url) continue
+      try { if (isSelfHost(host)) continue } catch { continue }
+      refreshRemote(host.id, host.url, refresherGet, Date.now())
+    }
+  }, REMOTE_REFRESH_MS)
+  // Never keep the process alive for this
+  ;(refresher as any).unref?.()
+}
+
 /**
  * Local snapshots, plus the cached snapshots of the other hosts' agents (never
  * waiting on them). `localOnly` is for the request another host makes.
@@ -310,6 +342,7 @@ export function getSnapshots(opts: { localOnly?: boolean; httpGet?: HttpGetJson;
   const now = opts.now ?? Date.now()
   const local = getLocalSnapshots(now)
   if (opts.localOnly || !opts.httpGet) return local
+  ensureRefresher(opts.httpGet, now)
 
   let hosts: any[] = []
   try { hosts = getHosts() } catch { hosts = [] }
@@ -326,6 +359,7 @@ export function getSnapshots(opts: { localOnly?: boolean; httpGet?: HttpGetJson;
 
 /** For tests */
 export function resetSnapshotCaches(): void {
+  stopRefresher()
   pathMemo.clear()
   remote.clear()
   reportStore().clear()

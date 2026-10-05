@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.6] - 2026-10-05 - The header no longer shows a stale copy of another host's agents
+
+- **Fix: `3m-web`'s header showed `$11.66` while its terminal bar showed `$14.03`.** The dashboard on one host reads agents on another host from a cached copy. That copy was refreshed only when a request came in, so the first request after a quiet spell was answered with the old copy (in this case about 8 hours old) and only then started a refresh. And the browser asked for new numbers only when a status event arrived, so an idle agent's header never caught up.
+- **Now:** while the dashboard is in use, the server refreshes every other host's copy every 15 s on its own timer (it stops 10 minutes after the last request), and the browser asks for the numbers every 30 s while the page is visible, and again when you return to the tab.
+- Tests: the refresh runs on a timer, stops on its own, and is not started by another host's request.
+
 ## [0.49.5] - 2026-10-05 - The chat header and the terminal bar show the same numbers
 - Needs plugin 1.4.0 (status line row 2 and the report to the server). The parity test now runs against the real script, and it caught two differences that are fixed here: the cache countdown rounds up (30 s left is `1m`, never `0m`) and `last turn` uses whole minutes, then hours below a day, then days, the same as the terminal bar.
 

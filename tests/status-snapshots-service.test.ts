@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -122,5 +122,42 @@ describe('other hosts', () => {
     expect(after.gone).toEqual(remoteSnap) // last copy kept
     expect(after['shared-name'].model).toBe('claude-opus-5-5') // local wins
     expect(later.gone).toEqual(remoteSnap)
+  })
+})
+
+
+describe('the remote copy stays fresh without anyone asking', () => {
+  beforeEach(() => { vi.useFakeTimers(); resetSnapshotCaches() })
+  afterEach(() => { resetSnapshotCaches(); vi.useRealTimers() })
+
+  const snap = { model: 'claude-sonnet-5', contextTokens: 10, contextWindow: 200000, contextApprox: true, contextPercent: 0, compact: 'none', asOf: 1 }
+
+  it('refreshes a host on a timer after the first request', async () => {
+    hosts = [{ id: 'mini', url: 'http://mini:23000', enabled: true }]
+    const httpGet = vi.fn().mockResolvedValue({ snapshots: { 'remote-agent': snap } })
+    getSnapshots({ httpGet })
+    expect(httpGet).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(16_000)
+    expect(httpGet.mock.calls.length).toBeGreaterThanOrEqual(2)
+    await vi.advanceTimersByTimeAsync(16_000)
+    expect(httpGet.mock.calls.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('stops by itself ten minutes after the last request', async () => {
+    hosts = [{ id: 'mini', url: 'http://mini:23000', enabled: true }]
+    const httpGet = vi.fn().mockResolvedValue({ snapshots: {} })
+    getSnapshots({ httpGet })
+    await vi.advanceTimersByTimeAsync(11 * 60_000)
+    const calls = httpGet.mock.calls.length
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    expect(httpGet.mock.calls.length).toBe(calls)
+  })
+
+  it('does not start a timer for a request another host makes', async () => {
+    hosts = [{ id: 'mini', url: 'http://mini:23000', enabled: true }]
+    const httpGet = vi.fn().mockResolvedValue({ snapshots: {} })
+    getSnapshots({ httpGet, localOnly: true })
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(httpGet).not.toHaveBeenCalled()
   })
 })

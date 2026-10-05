@@ -1,6 +1,6 @@
 # F025 — The chat header shows what the terminal status bar shows
 
-**Status:** Todo
+**Status:** In progress (step 1 done in 0.49.3: terminal bar name and folder)
 **Type:** Feature
 **Created:** 2026-10-05
 **Requested by:** Juan, 2026-10-05
@@ -89,6 +89,11 @@ Follow the existing rules: one source on the server, one browser store, no view 
 - **Header space.** The header is already tight on mobile. Needs a design pass, in the style the dashboard already uses ("The Agency" world: oat ground, brass accents), not an ad hoc row.
 - **Terminal and chat disagree** if the thresholds are defined twice. One constant, tested.
 - **Not verified:** the exact fields of the status line JSON on the installed Claude Code version, whether `permission_mode` is in the hook input on every event, and whether `/api/agents/<id>/metrics` can take more than the cost today.
+
+## Progress
+
+- 2026-10-05, v0.49.3 (plugin 1.3.2): the terminal bar now shows name, address and folder on row 1, fitted to the pane width. Tests in `claude-plugin/tests/unit/statusline_row1.bats`.
+- Next: step 1 of the approach (report a snapshot to the server), then the header.
 
 ## Success criteria
 

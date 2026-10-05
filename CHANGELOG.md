@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.3] - 2026-10-05 - The terminal status bar shows the agent's name and folder
+
+- **Status line row 1 is now `name · address · folder | N unread`** (plugin 1.3.2, from agentmessaging/claude-plugin#37). It showed only the address and the unread count. The folder shows your home directory as `~`. In a narrow pane the row shortens in this order: the folder keeps its last two parts, then the folder is dropped, then the name. Row 2 (model, context size, the `/compact` recommendation, cost) is unchanged and now has a test.
+- **Fix:** the status line's cost report no longer tries to write into a directory that does not exist for an agent without one (it printed an error).
+- Part of F025. Still to do: report the status line data to the server and show it in the chat header (F025 steps 2 and 3).
+- Run `update-aimaestro.sh` on a host, then **restart the Claude session** (or open a new one): Claude Code runs the status line script fresh, but an already running session may keep the old output until its next redraw.
+
 ## [0.49.2] - 2026-10-05 - Local delivery keeps a message's attachments
 
 - **Fix: the stored copy of a message dropped its attachments.** `lib/amp-inbox-writer.ts` rebuilt each stored payload from `type`, `message` and `context` only, so `payload.attachments` never reached the recipient's inbox or the sender's sent copy on this server's local delivery. The recipient could not see the attachments, and the stored payload no longer matched what the sender signed (the attachments array is inside the signed payload). Found by the first real `amp-send.sh --attach-afp` message: it was delivered, with no attachment in the inbox copy. Both writers now keep the attachments array exactly as sent, for the provider kind and for `storage: "afp"`. New test `tests/amp-inbox-writer-attachments.test.ts` (fails on the old code).

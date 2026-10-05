@@ -85,6 +85,25 @@ function refreshSnapshotsSoon() {
   }, wait)
 }
 
+// A turn that never ends produces no status event, and an agent on another host
+// is only as fresh as the last request. So while the page is visible, ask for the
+// snapshots every 30 s even with the socket up, and again when the tab comes back.
+let snapshotPollTimer: ReturnType<typeof setInterval> | null = null
+function onVisible() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') refreshSnapshotsSoon()
+}
+function startSnapshotPolling() {
+  if (snapshotPollTimer || typeof document === 'undefined') return
+  snapshotPollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') refreshSnapshotsSoon()
+  }, 30_000)
+  document.addEventListener('visibilitychange', onVisible)
+}
+function stopSnapshotPolling() {
+  if (snapshotPollTimer) { clearInterval(snapshotPollTimer); snapshotPollTimer = null }
+  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+}
+
 function startPolling() {
   if (!pollTimer) pollTimer = setInterval(fetchActivity, 30000) // safety net while the socket is down
 }
@@ -151,6 +170,7 @@ function start() {
   fetchActivity()
   connect()
   startPolling()
+  startSnapshotPolling()
 }
 
 function stop() {
@@ -159,6 +179,7 @@ function stop() {
     if (listeners.size > 0) return
     started = false
     stopPolling()
+    stopSnapshotPolling()
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
     if (ws) { const s = ws; ws = null; try { s.close() } catch { /* closed */ } }
   }, 5000)

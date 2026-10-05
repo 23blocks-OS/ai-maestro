@@ -12,6 +12,8 @@ import type { ReactNode } from 'react'
 import { Folder } from 'lucide-react'
 import LiveAvatar, { type LiveAvatarState } from './LiveAvatar'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
+import type { StatusSnapshot } from '@/lib/transcript-snapshot'
+import AgentStatusRow from './AgentStatusRow'
 
 export interface AgentHeaderBarProps {
   hostId?: string | null
@@ -20,6 +22,10 @@ export interface AgentHeaderBarProps {
   /** Display name (label, else name) */
   name: string
   workingDirectory?: string | null
+  /** The agent's AMP address (name@tenant.aimaestro.local), shown after the folder */
+  address?: string | null
+  /** What the terminal status bar shows: model, context, /compact hint, cost, mode. Hidden when absent */
+  snapshot?: StatusSnapshot | null
   /** The agent's state: colours the dot and the header's bottom edge */
   presence: AgentPresence
   /** What it is doing, next to the name ("Working · Bash · yarn test"); defaults to the state label */
@@ -41,8 +47,14 @@ export function shortenPath(p: string): string {
  * buffer lines, scroll hints, a Refresh for a live view, and "local" as a host.
  * The bottom edge carries the state colour, so the state reads from across the
  * room. Same height as before: the 32 px avatar sets it.
+ *
+ * F025 brings back the part of that the terminal's own status bar always had,
+ * and that people missed in the chat: the AMP address after the folder, and one
+ * small status row (model, context and /compact, cost, mode, cache). It shows
+ * only what is known and only when the agent has done a turn, so an empty or
+ * unknown agent keeps the compact two-line header.
  */
-export default function AgentHeaderBar({ hostId, remote = false, name, workingDirectory, presence, status, actions, avatar }: AgentHeaderBarProps) {
+export default function AgentHeaderBar({ hostId, remote = false, name, workingDirectory, address, snapshot, presence, status, actions, avatar }: AgentHeaderBarProps) {
   const style = PRESENCE_STYLE[presence]
   const showHost = remote && hostId && hostId !== 'local'
   return (
@@ -60,7 +72,7 @@ export default function AgentHeaderBar({ hostId, remote = false, name, workingDi
                 <span className={`text-xs leading-tight truncate min-w-0 ${style.text}`}>{status ?? style.label}</span>
               </span>
             </div>
-            {(showHost || workingDirectory) && (
+            {(showHost || workingDirectory || address) && (
               <div className="flex items-center gap-1.5 min-w-0 text-[11px] leading-tight text-gray-400">
                 {showHost && <span className="truncate flex-shrink-0 max-w-[45%]">{hostId}</span>}
                 {showHost && workingDirectory && <span className="text-gray-600">·</span>}
@@ -70,8 +82,11 @@ export default function AgentHeaderBar({ hostId, remote = false, name, workingDi
                     <span className="truncate">{shortenPath(workingDirectory)}</span>
                   </span>
                 )}
+                {address && (showHost || workingDirectory) && <span className="text-gray-600">·</span>}
+                {address && <span className="font-mono truncate min-w-0 text-gray-500" title={address}>{address}</span>}
               </div>
             )}
+            {snapshot && <AgentStatusRow snapshot={snapshot} />}
           </div>
         </div>
         {actions && <div className="flex items-center gap-1.5 text-xs text-gray-300 flex-shrink-0">{actions}</div>}

@@ -1244,7 +1244,7 @@ async function startServer(handleRequest) {
     try {
       const response = await fetch(`http://localhost:${port}/api/sessions/activity`)
       const data = await response.json()
-      ws.send(JSON.stringify({ type: 'initial_status', activity: data.activity || {} }))
+      ws.send(JSON.stringify({ type: 'initial_status', activity: data.activity || {}, snapshots: data.snapshots || {} }))
     } catch (err) {
       console.error('[STATUS-WS] Failed to fetch initial status:', err)
       // Fallback to basic activity

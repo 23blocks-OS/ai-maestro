@@ -119,7 +119,7 @@ const AI_MAESTRO_VERSION: string = packageJson.version
 // ---------------------------------------------------------------------------
 
 /** HTTP GET using native Node.js http module (fetch/undici is broken for local networks) */
-async function httpGet(url: string): Promise<any> {
+export async function httpGet(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url)
     const client = urlObj.protocol === 'https:' ? https : http

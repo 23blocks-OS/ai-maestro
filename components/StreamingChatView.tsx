@@ -3,6 +3,7 @@
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
+import { primaryAmpAddress } from '@/lib/status-format'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle, ShieldAlert } from 'lucide-react'
@@ -58,7 +59,7 @@ const nextId = () => `t${++idCounter}`
 
 export default function StreamingChatView({ agent, isActive = false }: StreamingChatViewProps) {
   // Status from the shared store, the same value every other view shows
-  const { presenceOf } = useSessionActivity()
+  const { presenceOf, snapshotOf } = useSessionActivity()
   const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState('')
   const [connected, setConnected] = useState(false)
@@ -285,6 +286,8 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
+        address={primaryAmpAddress(agent as any)}
+        snapshot={snapshotOf(agent)}
         presence={presenceOf(agent, { online: connected })}
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presenceOf(agent, { online: connected })) }}
         status={!connected ? 'Connecting…' : undefined}

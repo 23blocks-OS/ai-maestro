@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.5] - 2026-10-05 - The chat header and the terminal bar show the same numbers
+- Needs plugin 1.4.0 (status line row 2 and the report to the server). The parity test now runs against the real script, and it caught two differences that are fixed here: the cache countdown rounds up (30 s left is `1m`, never `0m`) and `last turn` uses whole minutes, then hours below a day, then days, the same as the terminal bar.
+
+What was wrong, in 0.49.4: the header's cost was the agent's **lifetime** metric (a maximum that only grows), not the cost of the session. It showed $2,466 for an agent whose terminal bar said $65.78. The header also built its row from a different source than the terminal bar, in a different order and with different words.
+
+- **The status line reports to the server.** New `POST /api/agents/<id>/status-snapshot` (also in the headless router). The status line sends Claude Code's own live values for the session: model, context size and window, cost, effort and prompt-cache state. The server keeps them in memory (nothing on disk), checks every field (numbers in range, strings short and free of control characters, body under 4 KB, the agent must exist), and uses a report for five minutes by its own clock. Hosts on 0.49.4 or earlier return no reported values until they are updated.
+- **Reported values win; the transcript fills the rest.** While a report is fresh, the header shows the reported model, context, cost, effort and cache state. Without one, it falls back to the transcript for everything except the cost.
+- **The cost is the session cost or nothing.** The header no longer reads the lifetime metric. An agent whose status line has not reported shows no cost, not a wrong one. (The metric itself is unchanged.)
+- **One row, one builder.** `lib/status-format.ts` builds the row (`statusRowSegments`, `formatStatusRowText`) in the terminal bar's order: `model | ctx 160k (16%) · /compact soon | $65.78 | effort high | cache warm 12m | last turn 5m ago`. The header adds `mode <mode>` after the effort. Durations read `12m`, `3h`, `2d` (not "12 min"), `/compact now` carries the same warning mark as the terminal, and the cache countdown is in minutes. A parity test runs the plugin's `amp-statusline.sh` and compares its second row with the header's text; it is skipped, with a message, until the plugin release that prints the cache state is pinned.
+- **Cache warm or cold.** The transcript path already produced an expiry for every agent; what was missing was a warm/cold answer in the feed. The feed now answers it (`cacheWarm`), a reported value wins, and tests cover both cache tiers (an hour and five minutes).
+- **"Last turn N ago"** now means the agent's last turn in the transcript, not the last time the status line ran.
+- Part of F025. **Not verified:** the new row in a real browser or on a phone, and the cross-host path with the new fields (tested with a mocked host).
+
 ## [0.49.4] - 2026-10-05 - The chat shows what the terminal status bar shows
 
 The terminal tab has always shown the model, the context size, the `/compact` recommendation and the cost in Claude Code's own status bar. The chat tab showed only the agent's name and folder. Now the chat header shows them too (F025 steps 2 and 3).

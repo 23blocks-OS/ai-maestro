@@ -156,14 +156,35 @@ describe('ingestStatusSnapshot: what is refused', () => {
 })
 
 describe('freshness', () => {
-  it('uses a report for five minutes by the SERVER clock, then falls back to the transcript with no cost', () => {
-    // The sender's ts says it is the future: ignored, the receive time counts
+  it('uses a report for five minutes by the SERVER clock, whatever the transcript says', () => {
     svc.ingestStatusSnapshot('a1', report({ ts: NOW + 3_600_000 }), NOW)
     expect(svc.getLocalSnapshots(NOW + svc.REPORT_FRESH_MS).lola.cost).toBe(65.78)
-    const stale = svc.getLocalSnapshots(NOW + svc.REPORT_FRESH_MS + 1).lola
+  })
+
+  it('keeps an idle agent\'s report: no turn since it was sent, so the cost cannot have moved', () => {
+    // the transcript's last turn is 10 minutes BEFORE the report
+    svc.ingestStatusSnapshot('a1', report(), NOW)
+    const later = svc.getLocalSnapshots(NOW + 3 * 60 * 60_000).lola
+    expect(later.source).toBe('reported')
+    expect(later.cost).toBe(65.78)
+  })
+
+  it('drops the report when the agent has worked since: the cost may have moved', () => {
+    svc.ingestStatusSnapshot('a1', report(), NOW)
+    // a turn 20 minutes after the report, with no new report
+    files.a1 = transcript('a1.jsonl', { ts: NOW + 20 * 60_000, tokens: 170_000, tier: '1h', effort: 'low' })
+    clearSnapshotCache()
+    const stale = svc.getLocalSnapshots(NOW + 30 * 60_000).lola
     expect(stale.source).toBe('transcript')
     expect('cost' in stale).toBe(false)
     expect('modelName' in stale).toBe(false)
+  })
+
+  it('drops even an idle report after a day', () => {
+    svc.ingestStatusSnapshot('a1', report(), NOW)
+    const old = svc.getLocalSnapshots(NOW + svc.REPORT_IDLE_MAX_MS + 1).lola
+    expect(old.source).toBe('transcript')
+    expect('cost' in old).toBe(false)
   })
 
   it('a newer report replaces the older one', () => {

@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.0] - 2026-10-05 - Agents can share files: the Agent Files Protocol (AFP)
+
+Agents and people on any host can now share files through an S3-compatible store (Garage is the reference), by reference instead of through a mounted folder. Nothing is mounted, so nothing drops.
+
+- **New protocol and skill.** AFP is an open protocol in the same family as AMP, AAP and AID: [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files). The `agent-files` skill and `afp-put`, `afp-get`, `afp-ls`, `afp-link`, `afp-rm`, `afp-capabilities` and `afp-config` scripts ship in plugin 1.3.0. A file is named `afp://space/path` with a SHA-256 digest; every fetch is verified; `put` reports `stored` only after reading the digest back; an unreachable store is reported, never hidden.
+- **AMP accepts both kinds of attachment.** An attachment may be the existing provider upload (unchanged) or `storage: "afp"`, a reference with no bytes through the provider ([agentmessaging/protocol#17](https://github.com/agentmessaging/protocol/pull/17)).
+- **Installer.** `install-plugin.sh` installs the `afp-*` scripts next to the `amp-*` ones and allows the read-only ones (`afp-ls`, `afp-get`, `afp-link`, `afp-capabilities`) without a prompt. `afp-put`, `afp-rm` and `afp-config` still ask.
+- **Spike.** Garage v2.4.1 single node on mini-lola: a 500 MB file round-trips with a matching digest at about 20 MB/s over Tailscale; presigned links and expiry work. Results in `docs/AFP-SPIKE-RESULTS.md`; deployment options (local, VPS, hosted S3, multi-node) in `docs/AFP-DEPLOYMENT-OPTIONS.md`; the tracked plan is `backlog/F024-agent-files-afp.md`.
+- **Not in this release:** AI Maestro settings and a Files view (F024 Phase 3), a space on each host, Linux verification of the scripts. Each host needs `afp-config.sh add` before the skill works.
+
+Release chain: protocol (agent-files #1, protocol #17), plugin (#52, 1.3.0), this repo. Syncthing was evaluated and dropped (`docs/FILE-SHARING-SYNCTHING-VS-GARAGE.md`).
+
 ## [0.48.0] - 2026-10-02 — Agents that get told: a notification system built on Claude Code mods
 
 One day of work on one question: when mail arrives, does the agent find out, once, on any setup? This release adds an inbox **mod** for Claude Code sessions with no tmux, repairs the push for agents in tmux, and writes down the rules every notifier now follows. It rolls up 0.47.5 to 0.47.8 (each has its own entry below) and adds the mod, its documentation and the Claude Code version requirements.

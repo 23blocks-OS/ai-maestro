@@ -2,6 +2,7 @@
 
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
+import AgentStatusRow from './AgentStatusRow'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
@@ -247,7 +248,7 @@ function ThinkingBlock({ text }: { text: string }) {
 
 export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId }: MobileChatViewProps) {
   // One status for every view (the sidebar and terminal read the same feed)
-  const { presenceOf } = useSessionActivity()
+  const { presenceOf, snapshotOf } = useSessionActivity()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [hookState, setHookState] = useState<{
     status?: string;
@@ -961,6 +962,12 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             })()}
           </div>
         )}
+
+        {/* The terminal status bar's facts (F025): context + /compact hint, the rest behind the chevron */}
+        {(() => {
+          const snap = snapshotOf({ name: sessionNameProp || agentName, id: agentId })
+          return snap ? <div className="px-3 pb-1.5"><AgentStatusRow snapshot={snap} /></div> : null
+        })()}
       </div>
 
       {/* Input area */}

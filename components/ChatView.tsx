@@ -4,6 +4,7 @@ import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
+import { primaryAmpAddress } from '@/lib/status-format'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
@@ -125,7 +126,7 @@ const QUESTION_OTHER_SETTLE_MS = 400
 
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // What the sidebar and terminal read: one status for every view
-  const { presenceOf } = useSessionActivity()
+  const { presenceOf, snapshotOf } = useSessionActivity()
   const [messages, setMessages] = useState<Message[]>([])
   // Pending bubbles survive leaving the chat.
   //
@@ -883,6 +884,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
         workingDirectory={agentWorkingDirectory(agent)}
+        address={primaryAmpAddress(agent as any)}
+        snapshot={snapshotOf(agent)}
         presence={presence}
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presence) }}
         status={

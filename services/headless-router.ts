@@ -179,9 +179,11 @@ import {
   restoreSessions,
   deletePersistedSession,
   getActivity,
+  httpGet,
   broadcastActivityUpdate,
   heartbeat,
 } from '@/services/sessions-service'
+import { getSnapshots } from '@/services/status-snapshots-service'
 
 import {
   listHosts,
@@ -512,10 +514,13 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
   }},
-  { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
+  { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res, _params, query) => {
     try {
       const activity = await getActivity()
-      sendJson(res, 200, { activity })
+      // Status snapshots ride beside the activity: a failure here must not cost the activity
+      let snapshots = {}
+      try { snapshots = getSnapshots({ localOnly: query.local === 'true', httpGet }) } catch { /* no snapshots */ }
+      sendJson(res, 200, { activity, snapshots })
     } catch (error) {
       sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
     }

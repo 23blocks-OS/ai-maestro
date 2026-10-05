@@ -35,7 +35,7 @@ interface TerminalViewProps {
 }
 
 export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, avatar }: TerminalViewProps) {
-  const { presenceOf } = useSessionActivity()
+  const { presenceOf, snapshotOf } = useSessionActivity()
   const { addToast } = useToast()
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -744,6 +744,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
           remote={!!avatar?.hostUrl}
           name={session.name || session.id}
           workingDirectory={session.workingDirectory}
+          snapshot={snapshotOf({ name: session.id, id: session.agentId })}
           presence={presence}
           avatar={avatar && session.agentId ? { agentId: session.agentId, src: avatar.src, hostUrl: avatar.hostUrl, state: avatarStateForPresence(presence) } : undefined}
           status={isConnected ? undefined : <span className="text-red-400">terminal disconnected</span>}

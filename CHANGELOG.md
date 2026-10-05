@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.4] - 2026-10-05 - The chat shows what the terminal status bar shows
+
+The terminal tab has always shown the model, the context size, the `/compact` recommendation and the cost in Claude Code's own status bar. The chat tab showed only the agent's name and folder. Now the chat header shows them too (F025 steps 2 and 3).
+
+- **New status row in the header** (chat, streaming chat and terminal tab): the context size and percent, `/compact soon` from 150k tokens and `/compact now: 2× cost` from 200k (the same rule as the terminal bar), the model, the session cost, the reasoning effort, the permission mode, and whether the prompt cache is warm (with the time left) or cold. The AMP address now sits after the folder. A value the server does not know is left out, and a row older than a day is not shown. After two minutes of inactivity the row says how long ago the last turn was, because an idle agent's context size and a cold cache are what you want to see before waking it.
+- **Mobile:** the mobile chat shows the context size and the `/compact` hint under its status line, with a chevron for the rest.
+- **Where the data comes from:** the server reads the end of the agent's own Claude transcript (the last 256 KB, cached until the file changes), on the host where the agent lives. No plugin change, so it works for every agent, with or without the status line. It rides in `GET /api/sessions/activity` as `snapshots`, next to `activity`, and the browser reads it through the same store as the agent's status (`snapshotOf(agent)` beside `presenceOf(agent)`). Agents on other hosts are read from that host's own feed in the background (`?local=true`); a host that does not answer keeps its last values.
+- **One rule for `/compact`:** the thresholds live in `lib/context-hint.ts`. The status line script keeps its own copy, and a test fails if the two drift.
+- **Approximate window size:** the transcript does not say whether a model has a 1M window. The server treats it as 1M when the model id says so or when it has seen more than 200k tokens, and otherwise assumes 200k and shows the percent with a `~`.
+- **Not verified:** other hosts (the merge is tested with a mocked host, not live), the field names on Claude Code versions other than the one on this machine, and how the row looks on a real phone.
+
 ## [0.49.3] - 2026-10-05 - The terminal status bar shows the agent's name and folder
 
 - **Status line row 1 is now `name · address · folder | N unread`** (plugin 1.3.2, from agentmessaging/claude-plugin#37). It showed only the address and the unread count. The folder shows your home directory as `~`. In a narrow pane the row shortens in this order: the folder keeps its last two parts, then the folder is dropped, then the name. Row 2 (model, context size, the `/compact` recommendation, cost) is unchanged and now has a test.

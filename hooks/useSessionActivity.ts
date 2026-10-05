@@ -18,6 +18,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react'
 import { presenceFrom, type AgentPresence } from '@/lib/agent-presence'
+import type { StatusSnapshot } from '@/lib/transcript-snapshot'
 
 export type SessionActivityStatus = 'active' | 'idle' | 'waiting'
 
@@ -30,8 +31,13 @@ export interface SessionActivityInfo {
 
 export type SessionActivityMap = Record<string, SessionActivityInfo>
 
+/** What the terminal status bar shows (model, context, /compact hint, cost...), per agent id and name. Server: services/status-snapshots-service.ts */
+export type { StatusSnapshot }
+export type SnapshotMap = Record<string, StatusSnapshot>
+
 interface StoreState {
   activity: SessionActivityMap
+  snapshots: SnapshotMap
   loading: boolean
   error: Error | null
   connected: boolean
@@ -39,7 +45,7 @@ interface StoreState {
 
 // ── The store (module level: one per page) ──────────────────────────────────
 
-let state: StoreState = { activity: {}, loading: true, error: null, connected: false }
+let state: StoreState = { activity: {}, snapshots: {}, loading: true, error: null, connected: false }
 const listeners = new Set<() => void>()
 let ws: WebSocket | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -57,11 +63,26 @@ async function fetchActivity() {
     const response = await fetch('/api/sessions/activity')
     if (response.ok) {
       const data = await response.json()
-      setState({ activity: data.activity || {}, loading: false })
+      setState({ activity: data.activity || {}, snapshots: data.snapshots || state.snapshots, loading: false })
     }
   } catch (err) {
     console.error('[useSessionActivity] Poll failed:', err)
   }
+}
+
+// Snapshots only change when a turn ends. The socket carries status, not snapshots,
+// so a status change that ends a turn asks for them again, at most once per 10 s.
+let lastSnapshotFetch = 0
+let snapshotTimer: ReturnType<typeof setTimeout> | null = null
+const SNAPSHOT_REFRESH_MIN_MS = 10_000
+function refreshSnapshotsSoon() {
+  if (snapshotTimer) return
+  const wait = Math.max(0, SNAPSHOT_REFRESH_MIN_MS - (Date.now() - lastSnapshotFetch))
+  snapshotTimer = setTimeout(() => {
+    snapshotTimer = null
+    lastSnapshotFetch = Date.now()
+    fetchActivity()
+  }, wait)
 }
 
 function startPolling() {
@@ -86,7 +107,7 @@ function connect() {
       try {
         const data = JSON.parse(event.data)
         if (data.type === 'initial_status') {
-          setState({ activity: data.activity || {}, loading: false })
+          setState({ activity: data.activity || {}, snapshots: data.snapshots || state.snapshots, loading: false })
         } else if (data.type === 'status_update') {
           const update: SessionActivityInfo = {
             lastActivity: data.timestamp,
@@ -100,6 +121,9 @@ function connect() {
           // richer session entry with a bare status
           if (data.agentId && (data.sessionName || !next[data.agentId]?.hookStatus || data.hookStatus)) next[data.agentId] = update
           setState({ activity: next })
+          // A turn just ended or the agent is waiting on you: its context size,
+          // cost and cache have moved, so fetch the snapshots again (throttled)
+          if (data.status !== 'active') refreshSnapshotsSoon()
           window.dispatchEvent(new CustomEvent('agent-activity', {
             detail: { sessionName: data.sessionName, agentId: data.agentId, status: data.status },
           }))
@@ -150,7 +174,7 @@ function subscribe(listener: () => void) {
 }
 
 const getSnapshot = () => state
-const serverSnapshot: StoreState = { activity: {}, loading: true, error: null, connected: false }
+const serverSnapshot: StoreState = { activity: {}, snapshots: {}, loading: true, error: null, connected: false }
 const getServerSnapshot = () => serverSnapshot
 
 // ── Reading it ──────────────────────────────────────────────────────────────
@@ -174,9 +198,16 @@ export function presenceFromActivity(activity: SessionActivityMap, agent: Presen
   return presenceFrom({ online, activity: info?.status, hookStatus: info?.hookStatus, notificationType: info?.notificationType })
 }
 
+/** The snapshot for an agent (by id, else by name), or null. Same lookup the activity uses. */
+export function snapshotFromMap(snapshots: SnapshotMap, agent: { id?: string; name?: string; alias?: string; session?: { tmuxSessionName?: string } | null }): StatusSnapshot | null {
+  return (agent.id ? snapshots[agent.id] : undefined)
+    || ((agent.name || agent.alias || agent.session?.tmuxSessionName) ? snapshots[(agent.name || agent.alias || agent.session?.tmuxSessionName) as string] : undefined)
+    || null
+}
+
 export function useSessionActivity() {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
-  const { activity } = snap
+  const { activity, snapshots } = snap
 
   const getSessionActivity = useCallback(
     (sessionName: string, agentId?: string): SessionActivityInfo | null => lookup(activity, sessionName, agentId),
@@ -190,8 +221,16 @@ export function useSessionActivity() {
     [activity]
   )
 
+  /** An agent's status snapshot (model, context, /compact hint, cost, mode...), the same everywhere */
+  const snapshotOf = useCallback(
+    (agent: { id?: string; name?: string; alias?: string; session?: { tmuxSessionName?: string } | null }) => snapshotFromMap(snapshots, agent),
+    [snapshots]
+  )
+
   return {
     activity,
+    snapshots,
+    snapshotOf,
     loading: snap.loading,
     error: snap.error,
     connected: snap.connected,

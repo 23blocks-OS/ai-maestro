@@ -22,10 +22,13 @@ Date: 2026-10-04. Part of F024 Phase 1. Single measurements, one network path (M
 | Request with no credentials and no link | HTTP 403 |
 | Lifecycle rule (expire `tmp/` after 7 days) | Accepted and read back |
 | Listing by prefix | Works |
+| Container restart | Object readable after restart, bytes identical |
+| Container stopped | Connection refused (curl exit 7, HTTP 000). A client must map this to `unreachable` |
+| Container started again | Healthy node, object intact |
 
 ## Not run
 
-- **Restart and stop tests.** The permission check blocked a batch that included stopping and restarting the container on mini-lola. Not retried. Still open: data surviving a restart (expected, since it is on a mounted volume), the client error when the store is down (the spec says `unreachable`), and recovery after an unclean shutdown.
+- Recovery after an unclean shutdown (power cut, `docker kill`). Restart and stop were tested with a clean stop only. They were first blocked by the permission check and run later once Juan switched to manual approval.
 - A presigned link from outside the tailnet (expected to fail on a local-only store, which is why the cloud topology exists).
 - Behavior when the disk is full, and when a Mac client sleeps mid-transfer.
 - A hosted S3 service and a VPS Garage, for comparison.

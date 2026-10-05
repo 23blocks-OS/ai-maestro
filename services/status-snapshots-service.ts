@@ -23,6 +23,9 @@
  * hides it.
  */
 
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import { loadAgents, getAgent } from '@/lib/agent-registry'
 import { resolveJsonlPath } from '@/lib/chat-transcript.mjs'
 import { readTranscriptSnapshot, type StatusSnapshot } from '@/lib/transcript-snapshot'
@@ -80,8 +83,76 @@ export interface Reported {
 // shared maps).
 function reportStore(): Map<string, Reported> {
   const g = globalThis as any
-  if (!g.__aimStatusReports) g.__aimStatusReports = new Map<string, Reported>()
+  if (!g.__aimStatusReports) {
+    g.__aimStatusReports = new Map<string, Reported>()
+    loadPersistedReports(g.__aimStatusReports)
+  }
   return g.__aimStatusReports
+}
+
+// ── Surviving a restart ─────────────────────────────────────────────────────
+// Reports live in memory, and every deploy restarts the server. An idle agent's
+// status line does not report again until it next redraws, so without a copy on
+// disk every cost would vanish from the header after each update. The file holds
+// only what the status line reported (no secrets), is written at most every 20 s,
+// and anything older than a day is dropped on load.
+
+function reportsFile(): string {
+  return process.env.AIM_STATUS_REPORTS_FILE || path.join(os.homedir(), '.aimaestro', 'status-reports.json')
+}
+
+/** A test run must never read or write the real file; a test opts in with its own path */
+function persistenceEnabled(): boolean {
+  return !process.env.VITEST || !!process.env.AIM_STATUS_REPORTS_FILE
+}
+
+const PERSIST_EVERY_MS = 20_000
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+
+function persistSoon(): void {
+  if (persistTimer || !persistenceEnabled()) return
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    try {
+      const file = reportsFile()
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      const tmp = `${file}.${process.pid}.tmp`
+      fs.writeFileSync(tmp, JSON.stringify([...reportStore()]), { mode: 0o600 })
+      fs.renameSync(tmp, file)
+    } catch { /* a missed write only costs a stale cost after the next restart */ }
+  }, PERSIST_EVERY_MS)
+  ;(persistTimer as any).unref?.()
+}
+
+/** Only the fields the status line reports, each checked again: the file is input too */
+function sanitizePersisted(v: any): Reported | null {
+  if (!v || typeof v !== 'object' || !Number.isFinite(v.receivedAt)) return null
+  const out: Reported = { receivedAt: v.receivedAt }
+  for (const k of ['sessionId', 'model', 'modelId'] as const) {
+    if (typeof v[k] === 'string' && v[k].length > 0 && v[k].length <= 100 && !CONTROL.test(v[k])) out[k] = v[k]
+  }
+  for (const k of ['contextTokens', 'contextWindow', 'contextPercent', 'cost'] as const) {
+    if (typeof v[k] === 'number' && Number.isFinite(v[k]) && v[k] >= 0) out[k] = v[k]
+  }
+  if (v.effort === null || (typeof v.effort === 'string' && v.effort.length <= 32 && !CONTROL.test(v.effort))) out.effort = v.effort
+  if (typeof v.cacheWarm === 'boolean' || v.cacheWarm === null) out.cacheWarm = v.cacheWarm
+  if ((typeof v.cacheExpiresAt === 'number' && Number.isFinite(v.cacheExpiresAt)) || v.cacheExpiresAt === null) out.cacheExpiresAt = v.cacheExpiresAt
+  if (typeof v.exceeds200k === 'boolean') out.exceeds200k = v.exceeds200k
+  return out
+}
+
+function loadPersistedReports(store: Map<string, Reported>): void {
+  if (!persistenceEnabled()) return
+  try {
+    const raw = JSON.parse(fs.readFileSync(reportsFile(), 'utf-8'))
+    if (!Array.isArray(raw)) return
+    const now = Date.now()
+    for (const entry of raw) {
+      if (!Array.isArray(entry) || typeof entry[0] !== 'string' || entry[0].length > 100) continue
+      const r = sanitizePersisted(entry[1])
+      if (r && now - r.receivedAt <= REPORT_IDLE_MAX_MS) store.set(entry[0], r)
+    }
+  } catch { /* no file yet, or unreadable: start empty */ }
 }
 
 const CONTROL = /[\u0000-\u001f\u007f]/
@@ -173,6 +244,7 @@ export function ingestStatusSnapshot(agentId: string, body: unknown, now: number
 
   const store = reportStore()
   store.set(agent.id, out)
+  persistSoon()
   // Keep the store small: drop what is long past, and the oldest if it ever grows
   if (store.size > 64) {
     for (const [k, v] of store) if (now - v.receivedAt > REPORT_KEEP_MS) store.delete(k)
@@ -181,10 +253,23 @@ export function ingestStatusSnapshot(agentId: string, body: unknown, now: number
   return { data: { ok: true }, status: 200 }
 }
 
-function freshReport(agentId: string | undefined, now: number): Reported | null {
+/**
+ * A report is good while the agent has not done anything since it was sent. For
+ * five minutes that is a given. After that it holds as long as the transcript has
+ * no turn newer than the report (an idle agent's cost cannot change, and an idle
+ * agent's status line does not report), for up to a day. A newer turn with no
+ * report means the numbers may have moved: fall back to the transcript, no cost.
+ */
+export const REPORT_IDLE_MAX_MS = 24 * 60 * 60 * 1000
+const REPORT_TURN_SLACK_MS = 60_000
+function freshReport(agentId: string | undefined, now: number, base?: StatusSnapshot | null): Reported | null {
   if (!agentId) return null
   const r = reportStore().get(agentId)
-  return r && now - r.receivedAt <= REPORT_FRESH_MS ? r : null
+  if (!r) return null
+  const age = now - r.receivedAt
+  if (age <= REPORT_FRESH_MS) return r
+  if (age <= REPORT_IDLE_MAX_MS && base?.lastTurnAt !== undefined && base.lastTurnAt <= r.receivedAt + REPORT_TURN_SLACK_MS) return r
+  return null
 }
 
 /** Warm or cold is a question about now: answer it when the feed is built (a reported value wins) */
@@ -270,7 +355,7 @@ export function getLocalSnapshots(now: number = Date.now()): SnapshotMap {
     if ((agent.program || '').toLowerCase().includes('codex')) continue
     const file = transcriptPathFor(agent, now)
     const base = file ? readTranscriptSnapshot(file) : null
-    const snap = composeSnapshot(base, freshReport(agent.id, now), now)
+    const snap = composeSnapshot(base, freshReport(agent.id, now, base), now)
     if (!snap) continue
     if (agent.id) out[agent.id] = snap
     const name = agent.name || agent.alias
@@ -363,4 +448,5 @@ export function resetSnapshotCaches(): void {
   pathMemo.clear()
   remote.clear()
   reportStore().clear()
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = null }
 }

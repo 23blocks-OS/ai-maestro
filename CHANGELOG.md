@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.7] - 2026-10-05 - An idle agent keeps its cost in the header, and costs survive an update
+
+- **Fix: the cost disappeared from the header a few minutes after an agent went idle** while its terminal bar still showed it (`3m-web`: `$16.07` in the terminal, nothing in the header). The server threw away a reported value after 5 minutes, but an idle agent's status line reports nothing, and an idle agent's cost cannot change. A report now stays good, for up to a day, as long as the agent has had no turn since it was sent. If the agent has worked since and has not reported, the cost is hidden, never shown wrong.
+- **Fix: every update wiped all the costs.** Reports lived only in memory, so each restart emptied them until every agent's status line spoke again. They are now saved to `~/.aimaestro/status-reports.json` (private to you, written at most every 20 s, checked again on load, entries over a day old dropped).
+- Tests: idle report kept, report dropped after a newer turn, dropped after a day, saved and restored across a restart, one write for a burst, a corrupt or hostile file ignored, a failing disk never throws. Test runs never touch the real file.
+
 ## [0.49.6] - 2026-10-05 - The header no longer shows a stale copy of another host's agents
 
 - **Fix: `3m-web`'s header showed `$11.66` while its terminal bar showed `$14.03`.** The dashboard on one host reads agents on another host from a cached copy. That copy was refreshed only when a request came in, so the first request after a quiet spell was answered with the old copy (in this case about 8 hours old) and only then started a refresh. And the browser asked for new numbers only when a status event arrived, so an idle agent's header never caught up.

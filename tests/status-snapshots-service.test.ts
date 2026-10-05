@@ -18,7 +18,10 @@ const files: Record<string, string> = {}
 let agents: any[] = []
 let hosts: any[] = []
 
-vi.mock('@/lib/agent-registry', () => ({ loadAgents: () => agents }))
+vi.mock('@/lib/agent-registry', () => ({
+  loadAgents: () => agents,
+  getAgent: (id: string) => (agents || []).find((a: any) => a.id === id) || null,
+}))
 vi.mock('@/lib/chat-transcript.mjs', () => ({
   resolveJsonlPath: (agent: any) => (files[agent.id] ? { path: files[agent.id] } : null),
 }))
@@ -41,20 +44,20 @@ beforeEach(() => {
 })
 
 describe('local snapshots', () => {
-  it('keys a snapshot by agent id and by name, and adds the cost from the metrics', () => {
+  it('keys a snapshot by agent id and by name', () => {
     files.a1 = transcript('a1.jsonl', 'claude-opus-5-5', 160_000)
-    agents = [{ id: 'a1', name: 'lola', workingDirectory: '/x', metrics: { estimatedCost: 4.2 } }]
+    agents = [{ id: 'a1', name: 'lola', workingDirectory: '/x' }]
     const snaps = getLocalSnapshots()
     expect(Object.keys(snaps).sort()).toEqual(['a1', 'lola'])
     expect(snaps.lola.model).toBe('claude-opus-5-5')
     expect(snaps.lola.compact).toBe('soon')
-    expect(snaps.a1.cost).toBe(4.2)
     expect(snaps.a1).toBe(snaps.lola)
+    expect(snaps.a1.source).toBe('transcript')
   })
 
-  it('has no cost when the metrics have none', () => {
+  it('never shows the lifetime metrics cost: a $2466 total is not a $65 session', () => {
     files.a1 = transcript('a1.jsonl', 'claude-opus-5-5', 1_000)
-    agents = [{ id: 'a1', name: 'lola', metrics: { estimatedCost: 0 } }]
+    agents = [{ id: 'a1', name: 'lola', metrics: { estimatedCost: 2466.18 } }]
     expect('cost' in getLocalSnapshots().lola).toBe(false)
   })
 

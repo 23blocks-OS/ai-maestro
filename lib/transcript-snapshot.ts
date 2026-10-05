@@ -41,8 +41,21 @@ export interface StatusSnapshot {
   cacheExpiresAt?: number
   /** When the last turn happened (ms since epoch): how old this snapshot is */
   asOf: number
-  /** Session cost in USD, from the agent's metrics; added by the feed, not read from the transcript */
+  /**
+   * THIS SESSION's cost in USD, as the status line reports it (Claude Code's own
+   * session total). Never read from the transcript and never from the lifetime
+   * agent metrics (a maximum that only grows, which showed $2466 for a $65 session).
+   * Absent when no fresh report exists.
+   */
   cost?: number
+  /** Claude Code's display name for the model ("Opus 5.5"), when the status line reported it. The header prefers it over the id. */
+  modelName?: string
+  /** True while the prompt cache is warm: set by the feed from the expiry, or reported by the status line */
+  cacheWarm?: boolean
+  /** When the last turn happened (ms): what "last turn N ago" and the 24 h hiding rule use. `asOf` is the time of the freshest source */
+  lastTurnAt?: number
+  /** 'reported': the status line told the server (fresh); 'transcript': read from the transcript tail */
+  source?: 'reported' | 'transcript'
 }
 
 /** Parse the lines of a transcript tail (oldest first). Pure. Returns null when no assistant turn is found. */
@@ -102,6 +115,8 @@ export function snapshotFromTranscriptLines(lines: string[]): StatusSnapshot | n
     ...(typeof o.effort === 'string' ? { effort: o.effort } : {}),
     ...(ttlMs !== undefined ? { cacheExpiresAt: asOf + ttlMs } : {}),
     asOf,
+    lastTurnAt: asOf,
+    source: 'transcript',
   }
 }
 

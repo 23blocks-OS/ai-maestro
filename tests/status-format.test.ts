@@ -36,18 +36,32 @@ describe('status words', () => {
 
   it('counts the cache down and calls it cold after expiry', () => {
     const now = 1_000_000
-    expect(cacheState({ cacheExpiresAt: now + 12 * 60_000 }, now)).toEqual({ state: 'warm', label: 'cache warm 12 min' })
+    expect(cacheState({ cacheExpiresAt: now + 12 * 60_000 }, now)).toEqual({ state: 'warm', label: 'cache warm 12m' })
+    expect(cacheState({ cacheExpiresAt: now + 20_000 }, now)).toEqual({ state: 'warm', label: 'cache warm <1m' })
     expect(cacheState({ cacheExpiresAt: now - 1 }, now)).toEqual({ state: 'cold', label: 'cache cold' })
     expect(cacheState({}, now)).toBeNull()
+  })
+
+  it('lets a reported warm or cold win over the expiry', () => {
+    const now = 1_000_000
+    expect(cacheState({ cacheWarm: false, cacheExpiresAt: now + 60_000 }, now)).toEqual({ state: 'cold', label: 'cache cold' })
+    expect(cacheState({ cacheWarm: true }, now)).toEqual({ state: 'warm', label: 'cache warm' })
   })
 
   it('shows a snapshot live, then with its age, then not at all after a day', () => {
     const now = 10 * 3_600_000
     expect(snapshotAge({ asOf: now - 30_000 }, now)).toEqual({ visible: true, label: null })
-    expect(snapshotAge({ asOf: now - 12 * 60_000 }, now)).toEqual({ visible: true, label: 'last turn 12 min ago' })
-    expect(snapshotAge({ asOf: now - 3 * 3_600_000 }, now)).toEqual({ visible: true, label: 'last turn 3 h ago' })
+    expect(snapshotAge({ asOf: now - 12 * 60_000 }, now)).toEqual({ visible: true, label: 'last turn 12m ago' })
+    expect(snapshotAge({ asOf: now - 3 * 3_600_000 }, now)).toEqual({ visible: true, label: 'last turn 3h ago' })
     expect(snapshotAge({ asOf: now - SNAPSHOT_MAX_AGE_MS - 1 }, now).visible).toBe(false)
-    expect(formatDuration(10_000)).toBe('<1 min')
+    expect(formatDuration(10_000)).toBe('<1m')
+    expect(formatDuration(3 * 24 * 3_600_000)).toBe('3d')
+  })
+
+  it('judges "last turn" by the transcript, not by when a report arrived', () => {
+    const now = 10 * 3_600_000
+    // A report arrived a moment ago, but the agent's last turn was 12 minutes back
+    expect(snapshotAge({ asOf: now - 1000, lastTurnAt: now - 12 * 60_000 }, now)).toEqual({ visible: true, label: 'last turn 12m ago' })
   })
 
   it('finds the primary AMP address', () => {
@@ -79,7 +93,7 @@ describe('AgentStatusRow', () => {
     expect(out).toContain('Opus 5.5')
     expect(out).toContain('$3.29')
     expect(out).toContain('effort high')
-    expect(out).toContain('auto')
+    expect(out).toContain('mode auto')
     expect(out).toContain('cache warm')
     expect(out).not.toContain('/compact')
   })

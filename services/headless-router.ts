@@ -183,7 +183,7 @@ import {
   broadcastActivityUpdate,
   heartbeat,
 } from '@/services/sessions-service'
-import { getSnapshots } from '@/services/status-snapshots-service'
+import { getSnapshots, ingestStatusSnapshot, MAX_REPORT_CHARS } from '@/services/status-snapshots-service'
 
 import {
   listHosts,
@@ -318,6 +318,22 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
         reject(new Error('Invalid JSON body'))
       }
     })
+    req.on('error', reject)
+  })
+}
+
+/** Read at most `max` bytes of a body as text; `tooLarge` is true when the sender kept going past it */
+async function readBoundedText(req: IncomingMessage, max: number): Promise<{ text: string; tooLarge: boolean }> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    let tooLarge = false
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > max) { tooLarge = true; return }
+      chunks.push(chunk)
+    })
+    req.on('end', () => resolve({ text: tooLarge ? '' : Buffer.concat(chunks).toString('utf-8'), tooLarge }))
     req.on('error', reject)
   })
 }
@@ -843,6 +859,14 @@ const routes: Route[] = [
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metrics$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, updateMetrics(params.id, body))
+  }},
+  // The status line reports the live session values (see services/status-snapshots-service.ts)
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/status-snapshot$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const { text, tooLarge } = await readBoundedText(req, MAX_REPORT_CHARS)
+    if (tooLarge) { sendJson(res, 413, { error: 'payload_too_large', message: `body exceeds ${MAX_REPORT_CHARS} characters` }); return }
+    let body: unknown
+    try { body = JSON.parse(text) } catch { sendJson(res, 400, { error: 'invalid_request', message: 'body must be JSON' }); return }
+    sendServiceResult(res, ingestStatusSnapshot(params.id, body))
   }},
 
   // Graph - code

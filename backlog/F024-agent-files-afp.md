@@ -36,6 +36,13 @@ AMP is extended so an attachment can be either what it is today (`storage: provi
 - Local-only drafts, not pushed: the AMP spec change (worktree `~/23blocks/agentmessaging/protocol-afp-wt`, branch `spec/afp-attachments`) and the website (`~/23blocks/agentmessaging/afp-website`).
 - **Blocked:** creating the public GitHub repos (`agentmessaging/agent-files`, `agentmessaging/afp-website`) was denied by the permission check. Needs the user to approve or run it.
 
+## Progress (2026-10-05, v0.49.0)
+
+- Phase 0 done: repos `agentmessaging/agent-files` and `afp-website` created; AMP PR protocol#17 merged.
+- Phase 1 mostly done: Garage single node on mini-lola (see `docs/AFP-SPIKE-RESULTS.md`). Still open: unclean-shutdown recovery, link from outside the tailnet, VPS and hosted S3 comparison.
+- Phase 2 done: skill and `afp-*.sh` scripts merged (agent-files #1), plugin 1.3.0 (#52), installer in this repo (0.49.0). Not verified on Linux.
+- Next: Phase 3 (settings, a space per host, Files view, `storage: afp` attachments in `amp-send.sh`), and put a space on each host.
+
 ## Work plan
 
 ### Phase 0: publish the drafts (needs user approval for each outward step)

@@ -589,7 +589,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 
     # Copy AMP scripts from plugin
     SCRIPT_COUNT=0
-    for script in "$PLUGIN_DIR"/scripts/amp-*.sh; do
+    for script in "$PLUGIN_DIR"/scripts/amp-*.sh "$PLUGIN_DIR"/scripts/afp-*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             cp "$script" ~/.local/bin/
@@ -867,7 +867,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 
     SCRIPTS_OK=true
 
-    for script_path in "$PLUGIN_DIR"/scripts/amp-*.sh; do
+    for script_path in "$PLUGIN_DIR"/scripts/amp-*.sh "$PLUGIN_DIR"/scripts/afp-*.sh; do
         [ -f "$script_path" ] || continue
         script=$(basename "$script_path")
         if [ -x ~/.local/bin/"$script" ]; then
@@ -950,7 +950,14 @@ configure_amp_permissions() {
     local settings="$HOME/.claude/settings.json"
     local cmds=(amp-inbox.sh amp-read.sh amp-reply.sh amp-send.sh amp-download.sh amp-status.sh amp-fetch.sh amp-identity.sh)
 
+    # AFP (agent-files): only the commands that read. put, rm and config change
+    # state and stay behind the usual prompt.
+    local afp_cmds=(afp-ls.sh afp-get.sh afp-link.sh afp-capabilities.sh)
+
     local entries=() legacy=()
+    for c in "${afp_cmds[@]}"; do
+        entries+=("Bash(${c}:*)")
+    done
     for c in "${cmds[@]}"; do
         entries+=("Bash(${c}:*)")
         for v in CLAUDE_AGENT_NAME AMP_DIR; do

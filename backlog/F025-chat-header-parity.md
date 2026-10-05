@@ -1,6 +1,6 @@
 # F025 — The chat header shows what the terminal status bar shows
 
-**Status:** In progress (terminal bar done in 0.49.3; header status row built in the 0.49.4 PR, not yet deployed)
+**Status:** Done (0.49.3 to 0.49.8; phone chat shows folder and address as of 0.49.8)
 **Type:** Feature
 **Created:** 2026-10-05
 **Requested by:** Juan, 2026-10-05
@@ -97,6 +97,9 @@ Follow the existing rules: one source on the server, one browser store, no view 
 - Found on the way: Claude Code's transcript already carries `permission-mode` entries and an `effort` field on assistant turns, so the permission mode needs no hook change. The hook idea in the table above is not needed.
 - 2026-10-05, v0.49.5 (PR): the 0.49.4 header showed the agent's lifetime cost ($2,466 where the terminal said $65.78) and read from a different source than the terminal bar. Now the status line reports the live session values (`POST /api/agents/<id>/status-snapshot`, in memory, five minutes of freshness), those win over the transcript, the cost is the session cost or nothing, and one builder (`lib/status-format.ts`) writes the row in the terminal bar's order. The plugin side (the status line printing effort, the cache state and "last turn", and posting the report) is a separate plugin release; until it ships, the header runs on the transcript alone and shows no cost. A parity test compares the two rows once the script is pinned.
 - Still open: check a real phone, a cross-host agent live, and Claude Code versions other than 2.1.289. The header does not show git branch, PR state or rate limits (not in the transcript); those would need the status line to report them.
+
+- 2026-10-05, 0.49.4 to 0.49.8: chat header status row from the transcript; then the status line reports session cost, context, effort and cache to the server and both screens read the same data (plugin 1.4.0, parity test); remote copy refresh and idle-agent cost fixed; reports persisted; phone chat shows folder and address.
+- Not shown anywhere: git branch, PR state, rate limits (not in the transcript, would need the status line to report them).
 
 ## Success criteria
 

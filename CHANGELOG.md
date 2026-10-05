@@ -4,6 +4,7 @@ All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.49.5] - 2026-10-05 - The chat header and the terminal bar show the same numbers
+- Needs plugin 1.4.0 (status line row 2 and the report to the server). The parity test now runs against the real script, and it caught two differences that are fixed here: the cache countdown rounds up (30 s left is `1m`, never `0m`) and `last turn` uses whole minutes, then hours below a day, then days, the same as the terminal bar.
 
 What was wrong, in 0.49.4: the header's cost was the agent's **lifetime** metric (a maximum that only grows), not the cost of the session. It showed $2,466 for an agent whose terminal bar said $65.78. The header also built its row from a different source than the terminal bar, in a different order and with different words.
 

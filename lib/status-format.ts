@@ -47,14 +47,17 @@ export function formatCost(usd: number | undefined | null): string | null {
   return `$${usd.toFixed(2)}`
 }
 
-/** 90_000 -> "2m" (rounded), 20 s -> "<1m", 3 h -> "3h", 3 days -> "3d". Used for "last turn N ago". */
+/**
+ * 150_000 -> "2m" (whole minutes, rounded down), 3 h -> "3h", 3 days -> "3d".
+ * Used for "last turn N ago". The terminal status line (amp-statusline.sh) uses the
+ * same rule: whole minutes below an hour, whole hours below a day, then days.
+ */
 export function formatDuration(ms: number): string {
-  const min = Math.max(0, Math.round(ms / 60000))
+  const min = Math.max(0, Math.floor(ms / 60000))
   if (min < 1) return '<1m'
   if (min < 60) return `${min}m`
-  const h = Math.floor(min / 60)
-  if (h < 48) return `${h}h`
-  return `${Math.floor(h / 24)}d`
+  if (min < 1440) return `${Math.floor(min / 60)}h`
+  return `${Math.floor(min / 1440)}d`
 }
 
 export type CacheState = { state: 'warm'; label: string } | { state: 'cold'; label: string } | null
@@ -71,8 +74,9 @@ export function cacheState(snapshot: Pick<StatusSnapshot, 'cacheExpiresAt'> & { 
   }
   const left = snapshot.cacheExpiresAt - now
   if (left <= 0) return { state: 'cold', label: 'cache cold' }
-  const min = Math.round(left / 60000)
-  return { state: 'warm', label: min < 1 ? 'cache warm <1m' : `cache warm ${min}m` }
+  // Rounded up, as the terminal bar does: 30 s left is still "1m", never "0m"
+  const min = Math.ceil(left / 60000)
+  return { state: 'warm', label: `cache warm ${min}m` }
 }
 
 /**

@@ -37,7 +37,7 @@ describe('status words', () => {
   it('counts the cache down and calls it cold after expiry', () => {
     const now = 1_000_000
     expect(cacheState({ cacheExpiresAt: now + 12 * 60_000 }, now)).toEqual({ state: 'warm', label: 'cache warm 12m' })
-    expect(cacheState({ cacheExpiresAt: now + 20_000 }, now)).toEqual({ state: 'warm', label: 'cache warm <1m' })
+    expect(cacheState({ cacheExpiresAt: now + 20_000 }, now)).toEqual({ state: 'warm', label: 'cache warm 1m' })
     expect(cacheState({ cacheExpiresAt: now - 1 }, now)).toEqual({ state: 'cold', label: 'cache cold' })
     expect(cacheState({}, now)).toBeNull()
   })

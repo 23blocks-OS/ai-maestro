@@ -39,9 +39,9 @@ interface Case {
 }
 
 const CASES: Case[] = [
-  { name: 'warm cache, effort high, 5 minutes idle', warm: true, expiresInMin: 12.4, effort: 'high' },
+  { name: 'warm cache, effort high, 5 minutes idle', warm: true, expiresInMin: 11.5, effort: 'high' },
   { name: 'cold cache', warm: false, expiresInMin: -3, effort: 'high' },
-  { name: 'a model with no effort', warm: true, expiresInMin: 12.4 },
+  { name: 'a model with no effort', warm: true, expiresInMin: 11.5 },
 ]
 
 const IDLE_MIN = 5.4

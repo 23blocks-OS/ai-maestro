@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide explains how to create and manage AI coding agents using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing agents from `tmux ls` and provides full agent management (create, rename, delete) directly from the UI!
+This guide explains how to create and manage AI coding agents using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, Grok Build, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing agents from `tmux ls` and provides full agent management (create, rename, delete) directly from the UI!
 
 ---
 
@@ -18,8 +18,8 @@ Before starting, ensure you have:
 
 - ✅ macOS with all requirements installed (see [REQUIREMENTS.md](./REQUIREMENTS.md))
 - ✅ tmux installed and working (`tmux -V`)
-- ✅ **Your AI agent installed**: Claude Code, Aider, Copilot CLI, Cursor, etc.
-- ✅ AI agent authenticated (e.g., `claude login`, `aider --check`, etc.)
+- ✅ **Your AI agent installed**: Claude Code, Codex, Grok Build, Aider, Copilot CLI, Cursor, etc. (what each one supports: [AGENT-PROGRAMS.md](./AGENT-PROGRAMS.md))
+- ✅ AI agent authenticated (e.g., `claude login`, `grok login`, `aider --check`, etc.)
 - ✅ Dashboard installed (`yarn install` completed)
 
 ---

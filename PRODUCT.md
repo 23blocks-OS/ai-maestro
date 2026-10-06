@@ -47,8 +47,9 @@ organization.
 
 - Runs at `localhost:23000` in the browser, against a fleet of personal machines
   joined by Tailscale (confirmed: 3 hosts today).
-- Agents live in tmux sessions and run a coding CLI — **Claude Code or Codex**
-  (multi-provider as of v0.39.0). Others (Gemini, Aider) are anticipated.
+- Agents live in tmux sessions and run a coding CLI — **Claude Code, Codex or Grok Build**
+  (multi-provider as of v0.39.0; Grok Build as of v0.60.0). Others (Gemini, Aider) are anticipated.
+  See `docs/AGENT-PROGRAMS.md` for what each one supports.
 - The operator moves rapidly between agents, and between two views of one agent:
   a **chat** (message history, send, live working state) and a **terminal**
   (direct tmux attachment).
@@ -70,7 +71,7 @@ organization.
 - Terminal rendering is xterm.js and is **not themeable like ordinary DOM** — it
   has its own color model and must stay legible and faithful to terminal output.
 - Live state arrives over WebSocket; some agents (codex) expose less live state
-  than others (no permission cards).
+  than others (no hook, so no sidebar "needs you"; permission cards come from the pane).
 - Responsive: desktop, tablet and phone layouts all exist and are in use.
 - No authentication, by design — the trust boundary is the local network plus
   Tailscale.

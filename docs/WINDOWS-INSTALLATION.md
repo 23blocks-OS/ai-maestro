@@ -653,7 +653,7 @@ A: Yes! tmux sessions run in WSL2's background. Close Windows Terminal, reopen i
 
 ---
 
-**Q: Can I use this with Claude Code / Codex / Aider?**
+**Q: Can I use this with Claude Code / Codex / Grok Build / Aider?**
 
 A: Yes. Install them **inside Ubuntu** (the installer offers to install Claude Code). A copy installed on Windows is not used: agents run in Linux. Check with `which claude`; the path must not start with `/mnt/`.
 

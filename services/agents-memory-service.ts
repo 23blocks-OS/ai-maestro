@@ -50,7 +50,9 @@ import {
   upsertProject,
   createClaudeSession,
   getAgentFullContext,
-  getAgentWorkHistory
+  getAgentWorkHistory,
+  getTrackedProjects,
+  hasTrackingSchema
 } from '@/lib/cozo-schema'
 import { consolidateMemories, promoteMemories, pruneShortTermMemory } from '@/lib/memory/consolidate'
 import type { PreparedConversation, ConversationMessage } from '@/lib/memory/types'
@@ -1279,11 +1281,26 @@ export async function getTracking(agentId: string): Promise<ServiceResult<any>> 
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
+    // AgentGraph reads `projects` to find the project to index. It comes from
+    // the projects relation in either schema, so it is useful even when the
+    // tracking schema was never initialized.
+    const projects = await getTrackedProjects(agentDb, agentId)
+
+    // Most agent databases never ran initializeTrackingSchema (POST). That is
+    // a normal state, not an error: report it instead of querying relations
+    // that are missing or have the simple schema's columns.
+    if (!(await hasTrackingSchema(agentDb))) {
+      return {
+        data: { success: true, agent_id: agentId, initialized: false, context: null, history: [], projects },
+        status: 200
+      }
+    }
+
     const context = await getAgentFullContext(agentDb, agentId)
     const history = await getAgentWorkHistory(agentDb, agentId)
 
     return {
-      data: { success: true, agent_id: agentId, context, history },
+      data: { success: true, agent_id: agentId, initialized: true, context, history, projects },
       status: 200
     }
   } catch (error) {

@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.50.1] - 2026-10-06 - The tracking endpoint no longer answers every agent with a 500
+
+`GET /api/agents/:id/tracking` failed for every agent with "Expression contains unevaluated constant". Backlog B008. Not a regression of 0.49.9 to 0.50.0; the queries had never run.
+
+- **Both tracking queries are valid Cozo now.** The agent context put rule names in a constant list, which Cozo refuses; it now runs four separate queries (agent, current session, all sessions, all projects). The work history counted in the rule body over an unbound variable; it now counts in a rule head, and keeps sessions with no Claude sessions (count 0) or no matching project (null name).
+- **A database without the tracking schema gets a 200, not a 500.** Real agent databases never ran the POST that creates the `agents` relation, and their `sessions` and `projects` come from the simple schema with other columns. GET now checks the relations and their columns first and answers `{success: true, agent_id, initialized: false, context: null, history: [], projects}`. POST is unchanged.
+- **The response carries a top-level `projects` array**, newest first, read from the `projects` relation in either schema. The code graph view reads `data.projects` to find the project to index and never got it before.
+- **Tests:** `tests/tracking-endpoint.test.ts` runs the real queries against an in-memory Cozo database: empty database, simple-schema database, and after POST with sample data.
+
 ## [0.50.0] - 2026-10-06 - Messages wake their agents on any host, and tmux has one runtime layer
 
 A minor release because two foundations changed. It rolls up 0.49.9 and 0.49.10 (each has its own entry below). No new screens.

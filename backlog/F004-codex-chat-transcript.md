@@ -1,6 +1,6 @@
 # F004 — Codex chat support (multi-provider transcript reader)
 
-**Status:** Done (P1 v0.38.35 history+live; P2a v0.38.36 working indicator; P2b v0.38.37 sidebar dot; approval cards deferred — codex keeps approval state in the TUI only, see finding)
+**Status:** Done (P1 v0.38.35 history+live; P2a v0.38.36 working indicator; P2b v0.38.37 sidebar dot; approval cards shipped via pane parsing, see Phase 2b)
 **Type:** Feature
 **Created:** 2026-09-22
 
@@ -131,27 +131,32 @@ after a completed turn.
 `codexLiveStatus` (working → `active`, idle → `idle`) when the agent's program is
 codex. Verified: Nico now reads `idle` there instead of `disconnected`.
 
-**Approval / permission cards — EVALUATED, deferred with reason.** The eval is
-conclusive: codex does **not** write a "waiting for approval" event to its
-transcript. `turn_context` records the `approval_policy` (`untrusted` /
-`UnlessTrusted`) and `sandbox_policy`, and under the sandbox codex often
-*auto-handles* a disallowed command (observed: a `function_call_output` reading
-"approval policy is UnlessTrusted; reject command"). When it does need a human,
-the approval prompt lives **only in the TUI** — there is no readable event to
-build a clickable card from.
+**Approval / permission cards — SHIPPED for Codex and Grok Build (pane-parsed).**
+Codex writes no "waiting for approval" event to its transcript, so the card is
+built from the pane, like Claude's `parsePermissionMenu`. `lib/pane-approval.mjs`
+has `parseCodexApproval` and `parseGrokApproval`, picked by the agent's program
+(`approvalKindForProgram`), and returns the same `permission_request` shape plus
+`answerByKey: true` (the reject option also sends its key instead of focusing the
+input). Captured real prompt (codex-cli 0.153.4, `-a on-request -s read-only`):
 
-So clickable approval cards for codex would require **parsing codex's approval
-menu out of the pane** (a codex-specific analogue of `parsePermissionMenu`), and
-that needs a **captured sample of the actual prompt**, which we do not have — Nico
-runs in `auto mode`, which does not prompt. Building a parser against an
-unobserved menu format would be a fragile guess, so it is deferred rather than
-shipped. **Today, codex approvals are handled in the terminal tab** (which works).
+    Would you like to run the following command?
+    Reason: May I create askme.txt in the current directory? ...
+    $ touch askme.txt
+    › 1. Yes, proceed (y)
+      2. Yes, and don't ask again for commands that start with `touch askme.txt` (p)
+      3. No, and tell Codex what to do differently (esc)
+      Press enter to confirm or esc to cancel
 
-### To build approval cards later (when a sample exists)
-1. Capture a real codex approval prompt from a session's pane (`tmux capture-pane`)
-   with a non-auto approval policy.
-2. Write a codex menu parser beside `lib/pane-permission.mjs`, matched to that
-   format, feeding the same `hookState.status: 'permission_request'` + options
-   the chat already renders — reuse `paneCardBelongsToTranscriptQuestion`'s
-   sibling logic so a stale codex menu cannot resurrect.
-3. Answer via send-keys (already program-agnostic).
+Digits 1/3 verified live (1 approves, 3 rejects); `y` also approves. Grok's menu
+(five digit options under a `┃` block, footer `1/5:select`) answers with 1-5.
+Staleness: the footer must be the last thing on the pane, so an answered menu
+yields no card; `_lastPermission` is dropped when the pane disagrees. Wiring is in
+`server.mjs` (`detectPermissionFromPane`, `isAgentAtPermissionPrompt`,
+`getChatHistory`, `broadcastHookState`), answered through the existing
+`chat:permissionResponse` send-keys path. Fixtures: `tests/fixtures/approval/`.
+
+Not done: Codex "needs you" status (no hook; the status feed would need a pane
+capture per session-list call). Only the chat card is driven by the pane. Codex
+patch-approval ("make the following edits") and permission-request prompts are
+parsed generically but were not captured.
+

@@ -19,7 +19,7 @@ import * as fs from 'fs'
 import { type ServiceResult, notFound, invalidRequest, missingField } from '@/services/service-errors'
 // Shared transcript logic — single source of truth with server.mjs (do not fork;
 // the underscore path-encoding bug had to be fixed in 3 copies once already)
-import { resolveJsonlPathForDir, parseJsonlLines, readHookState } from '@/lib/chat-transcript.mjs'
+import { resolveJsonlPath, parseJsonlLines, readHookState } from '@/lib/chat-transcript.mjs'
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ export async function getConversationMessages(
   }
 
   // Find the current conversation JSONL (shared logic with server.mjs)
-  const currentConversation = resolveJsonlPathForDir(workingDir)
+  const currentConversation = resolveJsonlPath(agent) // dispatches by program (claude / codex / grok)
   if (!currentConversation) {
     return {
       data: {

@@ -66,7 +66,7 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
-import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
+import { resolveProgramCommand, isNoProgram, grokPermissionFlags, type ResolvedProgram } from '@/lib/program-command'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import {
   capturePaneFromContainer,
@@ -1878,6 +1878,14 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         }
         if (agent.model) {
           fullCommand = `${fullCommand} --model ${agent.model}`
+        }
+
+        // Grok Build: its own flag set (see grokPermissionFlags). None of the
+        // Claude-only additions below (--channels, telemetry, session name)
+        // apply to it.
+        if (resolved.kind === 'grok') {
+          const grokFlags = grokPermissionFlags(params.permissionMode || agent.permissionMode)
+          if (grokFlags) fullCommand = `${fullCommand} ${grokFlags}`
         }
 
         // Inject --permission-mode for claude-based programs. Keyed off the

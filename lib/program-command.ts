@@ -23,8 +23,9 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { PERMISSION_MODE_TO_CLI, type AgentPermissionMode } from '@/types/agent'
 
-export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'wrapper'
+export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'wrapper'
 
 export interface ResolvedProgram {
   /** Shell-ready command to launch, or null if it could not be resolved. */
@@ -114,13 +115,14 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   if (lower.includes('gemini')) return { command: 'gemini', kind: 'gemini' }
   if (lower.includes('opencode')) return { command: 'opencode', kind: 'opencode' }
   if (lower.includes('openclaw')) return { command: 'openclaw', kind: 'openclaw' }
+  if (lower.includes('grok')) return { command: 'grok', kind: 'grok' }
 
   return {
     command: null,
     kind: null,
     error:
       `unrecognised program "${p}". Use a known name (claude, codex, aider, cursor, gemini, ` +
-      `opencode, openclaw) or an absolute path to an executable wrapper.`,
+      `opencode, openclaw, grok) or an absolute path to an executable wrapper.`,
   }
 }
 
@@ -128,4 +130,26 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
 export function isNoProgram(program: string): boolean {
   const lower = (program || '').trim().toLowerCase()
   return lower === 'none' || lower === 'terminal'
+}
+
+/**
+ * Grok Build launch flags for an agent's permission mode.
+ *
+ * Grok's `--permission-mode` takes the SAME values Claude Code does (default,
+ * acceptEdits, auto, dontAsk, bypassPermissions, plan), so the Claude mapping
+ * applies unchanged; full autonomy uses Grok's own `--always-approve` (the
+ * documented name for bypassPermissions). Supervised adds nothing: it is
+ * Grok's default.
+ *
+ * Deliberately NOT here: Claude's --channels, alternate-screen and telemetry
+ * env. Folder trust: Grok has no trust flag and shows no trust prompt on a fresh
+ * folder (verified on 1.0.46), so unlike Claude (~/.claude.json) nothing needs
+ * pre-trusting.
+ */
+export function grokPermissionFlags(mode: AgentPermissionMode | string | undefined | null): string {
+  const m = (mode || 'supervised') as AgentPermissionMode
+  if (m === 'supervised') return ''
+  if (m === 'fullAutonomy') return '--always-approve'
+  const cli = PERMISSION_MODE_TO_CLI[m]
+  return cli ? `--permission-mode ${cli}` : ''
 }

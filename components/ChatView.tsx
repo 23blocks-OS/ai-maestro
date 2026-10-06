@@ -192,6 +192,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     status: string;
     message?: string;
     description?: string;
+    /** Pane-built cards (Grok/Codex): every option, including reject, is a key to send. */
+    answerByKey?: boolean;
     toolName?: string;
     toolInput?: {
       command?: string;
@@ -1283,7 +1285,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       <button
                         key={idx}
                         onClick={() => {
-                          if (option.value === 'no') {
+                          if (option.value === 'no' && !hookState.answerByKey) {
                             // Focus the chat input for typing feedback
                             const input = document.querySelector<HTMLTextAreaElement>('[data-chat-input]')
                             input?.focus()

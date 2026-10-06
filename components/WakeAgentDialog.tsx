@@ -46,6 +46,13 @@ const CLI_OPTIONS = [
     command: 'cursor'
   },
   {
+    id: 'grok',
+    name: 'Grok Build',
+    description: 'xAI\'s terminal coding agent',
+    icon: Code2,
+    command: 'grok'
+  },
+  {
     id: 'terminal',
     name: 'Terminal Only',
     description: 'Plain shell without AI assistant',

@@ -259,11 +259,30 @@ function debugLog(data) {
 function detectAgent(input) {
     // Gemini CLI sets GEMINI_SESSION_ID or has gemini-specific fields
     if (process.env.GEMINI_SESSION_ID || process.env.GEMINI_PROJECT_DIR) return 'gemini';
+    // Grok Build (xAI) runs Claude-style hooks from ~/.claude/settings.json but
+    // its stdin carries BOTH key styles: Claude's snake_case (hook_event_name,
+    // session_id, transcript_path) plus its own camelCase (hookEventName,
+    // sessionId, transcriptPath, stopHookActive, notificationType). Several
+    // fields exist ONLY in camelCase (stopHookActive, notificationType), so
+    // detect it first and read through the helpers below.
+    if (input.hookEventName !== undefined) return 'grok';
+    if (/[\\/]\.grok[\\/]sessions[\\/]/.test(String(input.transcript_path || input.transcriptPath || ''))) return 'grok';
     // Codex CLI sets model field with gpt- prefix or has turn_id
     if (input.model && input.model.startsWith('gpt-')) return 'codex';
     if (input.turn_id !== undefined) return 'codex';
     // Default to Claude Code
     return 'claude';
+}
+
+// True when the agent is already continuing because of an earlier Stop block.
+// Claude sends stop_hook_active; Grok sends ONLY stopHookActive.
+function isStopHookActive(input) {
+    return !!(input.stop_hook_active || input.stopHookActive);
+}
+
+// Agents whose Stop hook honors {decision:'block', reason} (Claude-compatible).
+function supportsStopBlock(agent) {
+    return agent === 'claude' || agent === 'grok';
 }
 
 // Normalize event names across agents to our internal names
@@ -284,6 +303,11 @@ function buildContextResponse(agent, hookEvent, message) {
         case 'gemini':
             // Gemini CLI uses systemMessage or additionalContext
             return { systemMessage: message };
+        case 'grok':
+            // Grok discards stdout on SessionStart, Notification and
+            // UserPromptSubmit (docs 10-hooks.md), so context injection cannot
+            // reach it from here. AMP delivery for Grok is the Stop block.
+            return {};
         case 'claude':
         default:
             // Claude Code uses hookSpecificOutput.additionalContext
@@ -783,8 +807,9 @@ function filterFreshMessages(messages, alreadyIds) {
 //   { block: false, freshIds: [] }                        → let the agent go idle
 //   { block: true, response: {...}, freshIds: [...] }     → force a continuation
 function decideStopDelivery({ agent, stopHookActive, messages, alreadyIds }) {
-    // decision:block is a Claude Code capability; never loop (stop_hook_active).
-    if (agent !== 'claude' || stopHookActive) return { block: false, freshIds: [] };
+    // decision:block is a Claude Code (and Grok) capability; never loop
+    // (stop_hook_active / stopHookActive).
+    if (!supportsStopBlock(agent) || stopHookActive) return { block: false, freshIds: [] };
     const fresh = filterFreshMessages(messages, alreadyIds);
     if (fresh.length === 0) return { block: false, freshIds: [] };
     return {
@@ -949,7 +974,8 @@ async function main() {
 
         case 'Notification':
             // Check notification type
-            const notificationType = input.notification_type || input.type;
+            // Grok sends notificationType (camelCase) only.
+            const notificationType = input.notification_type || input.notificationType || input.type;
 
             if (notificationType === 'idle_prompt') {
                 // Claude is waiting for regular input - perfect time to check messages!
@@ -962,7 +988,8 @@ async function main() {
                 });
 
                 // Check for unread messages and meeting inject queue
-                const [idleMessagePrompt, meetingContext] = await withDeadline(Promise.all([
+                // Grok drops stdout on Notification: draining would lose the queue.
+                const [idleMessagePrompt, meetingContext] = agent === 'grok' ? [null, null] : await withDeadline(Promise.all([
                     checkUnreadMessages(cwd),
                     drainMeetingInjectQueue(cwd)
                 ]), INJECT_DEADLINE_MS, [null, null]);
@@ -1012,13 +1039,15 @@ async function main() {
             // respond before it goes idle. Loop-safe: honor stop_hook_active
             // (never block twice in a row) and dedup on message IDs.
             let blocked = false;
-            if (agent === 'claude' && !input.stop_hook_active) {
+            // Grok also fires Stop with reason "shutdown" as the session closes;
+            // a block there would be lost, so don't consume messages for it.
+            if (supportsStopBlock(agent) && !isStopHookActive(input) && input.reason !== 'shutdown') {
                 try {
                     const unread = await fetchUnreadMessages(cwd);
                     const alreadyIds = loadNotifiedIds(cwd);
                     const decision = decideStopDelivery({
                         agent,
-                        stopHookActive: input.stop_hook_active,
+                        stopHookActive: isStopHookActive(input),
                         messages: unread ? unread.messages : [],
                         alreadyIds,
                     });
@@ -1057,7 +1086,9 @@ async function main() {
             // Check for unread messages and meeting inject queue
             // ...and the agent's standing decisions/preferences from long-term memory.
             // Each part has its own deadline so a slow recall never costs the inbox.
-            const [startMessagePrompt, startMeetingContext, startMemory] = await Promise.all([
+            // Grok ignores SessionStart stdout, so skip (draining would lose it).
+            const noInject = agent === 'grok';
+            const [startMessagePrompt, startMeetingContext, startMemory] = noInject ? [null, null, null] : await Promise.all([
                 withDeadline(checkUnreadMessages(cwd), INJECT_DEADLINE_MS, null),
                 withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
                 withDeadline(recallMemories(cwd, sessionId, null), INJECT_DEADLINE_MS, null)
@@ -1090,7 +1121,8 @@ async function main() {
             // Memory recall runs alongside: the long-term memories nearest to what
             // the user just asked, so the agent sees past decisions before it
             // starts reading files.
-            const [upsInbox, upsMeeting, upsMemory] = await Promise.all([
+            // Grok discards an allowing UserPromptSubmit hook's output: skip.
+            const [upsInbox, upsMeeting, upsMemory] = agent === 'grok' ? [null, null, null] : await Promise.all([
                 withDeadline(checkUnreadMessages(cwd, input.prompt), INJECT_DEADLINE_MS, null),
                 withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
                 input.prompt ? withDeadline(recallMemories(cwd, sessionId, input.prompt), INJECT_DEADLINE_MS, null) : null
@@ -1141,4 +1173,7 @@ module.exports = {
     buildInboxNotice,
     pruneAnnounced,
     ampMessageId,
+    detectAgent,
+    isStopHookActive,
+    buildContextResponse,
 };

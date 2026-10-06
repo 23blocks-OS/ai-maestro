@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.0] - 2026-10-06 - Grok Build agents, and approval cards for Grok and Codex
+
+AI Maestro now runs xAI's Grok Build (`grok`) as a first-class agent program next to Claude Code and Codex. Backlog F028.
+
+- **Launch.** `grok` is a known program in the wake dialog and the resolver. The agent's permission mode maps to Grok's flags: supervised adds none, full autonomy gives `--always-approve`, the rest give `--permission-mode plan|acceptEdits|auto`. Claude-only flags (channels, telemetry, session name) are not passed. Grok has no folder-trust flag and showed no trust prompt in a new folder, so none is passed.
+- **Chat history and live updates.** Grok's session stream (`~/.grok/sessions/<encoded-cwd>/<id>/updates.jsonl`) is read into the same messages the chat already shows. Message chunks are merged and tool calls paired. `GROK_HOME` and paths over 255 bytes are handled. The agent-chat REST path now resolves Codex transcripts too.
+- **Status and AMP delivery.** Grok reads Claude's hook settings, so our hook already received its events. It now recognises Grok and reads its camelCase fields: before, `permission_prompt` was ignored and `stopHookActive` was missed (a loop hazard). Messages reach a Grok agent through its Stop hook, with the same loop guard as Claude. Grok discards hook output on session start, prompt submit and notification, so those paths do not drain the inbox for it. Plugin 1.4.2.
+- **Approval cards for Grok and Codex.** Both CLIs keep approval prompts in the terminal only. The chat now reads the real prompt from the pane (formats captured from Grok 1.0.46 and codex-cli 0.153.4) and shows a card with the command, and your click sends the digit key. A card never outlives its prompt: the menu footer must be the last thing on the pane. A "No" on a card now sends its key instead of only focusing the input.
+- **Known gaps.** Codex "needs you" status in the sidebar is not implemented (it would need a pane capture on every list call). Codex edit and permission-request prompts were never captured. A Grok Stop-block continuation can show a brief false idle. Cloud and Docker agents have no Grok image, and map to Claude.
+
 ## [0.50.3] - 2026-10-06 - Fix: the doorbell and the wake record now agree on message ids
 
 Found by the first real test of the doorbell (0.50.2): a same-host message sent through the file-write path rang the doorbell, and the server answered `not_found`, so nothing woke.

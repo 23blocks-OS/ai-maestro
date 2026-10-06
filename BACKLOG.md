@@ -46,6 +46,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 
 - **F026** — [Agent runtime abstraction (Phase 0), and a Herdr evaluation](./backlog/F026-agent-runtime-abstraction-herdr.md) — `In Progress` (Phase 0 only; Herdr phases parked)
 - **F027** — [Every message wakes its agent, on any host, with or without the server](./backlog/F027-reliable-message-wake.md) — `In Progress` (sweeper 0.49.9, on by default 0.50.0; doorbell 0.50.2; one delivery path still open)
+- **F028** — [Grok Build agents, and approval cards for Grok and Codex](./backlog/F028-grok-build-support.md) — `Done` (0.60.0; open items listed in the file)
 
 ## Bugs
 

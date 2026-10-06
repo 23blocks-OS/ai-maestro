@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
+import { resolveProgramCommand, isNoProgram, grokPermissionFlags } from '@/lib/program-command'
 
 let dir: string
 let wrapper: string
@@ -49,6 +49,8 @@ describe('known program names', () => {
     ['gemini', 'gemini'],
     ['opencode', 'opencode'],
     ['openclaw', 'openclaw'],
+    ['grok', 'grok'],
+    ['Grok Build', 'grok'],
   ])('resolves %s to %s', (program, expected) => {
     expect(resolveProgramCommand(program).command).toBe(expected)
   })
@@ -144,5 +146,31 @@ describe('isNoProgram', () => {
 
   it('a real program is not "no program"', () => {
     expect(isNoProgram('claude-code')).toBe(false)
+  })
+})
+
+describe('grokPermissionFlags', () => {
+  it('supervised (and unset) adds nothing: it is Grok\'s default', () => {
+    expect(grokPermissionFlags('supervised')).toBe('')
+    expect(grokPermissionFlags(undefined)).toBe('')
+  })
+  it('full autonomy uses --always-approve', () => {
+    expect(grokPermissionFlags('fullAutonomy')).toBe('--always-approve')
+  })
+  it('other modes reuse the Claude values, which Grok accepts', () => {
+    expect(grokPermissionFlags('planOnly')).toBe('--permission-mode plan')
+    expect(grokPermissionFlags('trustEdits')).toBe('--permission-mode acceptEdits')
+    expect(grokPermissionFlags('smartAuto')).toBe('--permission-mode auto')
+  })
+  it('an unknown mode adds nothing rather than a bad flag', () => {
+    expect(grokPermissionFlags('bogus')).toBe('')
+  })
+  it('never emits Claude-only flags', () => {
+    for (const m of ['supervised', 'planOnly', 'trustEdits', 'smartAuto', 'fullAutonomy'])
+      expect(grokPermissionFlags(m)).not.toMatch(/channels|dangerously|bypassPermissions/)
+  })
+  it('resolves grok and a grok wrapper-less name to kind grok', () => {
+    expect(resolveProgramCommand('grok')).toEqual({ command: 'grok', kind: 'grok' })
+    expect(resolveProgramCommand('Grok Build').kind).toBe('grok')
   })
 })

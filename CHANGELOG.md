@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.1] - 2026-10-06 - Docs and website for Grok Build, and the updater survives a stray plugin pointer
+
+- **The updater no longer aborts on a plugin pointer it cannot fetch.** The first update across 0.60.0 stopped on two hosts with `not our ref 67ea28c`: one commit in the merged history pointed the plugin submodule at a commit that was never pushed. `update-aimaestro.sh` now fetches and pulls with `--no-recurse-submodules`; the submodule step that follows fetches exactly the commit the final pointer names. A test pins this.
+- **New guide `docs/AGENT-PROGRAMS.md`:** what Claude Code, Codex and Grok Build each support (launch, chat, status, approval cards, message delivery, mods), plus Grok install, login and permission modes.
+- **README, product doc, `docs/index.html`, `docs/ai-index.html`, the Operations and Windows guides** list Grok Build next to Claude Code and Codex. `docs/CHAT-ARCHITECTURE.md` explains the per-program transcript readers and the pane-only approval cards.
+- Grok needs a login on every host that runs a Grok agent (`grok login`); AI Maestro cannot do it for you.
+
 ## [0.60.0] - 2026-10-06 - Grok Build agents, and approval cards for Grok and Codex
 
 AI Maestro now runs xAI's Grok Build (`grok`) as a first-class agent program next to Claude Code and Codex. Backlog F028.

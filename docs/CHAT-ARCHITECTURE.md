@@ -151,6 +151,14 @@ the input.
 
 ---
 
+## Programs other than Claude Code
+
+The chat reads a different transcript per program (`lib/chat-transcript.mjs` dispatches by `agent.program`): Claude Code under `~/.claude/projects`, Codex under `~/.codex/sessions` (`lib/transcript-codex.mjs`), Grok Build under `~/.grok/sessions` (`lib/transcript-grok.mjs`). All emit the same message shapes, so the components do not change. Per-line detection lets the incremental watcher parse a delta.
+
+Neither Codex nor Grok writes an approval request to its transcript, so their cards come from the pane only (`lib/pane-approval.mjs`: `parseGrokApproval`, `parseCodexApproval`). The menu footer must be the last thing on the pane, or there is no card and the cached one is dropped. Options carry the key to send (a digit); the answer goes through the same `chat:permissionResponse` path as Claude's. What each program supports: `docs/AGENT-PROGRAMS.md`.
+
+---
+
 ## Permission state
 
 Three sources, in descending trustworthiness:

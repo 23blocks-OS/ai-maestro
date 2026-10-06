@@ -146,7 +146,10 @@ print_step "$DOWNLOAD" "Fetching latest changes from GitHub..."
 echo ""
 
 # Fetch and show what's new
-git fetch origin main
+# The plugin submodule is fetched later by `git submodule update`, for the one commit
+# the final pointer names. Letting fetch recurse checks every commit in between, and
+# one stray pointer to an unpushed plugin commit aborts the whole update (0.60.0).
+git fetch --no-recurse-submodules origin main
 
 COMMITS_BEHIND=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo "0")
 
@@ -185,7 +188,7 @@ else
     echo ""
     print_step "$DOWNLOAD" "Pulling latest changes..."
     BEFORE_SHA=$(git rev-parse HEAD)
-    git pull origin main
+    git pull --no-recurse-submodules origin main
     print_success "Code updated"
 
     # Detect ecosystem.config.js changes that require PM2 config reload

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 AI Maestro is a dashboard and orchestrator for fleets of AI coding agents
-(Claude Code, Codex, others) running in tmux, on one machine or across hosts.
+(Claude Code, Codex, Grok Build, others) running in tmux, on one machine or across hosts.
 Next.js 14 (App Router) + a custom `server.mjs` (HTTP and WebSockets on one
 port), React 18, xterm.js, node-pty, Tailwind, CozoDB per agent. Port **23000**.
 

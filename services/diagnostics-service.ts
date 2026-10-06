@@ -25,6 +25,7 @@ import os from 'os'
 import { getHosts, isSelf } from '@/lib/hosts-config'
 import { loadAgents } from '@/lib/agent-registry'
 import { hasChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
+import { tmux } from '@/lib/tmux-safe.mjs'
 import { loadKeyPair } from '@/lib/amp-keys'
 import { deriveDidKey } from '@/lib/amp-did'
 import { type ServiceResult } from '@/services/service-errors'
@@ -63,7 +64,7 @@ export interface DiagnosticReport {
 
 async function checkTmux(): Promise<DiagnosticCheck> {
   try {
-    const { stdout } = await execAsync('tmux -V', { timeout: 5000 })
+    const { stdout } = await tmux(['-V'], { timeout: 5000 })
     const version = stdout.trim()
     return {
       name: 'tmux',

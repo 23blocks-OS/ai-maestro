@@ -170,15 +170,15 @@ describe('inbox sweeper', () => {
     expect(wakes).toEqual(['A:m1'])
   })
 
-  it('mode defaults to shadow and honours the env switch', () => {
+  it('mode defaults to on and honours the env switch', () => {
     delete process.env.AIM_INBOX_SWEEP
-    expect(sweepMode()).toBe('shadow')
-    process.env.AIM_INBOX_SWEEP = 'on'
     expect(sweepMode()).toBe('on')
+    process.env.AIM_INBOX_SWEEP = 'shadow'
+    expect(sweepMode()).toBe('shadow')
     process.env.AIM_INBOX_SWEEP = 'off'
     expect(sweepMode()).toBe('off')
     process.env.AIM_INBOX_SWEEP = 'garbage'
-    expect(sweepMode()).toBe('shadow')
+    expect(sweepMode()).toBe('on')
     delete process.env.AIM_INBOX_SWEEP
   })
 })

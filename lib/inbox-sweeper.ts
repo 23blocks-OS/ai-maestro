@@ -21,7 +21,7 @@
  * anything read, so it cannot lose or alter a message.
  *
  * Safety rails, because a wake costs a paid turn:
- *   - AIM_INBOX_SWEEP=off|shadow|on. `shadow` logs what it would do, nothing else.
+ *   - AIM_INBOX_SWEEP=on|shadow|off (default on). `shadow` logs what it would do, nothing else.
  *   - First run (no wake-state file): every unread message is baselined as seen.
  *     Enabling the sweeper never wakes agents for old mail.
  *   - A message is handed over once; it is re-handed only after a long backoff
@@ -56,8 +56,8 @@ export const MAX_WAKES_PER_SWEEP = 5
 const SKIP_TYPES = new Set(['system', 'heartbeat'])
 
 export function sweepMode(): SweepMode {
-  const v = (process.env.AIM_INBOX_SWEEP || 'shadow').toLowerCase()
-  return v === 'off' || v === 'on' ? v : 'shadow'
+  const v = (process.env.AIM_INBOX_SWEEP || 'on').toLowerCase()
+  return v === 'off' || v === 'shadow' ? v : 'on'
 }
 
 export interface SweepCandidate {

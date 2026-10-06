@@ -22,7 +22,7 @@ describe('approvalKindForProgram', () => {
 
 describe('Grok approval card (captured pane)', () => {
   it('parses the five options with the digit key to send', () => {
-    const c = parseGrokApproval(fx('grok-approval.txt'))!
+    const c = parseGrokApproval(fx('grok-approval.txt'))! as any
     expect(c.status).toBe('permission_request')
     expect(c.source).toBe('pane')
     expect(c.options.map((o: any) => o.key)).toEqual(['1', '2', '3', '4', '5'])
@@ -33,7 +33,7 @@ describe('Grok approval card (captured pane)', () => {
   })
 
   it('carries the title and command so the card shows what is approved', () => {
-    const c = parseGrokApproval(fx('grok-approval.txt'))!
+    const c = parseGrokApproval(fx('grok-approval.txt'))! as any
     expect(c.description).toBe('Create empty askme2.txt and confirm it exists')
     expect(c.toolName).toBe('Bash')
     expect(c.toolInput.command).toBe('touch askme2.txt && ls -la askme2.txt')
@@ -56,7 +56,7 @@ describe('Grok approval card (captured pane)', () => {
 
 describe('Codex approval card (captured pane)', () => {
   it('parses the three options; keys are digits', () => {
-    const c = parseCodexApproval(fx('codex-approval.txt'))!
+    const c = parseCodexApproval(fx('codex-approval.txt'))! as any
     expect(c.status).toBe('permission_request')
     expect(c.options.map((o: any) => o.key)).toEqual(['1', '2', '3'])
     expect(c.options[0]).toMatchObject({ label: 'Yes, proceed', value: 'yes' })
@@ -66,7 +66,7 @@ describe('Codex approval card (captured pane)', () => {
   })
 
   it('carries the question, reason and command', () => {
-    const c = parseCodexApproval(fx('codex-approval.txt'))!
+    const c = parseCodexApproval(fx('codex-approval.txt'))! as any
     expect(c.message).toBe('Would you like to run the following command?')
     expect(c.description).toContain('May I create askme.txt')
     expect(c.toolName).toBe('Bash')

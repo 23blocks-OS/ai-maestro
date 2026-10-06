@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.50.2] - 2026-10-06 - A same-host message wakes its agent right away (the doorbell)
+
+Phase 2 of backlog F027. Since 0.50.0 a message sent to an agent on the same machine was picked up by the inbox sweeper within about two minutes. `amp-send.sh` still writes that inbox file directly, without telling the server. Now it rings a doorbell afterwards, so the agent is woken at once.
+
+- **New endpoint `POST /api/messages/doorbell`** (`{ recipient, messageId }`, also in headless mode). It checks that the message is unread in that agent's inbox, then hands it to the same wake chain the sweeper uses (it never types into a busy pane, confirms by readback, queues for idle). It only wakes: it never writes an inbox or marks anything read, and it is safe to ring twice or after the sweeper or poll already handled the message, because all three paths share one record (`~/.aimaestro/wake-state.json`). `AIM_INBOX_SWEEP=off` rings nothing; `shadow` only logs.
+- **Plugin 1.4.1:** after a same-host inbox write, `amp-send.sh` makes a silent, backgrounded request with a 3 second cap. It never prints, never fails and never waits: with no server running, an older server, or `AMP_DOORBELL=0`, sending behaves exactly as before. The inbox file stays the source of truth. Installed by `update-aimaestro.sh`; restart a long-running Claude session to pick up the new script.
+- The sweeper keeps running as the safety net, so a missed ring costs at most the old two-minute delay.
+- Cross-host messages already went through the server and are unchanged.
+
 ## [0.50.1] - 2026-10-06 - The tracking endpoint no longer answers every agent with a 500
 
 `GET /api/agents/:id/tracking` failed for every agent with "Expression contains unevaluated constant". Backlog B008. Not a regression of 0.49.9 to 0.50.0; the queries had never run.

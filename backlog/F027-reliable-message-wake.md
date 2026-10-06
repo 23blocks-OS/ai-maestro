@@ -1,6 +1,6 @@
 # F027 - Every message wakes its agent, on any host, with or without the server
 
-**Status:** In Progress (Phase 1 shipped in shadow mode in 0.49.9; Phases 2 and 3 open)
+**Status:** In Progress (Phase 1, the sweeper, shipped in 0.49.9 and on by default since 0.50.0; Phase 2, the doorbell, shipped in 0.50.2 with plugin 1.4.1; Phase 3 open)
 **Type:** Bug fix and design change
 **Created:** 2026-10-05
 **Requested by:** Juan, 2026-10-05

@@ -10,6 +10,8 @@ import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
+// Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
+import { approvalKindForProgram, parseApprovalForProgram } from './lib/pane-approval.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
 import { isValidSessionName } from './lib/tmux-safe.mjs'
 // F026 Phase 0: every tmux call in this file goes through lib/tmux-runtime.mjs
@@ -212,6 +214,12 @@ async function getChatHistory(sessionName, agentId) {
 
   const workingDir = getAgentWorkingDir(agent)
   let hookState = readHookState(workingDir)
+  const program = agent.program
+  const approvalKind = approvalKindForProgram(program)
+  {
+    const st = terminalSessions.get(sessionName)
+    if (st) st._program = program
+  }
 
   // F004 Phase 2: codex has no hook-written state. Derive its live "working"
   // pulse from the turn-lifecycle events in the transcript we just parsed.
@@ -229,7 +237,19 @@ async function getChatHistory(sessionName, agentId) {
   // only when a new assistant message arrives, so a false positive would pin a
   // permission card in the chat forever — which is exactly what people report as
   // "that question panel is back again". The pane is the ground truth.
-  if (hookState?.status !== 'permission_request') {
+  if (approvalKind) {
+    // Grok / Codex: the pane is the only source of the menu (options + keys), and
+    // it is live truth. A hook permission_request without options is replaced by
+    // the pane card; with no menu on the pane nothing is resurrected from cache.
+    const fromPane = detectPermissionFromPane(sessionName, program)
+    const sessionState = terminalSessions.get(sessionName)
+    if (fromPane) {
+      hookState = fromPane
+      if (sessionState) sessionState._lastPermission = fromPane
+    } else if (sessionState?._lastPermission) {
+      sessionState._lastPermission = null
+    }
+  } else if (hookState?.status !== 'permission_request') {
     const sessionState = terminalSessions.get(sessionName)
     if (sessionState?._lastPermission) {
       if (isAgentAtPermissionPrompt(sessionName)) {
@@ -324,6 +344,7 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
 
     sessionState.jsonlWatcher = true
     sessionState._codexAgent = isCodexProgram(agent)
+    sessionState._program = agent.program
 
     // Watch hook state file for real-time permission/status updates
     const workingDir = getAgentWorkingDir(agent)
@@ -363,8 +384,13 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
  * showing in chat because they relied solely on the hook). Parses the numbered
  * menu into the same shape as hookState so the chat renders a card either way.
  */
-function detectPermissionFromPane(sessionName) {
+function detectPermissionFromPane(sessionName, program) {
   try {
+    // Grok / Codex: their own menus, parsed by program. The Claude parser would
+    // either miss them or mistake a numbered list for one.
+    if (approvalKindForProgram(program)) {
+      return parseApprovalForProgram(program, tmuxRt.capturePaneSync(sessionName, 200, { timeout: 2000 }))
+    }
     // Capture a generous history (-200) and let parsePermissionMenu anchor on the
     // menu STRUCTURE. A fixed line window used to drop option 1 ("Yes") on tall
     // prompts; the parser now finds the live menu wherever it is and rejects a
@@ -388,7 +414,15 @@ function broadcastHookState(sessionName, sessionState) {
   if (sessionState._codexAgent) {
     if (!sessionState.jsonlFilePath) return
     const s = codexLiveStatusFromFile(sessionState.jsonlFilePath)
-    const codexState = s === 'working' ? { status: 'working', source: 'codex' } : null
+    let codexState = s === 'working' ? { status: 'working', source: 'codex' } : null
+    // Approval prompt: codex writes nothing to the transcript, so read the pane.
+    const approval = detectPermissionFromPane(sessionName, 'codex')
+    if (approval) {
+      codexState = approval
+      sessionState._lastPermission = approval
+    } else if (sessionState._lastPermission) {
+      sessionState._lastPermission = null
+    }
     const codexJson = JSON.stringify(codexState)
     if (codexJson !== sessionState._lastHookState) {
       sessionState._lastHookState = codexJson
@@ -403,8 +437,11 @@ function broadcastHookState(sessionName, sessionState) {
   let state = readHookState(workingDir)
   // Fallback: if the hook didn't surface a permission prompt but the pane is
   // clearly showing one, build a card from the pane so it ALWAYS shows in chat.
-  if (state?.status !== 'permission_request') {
-    const fromPane = detectPermissionFromPane(sessionName)
+  // Grok: its hook reports permission_request without the menu, so for Grok the
+  // pane card (options + keys) wins over an option-less hook state.
+  const grokKind = approvalKindForProgram(sessionState._program)
+  if (state?.status !== 'permission_request' || (grokKind && !state.options?.length)) {
+    const fromPane = detectPermissionFromPane(sessionName, sessionState._program)
     if (fromPane) state = fromPane
   }
   // Remember permission_request states so we can serve them on history re-requests
@@ -744,8 +781,9 @@ function pasteTailProbe(text) {
   return compacted.slice(-Math.min(80, compacted.length))
 }
 
-function isAgentAtPermissionPrompt(sessionName) {
+function isAgentAtPermissionPrompt(sessionName, program) {
   try {
+    if (approvalKindForProgram(program)) return !!detectPermissionFromPane(sessionName, program)
     const raw = tmuxRt.capturePaneSync(sessionName, 15, { timeout: 2000 })
     const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
     const lastLines = lines.slice(-12).join('\n').toLowerCase()
@@ -794,7 +832,7 @@ async function sendChatMessage(sessionName, message) {
   // So: re-validate against the pane, which is the ground truth. If the prompt is
   // gone, the memory is stale — drop it and carry on.
   const sessionState = terminalSessions.get(sessionName)
-  const paneAtPermission = isAgentAtPermissionPrompt(sessionName)
+  const paneAtPermission = isAgentAtPermissionPrompt(sessionName, sessionState?._program)
 
   if (sessionState?._lastPermission?.status === 'permission_request' && !paneAtPermission) {
     console.log(`[Chat] ${sessionName}: clearing stale permission state — pane shows no prompt`)

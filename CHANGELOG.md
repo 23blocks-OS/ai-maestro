@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.10] - 2026-10-06 - Every tmux call goes through one runtime module (no behavior change)
+
+Phase 0 of backlog F026. No new feature: the server's tmux calls are now built in one place, and none of them goes through a shell.
+
+- **`server.mjs` no longer calls tmux itself.** All 15 shell-string calls and all 20 direct `execFile`/`pty.spawn` calls (pane readback, chat send, the permission key, history replay, mouse and alternate-screen options, scrolling, call sessions, startup cleanup) go through `lib/tmux-runtime.mjs` as argument lists, with the same tmux arguments, order and timeouts as before. Every call checks its target name first (session names `^[a-zA-Z0-9_-]+$`).
+- **`AgentRuntime` / `TmuxRuntime` gain** paste-buffer injection (`pasteText`), `captureHistory`, `enterCopyMode`, `scroll` and `setOption`, using the same module, so the server and the runtime cannot drift apart. A later runtime can now be added behind the interface.
+- **Tests:** the exact tmux arguments of each operation are pinned to the old shell strings; one runtime contract test runs against a fake runtime and the real `TmuxRuntime`; a test fails if a shell-string tmux call returns to `server.mjs`, `lib/` or `services/`.
+- **Small differences (edge cases):** a target that is not a valid name is refused before tmux runs; `capturePaneRaw`'s 3 s timeout now applies to each of its two attempts; agent names over 122 characters cannot get a call session.
+- Not changed: shell scripts in `plugin/` and `scripts/` that call tmux (listed in `docs/RUNTIME-PHASE0-INVENTORY.md`; two CLI scripts are worth moving to the safe wrapper later). No Herdr code.
+
 ## [0.49.9] - 2026-10-06 - A message sent to an agent on the same host now wakes it (inbox sweeper, in shadow mode)
 
 On 2026-10-05 `3m-counsel` sat idle on mac-mini with an unread message for 47 minutes. Two gaps lined up. `amp-send.sh` writes a same-host message straight into the recipient's inbox, so the server never hears of it and never runs the wake chain. The only other net, the per-agent 5-minute poll, lives inside the agent object, and the server keeps only 10 of those in memory; mac-mini has 20 live sessions, and `3m-counsel` had been evicted four minutes earlier. Details and the full plan: backlog F027.

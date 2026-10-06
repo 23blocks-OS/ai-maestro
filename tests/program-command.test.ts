@@ -49,6 +49,8 @@ describe('known program names', () => {
     ['gemini', 'gemini'],
     ['opencode', 'opencode'],
     ['openclaw', 'openclaw'],
+    ['grok', 'grok'],
+    ['Grok Build', 'grok'],
   ])('resolves %s to %s', (program, expected) => {
     expect(resolveProgramCommand(program).command).toBe(expected)
   })

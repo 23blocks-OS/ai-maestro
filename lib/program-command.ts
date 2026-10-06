@@ -24,7 +24,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'wrapper'
+export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'wrapper'
 
 export interface ResolvedProgram {
   /** Shell-ready command to launch, or null if it could not be resolved. */
@@ -114,13 +114,14 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   if (lower.includes('gemini')) return { command: 'gemini', kind: 'gemini' }
   if (lower.includes('opencode')) return { command: 'opencode', kind: 'opencode' }
   if (lower.includes('openclaw')) return { command: 'openclaw', kind: 'openclaw' }
+  if (lower.includes('grok')) return { command: 'grok', kind: 'grok' }
 
   return {
     command: null,
     kind: null,
     error:
       `unrecognised program "${p}". Use a known name (claude, codex, aider, cursor, gemini, ` +
-      `opencode, openclaw) or an absolute path to an executable wrapper.`,
+      `opencode, openclaw, grok) or an absolute path to an executable wrapper.`,
   }
 }
 

@@ -183,6 +183,7 @@ import {
   broadcastActivityUpdate,
   heartbeat,
 } from '@/services/sessions-service'
+import { ringDoorbellService } from '@/services/doorbell-service'
 import { getSnapshots, ingestStatusSnapshot, MAX_REPORT_CHARS } from '@/services/status-snapshots-service'
 
 import {
@@ -843,6 +844,12 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/index-delta$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await runDeltaIndex(params.id, body))
+  }},
+
+  // Doorbell: a same-host sender rings after writing the inbox file (lib/doorbell.ts)
+  { method: 'POST', pattern: /^\/api\/messages\/doorbell$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await ringDoorbellService(body))
   }},
 
   // Tracking / Metrics

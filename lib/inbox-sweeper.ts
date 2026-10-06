@@ -146,68 +146,90 @@ export async function sweepOnce(deps: SweepDeps): Promise<SweepResult> {
     }
     if (result.woken.length >= MAX_WAKES_PER_SWEEP) continue
 
-    const more = due.length - 1
-    const bodyText = (await deps.body(cand.agentId, lead.id).catch(() => lead.preview || '')) || lead.preview || ''
-    const injectBody = bodyText.slice(0, 2000)
-    const sender = senderLabel({ address: lead.from?.includes('@') ? lead.from : undefined, name: lead.fromAlias || lead.from, host: lead.fromHost })
-    const injectText =
-      `[AMP #${messageRef(lead.id)}] New message from ${sender}${lead.subject ? ` — "${lead.subject}"` : ''}` +
-      `${more > 0 ? ` (and ${more} more unread)` : ''}:\n${injectBody}\n\n` +
-      `(Reply with the agent-messaging skill if it needs an answer, then continue.)`
-    const ctx: WakeContext = {
-      agentId: cand.agentId,
-      agentName: cand.agentName,
-      injectText,
-      injectBody,
-      senderName: lead.fromAlias || lead.from,
-      senderHost: lead.fromHost,
-      senderAddress: lead.from?.includes('@') ? lead.from : undefined,
-      subject: lead.subject,
-      messageId: lead.id,
-      priority: lead.priority,
-      messageType: lead.type,
-    }
-
-    let wake: WakeResult
-    try {
-      wake = await deps.wake(ctx, cand)
-    } catch (err) {
-      deps.log(`[Sweep] wake threw for ${cand.agentName}: ${err instanceof Error ? err.message : String(err)}`)
-      continue
-    }
-    // Every message in this batch counts as handed over: the agent sees them all
-    // when it opens its inbox, and one wake per agent per sweep is the budget.
-    for (const m of due) recordWake(cand.agentId, m.id, now)
+    const handed = await handOver(cand, due, deps, now, 'Sweep')
+    if (!handed) continue
     result.woken.push(`${cand.agentName}:${lead.id}`)
-
-    if (wake.confirmed) {
-      deps.log(`[Sweep] ${lead.id} → ${cand.agentName} confirmed via ${wake.confirmedBy} (${describeWakeResult(wake)}), ${due.length} unread handed over`)
-    } else if (wake.deferred) {
-      deps.log(`[Sweep] ${lead.id} → ${cand.agentName} deferred to idle (${describeWakeResult(wake)})`)
-    } else {
-      deps.log(`[Sweep] ${lead.id} → ${cand.agentName} UNCONFIRMED (${describeWakeResult(wake)}), queued for retry`)
-      enqueueWake({
-        agentId: cand.agentId,
-        agentName: cand.agentName,
-        sessionName: cand.sessionName,
-        injectBody,
-        senderName: ctx.senderName,
-        senderHost: ctx.senderHost,
-        senderAddress: ctx.senderAddress,
-        subject: ctx.subject,
-        messageId: lead.id,
-        priority: ctx.priority,
-        messageType: ctx.messageType,
-        reason: 'unconfirmed',
-        attempts: 1,
-      })
-    }
   }
 
   if (baseline && result.baselined > 0) {
     deps.log(`[Sweep] first run on this host: ${result.baselined} unread message(s) taken as already seen, none woken`)
   }
   return result
+}
+
+
+/**
+ * Hand a batch of unread messages to the wake chain: one wake for the agent,
+ * every message in the batch recorded as handed over. Shared by the sweeper and
+ * the doorbell (lib/doorbell.ts), so both log and queue retries the same way.
+ * Returns false when the wake threw (nothing recorded, so a later pass retries).
+ */
+export async function handOver(
+  cand: SweepCandidate,
+  due: MessageSummary[],
+  deps: SweepDeps,
+  now: number,
+  tag: 'Sweep' | 'Doorbell'
+): Promise<boolean> {
+  // Newest first: it is the one the agent most needs to see; the rest ride along.
+  const sorted = [...due].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+  const lead = sorted[0]
+  const more = sorted.length - 1
+  const bodyText = (await deps.body(cand.agentId, lead.id).catch(() => lead.preview || '')) || lead.preview || ''
+  const injectBody = bodyText.slice(0, 2000)
+  const sender = senderLabel({ address: lead.from?.includes('@') ? lead.from : undefined, name: lead.fromAlias || lead.from, host: lead.fromHost })
+  const injectText =
+    `[AMP #${messageRef(lead.id)}] New message from ${sender}${lead.subject ? ` — "${lead.subject}"` : ''}` +
+    `${more > 0 ? ` (and ${more} more unread)` : ''}:\n${injectBody}\n\n` +
+    `(Reply with the agent-messaging skill if it needs an answer, then continue.)`
+  const ctx: WakeContext = {
+    agentId: cand.agentId,
+    agentName: cand.agentName,
+    injectText,
+    injectBody,
+    senderName: lead.fromAlias || lead.from,
+    senderHost: lead.fromHost,
+    senderAddress: lead.from?.includes('@') ? lead.from : undefined,
+    subject: lead.subject,
+    messageId: lead.id,
+    priority: lead.priority,
+    messageType: lead.type,
+  }
+
+  let wake: WakeResult
+  try {
+    wake = await deps.wake(ctx, cand)
+  } catch (err) {
+    deps.log(`[${tag}] wake threw for ${cand.agentName}: ${err instanceof Error ? err.message : String(err)}`)
+    return false
+  }
+  // Every message in this batch counts as handed over: the agent sees them all
+  // when it opens its inbox, and one wake per agent per pass is the budget.
+  for (const m of sorted) recordWake(cand.agentId, m.id, now)
+
+  if (wake.confirmed) {
+    deps.log(`[${tag}] ${lead.id} → ${cand.agentName} confirmed via ${wake.confirmedBy} (${describeWakeResult(wake)}), ${sorted.length} unread handed over`)
+  } else if (wake.deferred) {
+    deps.log(`[${tag}] ${lead.id} → ${cand.agentName} deferred to idle (${describeWakeResult(wake)})`)
+  } else {
+    deps.log(`[${tag}] ${lead.id} → ${cand.agentName} UNCONFIRMED (${describeWakeResult(wake)}), queued for retry`)
+    enqueueWake({
+      agentId: cand.agentId,
+      agentName: cand.agentName,
+      sessionName: cand.sessionName,
+      injectBody,
+      senderName: ctx.senderName,
+      senderHost: ctx.senderHost,
+      senderAddress: ctx.senderAddress,
+      subject: ctx.subject,
+      messageId: lead.id,
+      priority: ctx.priority,
+      messageType: ctx.messageType,
+      reason: 'unconfirmed',
+      attempts: 1,
+    })
+  }
+  return true
 }
 
 // ---------------------------------------------------------------------------

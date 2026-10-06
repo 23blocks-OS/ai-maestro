@@ -45,7 +45,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F025** — [The chat header shows what the terminal status bar shows](./backlog/F025-chat-header-parity.md) — `Done` (0.49.8)
 
 - **F026** — [Agent runtime abstraction (Phase 0), and a Herdr evaluation](./backlog/F026-agent-runtime-abstraction-herdr.md) — `In Progress` (Phase 0 only; Herdr phases parked)
-- **F027** — [Every message wakes its agent, on any host, with or without the server](./backlog/F027-reliable-message-wake.md) — `In Progress` (Phase 1 sweeper shipped in shadow mode, 0.49.9; doorbell next)
+- **F027** — [Every message wakes its agent, on any host, with or without the server](./backlog/F027-reliable-message-wake.md) — `In Progress` (sweeper 0.49.9, on by default 0.50.0; doorbell 0.50.2; one delivery path still open)
 
 ## Bugs
 

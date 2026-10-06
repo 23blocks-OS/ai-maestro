@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 Phase 0 of backlog F026. No new feature: the server's tmux calls are now built in one place, and none of them goes through a shell.
 
+- **The inbox sweeper (0.49.9) is now on by default.** It woke its first real messages on mac-mini on 2026-10-05 (`3m-seo`, `3m-gm` confirmed through the pane, `3m-counsel` deferred until idle). `AIM_INBOX_SWEEP=shadow` logs only, `off` disables it. No pm2 setting needed any more.
 - **`server.mjs` no longer calls tmux itself.** All 15 shell-string calls and all 20 direct `execFile`/`pty.spawn` calls (pane readback, chat send, the permission key, history replay, mouse and alternate-screen options, scrolling, call sessions, startup cleanup) go through `lib/tmux-runtime.mjs` as argument lists, with the same tmux arguments, order and timeouts as before. Every call checks its target name first (session names `^[a-zA-Z0-9_-]+$`).
 - **`AgentRuntime` / `TmuxRuntime` gain** paste-buffer injection (`pasteText`), `captureHistory`, `enterCopyMode`, `scroll` and `setOption`, using the same module, so the server and the runtime cannot drift apart. A later runtime can now be added behind the interface.
 - **Tests:** the exact tmux arguments of each operation are pinned to the old shell strings; one runtime contract test runs against a fake runtime and the real `TmuxRuntime`; a test fails if a shell-string tmux call returns to `server.mjs`, `lib/` or `services/`.

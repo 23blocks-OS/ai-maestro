@@ -15,7 +15,7 @@
 
 import { getAgent, getAgentByName } from '@/lib/agent-registry'
 import { listInboxMessages } from '@/lib/messageQueue'
-import { getWakeRecord } from '@/lib/wake-state'
+import { getWakeRecord, canonicalMessageId } from '@/lib/wake-state'
 import { computeSessionName } from '@/types/agent'
 import { handOver, liveDeps, sweepMode, type SweepCandidate, type SweepDeps } from '@/lib/inbox-sweeper'
 
@@ -68,7 +68,7 @@ export async function ringDoorbell(
   const cand = deps.resolve(input.recipient)
   if (!cand) return { status: 'unknown_recipient' }
 
-  const key = `${cand.agentId}:${input.messageId}`
+  const key = `${cand.agentId}:${canonicalMessageId(input.messageId)}`
   if (inFlight.has(key)) return { status: 'in_progress', agentName: cand.agentName }
   inFlight.add(key)
   try {
@@ -76,7 +76,8 @@ export async function ringDoorbell(
     if (getWakeRecord(cand.agentId, input.messageId)) return { status: 'already_handled', agentName: cand.agentName }
 
     const unread = await deps.unread(cand.agentId)
-    const msg = unread.find((m) => m.id === input.messageId)
+    const want = canonicalMessageId(input.messageId)
+    const msg = unread.find((m) => canonicalMessageId(m.id) === want)
     if (!msg) return { status: 'not_found', agentName: cand.agentName }
     if (msg.status !== 'unread' || SKIP_TYPES.has(String(msg.type))) return { status: 'not_unread', agentName: cand.agentName }
 

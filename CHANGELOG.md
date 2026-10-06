@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.50.3] - 2026-10-06 - Fix: the doorbell and the wake record now agree on message ids
+
+Found by the first real test of the doorbell (0.50.2): a same-host message sent through the file-write path rang the doorbell, and the server answered `not_found`, so nothing woke.
+
+- **Cause:** the same message has two spellings. The envelope id is `msg_<time>_<rand>` (what the send script and the routing push use); the message list gives `msg-<time>-<rand>`. The doorbell compared them as written. The same split meant a wake recorded by the routing push (envelope id) never matched what the sweeper and the poll look up (list id), so a message the push had already woken could be woken a second time by the sweeper if it stayed unread for more than 90 seconds.
+- **Fix:** one canonical id in `lib/wake-state.ts`, used by the record and the doorbell, so every path agrees. Records already saved under the old spelling are simply ignored. Tests cover both spellings.
+
 ## [0.50.2] - 2026-10-06 - A same-host message wakes its agent right away (the doorbell)
 
 Phase 2 of backlog F027. Since 0.50.0 a message sent to an agent on the same machine was picked up by the inbox sweeper within about two minutes. `amp-send.sh` still writes that inbox file directly, without telling the server. Now it rings a doorbell afterwards, so the agent is woken at once.

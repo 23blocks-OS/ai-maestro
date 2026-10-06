@@ -40,8 +40,19 @@ function persistent(): boolean {
   return !process.env.VITEST || !!process.env.AIM_WAKE_STATE_FILE
 }
 
+/**
+ * One message, one key, whichever path names it. The AMP envelope id is
+ * `msg_<time>_<rand>`, but the message list (lib/messageQueue.ts) hands out
+ * `msg-<time>-<rand>`. The routing push records the first, the sweeper and the
+ * poll the second; without this the push's record never matched and a message
+ * the push had woken could be woken again by the sweeper.
+ */
+export function canonicalMessageId(messageId: string): string {
+  return messageId.replace(/_/g, '-')
+}
+
 function key(agentId: string, messageId: string): string {
-  return `${agentId}:${messageId}`
+  return `${agentId}:${canonicalMessageId(messageId)}`
 }
 
 function load(): Map<string, WakeRecord> {

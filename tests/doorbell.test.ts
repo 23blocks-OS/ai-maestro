@@ -111,6 +111,23 @@ describe('doorbell', () => {
   })
 })
 
+describe('message ids from different paths are one id', () => {
+  it('rings with the envelope id (msg_...) for a message the list names msg-...', async () => {
+    const { d, wakes } = deps({ unread: async () => [msg('msg-1791296058-ac34a1f1')] })
+    const r = await ringDoorbell({ recipient: 'A', messageId: 'msg_1791296058_ac34a1f1' }, d)
+    expect(r.status).toBe('woken')
+    expect(wakes).toEqual(['A:msg-1791296058-ac34a1f1'])
+  })
+
+  it('a wake the routing push recorded under the envelope id counts for the sweeper and the doorbell', async () => {
+    recordWake('id-A', 'msg_1791296058_ac34a1f1', NOW - 1000)
+    expect(getWakeRecord('id-A', 'msg-1791296058-ac34a1f1')?.count).toBe(1)
+    const { d, wakes } = deps({ unread: async () => [msg('msg-1791296058-ac34a1f1')] })
+    expect((await ringDoorbell({ recipient: 'A', messageId: 'msg-1791296058-ac34a1f1' }, d)).status).toBe('already_handled')
+    expect(wakes).toEqual([])
+  })
+})
+
 describe('doorbell service validation', () => {
   it('rejects a missing or malformed body without touching anything', async () => {
     expect((await ringDoorbellService(null)).status).toBe(400)

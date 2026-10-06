@@ -44,6 +44,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F024** — [Agent Files Protocol (AFP) and the agent-files skill, backed by Garage](./backlog/F024-agent-files-afp.md) — `In progress` (spec published, spike running)
 - **F025** — [The chat header shows what the terminal status bar shows](./backlog/F025-chat-header-parity.md) — `Done` (0.49.8)
 
+- **F026** — [Agent runtime abstraction (Phase 0), and a Herdr evaluation](./backlog/F026-agent-runtime-abstraction-herdr.md) — `In Progress` (Phase 0 only; Herdr phases parked)
+- **F027** — [Every message wakes its agent, on any host, with or without the server](./backlog/F027-reliable-message-wake.md) — `In Progress` (Phase 1 sweeper shipped in shadow mode, 0.49.9; doorbell next)
+
 ## Bugs
 
 - **B001** — [Two browsers on one agent fight over the terminal size](./backlog/B001-multi-client-terminal-sizing.md) — `Todo`

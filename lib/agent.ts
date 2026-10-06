@@ -13,6 +13,7 @@
  * - Each agent is truly autonomous and self-sufficient
  */
 
+import { recordWake } from '@/lib/wake-state'
 import { isMemoryConsolidationEnabled } from './memory/skill'
 import { loadConsolidationSettings } from './memory/settings'
 import { AgentDatabase } from './cozo-db'
@@ -608,6 +609,7 @@ class AgentSubconscious {
     fromHost?: string
     subject?: string
     priority?: string
+    id?: string
   }>) {
     try {
       // Find the session name for this agent
@@ -674,6 +676,9 @@ class AgentSubconscious {
         // Name the mechanism. Without this, a poll-delivered wake is
         // indistinguishable in the logs from a push-delivered one, so "push
         // works" stays an assumption instead of a measurement.
+        if (result.submitted || result.staged || result.success) {
+          for (const m of messages) if (m.id) recordWake(this.agentId, m.id)
+        }
         if (result.submitted) {
           console.log(`${tag} ✓ Inbox poll wake SUBMITTED (${unreadCount} unread) — delivered by the 5-min poll, not by push`)
         } else if (result.staged) {

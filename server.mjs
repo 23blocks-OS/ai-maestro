@@ -2695,6 +2695,17 @@ async function startServer(handleRequest) {
         console.error('[Scheduler] Failed to start schedule executor:', error.message)
       }
     }, 10000) // Wait 10 seconds for all services to be ready
+
+    // Host-wide inbox sweeper: wakes agents for unread messages that no other
+    // path woke them for (same-host sends never reach the server). See F027.
+    setTimeout(async () => {
+      try {
+        const { startInboxSweeper } = await import('./lib/inbox-sweeper.ts')
+        startInboxSweeper()
+      } catch (error) {
+        console.error('[Sweep] Failed to start inbox sweeper:', error.message)
+      }
+    }, 15000)
   })
 
   // Graceful shutdown - kill PTYs FIRST before closing server

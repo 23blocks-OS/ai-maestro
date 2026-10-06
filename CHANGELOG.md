@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.49.9] - 2026-10-06 - A message sent to an agent on the same host now wakes it (inbox sweeper, in shadow mode)
+
+On 2026-10-05 `3m-counsel` sat idle on mac-mini with an unread message for 47 minutes. Two gaps lined up. `amp-send.sh` writes a same-host message straight into the recipient's inbox, so the server never hears of it and never runs the wake chain. The only other net, the per-agent 5-minute poll, lives inside the agent object, and the server keeps only 10 of those in memory; mac-mini has 20 live sessions, and `3m-counsel` had been evicted four minutes earlier. Details and the full plan: backlog F027.
+
+- **New: a host-wide inbox sweeper** (`lib/inbox-sweeper.ts`). Once a minute it looks at every agent with a live session on this host and hands unread messages that no other path woke them for to the existing wake chain (stream, channel, pane). The chain still never types into a busy pane, still proves arrival by readback and still queues a wake for the idle moment. The sweeper never writes to an inbox and never marks a message read. It does not depend on the agent cache or on which script wrote the message.
+- **It ships in `shadow` mode.** It only logs `[Sweep] shadow: would wake <agent> for <id>` and wakes nobody. Set `AIM_INBOX_SWEEP=on` to turn it on, `off` to disable it. Shadow is the default for this release so the first real traffic can be checked before it spends turns.
+- **Guards, because a wake costs a paid turn:** the first run on a host takes every message that is already unread as seen (no wakes for old mail); a message gets 90 s for the routing push or the poll to act first; messages older than 24 h are ignored; a message is handed over once and re-handed only after 15 min and again after 1 h, three times at most; one wake per agent per sweep and five per sweep; system and heartbeat messages are skipped.
+- **One record of what was already handled** (`lib/wake-state.ts`, saved to `~/.aimaestro/wake-state.json`). The routing push and the 5-minute poll write to it too, so the three paths agree and a message is not woken three times.
+- Single host or many, no setup, no plugin change: it works with every plugin version already installed. Without the server nothing changes: the inbox file is still the source of truth.
+
 ## [0.49.8] - 2026-10-05 - The chat header and the terminal bar show the same facts, on desktop and on a phone
 
 F025 is done. One question for the day: why did the chat show so little of what the terminal status bar shows? This release rolls up 0.49.3 to 0.49.8 (each has its own entry below) and adds the last piece, the phone.

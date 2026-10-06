@@ -13,6 +13,7 @@
  * No routing. No resolution. No sent write. No remote. No relay.
  */
 
+import { recordWake } from '@/lib/wake-state'
 import { createHmac } from 'crypto'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
@@ -141,6 +142,10 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     priority,
     messageType,
   })
+
+  // The sweeper (lib/inbox-sweeper.ts) and the poll read this to avoid waking
+  // for a message the routing push already handed to a wake route.
+  recordWake(recipientAgentId, envelope.id)
 
   const notified = wake.notified
   const verified = wake.confirmed

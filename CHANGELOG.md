@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.50.0] - 2026-10-06 - Messages wake their agents on any host, and tmux has one runtime layer
+
+A minor release because two foundations changed. It rolls up 0.49.9 and 0.49.10 (each has its own entry below). No new screens.
+
+- **Messages between agents on the same host now wake the agent.** `amp-send.sh` writes a same-host message straight into the recipient's inbox, so the server never ran its wake chain, and the only fallback, the 5-minute poll, lived in a 10-slot cache (mac-mini has 20 live sessions). On 2026-10-05 `3m-counsel` sat unread for 47 minutes. A host-wide inbox sweeper now checks every agent with a live session once a minute and hands unread messages to the existing wake chain (it never types into a busy pane, it confirms by readback, it queues for idle). On by default; `AIM_INBOX_SWEEP=shadow` only logs, `off` disables it. Guards: first run takes old unread mail as already seen, a 90 s head start for the routing push, nothing older than 24 h, three hand-offs per message at most, one wake per agent per sweep. One shared record (`~/.aimaestro/wake-state.json`) stops the push, the poll and the sweeper from waking the same message twice. Needs no plugin change. Plan and later phases: backlog F027.
+- **Every tmux call goes through one runtime module.** `server.mjs` no longer calls tmux itself: all 35 calls (15 of them shell strings) go through `lib/tmux-runtime.mjs` as argument lists with the target name checked first, same arguments and order as before. `AgentRuntime` gains paste-buffer injection, history capture, copy mode, scroll and option control. A guard test fails if a shell-string tmux call comes back. Backlog F026 (Phase 0 only; the Herdr evaluation found no reason to adopt it for now).
+- **Checked live:** the terminal attaches on all three hosts on the new code, and the sweeper woke its first messages on mac-mini (`3m-seo` and `3m-gm` confirmed through the pane, `3m-counsel` deferred until idle). **Not yet checked live:** chat send, scrolling and the phone terminal on the new runtime code.
+
 ## [0.49.10] - 2026-10-06 - Every tmux call goes through one runtime module (no behavior change)
 
 Phase 0 of backlog F026. No new feature: the server's tmux calls are now built in one place, and none of them goes through a shell.

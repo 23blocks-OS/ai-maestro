@@ -36,6 +36,10 @@ Do **Phase 0 only**: finish the runtime abstraction and route the tmux calls thr
 
 Out of scope: any Herdr code, a feature flag for Herdr, UI changes.
 
+## Progress
+
+- 2026-10-05: Phase 0 implemented (uncommitted). `lib/tmux-runtime.mjs` holds the operations server.mjs needs; `TmuxRuntime` gained `pasteText`, `captureHistory`, `enterCopyMode`, `scroll`, `setOption` and a read-only attach. server.mjs no longer imports `child_process`; its 15 shell-string tmux calls and 20 direct `execFile('tmux')` calls go through the runtime with the same argv. Inventory: `docs/RUNTIME-PHASE0-INVENTORY.md`. Tests: `tests/tmux-runtime.test.ts`, `tests/agent-runtime-contract.test.ts`, `tests/no-shell-tmux.test.ts`.
+
 ## Later (parked, needs approval)
 
 A one-day spike on a scratch host: run Claude in Herdr, compare `agent_status_changed` events with our hook state on the same session, restart the Herdr server and see what survives. Revisit only if there are agents without hooks (Codex) that need better state.

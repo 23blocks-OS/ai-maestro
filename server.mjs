@@ -1,6 +1,5 @@
 import { createServer } from 'http'
 import { parse } from 'url'
-import { execSync, execFileSync, execFile } from 'child_process'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -13,6 +12,10 @@ import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
 import { isValidSessionName } from './lib/tmux-safe.mjs'
+// F026 Phase 0: every tmux call in this file goes through lib/tmux-runtime.mjs
+// (argv only, target validated there). tests/no-shell-tmux.test.ts fails if a
+// shell-string or direct child_process call to tmux comes back.
+import * as tmuxRt from './lib/tmux-runtime.mjs'
 import {
   resolveJsonlPath,
   getAgentWorkingDir,
@@ -366,8 +369,7 @@ function detectPermissionFromPane(sessionName) {
     // menu STRUCTURE. A fixed line window used to drop option 1 ("Yes") on tall
     // prompts; the parser now finds the live menu wherever it is and rejects a
     // truncated scrape rather than rendering a menu missing choices.
-    const raw = execSync(`tmux capture-pane -p -t "${sessionName}" -S -200`,
-      { timeout: 2000, encoding: 'utf-8' })
+    const raw = tmuxRt.capturePaneSync(sessionName, 200, { timeout: 2000 })
     return parsePermissionMenu(raw)
   } catch { return null }
 }
@@ -731,10 +733,7 @@ const PASTE_PROBE_MIN_CHARS = 8
 
 function capturePaneCompact(sessionName, lines = 100) {
   try {
-    const res = execSync(
-      `tmux capture-pane -p -J -t "${sessionName}" -S -${lines}`,
-      { timeout: 2000, encoding: 'utf-8' }
-    )
+    const res = tmuxRt.capturePaneSync(sessionName, lines, { join: true, timeout: 2000 })
     return res.replace(/\s+/g, ' ').trim()
   } catch { return '' }
 }
@@ -747,10 +746,7 @@ function pasteTailProbe(text) {
 
 function isAgentAtPermissionPrompt(sessionName) {
   try {
-    const raw = execSync(
-      `tmux capture-pane -p -t "${sessionName}" -S -15`,
-      { timeout: 2000, encoding: 'utf-8' }
-    )
+    const raw = tmuxRt.capturePaneSync(sessionName, 15, { timeout: 2000 })
     const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
     const lastLines = lines.slice(-12).join('\n').toLowerCase()
     return lastLines.includes('esc to cancel') &&
@@ -765,22 +761,13 @@ function isAgentAtPermissionPrompt(sessionName) {
  *  paste-buffer shows text but Enter (C-m) is consumed by copy-mode instead
  *  of submitting to the program. Safe to call when not in copy-mode. */
 function exitCopyMode(sessionName) {
-  try {
-    const inMode = execSync(`tmux display-message -p -t "${sessionName}" '#{pane_in_mode}'`,
-      { timeout: 2000, encoding: 'utf-8' }).trim()
-    if (inMode === '1') {
-      execSync(`tmux send-keys -t "${sessionName}" -X cancel`, { timeout: 2000 })
-    }
-  } catch { /* best effort */ }
+  tmuxRt.exitCopyModeSync(sessionName, { timeout: 2000 })
 }
 
 /** Capture WITH escapes, so dim placeholder text can be told from real input. */
 function capturePaneRaw(sessionName, lines = 200) {
   try {
-    return execSync(
-      `tmux capture-pane -t "${sessionName}" -p -e -S -${lines} 2>/dev/null || tmux capture-pane -t "${sessionName}" -p -e`,
-      { timeout: 3000, encoding: 'utf-8', shell: '/bin/bash' }
-    )
+    return tmuxRt.capturePaneRawSync(sessionName, lines, { timeout: 3000 })
   } catch { return '' }
 }
 
@@ -827,11 +814,11 @@ async function sendChatMessage(sessionName, message) {
   const bufferName = `aimaestro-${Date.now()}`
   try {
     fs.writeFileSync(tmpFile, message, 'utf-8')
-    execSync(`tmux load-buffer -b "${bufferName}" "${tmpFile}"`, { timeout: 3000 })
-    execSync(`tmux paste-buffer -d -r -b "${bufferName}" -t "${sessionName}"`, { timeout: 3000 })
+    tmuxRt.loadBufferSync(bufferName, tmpFile, { timeout: 3000 })
+    tmuxRt.pasteBufferSync(sessionName, bufferName, { timeout: 3000 })
   } catch (err) {
     try { fs.unlinkSync(tmpFile) } catch {}
-    try { execSync(`tmux delete-buffer -b "${bufferName}"`, { timeout: 1000 }) } catch {}
+    try { tmuxRt.deleteBufferSync(bufferName, { timeout: 1000 }) } catch {}
     return { ok: false, error: 'Failed to paste text: ' + err.message }
   }
   try { fs.unlinkSync(tmpFile) } catch {}
@@ -858,7 +845,7 @@ async function sendChatMessage(sessionName, message) {
 
   // 6. Send Enter (C-m is more reliable than Enter through tmux)
   try {
-    execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
+    tmuxRt.sendKeySync(sessionName, 'C-m', { timeout: 3000 })
   } catch (err) {
     return { ok: false, error: 'Text pasted but Enter failed: ' + err.message }
   }
@@ -871,9 +858,9 @@ async function sendChatMessage(sessionName, message) {
   // in the input box until somebody opened a terminal.
   const deliverOnce = () => {
     fs.writeFileSync(tmpFile2, message, 'utf-8')
-    execSync(`tmux load-buffer -b "${bufferName}-r" "${tmpFile2}"`, { timeout: 3000 })
-    execSync(`tmux paste-buffer -d -r -b "${bufferName}-r" -t "${sessionName}"`, { timeout: 3000 })
-    execSync(`tmux send-keys -t "${sessionName}" C-m`, { timeout: 3000 })
+    tmuxRt.loadBufferSync(`${bufferName}-r`, tmpFile2, { timeout: 3000 })
+    tmuxRt.pasteBufferSync(sessionName, `${bufferName}-r`, { timeout: 3000 })
+    tmuxRt.sendKeySync(sessionName, 'C-m', { timeout: 3000 })
     try { fs.unlinkSync(tmpFile2) } catch {}
   }
 
@@ -884,7 +871,7 @@ async function sendChatMessage(sessionName, message) {
     // to re-paste.
     deliver: () => { if (first) { first = false; return } deliverOnce() },
     clear: (count) => {
-      try { execSync(`tmux send-keys -t "${sessionName}" -N ${count} BSpace`, { timeout: 3000 }) } catch {}
+      try { tmuxRt.repeatKeySync(sessionName, 'BSpace', count, { timeout: 3000 }) } catch {}
     },
   })
 
@@ -914,7 +901,7 @@ async function sendPermissionResponse(sessionName, key) {
   exitCopyMode(sessionName)
   try {
     // Raw keypress — what a human presses at the menu. Number selects+confirms.
-    execSync(`tmux send-keys -t "${sessionName}" -l "${k}"`, { timeout: 3000 })
+    tmuxRt.sendLiteralSync(sessionName, k, { timeout: 3000 })
   } catch (err) {
     return { ok: false, error: 'Failed to send response: ' + err.message }
   }
@@ -1415,11 +1402,11 @@ async function startServer(handleRequest) {
             const workdir = registryAgent.workingDirectory || registryAgent.sessions?.[0]?.workingDirectory || os.homedir()
 
             // Kill stale call session if it exists (safe: callSessionName is validated)
-            try { execFileSync('tmux', ['has-session', '-t', callSessionName], { stdio: 'ignore', timeout: 5000 }) } catch { /* not found — expected */ }
-            try { execFileSync('tmux', ['kill-session', '-t', callSessionName], { stdio: 'ignore', timeout: 5000 }) } catch { /* not found — expected */ }
+            tmuxRt.hasSessionSync(callSessionName, { timeout: 5000 })
+            try { tmuxRt.killSessionSync(callSessionName, { timeout: 5000 }) } catch { /* not found — expected */ }
 
             // Create new detached tmux session
-            execFileSync('tmux', ['new-session', '-d', '-s', callSessionName, '-c', workdir], { timeout: 5000 })
+            tmuxRt.newSessionSync(callSessionName, workdir, { timeout: 5000 })
 
             // Build launch command with bypassPermissions
             // Uses single string sent via send-keys -l (literal) to avoid shell interpretation
@@ -1434,13 +1421,14 @@ async function startServer(handleRequest) {
               if (sanitized) cmdParts.push(...sanitized.split(/\s+/))
             }
             const fullCmd = `${envParts.join('; ')} && ${cmdParts.join(' ')}`
-            execFileSync('tmux', ['send-keys', '-t', callSessionName, '-l', fullCmd], { timeout: 5000 })
-            execFileSync('tmux', ['send-keys', '-t', callSessionName, 'Enter'], { timeout: 5000 })
+            tmuxRt.sendLiteralSync(callSessionName, fullCmd, { timeout: 5000 })
+            tmuxRt.sendKeySync(callSessionName, 'Enter', { timeout: 5000 })
 
             // Spawn read-only PTY observer to feed cerebellum voice buffer
             let ptyObserver = null
             try {
-              ptyObserver = pty.spawn('tmux', ['attach-session', '-t', callSessionName, '-r'], {
+              const observe = tmuxRt.attachCommand(callSessionName, { readOnly: true })
+              ptyObserver = pty.spawn(observe.command, observe.args, {
                 name: 'xterm-256color',
                 cols: 120,
                 rows: 40,
@@ -1539,23 +1527,19 @@ async function startServer(handleRequest) {
 
     // Helper: route text to call session via tmux send-keys (non-blocking)
     function sendToCallSession(callSessionName, text) {
-      // execFile (async, no shell) — does NOT block the event loop
-      execFile('tmux', ['send-keys', '-t', callSessionName, '-l', text], { timeout: 5000 }, (err) => {
-        if (err) {
-          console.warn(`[CALL-SESSION] send-keys -l failed for ${callSessionName}:`, err.message)
-          // Fall back to primary session
-          import('./services/agents-chat-service.ts').then(({ sendChatMessage }) => {
-            sendChatMessage(agentId, text)
-          }).catch(() => {})
-          return
-        }
-        execFile('tmux', ['send-keys', '-t', callSessionName, 'Enter'], { timeout: 5000 }, (enterErr) => {
-          if (enterErr) {
-            console.warn(`[CALL-SESSION] send-keys Enter failed for ${callSessionName}:`, enterErr.message)
-          } else {
-            console.log(`[CALL-SESSION] Routed text to ${callSessionName}`)
-          }
+      // async execFile (no shell) — does NOT block the event loop
+      tmuxRt.sendLiteralAsync(callSessionName, text, { timeout: 5000 }).then(() => {
+        tmuxRt.sendKeyAsync(callSessionName, 'Enter', { timeout: 5000 }).then(() => {
+          console.log(`[CALL-SESSION] Routed text to ${callSessionName}`)
+        }, (enterErr) => {
+          console.warn(`[CALL-SESSION] send-keys Enter failed for ${callSessionName}:`, enterErr.message)
         })
+      }, (err) => {
+        console.warn(`[CALL-SESSION] send-keys -l failed for ${callSessionName}:`, err.message)
+        // Fall back to primary session
+        import('./services/agents-chat-service.ts').then(({ sendChatMessage }) => {
+          sendChatMessage(agentId, text)
+        }).catch(() => {})
       })
     }
 
@@ -1664,9 +1648,10 @@ async function startServer(handleRequest) {
             // Kill PTY observer
             try { callState.ptyObserver?.kill() } catch { /* ignore */ }
             // Graceful shutdown: Ctrl-C then delayed kill (all non-blocking with execFile)
-            execFile('tmux', ['send-keys', '-t', callState.callSessionName, 'C-c'], { timeout: 5000 }, () => {
+            const callSessionName = callState.callSessionName
+            tmuxRt.sendKeyAsync(callSessionName, 'C-c', { timeout: 5000 }).catch(() => { /* ignore */ }).then(() => {
               setTimeout(() => {
-                execFile('tmux', ['kill-session', '-t', callState.callSessionName], { timeout: 5000 }, () => { /* ignore */ })
+                tmuxRt.killSessionAsync(callSessionName, { timeout: 5000 }).catch(() => { /* ignore */ })
               }, 500)
             })
             removeBuffer(callState.callSessionName)
@@ -1712,8 +1697,9 @@ async function startServer(handleRequest) {
       // whatever it was doing — BUT only if it is NOT currently live in tmux
       // (resuming an active terminal session would put two processes on one
       // session_id). If a live tmux session exists, start fresh.
-      let terminalLive = false
-      try { execFileSync('tmux', ['has-session', '-t', agentName || agentKey], { stdio: 'ignore', timeout: 2000 }); terminalLive = true } catch { /* not live */ }
+      // A name that is not a valid session name cannot be live (hasSessionSync
+      // returns false for it instead of passing it to tmux).
+      const terminalLive = tmuxRt.hasSessionSync(agentName || agentKey, { timeout: 2000 })
       if (!terminalLive) {
         const latest = resolveJsonlPath(agent)
         if (latest && latest.name.endsWith('.jsonl')) resumeSessionId = latest.name.slice(0, -6)
@@ -1808,16 +1794,15 @@ async function startServer(handleRequest) {
       return
     }
 
-    // SECURITY (GHSA-2vm8-3q4q-wqv3, same class, different door). This name is
-    // interpolated into tmux SHELL STRINGS further down this file (capture-pane,
-    // send-keys, paste-buffer). The advisory covers the HTTP route; this
-    // WebSocket is a second unauthenticated path to the same primitive, and it
-    // validated only that the name was a non-empty string.
+    // SECURITY (GHSA-2vm8-3q4q-wqv3, same class, different door). This name
+    // used to be interpolated into tmux SHELL STRINGS further down this file
+    // (capture-pane, send-keys, paste-buffer). The advisory covers the HTTP
+    // route; this WebSocket is a second unauthenticated path to the same
+    // primitive, and it validated only that the name was a non-empty string.
     //
-    // Rejecting here is a choke point: every tmux call in this file receives a
-    // name that has already passed, which is what the previous fix — validating
-    // at one route — failed to achieve. The per-call argv conversion is still
-    // worth doing, but this is what closes the hole.
+    // Since F026 Phase 0 those calls are argv-only through lib/tmux-runtime.mjs,
+    // which validates the target again on every call. Rejecting here as well
+    // keeps a bad name from reaching the registry lookups and log lines below.
     if (!isValidSessionName(sessionName)) {
       console.warn(`[Security] Rejected WebSocket session name: ${JSON.stringify(sessionName).slice(0, 80)}`)
       ws.close(1008, 'Invalid session name')
@@ -2265,8 +2250,8 @@ async function startServer(handleRequest) {
       }
     }
 
-    // Helper: prepend custom-socket args for tmux invocations on this session
-    const tmuxArgs = (args) => (socketPath ? ['-S', socketPath, ...args] : args)
+    // tmux invocations on this session go to its custom socket, if it has one
+    const onSocket = { socketPath }
 
     // Capability handshake: clients must NOT send new protocol frames (like
     // tmux-scroll) to servers that don't understand them — old servers write
@@ -2285,8 +2270,8 @@ async function startServer(handleRequest) {
     // message below, which drives tmux copy-mode server-side.
     // Async execFile: these used to be execSync and blocked the event loop —
     // and therefore every other session's output — for up to 5s per connect.
-    execFile('tmux', tmuxArgs(['set-option', '-t', sessionName, 'mouse', 'off']), { timeout: 2000 }, (err) => {
-      if (err) console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, err.message)
+    tmuxRt.setOptionAsync(sessionName, 'mouse', 'off', { ...onSocket, timeout: 2000 }).catch((err) => {
+      console.warn(`[PTY] Failed to set mouse off for ${sessionName}:`, err.message)
     })
 
     // Disable the alternate screen for agent sessions. Claude Code runs on the
@@ -2296,8 +2281,8 @@ async function startServer(handleRequest) {
     // transcript accumulates in tmux history like a normal terminal (iTerm2
     // behaves this way by default). Takes effect the next time the app enters
     // the alt screen — i.e. after the claude process in the session restarts.
-    execFile('tmux', tmuxArgs(['set-option', '-w', '-t', sessionName, 'alternate-screen', 'off']), { timeout: 2000 }, (err) => {
-      if (err) console.warn(`[PTY] Failed to set alternate-screen off for ${sessionName}:`, err.message)
+    tmuxRt.setOptionAsync(sessionName, 'alternate-screen', 'off', { window: true, ...onSocket, timeout: 2000 }).catch((err) => {
+      console.warn(`[PTY] Failed to set alternate-screen off for ${sessionName}:`, err.message)
     })
 
     // Track connection as activity (so newly opened sessions show as active)
@@ -2315,27 +2300,24 @@ async function startServer(handleRequest) {
     // We send this as a single snapshot and intentionally DON'T add the client to the
     // PTY broadcast set yet — the PTY's initial `tmux attach` redraw would duplicate
     // the visible area. By delaying broadcast join, the redraw is discarded.
-    execFile(
-      'tmux',
-      tmuxArgs(['capture-pane', '-t', sessionName, '-e', '-p', '-S', '-5000']),
-      { encoding: 'utf8', timeout: 3000, maxBuffer: 32 * 1024 * 1024 },
-      (err, paneContent) => {
-        if (err) {
-          console.warn(`[PTY] History capture failed for ${sessionName}:`, err.message)
-        } else if (paneContent && paneContent.trim() && ws.readyState === 1) {
-          try { ws.send(paneContent.replace(/\n/g, '\r\n')) } catch { /* client gone */ }
-        }
-        // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
-        // 150ms is enough for the tmux attach redraw to fire and be ignored.
-        // After this, the client receives all live PTY output going forward.
-        setTimeout(() => {
-          sessionState.clients.add(ws)
-          if (ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'history-complete' }))
-          }
-        }, 150)
+    const afterHistory = (err, paneContent) => {
+      if (err) {
+        console.warn(`[PTY] History capture failed for ${sessionName}:`, err.message)
+      } else if (paneContent && paneContent.trim() && ws.readyState === 1) {
+        try { ws.send(paneContent.replace(/\n/g, '\r\n')) } catch { /* client gone */ }
       }
-    )
+      // Add client to broadcast AFTER the PTY's initial redraw has passed (discarded).
+      // 150ms is enough for the tmux attach redraw to fire and be ignored.
+      // After this, the client receives all live PTY output going forward.
+      setTimeout(() => {
+        sessionState.clients.add(ws)
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'history-complete' }))
+        }
+      }, 150)
+    }
+    tmuxRt.captureHistoryAsync(sessionName, 5000, { ...onSocket, timeout: 3000, maxBuffer: 32 * 1024 * 1024 })
+      .then((paneContent) => afterHistory(null, paneContent), (err) => afterHistory(err))
 
     // Handle client input
     ws.on('message', async (data) => {
@@ -2365,13 +2347,14 @@ async function startServer(handleRequest) {
           if (parsed.type === 'tmux-scroll' && typeof parsed.lines === 'number' && parsed.lines !== 0) {
             const n = String(Math.min(Math.abs(Math.trunc(parsed.lines)), 100))
             if (parsed.lines < 0) {
-              execFile('tmux', tmuxArgs(['copy-mode', '-e', '-t', sessionName]), { timeout: 2000 }, () => {
-                execFile('tmux', tmuxArgs(['send-keys', '-t', sessionName, '-X', '-N', n, 'scroll-up']), { timeout: 2000 }, () => { /* ignore */ })
+              // Scroll whether or not entering copy-mode succeeded (as before).
+              tmuxRt.enterCopyModeAsync(sessionName, { ...onSocket, timeout: 2000 }).catch(() => {}).then(() => {
+                tmuxRt.scrollAsync(sessionName, 'up', n, { ...onSocket, timeout: 2000 }).catch(() => { /* ignore */ })
               })
             } else {
               // scroll-down is only meaningful inside copy-mode; if the pane is
               // already at the live view the command fails harmlessly.
-              execFile('tmux', tmuxArgs(['send-keys', '-t', sessionName, '-X', '-N', n, 'scroll-down']), { timeout: 2000 }, () => { /* ignore */ })
+              tmuxRt.scrollAsync(sessionName, 'down', n, { ...onSocket, timeout: 2000 }).catch(() => { /* ignore */ })
             }
             return
           }
@@ -2502,10 +2485,9 @@ async function startServer(handleRequest) {
 
     // Kill orphaned __call tmux sessions from previous server crashes
     try {
-      const tmuxOut = execFileSync('tmux', ['list-sessions', '-F', '#{session_name}'], { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'ignore'] })
-      for (const name of tmuxOut.trim().split('\n')) {
+      for (const name of tmuxRt.listSessionNamesSync({ timeout: 5000 })) {
         if (name && name.endsWith('__call')) {
-          try { execFileSync('tmux', ['kill-session', '-t', name], { stdio: 'ignore', timeout: 5000 }) } catch { /* ignore */ }
+          try { tmuxRt.killSessionSync(name, { timeout: 5000 }) } catch { /* ignore */ }
           console.log(`[CALL-SESSION] Cleaned up orphaned call session: ${name}`)
         }
       }

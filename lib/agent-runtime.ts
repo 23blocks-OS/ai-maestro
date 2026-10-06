@@ -8,15 +8,15 @@
  * Phase 4 of the service-layer refactoring.
  */
 
-import { exec, execFileSync as nodeExecFileSync } from 'child_process'
-import { promisify } from 'util'
+import { execFileSync as nodeExecFileSync } from 'child_process'
 // SECURITY (GHSA-2vm8-3q4q-wqv3): every tmux call below goes through these.
 // They use execFile with an argument vector and reject malformed session names,
 // so no caller can reach a shell with attacker-controlled text. See the header
 // of lib/tmux-safe.mjs for why validation lives here and not at the routes.
 import { tmux, assertSessionName, assertPaneTarget, splitKeySpec } from '@/lib/tmux-safe.mjs'
+// The operations server.mjs also needs live in plain ESM so both share them.
+import * as tmuxRt from '@/lib/tmux-runtime.mjs'
 
-const execAsync = promisify(exec)
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -60,13 +60,34 @@ export interface AgentRuntime {
   capturePaneRaw(name: string, lines?: number): Promise<string>
   /** Press one key N times (clearing an input box with backspaces). */
   repeatKey(name: string, key: string, times: number): Promise<void>
+  /**
+   * Put text into the pane as ONE paste (tmux paste buffer), not as typed
+   * keys, so a TUI does not treat each line as a keypress. Does not submit.
+   */
+  pasteText(name: string, text: string): Promise<void>
+  /** Scrollback with escapes, for replaying history to a new terminal client. */
+  captureHistory(name: string, lines?: number, opts?: RuntimeTargetOpts): Promise<string>
+
+  // Scrollback (copy-mode)
+  enterCopyMode(name: string, opts?: RuntimeTargetOpts): Promise<void>
+  /** Scroll the copy-mode view. Outside copy-mode this is a harmless no-op. */
+  scroll(name: string, direction: 'up' | 'down', lines: number, opts?: RuntimeTargetOpts): Promise<void>
+
+  // Session options
+  /** Set a session (or, with window: true, window) option. */
+  setOption(name: string, option: string, value: string, opts?: RuntimeTargetOpts & { window?: boolean }): Promise<void>
 
   // Environment
   setEnvironment(name: string, key: string, value: string): Promise<void>
   unsetEnvironment(name: string, key: string): Promise<void>
 
   // PTY (returns spawn args for node-pty -- runtime doesn't own the PTY)
-  getAttachCommand(name: string, socketPath?: string): { command: string; args: string[] }
+  getAttachCommand(name: string, socketPath?: string, opts?: { readOnly?: boolean }): { command: string; args: string[] }
+}
+
+/** Where a session lives when it is not on the default server (tmux `-S`). */
+export interface RuntimeTargetOpts {
+  socketPath?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -369,13 +390,41 @@ export class TmuxRuntime implements AgentRuntime {
     }
   }
 
+  // -- Paste, history, copy-mode, options (shared with server.mjs) ---------
+  //
+  // These delegate to lib/tmux-runtime.mjs, the same functions server.mjs
+  // calls, so the argv for each operation is defined once.
+
+  async pasteText(name: string, text: string): Promise<void> {
+    await tmuxRt.pasteTextAsync(name, text)
+  }
+
+  async captureHistory(name: string, lines: number = 5000, opts: RuntimeTargetOpts = {}): Promise<string> {
+    return tmuxRt.captureHistoryAsync(name, lines, { socketPath: opts.socketPath })
+  }
+
+  async enterCopyMode(name: string, opts: RuntimeTargetOpts = {}): Promise<void> {
+    await tmuxRt.enterCopyModeAsync(name, { socketPath: opts.socketPath })
+  }
+
+  async scroll(name: string, direction: 'up' | 'down', lines: number, opts: RuntimeTargetOpts = {}): Promise<void> {
+    const n = Math.max(1, Math.min(100, Math.floor(Math.abs(lines))))
+    await tmuxRt.scrollAsync(name, direction, n, { socketPath: opts.socketPath })
+  }
+
+  async setOption(
+    name: string,
+    option: string,
+    value: string,
+    opts: RuntimeTargetOpts & { window?: boolean } = {}
+  ): Promise<void> {
+    await tmuxRt.setOptionAsync(name, option, value, { window: !!opts.window, socketPath: opts.socketPath })
+  }
+
   // -- PTY -----------------------------------------------------------------
 
-  getAttachCommand(name: string, socketPath?: string): { command: string; args: string[] } {
-    if (socketPath) {
-      return { command: 'tmux', args: ['-S', socketPath, 'attach-session', '-t', name] }
-    }
-    return { command: 'tmux', args: ['attach-session', '-t', name] }
+  getAttachCommand(name: string, socketPath?: string, opts: { readOnly?: boolean } = {}): { command: string; args: string[] } {
+    return tmuxRt.attachCommand(name, { socketPath, readOnly: !!opts.readOnly })
   }
 }
 

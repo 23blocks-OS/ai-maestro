@@ -1,0 +1,25 @@
+{
+  "info": {
+    "id": "01a11267-e308-7fc1-ae44-da77d8c47e25",
+    "cwd": "/private/tmp/claude-501/-Users-juanpelaez-23blocks-webApps-agents-web/ae46ef4f-8de7-4da7-9eb8-61c82c0b0622/scratchpad/probe"
+  },
+  "agent_id": "ag1.c707942f2ae0477aa32e305d0084892f",
+  "attempt_id": "at1.8d0c23a8b6d442bb4870893d5b51a72",
+  "session_summary": "Create askme.txt via touch command",
+  "created_at": "2026-10-06T18:09:20.684992Z",
+  "updated_at": "2026-10-06T18:09:51.637901Z",
+  "num_messages": 10,
+  "num_chat_messages": 10,
+  "current_model_id": "grok-4.7",
+  "next_trace_turn": 1,
+  "chat_format_version": 1,
+  "request_id": "7be6ec1a-1eec-4d14-8e0d-2d043977866f",
+  "grok_home": "/Users/juanpelaez/.grok",
+  "last_active_at": "2026-10-06T18:09:49.913643Z",
+  "generated_title": "Create askme.txt via touch command",
+  "agent_name": "grok-build-plan",
+  "sandbox_profile": "off",
+  "reasoning_effort": "high",
+  "last_turn_summary": "Created empty `askme.txt` in the current directory",
+  "last_turn_summary_prompt_id": "7be6ec1a-1eec-4d14-8e0d-2d043977866f"
+}

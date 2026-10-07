@@ -514,7 +514,11 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await sendCommand(params.id, body))
+    sendServiceResult(res, await sendCommand(params.id, body.command, {
+      requireIdle: body.requireIdle,
+      addNewline: body.addNewline,
+      verify: body.verify,
+    }))
   }},
   { method: 'PATCH', pattern: /^\/api\/sessions\/([^/]+)\/rename$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1025,7 +1029,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/subconscious$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await triggerSubconsciousAction(params.id, body))
+    sendServiceResult(res, await triggerSubconsciousAction(params.id, body.action))
   }},
 
   // Brain Inbox

@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.3] - 2026-10-07 - Headless hosts: the session command and subconscious routes work (#539)
+
+Reported by @vguera (#539), with the fix and a regression test proposed in the issue. mac-mini runs headless, so these routes were dead there.
+
+- **`POST /api/sessions/:id/command` rejected every request** with `missing_field`. The headless router passed the whole parsed body to `sendCommand`, whose second parameter is the command string. It also dropped `requireIdle`, `addNewline` and `verify`. It now passes `body.command` and the three options, exactly as the Next.js route does.
+- **`POST /api/agents/:id/subconscious` had the same mistake.** The issue said `sendCommand` was the only mismatch; checking every route found a second one, `triggerSubconsciousAction`, which takes the action string and was given the body. Fixed the same way.
+- **Tests assert on the arguments the service receives**, not the response (`tests/headless-router-args.test.ts`): they fail without the fix. One more test scans every headless route that passes a bare `body` and fails if the callee's parameter is a bare `string`, so the class of bug cannot return unnoticed.
+- **`CONTRIBUTING.md`** said there was no automated test suite. It now describes `yarn test`, `yarn build`, and writing a test that fails without your fix.
+
 ## [0.60.2] - 2026-10-07 - A freshly started agent is idle, not working (#551)
 
 Reported by Jakub Richtr (#551): after an update or an `aimaestro-agent.sh restart`, every agent showed as **working** while sitting at an empty prompt, and incoming messages were deferred for up to 15 minutes.

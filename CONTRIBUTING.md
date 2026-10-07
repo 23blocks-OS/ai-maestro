@@ -194,9 +194,16 @@ agents-web/
 
 ## Testing
 
-Currently, there's no automated test suite. When contributing:
+There is an automated suite (vitest, about 100 files in `tests/`). CI runs it, plus lint and the installer tests, on every push and pull request. Before you open a PR:
 
-**Manual Testing Checklist:**
+```bash
+yarn test     # the whole suite must pass
+yarn build    # must pass; run it in a separate checkout if a dev or production server is running from this one
+```
+
+Add a test with your change. For a bug fix, write the test so it fails without your fix. When a route hands arguments to a service, assert on the arguments the service receives, not only on the response (see `tests/headless-router-args.test.ts`).
+
+**Manual Testing Checklist** (for UI changes, on top of the tests):
 1. Start the dashboard (`yarn dev`)
 2. Create test agents
 3. Test agent switching

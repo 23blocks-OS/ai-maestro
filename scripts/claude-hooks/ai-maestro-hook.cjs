@@ -247,11 +247,53 @@ function writeState(cwd, state) {
     return broadcastStatusUpdate(cwd, state).catch(() => {});
 }
 
+// Debug log: 25 MB active + 25 MB previous = 50 MB ceiling (B013: it used to grow without
+// limit, 373 MB in nine months). One file is moved aside when it passes the cap; a file
+// that is far past it (written before this existed) is cut to its tail instead of being
+// copied whole into the backup.
+const DEBUG_LOG_MAX_BYTES = 25 * 1024 * 1024;
+const DEBUG_LOG_TAIL_BYTES = 5 * 1024 * 1024;
+const DEBUG_FIELD_MAX_CHARS = 1000;
+
+function rotateDebugLog(file, maxBytes = DEBUG_LOG_MAX_BYTES, tailBytes = DEBUG_LOG_TAIL_BYTES) {
+    try {
+        const size = fs.statSync(file).size;
+        if (size <= maxBytes) return 'none';
+        if (size > maxBytes * 2) {
+            const fd = fs.openSync(file, 'r');
+            const buf = Buffer.alloc(tailBytes);
+            fs.readSync(fd, buf, 0, tailBytes, size - tailBytes);
+            fs.closeSync(fd);
+            const nl = buf.indexOf(10); // start at a line boundary
+            fs.writeFileSync(file, nl >= 0 ? buf.subarray(nl + 1) : buf);
+            return 'trimmed';
+        }
+        fs.renameSync(file, file + '.1');
+        return 'rotated';
+    } catch (e) {
+        return 'error'; // logging must never break the hook
+    }
+}
+
+// Long strings (prompts, tool outputs, whole tool batches) are what made the log large.
+// Clip each one but keep every line valid JSON so the log stays greppable and parseable.
+function clipForLog(value, max = DEBUG_FIELD_MAX_CHARS, depth = 0) {
+    if (typeof value === 'string') {
+        return value.length > max ? value.slice(0, max) + `...[+${value.length - max} chars]` : value;
+    }
+    if (depth > 6 || value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.slice(0, 50).map(v => clipForLog(v, max, depth + 1));
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = clipForLog(value[k], max, depth + 1);
+    return out;
+}
+
 // Log to debug file
 function debugLog(data) {
     const debugFile = path.join(os.homedir(), '.aimaestro', 'chat-state', 'hook-debug.log');
     const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] ${JSON.stringify(data)}\n`;
+    const line = `[${timestamp}] ${JSON.stringify(clipForLog(data))}\n`;
+    rotateDebugLog(debugFile);
     fs.appendFileSync(debugFile, line);
 }
 
@@ -1172,6 +1214,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+    rotateDebugLog,
+    clipForLog,
     sessionStartStatus,
     readLocalRegistry,
     buildMemoryNotice,

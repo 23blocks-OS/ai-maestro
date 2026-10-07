@@ -1042,6 +1042,16 @@ After mastering basic operations:
 
 ---
 
+## Logs and disk use
+
+Since 0.60.5 no log grows past 50 MB. `update-aimaestro.sh` and the installer run `scripts/setup-log-rotation.sh`, which:
+
+- installs the pm2 `pm2-logrotate` module (rotate at 50 MB, keep 2 files). It applies to every app pm2 runs on the host;
+- trims `logs/pm2-out.log`, `logs/pm2-error.log` and `logs/startup.log` if they are already past 50 MB, keeping the last 5 MB;
+- trims `~/.aimaestro/chat-state/hook-debug.log` if it is past 25 MB. The hook rotates that file itself from then on (25 MB active plus 25 MB previous).
+
+Run it by hand any time with `scripts/setup-log-rotation.sh`. Set `AIM_LOG_ROTATION=off` to skip it. It needs network once, to install the module; offline it prints a warning and carries on. An install without pm2 only has `startup.log` trimmed when you update.
+
 ## Known Issues
 
 ### AMP commands prompt for permission on every use

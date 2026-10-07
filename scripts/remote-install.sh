@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.60.4"
+VERSION="0.60.5"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -1189,6 +1189,7 @@ act4_start_and_register() {
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
                 pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                bash "$INSTALL_DIR/scripts/setup-log-rotation.sh" "$INSTALL_DIR" || true
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1227,6 +1228,8 @@ act4_start_and_register() {
                 pm2 start "yarn start" --name ai-maestro 2>/dev/null
             fi
             pm2 save 2>/dev/null || true
+            # Cap the pm2 logs at 50 MB (B013)
+            bash "$INSTALL_DIR/scripts/setup-log-rotation.sh" "$INSTALL_DIR" || true
         else
             # No pm2 — start in background
             mkdir -p "$INSTALL_DIR/logs"

@@ -997,6 +997,40 @@ export class Agent {
 }
 
 /**
+ * An agent id names a directory (`~/.aimaestro/agents/<id>`), so it has to be a plain
+ * name: no separators, no `.`/`..`. B009: any id used to be accepted, and the first
+ * request for an unknown one created a database folder for it.
+ */
+export function isSafeAgentId(agentId: string): boolean {
+  return typeof agentId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(agentId) && !agentId.includes('..')
+}
+
+/**
+ * Is this an agent this host knows? Registered (even soft-deleted: its memory is
+ * still on disk) or already holding data on disk (an orphaned database an operator
+ * may still want to read). Anything else is not an agent and must not get a folder.
+ */
+export function isKnownAgentId(agentId: string): boolean {
+  if (!isSafeAgentId(agentId)) return false
+  try {
+    if (getAgentFromRegistry(agentId, true)) return true
+  } catch { /* registry unreadable: fall through to the disk check */ }
+  try {
+    return fs.existsSync(path.join(os.homedir(), '.aimaestro', 'agents', agentId))
+  } catch {
+    return false
+  }
+}
+
+export class AgentNotFoundError extends Error {
+  readonly code = 'agent_not_found'
+  constructor(agentId: string) {
+    super(`Agent '${String(agentId).slice(0, 64)}' not found`)
+    this.name = 'AgentNotFoundError'
+  }
+}
+
+/**
  * Agent Registry - Manages agent lifecycle with LRU eviction
  *
  * This singleton keeps track of active agents with a maximum limit.
@@ -1083,6 +1117,9 @@ export class AgentRegistry {
       this.touch(agentId)
       return agent
     }
+
+    // Never create an agent (and its database folder) for an id this host does not know.
+    if (!isKnownAgentId(agentId)) throw new AgentNotFoundError(agentId)
 
     // Evict LRU agent if at capacity before creating new one
     await this.evictIfNeeded()

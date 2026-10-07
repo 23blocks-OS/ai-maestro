@@ -19,6 +19,7 @@ import {
   getDocumentWithSections,
 } from '@/lib/rag/doc-indexer'
 import { type ServiceResult, invalidRequest, notFound, missingField } from '@/services/service-errors'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 export interface DocsQueryOptions {
   action: string
@@ -52,6 +53,8 @@ export async function queryDocs(
 
   console.log(`[Docs Service] Agent: ${agentId}, Action: ${action}`)
 
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
   const agent = await agentRegistry.getAgent(agentId)
   const agentDb = await agent.getDatabase()
 
@@ -200,6 +203,8 @@ export async function indexDocs(
     console.log(`[Docs Service] Auto-detected projectPath from registry: ${projectPath}`)
   }
 
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
   const agent = await agentRegistry.getAgent(agentId)
   const agentDb = await agent.getDatabase()
 
@@ -251,6 +256,8 @@ export async function clearDocs(
 ): Promise<ServiceResult<Record<string, unknown>>> {
   console.log(`[Docs Service] Clearing docs for agent ${agentId}${projectPath ? `: ${projectPath}` : ' (all)'}`)
 
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
   const agent = await agentRegistry.getAgent(agentId)
   const agentDb = await agent.getDatabase()
 

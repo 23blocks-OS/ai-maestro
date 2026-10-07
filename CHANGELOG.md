@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.4] - 2026-10-07 - A request for an unknown agent id no longer creates an agent (B009)
+
+Found while verifying the 0.60.3 fix on mac-mini: `POST /api/agents/does-not-exist/subconscious` answered `success` and left a database folder for an agent that does not exist.
+
+- **Cause:** `AgentRegistry.getAgent` is get-or-create and never asked whether the id belongs to an agent. The first request for any id opened `~/.aimaestro/agents/<id>/agent.db`, wrote a `status.json` and held one of the 10 LRU slots. The id was also joined into the path unchecked, so `..` resolved outside the agents directory.
+- **Fix:** an id must be a plain name (no separators, no `.` or `..`, 128 characters at most) and must be an agent this host knows: registered (soft-deleted included, since its memory is still on disk) or already holding a folder on disk. Anything else is refused before anything is created. The docs, graph, memory, skills, subconscious and conversation-message services answer `404 agent_not_found` first.
+- **Tests:** unknown and traversal ids create nothing (run against a temporary `HOME`, never the real one); registered, soft-deleted and orphaned agents still load; a test counts agent loads against guards in every service so a new service that forgets one fails CI.
+- **Not cleaned up:** stray folders from earlier requests stay, because they cannot be told apart from orphaned memory you may want. This Mac has 182 agent folders for 106 registered agents.
+
 ## [0.60.3] - 2026-10-07 - Headless hosts: the session command and subconscious routes work (#539)
 
 Reported by @vguera (#539), with the fix and a regression test proposed in the issue. mac-mini runs headless, so these routes were dead there.

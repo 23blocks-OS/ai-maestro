@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.5] - 2026-10-07 - Log rotation: no log grows past 50 MB (B013)
+
+Two logs had no limit at all. On a long-lived host `logs/pm2-out.log` reached **3.4 GB** and the hook's `hook-debug.log` **373 MB** (nine months of full hook inputs). Neither is a CPU problem, but they fill small disks and make every `pm2 logs` or log search slow.
+
+- **New `scripts/setup-log-rotation.sh`**, run by `update-aimaestro.sh` before the restart and by the installer after pm2 starts. It installs the `pm2-logrotate` module with `max_size 50M`, `retain 2`, `compress false` (set only when it differs, so reruns change nothing) and trims files already past the cap (pm2 logs over 50 MB, the hook log over 25 MB) to their last 5 MB. It never fails the update. `AIM_LOG_ROTATION=off` skips it. Needs network once to install the module; offline it warns and carries on.
+- **The hook rotates its own debug log:** 25 MB active plus 25 MB previous, so 50 MB at most. A file far past the cap is cut to its tail rather than copied whole. Every logged string is clipped to 1000 characters and each line stays valid JSON, so the log is smaller and still greppable. Plugin 1.4.4.
+- **pm2-logrotate applies to every app pm2 runs on the host**, not only AI Maestro. That is the module's behaviour.
+- **Installs without pm2** (`nohup yarn start`) only have `startup.log` trimmed at update time; it is not rotated while running.
+- Tests: `tests/log-rotation.test.ts` (rotation, clipping, the script with a fake pm2, trimming, idempotence, wiring).
+- Backlog: B010 (injection and unchecked ids), B011 (status never cleared), B012 (headless route differences), F029 (test safety net) and F030 (reply to an earlier message) are filed for 2026-10-08.
+
 ## [0.60.4] - 2026-10-07 - A request for an unknown agent id no longer creates an agent (B009)
 
 Found while verifying the 0.60.3 fix on mac-mini: `POST /api/agents/does-not-exist/subconscious` answered `success` and left a database folder for an agent that does not exist.

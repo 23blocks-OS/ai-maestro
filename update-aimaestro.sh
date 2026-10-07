@@ -313,6 +313,12 @@ if [ -f "verify-installation.sh" ]; then
     fi
 fi
 
+# Log rotation (B013): cap the pm2 and hook logs at 50 MB, trim any already past the cap.
+# Idempotent, and it never fails the update.
+echo ""
+print_step "$BUILD" "Setting up log rotation..."
+bash "$(pwd)/scripts/setup-log-rotation.sh" "$(pwd)" || print_warning "Log rotation setup failed (not fatal)"
+
 # Check if PM2 is managing ai-maestro
 echo ""
 if command -v pm2 &> /dev/null; then

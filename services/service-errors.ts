@@ -155,6 +155,11 @@ export function notFound(entity: string, id?: string): ServiceResult<never> {
   return serviceError('not_found', msg, 404)
 }
 
+/** 404 — No agent with this id on this host. */
+export function agentNotFound(agentId: string): ServiceResult<never> {
+  return serviceError('agent_not_found', `Agent '${String(agentId).slice(0, 64)}' not found`, 404)
+}
+
 /** 409 — Entity already exists. */
 export function alreadyExists(entity: string, name?: string): ServiceResult<never> {
   const msg = name ? `${entity} '${name}' already exists` : `${entity} already exists`

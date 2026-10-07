@@ -14,7 +14,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 const { mockGetAgent } = vi.hoisted(() => ({ mockGetAgent: vi.fn() }))
-vi.mock('@/lib/agent', () => ({ agentRegistry: { getAgent: mockGetAgent } }))
+// These tests use in-memory databases for made-up ids; the id check (B009) is covered in unknown-agent-id.test.ts.
+vi.mock('@/lib/agent', () => ({ agentRegistry: { getAgent: mockGetAgent }, isKnownAgentId: () => true }))
 
 import { getTracking, initializeTracking } from '@/services/agents-memory-service'
 import {

@@ -40,6 +40,7 @@ import {
   getProjectFileMetadata,
 } from '@/lib/rag/code-indexer'
 import { type ServiceResult, missingField, notFound, invalidRequest, operationFailed } from '@/services/service-errors'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -69,6 +70,8 @@ function escapeString(str: string): string {
 
 export async function getDatabaseInfo(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -99,6 +102,8 @@ export async function getDatabaseInfo(agentId: string): Promise<ServiceResult<an
 
 export async function initializeDatabase(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -152,6 +157,8 @@ export async function queryDbGraph(
 
     console.log(`[Graph Service] queryDbGraph Agent: ${agentId}, Action: ${action}`)
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -277,6 +284,8 @@ export async function indexDbSchema(
 
     console.log(`[Graph Service] Indexing database schema for agent ${agentId}`)
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -313,6 +322,8 @@ export async function clearDbGraph(
 
     console.log(`[Graph Service] Clearing database schema graph for agent ${agentId}: ${databaseName}`)
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -347,6 +358,8 @@ export async function queryGraph(
 
     console.log(`[Graph Service] queryGraph Agent: ${agentId}, Query: ${queryType}, Name: ${name}`)
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -831,6 +844,8 @@ export async function queryCodeGraph(
 
     console.log(`[Graph Service] queryCodeGraph Agent: ${agentId}, Action: ${action}`)
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1142,6 +1157,8 @@ export async function indexCodeGraph(
       console.log(`[Graph Service] Auto-detected projectPath from registry: ${projectPath}`)
     }
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1240,6 +1257,8 @@ export async function deleteCodeGraph(
 
     console.log(`[Graph Service] Clearing code graph for agent ${agentId}: ${projectPath}`)
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 

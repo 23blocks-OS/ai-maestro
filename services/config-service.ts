@@ -36,6 +36,7 @@ import type {
   MessageCheckResult,
 } from '@/types/subconscious'
 import { type ServiceResult, missingField, notFound, operationFailed } from '@/services/service-errors'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 const execAsync = promisify(exec)
 
@@ -738,6 +739,9 @@ export async function getConversationMessages(
 
   try {
     const conversationFile = decodeURIComponent(encodedFile)
+
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
 
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()

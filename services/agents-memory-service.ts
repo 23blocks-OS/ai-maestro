@@ -74,6 +74,7 @@ import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, accessDenied, operationFailed } from '@/services/service-errors'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -234,6 +235,8 @@ async function prepareConversations(
 
 export async function getMemory(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -270,6 +273,8 @@ export async function initializeMemory(
   body: { populateFromSessions?: boolean; force?: boolean }
 ): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -472,6 +477,8 @@ export async function initializeMemory(
 
 export async function getConsolidationStatus(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -558,6 +565,8 @@ export async function triggerConsolidation(
   consolidating.add(agentId)
   try {
     // Pinned: the agent's database must stay open for the whole run
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     return await agentRegistry.withAgent(agentId, () => runTriggeredConsolidation(agentId, options))
   } finally {
     consolidating.delete(agentId)
@@ -621,6 +630,8 @@ export async function manageConsolidation(
   body: { action: string; minReinforcements?: number; minAgeDays?: number; retentionDays?: number; dryRun?: boolean }
 ): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -900,6 +911,8 @@ async function memoryCreatedAt(
 export async function getMemoryEntity(agentId: string, name: string | null | undefined): Promise<ServiceResult<any>> {
   if (!name?.trim()) return missingField('name')
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
     const about = await aboutEntity(agentDb, agentId, name.trim())
@@ -935,6 +948,8 @@ export async function queryLongTermMemories(
       minConfidence = 0, tier, view, memoryId, maxTokens = 2000, offset = 0, includeFaded = false
     } = params
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1043,6 +1058,8 @@ export async function deleteLongTermMemory(agentId: string, memoryId: string): P
       return missingField('memoryId')
     }
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1092,6 +1109,8 @@ export async function updateLongTermMemory(
       return invalidRequest('At least one field (content, category, context) must be provided')
     }
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1186,6 +1205,8 @@ export async function searchConversations(
       console.error('[Memory Service] Background delta indexing failed:', err)
     })
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1231,6 +1252,8 @@ export async function ingestConversations(
       return invalidField('conversationFiles', 'conversationFiles must be an array')
     }
 
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1278,6 +1301,8 @@ export async function runDeltaIndex(
 
 export async function getTracking(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1314,6 +1339,8 @@ export async function initializeTracking(
   body: { addSampleData?: boolean }
 ): Promise<ServiceResult<any>> {
   try {
+    const unknownAgent = unknownAgentResult(agentId)
+    if (unknownAgent) return unknownAgent
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 

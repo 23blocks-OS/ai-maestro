@@ -10,6 +10,7 @@ import os from 'os'
 import path from 'path'
 import { agentRegistry } from '@/lib/agent'
 import { type ServiceResult, notInitialized, invalidRequest } from '@/services/service-errors'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 /**
  * Last status the agent's subconscious wrote to disk.
@@ -132,6 +133,8 @@ export async function triggerSubconsciousAction(
   agentId: string,
   action: string
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
   const agent = await agentRegistry.getAgent(agentId)
   const subconscious = agent.getSubconscious()
 

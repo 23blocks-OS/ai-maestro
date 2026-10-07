@@ -20,6 +20,7 @@ import { agentRegistry } from '@/lib/agent'
 import fs from 'fs/promises'
 import path from 'path'
 import { type ServiceResult, missingField, notFound, invalidField, operationFailed } from '@/services/service-errors'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -177,6 +178,8 @@ export function removeSkill(
  * Get skill settings for an agent.
  */
 export async function getSkillSettings(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
   const agent = await agentRegistry.getAgent(agentId)
   if (!agent) {
     return notFound('Agent', agentId)
@@ -205,6 +208,8 @@ export async function saveSkillSettings(
     return missingField('settings')
   }
 
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
   const agent = await agentRegistry.getAgent(agentId)
   if (!agent) {
     return notFound('Agent', agentId)

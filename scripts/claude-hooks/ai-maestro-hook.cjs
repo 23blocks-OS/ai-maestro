@@ -819,6 +819,15 @@ function decideStopDelivery({ agent, stopHookActive, messages, alreadyIds }) {
     };
 }
 
+// Status to record when a session starts. Claude Code and Grok Build start at an
+// empty prompt (reported in #551; Grok confirmed from a live session's hook log), so
+// they are idle until UserPromptSubmit says otherwise. 'compact' can fire mid-turn,
+// and other CLIs' SessionStart semantics are unverified, so those keep 'active'.
+function sessionStartStatus(agent, source) {
+    if ((agent === 'claude' || agent === 'grok') && source !== 'compact') return 'idle';
+    return 'active';
+}
+
 // Main
 async function main() {
     const input = await readStdin();
@@ -1074,9 +1083,13 @@ async function main() {
         }
 
         case 'SessionStart':
-            // Session started - record the session info
+            // Session started - record the session info.
+            // A fresh session sits at an empty prompt, so it is idle: 'active' here
+            // is never cleared until the first Stop, and the wake queue then defers
+            // every message for HOOK_STATUS_TTL_MS (15 min). UserPromptSubmit reports
+            // 'active' as soon as a turn starts. See sessionStartStatus.
             await writeState(cwd, {
-                status: 'active',
+                status: sessionStartStatus(agent, input.source),
                 message: null,
                 sessionId,
                 transcriptPath,
@@ -1159,6 +1172,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+    sessionStartStatus,
     readLocalRegistry,
     buildMemoryNotice,
     buildEntityNotice,

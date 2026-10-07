@@ -53,3 +53,21 @@ describe('buildContextResponse · grok', () => {
     expect(hook.buildContextResponse('claude', 'UserPromptSubmit', 'x').hookSpecificOutput.additionalContext).toBe('x')
   })
 })
+
+// #551: a fresh session sits at an empty prompt, so SessionStart must not report
+// 'active' (nothing clears it until the first Stop, and wakes defer for 15 minutes).
+describe('sessionStartStatus', () => {
+  it('reports idle for a fresh claude or grok session', () => {
+    for (const agent of ['claude', 'grok'])
+      for (const source of ['startup', 'resume', 'clear', 'new', undefined])
+        expect(hook.sessionStartStatus(agent, source)).toBe('idle')
+  })
+  it('keeps active for compact, which can fire mid-turn', () => {
+    expect(hook.sessionStartStatus('claude', 'compact')).toBe('active')
+    expect(hook.sessionStartStatus('grok', 'compact')).toBe('active')
+  })
+  it('keeps active for CLIs whose SessionStart is unverified', () => {
+    for (const agent of ['codex', 'gemini'])
+      expect(hook.sessionStartStatus(agent, 'startup')).toBe('active')
+  })
+})

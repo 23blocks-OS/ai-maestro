@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.2] - 2026-10-07 - A freshly started agent is idle, not working (#551)
+
+Reported by Jakub Richtr (#551): after an update or an `aimaestro-agent.sh restart`, every agent showed as **working** while sitting at an empty prompt, and incoming messages were deferred for up to 15 minutes.
+
+- **Cause:** the SessionStart hook recorded `active`. A fresh session sits at an empty prompt, so no Stop ever arrives, and nothing cleared the state until `HOOK_STATUS_TTL_MS` (15 minutes) ran out. The wake chain treated the pane as busy and queued every message until then. The doorbell and sweeper made it easier to see, since they wake agents within seconds.
+- **Fix:** SessionStart now records `idle` for Claude Code and Grok Build; `UserPromptSubmit` still marks the agent active the moment a turn starts. `source: "compact"` keeps `active` because it can fire mid-turn. Codex and Gemini are unchanged (their SessionStart behaviour is unverified). Grok was confirmed from a live session's hook log: SessionStart reported `active` while it sat at its prompt.
+- **Plugin 1.4.3** carries the hook. Long-running Claude sessions pick up the new hook on their next start.
+- Tests: `sessionStartStatus` for claude, grok, compact and the unchanged CLIs.
+
 ## [0.60.1] - 2026-10-06 - Docs and website for Grok Build, and the updater survives a stray plugin pointer
 
 - **The updater no longer aborts on a plugin pointer it cannot fetch.** The first update across 0.60.0 stopped on two hosts with `not our ref 67ea28c`: one commit in the merged history pointed the plugin submodule at a commit that was never pushed. `update-aimaestro.sh` now fetches and pulls with `--no-recurse-submodules`; the submodule step that follows fetches exactly the commit the final pointer names. A test pins this.

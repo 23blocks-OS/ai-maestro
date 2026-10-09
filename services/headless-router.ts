@@ -308,6 +308,7 @@ import {
 } from '@/services/config-service'
 
 import { runDiagnostics } from '@/services/diagnostics-service'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 // ---------------------------------------------------------------------------
 // Utility helpers

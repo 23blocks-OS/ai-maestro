@@ -87,6 +87,22 @@ describe('GET/POST /api/agents/:id/schedule', () => {
   })
 })
 
+describe('GET /api/agents/:id/brain-inbox (B010)', () => {
+  it('answers 404 for an unknown or hostile id on the headless router, like the Next route', async () => {
+    for (const id of ['no-such-agent', '..', '%2e%2e', 'a%2Fb']) {
+      const { res } = await call('GET', `/api/agents/${id}/brain-inbox`)
+      expect(res.status, id).toBe(404)
+    }
+    expect(fs.readdirSync(path.join(tmp, '.aimaestro', 'agents'))).not.toContain('no-such-agent')
+  })
+  it('answers 200 with signals for a known agent', async () => {
+    fs.mkdirSync(path.join(tmp, '.aimaestro', 'agents', 'brain-agent'), { recursive: true })
+    const { res, json } = await call('GET', '/api/agents/brain-agent/brain-inbox')
+    expect(res.status).toBe(200)
+    expect(Array.isArray(json().signals)).toBe(true)
+  })
+})
+
 describe('GET /api/messages/pending-wakes', () => {
   it('serves the pending-wakes report service', async () => {
     pendingMock.mockResolvedValue({ data: { total: 0, pending: [] }, status: 200 })

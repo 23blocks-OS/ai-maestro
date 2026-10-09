@@ -8,6 +8,7 @@ import { getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 import { invalidateAgentCache } from '@/lib/messageQueue'
 import { sessionExistsSync, killSessionSync, renameSessionSync } from '@/lib/agent-runtime'
+import { pruneAgentBackups } from '@/lib/agent-backup-retention'
 import { computeHash, getGenderFromHash, getAvatarUrl } from '@/lib/hash-utils'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
@@ -814,6 +815,8 @@ function backupAgentData(agent: Agent): string | null {
     )
 
     console.log(`[Agent Registry] Backed up agent ${agentName} to ${backupDir}`)
+    // Retention runs only here, right after a new backup. It never throws.
+    pruneAgentBackups()
     return backupDir
   } catch (backupError) {
     console.warn(`[Agent Registry] Could not create pre-delete backup for ${agentName}:`, backupError)

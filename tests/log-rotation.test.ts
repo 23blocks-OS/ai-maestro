@@ -71,27 +71,37 @@ describe('clipForLog (hook)', () => {
 })
 
 describe('scripts/setup-log-rotation.sh', () => {
-  // A fake pm2 that keeps its state in files, so reruns behave like the real thing.
+  // A fake pm2 that behaves like the real one: `conf <key>` prints junk (real pm2 6 prints
+  // "[object Object]"), and settings live in $PM2_HOME/module_conf.json, written by `set`.
   function fakePm2(withModule: boolean) {
     const bin = path.join(dir, 'bin'); fs.mkdirSync(bin)
     const state = path.join(dir, 'pm2-state'); fs.mkdirSync(state)
+    const home = path.join(dir, 'pm2home'); fs.mkdirSync(home)
     if (withModule) fs.writeFileSync(path.join(state, 'installed'), '')
     fs.writeFileSync(path.join(bin, 'pm2'), `#!/bin/bash
 S="${state}"
 case "$1" in
   list) [ -f "$S/installed" ] && echo "pm2-logrotate  online"; echo "ai-maestro online";;
   install) echo "install $2" >> "$S/calls"; touch "$S/installed";;
-  set) echo "set $2 $3" >> "$S/calls"; k="\${2#pm2-logrotate:}"; echo "$3" > "$S/conf-$k";;
-  conf) k="\${2#pm2-logrotate:}"; [ -f "$S/conf-$k" ] && cat "$S/conf-$k";;
+  set) echo "set $2 $3" >> "$S/calls"
+       node -e 'const fs=require("fs"),f=process.argv[1]+"/module_conf.json";let c={};try{c=JSON.parse(fs.readFileSync(f))}catch(e){};c["pm2-logrotate"]=c["pm2-logrotate"]||{};c["pm2-logrotate"][process.argv[2].replace("pm2-logrotate:","")]=process.argv[3];fs.writeFileSync(f,JSON.stringify(c))' "${home}" "$2" "$3";;
+  conf) echo "$ pm2 set module-db-v2:pm2-logrotate [object Object]";;
 esac
 exit 0
 `, { mode: 0o755 })
-    return { bin, calls: () => (fs.existsSync(path.join(state, 'calls')) ? fs.readFileSync(path.join(state, 'calls'), 'utf8').trim().split('\n') : []) }
+    return { bin, home, calls: () => (fs.existsSync(path.join(state, 'calls')) ? fs.readFileSync(path.join(state, 'calls'), 'utf8').trim().split('\n') : []) }
+  }
+  // The script needs `node` to read pm2's settings file, but the real `pm2` (installed next
+  // to node under nvm) must NOT be reachable: a test once started a real pm2 daemon that way.
+  const nodeOnlyBin = () => {
+    const d = path.join(dir, 'nodebin')
+    if (!fs.existsSync(d)) { fs.mkdirSync(d); fs.symlinkSync(process.execPath, path.join(d, 'node')) }
+    return d
   }
   const run = (extraPath: string, env: Record<string, string> = {}) =>
     spawnSync('bash', [SCRIPT, path.join(dir, 'app')], {
       encoding: 'utf8',
-      env: { PATH: `${extraPath}:/usr/bin:/bin`, HOME: dir, TMPDIR: dir, ...env },
+      env: { PATH: `${extraPath}:${nodeOnlyBin()}:/usr/bin:/bin`, HOME: dir, TMPDIR: dir, PM2_HOME: path.join(dir, 'pm2home'), ...env },
     })
 
   beforeEach(() => { fs.mkdirSync(path.join(dir, 'app', 'logs'), { recursive: true }) })
@@ -114,6 +124,21 @@ exit 0
     const r = run(p.bin)
     expect(r.status).toBe(0)
     expect(p.calls().length).toBe(before)
+  })
+  it('a rerun against the real settings file sets nothing (the flaw 0.60.5 shipped with)', () => {
+    const p = fakePm2(false)
+    run(p.bin)
+    const stored = JSON.parse(fs.readFileSync(path.join(p.home, 'module_conf.json'), 'utf8'))['pm2-logrotate']
+    expect(stored).toMatchObject({ max_size: '50M', retain: '2', compress: 'false' })
+    const before = p.calls()
+    run(p.bin); run(p.bin)
+    expect(p.calls()).toEqual(before)
+  })
+  it('only sets the values that differ', () => {
+    const p = fakePm2(true)
+    fs.writeFileSync(path.join(p.home, 'module_conf.json'), JSON.stringify({ 'pm2-logrotate': { max_size: '50M', retain: '30', compress: 'false' } }))
+    run(p.bin)
+    expect(p.calls()).toEqual(['set pm2-logrotate:retain 2'])
   })
   it('does not reinstall a module that is already there', () => {
     const p = fakePm2(true)
@@ -146,6 +171,7 @@ exit 0
     const r = run('/nonexistent')
     expect(r.status).toBe(0)
     expect(r.stdout).toMatch(/pm2 not found/)
+    expect(r.stdout).not.toMatch(/installed/)
     expect(fs.statSync(big).size).toBeLessThanOrEqual(5 * MB)
   })
   it('does nothing when switched off', () => {

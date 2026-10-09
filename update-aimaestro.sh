@@ -23,6 +23,9 @@ BUILD="🔨"
 RESTART="🔄"
 
 # Parse command line arguments
+# Kept so the script can restart itself after a pull that changed it (see below).
+ORIG_ARGS=("$@")
+SELF_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 NON_INTERACTIVE=false
 SKIP_MEMORY=false
 SKIP_GRAPH=false
@@ -158,7 +161,7 @@ if [ "$COMMITS_BEHIND" = "0" ]; then
     echo ""
 
     # Ask if user wants to reinstall scripts/skills anyway
-    if [ "$NON_INTERACTIVE" = true ]; then
+    if [ "$NON_INTERACTIVE" = true ] || [ -n "${AIM_UPDATER_REEXEC:-}" ]; then
         print_info "Non-interactive mode: reinstalling scripts and skills..."
         REINSTALL="y"
     else
@@ -190,6 +193,15 @@ else
     BEFORE_SHA=$(git rev-parse HEAD)
     git pull --no-recurse-submodules origin main
     print_success "Code updated"
+
+    # This script may have changed in the pull. Bash goes on running the copy it already
+    # loaded, so a new step added here would be skipped on this update (0.60.5: the log
+    # rotation step ran on the host that had pulled first, and not on the two that updated
+    # themselves). Continue once with the new copy; the guard prevents a loop.
+    if [ -z "${AIM_UPDATER_REEXEC:-}" ] && ! git diff --quiet "$BEFORE_SHA" HEAD -- update-aimaestro.sh 2>/dev/null; then
+        print_info "The update script changed in this update; continuing with the new version..."
+        AIM_UPDATER_REEXEC=1 exec bash "$SELF_PATH" "${ORIG_ARGS[@]}"
+    fi
 
     # Detect ecosystem.config.js changes that require PM2 config reload
     if ! git diff --quiet "$BEFORE_SHA" HEAD -- ecosystem.config.js ecosystem.config.cjs 2>/dev/null; then

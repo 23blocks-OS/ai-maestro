@@ -22,6 +22,14 @@ agent-browser skills get core --full      # include full command reference and t
 
 The CLI serves skill content that always matches the installed version, so instructions never go stale. The content in this stub cannot change between releases, which is why it just points at `skills get core`.
 
+## Always close your session
+
+agent-browser leaves a Chrome process and a 50-500 MB temp profile behind when a session is not closed (or its daemon dies). On a host with many agents this fills the disk.
+
+- Run `agent-browser close` when you finish, including after an error. Do not leave a session open "for later".
+- Set a short idle timeout so a forgotten session ends by itself: `export AGENT_BROWSER_IDLE_TIMEOUT_MS=300000` (5 minutes; the default is 1 hour, and `0` disables it).
+- Leftovers from crashed sessions are cleaned by `scripts/cleanup-agent-browser.sh` in the AI Maestro repo (dry run by default, `--apply` to act).
+
 ## Specialized skills
 
 Load a specialized skill when the task falls outside browser web pages:

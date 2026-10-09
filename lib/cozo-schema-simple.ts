@@ -7,6 +7,7 @@
 
 import { AgentDatabase } from './cozo-db'
 import { escapeForCozo } from './cozo-utils'
+import { schemaDebug } from './schema-log'
 
 /**
  * Initialize minimal tracking schema
@@ -31,7 +32,7 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
     console.log('[SCHEMA] ✓ Created sessions table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA] ℹ sessions table already exists')
+      schemaDebug('[SCHEMA] ℹ sessions table already exists')
     } else {
       throw error
     }
@@ -52,7 +53,7 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
     console.log('[SCHEMA] ✓ Created projects table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA] ℹ projects table already exists')
+      schemaDebug('[SCHEMA] ℹ projects table already exists')
     } else {
       throw error
     }
@@ -80,7 +81,7 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
     console.log('[SCHEMA] ✓ Created conversations table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA] ℹ conversations table already exists')
+      schemaDebug('[SCHEMA] ℹ conversations table already exists')
 
       // Try to migrate old schema by adding missing columns
       try {
@@ -91,7 +92,7 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
         try {
           existingWithNewCols = await agentDb.run(`?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] := *conversations{jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count}`)
           hasNewColumns = true
-          console.log('[SCHEMA] ℹ conversations table already has new columns - no migration needed')
+          schemaDebug('[SCHEMA] ℹ conversations table already has new columns - no migration needed')
         } catch {
           // New columns don't exist, need migration
           hasNewColumns = false
@@ -103,7 +104,7 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
 
           // If this query succeeded, we have the old schema - need to migrate
           if (existing.rows && existing.rows.length > 0) {
-            console.log('[SCHEMA] ℹ Migrating old conversations schema...')
+            schemaDebug('[SCHEMA] ℹ Migrating old conversations schema...')
 
             // Drop and recreate with new schema
             await agentDb.run(`:remove conversations`)
@@ -155,7 +156,7 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
         // If migration fails or table already has new schema, continue
         if (migrationError.code === 'eval::named_field_not_found') {
           // Old schema detected but migration attempted - this is fine
-          console.log('[SCHEMA] ℹ Schema migration completed or not needed')
+          schemaDebug('[SCHEMA] ℹ Schema migration completed or not needed')
         }
       }
     } else {

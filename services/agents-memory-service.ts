@@ -466,7 +466,7 @@ export async function initializeMemory(
       status: 200
     }
   } catch (error) {
-    console.error('[Memory Service] initializeMemory Error:', error)
+    console.error('[Memory Service] initializeMemory Error:', (error as Error)?.message ?? String(error))
     return operationFailed('initialize memory', (error as Error).message)
   }
 }

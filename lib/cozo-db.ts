@@ -13,6 +13,28 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
 import { escapeForCozo } from './cozo-utils'
+import { schemaDebug } from './schema-log'
+
+/**
+ * Database files whose schema this process has already initialised, keyed by
+ * path and mapped to the file identity (inode + birth time) at that moment.
+ * A recreated file has a new identity, so it is initialised again.
+ */
+const initialisedSchemas = new Map<string, string>()
+
+function fileIdentity(p: string): string | null {
+  try {
+    const st = fs.statSync(p)
+    return `${st.ino}:${st.birthtimeMs}`
+  } catch {
+    return null
+  }
+}
+
+/** Test hook: forget which databases this process has initialised. */
+export function _resetSchemaInitCache(): void {
+  initialisedSchemas.clear()
+}
 
 export interface AgentDatabaseConfig {
   agentId: string
@@ -31,6 +53,7 @@ export class AgentDatabase {
   private agentId: string
 
   private readOnly: boolean
+  private schemaFailed = false
 
   constructor(config: AgentDatabaseConfig) {
     this.agentId = config.agentId
@@ -52,18 +75,23 @@ export class AgentDatabase {
    */
   async initialize(): Promise<void> {
     try {
-      console.log(`[CozoDB] Initializing database for agent ${this.agentId}`)
-      console.log(`[CozoDB] Database path: ${this.dbPath}`)
-
       // Create CozoDB instance with SQLite storage backend
       this.db = new CozoDb('sqlite', this.dbPath)
 
-      // Test connection with a simple query
-      const result = this.db.run('::relations')
-      console.log(`[CozoDB] Database initialized successfully`)
-      console.log(`[CozoDB] Existing relations:`, result)
+      // Test connection with a simple query (cozo-node returns a Promise)
+      const result = await this.db.run('::relations')
+      const identity = fileIdentity(this.dbPath)
 
       if (this.readOnly) return
+
+      // Schema already initialised for this exact file in this process: skip the
+      // ~45-table check. Short-lived opens per request would otherwise repeat it.
+      if (identity && initialisedSchemas.get(this.dbPath) === identity) {
+        schemaDebug(`[CozoDB] Schema already initialised for agent ${this.agentId}, skipping`)
+        return
+      }
+
+      console.log(`[CozoDB] Initializing schema for agent ${this.agentId} (${this.dbPath}, ${result?.rows?.length ?? 0} existing relations)`)
 
       // Store agent metadata
       await this.initializeAgentMetadata()
@@ -76,6 +104,13 @@ export class AgentDatabase {
 
       // Auto-migrate: Initialize Phase 5 schema if not present
       await this.ensurePhase5Schema()
+
+      // A failed migration is retried on the next open instead of being cached.
+      if (!this.schemaFailed) {
+        const after = fileIdentity(this.dbPath)
+        if (after) initialisedSchemas.set(this.dbPath, after)
+        console.log(`[CozoDB] Schema initialised for agent ${this.agentId}`)
+      }
     } catch (error) {
       console.error(`[CozoDB] Failed to initialize database:`, error)
       throw error
@@ -89,8 +124,9 @@ export class AgentDatabase {
     try {
       const { initializeRagSchema } = await import('./cozo-schema-rag')
       await initializeRagSchema(this)
-      console.log(`[CozoDB] RAG schema migration complete`)
+      schemaDebug(`[CozoDB] RAG schema migration complete`)
     } catch (error) {
+      this.schemaFailed = true
       console.error(`[CozoDB] Failed to ensure RAG schema:`, error)
       // Don't throw - allow database to work without RAG features
     }
@@ -103,8 +139,9 @@ export class AgentDatabase {
     try {
       const { initializeMemorySchema } = await import('./cozo-schema-memory')
       await initializeMemorySchema(this)
-      console.log(`[CozoDB] Memory schema migration complete`)
+      schemaDebug(`[CozoDB] Memory schema migration complete`)
     } catch (error) {
+      this.schemaFailed = true
       console.error(`[CozoDB] Failed to ensure Memory schema:`, error)
       // Don't throw - allow database to work without Memory features
     }
@@ -117,8 +154,9 @@ export class AgentDatabase {
     try {
       const { initializePhase5Schema } = await import('./cozo-schema-phase5')
       await initializePhase5Schema(this)
-      console.log(`[CozoDB] Phase 5 schema migration complete`)
+      schemaDebug(`[CozoDB] Phase 5 schema migration complete`)
     } catch (error) {
+      this.schemaFailed = true
       console.error(`[CozoDB] Failed to ensure Phase 5 schema:`, error)
       // Don't throw - allow database to work without Phase 5 features
     }
@@ -157,7 +195,7 @@ export class AgentDatabase {
       // Table might already exist - check if we can query it
       try {
         const metadata = await this.run(`?[key, value] := *agent_metadata{key, value}`)
-        console.log(`[CozoDB] Agent metadata already exists:`, metadata)
+        schemaDebug(`[CozoDB] Agent metadata already exists:`, metadata)
       } catch (queryError) {
         console.error(`[CozoDB] Failed to initialize metadata:`, error)
         throw error

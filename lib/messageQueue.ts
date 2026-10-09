@@ -189,20 +189,38 @@ function normalizeMessageId(id: string): string {
 }
 
 /** Convert an AMP envelope-format message to internal Message format */
-function convertAMPToMessage(ampMsg: any): Message | null {
+const QUARANTINE_DIR = '.quarantine'
+
+/**
+ * Move a malformed message file to `<inbox>/.quarantine/` (never deleted) so it
+ * is not re-read and re-logged on every poll. Logs one line with the file id.
+ */
+function quarantineMalformed(filePath: string, inboxRoot: string, id: string): void {
+  try {
+    const qDir = path.join(inboxRoot, QUARANTINE_DIR)
+    fsSync.mkdirSync(qDir, { recursive: true })
+    let dest = path.join(qDir, path.basename(filePath))
+    if (fsSync.existsSync(dest)) dest = `${dest}.${Date.now()}`
+    fsSync.renameSync(filePath, dest)
+    console.warn(`[MessageQueue] Quarantined malformed message ${id} (missing required envelope fields) -> ${dest}`)
+  } catch (error) {
+    console.warn(`[MessageQueue] Malformed message ${id} could not be quarantined: ${(error as Error).message}`)
+  }
+}
+
+function convertAMPToMessage(ampMsg: any, source?: { filePath: string; inboxRoot: string }): Message | null {
   const envelope = ampMsg.envelope
   const payload = ampMsg.payload
   if (!envelope || !payload) return null
 
   // Validate required envelope fields individually (defense-in-depth against malformed AMP messages)
   if (!envelope.id || !envelope.from || !envelope.to || !envelope.subject) {
-    console.warn('[MessageQueue] Skipping message with missing required envelope fields:', {
-      id: envelope.id || 'unknown',
-      hasId: !!envelope.id,
-      hasFrom: !!envelope.from,
-      hasTo: !!envelope.to,
-      hasSubject: !!envelope.subject,
-    })
+    const badId = envelope.id || (source ? path.basename(source.filePath) : 'unknown')
+    if (source) {
+      quarantineMalformed(source.filePath, source.inboxRoot, badId)
+    } else {
+      console.warn(`[MessageQueue] Skipping message with missing required envelope fields: ${badId}`)
+    }
     return null
   }
 
@@ -238,7 +256,7 @@ function convertAMPToMessage(ampMsg: any): Message | null {
  * Collect messages from an AMP per-agent directory (inbox or sent).
  * AMP directories have sender/recipient subdirectories containing JSON files.
  */
-async function collectMessagesFromAMPDir(
+export async function collectMessagesFromAMPDir(
   ampDir: string,
   filter: {
     status?: Message['status']
@@ -259,6 +277,7 @@ async function collectMessagesFromAMPDir(
   }
 
   for (const entry of entries) {
+    if (entry === QUARANTINE_DIR) continue
     const entryPath = path.join(ampDir, entry)
     let stat
     try {
@@ -291,7 +310,7 @@ async function collectMessagesFromAMPDir(
 
         if (ampMsg.envelope && ampMsg.payload) {
           // AMP envelope format
-          const msg = convertAMPToMessage(ampMsg)
+          const msg = convertAMPToMessage(ampMsg, { filePath, inboxRoot: ampDir })
           if (!msg) continue
           summary = {
             id: msg.id,
@@ -383,6 +402,7 @@ async function findMessageInAMPDir(
   }
 
   for (const entry of entries) {
+    if (entry === QUARANTINE_DIR) continue
     const entryPath = path.join(ampDir, entry)
     let stat
     try {
@@ -802,7 +822,7 @@ export async function listAgentsWithMessages(): Promise<string[]> {
     for (const agent of agents) {
       const inboxDir = path.join(AMP_AGENTS_DIR, agent, 'messages', 'inbox')
       try {
-        const entries = await fs.readdir(inboxDir)
+        const entries = (await fs.readdir(inboxDir)).filter(e => e !== QUARANTINE_DIR)
         if (entries.length > 0) {
           agentsWithMessages.push(agent)
         }

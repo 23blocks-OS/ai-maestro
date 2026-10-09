@@ -11,6 +11,7 @@
 
 import { AgentDatabase } from './cozo-db'
 import { escapeForCozo } from './cozo-utils'
+import { schemaDebug } from './schema-log'
 
 /**
  * Initialize RAG extensions to the existing agent memory schema
@@ -37,7 +38,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created messages table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ messages table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ messages table already exists')
     } else {
       throw error
     }
@@ -55,7 +56,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created msg_vec table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ msg_vec table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ msg_vec table already exists')
     } else {
       throw error
     }
@@ -72,7 +73,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created msg_terms table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ msg_terms table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ msg_terms table already exists')
     } else {
       throw error
     }
@@ -89,7 +90,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created code_symbols table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ code_symbols table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ code_symbols table already exists')
     } else {
       throw error
     }
@@ -113,7 +114,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created files table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ files table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ files table already exists')
     } else {
       throw error
     }
@@ -135,7 +136,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created file_metadata table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ file_metadata table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ file_metadata table already exists')
     } else {
       throw error
     }
@@ -156,7 +157,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created functions table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ functions table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ functions table already exists')
     } else {
       throw error
     }
@@ -179,7 +180,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
       // Check if the table has class_type column (migration for older schemas)
       try {
         await agentDb.run(`?[class_type] := *components{class_type} :limit 1`)
-        console.log('[SCHEMA-RAG] ℹ components table already exists (with class_type)')
+        schemaDebug('[SCHEMA-RAG] ℹ components table already exists (with class_type)')
       } catch (colError: any) {
         if (colError.message?.includes('class_type')) {
           console.log('[SCHEMA-RAG] ⚠ components table missing class_type column, migrating...')
@@ -214,7 +215,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
             throw migrateError
           }
         } else {
-          console.log('[SCHEMA-RAG] ℹ components table already exists')
+          schemaDebug('[SCHEMA-RAG] ℹ components table already exists')
         }
       }
     } else {
@@ -235,7 +236,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created services table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ services table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ services table already exists')
     } else {
       throw error
     }
@@ -255,7 +256,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created apis table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ apis table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ apis table already exists')
     } else {
       throw error
     }
@@ -276,7 +277,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created declares table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ declares table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ declares table already exists')
     } else {
       throw error
     }
@@ -293,7 +294,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created imports table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ imports table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ imports table already exists')
     } else {
       throw error
     }
@@ -310,7 +311,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created calls table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ calls table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ calls table already exists')
     } else {
       throw error
     }
@@ -327,7 +328,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created component_calls table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ component_calls table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ component_calls table already exists')
     } else {
       throw error
     }
@@ -349,7 +350,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created db_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ db_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ db_node table already exists')
     } else {
       throw error
     }
@@ -368,7 +369,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created schema_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ schema_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ schema_node table already exists')
     } else {
       throw error
     }
@@ -387,7 +388,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created table_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ table_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ table_node table already exists')
     } else {
       throw error
     }
@@ -410,7 +411,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created column_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ column_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ column_node table already exists')
     } else {
       throw error
     }
@@ -431,7 +432,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created index_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ index_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ index_node table already exists')
     } else {
       throw error
     }
@@ -451,7 +452,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created constraint_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ constraint_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ constraint_node table already exists')
     } else {
       throw error
     }
@@ -471,7 +472,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created view_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ view_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ view_node table already exists')
     } else {
       throw error
     }
@@ -490,7 +491,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created enum_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ enum_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ enum_node table already exists')
     } else {
       throw error
     }
@@ -509,7 +510,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created enum_value table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ enum_value table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ enum_value table already exists')
     } else {
       throw error
     }
@@ -530,7 +531,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created proc_node table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ proc_node table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ proc_node table already exists')
     } else {
       throw error
     }
@@ -551,7 +552,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created fk_edge table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ fk_edge table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ fk_edge table already exists')
     } else {
       throw error
     }
@@ -568,7 +569,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created index_on table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ index_on table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ index_on table already exists')
     } else {
       throw error
     }
@@ -585,7 +586,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created extends table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ extends table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ extends table already exists')
     } else {
       throw error
     }
@@ -602,7 +603,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created includes table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ includes table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ includes table already exists')
     } else {
       throw error
     }
@@ -620,7 +621,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created associations table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ associations table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ associations table already exists')
     } else {
       throw error
     }
@@ -637,7 +638,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created serializes table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ serializes table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ serializes table already exists')
     } else {
       throw error
     }
@@ -665,7 +666,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created documents table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ documents table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ documents table already exists')
     } else {
       throw error
     }
@@ -687,7 +688,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created doc_file_metadata table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ doc_file_metadata table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ doc_file_metadata table already exists')
     } else {
       throw error
     }
@@ -710,7 +711,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created doc_chunks table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ doc_chunks table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ doc_chunks table already exists')
     } else {
       throw error
     }
@@ -728,7 +729,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created doc_chunk_vec table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ doc_chunk_vec table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ doc_chunk_vec table already exists')
     } else {
       throw error
     }
@@ -752,7 +753,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created doc_sections table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ doc_sections table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ doc_sections table already exists')
     } else {
       throw error
     }
@@ -769,7 +770,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created doc_tags table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ doc_tags table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ doc_tags table already exists')
     } else {
       throw error
     }
@@ -786,7 +787,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created doc_terms table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ doc_terms table already exists')
+      schemaDebug('[SCHEMA-RAG] ℹ doc_terms table already exists')
     } else {
       throw error
     }

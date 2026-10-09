@@ -1053,6 +1053,16 @@ The module covers every app pm2 runs on the host and rotates a big file by copyi
 
 Run it by hand any time with `scripts/setup-log-rotation.sh`. `AIM_LOG_ROTATION=off` skips it. It needs network once, to install the module; offline it warns and carries on. An install without pm2 only has `startup.log` trimmed when you update.
 
+### Log volume and leftover files (B014)
+
+- The hook debug log is off unless `AIM_HOOK_DEBUG=1`; error entries are always written. `memory-recalls.jsonl` is capped at 5 MB per agent, and on SessionStart the hook deletes `chat-state/` state files older than 30 days.
+- The per-table CozoDB "already exists" lines print only with `AIM_DEBUG_SCHEMA=1`. A database's schema is initialised once per process.
+- A malformed message in an inbox is moved to `<inbox>/.quarantine/` (never deleted) and logged once.
+
+### agent-browser leftovers
+
+agent-browser (third party) leaves Chrome processes and `agent-browser-chrome-*`, `agent-browser-profile-*` and `agent-browser-nss-*` temp directories behind when its daemon crashes. `scripts/cleanup-agent-browser.sh` lists them (default `--dry-run`) and removes them with `--apply`: directories older than 2 hours with no live Chrome using them, and Chrome processes started with an `agent-browser-chrome-*` profile when no agent-browser daemon is running. It is idempotent and safe to run from cron. Agents should still run `agent-browser close` and set `AGENT_BROWSER_IDLE_TIMEOUT_MS=300000` (see the agent-browser skill).
+
 ## Known Issues
 
 ### AMP commands prompt for permission on every use

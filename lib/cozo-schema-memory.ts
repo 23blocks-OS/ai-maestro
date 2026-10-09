@@ -14,6 +14,7 @@
 
 import { AgentDatabase } from './cozo-db'
 import { escapeForCozo } from './cozo-utils'
+import { schemaDebug } from './schema-log'
 
 /**
  * Memory categories following System 1/2 model
@@ -55,7 +56,7 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
       console.log(`[MEMORY-SCHEMA] ✓ Created table: ${tableName}`)
     } catch (error: any) {
       if (error.code === 'eval::stored_relation_conflict') {
-        console.log(`[MEMORY-SCHEMA] ℹ Table ${tableName} already exists`)
+        schemaDebug(`[MEMORY-SCHEMA] ℹ Table ${tableName} already exists`)
       } else {
         console.error(`[MEMORY-SCHEMA] ✗ Failed to create ${tableName}:`, error)
         failures.push(`${tableName}: ${error.message ?? error}`)
@@ -83,7 +84,7 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
         errMsg.includes('index_already')
       ) {
         // Index already exists — expected on every run after the first
-        console.log(`[MEMORY-SCHEMA] ℹ HNSW index ${indexName} already exists`)
+        schemaDebug(`[MEMORY-SCHEMA] ℹ HNSW index ${indexName} already exists`)
       } else {
         console.error(`[MEMORY-SCHEMA] ✗ Failed to create HNSW index ${indexName}:`, error)
         failures.push(`${indexName}: ${error.message ?? error}`)

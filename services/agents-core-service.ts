@@ -78,6 +78,7 @@ import {
   tmuxHasSessionInContainer,
 } from '@/lib/container-utils'
 import type { Host } from '@/types/host'
+import { shouldLogChange } from '@/lib/log-on-change'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
@@ -746,7 +747,7 @@ export async function listAgents(): Promise<ServiceResult<{
 
     // 2. Discover local tmux sessions
     const discoveredSessions = await discoverLocalSessions()
-    console.log(`[Agents] Found ${discoveredSessions.length} local tmux session(s)`)
+    if (shouldLogChange('core.discovered', discoveredSessions.length)) console.log(`[Agents] Found ${discoveredSessions.length} local tmux session(s)`)
 
     // 3. Group discovered sessions by agent name (NORMALIZED TO LOWERCASE)
     const sessionsByAgentName = new Map<string, DiscoveredSession[]>()

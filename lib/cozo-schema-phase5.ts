@@ -9,6 +9,7 @@
 
 import { AgentDatabase } from './cozo-db'
 import { escapeForCozo } from './cozo-utils'
+import { schemaDebug } from './schema-log'
 
 /**
  * Initialize Phase 5 extensions to existing agent memory schema
@@ -22,7 +23,7 @@ export async function initializePhase5Schema(agentDb: AgentDatabase): Promise<vo
       console.log(`[SCHEMA-PHASE5] ✓ Created table: ${tableName}`)
     } catch (error: any) {
       if (error.code === 'eval::stored_relation_conflict') {
-        console.log(`[SCHEMA-PHASE5] ℹ Table ${tableName} already exists`)
+        schemaDebug(`[SCHEMA-PHASE5] ℹ Table ${tableName} already exists`)
       } else {
         console.error(`[SCHEMA-PHASE5] ✗ Failed to create ${tableName}:`, error)
         throw error

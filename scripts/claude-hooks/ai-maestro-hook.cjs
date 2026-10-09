@@ -288,13 +288,53 @@ function clipForLog(value, max = DEBUG_FIELD_MAX_CHARS, depth = 0) {
     return out;
 }
 
-// Log to debug file
+// Log to debug file. Off by default (AIM_HOOK_DEBUG=1 turns it on): it used to
+// write at least two lines per hook event. Error-level entries are always kept.
+function isErrorEvent(data) {
+    const ev = data && typeof data.event === 'string' ? data.event : '';
+    return /error|failed/i.test(ev);
+}
+
 function debugLog(data) {
+    if (process.env.AIM_HOOK_DEBUG !== '1' && !isErrorEvent(data)) return;
+    try {
+        writeDebugLine(data);
+    } catch (e) { /* logging must never break the hook */ }
+}
+
+function writeDebugLine(data) {
     const debugFile = path.join(os.homedir(), '.aimaestro', 'chat-state', 'hook-debug.log');
     const timestamp = new Date().toISOString();
     const line = `[${timestamp}] ${JSON.stringify(clipForLog(data))}\n`;
     rotateDebugLog(debugFile);
     fs.appendFileSync(debugFile, line);
+}
+
+// chat-state/ holds one file set per cwd and was never pruned. On SessionStart,
+// delete state files untouched for 30 days and drop index.json keys whose cwd is
+// gone. Best effort: never throws, touches only files this hook writes.
+const CHAT_STATE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const CHAT_STATE_FILE_RE = /^[0-9a-f]{16}(\.notified|\.announced|\.recalled)?\.json$/;
+
+function pruneChatState(stateDir, now = Date.now(), maxAgeMs = CHAT_STATE_MAX_AGE_MS) {
+    const result = { deleted: 0, indexDropped: 0 };
+    try {
+        for (const name of fs.readdirSync(stateDir)) {
+            if (!CHAT_STATE_FILE_RE.test(name)) continue;
+            try {
+                const p = path.join(stateDir, name);
+                if (now - fs.statSync(p).mtimeMs > maxAgeMs) { fs.unlinkSync(p); result.deleted++; }
+            } catch (e) { /* skip this file */ }
+        }
+        const indexFile = path.join(stateDir, 'index.json');
+        const index = JSON.parse(fs.readFileSync(indexFile, 'utf8'));
+        let changed = false;
+        for (const cwd of Object.keys(index)) {
+            if (!fs.existsSync(cwd)) { delete index[cwd]; result.indexDropped++; changed = true; }
+        }
+        if (changed) fs.writeFileSync(indexFile, JSON.stringify(index, null, 2));
+    } catch (e) { /* best effort */ }
+    return result;
 }
 
 // Detect which AI agent is calling this hook
@@ -714,12 +754,17 @@ function buildEntityNotice(entities) {
 // Append one line per injection to the agent's own recall log. Consolidation
 // folds it into access counts; it is also the raw data for "did the agent use
 // its memory". Never throws.
+const RECALL_LOG_MAX_BYTES = 5 * 1024 * 1024;
+const RECALL_LOG_TAIL_BYTES = 1024 * 1024;
+
 function logRecall(agentId, entry) {
     try {
         if (!/^[A-Za-z0-9_-]+$/.test(agentId)) return;
         const dir = path.join(os.homedir(), '.aimaestro', 'agents', agentId);
         if (!fs.existsSync(dir)) return;
-        fs.appendFileSync(path.join(dir, 'memory-recalls.jsonl'), JSON.stringify({ at: Date.now(), ...entry }) + '\n');
+        const recallFile = path.join(dir, 'memory-recalls.jsonl');
+        rotateDebugLog(recallFile, RECALL_LOG_MAX_BYTES, RECALL_LOG_TAIL_BYTES);
+        fs.appendFileSync(recallFile, JSON.stringify({ at: Date.now(), ...entry }) + '\n');
     } catch (e) { debugLog({ event: 'recall_log_failed', error: e.message }); }
 }
 
@@ -1138,6 +1183,8 @@ async function main() {
                 source: input.source
             });
 
+            pruneChatState(path.join(os.homedir(), '.aimaestro', 'chat-state'));
+
             // Check for unread messages and meeting inject queue
             // ...and the agent's standing decisions/preferences from long-term memory.
             // Each part has its own deadline so a slow recall never costs the inbox.
@@ -1215,6 +1262,9 @@ if (require.main === module) {
 
 module.exports = {
     rotateDebugLog,
+    debugLog,
+    pruneChatState,
+    logRecall,
     clipForLog,
     sessionStartStatus,
     readLocalRegistry,

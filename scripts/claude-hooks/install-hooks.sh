@@ -102,7 +102,7 @@ install_claude_hooks() {
   "hooks": {
     "Notification": [
       {
-        "matcher": "idle_prompt|permission_prompt",
+        "matcher": "idle_prompt|permission_prompt|elicitation_dialog",
         "hooks": [
           {
             "type": "command",
@@ -146,6 +146,30 @@ install_claude_hooks() {
       }
     ],
     "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOOK_SCRIPT",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
       {
         "hooks": [
           {

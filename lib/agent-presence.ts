@@ -25,6 +25,17 @@ export type AgentPresence = 'working' | 'needs-you' | 'ready' | 'offline'
 /** Hook notification types that mean the agent is blocked on the user */
 const NEEDS_YOU_NOTIFICATIONS = new Set(['permission_prompt', 'elicitation_dialog'])
 
+/**
+ * Does a hook status say anything about what the agent is doing right now?
+ * 'ended' (SessionEnd: the CLI exited) and 'started' (a Codex/Gemini SessionStart,
+ * whose semantics are unverified) deliberately claim nothing: they are written so a
+ * stale 'active' or 'needs you' is overwritten, and every reader treats them as "no
+ * hook report" and falls back to the terminal / transcript.
+ */
+export function claimsActivity(hookStatus?: string | null): boolean {
+  return hookStatus !== 'ended' && hookStatus !== 'started'
+}
+
 /** Is this hook report the agent blocked on the user (not merely idle)? */
 export function hookNeedsYou(hookStatus?: string | null, notificationType?: string | null): boolean {
   if (hookStatus === 'permission_request') return true

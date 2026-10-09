@@ -13,15 +13,20 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { v4 as uuidv4 } from 'uuid'
 import { createAgent, getAgent, deleteAgent } from '@/lib/agent-registry'
 import { bootstrapAmpIdentity } from '@/services/agents-docker-service'
-import { type ServiceResult, missingField, operationFailed, invalidRequest, notFound } from '@/services/service-errors'
+import { type ServiceResult, missingField, operationFailed, invalidRequest, invalidField, notFound } from '@/services/service-errors'
 import type { Agent } from '@/types/agent'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+// No leading hyphen: it would read as an option.
+const AWS_PROFILE_RE = /^[A-Za-z0-9_.][A-Za-z0-9_.-]{0,63}$/
+const AWS_REGION_RE = /^[a-z]{2}(-[a-z]+)+-\d$/
+const REPO_NAME_RE = /^[A-Za-z0-9_.-]{1,100}$/
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,7 +72,7 @@ const AIMAESTRO_HOME = path.join(os.homedir(), '.aimaestro')
 
 async function checkTerraformAvailable(): Promise<boolean> {
   try {
-    await execAsync('terraform version', { timeout: 5000 })
+    await execFileAsync('terraform', ['version'], { timeout: 5000 })
     return true
   } catch {
     return false
@@ -76,7 +81,7 @@ async function checkTerraformAvailable(): Promise<boolean> {
 
 async function checkAwsCredentials(profile: string): Promise<boolean> {
   try {
-    await execAsync(`aws sts get-caller-identity --profile ${profile}`, { timeout: 10000 })
+    await execFileAsync('aws', ['sts', 'get-caller-identity', '--profile', profile], { timeout: 10000 })
     return true
   } catch {
     return false
@@ -85,7 +90,7 @@ async function checkAwsCredentials(profile: string): Promise<boolean> {
 
 async function checkDockerAvailable(): Promise<boolean> {
   try {
-    await execAsync('docker info', { timeout: 10000 })
+    await execFileAsync('docker', ['info'], { timeout: 10000 })
     return true
   } catch {
     return false
@@ -164,10 +169,10 @@ function writeTfVars(workDir: string, vars: Record<string, unknown>): void {
 
 async function runTerraformCommand(
   workDir: string,
-  command: string,
+  args: string[],
   timeoutMs: number = 600000
 ): Promise<{ stdout: string; stderr: string }> {
-  return execAsync(command, {
+  return execFileAsync('terraform', args, {
     cwd: workDir,
     timeout: timeoutMs,
     maxBuffer: 10 * 1024 * 1024, // 10MB
@@ -181,7 +186,7 @@ async function terraformApply(
 ): Promise<ServiceResult<TerraformOutputs>> {
   try {
     // Init
-    await runTerraformCommand(workDir, 'terraform init -input=false', 120000)
+    await runTerraformCommand(workDir, ['init', '-input=false'], 120000)
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr || String(err)
     return operationFailed(`terraform init failed: ${stderr.substring(0, 500)}`)
@@ -189,19 +194,19 @@ async function terraformApply(
 
   try {
     // Apply
-    await runTerraformCommand(workDir, 'terraform apply -auto-approve -input=false', timeoutMs)
+    await runTerraformCommand(workDir, ['apply', '-auto-approve', '-input=false'], timeoutMs)
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr || String(err)
     // Attempt cleanup on failure
     try {
-      await runTerraformCommand(workDir, 'terraform destroy -auto-approve -input=false', 300000)
+      await runTerraformCommand(workDir, ['destroy', '-auto-approve', '-input=false'], 300000)
     } catch { /* best effort */ }
     return operationFailed(`terraform apply failed: ${stderr.substring(0, 500)}`)
   }
 
   try {
     // Get outputs
-    const { stdout } = await runTerraformCommand(workDir, 'terraform output -json', 30000)
+    const { stdout } = await runTerraformCommand(workDir, ['output', '-json'], 30000)
     const outputs: TerraformOutputs = JSON.parse(stdout)
     return { data: outputs, status: 200 }
   } catch (err) {
@@ -215,7 +220,7 @@ async function terraformDestroy(
   timeoutMs: number = 600000
 ): Promise<ServiceResult<void>> {
   try {
-    await runTerraformCommand(workDir, 'terraform destroy -auto-approve -input=false', timeoutMs)
+    await runTerraformCommand(workDir, ['destroy', '-auto-approve', '-input=false'], timeoutMs)
     return { data: undefined, status: 200 }
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr || String(err)
@@ -235,8 +240,9 @@ async function ensureEcrRepository(
 ): Promise<ServiceResult<string>> {
   try {
     // Try to describe existing repo
-    const { stdout } = await execAsync(
-      `aws ecr describe-repositories --repository-names ${repoName} --region ${region} --profile ${profile} --output json`,
+    const { stdout } = await execFileAsync(
+      'aws',
+      ['ecr', 'describe-repositories', '--repository-names', repoName, '--region', region, '--profile', profile, '--output', 'json'],
       { timeout: 15000 }
     )
     const data = JSON.parse(stdout)
@@ -247,8 +253,9 @@ async function ensureEcrRepository(
   }
 
   try {
-    const { stdout } = await execAsync(
-      `aws ecr create-repository --repository-name ${repoName} --region ${region} --profile ${profile} --output json`,
+    const { stdout } = await execFileAsync(
+      'aws',
+      ['ecr', 'create-repository', '--repository-name', repoName, '--region', region, '--profile', profile, '--output', 'json'],
       { timeout: 15000 }
     )
     const data = JSON.parse(stdout)
@@ -272,8 +279,9 @@ async function buildAgentImage(ecrUri: string, tag: string = 'latest'): Promise<
   const fullTag = `${ecrUri}:${tag}`
   try {
     console.log(`[Cloud Service] Building image: ${fullTag}`)
-    await execAsync(
-      `docker build --platform linux/arm64 -t ${fullTag} ${dockerfilePath}`,
+    await execFileAsync(
+      'docker',
+      ['build', '--platform', 'linux/arm64', '-t', fullTag, dockerfilePath],
       { timeout: 600000, maxBuffer: 10 * 1024 * 1024 }
     )
     return { data: fullTag, status: 200 }
@@ -294,14 +302,23 @@ async function pushToEcr(
   const registryHost = ecrUri.split('/')[0]
   try {
     // ECR login
-    await execAsync(
-      `aws ecr get-login-password --region ${region} --profile ${profile} | docker login --username AWS --password-stdin ${registryHost}`,
+    const { stdout: password } = await execFileAsync(
+      'aws',
+      ['ecr', 'get-login-password', '--region', region, '--profile', profile],
       { timeout: 30000 }
     )
+    const login = execFileAsync(
+      'docker',
+      ['login', '--username', 'AWS', '--password-stdin', registryHost],
+      { timeout: 30000 }
+    )
+    login.child.stdin?.end(String(password).trim())
+    await login
     // Push
     console.log(`[Cloud Service] Pushing image: ${ecrUri}:${tag}`)
-    await execAsync(
-      `docker push ${ecrUri}:${tag}`,
+    await execFileAsync(
+      'docker',
+      ['push', `${ecrUri}:${tag}`],
       { timeout: 600000, maxBuffer: 10 * 1024 * 1024 }
     )
     return { data: undefined, status: 200 }
@@ -324,6 +341,13 @@ export async function createCloudAgent(body: CloudCreateRequest): Promise<Servic
   const provider = body.provider
   const awsProfile = body.awsProfile || 'default'
   const awsRegion = body.awsRegion || 'us-east-1'
+
+  // These reach the aws CLI as arguments (B010): plain names only.
+  if (!AWS_PROFILE_RE.test(awsProfile)) return invalidField('awsProfile', 'awsProfile must be 1-64 characters: letters, digits, dot, underscore, hyphen')
+  if (!AWS_REGION_RE.test(awsRegion)) return invalidField('awsRegion', 'awsRegion must look like us-east-1')
+  if (provider === 'ecs' && !REPO_NAME_RE.test(`aimaestro-agent-${name}`)) {
+    return invalidField('name', 'name must be 1-80 characters: letters, digits, dot, underscore, hyphen')
+  }
 
   // EC2: require domain, ssl_email, key_name. NO ecrImageUrl needed.
   if (provider === 'ec2') {
@@ -576,7 +600,7 @@ export async function getCloudAgentStatus(agentId: string): Promise<ServiceResul
   // Try to get current terraform state
   if (hasTfState) {
     try {
-      const { stdout } = await runTerraformCommand(workDir, 'terraform output -json', 30000)
+      const { stdout } = await runTerraformCommand(workDir, ['output', '-json'], 30000)
       const outputs: TerraformOutputs = JSON.parse(stdout)
       status.outputs = Object.fromEntries(
         Object.entries(outputs).map(([k, v]) => [k, v.value])

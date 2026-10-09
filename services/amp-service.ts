@@ -49,7 +49,7 @@ import { checkReplay } from '@/lib/amp-replay'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
-import { initAgentAMPHome } from '@/lib/amp-inbox-writer'
+import { initAgentAMPHome, isSafeMessageId } from '@/lib/amp-inbox-writer'
 import { deliverViaWebSocket } from '@/lib/amp-websocket'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId, getSelfHost, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
@@ -1910,6 +1910,20 @@ export async function deliverFederated(
     if (!envelope || !payload) {
       return {
         data: { error: 'invalid_request', message: 'envelope and payload are required' },
+        status: 400
+      }
+    }
+
+    // The id becomes a file name in the recipient's inbox: plain tokens only (B010).
+    if (!isSafeMessageId(envelope.id)) {
+      return {
+        data: { error: 'invalid_field', message: 'envelope.id must be 1-128 characters: letters, digits, underscore, hyphen', field: 'envelope.id' },
+        status: 400
+      }
+    }
+    if (typeof envelope.to !== 'string' || typeof envelope.from !== 'string') {
+      return {
+        data: { error: 'invalid_field', message: 'envelope.from and envelope.to must be strings', field: 'envelope' },
         status: 400
       }
     }

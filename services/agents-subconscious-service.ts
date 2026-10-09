@@ -9,6 +9,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { agentRegistry } from '@/lib/agent'
+import { isSafeAgentId } from '@/lib/safe-ids'
 import { type ServiceResult, notInitialized, invalidRequest } from '@/services/service-errors'
 import { unknownAgentResult } from '@/services/agent-guard'
 
@@ -19,6 +20,7 @@ import { unknownAgentResult } from '@/services/agent-guard'
  * which is exactly what this read path needs — see getSubconsciousStatus.
  */
 function readStatusFile(agentId: string): Record<string, unknown> | null {
+  if (!isSafeAgentId(agentId)) return null
   try {
     const p = path.join(os.homedir(), '.aimaestro', 'agents', agentId, 'status.json')
     return JSON.parse(fs.readFileSync(p, 'utf-8'))

@@ -62,12 +62,12 @@ describe('sessionStartStatus', () => {
       for (const source of ['startup', 'resume', 'clear', 'new', undefined])
         expect(hook.sessionStartStatus(agent, source)).toBe('idle')
   })
-  it('keeps active for compact, which can fire mid-turn', () => {
-    expect(hook.sessionStartStatus('claude', 'compact')).toBe('active')
-    expect(hook.sessionStartStatus('grok', 'compact')).toBe('active')
+  it('leaves the recorded status alone for compact (null), which fires mid-turn or at an idle prompt', () => {
+    expect(hook.sessionStartStatus('claude', 'compact')).toBeNull()
+    expect(hook.sessionStartStatus('grok', 'compact')).toBeNull()
   })
-  it('keeps active for CLIs whose SessionStart is unverified', () => {
+  it('claims nothing for CLIs whose SessionStart is unverified (B011 #1)', () => {
     for (const agent of ['codex', 'gemini'])
-      expect(hook.sessionStartStatus(agent, 'startup')).toBe('active')
+      expect(hook.sessionStartStatus(agent, 'startup')).toBe('started')
   })
 })

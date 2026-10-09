@@ -102,7 +102,7 @@ describe('every headless route that passes a bare body', () => {
   for (const m of router.matchAll(/await (\w+)\(\s*[\w.]+\s*,\s*body\s*\)/g)) called.add(m[1])
 
   it('finds the calls it is meant to check', () => {
-    expect(called.size).toBeGreaterThan(15)
+    expect(called.size).toBeGreaterThan(9)
   })
 
   it('never passes it to a parameter typed as a bare string', () => {

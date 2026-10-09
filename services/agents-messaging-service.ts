@@ -207,6 +207,8 @@ export async function listMessages(
       return { data: { messages }, status: 200 }
     }
   } catch (error) {
+    // lib/agent-messaging throws this for an id that is not an agent: a 404, not a server fault
+    if (/^Agent not found/.test((error as Error).message)) return notFound('Agent', agentId)
     console.error('Failed to list messages:', error)
     return operationFailed('list messages', (error as Error).message)
   }

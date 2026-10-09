@@ -140,7 +140,7 @@ describe('flushDueWakes', () => {
       mockIdle.isSessionIdle.mockReturnValue(false)
       enqueueWake(wake())
 
-      await vi.advanceTimersByTimeAsync(11 * 60 * 1000) // past the 10 min TTL
+      await vi.advanceTimersByTimeAsync(17 * 60 * 1000) // past the 16 min TTL (must outlive the 15 min hook status, B011 #2)
       mockIdle.isSessionIdle.mockReturnValue(true)
       await flushDueWakes()
 

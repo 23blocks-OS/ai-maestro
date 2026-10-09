@@ -11,6 +11,7 @@
  * happening.
  */
 
+import { isSafeAgentId } from '@/lib/safe-ids'
 import { readSchedule, dueTasks, markRun, type ScheduledTask, type DueOptions } from '@/lib/agent-schedule'
 
 export interface TaskRunResult {
@@ -131,6 +132,7 @@ async function runTask(agentId: string, task: ScheduledTask): Promise<TaskRunRes
 export const DAILY_TASK_WINDOW_HOURS = 6
 
 export async function runDueTasks(agentId: string, opts: DueOptions = { dailyWindowHours: DAILY_TASK_WINDOW_HOURS }): Promise<ScheduleRunResult> {
+  if (!isSafeAgentId(agentId)) return { agentId, ran: [], skipped: 1 }
   if (inFlight.has(agentId)) return { agentId, ran: [], skipped: 1 }
   inFlight.add(agentId)
   try {

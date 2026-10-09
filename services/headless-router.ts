@@ -29,8 +29,6 @@ import {
   linkAgentSession,
   sendAgentSessionCommand,
   unlinkOrDeleteAgentSession,
-  wakeAgent,
-  hibernateAgent,
   initializeStartup,
   getStartupInfo,
   proxyHealthCheck,
@@ -152,6 +150,15 @@ import {
   controlPlayback,
 } from '@/services/agents-playback-service'
 
+import { wakeAgentRequest, hibernateAgentRequest } from '@/services/agents-wake-service'
+import { getOwnSchedule, setOwnSchedule } from '@/services/agent-own-schedule-service'
+import { getPendingWakesReport } from '@/services/pending-wakes-service'
+import { logClientEvent } from '@/services/debug-service'
+import { receiveClaudeLogs, receiveClaudeMetrics } from '@/services/telemetry-service'
+import { getWellKnownDocument } from '@/services/amp-discovery-service'
+import { initUpload, receiveContent, confirmUpload, getAttachmentStatus, downloadContent, downloadHeaders } from '@/services/amp-attachments-service'
+import { MAX_ATTACHMENT_SIZE } from '@/lib/amp-attachments'
+import { isServiceError } from '@/services/service-errors'
 import { createDockerAgent, recreateDockerAgent, getDockerStats } from '@/services/agents-docker-service'
 import { createCloudAgent, destroyCloudAgent, getCloudAgentStatus } from '@/services/agents-cloud-service'
 
@@ -301,10 +308,19 @@ import {
 } from '@/services/config-service'
 
 import { runDiagnostics } from '@/services/diagnostics-service'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 // ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
+
+/** A request the client got wrong (bad JSON, bad path escape): answered 400, never 500. */
+class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BadRequestError'
+  }
+}
 
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -313,11 +329,17 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('utf-8')
       if (!body) return resolve({})
+      let parsed: unknown
       try {
-        resolve(JSON.parse(body))
+        parsed = JSON.parse(body)
       } catch (e) {
-        reject(new Error('Invalid JSON body'))
+        return reject(new BadRequestError('Invalid JSON body'))
       }
+      // Handlers read fields off the body: null and bare scalars are not a body
+      if (parsed === null || typeof parsed !== 'object') {
+        return reject(new BadRequestError('Body must be a JSON object'))
+      }
+      resolve(parsed)
     })
     req.on('error', reject)
   })
@@ -335,6 +357,22 @@ async function readBoundedText(req: IncomingMessage, max: number): Promise<{ tex
       chunks.push(chunk)
     })
     req.on('end', () => resolve({ text: tooLarge ? '' : Buffer.concat(chunks).toString('utf-8'), tooLarge }))
+    req.on('error', reject)
+  })
+}
+
+/** Read a binary body, giving up (tooLarge) once it passes `max` bytes instead of buffering it all */
+async function readBoundedBuffer(req: IncomingMessage, max: number): Promise<{ bytes: Buffer; tooLarge: boolean }> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    let tooLarge = false
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > max) { tooLarge = true; return }
+      chunks.push(chunk)
+    })
+    req.on('end', () => resolve({ bytes: tooLarge ? Buffer.alloc(0) : Buffer.concat(chunks), tooLarge }))
     req.on('error', reject)
   })
 }
@@ -377,11 +415,18 @@ function getHeader(req: IncomingMessage, name: string): string | null {
   return typeof val === 'string' ? val : null
 }
 
+/** URLSearchParams.get() semantics (null when absent), as the Next routes read it */
+function qp(query: Record<string, string>, key: string): string | null {
+  return Object.prototype.hasOwnProperty.call(query, key) ? query[key] : null
+}
+
 function getQuery(url: string): Record<string, string> {
   const parsed = parse(url, true)
   const q: Record<string, string> = {}
   for (const [k, v] of Object.entries(parsed.query)) {
+    // A repeated key keeps its first value, as URLSearchParams.get() does
     if (typeof v === 'string') q[k] = v
+    else if (Array.isArray(v) && typeof v[0] === 'string') q[k] = v[0]
   }
   return q
 }
@@ -445,6 +490,24 @@ const routes: Route[] = [
   // =========================================================================
   // Config & System
   // =========================================================================
+  // Operator report: messages on disk that no wake has proved the agent saw
+  { method: 'GET', pattern: /^\/api\/messages\/pending-wakes$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await getPendingWakesReport())
+  }},
+  // The dashboard reports each page load so an unexplained reset can be diagnosed from the log
+  { method: 'POST', pattern: /^\/api\/debug\/client-event$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, logClientEvent(body, getHeader(req, 'user-agent')))
+  }},
+  // OTLP/HTTP receivers: always 200 so the exporter never retry-storms
+  { method: 'POST', pattern: /^\/api\/telemetry\/v1\/logs$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, receiveClaudeLogs(body))
+  }},
+  { method: 'POST', pattern: /^\/api\/telemetry\/v1\/metrics$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, receiveClaudeMetrics(body))
+  }},
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getSystemConfig())
   }},
@@ -472,10 +535,10 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/conversations\/parse$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, parseConversationFile(body.filePath))
+    sendServiceResult(res, parseConversationFile(body.conversationFile))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
-    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
+    const result = await getConversationMessages(params.file, query.agentId || '')
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
@@ -505,12 +568,9 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await createSession(body))
   }},
-  { method: 'DELETE', pattern: /^\/api\/sessions\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, await deleteSession(params.id))
-  }},
   { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = await checkIdleStatus(params.id)
-    sendJson(res, 200, result)
+    const data = await checkIdleStatus(params.id)
+    sendJson(res, 200, { success: true, ...data })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -522,7 +582,7 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/sessions\/([^/]+)\/rename$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await renameSession(params.id, body.name))
+    sendServiceResult(res, await renameSession(params.id, body.newName))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
     const result = await listRestorableSessions()
@@ -534,6 +594,10 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+  }},
+  // Static DELETE paths (restore) must be registered BEFORE the parameterized one
+  { method: 'DELETE', pattern: /^\/api\/sessions\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await deleteSession(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res, _params, query) => {
     try {
@@ -680,12 +744,13 @@ const routes: Route[] = [
 
   // Wake / Hibernate
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/wake$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await wakeAgent(params.id, body))
+    // No body or invalid JSON: defaults, as in the Next route
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await wakeAgentRequest(params.id, body))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/hibernate$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await hibernateAgent(params.id, body))
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await hibernateAgentRequest(params.id, body))
   }},
 
   // Chat
@@ -776,13 +841,23 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getConsolidationStatus(params.id))
   }},
-  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await triggerConsolidation(params.id, body))
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    // Options travel in the query string (the Next route ignores the body)
+    sendServiceResult(res, await triggerConsolidation(params.id, {
+      dryRun: qp(query, 'dryRun') === 'true',
+      provider: qp(query, 'provider') || undefined,
+      maxConversations: qp(query, 'maxConversations') ? parseInt(qp(query, 'maxConversations')!) : undefined,
+    }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/consolidate$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await manageConsolidation(params.id, body))
+    sendServiceResult(res, await manageConsolidation(params.id, {
+      action: body.action,
+      minReinforcements: body.minReinforcements,
+      minAgeDays: body.minAgeDays,
+      retentionDays: body.retentionDays,
+      dryRun: body.dryRun,
+    }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/entity$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await getMemoryEntity(params.id, query.name))
@@ -832,22 +907,28 @@ const routes: Route[] = [
       mode: query.mode,
       limit: query.limit ? parseInt(query.limit) : undefined,
       minScore: query.minScore ? parseFloat(query.minScore) : undefined,
-      roleFilter: (query.roleFilter as any) || undefined,
-      conversationFile: query.conversationFile,
+      roleFilter: qp(query, 'role') as 'user' | 'assistant' | 'system' | null,
+      conversationFile: query.conversation_file || undefined,
       startTs: query.startTs ? parseInt(query.startTs) : undefined,
       endTs: query.endTs ? parseInt(query.endTs) : undefined,
-      useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
+      useRrf: query.useRrf !== 'false',
       bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
       semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await ingestConversations(params.id, body))
+    sendServiceResult(res, await ingestConversations(params.id, {
+      conversationFiles: body.conversationFiles,
+      batchSize: body.batchSize,
+    }))
   }},
-  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/index-delta$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await runDeltaIndex(params.id, body))
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/index-delta$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    // Options travel in the query string (the Next route ignores the body)
+    sendServiceResult(res, await runDeltaIndex(params.id, {
+      dryRun: qp(query, 'dryRun') === 'true',
+      batchSize: qp(query, 'batchSize') ? parseInt(qp(query, 'batchSize')!) : undefined,
+    }))
   }},
 
   // Doorbell: a same-host sender rings after writing the inbox file (lib/doorbell.ts)
@@ -882,19 +963,32 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: qp(query, 'action') || 'stats',
+      name: qp(query, 'name'),
+      from: qp(query, 'from'),
+      to: qp(query, 'to'),
+      project: qp(query, 'project'),
+      nodeId: qp(query, 'nodeId'),
+      depth: parseInt(qp(query, 'depth') || '1', 10),
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await indexCodeGraph(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await deleteCodeGraph(params.id, query.projectPath || ''))
+    sendServiceResult(res, await deleteCodeGraph(params.id, query.project || ''))
   }},
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: qp(query, 'action') || 'stats',
+      name: qp(query, 'name'),
+      column: qp(query, 'column'),
+      database: qp(query, 'database'),
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -906,7 +1000,13 @@ const routes: Route[] = [
 
   // Graph - query
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/query$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryGraph(params.id, query as any))
+    sendServiceResult(res, await queryGraph(params.id, {
+      queryType: qp(query, 'q'),
+      name: qp(query, 'name'),
+      type: qp(query, 'type'),
+      from: qp(query, 'from'),
+      to: qp(query, 'to'),
+    }))
   }},
 
   // Database
@@ -919,14 +1019,22 @@ const routes: Route[] = [
 
   // Docs
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDocs(params.id, query as any))
+    sendServiceResult(res, await queryDocs(params.id, {
+      action: qp(query, 'action') || 'stats',
+      q: qp(query, 'q'),
+      keyword: qp(query, 'keyword'),
+      type: qp(query, 'type'),
+      docId: qp(query, 'docId'),
+      limit: parseInt(qp(query, 'limit') || '10', 10),
+      project: qp(query, 'project'),
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await indexDocs(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await clearDocs(params.id, query.project))
+    sendServiceResult(res, await clearDocs(params.id, query.project || undefined))
   }},
 
   // Canvas interactions (must come before /canvas catch-all)
@@ -964,7 +1072,7 @@ const routes: Route[] = [
   }},
   { method: 'PUT', pattern: /^\/api\/agents\/([^/]+)\/skills\/settings$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await saveSkillSettings(params.id, body))
+    sendServiceResult(res, await saveSkillSettings(params.id, body.settings))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getSkillsConfig(params.id))
@@ -978,7 +1086,17 @@ const routes: Route[] = [
     sendServiceResult(res, addSkill(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+    if (!query.skill) { sendJson(res, 400, { error: 'Missing required query parameter: skill' }); return }
+    sendServiceResult(res, removeSkill(params.id, query.skill, query.type || 'auto'))
+  }},
+
+  // The agent's OWN schedule (agent-owned state, lib/agent-schedule.ts)
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/schedule$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getOwnSchedule(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/schedule$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await setOwnSchedule(params.id, body))
   }},
 
   // Schedules (per-agent)
@@ -1034,6 +1152,9 @@ const routes: Route[] = [
 
   // Brain Inbox
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/brain-inbox$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    // B010: same unknown-agent 404 as the Next route
+    const unknown = unknownAgentResult(params.id)
+    if (unknown) { sendServiceResult(res, unknown); return }
     const { readAndClearBrainInbox } = await import('@/lib/cerebellum/brain-inbox')
     const signals = readAndClearBrainInbox(params.id)
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -1049,7 +1170,8 @@ const routes: Route[] = [
     sendServiceResult(res, updateRepos(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeRepo(params.id, query.url || ''))
+    if (!query.url) { sendJson(res, 400, { error: 'url parameter required' }); return }
+    sendServiceResult(res, removeRepo(params.id, query.url))
   }},
 
   // Playback
@@ -1093,14 +1215,14 @@ const routes: Route[] = [
 
   // AMP addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getAMPAddress(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, getAMPAddress(params.id, params.address))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    sendServiceResult(res, updateAMPAddressOnAgent(params.id, params.address, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, removeAMPAddressFromAgent(params.id, params.address))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listAMPAddresses(params.id))
@@ -1112,14 +1234,14 @@ const routes: Route[] = [
 
   // Email addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getEmailAddressDetail(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, getEmailAddressDetail(params.id, params.address))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    sendServiceResult(res, updateEmailAddressOnAgent(params.id, params.address, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, removeEmailAddressFromAgent(params.id, params.address))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listEmailAddresses(params.id))
@@ -1182,7 +1304,7 @@ const routes: Route[] = [
   // Agent heartbeat (standalone presence)
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/heartbeat$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
-    sendServiceResult(res, heartbeat(params.id, body.status))
+    sendServiceResult(res, heartbeat(params.id, body.status, body.claudeSessionId))
   }},
 
   // Agent CRUD (must be LAST among /api/agents/[id]/* routes)
@@ -1223,9 +1345,9 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/hosts$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await listHosts())
   }},
-  { method: 'POST', pattern: /^\/api\/hosts$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await addNewHost(body))
+  { method: 'POST', pattern: /^\/api\/hosts$/, paramNames: [], handler: async (req, res, _params, query) => {
+    const host = await readJsonBody(req)
+    sendServiceResult(res, await addNewHost({ host, syncEnabled: query.sync !== 'false' }))
   }},
   { method: 'PUT', pattern: /^\/api\/hosts\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1278,7 +1400,7 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentSelf(getHeader(req, 'Authorization')))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/resolve\/([^/]+)$/, paramNames: ['address'], handler: async (req, res, params) => {
-    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), decodeURIComponent(params.address)))
+    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), params.address))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1326,7 +1448,7 @@ const routes: Route[] = [
     sendServiceResult(res, rotateKey(getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/auth\/rotate-keys$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
+    const body = await readJsonBody(req).catch(() => null) // the service rejects a missing body
     sendServiceResult(res, await rotateKeypair(body, getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/federation\/deliver$/, paramNames: [], handler: async (req, res) => {
@@ -1336,6 +1458,37 @@ const routes: Route[] = [
       body,
     )
     sendServiceResult(res, result)
+  }},
+
+  // =========================================================================
+  // AMP attachments + discovery
+  // =========================================================================
+  { method: 'GET', pattern: /^\/\.well-known\/agent-messaging\.json$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getWellKnownDocument())
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/attachments\/upload$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, initUpload(body, getHeader(req, 'authorization')))
+  }},
+  { method: 'GET', pattern: /^\/api\/v1\/attachments\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    sendServiceResult(res, getAttachmentStatus(params.id, getHeader(req, 'authorization')))
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/attachments\/([^/]+)\/confirm$/, paramNames: ['id'], handler: async (req, res, params) => {
+    sendServiceResult(res, confirmUpload(params.id, getHeader(req, 'authorization')))
+  }},
+  { method: 'PUT', pattern: /^\/api\/v1\/attachments\/([^/]+)\/content$/, paramNames: ['id'], handler: async (req, res, params, query) => {
+    const { bytes, tooLarge } = await readBoundedBuffer(req, MAX_ATTACHMENT_SIZE)
+    if (tooLarge) {
+      sendJson(res, 413, { error: 'attachment_too_large', message: `Attachment exceeds the ${MAX_ATTACHMENT_SIZE} byte limit` })
+      return
+    }
+    sendServiceResult(res, receiveContent(params.id, qp(query, 'token'), bytes))
+  }},
+  { method: 'GET', pattern: /^\/api\/v1\/attachments\/([^/]+)\/content$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const result = downloadContent(params.id, qp(query, 'token'))
+    // ServiceResult unions data with ServiceError, so narrow before using it.
+    if (!result.data || isServiceError(result.data)) { sendServiceResult(res, result); return }
+    sendBinary(res, 200, new Uint8Array(result.data.bytes), downloadHeaders(result.data))
   }},
 
   // =========================================================================
@@ -1368,7 +1521,7 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/meetings\/inject-queue$/, paramNames: [], handler: async (_req, res, _params, query) => {
     const { drainForSession } = await import('@/lib/meeting-inject-queue')
     const session = query.session
-    if (!session) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing session parameter' })); return }
+    if (!session) { sendJson(res, 400, { error: 'Missing session parameter' }); return }
     const messages = drainForSession(session)
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ messages, count: messages.length }))
   }},
@@ -1498,7 +1651,13 @@ const routes: Route[] = [
     sendServiceResult(res, await getMarketplaceSkillById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/marketplace\/skills$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await listMarketplaceSkills(query as any))
+    sendServiceResult(res, await listMarketplaceSkills({
+      marketplace: query.marketplace || undefined,
+      plugin: query.plugin || undefined,
+      category: query.category || undefined,
+      search: query.search || undefined,
+      includeContent: query.includeContent === 'true',
+    }))
   }},
 
   // =========================================================================
@@ -1538,6 +1697,30 @@ const routes: Route[] = [
 // Router
 // ---------------------------------------------------------------------------
 
+/**
+ * Every (method, path) the router serves, with dynamic segments written as
+ * `[name]` (the Next.js spelling). Read-only view for tests/route-parity.test.ts.
+ */
+export function listRoutes(): Array<{ method: string; path: string; handler: string }> {
+  return routes.map((r) => {
+    let i = 0
+    const path = r.pattern.source
+      .replace(/^\^/, '').replace(/\$$/, '')
+      .replace(/\\(.)/g, '$1')
+      .replace(/\(\[\^\/\]\+\)/g, () => `[${r.paramNames[i++]}]`)
+    return { method: r.method, path, handler: r.handler.toString() }
+  })
+}
+
+/** Path params arrive percent-encoded; decode each once (Next.js hands services decoded params). */
+function decodeParam(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    throw new BadRequestError('Malformed percent-encoding in the URL path')
+  }
+}
+
 function matchRoute(method: string, pathname: string): { handler: RouteHandler; params: Record<string, string> } | null {
   for (const route of routes) {
     if (route.method !== method) continue
@@ -1547,7 +1730,7 @@ function matchRoute(method: string, pathname: string): { handler: RouteHandler; 
 
     const params: Record<string, string> = {}
     route.paramNames.forEach((name, i) => {
-      params[name] = match[i + 1]
+      params[name] = decodeParam(match[i + 1])
     })
 
     return { handler: route.handler, params }
@@ -1563,7 +1746,16 @@ export function createHeadlessRouter() {
       const method = req.method || 'GET'
       const query = getQuery(req.url || '')
 
-      const matched = matchRoute(method, pathname)
+      let matched: ReturnType<typeof matchRoute>
+      try {
+        matched = matchRoute(method, pathname)
+      } catch (error) {
+        if (error instanceof BadRequestError) {
+          sendJson(res, 400, { error: 'invalid_request', message: error.message })
+          return true
+        }
+        throw error
+      }
       if (!matched) {
         return false // Not handled — caller should return 404
       }
@@ -1571,6 +1763,10 @@ export function createHeadlessRouter() {
       try {
         await matched.handler(req, res, matched.params, query)
       } catch (error) {
+        if (error instanceof BadRequestError) {
+          if (!res.headersSent) sendJson(res, 400, { error: 'invalid_request', message: error.message })
+          return true
+        }
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
           sendJson(res, 500, { error: 'Internal server error' })

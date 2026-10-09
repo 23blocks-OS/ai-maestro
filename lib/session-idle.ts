@@ -29,6 +29,7 @@
  */
 
 import { sessionActivity, hookStatus } from '@/services/shared-state'
+import { claimsActivity } from '@/lib/agent-presence'
 
 /** No output for this long ⇒ treat the session as idle. */
 export const IDLE_THRESHOLD_MS = 30 * 1000
@@ -79,7 +80,7 @@ export function isSessionIdle(sessionName: string): boolean {
   //    _sharedState is late-initialised across two module graphs; a missing
   //    map should degrade to the PTY signal, not throw inside a wake.
   const reported = hookStatus?.get(sessionName)
-  if (reported && Date.now() - reported.at < HOOK_STATUS_TTL_MS) {
+  if (reported && claimsActivity(reported.status) && Date.now() - reported.at < HOOK_STATUS_TTL_MS) {
     return hookStateIsIdle(reported)
   }
 
@@ -97,7 +98,7 @@ export function isSessionIdle(sessionName: string): boolean {
  */
 export function hasHookReport(sessionName: string): boolean {
   const reported = hookStatus?.get(sessionName)
-  return !!reported && Date.now() - reported.at < HOOK_STATUS_TTL_MS
+  return !!reported && claimsActivity(reported.status) && Date.now() - reported.at < HOOK_STATUS_TTL_MS
 }
 
 /**
@@ -139,6 +140,6 @@ export async function detectStartupBlock(
 /** Which signal answered, for logging and the operator surface. */
 export function idleSource(sessionName: string): 'hook' | 'pty' | 'none' {
   const reported = hookStatus?.get(sessionName)
-  if (reported && Date.now() - reported.at < HOOK_STATUS_TTL_MS) return 'hook'
+  if (reported && claimsActivity(reported.status) && Date.now() - reported.at < HOOK_STATUS_TTL_MS) return 'hook'
   return msSinceActivity(sessionName) === null ? 'none' : 'pty'
 }

@@ -47,7 +47,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F026** — [Agent runtime abstraction (Phase 0), and a Herdr evaluation](./backlog/F026-agent-runtime-abstraction-herdr.md) — `In Progress` (Phase 0 only; Herdr phases parked)
 - **F027** — [Every message wakes its agent, on any host, with or without the server](./backlog/F027-reliable-message-wake.md) — `In Progress` (sweeper 0.49.9, on by default 0.50.0; doorbell 0.50.2; one delivery path still open)
 - **F028** — [Grok Build agents, and approval cards for Grok and Codex](./backlog/F028-grok-build-support.md) — `Done` (0.60.0; open items listed in the file)
-- **F029** — [A test safety net for routes, headless mode and the hook](./backlog/F029-route-and-hook-safety-net.md) — `Todo` (planned 2026-10-08)
+- **F029** — [A test safety net for routes, headless mode and the hook](./backlog/F029-route-and-hook-safety-net.md) — `Done` (0.62.0)
 - **F030** — [Reply to an earlier message in the chat (quote-reply)](./backlog/F030-reply-to-an-earlier-message.md) — `Todo`
 
 ## Bugs
@@ -61,9 +61,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B007** — [Leftovers from the skills and prompts audit](./backlog/B007-prompt-audit-leftovers.md) — `In Progress`
 - **B008** — [GET /api/agents/:id/tracking returns 500 for every agent](./backlog/B008-tracking-endpoint-500.md) — `Done`
 - **B009** — [A request for an unknown agent id creates an agent and a database folder](./backlog/B009-unknown-agent-id-creates-agent.md) — `Done` (0.60.4)
-- **B010** — [Shell injection and unchecked ids that become file paths](./backlog/B010-injection-and-unchecked-path-ids.md) — `Todo` (planned 2026-10-08)
-- **B011** — [Agent status that is set and never cleared (wakes deferred or dropped)](./backlog/B011-status-set-and-never-cleared.md) — `Todo` (planned 2026-10-08)
-- **B012** — [Headless routes behave differently from the Next.js routes](./backlog/B012-headless-routes-differ-from-next-routes.md) — `Todo` (planned 2026-10-08)
+- **B010** — [Shell injection and unchecked ids that become file paths](./backlog/B010-injection-and-unchecked-path-ids.md) — `Done` (0.62.0)
+- **B011** — [Agent status that is set and never cleared (wakes deferred or dropped)](./backlog/B011-status-set-and-never-cleared.md) — `Done` (0.62.0)
+- **B012** — [Headless routes behave differently from the Next.js routes](./backlog/B012-headless-routes-differ-from-next-routes.md) — `Done` (0.62.0)
 - **B013** — [Logs that grow without a limit (hook debug log 373 MB, pm2 log 3.4 GB); cap at 50 MB](./backlog/B013-unbounded-logs-need-rotation.md) — `Done` (0.60.5)
 - **B014** — [Logs and files that grow without limit across the AI Maestro ecosystem (epic, ranked, one fix per repo)](./backlog/B014-ecosystem-log-and-disk-hygiene.md) — `In Progress` (0.61.0; database retention open)
 

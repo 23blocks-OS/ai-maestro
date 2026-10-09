@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { ingestClaudeLogs } from '@/services/telemetry-service'
+import { NextRequest } from 'next/server'
+import { receiveClaudeLogs } from '@/services/telemetry-service'
+import { toResponse } from '@/app/api/_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,12 +12,6 @@ export const dynamic = 'force-dynamic'
  * ExportLogsServiceResponse) so the exporter never retry-storms.
  */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json().catch(() => ({}))
-    const summary = ingestClaudeLogs(body)
-    if (process.env.DEBUG) console.log('[Telemetry/logs] ingest', summary)
-  } catch (error) {
-    console.error('[Telemetry/logs] ingest error:', error)
-  }
-  return NextResponse.json({}, { status: 200 })
+  const body = await request.json().catch(() => ({}))
+  return toResponse(receiveClaudeLogs(body))
 }

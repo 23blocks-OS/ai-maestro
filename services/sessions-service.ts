@@ -19,7 +19,7 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
-import { hookNeedsYou, normalizeActivityStatus } from '@/lib/agent-presence'
+import { hookNeedsYou, normalizeActivityStatus, claimsActivity } from '@/lib/agent-presence'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -219,6 +219,9 @@ function getHookState(
     if (fs.existsSync(stateFile)) {
       const content = fs.readFileSync(stateFile, 'utf-8')
       const state = JSON.parse(content)
+
+      // 'ended' / 'started' claim nothing: the terminal / transcript decide.
+      if (!claimsActivity(state.status)) return null
 
       const at = new Date(state.updatedAt).getTime()
       const age = Date.now() - at
@@ -644,6 +647,7 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   // One rule for both stores: a working/idle report goes stale in minutes, a
   // blocked one stays relevant for a day. See WAITING_STATE_TTL_MS.
   const isFresh = (status: string, at: number): boolean =>
+    claimsActivity(status) &&
     Date.now() - at <= (isWaitingStatus(status) ? WAITING_STATE_TTL_MS : HOOK_STATUS_TTL_MS)
 
   const toActivityStatus = (hookStatus: string, notificationType?: string): SessionActivityStatus =>
@@ -690,6 +694,23 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
 }
 
 /**
+ * hookStatusMap gets an entry for every sessionName that ever reports, including
+ * arbitrary names POSTed to /api/sessions/activity/update, and nothing removed them.
+ * Drop entries past the longest TTL anything honours (the 24 h waiting TTL), and when
+ * the map is still over the cap, the oldest first.
+ */
+export const HOOK_STATUS_MAP_MAX = 1000
+export function pruneHookStatusMap(now: number = Date.now()): void {
+  hookStatusMap.forEach((v, k) => {
+    if (now - v.at > WAITING_STATE_TTL_MS) hookStatusMap.delete(k)
+  })
+  if (hookStatusMap.size > HOOK_STATUS_MAP_MAX) {
+    const oldestFirst = Array.from(hookStatusMap.entries()).sort((a, b) => a[1].at - b[1].at)
+    for (const [k] of oldestFirst.slice(0, hookStatusMap.size - HOOK_STATUS_MAP_MAX)) hookStatusMap.delete(k)
+  }
+}
+
+/**
  * Broadcast a status update via WebSocket.
  */
 export function broadcastActivityUpdate(
@@ -711,11 +732,17 @@ export function broadcastActivityUpdate(
   const reported = hookStatus || status
   const wasIdle = sessionName ? hookStatusMap.get(sessionName)?.status === 'idle' : false
   if (sessionName && reported) {
-    hookStatusMap.set(sessionName, {
-      status: reported,
-      notificationType,
-      at: Date.now(),
-    })
+    if (!claimsActivity(reported)) {
+      // SessionEnd: the session is gone, so its last report must not linger.
+      hookStatusMap.delete(sessionName)
+    } else {
+      hookStatusMap.set(sessionName, {
+        status: reported,
+        notificationType,
+        at: Date.now(),
+      })
+      pruneHookStatusMap()
+    }
   }
 
   // The agent just went idle — the moment to run whatever maintenance it owns.

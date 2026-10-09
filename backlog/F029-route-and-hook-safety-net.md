@@ -1,6 +1,6 @@
 # F029 - A test safety net for routes, headless mode and the hook
 
-**Status:** Todo (planned for 2026-10-08)
+**Status:** Done (0.62.0; coverage reporting not done, needs a dev dependency)
 **Type:** Feature (test infrastructure)
 **Created:** 2026-10-07
 **Requested by:** Juan, 2026-10-07 ("why are the tests not getting those errors?")

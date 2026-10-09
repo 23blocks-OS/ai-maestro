@@ -1,6 +1,6 @@
 # B010 - Shell injection and unchecked ids that become file paths
 
-**Status:** Todo (planned for 2026-10-08)
+**Status:** Done (0.62.0)
 **Type:** Bug (security)
 **Created:** 2026-10-07
 **Found by:** read-only audit, 2026-10-07 (follow-up to B009). Items 1 to 3 were re-read by hand; item 4 and the low items are the auditor's reading only and need a second look before fixing.

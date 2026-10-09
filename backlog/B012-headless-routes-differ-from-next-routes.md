@@ -1,6 +1,6 @@
 # B012 - Headless routes behave differently from the Next.js routes
 
-**Status:** Todo (planned for 2026-10-08)
+**Status:** Done (0.62.0; open: headless agent file upload)
 **Type:** Bug
 **Created:** 2026-10-07
 **Found by:** read-only audit comparing 221 route pairs (about 205 read side by side), 2026-10-07. Items 1 and 2 were re-read by hand; the rest are the auditor's reading and must be re-read before fixing.

@@ -3,6 +3,35 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.62.0] - 2026-10-09 - Security hardening, status that clears, and headless parity (B010, B011, B012, F029)
+
+The three open audit items from 2026-10-07, plus the test safety net that would have caught them.
+
+**Security (B010).** Input that becomes a file path or a shell argument is now validated at the point of use.
+- **Federated message ids.** `POST /api/v1/federation/deliver` took `envelope.id` from the request body straight into a file path, so an id like `../../../x` wrote attacker-controlled JSON outside the inbox. The id must now be a plain token (`^[A-Za-z0-9_-]{1,128}$`); the service answers 400 and the inbox writer refuses it too.
+- **Shell injection.** Cloud agent creation (`awsProfile`, `awsRegion`, repo name), the Docker agent create (prompt, model and name were interpolated into `docker run`), and the `git clone` when importing an agent export (`branch`, `remoteUrl`) built shell strings from request or manifest values. They now use argv (`execFile`) with the values validated; clone URLs are limited to https, http, ssh and scp-style git.
+- **Unchecked agent ids.** The schedule and brain-inbox routes created folders and files for any id, and `%2F` in an id could leave the agents directory. They answer 404 for unknown or unsafe ids, and the writers refuse them as well. An imported agent id must be a plain name; transcript exports are confined to `~/.aimaestro/exports`.
+- A scan test requires every module that builds `~/.aimaestro/agents/<id>` to guard the id or carry an allowlist entry with a reason.
+
+**Status that clears (B011).** Replay tests (a harness that feeds real hook payloads through the hook and checks the status after each step) found 14 wrong transitions in the old hook; fixed:
+- `SessionEnd`, `StopFailure` (Claude and Grok) and `StopCancelled` (Grok) now clear the status. A late `idle_prompt`, `Stop` or `StopCancelled` for an older turn no longer overwrites a newer one. A Grok subagent's own stop is ignored.
+- A deferred wake outlives the status it waits on: the wake queue keeps entries 16 minutes, the status lasts 15 (it was 10, so a wake could be dropped before the stuck status expired).
+- Long turns stay "working": tool batches refresh the status once a minute, and a batch after a Stop resumes it. `/compact` leaves the status alone.
+- Codex and Gemini no longer start as "active": SessionStart records "started", which claims nothing, so the terminal or the Codex transcript decides.
+- Strict parsing of `stop_hook_active` (the string `"false"` is not active); Codex is recognised by its transcript path; `elicitation_dialog` is shown as needs-you; the in-memory hook status map is capped (24 h, 1000 entries).
+- `install-hooks.sh` registers `StopFailure` and `SessionEnd` (idempotent). Plugin 1.5.1.
+- Not fixed: a single tool call longer than 15 minutes emits no event; agents sharing a working directory still share one state file (every reader keys by folder); Codex's Stop still records "idle" for 15 minutes.
+
+**Headless parity (B012).** All 16 differences reproduced and fixed, so `yarn headless` behaves like the normal server:
+- Wrong or dropped arguments: host add (`?sync=false`), session rename (`newName`), graph query/code/db, docs, skills settings and delete, conversations parse, consolidate and index-delta options (`?dryRun=true` used to run for real), search filters, heartbeat `claudeSessionId`, marketplace `includeContent`.
+- `DELETE /api/sessions/restore` was shadowed by `DELETE /api/sessions/:id`.
+- Wake and hibernate (lowercasing, validation, forwarding to the agent's host) now live in one service used by both servers.
+- Invalid JSON is a 400, path parameters are decoded once, and unknown ids on `index-delta` and `agents/:id/messages` answer 404 instead of 500.
+- Headless now also serves agent schedule, pending-wakes, client-event, telemetry logs and metrics, AMP attachments and the well-known discovery file.
+- Still missing on headless (allowlisted in the parity test with reasons): agent file upload (multipart).
+
+**Test safety net (F029).** A route-parity test (both directions, shadowing, same service functions per pair), a headless smoke test that boots a real server on a temporary home and a private tmux socket, hostile-id tests, argument-level tests for every fixed route, and the hook replay harness. Coverage reporting is not included (it needs a new dev dependency).
+
 ## [0.61.0] - 2026-10-09 - Logs and disk: the causes fixed across the ecosystem (B014)
 
 Rotation (0.60.5 to 0.60.7) caps what a log can become; this release removes the reasons they grew. It came from an audit of every repo in the ecosystem (backlog B014).

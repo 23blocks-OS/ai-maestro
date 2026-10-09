@@ -1,6 +1,6 @@
 # B011 - Agent status that is set and never cleared (wakes deferred or dropped)
 
-**Status:** Todo (planned for 2026-10-08)
+**Status:** Done (0.62.0; open: single tool call > 15 min, shared-cwd state file, Codex Stop idle for 15 min)
 **Type:** Bug
 **Created:** 2026-10-07
 **Found by:** read-only audit, 2026-10-07 (follow-up to #551, fixed in 0.60.2). All items are the auditor's reading of the code unless marked; items marked "inferred" depend on how Claude Code, Codex or Grok behave and were not observed. Verify each with a replayed event sequence before fixing.

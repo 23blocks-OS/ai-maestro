@@ -67,6 +67,7 @@ import { paneSubmitted, paneStaged, clearInputKeys } from '@/lib/notification-se
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
+import { shouldLogChange } from '@/lib/log-on-change'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -518,7 +519,7 @@ async function fetchAllSessions(): Promise<Session[]> {
   console.log(`[Sessions] Fetching from ${hosts.length} host(s)...`)
 
   const localSessions = selfHost ? await fetchLocalSessions(selfHost.id) : []
-  console.log(`[Agents] Found ${localSessions.length} local tmux session(s)`)
+  if (shouldLogChange('sessions.local', localSessions.length)) console.log(`[Agents] Found ${localSessions.length} local tmux session(s)`)
 
   const remoteHosts = hosts.filter(h => !isSelf(h.id))
   if (remoteHosts.length === 0) return localSessions
@@ -568,7 +569,7 @@ export async function listSessions(): Promise<{ sessions: Session[]; fromCache: 
 export async function listLocalSessions(): Promise<{ sessions: Session[] }> {
   const selfHost = getSelfHost()
   const sessions = selfHost ? await fetchLocalSessions(selfHost.id) : []
-  console.log(`[Agents] Found ${sessions.length} local tmux session(s)`)
+  if (shouldLogChange('sessions.merged', sessions.length)) console.log(`[Agents] Found ${sessions.length} local tmux session(s)`)
   return { sessions }
 }
 

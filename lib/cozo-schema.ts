@@ -10,6 +10,7 @@
 
 import { AgentDatabase } from './cozo-db'
 import { escapeForCozo } from './cozo-utils'
+import { schemaDebug } from './schema-log'
 
 /**
  * Initialize all tracking tables in the agent database
@@ -24,7 +25,7 @@ export async function initializeTrackingSchema(agentDb: AgentDatabase): Promise<
       console.log(`[SCHEMA] ✓ Created table: ${tableName}`)
     } catch (error: any) {
       if (error.code === 'eval::stored_relation_conflict') {
-        console.log(`[SCHEMA] ℹ Table ${tableName} already exists, skipping`)
+        schemaDebug(`[SCHEMA] ℹ Table ${tableName} already exists, skipping`)
       } else {
         console.error(`[SCHEMA] ✗ Failed to create ${tableName}:`, error)
         throw error

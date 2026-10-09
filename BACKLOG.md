@@ -65,6 +65,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B011** — [Agent status that is set and never cleared (wakes deferred or dropped)](./backlog/B011-status-set-and-never-cleared.md) — `Todo` (planned 2026-10-08)
 - **B012** — [Headless routes behave differently from the Next.js routes](./backlog/B012-headless-routes-differ-from-next-routes.md) — `Todo` (planned 2026-10-08)
 - **B013** — [Logs that grow without a limit (hook debug log 373 MB, pm2 log 3.4 GB); cap at 50 MB](./backlog/B013-unbounded-logs-need-rotation.md) — `Done` (0.60.5)
+- **B014** — [Logs and files that grow without limit across the AI Maestro ecosystem (epic, ranked, one fix per repo)](./backlog/B014-ecosystem-log-and-disk-hygiene.md) — `In Progress` (0.61.0; database retention open)
 
 ## Unfiled
 

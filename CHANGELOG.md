@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.61.0] - 2026-10-09 - Logs and disk: the causes fixed across the ecosystem (B014)
+
+Rotation (0.60.5 to 0.60.7) caps what a log can become; this release removes the reasons they grew. It came from an audit of every repo in the ecosystem (backlog B014).
+
+**Log volume**
+- **Database re-open spam (about 65% of the 3.4 GB `pm2-out.log`).** Each short-lived `AgentDatabase` re-ran the schema check for about 45 tables and printed about 100 lines: 3,326 times in 21 hours. The schema is now initialised once per database file per process (keyed by inode and birth time, so a recreated file re-initialises; a failed migration is not cached). The per-table "already exists" lines need `AIM_DEBUG_SCHEMA=1`. A bug that logged an unawaited `Promise` (about 45 lines of Next.js internals) is fixed.
+- `[Agents] Found N local tmux session(s)` and the delta-index "no longer exist" line log only when the number changes. Embedding model download progress logs every 10%. `initializeMemory` errors log the message, not a 20-line stack.
+- **A malformed inbox message is quarantined** to `<inbox>/.quarantine/` and logged once. It used to be re-logged (10 lines) on every poll for as long as it sat there. Nothing is deleted.
+- **The hook's debug log is off unless `AIM_HOOK_DEBUG=1`** (entries with `error` or `failed` in the name are always kept). `memory-recalls.jsonl` is capped at 5 MB. SessionStart prunes `chat-state` files older than 30 days (only the four patterns the hook writes) and drops index entries whose folder is gone. Plugin 1.5.0.
+
+**Disk**
+- **Backups of deleted agents are pruned.** A permanent agent delete copies the whole agent folder (database included, 500 to 700 MB) and nothing ever removed old copies: 7.2 GB in 24 folders on one Mac. Now, right after a new backup is written, the 5 newest are always kept and older ones are removed once they are over 30 days old. `AIM_BACKUP_KEEP` (a count, or `all` to disable) and `AIM_BACKUP_MAX_AGE_DAYS` override it. Only folders that match the `<id>-<ISO timestamp>` names this code writes are touched; symlinks are never followed. `scripts/prune-agent-backups.mjs` shows what would go (dry run by default, `--apply` to delete). **Heads up:** your next permanent agent delete will prune the existing old backups.
+- **Leftover `agent-browser` Chrome profiles and processes.** `scripts/cleanup-agent-browser.sh` (dry run by default) removes orphaned `agent-browser-chrome-*` temp profiles and Chrome-for-Testing processes whose daemon is gone; the agent-browser skill now tells agents to close their session and use a 5 minute idle timeout. `agent-browser` is a third-party tool (Vercel); a fix for the leak itself is proposed upstream (vercel-labs/agent-browser#2080).
+
+**Plugin 1.5.0 (claude-plugin 0.3.0)**
+- New `amp-prune.sh`: removes read inbox messages and sent copies older than N days (default 90) and unreferenced attachments, dry run by default, unread kept. Background pruning is **off by default**; set `AMP_RETENTION_DAYS=N` to enable it. (On a real fleet the 90-day default would have deleted 8,061 messages to free 18 MB, so nothing is removed unless you ask.)
+- The status line counts unread in one pass instead of one `jq` per inbox file on every refresh, and caches the agent lookup for 60 seconds.
+
+**Not changed:** the per-agent memory databases (about 19 GB on one Mac, 500 to 700 MB each) have no retention yet. Shrinking them touches what agents remember, so it needs its own design (B014).
+
+**Related releases from the same audit:** aimaestro-gateways 0.1.1 (Slack retry policy, bounded gateway logs) and lolabot 1.0.2 (bounded scratch files; the integrity check now works on macOS).
+
 ## [0.60.7] - 2026-10-08 - Fix: log rotation filled a disk and stopped pm2 (do not use 0.60.5 or 0.60.6 on a host with huge pm2 logs)
 
 **What happened.** Updating mini-lola to 0.60.6 installed the `pm2-logrotate` module. That module covers every app pm2 runs on the host, and rotates a file past the cap by copying it, every 30 seconds. The Slack gateway's pm2 log was 13 GB, and the module copied it again and again (7.3, 4.3, 3.2, 1.9 GB ... 19 GB in ten minutes) until the disk was 100% full. pm2 and AI Maestro stopped and mini-lola was down for about 15 minutes. The 0.60.5 notes said the module applies to every app; they did not say what that could do.

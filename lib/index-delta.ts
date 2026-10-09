@@ -20,6 +20,7 @@ import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { shouldLogChange } from './log-on-change'
 
 // ============================================================================
 // THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
@@ -738,7 +739,7 @@ async function runIndexDeltaPinned(
       }
     }
 
-    if (deadConversations > 0) {
+    if (deadConversations > 0 && shouldLogChange('delta.dead', deadConversations)) {
       console.warn(
         `[Delta Index] ${deadConversations}/${conversations.length} recorded conversations no longer exist on disk` +
         (deadConversations === conversations.length ? ' — the binding is entirely stale' : '')

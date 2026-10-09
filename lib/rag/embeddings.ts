@@ -19,6 +19,24 @@ let extractor: FeatureExtractionPipeline | null = null;
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 
 /**
+ * Throttle model-download progress: one line per 10% step per file, and one at
+ * 100%. The library reports every tick (hundreds of lines per download).
+ */
+export function createLoadProgressLogger(log: (msg: string) => void = console.log) {
+  const lastBucket = new Map<string, number>();
+  return (progress: { file?: string; progress?: number }) => {
+    if (!progress.progress) return;
+    const pct = Math.round(progress.progress);
+    const bucket = pct >= 100 ? 100 : Math.floor(pct / 10) * 10;
+    const key = progress.file ?? '';
+    if (bucket > (lastBucket.get(key) ?? -1)) {
+      lastBucket.set(key, bucket);
+      log(`[Embeddings] Loading... ${bucket}%`);
+    }
+  };
+}
+
+/**
  * Get or initialize the embedding model (singleton pattern with race protection)
  */
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
@@ -29,6 +47,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
 
   extractorPromise = (async () => {
     console.log('[Embeddings] Loading model:', MODEL);
+    const logLoadProgress = createLoadProgressLogger();
     const startTime = Date.now();
 
     const ext = await pipeline('feature-extraction', MODEL, {
@@ -51,7 +70,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
       device: (process.env.AIMAESTRO_EMBEDDING_DEVICE as any) || 'cpu',
       progress_callback: (progress: any) => {
         if (progress.status === 'progress' && progress.progress) {
-          console.log(`[Embeddings] Loading... ${Math.round(progress.progress)}%`);
+          logLoadProgress(progress);
         }
       },
     });

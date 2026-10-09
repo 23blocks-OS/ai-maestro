@@ -1284,6 +1284,10 @@ export async function runDeltaIndex(
   agentId: string,
   options: { dryRun?: boolean; batchSize?: number }
 ): Promise<ServiceResult<any>> {
+  // B009: an unknown (or hostile) id is a 404, not a database folder and a 500
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
+
   const dryRun = options.dryRun || false
   const batchSize = options.batchSize || 10
 

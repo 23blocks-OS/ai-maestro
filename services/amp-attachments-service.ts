@@ -268,6 +268,20 @@ export interface AttachmentDownload {
   digest: string
 }
 
+/** Response headers for a download; shared by the Next route and the headless router. */
+export function downloadHeaders(d: AttachmentDownload): Record<string, string> {
+  return {
+    'Content-Type': d.contentType,
+    'Content-Length': String(d.bytes.length),
+    // Spec section 6: the client prefers the server-sanitized filename from
+    // Content-Disposition over the one in the payload.
+    'Content-Disposition': `attachment; filename="${d.filename}"`,
+    'X-Content-Digest': d.digest,
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+  }
+}
+
 /**
  * Download. Authorised by the capability token in the URL, not an API key —
  * the spec requires cross-provider recipients to fetch "without an account on

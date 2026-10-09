@@ -8,7 +8,7 @@
  * travels inside a message to another host, where an API key must never go.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { receiveContent, downloadContent } from '@/services/amp-attachments-service'
+import { receiveContent, downloadContent, downloadHeaders } from '@/services/amp-attachments-service'
 import { toResponse } from '@/app/api/_helpers'
 import { isServiceError } from '@/services/service-errors'
 
@@ -28,18 +28,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // ServiceResult unions data with ServiceError, so narrow before using it.
   if (!result.data || isServiceError(result.data)) return toResponse(result)
 
-  const { bytes, filename, contentType, digest } = result.data
-  return new NextResponse(new Uint8Array(bytes), {
-    status: 200,
-    headers: {
-      'Content-Type': contentType,
-      'Content-Length': String(bytes.length),
-      // Spec section 6: the client prefers the server-sanitized filename from
-      // Content-Disposition over the one in the payload.
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'X-Content-Digest': digest,
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'private, no-store',
-    },
-  })
+  return new NextResponse(new Uint8Array(result.data.bytes), { status: 200, headers: downloadHeaders(result.data) })
 }

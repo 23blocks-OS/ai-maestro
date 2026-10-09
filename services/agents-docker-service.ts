@@ -8,14 +8,14 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { exec } from 'child_process'
+import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { v4 as uuidv4 } from 'uuid'
 import { createAgent, deleteAgent, getAgent, loadAgents, saveAgents, updateAgent } from '@/lib/agent-registry'
 import { getHosts, isSelf, getOrganization } from '@/lib/hosts-config'
 import { generateKeyPair, saveKeyPair } from '@/lib/amp-keys'
 import { registerAgent } from '@/services/amp-service'
-import { type ServiceResult, missingField, operationFailed, invalidRequest, invalidState, notFound, gone, serviceError } from '@/services/service-errors'
+import { type ServiceResult, missingField, operationFailed, invalidRequest, invalidField, invalidState, notFound, gone, serviceError } from '@/services/service-errors'
 import type { Agent, SandboxMount } from '@/types/agent'
 import { PERMISSION_MODE_TO_CLI } from '@/types/agent'
 import type { AgentPermissionMode } from '@/types/agent'
@@ -24,6 +24,7 @@ import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 export interface DockerCreateRequest {
   name: string
@@ -108,6 +109,28 @@ export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | '
   }
   // Opt-in OTLP telemetry env prefix (off by default; no-op for non-claude).
   return claudeTelemetryEnvPrefix(program) + aiTool
+}
+
+const DOCKER_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/
+const DOCKER_MEMORY_RE = /^\d{1,6}(\.\d+)?[bkmgBKMG]?$/
+const DOCKER_CPUS_RE = /^\d{1,3}(\.\d{1,2})?$/
+const DOCKER_MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,127}$/
+const GITHUB_TOKEN_RE = /^[A-Za-z0-9_-]{1,255}$/
+
+/** Request fields that end up in the `docker run` invocation. Null when fine. */
+export function validateDockerRunFields(body: {
+  name: string; workingDirectory?: string; cpus?: unknown; memory?: unknown; model?: string; githubToken?: string
+}): { field: string; reason: string } | null {
+  if (!DOCKER_NAME_RE.test(body.name)) return { field: 'name', reason: 'name must be 1-63 characters: lowercase letters, digits, underscore, hyphen' }
+  if (body.workingDirectory !== undefined && body.workingDirectory !== '' &&
+      (typeof body.workingDirectory !== 'string' || !body.workingDirectory.startsWith('/') || UNSAFE_PATH_CHARS.test(body.workingDirectory) || body.workingDirectory.includes(':') || body.workingDirectory.includes('\0'))) {
+    return { field: 'workingDirectory', reason: 'workingDirectory must be an absolute path without quotes, backticks, $, colons, backslashes or newlines' }
+  }
+  if (body.cpus !== undefined && body.cpus !== '' && !DOCKER_CPUS_RE.test(String(body.cpus))) return { field: 'cpus', reason: 'cpus must be a number' }
+  if (body.memory !== undefined && body.memory !== '' && !DOCKER_MEMORY_RE.test(String(body.memory))) return { field: 'memory', reason: 'memory must look like 4g or 512m' }
+  if (body.model !== undefined && body.model !== '' && !DOCKER_MODEL_RE.test(String(body.model))) return { field: 'model', reason: 'model contains characters that are not allowed' }
+  if (body.githubToken !== undefined && body.githubToken !== '' && !GITHUB_TOKEN_RE.test(String(body.githubToken))) return { field: 'githubToken', reason: 'githubToken contains characters that are not allowed' }
+  return null
 }
 
 export function validateMounts(mounts: SandboxMount[] | undefined): string | null {
@@ -1166,6 +1189,10 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
 
   const name = body.name.trim().toLowerCase()
 
+  // These reach `docker run` (B010): plain values only.
+  const fieldError = validateDockerRunFields({ ...body, name })
+  if (fieldError) return invalidField(fieldError.field, fieldError.reason)
+
   // If targeting a remote host, forward the request
   if (body.hostId) {
     const hosts = getHosts()
@@ -1336,28 +1363,29 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     body.mounts
   )
 
-  const dockerCmd = [
-    'docker run -d',
-    `--name "${containerName}"`,
+  // argv, not a shell string: no value here can be read as shell syntax (B010).
+  const dockerArgs = [
+    'run', '-d',
+    '--name', containerName,
     '--add-host=host.docker.internal:host-gateway',
     '--cap-drop=ALL',
-    '--cap-add=NET_BIND_SERVICE --cap-add=SETGID --cap-add=SETUID --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER',
-    '--security-opt no-new-privileges',
-    '--tmpfs /tmp:noexec,nosuid,size=100m',
-    body.autoRemove ? '' : '--restart unless-stopped',
-    ...buildEnvFlags(mergedEnv),
-    `-v "${workDir}:/workspace"`,
-    ...buildMountFlags(mergedMounts),
-    `-p ${port}:23000`,
+    '--cap-add=NET_BIND_SERVICE', '--cap-add=SETGID', '--cap-add=SETUID', '--cap-add=CHOWN', '--cap-add=DAC_OVERRIDE', '--cap-add=FOWNER',
+    '--security-opt', 'no-new-privileges',
+    '--tmpfs', '/tmp:noexec,nosuid,size=100m',
+    ...(body.autoRemove ? [] : ['--restart', 'unless-stopped']),
+    ...Object.entries(mergedEnv || {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+    '-v', `${workDir}:/workspace`,
+    ...(mergedMounts || []).flatMap(m => ['-v', `${m.hostPath}:${m.containerPath}${m.readOnly ? ':ro' : ''}`]),
+    '-p', `${port}:23000`,
     `--cpus=${cpus}`,
     `--memory=${memory}`,
-    body.autoRemove ? '--rm' : '',
+    ...(body.autoRemove ? ['--rm'] : []),
     'ai-maestro-agent:latest',
-  ].filter(Boolean).join(' ')
+  ]
 
   let containerId: string
   try {
-    const { stdout } = await execAsync(dockerCmd, { timeout: 30000 })
+    const { stdout } = await execFileAsync('docker', dockerArgs, { timeout: 30000 })
     containerId = stdout.trim().slice(0, 12)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

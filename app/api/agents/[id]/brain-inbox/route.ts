@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { readAndClearBrainInbox } from '@/lib/cerebellum/brain-inbox'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 export async function GET(
   _request: NextRequest,
@@ -16,6 +17,8 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
+    const unknown = unknownAgentResult(agentId)
+    if (unknown) return NextResponse.json({ signals: [], ...(unknown.data as object) }, { status: unknown.status })
     const signals = readAndClearBrainInbox(agentId)
     return NextResponse.json({ signals })
   } catch (error) {

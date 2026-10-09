@@ -9,6 +9,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { isSafeAgentId } from '../safe-ids'
 
 export interface BrainSignal {
   from: 'cerebellum' | 'subconscious'
@@ -23,6 +24,7 @@ function inboxPath(agentId: string): string {
 }
 
 export function writeBrainSignal(agentId: string, signal: BrainSignal): void {
+  if (!isSafeAgentId(agentId)) return
   try {
     const filePath = inboxPath(agentId)
     const dir = path.dirname(filePath)
@@ -36,6 +38,7 @@ export function writeBrainSignal(agentId: string, signal: BrainSignal): void {
 }
 
 export function readAndClearBrainInbox(agentId: string): BrainSignal[] {
+  if (!isSafeAgentId(agentId)) return []
   const filePath = inboxPath(agentId)
   try {
     if (!fs.existsSync(filePath)) return []

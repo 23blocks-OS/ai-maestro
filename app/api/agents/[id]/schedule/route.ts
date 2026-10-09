@@ -10,11 +10,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { readSchedule, writeSchedule, dueTasks, describeCadence } from '@/lib/agent-schedule'
+import { unknownAgentResult } from '@/services/agent-guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const unknown = unknownAgentResult(id)
+  if (unknown) return NextResponse.json(unknown.data, { status: unknown.status })
   const schedule = readSchedule(id)
   return NextResponse.json({
     success: true,
@@ -27,6 +30,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    const unknown = unknownAgentResult(id)
+    if (unknown) return NextResponse.json(unknown.data, { status: unknown.status })
     const body = await req.json().catch(() => ({}))
 
     if (body.run === true) {

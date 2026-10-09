@@ -42,6 +42,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { isSafeAgentId } from '@/lib/safe-ids'
 
 /** What a task does when it fires. */
 export type ScheduledAction =
@@ -101,6 +102,8 @@ export function defaultSchedule(agentId: string): AgentSchedule {
 
 /** Read an agent's schedule, seeding the default when it has none yet. */
 export function readSchedule(agentId: string): AgentSchedule {
+  // An unsafe id never reaches the disk (B010): it gets the default, unsaved.
+  if (!isSafeAgentId(agentId)) return defaultSchedule(String(agentId))
   try {
     const raw = JSON.parse(fs.readFileSync(schedulePath(agentId), 'utf-8'))
     if (raw && Array.isArray(raw.tasks)) return { ...raw, agentId, version: 1 }
@@ -113,6 +116,7 @@ export function readSchedule(agentId: string): AgentSchedule {
 
 /** Persist a schedule next to the agent's other portable state. */
 export function writeSchedule(schedule: AgentSchedule): boolean {
+  if (!isSafeAgentId(schedule?.agentId)) return false
   try {
     const p = schedulePath(schedule.agentId)
     fs.mkdirSync(path.dirname(p), { recursive: true })

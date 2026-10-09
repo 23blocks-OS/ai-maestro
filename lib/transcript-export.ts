@@ -114,6 +114,19 @@ export async function exportTranscript(
     // Generate output path if not provided
     const exportPath = outputPath || generateDefaultExportPath(agentId, sessionId, format)
 
+    // Exports stay under ~/.aimaestro/exports, whatever outputPath says (B010).
+    const exportsRoot = path.resolve(path.join(os.homedir(), '.aimaestro', 'exports'))
+    const rel = path.relative(exportsRoot, path.resolve(exportPath))
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || exportPath.includes('\0')) {
+      return {
+        success: false,
+        format,
+        filePath: '',
+        messageCount: 0,
+        error: 'outputPath must be inside ~/.aimaestro/exports'
+      }
+    }
+
     // Format based on requested format
     let content: string
 
@@ -398,7 +411,8 @@ function generateDefaultExportPath(
   // Store in ~/.aimaestro/exports/
   const exportsDir = path.join(os.homedir(), '.aimaestro', 'exports')
 
-  const filename = `${sessionId}-${timestamp}.${extension}`
+  const safeSession = String(sessionId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 100)
+  const filename = `${safeSession}-${timestamp}.${extension}`
   return path.join(exportsDir, filename)
 }
 

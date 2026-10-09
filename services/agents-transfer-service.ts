@@ -9,13 +9,14 @@ import { getAgent, getAgentByAlias, getAgentByName, getAgentSkills, loadAgents, 
 import { getSkillById } from '@/lib/marketplace-skills'
 import { hasKeyPair, getKeysDir, getRegistrationsDir, listRegisteredProviders, generateKeyPair, saveKeyPair } from '@/lib/amp-keys'
 import { getSelfHost } from '@/lib/hosts-config'
+import { isSafeAgentId } from '@/lib/safe-ids'
 import archiver from 'archiver'
 import yauzl from 'yauzl'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import type { Agent, Repository } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
 import { type ServiceResult, notFound, missingField, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
@@ -146,11 +147,47 @@ function detectGitRepo(dirPath: string): PortableRepository | null {
   }
 }
 
-function cloneRepository(
+const BRANCH_RE = /^[A-Za-z0-9._/-]{1,200}$/
+
+/** A branch name that cannot be read as an option or climb out of refs (B010). */
+export function isSafeGitBranch(branch: unknown): branch is string {
+  return typeof branch === 'string' && BRANCH_RE.test(branch) && !branch.startsWith('-') && !branch.includes('..')
+}
+
+/**
+ * Remote URLs from an imported manifest are untrusted. Allow https, http, ssh and
+ * scp-like `git@host:path`; no spaces or control characters, no leading hyphen.
+ */
+export function isSafeGitRemoteUrl(url: unknown): url is string {
+  if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return false
+  // eslint-disable-next-line no-control-regex
+  if (/[\s\u0000-\u001f\u007f]/.test(url)) return false
+  if (/^(https?|ssh):\/\/[^/\s]+/i.test(url)) return true
+  return /^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s:][^\s]*$/.test(url) && !url.startsWith('-')
+}
+
+/** The name-derived default clone target must stay inside its parent. */
+export function isInsideDir(parent: string, child: string): boolean {
+  const rel = path.relative(path.resolve(parent), path.resolve(child))
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
+
+export function cloneRepository(
   repo: PortableRepository,
   targetPath: string
 ): RepositoryImportResult {
   try {
+    const branch = repo.defaultBranch || 'main'
+    if (!isSafeGitBranch(branch)) {
+      return { name: repo.name, remoteUrl: repo.remoteUrl, status: 'failed', localPath: targetPath, error: 'Refusing to clone: unsafe branch name' }
+    }
+    if (!isSafeGitRemoteUrl(repo.remoteUrl)) {
+      return { name: repo.name, remoteUrl: repo.remoteUrl, status: 'failed', localPath: targetPath, error: 'Refusing to clone: unsupported or unsafe remote URL' }
+    }
+    if (typeof targetPath !== 'string' || !path.isAbsolute(targetPath) || targetPath.includes('\0')) {
+      return { name: repo.name, remoteUrl: repo.remoteUrl, status: 'failed', localPath: targetPath, error: 'Refusing to clone: target path must be absolute' }
+    }
+
     if (fs.existsSync(targetPath)) {
       const gitDir = path.join(targetPath, '.git')
       if (fs.existsSync(gitDir)) {
@@ -184,8 +221,7 @@ function cloneRepository(
 
     ensureDir(path.dirname(targetPath))
 
-    const branch = repo.defaultBranch || 'main'
-    execSync(`git clone --branch ${branch} "${repo.remoteUrl}" "${targetPath}"`, {
+    execFileSync('git', ['clone', '--branch', branch, '--', repo.remoteUrl, targetPath], {
       encoding: 'utf-8',
       timeout: 300000,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -644,6 +680,10 @@ export async function importAgent(
 
     // Prepare agent for import
     const newAgentId = options.newId ? uuidv4() : importedAgent.id
+    // The id becomes ~/.aimaestro/agents/<id>: a manifest cannot choose a path (B010).
+    if (!isSafeAgentId(newAgentId)) {
+      return invalidField('agent.id', 'The imported agent id is not a plain name')
+    }
 
     const agentToImport: Agent = {
       ...importedAgent,
@@ -747,7 +787,18 @@ export async function importAgent(
         } else if (repo.originalPath) {
           targetPath = repo.originalPath
         } else {
-          targetPath = path.join(os.homedir(), 'repos', repo.name)
+          // The name comes from the manifest: keep the clone inside ~/repos.
+          const reposDir = path.join(os.homedir(), 'repos')
+          targetPath = path.join(reposDir, String(repo.name))
+          if (!isInsideDir(reposDir, targetPath)) {
+            repositoryResults.push({
+              name: repo.name,
+              remoteUrl: repo.remoteUrl,
+              status: 'failed',
+              error: 'Refusing to clone: repository name leaves the repos directory'
+            })
+            continue
+          }
         }
 
         const result = cloneRepository(repo, targetPath)

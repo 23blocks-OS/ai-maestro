@@ -22,6 +22,7 @@ import { getAgent as getAgentFromRegistry } from './agent-registry'
 import { getSelfHost } from './hosts-config'
 import { computeSessionName } from '@/types/agent'
 import { computeHash } from './hash-utils'
+import { isSafeAgentId as isSafeAgentIdShared } from './safe-ids'
 import { Cerebellum } from './cerebellum/cerebellum'
 import { MemorySubsystem } from './cerebellum/memory-subsystem'
 import { VoiceSubsystem } from './cerebellum/voice-subsystem'
@@ -1002,7 +1003,7 @@ export class Agent {
  * request for an unknown one created a database folder for it.
  */
 export function isSafeAgentId(agentId: string): boolean {
-  return typeof agentId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(agentId) && !agentId.includes('..')
+  return isSafeAgentIdShared(agentId)
 }
 
 /**

@@ -134,6 +134,15 @@ function resolveAgentAMPHome(agentName: string, agentId?: string): string {
  * Sanitize an address for use as a directory name.
  * Matches the logic in amp-helper.sh: sanitize_address_for_path()
  */
+/**
+ * A message id becomes a file name (`<id>.json`). Real ids look like
+ * `msg_<digits>_<alnum>`; accept any plain token and nothing that can leave the
+ * directory (B010).
+ */
+export function isSafeMessageId(id: unknown): id is string {
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id)
+}
+
 function sanitizeAddressForPath(address: string): string {
   return address.replace(/[@.]/g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
 }
@@ -318,6 +327,10 @@ export async function writeToAMPInbox(
   recipientAgentId?: string
 ): Promise<string | null> {
   try {
+    if (!isSafeMessageId(envelope.id)) {
+      console.error('[AMP Inbox Writer] Refusing unsafe message id')
+      return null
+    }
     const agentName = recipientAgent || extractAgentName(envelope.to)
     if (!agentName) {
       console.error('[AMP Inbox Writer] Cannot determine recipient agent name')
@@ -327,6 +340,10 @@ export async function writeToAMPInbox(
     const agentHome = resolveAgentAMPHome(agentName, recipientAgentId)
     const agentInboxDir = path.join(agentHome, 'messages', 'inbox')
     const senderDir = sanitizeAddressForPath(envelope.from)
+    if (!senderDir) {
+      console.error('[AMP Inbox Writer] Refusing empty sender directory')
+      return null
+    }
     const inboxSenderDir = path.join(agentInboxDir, senderDir)
 
     await fs.mkdir(inboxSenderDir, { recursive: true })
@@ -386,6 +403,10 @@ export async function writeToAMPSent(
   senderAgentId?: string
 ): Promise<string | null> {
   try {
+    if (!isSafeMessageId(envelope.id)) {
+      console.error('[AMP Inbox Writer] Refusing unsafe message id')
+      return null
+    }
     const agentName = senderAgent || extractAgentName(envelope.from)
     if (!agentName) {
       console.error('[AMP Inbox Writer] Cannot determine sender agent name')
@@ -395,6 +416,10 @@ export async function writeToAMPSent(
     const agentHome = resolveAgentAMPHome(agentName, senderAgentId)
     const agentSentDir = path.join(agentHome, 'messages', 'sent')
     const recipientDir = sanitizeAddressForPath(envelope.to)
+    if (!recipientDir) {
+      console.error('[AMP Inbox Writer] Refusing empty recipient directory')
+      return null
+    }
     const sentRecipientDir = path.join(agentSentDir, recipientDir)
 
     await fs.mkdir(sentRecipientDir, { recursive: true })

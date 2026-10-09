@@ -86,10 +86,12 @@ case "$1" in
   set) echo "set $2 $3" >> "$S/calls"
        node -e 'const fs=require("fs"),f=process.argv[1]+"/module_conf.json";let c={};try{c=JSON.parse(fs.readFileSync(f))}catch(e){};c["pm2-logrotate"]=c["pm2-logrotate"]||{};c["pm2-logrotate"][process.argv[2].replace("pm2-logrotate:","")]=process.argv[3];fs.writeFileSync(f,JSON.stringify(c))' "${home}" "$2" "$3";;
   conf) echo "$ pm2 set module-db-v2:pm2-logrotate [object Object]";;
+  jlist) cat "$S/jlist.json" 2>/dev/null || echo "[]";;
+  uninstall) echo "uninstall $2" >> "$S/calls"; rm -f "$S/installed";;
 esac
 exit 0
 `, { mode: 0o755 })
-    return { bin, home, calls: () => (fs.existsSync(path.join(state, 'calls')) ? fs.readFileSync(path.join(state, 'calls'), 'utf8').trim().split('\n') : []) }
+    return { bin, home, state, calls: () => (fs.existsSync(path.join(state, 'calls')) ? fs.readFileSync(path.join(state, 'calls'), 'utf8').trim().split('\n') : []) }
   }
   // The script needs `node` to read pm2's settings file, but the real `pm2` (installed next
   // to node under nvm) must NOT be reachable: a test once started a real pm2 daemon that way.
@@ -101,7 +103,7 @@ exit 0
   const run = (extraPath: string, env: Record<string, string> = {}) =>
     spawnSync('bash', [SCRIPT, path.join(dir, 'app')], {
       encoding: 'utf8',
-      env: { PATH: `${extraPath}:${nodeOnlyBin()}:/usr/bin:/bin`, HOME: dir, TMPDIR: dir, PM2_HOME: path.join(dir, 'pm2home'), ...env },
+      env: { PATH: `${extraPath}:${nodeOnlyBin()}:/usr/bin:/bin`, HOME: dir, TMPDIR: dir, PM2_HOME: path.join(dir, 'pm2home'), AIM_MIN_FREE_MB: '1', ...env },
     })
 
   beforeEach(() => { fs.mkdirSync(path.join(dir, 'app', 'logs'), { recursive: true }) })
@@ -179,6 +181,82 @@ exit 0
     const r = run(p.bin, { AIM_LOG_ROTATION: 'off' })
     expect(r.status).toBe(0)
     expect(p.calls()).toEqual([])
+  })
+})
+
+describe('safety: the pm2 module is never enabled next to huge logs (mini-lola, 2026-10-08)', () => {
+  // pm2-logrotate COPIES a file past the cap every 30 seconds and covers every pm2 app on the
+  // host. A 13 GB log from another app was copied until the disk was full and pm2 stopped.
+  // These tests use a 1 MB block threshold instead of 1000 MB.
+  const SMALL = { AIM_PM2_LOG_BLOCK_MB: '1' }
+  const bigLog = (p: string, mb = 3) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, ('other app output line\n').repeat(Math.ceil((mb * MB) / 22))) }
+  function fake(withModule = false) {
+    const bin = path.join(dir, 'bin'); fs.mkdirSync(bin)
+    const state = path.join(dir, 'pm2-state'); fs.mkdirSync(state)
+    const home = path.join(dir, 'pm2home'); fs.mkdirSync(home)
+    if (withModule) fs.writeFileSync(path.join(state, 'installed'), '')
+    fs.writeFileSync(path.join(bin, 'pm2'), `#!/bin/bash
+S="${state}"
+case "$1" in
+  list) [ -f "$S/installed" ] && echo "pm2-logrotate  online"; echo "ai-maestro online";;
+  install) echo "install $2" >> "$S/calls"; touch "$S/installed";;
+  uninstall) echo "uninstall $2" >> "$S/calls"; rm -f "$S/installed";;
+  set) echo "set $2 $3" >> "$S/calls";;
+  jlist) cat "$S/jlist.json" 2>/dev/null || echo "[]";;
+esac
+exit 0
+`, { mode: 0o755 })
+    const nodeBin = path.join(dir, 'nodebin'); fs.mkdirSync(nodeBin); fs.symlinkSync(process.execPath, path.join(nodeBin, 'node'))
+    const calls = () => (fs.existsSync(path.join(state, 'calls')) ? fs.readFileSync(path.join(state, 'calls'), 'utf8').trim().split('\n') : [])
+    const go = (env: Record<string, string> = {}) => spawnSync('bash', [SCRIPT, path.join(dir, 'app')], {
+      encoding: 'utf8',
+      env: { PATH: `${bin}:${nodeBin}:/usr/bin:/bin`, HOME: dir, TMPDIR: dir, PM2_HOME: home, AIM_MIN_FREE_MB: '1', ...SMALL, ...env },
+    })
+    return { home, state, calls, go }
+  }
+  beforeEach(() => { fs.mkdirSync(path.join(dir, 'app', 'logs'), { recursive: true }) })
+
+  it('does not install the module when another pm2 app has a huge log, and says which', () => {
+    const f = fake(); bigLog(path.join(f.home, 'logs', 'slack-gateway-out.log'))
+    const r = f.go()
+    expect(r.status).toBe(0)
+    expect(f.calls()).toEqual([])
+    expect(r.stdout).toMatch(/NOT enabling pm2 rotation/)
+    expect(r.stdout).toMatch(/slack-gateway-out\.log/)
+    expect(fs.statSync(path.join(f.home, 'logs', 'slack-gateway-out.log')).size).toBeGreaterThan(2 * MB) // left alone
+  })
+  it('removes a module that is already installed when such a log exists', () => {
+    const f = fake(true); bigLog(path.join(f.home, 'logs', 'email-gateway-error.log'))
+    f.go()
+    expect(f.calls()).toEqual(['uninstall pm2-logrotate'])
+  })
+  it('sees a huge log that pm2 reports outside ~/.pm2', () => {
+    const f = fake(); const elsewhere = path.join(dir, 'var', 'weird-app.log'); bigLog(elsewhere)
+    fs.writeFileSync(path.join(f.state, 'jlist.json'), JSON.stringify([{ name: 'weird', pm2_env: { pm_out_log_path: elsewhere } }]))
+    const r = f.go()
+    expect(f.calls()).toEqual([])
+    expect(r.stdout).toContain('weird-app.log')
+  })
+  it('AIM_LOG_ROTATION_TRIM_ALL=1 trims those logs first, then enables rotation', () => {
+    // block threshold 8 MB here, so a log trimmed to 5 MB no longer blocks (in real use: 1000 MB vs 5 MB)
+    const f = fake(); const big = path.join(f.home, 'logs', 'slack-gateway-out.log'); bigLog(big, 12)
+    const r = f.go({ AIM_LOG_ROTATION_TRIM_ALL: '1', AIM_PM2_LOG_BLOCK_MB: '8' })
+    expect(fs.statSync(big).size).toBeLessThanOrEqual(5 * MB)
+    expect(r.stdout).toMatch(/trimmed slack-gateway-out\.log/)
+    expect(f.calls()[0]).toBe('install pm2-logrotate')
+  })
+  it('does not install the module when the disk is nearly full', () => {
+    const f = fake()
+    const r = f.go({ AIM_MIN_FREE_MB: '999999999' })
+    expect(f.calls()).toEqual([])
+    expect(r.stdout).toMatch(/MB of disk is free/)
+  })
+  it('still trims AI Maestro\'s own logs when rotation is blocked', () => {
+    const f = fake(); bigLog(path.join(f.home, 'logs', 'other-out.log'))
+    const own = path.join(dir, 'app', 'logs', 'pm2-out.log')
+    fs.writeFileSync(own, ('x'.repeat(99) + '\n').repeat(Math.ceil((60 * MB) / 100)))
+    f.go()
+    expect(fs.statSync(own).size).toBeLessThanOrEqual(5 * MB)
   })
 })
 

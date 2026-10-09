@@ -32,3 +32,7 @@ The hook is copied into the plugin builder: edit only `scripts/claude-hooks/ai-m
 - The hook rotates its own debug log (25 MB active + 25 MB previous, a file far past the cap is cut to its tail) and clips every logged string to 1000 characters, keeping each line valid JSON. Plugin 1.4.4.
 - Tests: `tests/log-rotation.test.ts` (17).
 - Limits: the module applies to every app pm2 runs on the host; installs without pm2 only get the trim at update time (their `startup.log` is not rotated while running).
+
+## Incident, 2026-10-08 (fixed in 0.60.7)
+
+The first version enabled pm2-logrotate unconditionally. On mini-lola the module copied a 13 GB Slack gateway log over and over (19 GB of copies in ten minutes), the disk reached 100%, pm2 and AI Maestro stopped for about 15 minutes, and the apps had to be restored with `pm2 resurrect`. Cause: the module applies to every pm2 app and rotates by copying. Fix: enable it only with no pm2 log over 1000 MB and 2048 MB free; remove it where unsafe; never trim other apps' logs without `AIM_LOG_ROTATION_TRIM_ALL=1`. Lesson recorded in the tests: a fake pm2 must behave like the real one, and any change that touches files outside our own directory needs a failure-mode test.

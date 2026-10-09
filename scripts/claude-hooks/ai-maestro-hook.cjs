@@ -349,17 +349,23 @@ function detectAgent(input) {
     // detect it first and read through the helpers below.
     if (input.hookEventName !== undefined) return 'grok';
     if (/[\\/]\.grok[\\/]sessions[\\/]/.test(String(input.transcript_path || input.transcriptPath || ''))) return 'grok';
-    // Codex CLI sets model field with gpt- prefix or has turn_id
-    if (input.model && input.model.startsWith('gpt-')) return 'codex';
+    // Codex CLI sets model field with gpt- prefix or has turn_id. Its rollout
+    // transcripts live under ~/.codex/sessions, which identifies it when it runs a
+    // model without the gpt- prefix (o-series, a custom provider).
+    if (typeof input.model === 'string' && input.model.startsWith('gpt-')) return 'codex';
     if (input.turn_id !== undefined) return 'codex';
+    if (/[\\/]\.codex[\\/]sessions[\\/]/.test(String(input.transcript_path || input.transcriptPath || ''))) return 'codex';
     // Default to Claude Code
     return 'claude';
 }
 
 // True when the agent is already continuing because of an earlier Stop block.
 // Claude sends stop_hook_active; Grok sends ONLY stopHookActive.
+// Parsed strictly: a string such as "false" is truthy, and reading it as active
+// would silently turn the AMP Stop-block delivery off.
 function isStopHookActive(input) {
-    return !!(input.stop_hook_active || input.stopHookActive);
+    const truthy = (v) => v === true || v === 'true' || v === 1;
+    return truthy(input.stop_hook_active) || truthy(input.stopHookActive);
 }
 
 // Agents whose Stop hook honors {decision:'block', reason} (Claude-compatible).
@@ -908,16 +914,189 @@ function decideStopDelivery({ agent, stopHookActive, messages, alreadyIds }) {
 
 // Status to record when a session starts. Claude Code and Grok Build start at an
 // empty prompt (reported in #551; Grok confirmed from a live session's hook log), so
-// they are idle until UserPromptSubmit says otherwise. 'compact' can fire mid-turn,
-// and other CLIs' SessionStart semantics are unverified, so those keep 'active'.
+// they are idle until UserPromptSubmit says otherwise.
+//
+// 'compact' returns null = "do not touch the recorded status". It fires mid-turn (auto
+// compaction, seen in a live hook log with PostToolBatch events right after it) AND for
+// a manual /compact at an idle prompt (seen with no event after it), so any fixed
+// answer is wrong half the time; the status already recorded is right both times.
+//
+// Codex and Gemini return 'started': a start that claims nothing. Their SessionStart
+// semantics are unverified and neither installs a prompt-submit hook, so 'active'
+// (what this used to record) stuck until the first Stop and made every wake defer.
+// 'started' reads as "no hook report" downstream (claimsActivity), so the PTY and,
+// for Codex, the transcript decide.
 function sessionStartStatus(agent, source) {
-    if ((agent === 'claude' || agent === 'grok') && source !== 'compact') return 'idle';
-    return 'active';
+    if (agent === 'claude' || agent === 'grok') return source === 'compact' ? null : 'idle';
+    return 'started';
 }
 
-// Main
+// ── Per-event state transitions ──────────────────────────────────────────────
+// reduceState is the whole status model of the hook as one pure function, so a
+// replayed event sequence (tests/helpers/hook-replay.ts) can assert the recorded
+// status after every step. main() only does I/O around it.
+
+const SETTLE_EVENTS = new Set(['Stop', 'StopFailure', 'StopCancelled']);
+// A PostToolBatch (async hook) can be processed just after the Stop of the same turn.
+const LATE_BATCH_GRACE_MS = 3000;
+// Only rewrite an already-'active' status this often, so a busy agent does not cost a
+// file write and two HTTP calls per tool batch. Well inside the 15 minute status TTL.
+const ACTIVE_REFRESH_MS = 60 * 1000;
+const PRIOR_PROMPTS_KEPT = 8;
+
+// Claude sends snake_case, Grok sends both styles, some fields camelCase only.
+function pick(input, snake, camel) {
+    const v = input[snake] !== undefined ? input[snake] : input[camel];
+    return v === undefined ? null : v;
+}
+
+function promptIdOf(input) {
+    return pick(input, 'prompt_id', 'promptId');
+}
+
+// A subagent's own turn ending says nothing about the session. Grok tags these events
+// with subagentType; Claude puts agent_id on events fired inside a subagent.
+function isSubagentEvent(input) {
+    return !!(pick(input, 'subagent_type', 'subagentType') || input.agent_id);
+}
+
+// A settle report (Stop, idle_prompt...) for a turn that is already over, arriving after
+// a newer turn started. Hooks run as separate processes and Grok documents that a
+// cancelled turn's report can arrive after the next UserPromptSubmit. Only a prompt id
+// we have SEEN AND LEFT counts as stale: an id we never saw start (a turn the agent
+// began on its own) must still settle, or the state would stick.
+function isStaleSettle(prev, input) {
+    const id = promptIdOf(input);
+    if (!id || !prev || prev.status !== 'active' || !prev.promptId) return false;
+    return id !== prev.promptId && Array.isArray(prev.priorPromptIds) && prev.priorPromptIds.includes(id);
+}
+
+// Carry prompt-id bookkeeping into the state about to be written.
+function trackPrompt(prev, input, state) {
+    const id = promptIdOf(input) || (prev && prev.promptId) || null;
+    let prior = (prev && Array.isArray(prev.priorPromptIds)) ? prev.priorPromptIds : [];
+    if (prev && prev.promptId && id && id !== prev.promptId) {
+        prior = [prev.promptId, ...prior.filter(p => p !== prev.promptId)].slice(0, PRIOR_PROMPTS_KEPT);
+    }
+    return { ...state, ...(id && { promptId: id }), ...(prior.length && { priorPromptIds: prior }) };
+}
+
+function ageOf(prev, now) {
+    const t = prev && prev.updatedAt ? new Date(prev.updatedAt).getTime() : NaN;
+    return Number.isFinite(t) ? now - t : Infinity;
+}
+
+/**
+ * Next state for one hook event, or null to leave the recorded state alone.
+ *   prev   the state file as last written (or null)
+ *   ctx    { event, input, agent, now, blocked }  (blocked = a Stop that forced a continuation)
+ * Does not handle PermissionRequest (needs the tool-description builder in main()).
+ */
+function reduceState(prev, ctx) {
+    const { event, input, agent } = ctx;
+    const now = ctx.now || Date.now();
+    const sessionId = input.session_id || input.sessionId;
+    const transcriptPath = input.transcript_path || input.transcriptPath;
+    const base = { sessionId, transcriptPath, lastEvent: event };
+    const make = (state) => trackPrompt(prev, input, { ...state, ...base });
+
+    if (SETTLE_EVENTS.has(event) && isSubagentEvent(input)) return null;
+
+    switch (event) {
+        case 'UserPromptSubmit':
+            return make({ status: 'active', message: null });
+
+        case 'PostToolBatch': {
+            // A tool batch finishing proves the agent is working, whatever was recorded:
+            //  - blocked on a permission/question: it was answered (Claude fires no event for that)
+            //  - idle / idle_prompt: it resumed on its own (a background task or monitor woke
+            //    it; seen in a live hook log as minutes of PostToolBatch after a Stop)
+            //  - active: refresh, so a long turn is not aged out to idle after 15 minutes
+            if (!prev) return make({ status: 'active', message: null });
+            // The last batch of a turn can be processed just after that turn's Stop.
+            const justSettled = ['Stop', 'StopFailure', 'StopCancelled', 'SessionEnd'].includes(prev.lastEvent)
+                && ageOf(prev, now) < LATE_BATCH_GRACE_MS
+                && (!prev.sessionId || prev.sessionId === sessionId);
+            if (justSettled) return null;
+            if (prev.status === 'active') {
+                if (ageOf(prev, now) < ACTIVE_REFRESH_MS) return null;
+                return make({ status: 'active', message: null });
+            }
+            return make({ status: 'active', message: null });
+        }
+
+        case 'Notification': {
+            const type = pick(input, 'notification_type', 'notificationType') || input.type;
+            if (type === 'idle_prompt') {
+                if (isSubagentEvent(input) || isStaleSettle(prev, input)) return null;
+                return make({ status: 'waiting_for_input', message: input.message || 'Waiting for your input...', notificationType: type });
+            }
+            if (type === 'permission_prompt' || type === 'elicitation_dialog') {
+                // permission_prompt fires ~6s AFTER PermissionRequest. When that already wrote the
+                // state with full tool data, keep it: it is strictly more informative.
+                if (type === 'permission_prompt' && prev && prev.status === 'permission_request' && ageOf(prev, now) < 30000) return null;
+                return make({ status: 'waiting_for_input', message: input.message || 'Waiting for your input...', notificationType: type });
+            }
+            return null;
+        }
+
+        case 'Stop':
+            if (isStaleSettle(prev, input)) return null;
+            return make({ status: ctx.blocked ? 'active' : 'idle', message: null });
+
+        case 'StopFailure': {
+            // The turn ended on an API error: nothing is running any more.
+            if (isStaleSettle(prev, input)) return null;
+            return make({ status: 'idle', message: null, stopFailure: pick(input, 'error_type', 'error') || 'unknown' });
+        }
+
+        case 'StopCancelled':
+            // Grok only: interrupt, declined permission prompt, max turns, no progress.
+            if (isStaleSettle(prev, input)) return null;
+            return make({ status: 'idle', message: null, stopCancelled: input.reason || 'unknown' });
+
+        case 'SessionEnd':
+            // The session is gone. 'ended' claims nothing (see claimsActivity), so the agent
+            // stops reading as working/needs-you from a report nobody will ever clear. A
+            // SessionEnd processed after the NEXT session's start (it is async) must not
+            // clobber that session.
+            if (prev && prev.sessionId && sessionId && prev.sessionId !== sessionId) return null;
+            return make({ status: 'ended', message: null, endReason: input.reason || null });
+
+        case 'SessionStart': {
+            const status = sessionStartStatus(agent, input.source);
+            if (status === null) return null;
+            return make({ status, message: null, source: input.source });
+        }
+
+        default:
+            return null;
+    }
+}
+
+function readState(cwd) {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.aimaestro', 'chat-state', `${hashCwd(cwd)}.json`), 'utf8'));
+    } catch (e) {
+        return null;
+    }
+}
+
+// Main: read the event, handle it, answer, exit. handleEvent holds the logic so a
+// test can replay a sequence of events in-process (tests/helpers/hook-replay.ts).
 async function main() {
     const input = await readStdin();
+    const hookResponse = await handleEvent(input);
+
+    // Output hook response (may include additionalContext for inbox notifications).
+    // Force immediate exit — pending fire-and-forget fetches (broadcastStatusUpdate)
+    // can keep the event loop alive past Claude Code's hook deadline.
+    process.stdout.write(JSON.stringify(hookResponse));
+    process.exit(0);
+}
+
+async function handleEvent(input) {
+    agentsPromise = null; // one agent-list load per event (a process handles exactly one)
     currentSessionId = input.session_id || null;
 
     // Log all input for debugging
@@ -930,6 +1109,13 @@ async function main() {
     const sessionId = input.session_id;
     const transcriptPath = input.transcript_path;
 
+    // Record the state reduceState derives for this event (null = leave it alone).
+    const record = async (event, extra) => {
+        const next = reduceState(readState(cwd), { event, input, agent, blocked: !!(extra && extra.blocked) });
+        if (next) await writeState(cwd, next);
+        return next;
+    };
+
     debugLog({ event: 'agent_detected', agent, rawEvent, hookEvent });
 
     // Hook response — may be enriched with context injection for inbox notifications
@@ -939,19 +1125,12 @@ async function main() {
     switch (hookEvent) {
         case 'PostToolBatch': {
             // Registered async (runs in the background, never delays the agent).
-            // Claude Code fires no event when you answer a permission or a
-            // question; the next one is Stop, at the end of the whole turn, so an
-            // agent you had just unblocked stayed "needs you" while it worked.
-            // A tool batch finishing IS the resume. Cheap on every other batch:
-            // read one small file and exit, no network.
-            let current = null;
-            try { current = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.aimaestro', 'chat-state', `${hashCwd(cwd)}.json`), 'utf8')); } catch (e) {}
-            const blocked = current && (current.status === 'permission_request'
-                || (current.status === 'waiting_for_input' && current.notificationType === 'permission_prompt'));
-            if (blocked) {
-                await writeState(cwd, { status: 'active', sessionId, transcriptPath });
-                debugLog({ event: 'resumed_after_answer', cwd });
-            }
+            // A tool batch finishing proves the agent is working: it clears a
+            // permission/question that was answered (Claude fires no event for that),
+            // wakes an idle state after a background task resumed the agent, and
+            // refreshes 'active' so a long turn does not age out. See reduceState.
+            const next = await record('PostToolBatch');
+            if (next) debugLog({ event: 'tool_batch_active', cwd });
             break;
         }
 
@@ -1056,7 +1235,7 @@ async function main() {
             // Await the HTTP broadcast for permission_request — this is the critical
             // path for the chat UI. Other hooks fire-and-forget, but permissions must
             // reach WebSocket clients before process.exit() kills pending fetches.
-            await writeState(cwd, {
+            await writeState(cwd, trackPrompt(readState(cwd), input, {
                 status: 'permission_request',
                 toolName,
                 toolInput,
@@ -1064,25 +1243,17 @@ async function main() {
                 options,
                 message: `Claude wants to ${toolName.toLowerCase()}`,
                 sessionId,
-                transcriptPath
-            });
+                transcriptPath,
+                lastEvent: 'PermissionRequest'
+            }));
             break;
 
-        case 'Notification':
-            // Check notification type
-            // Grok sends notificationType (camelCase) only.
-            const notificationType = input.notification_type || input.notificationType || input.type;
+        case 'Notification': {
+            const notificationType = pick(input, 'notification_type', 'notificationType') || input.type;
+            const written = await record('Notification');
 
-            if (notificationType === 'idle_prompt') {
+            if (notificationType === 'idle_prompt' && written) {
                 // Claude is waiting for regular input - perfect time to check messages!
-                await writeState(cwd, {
-                    status: 'waiting_for_input',
-                    message: input.message || 'Waiting for your input...',
-                    notificationType,
-                    sessionId,
-                    transcriptPath
-                });
-
                 // Check for unread messages and meeting inject queue
                 // Grok drops stdout on Notification: draining would lose the queue.
                 const [idleMessagePrompt, meetingContext] = agent === 'grok' ? [null, null] : await withDeadline(Promise.all([
@@ -1094,38 +1265,11 @@ async function main() {
                     debugLog({ event: 'injecting_context', cwd, agent, trigger: 'idle_prompt', hasInbox: !!idleMessagePrompt, hasMeeting: !!meetingContext });
                     hookResponse = buildContextResponse(agent, rawEvent, combined);
                 }
-            } else if (notificationType === 'permission_prompt') {
-                // Notification(permission_prompt) fires ~6s AFTER PermissionRequest.
-                // If PermissionRequest already wrote the state with full tool data,
-                // do NOT overwrite it — just skip. The permission_request state is
-                // strictly more informative than waiting_for_input.
-                const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');
-                const cwdHash = hashCwd(cwd);
-                const stateFile = path.join(stateDir, `${cwdHash}.json`);
-
-                let existingState = {};
-                try {
-                    if (fs.existsSync(stateFile)) {
-                        existingState = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-                        const age = Date.now() - new Date(existingState.updatedAt).getTime();
-                        if (existingState.status === 'permission_request' && age < 30000) {
-                            // PermissionRequest hook already wrote the good state — don't touch it
-                            debugLog({ event: 'notification_skipped', reason: 'permission_request already active', age });
-                            break;
-                        }
-                    }
-                } catch (e) {}
-
-                // No existing permission_request — write what we have
-                await writeState(cwd, {
-                    status: 'waiting_for_input',
-                    message: input.message || 'Waiting for your input...',
-                    notificationType,
-                    sessionId,
-                    transcriptPath
-                });
+            } else if (!written) {
+                debugLog({ event: 'notification_skipped', notificationType });
             }
             break;
+        }
 
         case 'Stop': {
             // The reliable AMP delivery slot. Injecting context on idle_prompt /
@@ -1160,14 +1304,17 @@ async function main() {
             // MUST be awaited: process.exit(0) at the end of run() kills any
             // in-flight fetch. Measured on a customer estate 10-14 Sep 2026,
             // 0 of 56 Stop broadcasts reached the server without this.
-            await writeState(cwd, {
-                status: blocked ? 'active' : 'idle',
-                message: null,
-                sessionId,
-                transcriptPath
-            });
+            await record('Stop', { blocked });
             break;
         }
+
+        case 'StopFailure':
+        case 'StopCancelled':
+        case 'SessionEnd':
+            // The turn (or session) ended without a Stop: an API error, an interrupt
+            // (Grok), a kill or a quit. Nothing else would ever clear 'active'.
+            await record(hookEvent);
+            break;
 
         case 'SessionStart':
             // Session started - record the session info.
@@ -1175,13 +1322,7 @@ async function main() {
             // is never cleared until the first Stop, and the wake queue then defers
             // every message for HOOK_STATUS_TTL_MS (15 min). UserPromptSubmit reports
             // 'active' as soon as a turn starts. See sessionStartStatus.
-            await writeState(cwd, {
-                status: sessionStartStatus(agent, input.source),
-                message: null,
-                sessionId,
-                transcriptPath,
-                source: input.source
-            });
+            await record('SessionStart');
 
             pruneChatState(path.join(os.homedir(), '.aimaestro', 'chat-state'));
 
@@ -1209,12 +1350,7 @@ async function main() {
             // SessionStart fires once per session, Stop reports idle at the end,
             // and nothing in between said the agent was busy. An agent that took
             // a twelve-minute turn stayed 'idle' throughout.
-            await writeState(cwd, {
-                status: 'active',
-                message: null,
-                sessionId,
-                transcriptPath
-            });
+            await record('UserPromptSubmit');
 
             // Drain on every user prompt — this is the reliable delivery slot
             // for Claude Code. SessionStart can be preempted by other plugins'
@@ -1244,11 +1380,7 @@ async function main() {
             }
     }
 
-    // Output hook response (may include additionalContext for inbox notifications).
-    // Force immediate exit — pending fire-and-forget fetches (broadcastStatusUpdate)
-    // can keep the event loop alive past Claude Code's hook deadline.
-    process.stdout.write(JSON.stringify(hookResponse));
-    process.exit(0);
+    return hookResponse;
 }
 
 // Only run when invoked directly (node ai-maestro-hook.cjs). When require()'d
@@ -1284,4 +1416,6 @@ module.exports = {
     detectAgent,
     isStopHookActive,
     buildContextResponse,
+    reduceState,
+    handleEvent,
 };

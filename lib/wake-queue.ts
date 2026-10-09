@@ -51,8 +51,16 @@ const FLUSH_INTERVAL_MS = 5_000
  * Give up on a queued wake after this long. The message is safe on disk and the
  * agent will find it in its inbox; holding a stale notification forever only
  * produces a confusing interruption long after the fact.
+ *
+ * MUST outlive HOOK_STATUS_TTL_MS (lib/session-idle.ts, 15 min). A wake is deferred
+ * because the hook says 'active'; if that report is stuck (the agent was killed or
+ * interrupted), it only expires, and the session only falls back to terminal recency,
+ * after 15 minutes. At 10 minutes the wake was dropped five minutes before the status
+ * that was blocking it could clear (B011). 15 min plus one minute of slack for the
+ * flush tick and clock skew. Not imported from session-idle because the queue tests
+ * mock that module; tests/b011-status-clearing.test.ts pins the relationship.
  */
-const QUEUE_TTL_MS = 10 * 60 * 1000
+export const QUEUE_TTL_MS = 16 * 60 * 1000
 
 /** Per-agent cap. Beyond this the OLDEST are dropped — recent context wins. */
 const MAX_PER_AGENT = 20

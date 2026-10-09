@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.7] - 2026-10-08 - Fix: log rotation filled a disk and stopped pm2 (do not use 0.60.5 or 0.60.6 on a host with huge pm2 logs)
+
+**What happened.** Updating mini-lola to 0.60.6 installed the `pm2-logrotate` module. That module covers every app pm2 runs on the host, and rotates a file past the cap by copying it, every 30 seconds. The Slack gateway's pm2 log was 13 GB, and the module copied it again and again (7.3, 4.3, 3.2, 1.9 GB ... 19 GB in ten minutes) until the disk was 100% full. pm2 and AI Maestro stopped and mini-lola was down for about 15 minutes. The 0.60.5 notes said the module applies to every app; they did not say what that could do.
+
+**What changed.**
+- `scripts/setup-log-rotation.sh` enables the pm2 module only when it is safe: no pm2 log larger than 1000 MB (the daemon log and every app's log, including paths pm2 reports outside `~/.pm2`) and at least 2048 MB of free disk. Otherwise it leaves rotation off and prints which files block it and the command to trim them. If the module is already installed and the host is not safe, it is uninstalled.
+- AI Maestro's own logs and the hook log are still trimmed first, so the module never meets them.
+- Other apps' logs are never trimmed by default (they are not AI Maestro's to cut). `AIM_LOG_ROTATION_TRIM_ALL=1 scripts/setup-log-rotation.sh` trims them to their last 5 MB and then enables rotation.
+- `pm2 jlist` is run with a timeout (it hung during the incident), and the check works on macOS, which has no `timeout`.
+- Tests cover a huge log from another app, a log outside `~/.pm2`, an already-installed module, the trim-all option and a nearly full disk.
+
+**If you updated to 0.60.5 or 0.60.6 and run other pm2 apps:** check `df -h /` and `ls -laS ~/.pm2/logs | head`. Updating to 0.60.7 removes the module on a host where it is unsafe.
+
 ## [0.60.6] - 2026-10-08 - Log rotation: really idempotent, and the updater now picks up its own changes
 
 Two flaws in 0.60.5 found while deploying it.

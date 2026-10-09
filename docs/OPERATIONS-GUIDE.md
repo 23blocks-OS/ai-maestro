@@ -1044,13 +1044,14 @@ After mastering basic operations:
 
 ## Logs and disk use
 
-Since 0.60.5 no log grows past 50 MB. `update-aimaestro.sh` and the installer run `scripts/setup-log-rotation.sh`, which:
+Since 0.60.5 no AI Maestro log grows past 50 MB. `update-aimaestro.sh` and the installer run `scripts/setup-log-rotation.sh`, which:
 
-- installs the pm2 `pm2-logrotate` module (rotate at 50 MB, keep 2 files). It applies to every app pm2 runs on the host;
-- trims `logs/pm2-out.log`, `logs/pm2-error.log` and `logs/startup.log` if they are already past 50 MB, keeping the last 5 MB;
-- trims `~/.aimaestro/chat-state/hook-debug.log` if it is past 25 MB. The hook rotates that file itself from then on (25 MB active plus 25 MB previous).
+- trims `logs/pm2-out.log`, `logs/pm2-error.log` and `logs/startup.log` if they are already past 50 MB, keeping the last 5 MB, and trims `~/.aimaestro/chat-state/hook-debug.log` past 25 MB (the hook rotates that file itself from then on: 25 MB active plus 25 MB previous);
+- installs the pm2 `pm2-logrotate` module (rotate at 50 MB, keep 2 files) **only when that is safe**.
 
-Run it by hand any time with `scripts/setup-log-rotation.sh`. Set `AIM_LOG_ROTATION=off` to skip it. It needs network once, to install the module; offline it prints a warning and carries on. An install without pm2 only has `startup.log` trimmed when you update.
+The module covers every app pm2 runs on the host and rotates a big file by copying it. A 13 GB log from another app was copied until a disk filled (0.60.6, mini-lola). So the script leaves it off when any pm2 log is larger than 1000 MB or less than 2048 MB of disk is free, and says which files block it. Other apps' logs are yours to cut: `AIM_LOG_ROTATION_TRIM_ALL=1 scripts/setup-log-rotation.sh` trims them to their last 5 MB and then enables rotation.
+
+Run it by hand any time with `scripts/setup-log-rotation.sh`. `AIM_LOG_ROTATION=off` skips it. It needs network once, to install the module; offline it warns and carries on. An install without pm2 only has `startup.log` trimmed when you update.
 
 ## Known Issues
 

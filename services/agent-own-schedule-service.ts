@@ -8,13 +8,11 @@
  */
 
 import { readSchedule, writeSchedule, dueTasks, describeCadence } from '@/lib/agent-schedule'
-import { isSafeAgentId } from '@/lib/agent'
-import { invalidField, type ServiceResult } from '@/services/service-errors'
+import type { ServiceResult } from '@/services/service-errors'
 import { unknownAgentResult } from '@/services/agent-guard'
 
 export function getOwnSchedule(agentId: string): ServiceResult<any> {
-  if (!isSafeAgentId(agentId)) return invalidField('id', 'Invalid agent id')
-  // B010: an unknown id answers 404 and creates nothing
+  // B010: an unsafe or unknown id answers 404 and creates nothing (isKnownAgentId rejects unsafe ids)
   const unknown = unknownAgentResult(agentId)
   if (unknown) return unknown
   const schedule = readSchedule(agentId)
@@ -32,8 +30,7 @@ export function getOwnSchedule(agentId: string): ServiceResult<any> {
 /** Replace the schedule (`{ tasks: [...] }`) or run the due tasks now (`{ run: true }`). */
 export async function setOwnSchedule(agentId: string, rawBody: unknown): Promise<ServiceResult<any>> {
   try {
-    if (!isSafeAgentId(agentId)) return invalidField('id', 'Invalid agent id')
-    // B010: an unknown id answers 404 and creates nothing (also for { run: true })
+    // B010: an unsafe or unknown id answers 404 and creates nothing (also for { run: true })
     const unknown = unknownAgentResult(agentId)
     if (unknown) return unknown
     const body: any = rawBody && typeof rawBody === 'object' ? rawBody : {}

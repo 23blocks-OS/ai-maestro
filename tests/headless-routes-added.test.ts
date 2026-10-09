@@ -2,7 +2,7 @@
  * B012 "Routes missing on headless": each route now answers on the headless router
  * through the same service function the Next route calls (HOME is a temp dir).
  */
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest'
 import { PassThrough } from 'stream'
 import fs from 'fs'
 import os from 'os'
@@ -41,6 +41,9 @@ async function call(method: string, url: string, body?: unknown, raw?: string | 
 }
 
 describe('GET/POST /api/agents/:id/schedule', () => {
+  // B010: only an agent this host knows may have a schedule; a folder on disk counts
+  beforeEach(() => { fs.mkdirSync(path.join(tmp, '.aimaestro', 'agents', 'sched-agent'), { recursive: true }) })
+
   it('GET seeds the default schedule with cadence and dueNow, like the Next route', async () => {
     const { res, json } = await call('GET', '/api/agents/sched-agent/schedule')
     expect(res.status).toBe(200)
@@ -71,12 +74,12 @@ describe('GET/POST /api/agents/:id/schedule', () => {
     expect(res.status).toBe(400)
   })
 
-  it('hostile ids are refused with 400 and write nothing outside the agent dir', async () => {
+  it('hostile and unknown ids answer 404 and write nothing outside the agent dir', async () => {
     for (const id of ['..%2F..%2Fescape', '..', '%2e%2e', 'a%2Fb', 'x%00y', 'a%20b']) {
       const { res } = await call('POST', `/api/agents/${id}/schedule`, { tasks: [] })
-      expect(res.status, id).toBe(400)
+      expect(res.status, id).toBe(404)
       const g = await call('GET', `/api/agents/${id}/schedule`)
-      expect(g.res.status, id).toBe(400)
+      expect(g.res.status, id).toBe(404)
     }
     expect(fs.existsSync(path.join(tmp, 'escape'))).toBe(false)
     expect(fs.existsSync(path.join(tmp, '.aimaestro', 'escape'))).toBe(false)

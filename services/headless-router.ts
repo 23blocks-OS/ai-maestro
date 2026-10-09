@@ -1151,6 +1151,9 @@ const routes: Route[] = [
 
   // Brain Inbox
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/brain-inbox$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    // B010: same unknown-agent 404 as the Next route
+    const unknown = unknownAgentResult(params.id)
+    if (unknown) { sendServiceResult(res, unknown); return }
     const { readAndClearBrainInbox } = await import('@/lib/cerebellum/brain-inbox')
     const signals = readAndClearBrainInbox(params.id)
     res.writeHead(200, { 'Content-Type': 'application/json' })

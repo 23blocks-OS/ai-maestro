@@ -170,3 +170,29 @@ export function ingestClaudeLogs(body: any): { sessions: number; updated: number
   }
   return { sessions: sessionIds.length, updated, unmatched, apiCalls }
 }
+
+// ---------------------------------------------------------------------------
+// Request-level receivers (POST /api/telemetry/v1/logs and /metrics). Shared by
+// the Next routes and the headless router. Always 200 with an empty OTLP
+// response so the exporter never retry-storms, whatever the body.
+// ---------------------------------------------------------------------------
+
+export function receiveClaudeLogs(body: unknown): { data: Record<string, never>; status: number } {
+  try {
+    const summary = ingestClaudeLogs(body && typeof body === 'object' ? body : {})
+    if (process.env.DEBUG) console.log('[Telemetry/logs] ingest', summary)
+  } catch (error) {
+    console.error('[Telemetry/logs] ingest error:', error)
+  }
+  return { data: {}, status: 200 }
+}
+
+export function receiveClaudeMetrics(body: unknown): { data: Record<string, never>; status: number } {
+  try {
+    const summary = ingestClaudeMetrics(body && typeof body === 'object' ? body : {})
+    if (process.env.DEBUG) console.log('[Telemetry] ingest', summary)
+  } catch (error) {
+    console.error('[Telemetry] ingest error:', error)
+  }
+  return { data: {}, status: 200 }
+}

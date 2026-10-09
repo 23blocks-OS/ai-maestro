@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.60.6] - 2026-10-08 - Log rotation: really idempotent, and the updater now picks up its own changes
+
+Two flaws in 0.60.5 found while deploying it.
+
+- **The log rotation script could not tell its own settings were already in place.** It read them with `pm2 conf <key>`, which real pm2 answers with `[object Object]`, so every run set all three values again and restarted the logrotate module each time. The tests used a fake pm2 that did not behave like the real one. The script now reads pm2's settings file (`$PM2_HOME/module_conf.json`) and sets only what differs; the fake pm2 in the tests now answers like the real one. A rerun changes nothing.
+- **The updater skipped any step added to itself, on the update that added it.** `update-aimaestro.sh` pulls its own new version while bash keeps running the copy it had already loaded, so the log rotation step ran on the host that had pulled first and was silently missing on the two that updated themselves. After the pull the updater now restarts once into the new copy when it changed (guarded against loops by `AIM_UPDATER_REEXEC`, no reinstall prompt on the restart). This helps every future change to the updater, starting with the next update.
+- **Test hygiene:** one test could reach the real `pm2` and started a pm2 daemon on a temporary home. The tests now put only `node` on the PATH.
+
 ## [0.60.5] - 2026-10-07 - Log rotation: no log grows past 50 MB (B013)
 
 Two logs had no limit at all. On a long-lived host `logs/pm2-out.log` reached **3.4 GB** and the hook's `hook-debug.log` **373 MB** (nine months of full hook inputs). Neither is a CPU problem, but they fill small disks and make every `pm2 logs` or log search slow.

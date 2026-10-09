@@ -59,9 +59,13 @@ if command -v pm2 >/dev/null 2>&1; then
         fi
     fi
     if pm2 list 2>/dev/null | grep -q "pm2-logrotate"; then
-        want_set() {   # key value: set only when it differs, so reruns do not restart the module
+        # `pm2 conf <key>` prints nothing useful (it echoes "[object Object]"), so read the
+        # stored settings from pm2's own file. Each `pm2 set` restarts the module, so only
+        # set what differs: a rerun then changes nothing.
+        PM2_CONF_FILE="${PM2_HOME:-${HOME:-/nonexistent}/.pm2}/module_conf.json"
+        want_set() {   # key value
             local have
-            have="$(pm2 conf "pm2-logrotate:$1" 2>/dev/null | tail -1 | tr -d ' ')"
+            have="$(node -e 'try{const c=require(process.argv[1])["pm2-logrotate"]||{};process.stdout.write(String(c[process.argv[2]]??""))}catch(e){}' "$PM2_CONF_FILE" "$1" 2>/dev/null)"
             [ "$have" = "$2" ] || pm2 set "pm2-logrotate:$1" "$2" >/dev/null 2>&1
         }
         want_set max_size 50M

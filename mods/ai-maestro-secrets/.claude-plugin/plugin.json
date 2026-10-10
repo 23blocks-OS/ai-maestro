@@ -1,0 +1,6 @@
+{
+  "name": "ai-maestro-secrets",
+  "version": "0.1.1",
+  "description": "Lets an agent ask for a credential. You type it into a field in Claude Code; it goes to your local vault (aim-secret), never to the model or the chat.",
+  "types": "./types/index.d.ts"
+}

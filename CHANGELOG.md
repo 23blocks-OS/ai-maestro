@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.64.0] - 2026-10-09 - Secrets: a Claude Code mod to ask for them, a saved store per machine, aim-secret on the PATH
+
+On a headless server there is no keyring, so the store has to be the file backend, and an environment variable never reaches an agent that is already running. The choice is now saved next to the vault.
+
+### Added: `mods/ai-maestro-secrets`
+- A Claude Code mod with one tool, `request_secret`. The agent asks for a credential by name; a band above the prompt and a two-field form (name pre-filled, value) let you store it in the vault, and the agent is woken with "stored" or "declined". The value never reaches the model. `/secret` opens the form.
+- Follows the theme: dark text on light themes, white on dark. The form tells you to run `/theme` when the theme is dark, because a dark theme in a light terminal gives dark text on a dark panel.
+- Six tests (`claude plugin test mods/ai-maestro-secrets`): bad and shell-like names never reach the vault, an already stored secret opens no form, a new request answers at once and tells the model to stop, a second request is refused, the result never asks for the value. Weakening the name check on purpose fails two of them.
+- Checked three times against the real vault: the program received the value, the output showed `[secret:NAME]`, and a scan of the session files, debug logs, history, AI Maestro state and the vault folder found no copy of it.
+
+### Added: aim-secret
+- `aim-secret backend keychain|libsecret|file|auto` saves the store for this machine (`~/.aimaestro/vault/backend`). Order of precedence: `AIM_VAULT_BACKEND`, then the saved setting, then automatic. `aim-secret status` shows the store and where the choice came from.
+- `scripts/install-aim-secret.sh` puts an `aim-secret` launcher in `~/.local/bin`; `update-aimaestro.sh` runs it, so every host that updates gets it.
+
+### Tests
+- The saved setting is used by later processes, ignored values are rejected, `auto` clears it, the file is owner-only; the installer produces a working launcher.
+
 ## [0.63.1] - 2026-10-09 - aim-secret no longer hangs on a locked keyring
 
 Found by testing on mini-lola: the Linux backend (`secret-tool`) waits forever when the default keyring does not exist or is locked, because it is waiting for a desktop prompt that an ssh session can never answer. An agent calling `aim-secret` would hang with it.

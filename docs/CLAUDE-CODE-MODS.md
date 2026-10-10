@@ -75,6 +75,26 @@ It prints the events it handles and every call it makes. This mod calls `$.proce
 
 Run its tests with `claude plugin test mods/amp-inbox-band`.
 
+## The secrets mod: `mods/ai-maestro-secrets`
+
+Lets an agent ask for a credential without you pasting it into the chat. The agent calls a tool named `request_secret` with a name such as `OPENAI_API_KEY`. A band appears above the prompt ("An agent is asking you to store OPENAI_API_KEY", with **Enter it** and **No thanks**). The form has two fields: the name, already filled in by the agent, and the value. The value goes to your local vault with `aim-secret set NAME --stdin`; the agent is never given it, and is woken with "the user stored it" when you press Enter. `/secret` opens the form too.
+
+Things worth knowing:
+
+- **It needs `aim-secret` on the PATH.** `update-aimaestro.sh` installs it (`scripts/install-aim-secret.sh`).
+- **The value field shows what you type.** A mod cannot mask a field. The value is not sent to the model, and a leak check across the session files, debug logs, history and AI Maestro state found nothing (see `docs/SECRETS.md`).
+- **Match Claude Code's theme to your terminal.** The fields use your terminal's default text colour on a panel drawn from Claude Code's theme. A dark theme in a light terminal (for example Apple Terminal) gives dark text on a dark panel. Run `/theme` and pick the one that matches your terminal. The form prints this tip when the theme is dark.
+- **The tool answers at once.** Claude Code cuts a tool hook off after 10 seconds, so the tool does not wait for you; the mod wakes the agent with a prompt after you answer.
+- It works in the terminal Claude Code and the Code tab of the Desktop app. The AI Maestro chat has its own card (not built yet).
+
+Install and check:
+
+```bash
+claude --plugin-dir /path/to/ai-maestro/mods/ai-maestro-secrets
+claude plugin validate mods/ai-maestro-secrets
+claude plugin test mods/ai-maestro-secrets
+```
+
 ## Verified live
 
 Tested on 2026-10-02 between a Mac with no tmux session (this mod) and a Linux host with an AI Maestro-native agent in tmux, over the AMP mesh:

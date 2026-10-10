@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.66.1] - 2026-10-10 - aim-secret works from a shell with no nvm
+
+Found deploying 0.66.0: on mac-mini the `aim-secret` launcher failed with "node: not found", because a non-interactive shell or an agent's tmux session does not load nvm, and the system node there is v16, which has no built-in `fetch`.
+
+### Fixed
+- `scripts/install-aim-secret.sh` records the absolute path of the `node` that runs the installer (the updater's, normally nvm's) in the launcher, falls back to the first `node` on the PATH if that file is gone, and says plainly if there is none.
+- Test: a launcher installed with one PATH still works when run with a PATH that has no node.
+
 ## [0.66.0] - 2026-10-10 - The aim-secret-management skill, so agents know to ask (F033)
 
 The chat card (0.65.0) only helps if an agent knows to use it. A new skill in the plugin (1.6.0) teaches that.

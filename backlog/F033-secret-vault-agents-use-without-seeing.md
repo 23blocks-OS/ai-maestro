@@ -1,6 +1,6 @@
 # F033 - A local secret vault: agents use credentials without the model ever seeing them
 
-**Status:** In Progress (CLI 0.63.0; saved store, PATH install and the Claude Code mod 0.64.0; chat card 0.65.0; a skill that teaches agents to ask, and per-agent scoping, open)
+**Status:** In Progress (CLI 0.63.0; saved store, PATH install and the Claude Code mod 0.64.0; chat card 0.65.0; the agent skill 0.66.0; per-agent scoping open)
 **Type:** Feature (design first)
 **Created:** 2026-10-09
 **Requested by:** Juan, 2026-10-09 (seen in the Muse agent: the user enters the credential in a separate local app, the agent's tools use it, the value never goes through the chat or the LLM)

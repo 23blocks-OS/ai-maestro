@@ -51,7 +51,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F030** — [Reply to an earlier message in the chat (quote-reply)](./backlog/F030-reply-to-an-earlier-message.md) — `Todo`
 - **F031** — [Stop advertising Aider; keep it launchable but deprecated](./backlog/F031-retire-aider-from-supported-agents.md) — `Done` (0.62.1)
 - **F032** — [Stop claiming GitHub Copilot as a supported agent](./backlog/F032-stop-claiming-github-copilot.md) — `Done` (0.62.1)
-- **F033** — [A local secret vault: agents use credentials without the model ever seeing them](./backlog/F033-secret-vault-agents-use-without-seeing.md) — `In Progress` (CLI 0.63.0; Claude Code mod 0.64.0; chat card 0.65.0; agent skill and scoping open)
+- **F033** — [A local secret vault: agents use credentials without the model ever seeing them](./backlog/F033-secret-vault-agents-use-without-seeing.md) — `In Progress` (CLI 0.63.0; Claude Code mod 0.64.0; chat card 0.65.0; agent skill 0.66.0; per-agent scoping open)
 - **F034** — [Compare Google's A2UI with the Agent Actions Protocol](./backlog/F034-compare-a2ui-with-agent-actions-protocol.md) — `Todo` (research; pasted summary not yet verified)
 
 ## Bugs

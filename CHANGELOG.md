@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.66.0] - 2026-10-10 - The aim-secret-management skill, so agents know to ask (F033)
+
+The chat card (0.65.0) only helps if an agent knows to use it. A new skill in the plugin (1.6.0) teaches that.
+
+### Added
+- **`aim-secret-management` skill** (plugin 1.6.0). An agent that needs a key, token or password runs `aim-secret request NAME`, ends its turn, is told when the user has stored it in the card, then runs commands with `aim-secret exec --use NAME -- <command>`. It also says what to do when a value is pasted into the conversation (do not repeat or act on it, suggest rotating it, ask properly) and what never to do (read the vault, write a secret to a file, run `aim-secret set`).
+- Trigger evals on Sonnet: pasted key 5/5, pasted password 5/5, key not set up 3/3, stored token 3/3, a concept question stays quiet 5/5, and the neighbouring identity, messaging and memory skills are unaffected. The first description fired on 2 of 3 pasted keys, so it now names that situation.
+
+### Changed
+- `plugin` submodule moves to the commit with plugin 1.6.0.
+
 ## [0.65.0] - 2026-10-10 - Secret requests in the AI Maestro chat (F033)
 
 An agent can now ask for a credential and you answer in a card in the chat, instead of pasting the value into the conversation.

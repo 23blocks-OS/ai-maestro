@@ -58,10 +58,12 @@ What keeps the value away from the model and from disk:
 
 Tests cover the store, the service (including that the value is not in the response, the wake message, or any console output), the command, and the card's markup. A run against an isolated headless server found no copy of the value in the server log, the home folder or the vault folder.
 
+Agents learn to do this from the `aim-secret-management` skill (plugin 1.6.0, shipped with AI Maestro).
+
 ## Asking for a secret from Claude Code
 
 The mod in `mods/ai-maestro-secrets` lets an agent request a secret by name; you type the value into a form in Claude Code instead of the chat. See `docs/CLAUDE-CODE-MODS.md`.
 
 ## Not done yet
 
-A skill that teaches agents to use `aim-secret request` (agents need to be told), and binding a secret to one agent or command. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.
+Binding a secret to one agent or command. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.

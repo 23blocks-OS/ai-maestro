@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.63.1] - 2026-10-09 - aim-secret no longer hangs on a locked keyring
+
+Found by testing on mini-lola: the Linux backend (`secret-tool`) waits forever when the default keyring does not exist or is locked, because it is waiting for a desktop prompt that an ssh session can never answer. An agent calling `aim-secret` would hang with it.
+
+### Fixed
+- Every call to the secure store now has a timeout (15 seconds, `AIM_VAULT_TIMEOUT_MS` to change it). On timeout the helper is killed and the error explains the cause and the way out: unlock or create the keyring in a desktop session, or set `AIM_VAULT_BACKEND=file`.
+
+### Docs
+- `docs/SECRETS.md` says a headless Linux host usually needs the file backend, and what that backend does and does not protect against.
+
+### Tests
+- A fake `secret-tool` that never answers: the command fails in under 8 seconds with exit 6 and the explanation.
+
 ## [0.63.0] - 2026-10-09 - aim-secret: agents use a credential without seeing it (F033, first slice)
 
 Pasting an API key into the chat puts it in the model context, the transcript and agent memory. `aim-secret` keeps the value in local secure storage and lets an agent run commands that use it.

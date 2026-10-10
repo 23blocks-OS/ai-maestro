@@ -18,7 +18,8 @@ The agent only needs the name. If a secret is missing, `exec` stops with exit co
 
 - macOS: the login Keychain (service `ai-maestro`).
 - Linux: libsecret through `secret-tool` (install `libsecret-tools`).
-- `AIM_VAULT_BACKEND=file`: an encrypted file in `~/.aimaestro/vault`. The key sits next to the data, so this is only as safe as the file permissions. It is meant for tests and hosts with no keychain.
+- Linux servers: `secret-tool` needs an unlocked default keyring, which exists only after a desktop login. Over ssh or on a headless host it usually does not, and `aim-secret` fails after 15 seconds with a message saying so. Use the file backend there.
+- `AIM_VAULT_BACKEND=file`: an encrypted file in `~/.aimaestro/vault`. The key sits next to the data, so this is only as safe as the file permissions. It is meant for tests and hosts with no keychain. On such a host the agent runs as the same user and can read that file too, so it protects against accidents (a value pasted into a chat, a script that logs its environment), not against an agent that goes looking for it.
 
 The value is written through stdin, never as a command-line argument, so it does not show up in process listings or shell history. `aim-secret set NAME VALUE` is refused.
 

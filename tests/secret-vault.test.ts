@@ -94,6 +94,30 @@ describe('storage', () => {
   })
 })
 
+describe('a keyring that never answers', () => {
+  it('fails with a clear message instead of hanging', async () => {
+    const bin = path.join(dir, 'bin')
+    fs.mkdirSync(bin)
+    fs.writeFileSync(path.join(bin, 'secret-tool'), '#!/bin/bash\nsleep 30\n', { mode: 0o755 })
+    const r = await new Promise<{ code: number; err: string; ms: number }>((resolve) => {
+      const t0 = Date.now()
+      const c = spawn('node', [CLI, 'set', 'MY_KEY', '--stdin'], {
+        env: { ...env, PATH: `${bin}:${process.env.PATH}`, AIM_VAULT_BACKEND: 'libsecret', AIM_VAULT_ALLOW_REAL: '1', VITEST: '1', AIM_VAULT_TIMEOUT_MS: '400' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+      let err = ''
+      c.stderr.on('data', (d) => (err += d))
+      c.on('close', (code) => resolve({ code: code ?? -1, err, ms: Date.now() - t0 }))
+      c.stdin.end('some-secret-value')
+    })
+    expect(r.code).toBe(6)
+    expect(r.err).toMatch(/did not answer/)
+    expect(r.err).toMatch(/AIM_VAULT_BACKEND=file/)
+    expect(r.err).not.toContain('some-secret-value')
+    expect(r.ms).toBeLessThan(8000)
+  })
+})
+
 describe('scrubber', () => {
   it('replaces the value and its common encodings', () => {
     const s = createScrubber({ K: SECRET })

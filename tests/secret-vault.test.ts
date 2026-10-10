@@ -94,6 +94,37 @@ describe('storage', () => {
   })
 })
 
+describe('saved backend setting', () => {
+  it('is remembered by every later process and beats automatic choice, but not the environment', async () => {
+    delete process.env.AIM_VAULT_BACKEND
+    const e2 = { PATH: env.PATH, HOME: dir, AIM_VAULT_DIR: path.join(dir, 'vault') } as NodeJS.ProcessEnv
+    const run = (args: string[], input = '') => new Promise<{ code: number; out: string; err: string }>((resolve) => {
+      const c = spawn('node', [CLI, ...args], { env: e2, stdio: ['pipe', 'pipe', 'pipe'] })
+      let out = ''; let err = ''
+      c.stdout.on('data', (d) => (out += d)); c.stderr.on('data', (d) => (err += d))
+      c.on('close', (code) => resolve({ code: code ?? -1, out, err })); c.stdin.end(input)
+    })
+    expect((await run(['backend', 'file'])).code).toBe(0)
+    expect((await run(['status'])).out).toContain('file (saved setting)')
+    expect((await run(['set', 'MY_KEY', '--stdin'], SECRET)).code).toBe(0)
+    expect((await run(['exec', '--use', 'MY_KEY', '--', 'node', '-e', 'process.stdout.write(process.env.MY_KEY)'])).out).toBe('[secret:MY_KEY]')
+    expect((await run(['backend', 'nonsense'])).code).toBe(2)
+    expect((await run(['backend', 'auto'])).out).toContain('automatic')
+    expect(fs.existsSync(path.join(dir, 'vault', 'backend'))).toBe(false)
+    expect((await run(['backend', 'file'])).code).toBe(0)
+    expect(fs.statSync(path.join(dir, 'vault', 'backend')).mode & 0o077).toBe(0)
+  })
+})
+
+describe('installer', () => {
+  it('puts a working aim-secret on a PATH directory', async () => {
+    const bin = path.join(dir, 'localbin')
+    await new Promise<void>((resolve) => execFile('bash', [path.resolve(__dirname, '../scripts/install-aim-secret.sh')], { env: { ...env, AIM_BIN_DIR: bin } }, () => resolve()))
+    const out = await new Promise<string>((resolve) => execFile(path.join(bin, 'aim-secret'), ['status'], { env }, (_e, so) => resolve(so)))
+    expect(out).toContain('backend: file (environment)')
+  })
+})
+
 describe('a keyring that never answers', () => {
   it('fails with a clear message instead of hanging', async () => {
     const bin = path.join(dir, 'bin')

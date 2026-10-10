@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // aim-secret: store credentials locally and let agents use them without seeing them (F033).
 import {
-  VaultError, backendKind, deleteSecret, execWithSecrets, hasSecret, listSecretNames, setSecret,
+  VaultError, backendKind, backendSource, deleteSecret, execWithSecrets, hasSecret, listSecretNames, setSavedBackend, setSecret,
 } from '../lib/secret-vault.mjs'
 
 const USAGE = `aim-secret - local secret vault. Agents use secrets; they never read them.
@@ -10,7 +10,9 @@ const USAGE = `aim-secret - local secret vault. Agents use secrets; they never r
   aim-secret list [--json]       names only
   aim-secret has NAME            exit 0 if set, 1 if not
   aim-secret delete NAME
-  aim-secret status              which store is in use
+  aim-secret status              which store is in use, and why
+  aim-secret backend NAME        keychain | libsecret | file | auto: remember the store for this machine
+                                 (use file on a headless server with no keyring)
   aim-secret exec --use NAME [--use ENV=NAME ...] -- COMMAND [ARGS...]
                                  run COMMAND with the secret in its environment; its output is
                                  scrubbed before you see it
@@ -85,7 +87,12 @@ async function main(argv) {
     await deleteSecret(rest[0])
     return console.log(`deleted ${rest[0]}`)
   }
-  if (cmd === 'status') return console.log(`backend: ${backendKind()}`)
+  if (cmd === 'status') return console.log(`backend: ${backendKind()} (${backendSource()})`)
+  if (cmd === 'backend') {
+    if (!rest[0]) die('usage: aim-secret backend keychain|libsecret|file|auto', 2)
+    setSavedBackend(rest[0])
+    return console.log(rest[0] === 'auto' ? 'backend: automatic' : `backend set to ${rest[0]}`)
+  }
 
   if (cmd === 'exec') {
     const sep = rest.indexOf('--')

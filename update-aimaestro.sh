@@ -312,6 +312,11 @@ if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; 
     print_success "Claude Code hooks reinstalled"
 fi
 
+# aim-secret (agents use credentials without seeing them) on the PATH
+if [ -x "./scripts/install-aim-secret.sh" ]; then
+    ./scripts/install-aim-secret.sh || print_warning "Could not install aim-secret on the PATH"
+fi
+
 # 7. Marketplace plugin auto-updates via Claude Code /install update
 # No manual sync needed — the ai-maestro-plugins repo is the single source
 

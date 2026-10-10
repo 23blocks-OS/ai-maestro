@@ -23,12 +23,26 @@ The agent only needs the name. If a secret is missing, `exec` stops with exit co
 
 The value is written through stdin, never as a command-line argument, so it does not show up in process listings or shell history. `aim-secret set NAME VALUE` is refused.
 
+## Choosing the store for a machine
+
+```bash
+aim-secret backend file     # headless server with no keyring (remembered for every later command)
+aim-secret backend auto     # back to automatic
+aim-secret status           # shows the store and where the choice came from
+```
+
+The environment variable `AIM_VAULT_BACKEND` overrides the saved setting. `scripts/install-aim-secret.sh` (run by `update-aimaestro.sh`) puts `aim-secret` on the PATH.
+
 ## What the scrubbing does and does not do
 
 `exec` replaces the value in the command's output (stdout and stderr) with `[secret:NAME]`, including the base64, URL-encoded, JSON-escaped and hex forms, and values split across output chunks.
 
 This stops accidents: a script that logs its environment, an error message that echoes a header. It does not stop an agent that wants the value and can run commands, because that agent can transform the value in ways no scrubber predicts. Treat a secret you hand to an agent as something that agent can use, not something it cannot misuse. Use a narrowly scoped key.
 
+## Asking for a secret from Claude Code
+
+The mod in `mods/ai-maestro-secrets` lets an agent request a secret by name; you type the value into a form in Claude Code instead of the chat. See `docs/CLAUDE-CODE-MODS.md`.
+
 ## Not done yet
 
-The approval card in the chat, the local entry page, binding a secret to one agent or command, and the Claude Code mod. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.
+The approval card in the AI Maestro chat, the local entry page, and binding a secret to one agent or command. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.

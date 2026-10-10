@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.62.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.62.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -30,7 +30,7 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 **So I built AI Maestro** — one dashboard to see every agent, on every machine, with persistent memory and direct agent-to-agent communication. Today I run 80+ agents across multiple computers, building real companies with them every day.
 
 **What makes this different:**
-- **Works with any AI agent** — Claude Code, Codex, Grok Build, Aider, Cursor, OpenClaw, Hermes, Droid, or any terminal-based agent. We don't lock you in.
+- **Works with any AI agent** — Claude Code, Codex, Grok Build, Cursor, OpenClaw, Hermes, Droid, or any terminal-based agent. We don't lock you in.
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
 - **Yours, entirely** — MIT licensed. No account, no telemetry, no per-seat pricing, no hosted tier we upsell you to. Your code and your agents stay on your machines.
@@ -229,7 +229,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 **Founders building AI-first organizations.** You're the CEO, your agents are the team. Solo operators, agency owners, and anyone running a business where AI agents do the work and you drive the strategy. Start with Lola, add specialists, scale your AI workforce.
 
-**Developers running multiple AI agents.** If you have 3+ agents and you're switching between terminals, losing context, and playing messenger — this is for you. Works with Claude Code, Codex, Grok Build, Aider, Cursor, or any terminal-based AI.
+**Developers running multiple AI agents.** If you have 3+ agents and you're switching between terminals, losing context, and playing messenger — this is for you. Works with Claude Code, Codex, Grok Build, Cursor, or any terminal-based AI.
 
 **Teams coordinating AI-assisted work.** Multiple developers, multiple agents, multiple machines. One dashboard. Agent-to-agent messaging replaces you as the bottleneck.
 
@@ -363,7 +363,7 @@ MIT — see [LICENSE](./LICENSE). Free for any purpose, including commercial.
 ## FAQ
 
 **Do I need to use Claude Code?**
-No. AI Maestro works with any terminal-based AI agent — Claude Code, Codex, Grok Build, Aider, Cursor, OpenClaw, Hermes, Droid, or your own scripts. We're agent-agnostic.
+No. AI Maestro works with any terminal-based AI agent — Claude Code, Codex, Grok Build, Cursor, OpenClaw, Hermes, Droid, or your own scripts. We're agent-agnostic.
 
 **Does it work on Linux / Windows?**
 Yes. macOS and Linux natively. Windows via WSL2 — see the [Windows guide](./docs/WINDOWS-INSTALLATION.md).

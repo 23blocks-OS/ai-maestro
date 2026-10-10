@@ -10,11 +10,11 @@
  *   ./scripts/register-agent-from-session.mjs -y                 # Non-interactive mode (use defaults)
  *
  * Optional AI Tool Configuration:
- *   --program <name>   # AI tool to use (e.g., claude, aider, cursor)
+ *   --program <name>   # AI tool to use (e.g., claude, codex, cursor)
  *   --model <name>     # Model to use (e.g., claude-sonnet-4-5, gpt-4)
  *
  * Examples:
- *   ./scripts/register-agent-from-session.mjs --program aider --model gpt-4
+ *   ./scripts/register-agent-from-session.mjs --program codex
  *   ./scripts/register-agent-from-session.mjs --all -y --program claude
  */
 
@@ -210,7 +210,7 @@ async function registerSession(sessionName, interactive = true, options = {}) {
 
     // Ask for program/model (optional - leave empty to not specify)
     console.log('\n--- AI Tool Configuration (optional) ---')
-    program = options.program || await question('Program (e.g., claude, aider, cursor) [none]: ') || ''
+    program = options.program || await question('Program (e.g., claude, codex, cursor) [none]: ') || ''
     model = options.model || await question('Model (e.g., claude-sonnet-4-5, gpt-4) [none]: ') || ''
   } else {
     // Non-interactive mode: use defaults or CLI options

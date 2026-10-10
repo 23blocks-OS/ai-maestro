@@ -24,7 +24,7 @@ const PORT = process.env.AGENT_PORT || 23000
 const AGENT_ID = process.env.AGENT_ID || 'agent-' + Math.random().toString(36).substring(7)
 const SESSION_NAME = process.env.TMUX_SESSION_NAME || 'agent-session'
 const WORKSPACE = process.env.WORKSPACE || '/workspace'
-// AI tool to start in the session (e.g., 'claude', 'aider', 'cursor', or empty for shell only)
+// AI tool to start in the session (e.g., 'claude', 'codex', 'cursor', or empty for shell only)
 const AI_TOOL = process.env.AI_TOOL || ''
 // Host ai-maestro URL for heartbeat. Empty disables heartbeat (e.g., local dev without a host).
 const AIMAESTRO_HOST_URL = process.env.AIMAESTRO_HOST_URL || ''
@@ -154,7 +154,7 @@ async function initializeTmuxSession() {
       await exec(`tmux new-session -d -s "${SESSION_NAME}" -c "${WORKSPACE}"`)
       console.log(`✓ Created tmux session: ${SESSION_NAME}`)
 
-      // Optionally start an AI tool in the session (e.g., 'claude', 'aider', 'cursor').
+      // Optionally start an AI tool in the session (e.g., 'claude', 'codex', 'cursor').
       //
       // Prepend `unset CI` so the AI tool sees an interactive environment.
       // Dockerfile bakes ENV CI=true (PR #100 / kanban 376265b9) to suppress

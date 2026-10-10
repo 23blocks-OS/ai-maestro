@@ -49,6 +49,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F028** — [Grok Build agents, and approval cards for Grok and Codex](./backlog/F028-grok-build-support.md) — `Done` (0.60.0; open items listed in the file)
 - **F029** — [A test safety net for routes, headless mode and the hook](./backlog/F029-route-and-hook-safety-net.md) — `Done` (0.62.0)
 - **F030** — [Reply to an earlier message in the chat (quote-reply)](./backlog/F030-reply-to-an-earlier-message.md) — `Todo`
+- **F031** — [Stop advertising Aider; keep it launchable but deprecated](./backlog/F031-retire-aider-from-supported-agents.md) — `Done` (0.62.1)
+- **F032** — [Stop claiming GitHub Copilot as a supported agent](./backlog/F032-stop-claiming-github-copilot.md) — `Done` (0.62.1)
 
 ## Bugs
 

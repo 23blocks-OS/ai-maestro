@@ -15,7 +15,7 @@ export default function UseCaseSelector({ onSelect, onSkip }: UseCaseSelectorPro
       icon: Terminal,
       title: 'Single Computer',
       subtitle: 'Multiple AI agents on one machine',
-      description: 'Run all your AI coding agents (Claude Code, Aider, etc.) on this computer with organized sessions',
+      description: 'Run all your AI coding agents (Claude Code, Codex, etc.) on this computer with organized sessions',
       difficulty: 'Beginner',
       difficultyColor: 'text-green-400',
       time: '5 minutes',

@@ -110,6 +110,7 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   const lower = p.toLowerCase()
   if (lower.includes('claude')) return { command: 'claude', kind: 'claude' }
   if (lower.includes('codex')) return { command: 'codex', kind: 'codex' }
+  // Deprecated 2026-10 (F031): no longer offered in the UI or docs; kept so existing Aider agents still launch.
   if (lower.includes('aider')) return { command: 'aider', kind: 'aider' }
   if (lower.includes('cursor')) return { command: 'cursor', kind: 'cursor' }
   if (lower.includes('gemini')) return { command: 'gemini', kind: 'gemini' }
@@ -121,7 +122,7 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
     command: null,
     kind: null,
     error:
-      `unrecognised program "${p}". Use a known name (claude, codex, aider, cursor, gemini, ` +
+      `unrecognised program "${p}". Use a known name (claude, codex, cursor, gemini, ` +
       `opencode, openclaw, grok) or an absolute path to an executable wrapper.`,
   }
 }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Maestro: Complete AI Agent Orchestration Guide for LLMs</title>
-    <meta name="description" content="Comprehensive guide to AI Maestro - orchestrate Claude Code, Codex, Grok Build, Aider, Cursor, and any AI coding agents. Install, setup, features, and use cases for developers.">
+    <meta name="description" content="Comprehensive guide to AI Maestro - orchestrate Claude Code, Codex, Grok Build, Cursor, and any AI coding agents. Install, setup, features, and use cases for developers.">
 
     <!-- Open Graph -->
     <meta property="og:type" content="article">
@@ -31,8 +31,8 @@
         "price": "0",
         "priceCurrency": "USD"
       },
-      "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Codex, Grok Build, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
-      "softwareVersion": "0.62.0",
+      "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Codex, Grok Build, Cursor) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
+      "softwareVersion": "0.62.1",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -43,9 +43,9 @@
         "name": "Juan Peláez",
         "url": "https://x.com/jkpelaez"
       },
-      "keywords": "AI agents, Claude Code, autonomous agents, agent orchestration, Slack integration, email identity, multi-agent systems, Grok Build, Codex, Aider, Cursor, GitHub Copilot, terminal dashboard, tmux, agent communication, code graph, persistent memory, conversation history",
+      "keywords": "AI agents, Claude Code, autonomous agents, agent orchestration, Slack integration, email identity, multi-agent systems, Grok Build, Codex, Cursor, terminal dashboard, tmux, agent communication, code graph, persistent memory, conversation history",
       "featureList": [
-        "Orchestrate multiple AI coding agents (Claude Code, Codex, Grok Build, Aider, Cursor, Copilot)",
+        "Orchestrate multiple AI coding agents (Claude Code, Codex, Grok Build, Cursor)",
         "Four communication channels: Internal messaging, Slack, Email, External agents",
         "Slack integration for team collaboration",
         "Email identity management with domain control",
@@ -103,9 +103,7 @@
                 <li><strong>Claude Code</strong> - Anthropic's official CLI for Claude (primary use case, full skill integration)</li>
                 <li><strong>Codex CLI</strong> - OpenAI's coding agent: chat history, live status and approval cards</li>
                 <li><strong>Grok Build</strong> - xAI's terminal coding agent: chat history, live status, message delivery and approval cards (v0.60.0)</li>
-                <li><strong>Aider</strong> - AI pair programming in your terminal</li>
                 <li><strong>Cursor</strong> - AI-first code editor</li>
-                <li><strong>GitHub Copilot CLI</strong> - GitHub's AI coding assistant</li>
                 <li><strong>Any terminal-based AI agent</strong> - Universal compatibility via tmux</li>
                 <li><strong>Standalone agents</strong> - Non-tmux agents (plain terminal, API-only) supported via heartbeat API</li>
             </ul>
@@ -118,7 +116,7 @@
             <p>Everything you need to manage multiple AI agents:</p>
             <ul>
                 <li><strong>Zero Configuration:</strong> Auto-discovers all tmux sessions. No config files needed.</li>
-                <li><strong>Universal Support:</strong> Works with Claude Code, Codex, Grok Build, Aider, Cursor, GitHub Copilot, or any terminal AI.</li>
+                <li><strong>Universal Support:</strong> Works with Claude Code, Codex, Grok Build, Cursor, or any terminal AI.</li>
                 <li><strong>Real-time Terminals:</strong> WebSocket streaming with full ANSI support. No lag, no polling.</li>
                 <li><strong>Smart Organization:</strong> 3-level hierarchy with dynamic colors (project-category-agent naming).</li>
                 <li><strong>Standalone Agent Presence:</strong> Agents without tmux (plain terminals, API-only, remote hosts) appear live in the dashboard via heartbeat. No tmux required.</li>
@@ -276,7 +274,7 @@ cd ai-maestro && yarn install && yarn dev
 
             <h3>1. Single Computer (5 min setup)</h3>
             <p>Run multiple AI agents on one machine. Perfect for solo developers.</p>
-            <p><strong>Use case:</strong> Developer runs Claude Code for backend, Aider for frontend, all on MacBook.</p>
+            <p><strong>Use case:</strong> Developer runs Claude Code for backend, Codex for frontend, all on MacBook.</p>
 
             <h3>2. Multiple Computers (15 min setup)</h3>
             <p>Distribute AI agent workloads across machines using peer mesh network.</p>

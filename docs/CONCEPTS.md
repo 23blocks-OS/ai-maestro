@@ -189,7 +189,7 @@ Node A adds Node B
 
 ### What is an Agent?
 
-An **agent** is an AI coding assistant (like Claude Code, Aider, or Cursor) that you create and manage in AI Maestro.
+An **agent** is an AI coding assistant (like Claude Code, Codex, or Cursor) that you create and manage in AI Maestro.
 
 **Agent Anatomy:**
 ```

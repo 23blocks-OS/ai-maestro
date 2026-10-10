@@ -552,7 +552,7 @@ if [ "$MISSING_COUNT" -gt 0 ]; then
         echo "  3. Install and authenticate"
         echo "  4. Run this installer again (optional - for messaging features)"
         echo ""
-        print_info "AI Maestro works without Claude Code (you can use Aider, Cursor, etc.)"
+        print_info "AI Maestro works without Claude Code (you can use Codex, Cursor, etc.)"
         echo ""
         if [ "$NON_INTERACTIVE" != true ]; then
             read -p "Press Enter to continue without Claude Code..."
@@ -1026,7 +1026,7 @@ if [ -n "$INSTALL_DIR" ]; then
     echo "   • Click the '+' button in the sidebar"
     echo "   • Or from terminal:"
     echo "     tmux new-session -s my-agent"
-    echo "     claude  # or aider, cursor, etc."
+    echo "     claude  # or codex, cursor, etc."
     echo ""
     echo "3️⃣  Read the docs:"
     echo ""

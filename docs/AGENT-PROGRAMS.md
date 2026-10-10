@@ -49,4 +49,4 @@ Chat history and the working indicator are read from Codex's own transcript (`~/
 
 ## Anything else
 
-Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Aider, Cursor, Gemini CLI and others do not have one yet.
+Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Cursor, Gemini CLI and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.

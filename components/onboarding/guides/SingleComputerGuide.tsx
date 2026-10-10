@@ -166,7 +166,7 @@ export default function SingleComputerGuide({ onBack, onComplete }: SingleComput
             <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
               <li>Agent appears in the sidebar</li>
               <li>Click it to open the terminal</li>
-              <li>Run your AI tool: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">claude</code>, <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">aider</code>, etc.</li>
+              <li>Run your AI tool: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">claude</code>, <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">codex</code>, etc.</li>
               <li>Add notes below the terminal to document your work</li>
             </ol>
           </div>

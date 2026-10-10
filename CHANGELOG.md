@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.66.2] - 2026-10-10 - Design note: agents only write their own area (F035)
+
+Documentation only.
+
+### Added
+- `docs/AMP-OUTBOX-DESIGN.md` and backlog item F035. Issue #555 (a sandboxed Codex agent cannot deliver to another local agent) turned out to be one symptom of the sender writing straight into the recipient's inbox: forgeable senders, locked-down agents that cannot send, "sent" without delivery, no wake-up, two different delivery paths. The note proposes an outbox per agent with AI Maestro as the only writer of inboxes, honest delivery results, and a staged rollout. It lists four open questions. Nothing is built.
+
 ## [0.66.1] - 2026-10-10 - aim-secret works from a shell with no nvm
 
 Found deploying 0.66.0: on mac-mini the `aim-secret` launcher failed with "node: not found", because a non-interactive shell or an agent's tmux session does not load nvm, and the system node there is v16, which has no built-in `fetch`.

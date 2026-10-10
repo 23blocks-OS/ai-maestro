@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.1] - 2026-10-10 - The three agentic skills were audited and corrected
+
+Plugin 1.7.1. The skills added in 0.67.0 were audited against Anthropic's current skill guidance and the current primary sources for their domains, and corrected in their own repositories.
+
+### Fixed
+- **Real customer names removed** from the public examples of the support skill (it had a real customer and a second real-looking one). The old text remains in git history of the public repositories.
+- `agentic-sql` 1.1.0: a wrong CVE reference replaced by the real read-only bypass case (Datadog, 2025-08-21); the SQL gate is a single-statement allow-list over the whole query; timeouts are set on the role instead of sent as a prefix; role hardening; the wrapper script is a stated prerequisite; data-handling rules.
+- `agentic-support` 1.1.0: customer text is treated as untrusted data; sensitive-data rules; search before investigating; severities defined; `audit --fix` needs approval.
+- `agentic-seo` 2.2.0: Google's AI-features guidance summarized with its date instead of misattributed rules; FAQ and HowTo markup no longer recommended (Google stopped showing FAQ rich results on 2026-05-07); `llms.txt` claims corrected; sitemap `priority` and `changefreq` removed; a neutral crawler-controls reference added; a validation step added.
+- Contents lists on long reference files, one term per concept, copyable checklists.
+
+### Changed
+- `plugin` submodule moves to plugin 1.7.1. Trigger evals 15/15.
+
 ## [0.67.0] - 2026-10-10 - One install for the agentic-sql, agentic-support and agentic-seo skills
 
 ### Added

@@ -51,6 +51,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F030** — [Reply to an earlier message in the chat (quote-reply)](./backlog/F030-reply-to-an-earlier-message.md) — `Todo`
 - **F031** — [Stop advertising Aider; keep it launchable but deprecated](./backlog/F031-retire-aider-from-supported-agents.md) — `Done` (0.62.1)
 - **F032** — [Stop claiming GitHub Copilot as a supported agent](./backlog/F032-stop-claiming-github-copilot.md) — `Done` (0.62.1)
+- **F033** — [A local secret vault: agents use credentials without the model ever seeing them](./backlog/F033-secret-vault-agents-use-without-seeing.md) — `In Progress` (CLI 0.63.0; approval card, entry page and Claude Code mod open)
 
 ## Bugs
 

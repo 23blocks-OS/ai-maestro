@@ -152,6 +152,7 @@ import {
 
 import { wakeAgentRequest, hibernateAgentRequest } from '@/services/agents-wake-service'
 import { getOwnSchedule, setOwnSchedule } from '@/services/agent-own-schedule-service'
+import { createSecretRequest, listSecretRequests, answerSecretRequest } from '@/services/agent-secret-requests-service'
 import { getPendingWakesReport } from '@/services/pending-wakes-service'
 import { logClientEvent } from '@/services/debug-service'
 import { receiveClaudeLogs, receiveClaudeMetrics } from '@/services/telemetry-service'
@@ -1090,6 +1091,19 @@ const routes: Route[] = [
     sendServiceResult(res, removeSkill(params.id, query.skill, query.type || 'auto'))
   }},
 
+  // Secret requests (F033): an agent asks for a credential, the chat answers it. The value never leaves
+  // the service except into the vault.
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/secret-requests$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await listSecretRequests(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/secret-requests$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await createSecretRequest(params.id, body))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/secret-requests\/([^/]+)$/, paramNames: ['id', 'rid'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await answerSecretRequest(params.id, params.rid, body))
+  }},
   // The agent's OWN schedule (agent-owned state, lib/agent-schedule.ts)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/schedule$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getOwnSchedule(params.id))

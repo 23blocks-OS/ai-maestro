@@ -1,5 +1,7 @@
 'use client'
 
+import SecretRequestCard from '@/components/chat/SecretRequestCard'
+import { useSecretRequests } from '@/hooks/useSecretRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import AgentStatusRow from './AgentStatusRow'
@@ -250,6 +252,7 @@ function ThinkingBlock({ text }: { text: string }) {
 }
 
 export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, workingDirectory, address }: MobileChatViewProps) {
+  const { requests: secretRequests, refresh: refreshSecretRequests } = useSecretRequests(agentId)
   // One status for every view (the sidebar and terminal read the same feed)
   const { presenceOf, snapshotOf } = useSessionActivity()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -891,6 +894,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
       {/* Status bar */}
       <div className="flex-shrink-0 border-t border-gray-800">
+        {secretRequests.map((r) => (
+          <div key={r.id} className="px-3 py-2 border-b border-gray-800">
+            <SecretRequestCard agentId={agentId} request={r} onDone={refreshSecretRequests} />
+          </div>
+        ))}
         {showPermission && (
           <div className="px-3 py-2 bg-yellow-900/20 border-b border-yellow-800/50">
             <p className="text-xs text-yellow-300 mb-2">

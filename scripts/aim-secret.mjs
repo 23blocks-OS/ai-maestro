@@ -3,6 +3,7 @@
 import {
   VaultError, backendKind, backendSource, deleteSecret, execWithSecrets, hasSecret, listSecretNames, setSavedBackend, setSecret,
 } from '../lib/secret-vault.mjs'
+import { requestSecret } from '../lib/secret-request-client.mjs'
 
 const USAGE = `aim-secret - local secret vault. Agents use secrets; they never read them.
 
@@ -10,6 +11,9 @@ const USAGE = `aim-secret - local secret vault. Agents use secrets; they never r
   aim-secret list [--json]       names only
   aim-secret has NAME            exit 0 if set, 1 if not
   aim-secret delete NAME
+  aim-secret request NAME [--note TEXT]
+                                 (for agents) ask the user to store NAME; they type it into a card in
+                                 the AI Maestro chat, never into this command
   aim-secret status              which store is in use, and why
   aim-secret backend NAME        keychain | libsecret | file | auto: remember the store for this machine
                                  (use file on a headless server with no keyring)
@@ -86,6 +90,15 @@ async function main(argv) {
     if (!rest[0]) die('usage: aim-secret delete NAME', 2)
     await deleteSecret(rest[0])
     return console.log(`deleted ${rest[0]}`)
+  }
+  if (cmd === 'request') {
+    const i = rest.indexOf('--note')
+    const note = i >= 0 ? rest[i + 1] : undefined
+    const name = rest.find((a, k) => !a.startsWith('--') && (i < 0 || k !== i + 1))
+    if (!name) die('usage: aim-secret request NAME [--note TEXT]', 2)
+    const r = await requestSecret(name, note)
+    ;(r.code === 0 ? console.log : (m) => process.stderr.write(m + '\n'))(r.text)
+    return process.exit(r.code)
   }
   if (cmd === 'status') return console.log(`backend: ${backendKind()} (${backendSource()})`)
   if (cmd === 'backend') {

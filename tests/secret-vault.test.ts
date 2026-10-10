@@ -14,7 +14,7 @@ let env: NodeJS.ProcessEnv
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-vault-'))
-  env = { PATH: process.env.PATH, HOME: dir, AIM_VAULT_BACKEND: 'file', AIM_VAULT_DIR: path.join(dir, 'vault') }
+  env = { PATH: process.env.PATH, HOME: dir, AIM_VAULT_BACKEND: 'file', AIM_VAULT_DIR: path.join(dir, 'vault') } as unknown as NodeJS.ProcessEnv
   process.env.AIM_VAULT_BACKEND = 'file'
   process.env.AIM_VAULT_DIR = path.join(dir, 'vault')
 })
@@ -97,7 +97,7 @@ describe('storage', () => {
 describe('saved backend setting', () => {
   it('is remembered by every later process and beats automatic choice, but not the environment', async () => {
     delete process.env.AIM_VAULT_BACKEND
-    const e2 = { PATH: env.PATH, HOME: dir, AIM_VAULT_DIR: path.join(dir, 'vault') } as NodeJS.ProcessEnv
+    const e2 = { PATH: env.PATH, HOME: dir, AIM_VAULT_DIR: path.join(dir, 'vault') } as unknown as NodeJS.ProcessEnv
     const run = (args: string[], input = '') => new Promise<{ code: number; out: string; err: string }>((resolve) => {
       const c = spawn('node', [CLI, ...args], { env: e2, stdio: ['pipe', 'pipe', 'pipe'] })
       let out = ''; let err = ''

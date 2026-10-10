@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.63.0] - 2026-10-09 - aim-secret: agents use a credential without seeing it (F033, first slice)
+
+Pasting an API key into the chat puts it in the model context, the transcript and agent memory. `aim-secret` keeps the value in local secure storage and lets an agent run commands that use it.
+
+### Added
+- `scripts/aim-secret.mjs` with `set`, `list`, `has`, `delete`, `status` and `exec --use NAME -- command`. `exec` puts the value in the command's environment and scrubs it, with its base64, URL-encoded, JSON-escaped and hex forms, from stdout and stderr, including when a value is split across output chunks.
+- Storage in the macOS Keychain or libsecret (`secret-tool`); an encrypted file backend for tests and hosts with neither (`AIM_VAULT_BACKEND=file`).
+- The value is only ever passed through stdin, never as an argument, and `aim-secret set NAME VALUE` is refused. Names are upper-case env-style names; `exec` runs the command without a shell.
+- `docs/SECRETS.md`, including what scrubbing does not protect against.
+
+### Tests
+- `tests/secret-vault.test.ts` (18 tests): the plaintext and its encodings never reach disk, a transcript built from `exec` results never contains the secret even when the command prints it, splits at every position and one-character chunks, missing secrets, no shell, owner-only files, and a guard that a test run cannot use the real keychain. Checked by disabling the scrubber on purpose: 6 tests fail.
+
+### Not yet
+The chat approval card, the local entry page, binding a secret to one agent or command, installing `aim-secret` on the PATH, and the Claude Code mod.
+
 ## [0.62.1] - 2026-10-09 - Stop advertising Aider and GitHub Copilot (F031, F032); a test no longer kills your tmux server
 
 Both tools were listed as things AI Maestro works with. Aider has had no release since August 2025 and none of our hosts run it. GitHub Copilot CLI is active, but AI Maestro never had any support for it, so listing it was a claim without code behind it.

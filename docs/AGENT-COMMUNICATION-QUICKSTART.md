@@ -42,7 +42,7 @@ Claude: *Automatically uses the messaging skill to send the message*
 
 ### Mode 2: Manual Mode (Command-Line) - Universal 🔧
 
-**Best for:** Any AI agent (Aider, Cursor, custom scripts) or direct terminal usage
+**Best for:** Any AI agent (Cursor, custom scripts) or direct terminal usage
 
 **How it works:** Use shell commands directly
 
@@ -253,7 +253,7 @@ The recipient sees a popup notification **immediately** in their terminal.
 ✅ **Success!** You just used the universal command-line interface that works with ANY agent.
 
 **Advantages of Manual Mode:**
-- Works with Aider, Cursor, custom scripts, or any terminal
+- Works with Cursor, custom scripts, or any terminal
 - Full parameter control
 - Can be used in automation scripts
 - No AI agent required
@@ -414,7 +414,7 @@ Are you using Claude Code?
 │         └─ NO → Use Manual Mode 🔧
 │                 (Install skills from ~/.claude/skills/)
 │
-└─ NO (using Aider, Cursor, custom script, etc.)
+└─ NO (using Cursor, custom script, etc.)
          └─ Use Manual Mode 🔧
             (Only option for non-Claude agents)
 ```

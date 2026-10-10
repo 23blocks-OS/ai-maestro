@@ -48,7 +48,7 @@ organization.
 - Runs at `localhost:23000` in the browser, against a fleet of personal machines
   joined by Tailscale (confirmed: 3 hosts today).
 - Agents live in tmux sessions and run a coding CLI — **Claude Code, Codex or Grok Build**
-  (multi-provider as of v0.39.0; Grok Build as of v0.60.0). Others (Gemini, Aider) are anticipated.
+  (multi-provider as of v0.39.0; Grok Build as of v0.60.0). Others (Gemini) are anticipated.
   See `docs/AGENT-PROGRAMS.md` for what each one supports.
 - The operator moves rapidly between agents, and between two views of one agent:
   a **chat** (message history, send, live working state) and a **terminal**

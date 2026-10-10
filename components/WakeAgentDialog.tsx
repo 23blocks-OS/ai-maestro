@@ -32,13 +32,6 @@ const CLI_OPTIONS = [
     command: 'codex'
   },
   {
-    id: 'aider',
-    name: 'Aider',
-    description: 'AI pair programming in your terminal',
-    icon: Terminal,
-    command: 'aider'
-  },
-  {
     id: 'cursor',
     name: 'Cursor',
     description: 'AI-first code editor',

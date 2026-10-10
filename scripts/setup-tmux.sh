@@ -36,7 +36,7 @@ cat >> "$TMUX_CONF" << 'EOF'
 # AI Maestro Configuration
 # ============================================
 # These settings optimize tmux for use with AI coding agents
-# like Claude Code, Aider, Cursor, etc.
+# like Claude Code, Codex, Cursor, etc.
 
 # Enable mouse support - allows scrolling with mouse wheel
 # even when in alternate screen mode (vim, Claude Code, etc.)

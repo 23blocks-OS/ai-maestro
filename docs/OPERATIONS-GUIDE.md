@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide explains how to create and manage AI coding agents using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, Grok Build, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing agents from `tmux ls` and provides full agent management (create, rename, delete) directly from the UI!
+This guide explains how to create and manage AI coding agents using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, Grok Build, Cursor**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing agents from `tmux ls` and provides full agent management (create, rename, delete) directly from the UI!
 
 ---
 
@@ -18,8 +18,8 @@ Before starting, ensure you have:
 
 - ✅ macOS with all requirements installed (see [REQUIREMENTS.md](./REQUIREMENTS.md))
 - ✅ tmux installed and working (`tmux -V`)
-- ✅ **Your AI agent installed**: Claude Code, Codex, Grok Build, Aider, Copilot CLI, Cursor, etc. (what each one supports: [AGENT-PROGRAMS.md](./AGENT-PROGRAMS.md))
-- ✅ AI agent authenticated (e.g., `claude login`, `grok login`, `aider --check`, etc.)
+- ✅ **Your AI agent installed**: Claude Code, Codex, Grok Build, Cursor, etc. (what each one supports: [AGENT-PROGRAMS.md](./AGENT-PROGRAMS.md))
+- ✅ AI agent authenticated (e.g., `claude login`, `grok login`, `codex login`, etc.)
 - ✅ Dashboard installed (`yarn install` completed)
 
 ---
@@ -44,8 +44,6 @@ tmux new-session -s my-app-dev
 # Inside the tmux session, start your AI assistant
 # Choose one:
 claude              # Claude Code
-aider               # Aider AI
-copilot             # GitHub Copilot CLI
 cursor              # Cursor AI
 # or any other terminal-based AI tool
 
@@ -235,17 +233,17 @@ tmux rename-session -t "old-name" "new-name"
 # Create first agent (with Claude)
 cd ~/projects/frontend
 tmux new-session -s frontend-dev -d
-tmux send-keys -t frontend-dev 'claude' C-m  # or aider, cursor, copilot, etc.
+tmux send-keys -t frontend-dev 'claude' C-m  # or codex, cursor, etc.
 
-# Create second agent (with Aider)
+# Create second agent (with Codex)
 cd ~/projects/backend
 tmux new-session -s backend-api -d
-tmux send-keys -t backend-api 'aider' C-m
+tmux send-keys -t backend-api 'codex' C-m
 
-# Create third agent (with Copilot)
+# Create third agent (with Grok Build)
 cd ~/projects/database
 tmux new-session -s db-migration -d
-tmux send-keys -t db-migration 'copilot' C-m
+tmux send-keys -t db-migration 'grok' C-m
 
 # All three agents are now running in background
 # Dashboard will show all three
@@ -284,7 +282,7 @@ tmux send-keys -t db-migration 'copilot' C-m
 ```bash
 # Morning: Start agents
 cd ~/projects/app-a && tmux new -s app-a -d && tmux send-keys -t app-a 'claude' C-m
-cd ~/projects/app-b && tmux new -s app-b -d && tmux send-keys -t app-b 'aider' C-m
+cd ~/projects/app-b && tmux new -s app-b -d && tmux send-keys -t app-b 'codex' C-m
 
 # Start dashboard
 cd ~/agents-web && yarn dev
@@ -313,7 +311,7 @@ Save as `~/bin/start-ai-session`:
 
 # Usage: start-ai-session <agent-name> <ai-command> [directory]
 # Example: start-ai-session my-project claude ~/projects/app
-# Example: start-ai-session backend aider ~/projects/api
+# Example: start-ai-session backend codex ~/projects/api
 
 SESSION_NAME=$1
 AI_COMMAND=${2:-claude}  # Default to claude if not specified
@@ -322,7 +320,7 @@ WORK_DIR=${3:-$(pwd)}
 if [ -z "$SESSION_NAME" ]; then
     echo "Usage: start-ai-session <agent-name> <ai-command> [directory]"
     echo "Example: start-ai-session my-project claude ~/projects/app"
-    echo "AI commands: claude, aider, copilot, cursor, etc."
+    echo "AI commands: claude, codex, grok, cursor, etc."
     exit 1
 fi
 
@@ -360,12 +358,12 @@ source ~/.zshrc
 # Start agent with Claude in current directory
 start-ai-session my-project claude
 
-# Start agent with Aider in specific directory
-start-ai-session api-work aider ~/projects/api
+# Start agent with Codex in specific directory
+start-ai-session api-work codex ~/projects/api
 
 # Start multiple agents with different AI tools
 start-ai-session frontend claude ~/projects/web
-start-ai-session backend aider ~/projects/api
+start-ai-session backend codex ~/projects/api
 start-ai-session mobile cursor ~/projects/app
 ```
 
@@ -870,7 +868,7 @@ start-ai-session <agent-name> claude  # or your preferred AI tool
 # 3. Check if your AI tool is still running in tmux:
 tmux attach -t <agent-name>
 # If your AI exited, restart it:
-claude  # or aider, cursor, copilot, etc.
+claude  # or codex, cursor, etc.
 
 # 4. Check browser console for JavaScript errors
 ```
@@ -954,7 +952,7 @@ tmux capture-pane -pt <agent-name> -S - > ~/backups/agent-backup.txt
 # Morning routine
 cd ~/agents-web && yarn dev &           # Start dashboard
 start-ai-session main-work claude ~/projects
-start-ai-session experiments aider ~/tests
+start-ai-session experiments codex ~/tests
 open http://localhost:23000             # Open dashboard
 
 # Evening routine
@@ -993,7 +991,7 @@ Example restoration script `~/bin/restore-agents`:
 
 # Restore common agents after reboot
 start-ai-session main claude ~/projects/main
-start-ai-session experiments aider ~/experiments
+start-ai-session experiments codex ~/experiments
 start-ai-session docs cursor ~/documentation
 
 echo "✅ Agents restored"

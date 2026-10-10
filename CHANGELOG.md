@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.62.1] - 2026-10-09 - Stop advertising Aider and GitHub Copilot (F031, F032); a test no longer kills your tmux server
+
+Both tools were listed as things AI Maestro works with. Aider has had no release since August 2025 and none of our hosts run it. GitHub Copilot CLI is active, but AI Maestro never had any support for it, so listing it was a claim without code behind it.
+
+### Fixed
+- **`tests/headless-smoke.test.ts` killed the developer's real tmux server.** Its cleanup ran `tmux kill-server` with a private `TMUX_TMPDIR` and deleted that directory a moment later. tmux 3.6 silently falls back to the default socket when `TMUX_TMPDIR` does not exist, so the kill landed on the real server and ended every agent session on the machine. The test now stops only a server whose socket exists, names it with `-S`, and waits before deleting anything. `tests/no-unsafe-tmux-kill.test.ts` fails if any script or test runs `kill-server` without `-S`. Product code was not affected.
+
+### Changed
+- Aider is no longer offered in the wake dialog, onboarding, help text, README, PRODUCT.md or the website. Agents that already run Aider keep launching: the launch resolver still knows `aider` and is marked deprecated.
+- GitHub Copilot is no longer listed as a supported agent in the README, the operations guide, the website or the copy-for-AI text. The Agent Skills Standard adopter lists still name it, because that is a claim about skills, not about managing agents.
+- Examples in the docs and installer messages use Codex and Grok Build instead of Aider and Copilot.
+- `docs/AGENT-PROGRAMS.md` says Aider is deprecated and still states that any terminal agent works in the terminal tab.
+
+### Tests
+- `tests/f031-f032-supported-agents.test.ts`: the wake dialog does not offer Aider, an Aider agent still launches, the advertising files do not name Aider, and Copilot appears only as a skills-standard adopter.
+
 ## [0.62.0] - 2026-10-09 - Security hardening, status that clears, and headless parity (B010, B011, B012, F029)
 
 The three open audit items from 2026-10-07, plus the test safety net that would have caught them.

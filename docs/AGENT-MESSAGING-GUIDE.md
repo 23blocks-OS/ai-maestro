@@ -53,7 +53,7 @@ Claude: *Automatically calls amp-send with proper parameters*
 
 ### Mode 2: Manual Mode - Command-Line (Universal) 🔧
 
-**Best for:** Any AI agent (Aider, Cursor, custom scripts, shell scripts) or direct usage
+**Best for:** Any AI agent (Cursor, custom scripts, shell scripts) or direct usage
 
 **How it works:** Use shell commands directly to send and receive messages.
 

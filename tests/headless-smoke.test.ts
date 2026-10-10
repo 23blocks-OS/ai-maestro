@@ -187,8 +187,21 @@ describe.skipIf(!!skipReason)('headless server smoke test', () => {
       if (!gone) child.kill('SIGKILL')
       await waitFor(async () => exited !== undefined, 5000, 100)
     }
-    // best effort: a tmux server we may have started on the private socket
-    try { spawn('tmux', ['kill-server'], { env: { PATH: process.env.PATH ?? '', TMUX_TMPDIR: path.join(tmp, 'tmux') }, stdio: 'ignore' }).on('error', () => {}) } catch { /* no tmux */ }
+    // Stop a tmux server we may have started on the private socket.
+    // Never `tmux kill-server` with only TMUX_TMPDIR: when that directory is missing (for example
+    // removed a moment later by the rmSync below), tmux 3.6 silently falls back to the DEFAULT
+    // socket and kills the user's real tmux server and every agent session in it. Use an explicit
+    // -S path that must exist, and wait for the command before deleting anything.
+    const privateSocket = path.join(tmp, 'tmux', `tmux-${process.getuid?.() ?? 0}`, 'default')
+    if (fs.existsSync(privateSocket)) {
+      await new Promise<void>((resolve) => {
+        try {
+          const k = spawn('tmux', ['-S', privateSocket, 'kill-server'], { stdio: 'ignore' })
+          k.on('error', () => resolve())
+          k.on('exit', () => resolve())
+        } catch { resolve() }
+      })
+    }
     fs.rmSync(tmp, { recursive: true, force: true })
     // the server made <cwd>/logs on startup; remove it only if this run is the one that created it
     if (!logsExisted) fs.rmSync(path.join(root, 'logs'), { recursive: true, force: true })

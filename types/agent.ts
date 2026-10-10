@@ -240,7 +240,7 @@ export interface Agent {
   isSelf?: boolean              // Whether agent is on the same host as the dashboard
 
   // Metadata
-  program: string               // AI program (e.g., "Claude Code", "Aider", "Cursor")
+  program: string               // AI program (e.g., "Claude Code", "Codex", "Cursor")
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
   taskDescription: string       // What this agent is working on
   programArgs?: string          // CLI arguments passed to the program on launch (e.g., "--continue --chrome")

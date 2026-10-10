@@ -55,7 +55,7 @@ Where to look:
 - lib/tutorialData.ts: interactive tutorial content
 - lib/glossaryData.ts: glossary of terms
 
-Users mostly ask about: setting up AI Maestro and adding machines to the mesh; creating and managing agents (Claude Code, Aider, Cursor and other tools); AMP messaging; team meetings and task boards; terminals, tmux sessions and troubleshooting; plugins.`
+Users mostly ask about: setting up AI Maestro and adding machines to the mesh; creating and managing agents (Claude Code, Codex, Grok Build, Cursor and other tools); AMP messaging; team meetings and task boards; terminals, tmux sessions and troubleshooting; plugins.`
 
 // ---------------------------------------------------------------------------
 // Internal helpers

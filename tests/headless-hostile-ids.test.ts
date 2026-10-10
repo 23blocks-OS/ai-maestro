@@ -88,6 +88,9 @@ const AGENT_ROUTES: Array<[string, string, unknown?]> = [
   ['GET', '/api/agents/{id}/messages'],
   ['GET', '/api/agents/{id}/schedule'],
   ['POST', '/api/agents/{id}/schedule', { tasks: [] }],
+  ['GET', '/api/agents/{id}/secret-requests'],
+  ['POST', '/api/agents/{id}/secret-requests', { name: 'OPENAI_API_KEY' }],
+  ['POST', '/api/agents/{id}/secret-requests/00000000-0000-0000-0000-000000000000', { decline: true }],
 ]
 
 describe('hostile agent ids on the routes touched by B012', () => {

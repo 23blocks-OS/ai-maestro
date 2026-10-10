@@ -3,6 +3,29 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.65.0] - 2026-10-10 - Secret requests in the AI Maestro chat (F033)
+
+An agent can now ask for a credential and you answer in a card in the chat, instead of pasting the value into the conversation.
+
+### Added
+- `aim-secret request NAME [--note TEXT]`: the command an agent runs. It returns at once and tells the agent to end its turn. It finds out which agent it is from `AIM_AGENT_ID` or the tmux session it runs in.
+- A card in `ChatView` and `MobileChatView`: the name already filled in, a masked value field, **Store it** and **No thanks**. The value goes to the AI Maestro server and straight into the vault; the agent is woken with a line that carries only the name.
+- `GET/POST /api/agents/:id/secret-requests` and `POST /api/agents/:id/secret-requests/:request`, in both the Next routes and the headless router, with the route parity and hostile-id tests extended. A request for an agent on another machine is forwarded to its host, which owns the vault.
+- `lib/secret-requests.ts` (pending requests: id, agent, name, note; 30 minutes; shared across route bundles through `globalThis`), `hooks/useSecretRequests.ts`, `components/chat/SecretRequestCard.tsx`, `lib/secret-request-api.ts`.
+
+### How the value stays out of the model and the disk
+- It is posted to its own endpoint, not through the chat, the pane or the wake chain, so it is in no transcript.
+- The server never logs it or puts it in a response or an error. The page clears it after every attempt.
+- A test makes the vault fail and checks the error, the response and every console call for the value.
+- A run against an isolated headless server: ask, list, answer, use. No copy of the value in the server log, the home folder or the vault folder.
+
+### Tests
+- `tests/secret-requests.test.ts` (store), `tests/services/agent-secret-requests-service.test.ts` (14: unknown and unsafe ids, bad names, already stored, answering, renaming, declining, one answer per request, remote forwarding, unreachable host, no value anywhere), `tests/aim-secret-request.test.ts` (the command against a fake server), `tests/secret-request-card.test.ts` (masked field, no autofill, pre-filled name, no value in URLs or results).
+- `vitest.config.ts` uses the automatic JSX runtime so components can be rendered in tests.
+
+### Not yet
+A skill that teaches agents to run `aim-secret request` (until then, tell the agent), and binding a secret to one agent or command.
+
 ## [0.64.0] - 2026-10-09 - Secrets: a Claude Code mod to ask for them, a saved store per machine, aim-secret on the PATH
 
 On a headless server there is no keyring, so the store has to be the file backend, and an environment variable never reaches an agent that is already running. The choice is now saved next to the vault.

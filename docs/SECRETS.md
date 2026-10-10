@@ -39,10 +39,29 @@ The environment variable `AIM_VAULT_BACKEND` overrides the saved setting. `scrip
 
 This stops accidents: a script that logs its environment, an error message that echoes a header. It does not stop an agent that wants the value and can run commands, because that agent can transform the value in ways no scrubber predicts. Treat a secret you hand to an agent as something that agent can use, not something it cannot misuse. Use a narrowly scoped key.
 
+## Asking for a secret from the AI Maestro chat
+
+An agent that needs a credential runs:
+
+```bash
+aim-secret request OPENAI_API_KEY --note "for the embedding job"
+```
+
+It returns at once and the agent ends its turn. A card appears in that agent's chat (desktop and mobile): the name is already filled in, the value field is masked, and there are **Store it** and **No thanks** buttons. The value goes to the AI Maestro server and straight into the vault on the agent's own host (a request for an agent on another machine is forwarded there). The agent is then woken with a line that carries only the name: "The user stored OPENAI_API_KEY in the vault. Use it with `aim-secret exec --use OPENAI_API_KEY -- <command>`."
+
+What keeps the value away from the model and from disk:
+
+- It is not a chat message. It is posted to its own endpoint (`POST /api/agents/:id/secret-requests/:request`), not through the chat, the pane or the wake chain, so it is not in any transcript.
+- The request record holds only the id, agent, name and an optional note. It expires after 30 minutes and is lost on a restart.
+- The server never logs it, never puts it in an error or a response, and the page clears it after the request, whether it worked or not.
+- A browser can mask the field (the Claude Code mod cannot).
+
+Tests cover the store, the service (including that the value is not in the response, the wake message, or any console output), the command, and the card's markup. A run against an isolated headless server found no copy of the value in the server log, the home folder or the vault folder.
+
 ## Asking for a secret from Claude Code
 
 The mod in `mods/ai-maestro-secrets` lets an agent request a secret by name; you type the value into a form in Claude Code instead of the chat. See `docs/CLAUDE-CODE-MODS.md`.
 
 ## Not done yet
 
-The approval card in the AI Maestro chat, the local entry page, and binding a secret to one agent or command. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.
+A skill that teaches agents to use `aim-secret request` (agents need to be told), and binding a secret to one agent or command. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.

@@ -1,5 +1,7 @@
 'use client'
 
+import SecretRequestCard from '@/components/chat/SecretRequestCard'
+import { useSecretRequests } from '@/hooks/useSecretRequests'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
@@ -125,6 +127,7 @@ const PENDING_EXPIRY_MS = 30000
 const QUESTION_OTHER_SETTLE_MS = 400
 
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
+  const { requests: secretRequests, refresh: refreshSecretRequests } = useSecretRequests(agent.id, isActive)
   // What the sidebar and terminal read: one status for every view
   const { presenceOf, snapshotOf } = useSessionActivity()
   const [messages, setMessages] = useState<Message[]>([])
@@ -1243,6 +1246,11 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             </div>
           </div>
         )}
+
+        {/* SECRET REQUESTS (F033): a credential an agent asked for. Not a chat message; the value goes to the vault. */}
+        {secretRequests.map((r) => (
+          <SecretRequestCard key={r.id} agentId={agent.id} request={r} onDone={refreshSecretRequests} />
+        ))}
 
         {/* PERMISSION REQUEST — always from hookState */}
         {/* The id-less pane/hook permission card. Defer to the transcript's

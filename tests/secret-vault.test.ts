@@ -123,6 +123,17 @@ describe('installer', () => {
     const out = await new Promise<string>((resolve) => execFile(path.join(bin, 'aim-secret'), ['status'], { env }, (_e, so) => resolve(so)))
     expect(out).toContain('backend: file (environment)')
   })
+
+  it('records the node that installed it and still works when the PATH has no node', async () => {
+    const bin = path.join(dir, 'localbin2')
+    await new Promise<void>((resolve) => execFile('bash', [path.resolve(__dirname, '../scripts/install-aim-secret.sh')], { env: { ...env, AIM_BIN_DIR: bin } }, () => resolve()))
+    const launcher = fs.readFileSync(path.join(bin, 'aim-secret'), 'utf8')
+    expect(launcher).toMatch(/^NODE="\/[^"]+\/node"$/m)   // an absolute path, not a bare `node`
+    // a shell whose PATH has no node at all (an agent's session without nvm)
+    const out = await new Promise<string>((resolve) =>
+      execFile('/bin/bash', [path.join(bin, 'aim-secret'), 'status'], { env: { ...env, PATH: '/usr/bin:/bin' } as unknown as NodeJS.ProcessEnv }, (_e, so) => resolve(so)))
+    expect(out).toContain('backend: file')
+  })
 })
 
 describe('a keyring that never answers', () => {

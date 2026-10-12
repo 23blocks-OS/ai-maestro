@@ -1,0 +1,40 @@
+ [Current]  Sessions   Issues   Pull requests   Gists
+
+  ╭─╮╭─╮
+  ╰─╯╰─╯  Copilot v1.0.96 uses AI.
+  █ ▘▝ █  Check for mistakes.
+   ▔▔▔▔
+
+ ● Folder /private/tmp/claude-501/-Users-devuser123-23blocks-webApps-agents-web/00000000-0000-0000-0000-000000000000
+   /scratchpad/cpfix-work has been added to trusted folders.
+
+ ● Tip: /app
+   └ Prefer a visual workspace? Try out the GitHub Copilot desktop app
+      https://github.com/features/ai/github-app 
+
+ ● Folder /private/tmp/claude-501/-Users-devuser123-23blocks-webApps-agents-web/00000000-0000-0000-0000-000000000000
+   /scratchpad/cpfix-work has been added to trusted folders.
+
+ ● MCP Servers reloaded: 0 servers connected
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Please use /login to sign in to use Copilot
+ /private/tmp/claude-501/-Users-devuser123-23blocks-webApps-agents-web/.../cpfix-work
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ← open sidebar · Interactive · Manual Approval · / commands · ? help · tab next tab

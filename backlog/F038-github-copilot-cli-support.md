@@ -26,7 +26,7 @@ Program recognition (`copilot`, `copilot-cli`, `github-copilot`, `github-copilot
 ## Work
 
 1. **Finish the end-to-end test** with a login: send a message through AI Maestro, confirm the delivery check passes and the reply appears (the person logs in; the agent never handles the token).
-2. **The trust question as a card.** Detect "Do you trust the files in this folder?" in the pane and show it as an approval card (like the Grok and Codex cards in `lib/pane-approval.mjs`), so the person answers in the chat instead of the Terminal tab.
+2. ~~**The trust question as a card.**~~ **Done in 0.69.1**, for the three questions Copilot asks by itself (trust the folder, which account, how to sign in), built from real captured screens (`tests/fixtures/approval/copilot-*.txt`, taken without signing in). Still open: the "may I run this command?" card, once someone has seen that screen.
 3. **Status.** Use Copilot's hooks to report working/idle/needs-you, as Grok does with Claude-style hooks, or read `events.jsonl`.
 4. **Chat reader** for `~/.copilot/session-state/*/events.jsonl` (F028 is the template).
 5. **Approval cards** for tool permission prompts, parsed from the pane.

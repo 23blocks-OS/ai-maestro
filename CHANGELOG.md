@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.4] - 2026-10-12 - Pi agents can be launched from AI Maestro
+
+### Added
+- **Pi** ([pi.dev](https://pi.dev), the minimal terminal coding agent) is a recognised program: an agent can be woken with `pi`, `pi-agent` or `pi-coding-agent` (whole name, never a substring), and the wake dialog lists it.
+- Pi runs as a plain terminal agent: launch, terminal view and messaging by pane push. Pi has no hook feed, no chat reader and no approval cards in AI Maestro yet (it does not ask approval before tool calls). Its session files are JSONL under `~/.pi/agent/sessions/`, which is enough for a later chat reader.
+
+### Notes
+- Pi 1.x needs **Node 22.19 or newer** on the PATH of the agent's tmux session. A shell on Node 20 installs the older `legacy-node20` build (0.74.2). Pi's own installer (`curl -fsSL https://pi.dev/install.sh | sh`) can set up a private Node for Pi, so the host's Node does not have to change.
+
 ## [0.67.3] - 2026-10-12 - `safe-psql` is set up by the installer and the updater
 
 Plugin 1.7.3. The SQL skill's wrapper needs Python packages that no host had. The updater now creates a private Python environment (`~/.aimaestro/venvs/agentic-sql`) and puts a `safe-psql` launcher in `~/.local/bin`, so the skill works after every update without touching system Python.

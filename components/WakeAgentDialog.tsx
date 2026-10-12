@@ -46,6 +46,13 @@ const CLI_OPTIONS = [
     command: 'grok'
   },
   {
+    id: 'pi',
+    name: 'Pi',
+    description: 'Minimal terminal coding agent (pi.dev), needs Node 22.19+',
+    icon: Code2,
+    command: 'pi'
+  },
+  {
     id: 'terminal',
     name: 'Terminal Only',
     description: 'Plain shell without AI assistant',

@@ -9,6 +9,8 @@ interface TrustLevelSelectorProps {
   compact?: boolean
   /** Only these modes are shown (the modes the chosen tool can honour). Default: all five. */
   allowed?: AgentPermissionMode[]
+  /** Hide the long explanation under the list (the caller shows its own warning). */
+  hideDetail?: boolean
 }
 
 const TRUST_LEVELS: {
@@ -61,7 +63,7 @@ const TRUST_LEVELS: {
   },
 ]
 
-export default function TrustLevelSelector({ value, onChange, compact, allowed }: TrustLevelSelectorProps) {
+export default function TrustLevelSelector({ value, onChange, compact, allowed, hideDetail }: TrustLevelSelectorProps) {
   const levels = allowed ? TRUST_LEVELS.filter(l => allowed.includes(l.id)) : TRUST_LEVELS
   const selectedLevel = levels.find(l => l.id === value)
 
@@ -97,7 +99,7 @@ export default function TrustLevelSelector({ value, onChange, compact, allowed }
             </label>
           )
         })}
-        {selectedLevel && (
+        {selectedLevel && !hideDetail && (
           <div className="mt-2 px-2 py-2 bg-zinc-800/80 rounded text-[11px] text-zinc-400 leading-relaxed border border-zinc-700/50">
             {selectedLevel.detail}
           </div>

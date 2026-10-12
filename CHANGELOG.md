@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.69.2] - 2026-10-12 - The wake dialog fits on one screen (found by looking at it in a real browser)
+
+The first look at the live 0.69.1 dialog, using the `agent-browser` skill, showed that "permissions up front" was not true on screen: five full-width tool cards pushed the permission choice and the hands-off warning below the fold of a 900 px window (the dialog was 828 px tall and scrolled). The logic was right; the layout was not.
+
+### Changed
+- **Compact tool picker:** a two-column grid of small tiles with the selected tool's one-line description under it, instead of full-width cards. At 1440x900 the whole dialog now fits without scrolling: tools, every permission mode the tool supports, the red hands-off warning, "Remember this", and the summary. In a 640 px window it scrolls inside the dialog and the Wake button stays on screen.
+- **One warning, not two:** Full Autonomy used to show a grey "YOLO mode" box and a red warning that said the same thing. Only the red warning remains, and the summary line turns red when the agent will ask for nothing.
+- **Execution mode** (Terminal or Streaming, Claude Code only) moved behind a collapsed "Advanced".
+- An agent that runs a program the dialog does not offer (a wrapper script, often a sandbox) now shows a tile "Keep its own program" with the path underneath, and the summary reads "will keep running /path/to/wrapper".
+
+### Verified in a browser
+Six made-up agents in an isolated instance (separate port, fake home folder, tmux pointed at an empty folder, so nothing of the real fleet was touched): Claude with a stored Full Autonomy (five modes, Full Autonomy selected, red summary), Copilot CLI (two modes, Full Autonomy kept), Grok (supervised), a new agent with no program (Claude, supervised), Pi (no modes, explanatory note), and a sandbox wrapper (kept, not replaced by plain Claude Code, no "Remember" checkbox).
+
+### Found, not fixed
+- **The phone layout has no way to wake an agent**: it lists only online agents ("No Online Agents. Start an agent's tmux session to connect"). A mobile wake flow is a gap to design.
+
 ## [0.69.1] - 2026-10-12 - GitHub Copilot CLI questions appear as cards in the chat (F038, F040)
 
 ### Added

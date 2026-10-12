@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.2] - 2026-10-12 - The SQL skill ships its safety wrapper
+
+Plugin 1.7.2. The `agentic-sql` skill told agents to use a "safe psql wrapper" that did not exist. It now ships as `scripts/safe_psql.py` (skill 1.2.0).
+
+### Added
+- The wrapper accepts one `SELECT` per call, checks the whole query (no writes hidden in `WITH`, no `SELECT INTO`, `COPY`, `SET` or transaction control), allows only listed functions, runs a rebuilt copy of the checked query with a row limit, binds values on the server, and refuses to run as a role that could write or read server files. 109 tests, 9 of them against a real throwaway Postgres.
+
+### Changed
+- `plugin` submodule moves to plugin 1.7.2. Agents run `pip install -r requirements.txt` in the skill folder once.
+
 ## [0.67.1] - 2026-10-10 - The three agentic skills were audited and corrected
 
 Plugin 1.7.1. The skills added in 0.67.0 were audited against Anthropic's current skill guidance and the current primary sources for their domains, and corrected in their own repositories.

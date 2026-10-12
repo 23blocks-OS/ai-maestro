@@ -1,6 +1,6 @@
 # F040 - Waking and creating agents: launch options declared per tool, one-click wake
 
-**Status:** In Progress (design v2 written 2026-10-12; step 1 starting)
+**Status:** In Progress (step 1 shipped in 0.69.0; steps 2 to 4 open)
 **Type:** Feature / UX redesign
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12 ("selecting permissions on agent wake up is a nightmare ... evaluate that UX and UI and design a better flow")
@@ -52,3 +52,8 @@ Recommended and being followed unless Juan objects: one-click wake by default; t
 ## Related
 
 F028 (Grok), F036 (Pi, OpenClaw), F038 (Copilot CLI), F039 (a way back in), F033 and F037 (cards).
+
+## Progress
+
+- 2026-10-12, 0.69.0 - **Step 1 shipped.** The wake dialog opens on the agent's own tool; "Remember this" saves the tool and mode on the agent; the chosen mode is always sent (fixes the "Supervised is ignored" gap); permissions are visible and limited to what each tool supports; Cursor dropped, Gemini/OpenCode/OpenClaw listed as terminal only; one request builder for all three wake screens; pure shared modules (`lib/program-choices.ts`, `lib/program-names.ts`). A test found and fixed a hazard on the way: a sandbox wrapper such as `claude-sandboxed.sh` must never match plain Claude Code in the dialog, and "remember" never replaces a wrapper.
+- **Open:** step 2 (every option declared per tool, generated form with the command preview, plain-words freedom stops), step 3 (one-page create), step 4 (readiness check), the Copilot cards from the real screens, Pi's chat view.

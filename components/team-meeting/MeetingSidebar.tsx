@@ -9,6 +9,7 @@ import type { SidebarMode } from '@/types/team'
 import type { TaskWithDeps } from '@/types/task'
 import WakeAgentDialog from '@/components/WakeAgentDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
 
 interface MeetingSidebarProps {
   agents: Agent[]
@@ -78,17 +79,16 @@ export default function MeetingSidebar({
     setWakeDialogAgent(agent)
   }
 
-  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string }) => {
+  const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
     setWakingAgents(prev => new Set(prev).add(agent.id))
 
     try {
-      const body: Record<string, unknown> = { program, hostUrl: agent.hostUrl }
-      if (options?.permissionMode && options.permissionMode !== 'supervised') {
-        body.permissionMode = options.permissionMode
-      }
+      // One builder for every screen: it always sends the chosen permission mode (the old code dropped
+      // "supervised", and the server then used the mode stored on the agent), and `remember`.
+      const body = buildWakeBody(program, options, agent.hostUrl)
       const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -400,6 +400,7 @@ export default function MeetingSidebar({
         agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
         agentAlias={wakeDialogAgent?.label || wakeDialogAgent?.alias}
         defaultPermissionMode={(wakeDialogAgent as any)?.permissionMode}
+        defaultProgram={(wakeDialogAgent as any)?.program}
       />
     </div>
   )

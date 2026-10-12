@@ -559,6 +559,7 @@ export interface UpdateAgentRequest {
   avatar?: string
   model?: string
   taskDescription?: string
+  program?: string              // Set by wake-and-remember (F040); validated by resolveProgramCommand at launch
   programArgs?: string          // CLI arguments passed to the program on launch
   permissionMode?: AgentPermissionMode  // Update trust level
   tags?: string[]

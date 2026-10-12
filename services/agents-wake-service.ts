@@ -52,6 +52,7 @@ export async function wakeAgentRequest(agentId: string, rawBody: unknown): Promi
   const projectDirectory = typeof body.projectDirectory === 'string' ? body.projectDirectory : undefined
   const permissionMode = typeof body.permissionMode === 'string' ? body.permissionMode : undefined
   const allowHostFallback = body.allowHostFallback === true
+  const remember = body.remember === true
 
   // Check both hostId AND hostUrl: hostId can be stale after a hostname change
   // while hostUrl still points at this machine; without the hostUrl check the
@@ -62,13 +63,14 @@ export async function wakeAgentRequest(agentId: string, rawBody: unknown): Promi
 
   if (remoteHostUrl) {
     return proxyPost(remoteHostUrl, agentId, 'wake',
-      { startProgram, sessionIndex, program, projectDirectory, permissionMode, allowHostFallback }, 'Wake')
+      { startProgram, sessionIndex, program, projectDirectory, permissionMode, allowHostFallback, remember }, 'Wake')
   }
 
   return wakeAgent(agentId, {
     startProgram, sessionIndex, program, projectDirectory,
     permissionMode: permissionMode as WakeAgentParams['permissionMode'],
     allowHostFallback,
+    remember,
   })
 }
 

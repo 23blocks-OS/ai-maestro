@@ -7,6 +7,8 @@ interface TrustLevelSelectorProps {
   value: AgentPermissionMode
   onChange: (mode: AgentPermissionMode) => void
   compact?: boolean
+  /** Only these modes are shown (the modes the chosen tool can honour). Default: all five. */
+  allowed?: AgentPermissionMode[]
 }
 
 const TRUST_LEVELS: {
@@ -59,13 +61,14 @@ const TRUST_LEVELS: {
   },
 ]
 
-export default function TrustLevelSelector({ value, onChange, compact }: TrustLevelSelectorProps) {
-  const selectedLevel = TRUST_LEVELS.find(l => l.id === value)
+export default function TrustLevelSelector({ value, onChange, compact, allowed }: TrustLevelSelectorProps) {
+  const levels = allowed ? TRUST_LEVELS.filter(l => allowed.includes(l.id)) : TRUST_LEVELS
+  const selectedLevel = levels.find(l => l.id === value)
 
   if (compact) {
     return (
       <div className="space-y-1">
-        {TRUST_LEVELS.map((level) => {
+        {levels.map((level) => {
           const Icon = level.icon
           const isSelected = value === level.id
           return (
@@ -105,7 +108,7 @@ export default function TrustLevelSelector({ value, onChange, compact }: TrustLe
 
   return (
     <div className="space-y-2">
-      {TRUST_LEVELS.map((level) => {
+      {levels.map((level) => {
         const Icon = level.icon
         const isSelected = value === level.id
 

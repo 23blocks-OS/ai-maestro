@@ -25,7 +25,8 @@ import os from 'os'
 import path from 'path'
 import { PERMISSION_MODE_TO_CLI, type AgentPermissionMode } from '@/types/agent'
 
-export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'pi' | 'copilot' | 'wrapper'
+import { matchProgramName, isNoProgramName, looksLikeProgramPath, type ProgramKind } from '@/lib/program-names'
+export type { ProgramKind } from '@/lib/program-names'
 
 export interface ResolvedProgram {
   /** Shell-ready command to launch, or null if it could not be resolved. */
@@ -42,11 +43,6 @@ export interface ResolvedProgram {
 
 /** Characters that would let a `program` value break out of the launch command. */
 const SHELL_METACHARACTERS = /[;&|`$(){}<>\n\r'"\\*?[\]!#~]/
-
-/** A wrapper is anything that looks like a path rather than a bare name. */
-function looksLikePath(program: string): boolean {
-  return program.startsWith('/') || program.startsWith('~/') || program.startsWith('./')
-}
 
 function expandHome(p: string): string {
   return p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p
@@ -105,24 +101,10 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   const p = (program || '').trim()
   if (!p) return { command: null, kind: null, error: 'no program configured' }
 
-  if (looksLikePath(p)) return resolveWrapper(p)
+  if (looksLikeProgramPath(p)) return resolveWrapper(p)
 
-  const lower = p.toLowerCase()
-  if (lower.includes('claude')) return { command: 'claude', kind: 'claude' }
-  if (lower.includes('codex')) return { command: 'codex', kind: 'codex' }
-  // Deprecated 2026-10 (F031): no longer offered in the UI or docs; kept so existing Aider agents still launch.
-  if (lower.includes('aider')) return { command: 'aider', kind: 'aider' }
-  if (lower.includes('cursor')) return { command: 'cursor', kind: 'cursor' }
-  if (lower.includes('gemini')) return { command: 'gemini', kind: 'gemini' }
-  if (lower.includes('opencode')) return { command: 'opencode', kind: 'opencode' }
-  if (lower.includes('openclaw')) return { command: 'openclaw', kind: 'openclaw' }
-  if (lower.includes('grok')) return { command: 'grok', kind: 'grok' }
-  // Pi (pi.dev): matched on the WHOLE name, never a substring, because "pi" sits inside far too many
-  // other words. Pi 1.x needs Node 22.19 or newer on the PATH of the tmux session.
-  if (PI_NAMES.has(lower.replace(/\s+/g, '-'))) return { command: 'pi', kind: 'pi' }
-  // GitHub Copilot CLI (the `copilot` command from github/copilot-cli), whole name only. Deliberately NOT the older
-  // `gh copilot` extension, which only suggests and explains commands and is not an agent.
-  if (COPILOT_NAMES.has(lower.replace(/\s+/g, '-'))) return { command: 'copilot', kind: 'copilot' }
+  const matched = matchProgramName(p)
+  if (matched) return matched
 
   return {
     command: null,
@@ -133,13 +115,9 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   }
 }
 
-const PI_NAMES = new Set(['pi', 'pi-agent', 'pi-coding-agent'])
-const COPILOT_NAMES = new Set(['copilot', 'copilot-cli', 'github-copilot', 'github-copilot-cli'])
-
 /** True for the two values that mean "give me a shell, launch nothing". */
 export function isNoProgram(program: string): boolean {
-  const lower = (program || '').trim().toLowerCase()
-  return lower === 'none' || lower === 'terminal'
+  return isNoProgramName(program)
 }
 
 /**

@@ -47,6 +47,20 @@ Grok's default mode does not ask before running ordinary shell commands or editi
 
 Chat history and the working indicator are read from Codex's own transcript (`~/.codex/sessions`). There is no AI Maestro hook for Codex, so there is no "needs you" in the sidebar. Approval prompts are read from the pane and shown as cards (since 0.60.0); the exact formats were captured from codex-cli 0.153.4. Prompts for file edits and permission requests parse generically but have not been captured from a real session.
 
+## Pi
+
+[Pi](https://pi.dev) is a minimal terminal coding agent (`pi`, MIT license, npm package `@earendil-works/pi-coding-agent`). Since 0.67.4 it is a recognised program: pick **Pi** in the Wake dialog, or set the agent's program to `pi`, `pi-agent` or `pi-coding-agent`.
+
+What was checked (Pi 1.1.0, 2026-10-12): it starts in a tmux session, text typed into its input box lands there, and it exits cleanly. Its sessions are JSONL files under `~/.pi/agent/sessions/`. It does not ask for approval before tool calls, so it has no approval cards to show. Not checked yet: a full conversation turn (it needs a model login), so message delivery and replies are unconfirmed.
+
+**Node version.** Pi 1.x needs **Node 22.19 or newer** on the PATH of the agent's tmux session. On Node 20 the package manager installs the older `legacy-node20` build instead. Pi's own installer (`curl -fsSL https://pi.dev/install.sh | sh`) can set up a private Node for Pi, so the host's Node does not have to change. Run `pi` once and `/login` on every host that runs Pi agents.
+
+**Today:** launch, terminal tab and wake by typing into the pane. **Not yet:** chat history, working/idle status and "needs you". Pi has a JSON event mode and an RPC mode that could feed them later.
+
+## OpenClaw
+
+OpenClaw is recognised as a program (`openclaw`), and AI Maestro discovers OpenClaw's tmux sessions on its own socket (`OPENCLAW_TMUX_SOCKET_DIR`) and registers them as agents. It has no chat reader, status feed or approval cards yet, and we have not run an end-to-end check on it.
+
 ## Anything else
 
-Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Cursor, Gemini CLI and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.
+Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Pi, OpenClaw, Cursor, Gemini CLI, OpenCode and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.

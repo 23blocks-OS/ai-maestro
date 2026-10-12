@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.5] - 2026-10-12 - Website and README refresh
+
+### Changed
+- README and website brought up to date: the agent claims (Claude Code, Codex and Grok Build first-class; Pi, OpenClaw and any terminal agent in the terminal tab), chat, secrets, mods and canvas, all 13 skills, and the four open protocols (AMP, AID, AAP, AFP).
+- New website pages `docs/protocols.html` and a rewritten `docs/skills.html`; navigation links on every page; Pi and OpenClaw sections in `docs/AGENT-PROGRAMS.md`.
+- SEO hygiene following the agentic-seo guidance (checked 2026-10-10): unique titles and descriptions, canonical URLs, Open Graph and X/Twitter cards, one H1 per page with the text in the static HTML, valid JSON-LD only where it matches the page (Organization and SoftwareApplication on the home page, BreadcrumbList on deep pages). All FAQPage and HowTo markup removed. `sitemap.xml` lists 23 pages with `loc` and `lastmod` only.
+
+### Fixed
+- The plugin install command was wrong in the README and docs (the root marketplace was removed in 0.22.2): it is now `/plugin marketplace add 23blocks-OS/ai-maestro-plugins` then `/plugin install ai-maestro@ai-maestro-plugins`.
+- `docs/CLAUDE-CODE-MODS.md` said the chat secrets card was not built; it is. Dead GitHub links in `messaging.html` and a dead icon link in `advanced-setup.html`.
+
 ## [0.67.4] - 2026-10-12 - Pi agents can be launched from AI Maestro
 
 ### Added

@@ -110,8 +110,8 @@ You're done! AI Maestro is now running with all features.
 If you just want Claude Code skills without running the full AI Maestro service:
 
 ```bash
-/plugin marketplace add 23blocks-OS/ai-maestro
-/plugin install ai-maestro@ai-maestro-marketplace
+/plugin marketplace add 23blocks-OS/ai-maestro-plugins
+/plugin install ai-maestro@ai-maestro-plugins
 ```
 
 > **IMPORTANT: Service Dependency**
@@ -325,8 +325,8 @@ rm -rf ai-maestro
 npm uninstall -g pm2
 
 # Remove plugin (if installed via marketplace)
-/plugin uninstall ai-maestro@ai-maestro-marketplace
-/plugin marketplace remove ai-maestro-marketplace
+/plugin uninstall ai-maestro@ai-maestro-plugins
+/plugin marketplace remove ai-maestro-plugins
 ```
 
 ---

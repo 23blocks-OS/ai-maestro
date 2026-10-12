@@ -8,13 +8,17 @@
  * removes the old rules from the user settings and the current project.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { execFileSync } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
 const SCRIPT = path.join(__dirname, '..', 'install-plugin.sh')
+
+// Each test runs the real installer. Alone that takes about 1.2s; with the whole suite running in
+// parallel it has taken more than 5s, which is vitest's default limit.
+vi.setConfig({ testTimeout: 30_000 })
 let root: string
 const home = () => path.join(root, 'home')
 const proj = () => path.join(root, 'proj')

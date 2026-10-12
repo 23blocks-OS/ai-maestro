@@ -57,6 +57,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F036** — [Pi and OpenClaw: from "runs in the terminal" to real support](./backlog/F036-pi-and-openclaw-support.md) — `Todo` (Pi launch 0.67.4; Node/zstd and launch-check findings from a mac-mini test)
 - **F037** — [Let the SQL skill change data, but only with a person's approval](./backlog/F037-sql-writes-with-approval.md) — `In Progress` (0.68.0: write door and terminal approval shipped; AI Maestro card, Claude Code mod and support hand-off open)
 - **F038** — [GitHub Copilot CLI: from "runs in the terminal" to real support](./backlog/F038-github-copilot-cli-support.md) — `In Progress` (launch 0.68.1; trust-question card, status, chat reader open; issue #572)
+- **F039** — [A way back in: an `ai-maestro` command, a desktop launcher and a PWA](./backlog/F039-desktop-launcher-and-pwa.md) — `Todo` (designed 2026-10-12; built after F040 step 1)
+- **F040** — [Waking and creating agents: launch options declared per tool, one-click wake](./backlog/F040-wake-and-create-ux-launch-options.md) — `In Progress` (design v2 2026-10-12; step 1 starting)
 
 ## Bugs
 

@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.68.2] - 2026-10-12 - Design: wake and create from launch options (F040), and a desktop launcher (F039)
+
+Documentation only.
+
+### Added
+- Backlog F040: waking and creating agents. Each tool declares the launch options it accepts and the screens are generated from that; the options are saved on the agent; wake becomes one click. Lists what is wrong today (the wake dialog always opens on Claude Code, the tool chosen at wake is never saved, the create wizard never asks which tool, permissions are hidden and Claude-only, a safety gap where choosing "Supervised" at wake is ignored when the agent has another mode stored) and a four-step rollout.
+- Backlog F039: an `ai-maestro` command, a macOS launcher (`AI Maestro.app`) and Linux menu entry created by the installer, a PWA manifest, and an optional start-at-login item.
+
 ## [0.68.1] - 2026-10-12 - GitHub Copilot CLI can be launched from AI Maestro
 
 Backlog F038, from issue #572.

@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.68.1] - 2026-10-12 - GitHub Copilot CLI can be launched from AI Maestro
+
+Backlog F038, from issue #572.
+
+### Added
+- **GitHub Copilot CLI** (`copilot`) is a recognised program: pick it in the Wake dialog, or set the agent's program to `copilot`, `copilot-cli`, `github-copilot` or `github-copilot-cli` (whole name only; the older `gh copilot` extension is not an agent and is not matched). Full autonomy starts it with `--allow-all-tools` (not `--allow-all`/`--yolo`, which also switch off path and URL checks); the agent's model setting becomes `--model`.
+- It runs as a plain terminal agent: launch, terminal tab, wake by typing into the pane. **First launch in a new folder asks whether to trust it**; the person answers once in the Terminal tab (choose "remember"). No chat history, status or approval cards yet, and a full conversation turn has not been tested (needs a login and subscription). See `docs/AGENT-PROGRAMS.md` and F038.
+
+### Changed
+- The F032 guard test no longer forbids every mention of Copilot. It now allows the README to name Copilot CLI only as launching in the terminal tab, and still forbids any "first-class", "full support" or "approval cards" claim, and keeps the other pages quiet.
+- F032 notes that it was superseded for the CLI by F038.
+
 ## [0.68.0] - 2026-10-12 - The SQL skill can change data, with a person's approval
 
 Plugin 1.8.0 (agentic-sql 1.3.0). Backlog F037.

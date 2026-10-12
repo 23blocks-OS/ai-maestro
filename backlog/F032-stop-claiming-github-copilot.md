@@ -1,6 +1,6 @@
 # F032 - Stop claiming GitHub Copilot as a supported agent
 
-**Status:** Done (0.62.1)
+**Status:** Done (0.62.1). Superseded for the CLI by F038 (0.68.1): after issue #572 Juan decided to support GitHub Copilot CLI, in stages and only at the tested tier.
 **Type:** Cleanup (docs and website accuracy)
 **Created:** 2026-10-09
 **Requested by:** Juan, 2026-10-09 ("remove github copilot from the agents we can manage")

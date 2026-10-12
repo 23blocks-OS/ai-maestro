@@ -25,7 +25,7 @@ import os from 'os'
 import path from 'path'
 import { PERMISSION_MODE_TO_CLI, type AgentPermissionMode } from '@/types/agent'
 
-export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'pi' | 'wrapper'
+export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'pi' | 'copilot' | 'wrapper'
 
 export interface ResolvedProgram {
   /** Shell-ready command to launch, or null if it could not be resolved. */
@@ -120,17 +120,21 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   // Pi (pi.dev): matched on the WHOLE name, never a substring, because "pi" sits inside far too many
   // other words. Pi 1.x needs Node 22.19 or newer on the PATH of the tmux session.
   if (PI_NAMES.has(lower.replace(/\s+/g, '-'))) return { command: 'pi', kind: 'pi' }
+  // GitHub Copilot CLI (the `copilot` command from github/copilot-cli), whole name only. Deliberately NOT the older
+  // `gh copilot` extension, which only suggests and explains commands and is not an agent.
+  if (COPILOT_NAMES.has(lower.replace(/\s+/g, '-'))) return { command: 'copilot', kind: 'copilot' }
 
   return {
     command: null,
     kind: null,
     error:
       `unrecognised program "${p}". Use a known name (claude, codex, cursor, gemini, ` +
-      `opencode, openclaw, grok, pi) or an absolute path to an executable wrapper.`,
+      `opencode, openclaw, grok, pi, copilot) or an absolute path to an executable wrapper.`,
   }
 }
 
 const PI_NAMES = new Set(['pi', 'pi-agent', 'pi-coding-agent'])
+const COPILOT_NAMES = new Set(['copilot', 'copilot-cli', 'github-copilot', 'github-copilot-cli'])
 
 /** True for the two values that mean "give me a shell, launch nothing". */
 export function isNoProgram(program: string): boolean {
@@ -158,4 +162,17 @@ export function grokPermissionFlags(mode: AgentPermissionMode | string | undefin
   if (m === 'fullAutonomy') return '--always-approve'
   const cli = PERMISSION_MODE_TO_CLI[m]
   return cli ? `--permission-mode ${cli}` : ''
+}
+
+/**
+ * GitHub Copilot CLI launch flags for an agent's permission mode (checked on Copilot CLI 1.0.96, 2026-10-12).
+ *
+ * Supervised adds nothing: Copilot asks before it runs a tool. Full autonomy uses `--allow-all-tools`, which
+ * stops the per-tool questions but keeps Copilot's path and URL checks (`--allow-all` and `--yolo` would also
+ * switch those off, so they are not used). Copilot has no equivalents of Claude's plan, accept-edits and auto
+ * modes, so those add nothing. First launch in a new folder asks "Do you trust the files in this folder?";
+ * that question is the person's to answer, so no flag here answers it.
+ */
+export function copilotPermissionFlags(mode: AgentPermissionMode | string | undefined | null): string {
+  return mode === 'fullAutonomy' ? '--allow-all-tools' : ''
 }

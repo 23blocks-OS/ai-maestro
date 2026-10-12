@@ -53,6 +53,13 @@ const CLI_OPTIONS = [
     command: 'pi'
   },
   {
+    id: 'copilot',
+    name: 'GitHub Copilot CLI',
+    description: 'GitHub\'s terminal coding agent; asks to trust each new folder once',
+    icon: Code2,
+    command: 'copilot'
+  },
+  {
     id: 'terminal',
     name: 'Terminal Only',
     description: 'Plain shell without AI assistant',

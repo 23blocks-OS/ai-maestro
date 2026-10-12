@@ -66,7 +66,7 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
-import { resolveProgramCommand, isNoProgram, grokPermissionFlags, type ResolvedProgram } from '@/lib/program-command'
+import { resolveProgramCommand, isNoProgram, grokPermissionFlags, copilotPermissionFlags, type ResolvedProgram } from '@/lib/program-command'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import {
   capturePaneFromContainer,
@@ -1887,6 +1887,12 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         if (resolved.kind === 'grok') {
           const grokFlags = grokPermissionFlags(params.permissionMode || agent.permissionMode)
           if (grokFlags) fullCommand = `${fullCommand} ${grokFlags}`
+        }
+
+        // GitHub Copilot CLI: its own permission flags (see copilotPermissionFlags). Nothing Claude-specific applies.
+        if (resolved.kind === 'copilot') {
+          const copilotFlags = copilotPermissionFlags(params.permissionMode || agent.permissionMode)
+          if (copilotFlags) fullCommand = `${fullCommand} ${copilotFlags}`
         }
 
         // Inject --permission-mode for claude-based programs. Keyed off the

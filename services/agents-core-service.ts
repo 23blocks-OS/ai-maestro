@@ -67,6 +67,7 @@ import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, grokPermissionFlags, copilotPermissionFlags, type ResolvedProgram } from '@/lib/program-command'
+import { rememberLaunchChoice } from '@/lib/launch-choice'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import {
   capturePaneFromContainer,
@@ -208,6 +209,8 @@ export interface WakeAgentParams {
    * Default false — sandboxing is preserved by failing loudly. See swickson/ai-maestro#6.
    */
   allowHostFallback?: boolean
+  /** Save the program and permission mode on the agent after a successful choice (F040). */
+  remember?: boolean
 }
 
 export interface HibernateAgentParams {
@@ -1647,7 +1650,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
   message: string
 }>> {
   try {
-    const { startProgram = true, sessionIndex = 0, program: programOverride } = params
+    const { startProgram = true, sessionIndex = 0, program: programOverride, remember = false } = params
 
     // Check including soft-deleted to give a better error message (410 Gone vs 404)
     const agent = getAgent(agentId, true)
@@ -1668,6 +1671,10 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
                             process.cwd()
 
     const sessionName = computeSessionName(agentName, sessionIndex)
+
+    // The screen asked to remember what this agent is woken with (F040). Best effort: a failed save never
+    // stops the wake, and only a program that will really launch is stored.
+    if (remember) rememberLaunchChoice(agentId, { program: programOverride, permissionMode: params.permissionMode })
 
     // ─── Cloud (containerized) agents: dispatch to docker before host tmux ───
     // Fixes swickson/ai-maestro#6 — without this branch, wakeAgent silently runs

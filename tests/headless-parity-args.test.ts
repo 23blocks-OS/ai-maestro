@@ -222,15 +222,21 @@ describe('B012 item 11: POST /api/agents/:id/heartbeat', () => {
 
 describe('B012 item 12: POST /api/agents/:id/wake and /hibernate', () => {
   it('wake lowercases the program and type-checks every field', async () => {
-    await call('POST', '/api/agents/a1/wake', { program: 'Claude', startProgram: false, sessionIndex: '3', projectDirectory: 7, permissionMode: 'plan', allowHostFallback: 'yes', junk: 1 })
+    await call('POST', '/api/agents/a1/wake', { program: 'Claude', startProgram: false, sessionIndex: '3', projectDirectory: 7, permissionMode: 'plan', allowHostFallback: 'yes', remember: 'yes', junk: 1 })
     expect(m.wakeAgent).toHaveBeenCalledWith('a1', {
-      startProgram: false, sessionIndex: 0, program: 'claude', projectDirectory: undefined, permissionMode: 'plan', allowHostFallback: false,
+      startProgram: false, sessionIndex: 0, program: 'claude', projectDirectory: undefined, permissionMode: 'plan', allowHostFallback: false, remember: false,
+    })
+  })
+  it('wake passes remember only when it is exactly true (F040)', async () => {
+    await call('POST', '/api/agents/a1/wake', { program: 'grok', permissionMode: 'supervised', remember: true })
+    expect(m.wakeAgent).toHaveBeenCalledWith('a1', {
+      startProgram: true, sessionIndex: 0, program: 'grok', projectDirectory: undefined, permissionMode: 'supervised', allowHostFallback: false, remember: true,
     })
   })
   it('wake with an empty or invalid body uses the defaults', async () => {
     await call('POST', '/api/agents/a1/wake', undefined, '{not json')
     expect(m.wakeAgent).toHaveBeenCalledWith('a1', {
-      startProgram: true, sessionIndex: 0, program: undefined, projectDirectory: undefined, permissionMode: undefined, allowHostFallback: false,
+      startProgram: true, sessionIndex: 0, program: undefined, projectDirectory: undefined, permissionMode: undefined, allowHostFallback: false, remember: false,
     })
   })
   it('hibernate passes only sessionIndex', async () => {
@@ -247,6 +253,13 @@ describe('B012 item 12: POST /api/agents/:id/wake and /hibernate', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://remote:23000/api/agents/a1/wake')
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).program).toBe('codex')
     expect(res.status).toBe(200)
+  })
+  it('wake sends remember and the chosen mode on to the remote host, which owns the agent (F040)', async () => {
+    m.getAgent.mockReturnValue({ hostId: 'remote-1', hostUrl: 'http://remote:23000' })
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, json: async () => ({ success: true, woken: true }) })
+    vi.stubGlobal('fetch', fetchMock)
+    await call('POST', '/api/agents/a1/wake', { program: 'copilot', permissionMode: 'supervised', remember: true })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ program: 'copilot', permissionMode: 'supervised', remember: true })
   })
   it('wake answers 502 when the remote host is unreachable', async () => {
     m.getAgent.mockReturnValue({ hostId: 'remote-1', hostUrl: 'http://remote:23000' })

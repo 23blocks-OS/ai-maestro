@@ -53,7 +53,8 @@ describe('F032 / F038: Copilot is named only at the tier it actually has', () =>
     }
   })
 
-  it('the wake dialog offers GitHub Copilot CLI with the command copilot', () => {
-    expect(read('components/WakeAgentDialog.tsx')).toMatch(/id:\s*'copilot'[\s\S]*?command:\s*'copilot'/)
+  it('the wake dialog offers GitHub Copilot CLI with the command copilot (the tool list lives in lib/program-choices.ts)', () => {
+    expect(read('lib/program-choices.ts')).toMatch(/id:\s*'copilot'[\s\S]*?command:\s*'copilot'/)
+    expect(read('components/WakeAgentDialog.tsx')).toMatch(/PROGRAM_CHOICES/)
   })
 })

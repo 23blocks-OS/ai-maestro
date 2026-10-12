@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.69.0] - 2026-10-12 - The wake dialog starts on the agent's own tool and its permissions are up front (F040, step 1)
+
+Step 1 of the wake and create redesign (backlog F040; design in the backlog item).
+
+### Fixed
+- **Choosing "Supervised" at wake was ignored.** All three wake screens dropped the permission mode when it was "supervised", and the server then used the mode stored on the agent, so an agent stored as Full autonomy started with no questions asked even though you had picked the safest option. The mode you pick is now always sent, by one shared request builder (`lib/wake-request.ts`) used by the agent list, the meeting sidebar and the home page.
+- **The wake dialog always opened on Claude Code**, whatever the agent runs. It now opens on the agent's own tool. A program the dialog does not offer (a wrapper script, which is often a sandbox, or a retired tool) shows as "Keep <program>" and is left untouched; wrapper paths can no longer be mistaken for plain Claude Code.
+
+### Changed
+- **Permissions are visible, not behind a collapsed chevron, and show only what the tool can do.** Claude Code and Grok Build offer all five modes; GitHub Copilot CLI offers two (ask, or allow all tools); Pi and Codex show a one-line reason instead (Pi never asks before it acts; AI Maestro does not set Codex's approval setting yet). A stored mode the tool cannot honour falls back to supervised instead of looking selected. Full autonomy shows a red warning. A summary line says what will start.
+- **"Remember this for <agent>"** (on by default) saves the tool and the permission mode on the agent, so the next wake needs no choice. A program that would not launch is never remembered, a mode the tool cannot honour is never stored, and an agent that runs a wrapper script keeps it.
+- Cursor is no longer offered (it is the editor and never worked as an agent here; an existing Cursor agent shows as "Keep cursor"). Gemini CLI, OpenCode and OpenClaw, which AI Maestro already recognises, are offered under "More tools (terminal only)".
+- The tool list, the permission modes per tool and the program-name rules now live in pure modules (`lib/program-choices.ts`, `lib/program-names.ts`) shared by the browser and the server, which is the groundwork for step 2 (options declared per tool).
+
+### Tests
+- New: `program-choices`, `wake-request`, `launch-choice`. They cover the dialog's starting selection (including a sandbox wrapper named `claude-sandboxed.sh`), the "Supervised is sent" fix, every tool's supported modes, and the remember rules.
+
 ## [0.68.2] - 2026-10-12 - Design: wake and create from launch options (F040), and a desktop launcher (F039)
 
 Documentation only.

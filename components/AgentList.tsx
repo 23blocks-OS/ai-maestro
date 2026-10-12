@@ -53,6 +53,7 @@ import MeetingListView from './sidebar/MeetingListView'
 import { useToast } from '@/contexts/ToastContext'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { computeHash, getAvatarUrl } from '@/lib/hash-utils'
+import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -491,7 +492,7 @@ export default function AgentList({
     setWakeDialogAgent(agent)
   }
 
-  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string }) => {
+  const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
@@ -499,10 +500,9 @@ export default function AgentList({
 
     try {
       // Always call local server — the route proxies to remote hosts server-side
-      const body: Record<string, unknown> = { program, hostUrl: agent.hostUrl }
-      if (options?.permissionMode && options.permissionMode !== 'supervised') {
-        body.permissionMode = options.permissionMode
-      }
+      // One builder for every screen: it always sends the chosen permission mode (the old code dropped
+      // "supervised", and the server then used the mode stored on the agent), and `remember`.
+      const body = buildWakeBody(program, options, agent.hostUrl)
       const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1524,6 +1524,7 @@ export default function AgentList({
         agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
         agentAlias={wakeDialogAgent?.alias}
         defaultPermissionMode={(wakeDialogAgent as any)?.permissionMode}
+        defaultProgram={(wakeDialogAgent as any)?.program}
       />
     </div>
   )

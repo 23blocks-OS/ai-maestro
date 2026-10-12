@@ -33,7 +33,16 @@
 import { isShellCommand } from '@/lib/pane-occupant'
 
 /** How long to let a program get itself on screen before judging it. */
-export const LAUNCH_GRACE_MS = 4000
+/**
+ * A shell that loads nvm and friends can take several seconds to reach a prompt, and a Node-based agent
+ * (Pi) takes a few more to appear after that. On a real host (mac-mini, 2026-10-12) Pi showed up after ~8s
+ * and a 4s limit called it "did not start". A genuine failure usually prints a shell error and returns at
+ * once, so only a silent failure waits out the full grace period. `AIM_LAUNCH_GRACE_MS` overrides it.
+ */
+export const LAUNCH_GRACE_MS = (() => {
+  const n = Number(process.env.AIM_LAUNCH_GRACE_MS)
+  return Number.isFinite(n) && n >= 1000 && n <= 60_000 ? n : 12_000
+})()
 export const LAUNCH_POLL_MS = 400
 
 /**

@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.6] - 2026-10-12 - A slow-starting agent is no longer called "did not start"
+
+Found by launching a Pi agent on mac-mini through AI Maestro (backlog F036).
+
+### Fixed
+- **False "did not start" on slow hosts.** The launch check gave a program 4 seconds to appear. On mac-mini (slow shell startup, then Node) Pi appeared after about 8 seconds and the wake reported a failure for a working agent. The grace period is now 12 seconds, and `AIM_LAUNCH_GRACE_MS` (1000 to 60000) overrides it. A program that fails with a shell error (command not found and the like) is still reported at once; only a silent failure waits the full time.
+
+### Changed
+- `docs/AGENT-PROGRAMS.md`: the Pi Node requirement is corrected. Pi needs `zlib.createZstdDecompress` (Node 22.15+ or 23.8+); Node 23.5 passes Pi's declared `>=22.19` check and then crashes at startup.
+
+### Added
+- Backlog F036: Pi and OpenClaw, from "runs in the terminal" to real support (end-to-end test with a login, a Node check before launch, a Pi chat reader, OpenClaw).
+
 ## [0.67.5] - 2026-10-12 - Website and README refresh
 
 ### Changed

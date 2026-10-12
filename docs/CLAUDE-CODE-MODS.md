@@ -85,7 +85,7 @@ Things worth knowing:
 - **The value field shows what you type.** A mod cannot mask a field. The value is not sent to the model, and a leak check across the session files, debug logs, history and AI Maestro state found nothing (see `docs/SECRETS.md`).
 - **Match Claude Code's theme to your terminal.** The fields use your terminal's default text colour on a panel drawn from Claude Code's theme. A dark theme in a light terminal (for example Apple Terminal) gives dark text on a dark panel. Run `/theme` and pick the one that matches your terminal. The form prints this tip when the theme is dark.
 - **The tool answers at once.** Claude Code cuts a tool hook off after 10 seconds, so the tool does not wait for you; the mod wakes the agent with a prompt after you answer.
-- It works in the terminal Claude Code and the Code tab of the Desktop app. The AI Maestro chat has its own card (not built yet).
+- It works in the terminal Claude Code and the Code tab of the Desktop app. The AI Maestro chat has its own card, with a masked field (see `docs/SECRETS.md`).
 
 Install and check:
 

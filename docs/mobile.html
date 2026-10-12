@@ -12,7 +12,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile AI Agent Dashboard: Monitor Claude Code Remotely</title>
-    <meta name="description" content="Mobile AI agent dashboard for Claude Code, Codex, Cursor. Secure remote access to autonomous agents from phone or tablet. Future of work: code from anywhere.">
+    <meta name="description" content="Mobile AI agent dashboard for Claude Code, Codex, Grok Build. Secure remote access to autonomous agents from phone or tablet. Future of work: code from anywhere.">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -68,7 +68,7 @@
       "name": "AI Maestro Mobile",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "iOS 12.0+, Android 8.0+, Browser-based",
-      "description": "Mobile dashboard for monitoring and controlling AI coding agents like Claude Code, Codex, and Cursor from phones and tablets with secure remote access",
+      "description": "Mobile dashboard for monitoring and controlling AI coding agents like Claude Code, Codex, and Grok Build from phones and tablets with secure remote access",
       "offers": {
         "@type": "Offer",
         "price": "0",
@@ -96,55 +96,7 @@
     }
     </script>
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "HowTo",
-      "name": "How to Access AI Agents from Mobile Device",
-      "description": "Set up secure remote access to AI Maestro dashboard from phone or tablet",
-      "totalTime": "PT5M",
-      "tool": [{
-        "@type": "HowToTool",
-        "name": "Tailscale VPN"
-      },{
-        "@type": "HowToTool",
-        "name": "Mobile Browser (Safari, Chrome, Firefox)"
-      }],
-      "supply": [{
-        "@type": "HowToSupply",
-        "name": "Development machine with AI Maestro installed"
-      },{
-        "@type": "HowToSupply",
-        "name": "Mobile device (iOS or Android)"
-      }],
-      "step": [{
-        "@type": "HowToStep",
-        "position": 1,
-        "name": "Install Tailscale on Development Machine",
-        "text": "Run: brew install tailscale (macOS) or curl -fsSL https://tailscale.com/install.sh | sh (Linux)"
-      },{
-        "@type": "HowToStep",
-        "position": 2,
-        "name": "Install Tailscale Mobile App",
-        "text": "Download from App Store (iOS) or Google Play (Android)"
-      },{
-        "@type": "HowToStep",
-        "position": 3,
-        "name": "Sign In to Same Tailscale Account",
-        "text": "Use same account (Google, Microsoft, or GitHub) on both devices"
-      },{
-        "@type": "HowToStep",
-        "position": 4,
-        "name": "Start AI Maestro Server",
-        "text": "Run: cd ai-maestro && yarn dev (starts on port 23000)"
-      },{
-        "@type": "HowToStep",
-        "position": 5,
-        "name": "Access from Mobile Browser",
-        "text": "Navigate to http://YOUR-MACHINE-NAME:23000 from mobile browser"
-      }]
-    }
-    </script>
+    
     <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -299,17 +251,19 @@
     <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
         <div class="max-w-7xl mx-auto px-4 md:px-8">
             <div class="flex justify-between items-center py-4">
-                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
                     <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
                     <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
                 </a>
 
                 <!-- Desktop Navigation -->
                 <div class="hidden md:flex gap-8 items-center">
-                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
-                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
-                    <a href="ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
-                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="/#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="/#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="/ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
+                    <a href="/skills.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">SKILLS</a>
+                    <a href="/protocols.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">PROTOCOLS</a>
+                    <a href="/#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
                     </a>
@@ -331,10 +285,12 @@
 
             <!-- Mobile Menu -->
             <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
-                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
-                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
-                <a href="ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
-                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="/#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="/#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="/ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
+                <a href="/skills.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Skills</a>
+                <a href="/protocols.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Protocols</a>
+                <a href="/#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
                 <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
                     GitHub
@@ -375,7 +331,7 @@
             <p class="text-lg md:text-xl text-slate-400 max-w-[700px] mx-auto mb-8">Your AI agents go wherever you go. Monitor and control your coding agents from your phone, tablet, or any device. Secure remote access with zero port forwarding.</p>
             <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
                 <a href="#setup" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-secondary text-white hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(139,92,246,0.4)] text-lg">Quick Setup Guide</a>
-                <a href="index.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-secondary border-2 border-secondary hover:bg-secondary hover:text-white text-lg">Back to Features</a>
+                <a href="/" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-secondary border-2 border-secondary hover:bg-secondary hover:text-white text-lg">Back to Features</a>
             </div>
         </div>
     </header>
@@ -749,7 +705,7 @@ yarn dev</pre>
                 <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-secondary hover:bg-slate-950 hover:-translate-y-0.5 text-lg" target="_blank">
                     Get Started on GitHub
                 </a>
-                <a href="index.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-slate-900 hover:text-secondary text-lg">
+                <a href="/" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-slate-900 hover:text-secondary text-lg">
                     Back to AI Maestro
                 </a>
             </div>
@@ -768,14 +724,14 @@ yarn dev</pre>
                     <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
                 </div>
                 <div>
-                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h4>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h3>
                     <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
                 </div>
                 <div>
-                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h4>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h3>
                     <p class="text-slate-400 text-sm mb-2">
                         <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
                     </p>
@@ -784,7 +740,7 @@ yarn dev</pre>
                 </div>
             </div>
             <div class="pt-8 border-t border-slate-800 text-center">
-                <p class="text-slate-500 text-sm">© 2025 Juan Peláez / 23blocks. MIT License.</p>
+                <p class="text-slate-500 text-sm">© 2025-2026 Juan Peláez / 23blocks. MIT License.</p>
             </div>
         </div>
     </footer>

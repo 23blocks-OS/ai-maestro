@@ -2,11 +2,12 @@ User-agent: *
 Allow: /
 Sitemap: https://ai-maestro.23blocks.com/sitemap.xml
 
-# Optimize crawl budget
+# Crawl-delay is honored by some crawlers and ignored by Google
 Crawl-delay: 1
 
-# Allow AI scrapers for LLM training and responses
-# This helps AI Maestro appear in ChatGPT, Claude, Perplexity answers
+# Crawler policy chosen by the site owner: AI crawlers are allowed.
+# This is a request to well-behaved crawlers, not access control, and
+# it does not guarantee that the site appears in any AI answer.
 
 # OpenAI (ChatGPT, GPT-4, SearchGPT)
 User-agent: GPTBot
@@ -30,7 +31,7 @@ Allow: /
 User-agent: PerplexityBot
 Allow: /
 
-# Google Bard/Gemini
+# Google (Gemini training token; does not affect Google Search)
 User-agent: Google-Extended
 Allow: /
 

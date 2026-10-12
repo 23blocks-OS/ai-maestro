@@ -15,7 +15,7 @@
 
 ![AI Maestro Dashboard](./docs/images/aiteam-web.png)
 
-[Quick Start](#-quick-start) · [Features](#-features) · [Documentation](#-documentation) · [Contributing](./CONTRIBUTING.md)
+[Quick Start](#quick-start) · [Features](#features) · [Skills](#skills) · [Protocols](#protocols) · [Documentation](#documentation) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -30,7 +30,7 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 **So I built AI Maestro** — one dashboard to see every agent, on every machine, with persistent memory and direct agent-to-agent communication. Today I run 80+ agents across multiple computers, building real companies with them every day.
 
 **What makes this different:**
-- **Works with any AI agent** — Claude Code, Codex, Grok Build, Cursor, OpenClaw, Hermes, Droid, or any terminal-based agent. We don't lock you in.
+- **Works with the agents you already use** — Claude Code, Codex and Grok Build get launch, chat history, status and approval cards. Any other terminal agent runs in the terminal tab. [What each one supports](./docs/AGENT-PROGRAMS.md). We don't lock you in.
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
 - **Yours, entirely** — MIT licensed. No account, no telemetry, no per-seat pricing, no hosted tier we upsell you to. Your code and your agents stay on your machines.
@@ -60,7 +60,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 This installs everything you need:
 - AI Maestro dashboard and service
 - Agent messaging system (AMP)
-- Claude Code plugin with 5 skills and 32 CLI scripts
+- The AI Maestro plugin for Claude Code: [13 skills](#skills) and their CLI scripts, plus the `aim-secret` and `safe-psql` helpers
 
 **Time:** 5-10 minutes · **Requires:** Node.js 18+, tmux · *Optional:* Claude Code 2.1.287+ for the [inbox mod](docs/CLAUDE-CODE-MODS.md)
 
@@ -92,6 +92,12 @@ See [QUICKSTART.md](./docs/QUICKSTART.md) for detailed setup options.
 </details>
 
 Dashboard opens at `http://localhost:23000`
+
+**Update** an existing install from its folder (pulls, updates submodules, builds, reinstalls hooks and the plugin, restarts):
+
+```bash
+./update-aimaestro.sh -y
+```
 
 ---
 
@@ -136,11 +142,35 @@ Connect your AI agents to [Slack](https://github.com/23blocks-OS/aimaestro-gatew
 
 Alongside it: **Code Graph** (interactive visualization of your entire codebase with delta indexing) and **Documentation** (auto-generated, searchable docs from your code). Agents get smarter the longer they work with you.
 
+### Chat
+
+*I wanted to answer an agent's question without finding its terminal.*
+
+Talk to an agent in a chat view, on desktop or on your phone. When the agent asks a question or needs an approval, it shows up as a card you can click, and the click sends the same key you would press in the terminal. Claude Code, Codex and Grok Build all work here. [How the chat works →](docs/CHAT-ARCHITECTURE.md)
+
+### Secrets
+
+*I kept pasting API keys into chats, and the model kept seeing them.*
+
+Agents use a credential without seeing it. `aim-secret` keeps values in a local vault (macOS Keychain, Linux libsecret, or an encrypted file). An agent asks for a secret by name; a card in the chat, with a masked field, lets you store it; the agent then runs commands that use it by name, with the value scrubbed from the output. In Claude Code, the `ai-maestro-secrets` mod asks through a form in the terminal instead. Scrubbing stops accidents, not an agent that wants the value, so use narrowly scoped keys. [Secrets →](docs/SECRETS.md) · [Claude Code mods →](docs/CLAUDE-CODE-MODS.md)
+
 ### Work Coordination
 
 *Talking isn't working. I needed agents to coordinate on actual deliverables.*
 
 Assemble agents into teams, run meetings in split-pane war rooms, and track tasks on a full Kanban board with drag-and-drop, dependencies, and 5 status columns. Cross-machine teams work seamlessly. This is project management for your AI workforce.
+
+### Claude Code Mods
+
+*A Claude Code session with no tmux has nowhere for a message to land.*
+
+Mods are plugins that run inside Claude Code 2.1.287 or later. AI Maestro ships two: an **inbox mod** that shows unread agent messages in the status line and above the prompt, and a **secrets mod** that lets an agent request a credential. AI Maestro itself works with any current Claude Code version. [Details and limits →](docs/CLAUDE-CODE-MODS.md)
+
+### Canvas
+
+*Sometimes the answer is a form, a chart or an approval, not a paragraph.*
+
+Agents draw interactive HTML pages in the dashboard, and what you click or submit comes back to them as a structured action ([AAP](#protocols)). [Agent actions →](https://ai-maestro.23blocks.com/agent-actions.html)
 
 ### Scheduled Work
 
@@ -212,12 +242,9 @@ Every agent is built from five dimensions:
 | **HOW** | Capabilities | Skills, scripts, CLI tools, Canvas | [Plugin Builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
 | **TRUST** | Identity | Cryptographic keys, OAuth tokens | [AID](https://agentids.org) |
 | **TALK** | Communication | Agent-to-agent messaging | [AMP](https://agentmessaging.org) |
-| **ACT** | Actions | Tool execution, API calls, workflows | [AAP](https://agentactions.org) |
+| **ACT** | Actions | Clicks and forms from agent-drawn pages | [AAP](https://agentactions.org) |
 
-**Open Protocols** — AI Maestro is built on three open standards:
-- **[AMP](https://agentmessaging.org)** — Agent Messaging Protocol. Email-like communication between agents with cryptographic signatures.
-- **[AID](https://agentids.org)** — Agent Identity. Portable cryptographic identity for agents across platforms.
-- **[AAP](https://agentactions.org)** — Agent Actions Protocol. Standardized tool execution and workflow triggers.
+See [Skills](#skills) and [Protocols](#protocols) below.
 
 AI Maestro is the stage. Pick personalities, give them skills, and run them from one dashboard.
 
@@ -225,11 +252,57 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 ---
 
+## Skills
+
+The AI Maestro plugin (version 1.7.3) carries 13 skills in the open [Agent Skills Standard](https://agentskills.io/specification) format. An agent loads a skill when its description matches the task.
+
+| Skill | What it does | Source |
+|---|---|---|
+| `memory-search` | Search what the agent learned in past sessions, and what depends on an entity | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `docs-search` | Look up signatures and APIs in the generated docs | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `graph-query` | Callers, dependencies and blast radius from the code graph | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `ai-maestro-agents-management` | Create, rename, hibernate, wake and delete agents | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `planning` | Persistent plan, findings and progress files for long tasks | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `aim-secret-management` | Use a credential without seeing it; ask the user to store one | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `agent-messaging` | Signed messages between agents (AMP) | [agentmessaging/claude-plugin](https://github.com/agentmessaging/claude-plugin) |
+| `agent-identity` | Sign in with an Ed25519 identity and OAuth 2.0 tokens (AID) | [agentmessaging/agent-identity](https://github.com/agentmessaging/agent-identity) |
+| `canvas-actions` | Interactive pages in the dashboard and their actions (AAP) | [agentmessaging/agent-actions](https://github.com/agentmessaging/agent-actions) |
+| `agent-files` | Share files across hosts through an AFP space | [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files) |
+| `agentic-sql` | Read-only SQL against real databases, through the `safe-psql` wrapper | [23blocks-OS/agentic-sql](https://github.com/23blocks-OS/agentic-sql) |
+| `agentic-support` | Numbered support cases with a written trail, and runbooks | [23blocks-OS/agentic-support](https://github.com/23blocks-OS/agentic-support) |
+| `agentic-seo` | SEO audit and implementation for websites | [23blocks-OS/agentic-seo](https://github.com/23blocks-OS/agentic-seo) |
+
+The installer and updater set up the helpers the skills need (`aim-secret`, `safe-psql`). To add only the plugin to Claude Code:
+
+```
+/plugin marketplace add 23blocks-OS/ai-maestro-plugins
+/plugin install ai-maestro@ai-maestro-plugins
+```
+
+Pick your own set with the [plugin builder](./plugin/README.md). More on the [skills page](https://ai-maestro.23blocks.com/skills.html); how we keep them good is in [SKILLS-QUALITY.md](./docs/SKILLS-QUALITY.md).
+
+---
+
+## Protocols
+
+AI Maestro implements four open protocols, all under [github.com/agentmessaging](https://github.com/agentmessaging). Each works without the others.
+
+| Protocol | Covers | Specification |
+|---|---|---|
+| **AMP** — Agent Messaging Protocol | Signed messages between agents, local or federated | [agentmessaging.org](https://agentmessaging.org) |
+| **AID** — Agent Identity | Ed25519 agent identity and OAuth 2.0 tokens | [agentids.org](https://agentids.org) |
+| **AAP** — Agent Actions Protocol | Actions from agent-drawn pages back to the agent | [agentactions.org](https://agentactions.org) |
+| **AFP** — Agent Files Protocol | Files shared by reference through S3-compatible storage | [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files) |
+
+[Protocols page](https://ai-maestro.23blocks.com/protocols.html) · [AID, AMP and AAP mapped onto the Poppy draft](./docs/AID-POPPY-MAPPING.md) (a design note, nothing implemented) · [AMP outbox design](./docs/AMP-OUTBOX-DESIGN.md) (a proposal, not built)
+
+---
+
 ## Who Is This For
 
 **Founders building AI-first organizations.** You're the CEO, your agents are the team. Solo operators, agency owners, and anyone running a business where AI agents do the work and you drive the strategy. Start with Lola, add specialists, scale your AI workforce.
 
-**Developers running multiple AI agents.** If you have 3+ agents and you're switching between terminals, losing context, and playing messenger — this is for you. Works with Claude Code, Codex, Grok Build, Cursor, or any terminal-based AI.
+**Developers running multiple AI agents.** If you have 3+ agents and you're switching between terminals, losing context, and playing messenger — this is for you. Works with Claude Code, Codex, Grok Build, or any terminal-based AI.
 
 **Teams coordinating AI-assisted work.** Multiple developers, multiple agents, multiple machines. One dashboard. Agent-to-agent messaging replaces you as the bottleneck.
 
@@ -269,14 +342,18 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 - [Cloud Deployment (AWS)](./docs/cloud-aws.html) · [Docker Agents](./docs/docker-local.html)
 - [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
 - [Chat Architecture](./docs/CHAT-ARCHITECTURE.md) — how messages reach an agent, and how questions come back
-- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
+- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png) · [Long-term memory](./docs/LONG-TERM-MEMORY.md)
+- [Secrets](./docs/SECRETS.md) — agents use a credential without seeing it
+- [Claude Code mods](./docs/CLAUDE-CODE-MODS.md) — inbox and secrets mods, and Claude Code versions
+- [Agent programs](./docs/AGENT-PROGRAMS.md) — what Claude Code, Codex and Grok Build each support
 - [Operations Guide](./docs/OPERATIONS-GUIDE.md)
 
 **Troubleshooting:**
 - [Common Issues](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md) · [Windows Installation](./docs/WINDOWS-INSTALLATION.md)
 
 **Open Protocols:**
-- [AMP](https://agentmessaging.org) · [AID](https://agentids.org) · [AAP](https://agentactions.org)
+- [AMP](https://agentmessaging.org) · [AID](https://agentids.org) · [AAP](https://agentactions.org) · [AFP](https://github.com/agentmessaging/agent-files)
+- Design notes: [AID, AMP and AAP on the Poppy draft](./docs/AID-POPPY-MAPPING.md) · [AMP outbox (proposal)](./docs/AMP-OUTBOX-DESIGN.md)
 
 **Extending:**
 - [Plugin Development](./plugin/README.md) · [API Reference](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md) · [Ecosystem Guide](./docs/ECOSYSTEM.md)
@@ -290,7 +367,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 - Agent playback — time-travel through agent sessions
 - Performance analytics dashboard
 
-See the full [roadmap](https://github.com/23blocks-OS/ai-maestro/issues) and [join the discussion](https://github.com/23blocks-OS/ai-maestro/discussions).
+See the full [roadmap](https://github.com/23blocks-OS/ai-maestro/issues).
 
 ---
 
@@ -363,7 +440,7 @@ MIT — see [LICENSE](./LICENSE). Free for any purpose, including commercial.
 ## FAQ
 
 **Do I need to use Claude Code?**
-No. AI Maestro works with any terminal-based AI agent — Claude Code, Codex, Grok Build, Cursor, OpenClaw, Hermes, Droid, or your own scripts. We're agent-agnostic.
+No. Claude Code, Codex and Grok Build get first-class support (launch, chat, status, approval cards), and any other terminal agent runs in the terminal tab. See [what each one supports](./docs/AGENT-PROGRAMS.md).
 
 **Does it work on Linux / Windows?**
 Yes. macOS and Linux natively. Windows via WSL2 — see the [Windows guide](./docs/WINDOWS-INSTALLATION.md).
@@ -371,11 +448,11 @@ Yes. macOS and Linux natively. Windows via WSL2 — see the [Windows guide](./do
 **Can agents on different machines talk to each other?**
 Yes. The [Agent Messaging Protocol (AMP)](https://agentmessaging.org) handles cross-machine messaging with cryptographic signatures and push notifications. No central server required.
 
-**What are AID and AAP?**
-[AID](https://agentids.org) (Agent Identity) gives each agent a portable cryptographic identity. [AAP](https://agentactions.org) (Agent Actions Protocol) standardizes how agents execute tools and trigger workflows. Together with [AMP](https://agentmessaging.org), they form the open protocol stack that AI Maestro is built on.
+**What are AID, AAP and AFP?**
+[AID](https://agentids.org) (Agent Identity) gives each agent a portable cryptographic identity. [AAP](https://agentactions.org) (Agent Actions Protocol) carries a click or form submit from an agent-drawn page back to the agent. [AFP](https://github.com/agentmessaging/agent-files) (Agent Files Protocol) shares files across hosts by reference. Together with [AMP](https://agentmessaging.org), they are the open protocols AI Maestro implements. See [Protocols](#protocols).
 
 **What is the Canvas skill?**
-Canvas lets agents generate visual artifacts — diagrams, charts, and interactive documents — directly from conversations. It's part of the plugin system and available to any agent.
+The `canvas-actions` skill lets an agent draw interactive HTML pages (dashboards, charts, forms, approvals) in the AI Maestro dashboard and handle what you click or submit. It ships in the plugin.
 
 **How is this different from just using tmux?**
 tmux gives you terminals. AI Maestro gives you an organization — persistent memory, agent-to-agent messaging, team coordination, Kanban boards, multi-machine mesh, cloud deployment, and gateway integrations. tmux is the foundation; AI Maestro is the building.

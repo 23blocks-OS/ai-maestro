@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.67.8] - 2026-10-12 - F037 design decided
 
+### Fixed
+- `tests/amp-permissions.test.ts` timed out now and then when the whole suite ran in parallel (the test runs the real plugin installer: 1.2 s alone, over 5 s under load). Its time limit is now 30 s. No product code changed.
+
 ### Changed
 - Backlog F037 (SQL writes with approval) now records Juan's decisions: hard delete is a setting that is off by default; any person can approve; approval cards appear in the terminal (works without AI Maestro), in AI Maestro, and in Claude Code; the default row limit stays at 25; `agentic-support` writes only through `agentic-sql`. The file also has the settings file layout and an honest account of what the approval does and does not protect. Nothing is built.
 

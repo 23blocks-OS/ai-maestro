@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.7] - 2026-10-12 - Backlog F037 (SQL writes with approval); plugin 1.7.4
+
+### Added
+- Backlog F037: a design for letting the SQL skill change data without weakening its read-only default. A separate command and database login, one `INSERT` or one `UPDATE` with a `WHERE`, a dry run that is rolled back, a chat approval card tied to the exact statement, a no-personal-data log, staging by default. Open questions for review are listed in the file. Nothing is built.
+
+### Changed
+- `plugin` submodule moves to plugin 1.7.4 (the installed `agentic-support` skill now includes its MIT `LICENSE`).
+
 ## [0.67.6] - 2026-10-12 - A slow-starting agent is no longer called "did not start"
 
 Found by launching a Pi agent on mac-mini through AI Maestro (backlog F036).

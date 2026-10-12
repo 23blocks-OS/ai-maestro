@@ -1,6 +1,6 @@
 # F037 - Let the SQL skill change data, but only with a person's approval
 
-**Status:** Todo (design decided 2026-10-12; nothing built)
+**Status:** In Progress (the write door and terminal approval shipped in agentic-sql 1.3.0 / plugin 1.8.0 / AI Maestro 0.68.0; the AI Maestro card, the Claude Code mod and the support hand-off are open)
 **Type:** Feature (extends the agentic-sql skill and its `safe-psql` wrapper)
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12 ("sometimes the SQL queries will actually update and write data, is that considered, and still possible?")
@@ -81,3 +81,9 @@ The approval stops an agent that tries the sanctioned path (including one steere
 ## Related
 
 F033 (secret vault, source of the approval-card pattern and where the write login lives), F029 (route parity), `docs/AGENT-PROGRAMS.md` is unrelated. The read-only guarantee in `agentic-sql` 1.2.x is the baseline this must not weaken.
+
+## Progress
+
+- 2026-10-12: **Shipped** in agentic-sql 1.3.0: `safe-psql-write` (propose, approve, apply, reject, status, list), the settings file (`examples/write.example.yaml`), terminal approval on the real terminal (refused for piped input and inside agent sessions), dry run rolled back, row-count check on apply, request tied to the exact statement, expiry, a log without values, sanitised approval screen, and a refusal of any login that can write unlisted tables (the read door now refuses any login that can write). 62 tests, including approval through a pseudo-terminal. Plugin 1.8.0; the AI Maestro installer puts `safe-psql-write` on the PATH (0.68.0).
+- A bug found while reviewing: the read door sent a literal `%` as `%%` when a query had no parameters. Fixed in the same release.
+- **Open:** the AI Maestro chat approval card (modeled on the secret requests, headless parity), the Claude Code approval mod, the `agentic-support` hand-off text, and a live test of a write against a real staging database.

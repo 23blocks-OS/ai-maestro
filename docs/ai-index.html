@@ -43,7 +43,7 @@
           "priceCurrency": "USD"
         },
         "description": "Dashboard and orchestrator for fleets of AI coding agents (Claude Code, Codex, Grok Build and other terminal agents) running in tmux, on one machine or across hosts. Agent messaging, persistent memory, code graph, secrets vault and a plugin with 13 skills.",
-        "softwareVersion": "0.67.8",
+        "softwareVersion": "0.68.0",
         "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
         "url": "https://ai-maestro.23blocks.com",
         "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -287,7 +287,7 @@ cd ai-maestro && yarn install && yarn dev
             <ul>
                 <li><strong>planning</strong>, <strong>agentic-support</strong> - work standalone (no AI Maestro service)</li>
                 <li><strong>agentic-seo</strong> - Python 3 for its audit script</li>
-                <li><strong>agentic-sql</strong> - the <code>safe-psql</code> command (AI Maestro's installer and updater set it up) and a read-only Postgres role</li>
+                <li><strong>agentic-sql</strong> - the <code>safe-psql</code> and <code>safe-psql-write</code> commands (AI Maestro's installer and updater set them up) and a read-only Postgres role; writes also need a settings file and a separate limited write login, and each change needs a person's approval</li>
                 <li><strong>aim-secret-management</strong> - the <code>aim-secret</code> CLI (AI Maestro installs it)</li>
                 <li><strong>agent-messaging</strong> (AMP), <strong>agent-identity</strong> (AID), <strong>agent-files</strong> (AFP) - curl, jq and openssl; AFP also needs a configured storage space</li>
                 <li><strong>canvas-actions</strong> (AAP), <strong>memory-search</strong>, <strong>docs-search</strong>, <strong>graph-query</strong>, <strong>ai-maestro-agents-management</strong> - need AI Maestro running *</li>

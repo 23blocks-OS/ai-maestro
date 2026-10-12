@@ -1,8 +1,9 @@
 #!/bin/bash
-# Put `safe-psql` on the PATH (~/.local/bin): the SQL gate wrapper of the agentic-sql skill, run in a
+# Put `safe-psql` (read) and `safe-psql-write` (changes data, only with a person's approval) on the PATH
+# (~/.local/bin): the SQL wrappers of the agentic-sql skill, run in a
 # private Python environment (~/.aimaestro/venvs/agentic-sql) so system Python is never touched.
 # Safe to run again; the packages are reinstalled only when requirements.txt changes.
-# Uninstall: rm ~/.local/bin/safe-psql; rm -rf ~/.aimaestro/venvs/agentic-sql
+# Uninstall: rm ~/.local/bin/safe-psql ~/.local/bin/safe-psql-write; rm -rf ~/.aimaestro/venvs/agentic-sql
 #
 # Some hosts (minimal Debian/Ubuntu) have Python without pip or the venv helper. The environment is then
 # created without pip and pip is bootstrapped into it from bootstrap.pypa.io. Nothing outside the one
@@ -42,5 +43,10 @@ cat > "$BIN/safe-psql" <<WRAP
 exec "$VENV/bin/python" "$SRC/scripts/safe_psql.py" "\$@"
 WRAP
 chmod +x "$BIN/safe-psql"
-echo "installed: $BIN/safe-psql (python: $VENV)"
+cat > "$BIN/safe-psql-write" <<WRAP
+#!/bin/sh
+exec "$VENV/bin/python" "$SRC/scripts/safe_psql_write.py" "\$@"
+WRAP
+chmod +x "$BIN/safe-psql-write"
+echo "installed: $BIN/safe-psql and $BIN/safe-psql-write (python: $VENV)"
 case ":$PATH:" in *":$BIN:"*) ;; *) echo "note: $BIN is not on your PATH yet" ;; esac

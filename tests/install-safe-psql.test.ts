@@ -48,6 +48,16 @@ describe('install-safe-psql.sh', () => {
       expect(ok.stdout).toMatch(/LIMIT 1000/)
       const bad = spawnSync(launcher, ['--check-only', '--sql', 'COMMIT; DROP TABLE t'], { encoding: 'utf8' })
       expect(bad.status).toBe(2)
+      // the write door: with no settings file nothing is writable, and it must say so
+      const writer = path.join(tmp, 'bin', 'safe-psql-write')
+      expect(fs.existsSync(writer)).toBe(true)
+      const w = spawnSync(writer, ['propose', '--check-only', '--sql', "UPDATE t SET a = 1 WHERE id = 1"], {
+        encoding: 'utf8',
+        cwd: tmp,
+        env: { ...process.env, HOME: tmp, SAFE_PSQL_HOME: path.join(tmp, 'psql-home') },
+      })
+      expect(w.status).toBe(2)
+      expect(w.stderr).toMatch(/no settings file/)
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true })
     }

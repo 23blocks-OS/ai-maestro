@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.67.8-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.68.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -268,7 +268,7 @@ The AI Maestro plugin (version 1.7.3) carries 13 skills in the open [Agent Skill
 | `agent-identity` | Sign in with an Ed25519 identity and OAuth 2.0 tokens (AID) | [agentmessaging/agent-identity](https://github.com/agentmessaging/agent-identity) |
 | `canvas-actions` | Interactive pages in the dashboard and their actions (AAP) | [agentmessaging/agent-actions](https://github.com/agentmessaging/agent-actions) |
 | `agent-files` | Share files across hosts through an AFP space | [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files) |
-| `agentic-sql` | Read-only SQL against real databases, through the `safe-psql` wrapper | [23blocks-OS/agentic-sql](https://github.com/23blocks-OS/agentic-sql) |
+| `agentic-sql` | Read-only SQL against real databases through `safe-psql`; changes data only through `safe-psql-write`, after a person approves each change | [23blocks-OS/agentic-sql](https://github.com/23blocks-OS/agentic-sql) |
 | `agentic-support` | Numbered support cases with a written trail, and runbooks | [23blocks-OS/agentic-support](https://github.com/23blocks-OS/agentic-support) |
 | `agentic-seo` | SEO audit and implementation for websites | [23blocks-OS/agentic-seo](https://github.com/23blocks-OS/agentic-seo) |
 

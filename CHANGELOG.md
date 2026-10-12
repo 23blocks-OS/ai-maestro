@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.8] - 2026-10-12 - F037 design decided
+
+### Changed
+- Backlog F037 (SQL writes with approval) now records Juan's decisions: hard delete is a setting that is off by default; any person can approve; approval cards appear in the terminal (works without AI Maestro), in AI Maestro, and in Claude Code; the default row limit stays at 25; `agentic-support` writes only through `agentic-sql`. The file also has the settings file layout and an honest account of what the approval does and does not protect. Nothing is built.
+
 ## [0.67.7] - 2026-10-12 - Backlog F037 (SQL writes with approval); plugin 1.7.4
 
 ### Added

@@ -109,6 +109,11 @@ describe('verifyProgramStarted', () => {
     expect((await verifyProgramStarted(runtime, 'steve', 'claude', fast)).started).toBe(true)
   })
 
+  it('waits long enough for a slow shell and a slow-starting program (12s default)', async () => {
+    const { LAUNCH_GRACE_MS } = await import('@/lib/program-launch')
+    expect(LAUNCH_GRACE_MS).toBe(12_000)
+  })
+
   it('gives up after the grace period with a shell still there', async () => {
     const runtime = {
       describePane: vi.fn().mockResolvedValue({ command: 'zsh' }),

@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveProgramCommand, isNoProgram, grokPermissionFlags } from '@/lib/program-command'
+import { resolveProgramCommand, isNoProgram, grokPermissionFlags, copilotPermissionFlags } from '@/lib/program-command'
 
 let dir: string
 let wrapper: string
@@ -169,6 +169,28 @@ describe('pi', () => {
   it('keeps unrecognised names an error, not a guess', () => {
     expect(resolveProgramCommand('pied-piper').command).toBeNull()
   })
+})
+
+describe('copilot', () => {
+  it.each(['copilot', 'Copilot', 'copilot-cli', 'GitHub Copilot', 'github-copilot-cli', 'GitHub Copilot CLI'])(
+    'resolves %s to the copilot command', (name) => {
+      expect(resolveProgramCommand(name)).toEqual({ command: 'copilot', kind: 'copilot' })
+    })
+
+  it.each(['gh copilot', 'gh-copilot', 'copilots', 'copilot; rm -rf /', 'my-copilot', 'copilot-extension'])(
+    'does not treat %s as Copilot CLI (whole-name match only; gh copilot is a different, older tool)', (name) => {
+      expect(resolveProgramCommand(name).kind).not.toBe('copilot')
+    })
+
+  it('maps full autonomy to --allow-all-tools only, never the broader --allow-all or --yolo', () => {
+    expect(copilotPermissionFlags('fullAutonomy')).toBe('--allow-all-tools')
+    expect(copilotPermissionFlags('fullAutonomy')).not.toMatch(/--allow-all(\s|$)|yolo|paths|urls/)
+  })
+
+  it.each(['supervised', 'planOnly', 'trustEdits', 'smartAuto', 'bogus', undefined, null])(
+    'adds no flag for %s', (mode) => {
+      expect(copilotPermissionFlags(mode as any)).toBe('')
+    })
 })
 
 describe('grokPermissionFlags', () => {

@@ -28,16 +28,32 @@ describe('F031: Aider is deprecated, not advertised', () => {
   })
 })
 
-describe('F032: no claim that AI Maestro manages GitHub Copilot', () => {
-  it.each(['README.md', 'docs/OPERATIONS-GUIDE.md', 'docs/copy-for-ai.js', 'docs/messaging.html'])(
+describe('F032 / F038: Copilot is named only at the tier it actually has', () => {
+  // We never supported Copilot until F038 (0.68.1: launch, terminal tab, wake by typing into the pane).
+  // These pages must not describe it as anything more, and the pages that make no mention stay quiet.
+  it.each(['docs/OPERATIONS-GUIDE.md', 'docs/copy-for-ai.js', 'docs/messaging.html'])(
     '%s does not mention Copilot', (f) => {
       expect(read(f)).not.toMatch(/copilot/i)
     })
+
+  it('the README names Copilot CLI only as launching and running in the terminal tab', () => {
+    // Look at the SENTENCE that names Copilot, not the whole line: one line also says what other agents get.
+    const sentences = read('README.md').split('\n').flatMap((l) => l.split(/(?<=[.!?])\s+/)).filter((x) => /copilot/i.test(x))
+    expect(sentences.length).toBeGreaterThan(0)
+    for (const x of sentences) {
+      expect(x).toMatch(/terminal tab/)
+      expect(x).not.toMatch(/first-class|full support|approval cards|chat history/i)
+    }
+  })
 
   it('the website only names Copilot as an Agent Skills Standard adopter', () => {
     for (const f of ['docs/index.html', 'docs/ai-index.html']) {
       const lines = read(f).split('\n').filter((l) => /copilot/i.test(l))
       for (const l of lines) expect(l).toMatch(/Agent Skills Standard/)
     }
+  })
+
+  it('the wake dialog offers GitHub Copilot CLI with the command copilot', () => {
+    expect(read('components/WakeAgentDialog.tsx')).toMatch(/id:\s*'copilot'[\s\S]*?command:\s*'copilot'/)
   })
 })

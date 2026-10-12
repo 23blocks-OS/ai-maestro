@@ -57,10 +57,24 @@ What was checked (Pi 1.1.0, 2026-10-12, on this Mac and on mac-mini through AI M
 
 **Today:** launch, terminal tab and wake by typing into the pane. **Not yet:** chat history, working/idle status and "needs you". Pi has a JSON event mode and an RPC mode that could feed them later.
 
+## GitHub Copilot CLI
+
+[GitHub Copilot CLI](https://github.com/github/copilot-cli) is GitHub's terminal coding agent (`copilot`; install with `npm install -g @github/copilot`, `brew install copilot-cli` or `curl -fsSL https://gh.io/copilot-install | bash`). It needs a GitHub Copilot subscription. Since 0.68.1 it is a recognised program: pick **GitHub Copilot CLI** in the Wake dialog, or set the agent's program to `copilot`, `copilot-cli`, `github-copilot` or `github-copilot-cli`. (The older `gh copilot` extension only suggests and explains commands; it is not an agent and is not what this means.)
+
+What was checked (Copilot CLI 1.0.96, 2026-10-12, in a tmux session): it starts, draws its screen, and exits cleanly with Ctrl+C.
+
+**Log in once on every host that runs Copilot agents.** Run `copilot`, then `/login`, or put a token in `COPILOT_GITHUB_TOKEN`. AI Maestro cannot do this for you.
+
+**The first launch in a new folder asks "Do you trust the files in this folder?"** with three choices (1 Yes, 2 Yes and remember this folder, 3 No). Someone has to answer it in the Terminal tab; choose 2 once per agent folder. Until it is answered, a message typed into the pane would land on that question, so answer it before you send the agent anything.
+
+**Permission modes.** Supervised adds nothing: Copilot asks before it runs a tool. Full autonomy starts it with `--allow-all-tools`, which stops the per-tool questions but keeps Copilot's own path and URL checks. The other modes (plan, accept edits, auto) have no Copilot equivalent and add nothing. The agent's model setting is passed as `--model`.
+
+**Today:** launch, terminal tab, and wake by typing into the pane. **Not yet:** chat history, working/idle status, "needs you" and approval cards. Copilot keeps sessions as JSONL under `~/.copilot/session-state/<id>/events.jsonl` (resume with `--continue` or `--resume`) and supports hooks (`~/.copilot/hooks`, `~/.copilot/settings.json`, `.github/hooks`); both could feed those later (F038). **Not checked:** a full conversation turn (needs a login and a subscription), so message delivery and replies are unconfirmed.
+
 ## OpenClaw
 
 OpenClaw is recognised as a program (`openclaw`), and AI Maestro discovers OpenClaw's tmux sessions on its own socket (`OPENCLAW_TMUX_SOCKET_DIR`) and registers them as agents. It has no chat reader, status feed or approval cards yet, and we have not run an end-to-end check on it.
 
 ## Anything else
 
-Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Pi, OpenClaw, Cursor, Gemini CLI, OpenCode and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.
+Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Pi, OpenClaw, GitHub Copilot CLI, Cursor, Gemini CLI, OpenCode and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.

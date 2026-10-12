@@ -317,6 +317,11 @@ if [ -x "./scripts/install-aim-secret.sh" ]; then
     ./scripts/install-aim-secret.sh || print_warning "Could not install aim-secret on the PATH"
 fi
 
+# safe-psql (the agentic-sql skill's SQL gate) on the PATH, in a private Python environment
+if [ -x "./scripts/install-safe-psql.sh" ]; then
+    ./scripts/install-safe-psql.sh || print_warning "Could not set up safe-psql (the agentic-sql skill will say so and stop)"
+fi
+
 # 7. Marketplace plugin auto-updates via Claude Code /install update
 # No manual sync needed — the ai-maestro-plugins repo is the single source
 

@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.67.3] - 2026-10-12 - `safe-psql` is set up by the installer and the updater
+
+Plugin 1.7.3. The SQL skill's wrapper needs Python packages that no host had. The updater now creates a private Python environment (`~/.aimaestro/venvs/agentic-sql`) and puts a `safe-psql` launcher in `~/.local/bin`, so the skill works after every update without touching system Python.
+
+### Added
+- `scripts/install-safe-psql.sh`, called by `update-aimaestro.sh`. Safe to rerun (packages reinstalled only when `requirements.txt` changes). On hosts whose Python has no pip or venv helper (minimal Debian or Ubuntu), pip is bootstrapped into the private folder from bootstrap.pypa.io. A failure only warns.
+
+### Changed
+- `plugin` submodule moves to plugin 1.7.3 (`agentic-sql` 1.2.1: commands use `safe-psql`).
+
 ## [0.67.2] - 2026-10-12 - The SQL skill ships its safety wrapper
 
 Plugin 1.7.2. The `agentic-sql` skill told agents to use a "safe psql wrapper" that did not exist. It now ships as `scripts/safe_psql.py` (skill 1.2.0).

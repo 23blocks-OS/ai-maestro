@@ -56,6 +56,7 @@ export default function WakeAgentDialog({
   const [execMode, setExecMode] = useState<'terminal' | 'streaming'>('terminal')
   const [remember, setRemember] = useState(true)
   const [showMore, setShowMore] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [isWaking, setIsWaking] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -73,12 +74,13 @@ export default function WakeAgentDialog({
     setExecMode('terminal')
     setRemember(true)
     setShowMore(PROGRAM_CHOICES.find((c) => c.id === s.choiceId)?.group === 'more')
+    setShowAdvanced(false)
     setIsWaking(false)
   }, [isOpen, defaultProgram, defaultPermissionMode])
 
   const currentOption: ProgramChoice | null =
     selectedId === 'current' && defaultProgram
-      ? { id: 'current', name: `Keep ${defaultProgram}`, description: 'The program this agent already runs', command: defaultProgram, kind: null, group: 'main' }
+      ? { id: 'current', name: 'Keep its own program', description: `Keeps running ${defaultProgram}`, command: defaultProgram, kind: null, group: 'main' }
       : null
   const selected = currentOption || PROGRAM_CHOICES.find((c) => c.id === selectedId) || PROGRAM_CHOICES[0]
   const modes = permissionModesFor(selected.kind)
@@ -103,6 +105,7 @@ export default function WakeAgentDialog({
 
   if (!mounted) return null
 
+  // A compact tile: two per row, so the permission choice below stays on screen without scrolling.
   const renderChoice = (option: ProgramChoice) => {
     const Icon = ICONS[option.id] || Code2
     const isSelected = selectedId === option.id
@@ -111,20 +114,14 @@ export default function WakeAgentDialog({
         key={option.id}
         onClick={() => handleProgramChange(option)}
         disabled={isWaking}
-        className={`w-full flex items-center gap-4 p-3 rounded-lg border transition-all ${
+        title={option.description}
+        aria-pressed={isSelected}
+        className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all min-w-0 ${
           isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600 hover:bg-zinc-800'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
       >
-        <div className={`p-2 rounded-lg ${isSelected ? 'bg-emerald-500/20' : 'bg-zinc-700'}`}>
-          <Icon className={`w-5 h-5 ${isSelected ? 'text-emerald-400' : 'text-zinc-400'}`} />
-        </div>
-        <div className="flex-1 text-left">
-          <div className={`font-medium ${isSelected ? 'text-emerald-400' : 'text-zinc-200'}`}>{option.name}</div>
-          <div className="text-xs text-zinc-500">{option.description}</div>
-        </div>
-        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-emerald-500 bg-emerald-500' : 'border-zinc-600'}`}>
-          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-        </div>
+        <Icon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-emerald-400' : 'text-zinc-400'}`} />
+        <span className={`text-sm font-medium truncate ${isSelected ? 'text-emerald-400' : 'text-zinc-200'}`}>{option.name}</span>
       </button>
     )
   }
@@ -177,29 +174,30 @@ export default function WakeAgentDialog({
 
               <div className="overflow-y-auto">
                 {/* Tool */}
-                <div className="px-6 py-4">
-                  <p className="text-sm text-zinc-300 mb-3">What should {displayName} run?</p>
-                  <div className="space-y-2">
+                <div className="px-6 pt-4 pb-3">
+                  <p className="text-sm text-zinc-300 mb-2">What should {displayName} run?</p>
+                  <div className="grid grid-cols-2 gap-2">
                     {currentOption && renderChoice(currentOption)}
                     {main.map(renderChoice)}
-                    <button
-                      type="button"
-                      onClick={() => setShowMore(!showMore)}
-                      className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                    >
-                      <ChevronRight className={`w-3 h-3 transition-transform ${showMore ? 'rotate-90' : ''}`} />
-                      More tools (terminal only)
-                    </button>
-                    {showMore && more.map(renderChoice)}
                     {shell.map(renderChoice)}
                   </div>
+                  <p className="mt-2 text-xs text-zinc-500" data-testid="wake-tool-description">{selected.description}</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowMore(!showMore)}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    <ChevronRight className={`w-3 h-3 transition-transform ${showMore ? 'rotate-90' : ''}`} />
+                    More tools (terminal only)
+                  </button>
+                  {showMore && <div className="mt-2 grid grid-cols-2 gap-2">{more.map(renderChoice)}</div>}
                 </div>
 
                 {/* Permissions: shown up front, and only for tools that have them */}
                 {modes.length > 0 && (
                   <div className="px-6 pb-3" data-testid="wake-permissions">
                     <p className="text-xs text-zinc-500 mb-2">How much should it ask first?</p>
-                    <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact allowed={modes} />
+                    <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact allowed={modes} hideDetail={permissionMode === 'fullAutonomy'} />
                     {permissionMode === 'fullAutonomy' && (
                       <p className="mt-2 text-[11px] text-red-300 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">
                         Nothing will ask before it acts. It can edit any file and run any command as you. Use it for a throwaway folder or a container.
@@ -211,32 +209,44 @@ export default function WakeAgentDialog({
                   <p className="px-6 pb-3 text-[11px] text-zinc-500" data-testid="wake-no-permissions">{noChoiceNote}</p>
                 )}
 
-                {/* Execution mode: Claude Code only */}
+                {/* Advanced: execution mode, Claude Code only. Collapsed: most people never change it. */}
                 {selected.kind === 'claude' && (
                   <div className="px-6 pb-3">
-                    <p className="text-xs text-zinc-500 mb-2">Execution mode</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setExecMode('terminal')}
-                        disabled={isWaking}
-                        className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'terminal' ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
-                      >
-                        <div className={`text-sm font-medium ${execMode === 'terminal' ? 'text-emerald-400' : 'text-zinc-200'}`}>Terminal</div>
-                        <div className="text-[11px] text-zinc-500">tmux TUI · full terminal</div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setExecMode('streaming')}
-                        disabled={isWaking}
-                        className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'streaming' ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
-                      >
-                        <div className={`text-sm font-medium ${execMode === 'streaming' ? 'text-amber-400' : 'text-zinc-200'}`}>Streaming</div>
-                        <div className="text-[11px] text-zinc-500">clean chat · no terminal</div>
-                      </button>
-                    </div>
-                    {execMode === 'streaming' && (
-                      <p className="text-[11px] text-amber-400/70 mt-2">Continues the agent’s latest conversation. No terminal view. Needs a headless token.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      <ChevronRight className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
+                      Advanced
+                    </button>
+                    {showAdvanced && (
+                      <div className="mt-2">
+                        <p className="text-xs text-zinc-500 mb-2">Execution mode</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExecMode('terminal')}
+                            disabled={isWaking}
+                            className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'terminal' ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
+                          >
+                            <div className={`text-sm font-medium ${execMode === 'terminal' ? 'text-emerald-400' : 'text-zinc-200'}`}>Terminal</div>
+                            <div className="text-[11px] text-zinc-500">tmux TUI · full terminal</div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExecMode('streaming')}
+                            disabled={isWaking}
+                            className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'streaming' ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
+                          >
+                            <div className={`text-sm font-medium ${execMode === 'streaming' ? 'text-amber-400' : 'text-zinc-200'}`}>Streaming</div>
+                            <div className="text-[11px] text-zinc-500">clean chat · no terminal</div>
+                          </button>
+                        </div>
+                        {execMode === 'streaming' && (
+                          <p className="text-[11px] text-amber-400/70 mt-2">Continues the agent’s latest conversation. No terminal view. Needs a headless token.</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -252,9 +262,10 @@ export default function WakeAgentDialog({
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-zinc-700 bg-zinc-800/50">
-                <p className="text-[11px] text-zinc-500 mb-3" data-testid="wake-summary">
-                  {displayName} will start {selected.name}
-                  {modes.length > 0 ? `, ${MODE_SUMMARY[permissionMode]}` : ''}.
+                <p className={`text-[11px] mb-3 ${modes.length > 0 && permissionMode === 'fullAutonomy' ? 'text-red-300' : 'text-zinc-500'}`} data-testid="wake-summary">
+                  {selectedId === 'current'
+                    ? `${displayName} will keep running ${defaultProgram}.`
+                    : `${displayName} will start ${selected.name}${modes.length > 0 ? `, ${MODE_SUMMARY[permissionMode]}` : ''}.`}
                 </p>
                 <div className="flex items-center justify-end gap-3">
                   <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700 rounded-lg transition-colors">

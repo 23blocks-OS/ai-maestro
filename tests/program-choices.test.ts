@@ -73,6 +73,14 @@ describe('which permission modes a tool can honour', () => {
     const all = renderToStaticMarkup(createElement(TrustLevelSelector, { value: 'supervised', onChange: () => {}, compact: true }))
     expect(all).toContain('Plan Only')
   })
+
+  it('the long explanation under the list can be hidden, so the caller can show one clear warning instead of two', () => {
+    const withDetail = renderToStaticMarkup(createElement(TrustLevelSelector, { value: 'fullAutonomy', onChange: () => {}, compact: true }))
+    const without = renderToStaticMarkup(createElement(TrustLevelSelector, { value: 'fullAutonomy', onChange: () => {}, compact: true, hideDetail: true }))
+    expect(withDetail).toMatch(/YOLO mode/)
+    expect(without).not.toMatch(/YOLO mode/)
+    expect(without).toContain('Full Autonomy') // the list itself is still there
+  })
 })
 
 describe('choiceForProgram: what the agent already runs', () => {

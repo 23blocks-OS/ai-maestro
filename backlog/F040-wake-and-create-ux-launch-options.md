@@ -23,21 +23,22 @@ Care points: "freedom" means different things per tool, so a plain-words layer (
 5. The same five Claude-named modes are shown for every tool (Copilot supports 2 of them, Pi none, Codex none is mapped).
 6. **Safety gap:** picking "Supervised" at wake sends nothing (`AgentList.tsx` omits it), and the server uses `params.permissionMode || agent.permissionMode`, so an agent stored as Full autonomy still starts with no questions asked. Narrow (needs a stored non-default mode, for example from the Docker wizard or the API) but real.
 7. "Execution mode: Terminal / Streaming" appears with no explanation.
-8. The tool list is hard-coded: it includes Cursor (the editor, never supported as an agent here) and lacks Gemini, OpenCode and OpenClaw, which AI Maestro recognises. Nothing says whether a tool is installed or signed in.
+8. The tool list is hard-coded: it includes Cursor (the editor, never supported as an agent here) and lacks Gemini, OpenCode and OpenClaw, which AI Maestro recognises. Nothing says whether a tool is installed.
 9. Wake is triggered from seven places.
 10. The deployment step speaks in infrastructure terms ("direct", "Docker", "Fargate units").
 
 ## The new flow
 
-- **Wake is one click** with the saved setup ("Waking Aria on Claude Code, asks before changes"). The dialog opens only when something needs a decision (first wake, tool missing or not signed in) or from "Wake with...". It shows only the tool and the freedom level, with "Remember this for Aria".
+- **Wake is one click** with the saved setup ("Waking Aria on Claude Code, asks before changes"). The dialog opens only when something needs a decision (first wake, or the tool is not installed) or from "Wake with...". It shows only the tool and the freedom level, with "Remember this for Aria".
 - **A "How it runs" panel** (tool cards with a ready/not-installed status and capability chips; the generated options form with the command preview) is used when creating and when editing.
 - **Create is one page with four cards**: Who, What runs it, Where (this Mac by default; other computers, Docker and AWS behind "change"), Review with "Create and wake". The robot conversation can stay as a short celebration after creating.
 - **Freedom per tool** (from the code today): Claude Code all of Careful/Balanced/Hands-off/Read-only; Grok Build all four; Copilot CLI Careful and Hands-off only; Codex not mapped yet; Pi never asks, so no choice is offered.
-- **Readiness check** per computer: installed, version, Node (Pi), and signed in where the tool lets us ask; "sign-in not checked" otherwise. It must run in the same kind of shell an agent session uses, not the server's own shell (different PATH).
+- **Readiness check** per computer: installed, version, and the runtime (Node for Pi). Signing in is not checked: every tool asks the user itself, and AI Maestro shows what a tool asks as a card (below).
+- **Whatever a tool asks becomes a card.** AI Maestro does not handle login. Captured by launching Copilot CLI 1.0.96 (no sign-in): "Do you trust the files in this folder?" (3 options), "What account do you want to log into?" (3 options), "How do you want to sign in?" (2 options). Plain numbered menus; a digit selects immediately (verified), like Grok and Codex, so one parser in `lib/pane-approval.mjs` covers them and permission questions later. It must run in the same kind of shell an agent session uses, not the server's own shell (different PATH).
 
 ## Decisions
 
-Taken by Juan: launch options come from a declaration per tool; Copilot and Pi cards need no sign-in (launch the program, capture what it asks, build the card from those real screens).
+Taken by Juan: launch options come from a declaration per tool; AI Maestro does not handle login; whatever a tool asks is shown as a card, built from real screens captured by launching the program (no sign-in needed).
 Recommended and being followed unless Juan objects: one-click wake by default; three plain stops plus a Read-only switch (Smart auto moves under "More" for Claude); one-page create; show all tools with their status; remove Cursor; start with step 1.
 
 ## Rollout
@@ -46,7 +47,7 @@ Recommended and being followed unless Juan objects: one-click wake by default; t
 2. **"How it runs" panel**: the declaration covers every option; generated form with command preview; tool cards; three-stop freedom; one-click wake (2 to 3 days).
 3. **New create page** (2 to 3 days).
 4. **Readiness check** (2 days).
-5. **Alongside:** Copilot cards from the real screens (trust, account, sign-in method; digits select immediately, like Grok and Codex), Pi chat view from its documented session format, Codex mapping.
+5. **Alongside:** Copilot cards from the real screens (trust, account, how to sign in; digits select immediately, like Grok and Codex), Pi chat view from its documented session format, Codex mapping.
 
 ## Related
 

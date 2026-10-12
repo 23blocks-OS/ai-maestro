@@ -5,6 +5,7 @@ import {
   approvalKindForProgram,
   parseGrokApproval,
   parseCodexApproval,
+  parseCopilotApproval,
   parseApprovalForProgram,
 } from '@/lib/pane-approval.mjs'
 
@@ -17,6 +18,11 @@ describe('approvalKindForProgram', () => {
     expect(approvalKindForProgram('Codex CLI')).toBe('codex')
     expect(approvalKindForProgram('claude')).toBeNull()
     expect(approvalKindForProgram(undefined)).toBeNull()
+  })
+
+  it('maps Copilot CLI by whole name, like the launcher, and not the older gh copilot extension', () => {
+    for (const p of ['copilot', 'Copilot', 'copilot-cli', 'GitHub Copilot CLI', 'github-copilot']) expect(approvalKindForProgram(p), p).toBe('copilot')
+    for (const p of ['gh copilot', 'gh-copilot', 'copilots', 'my-copilot']) expect(approvalKindForProgram(p), p).toBeNull()
   })
 })
 
@@ -95,5 +101,84 @@ describe('program routing', () => {
     expect(parseApprovalForProgram('codex', fx('grok-approval.txt'))).toBeNull()
     expect(parseApprovalForProgram('grok', fx('codex-approval.txt'))).toBeNull()
     expect(parseApprovalForProgram('claude', fx('codex-approval.txt'))).toBeNull()
+  })
+})
+
+
+// Real captures: GitHub Copilot CLI 1.0.96 in tmux, 2026-10-12, launched WITHOUT signing in. These are the
+// questions it asks by itself: trust the folder, which account, how to sign in.
+describe('Copilot CLI approval card (captured panes)', () => {
+  it('the folder-trust question: three options, a digit selects at once, "No" is a no', () => {
+    const c = parseCopilotApproval(fx('copilot-trust.txt'))! as any
+    expect(c.status).toBe('permission_request')
+    expect(c.source).toBe('pane')
+    expect(c.answerByKey).toBe(true)
+    expect(c.message).toBe('Do you trust the files in this folder?')
+    expect(c.options.map((o: any) => o.key)).toEqual(['1', '2', '3'])
+    expect(c.options[0]).toMatchObject({ key: '1', label: 'Yes', value: 'yes' })
+    expect(c.options[1]).toMatchObject({ key: '2', label: 'Yes, and remember this folder for future sessions', value: 'yes' })
+    expect(c.options[2]).toMatchObject({ key: '3', label: 'No', value: 'no' }) // "(Esc)" hint removed
+  })
+
+  it('shows which folder and what Copilot will do there, with the wrapped path put back together and no box borders', () => {
+    const c = parseCopilotApproval(fx('copilot-trust.txt'))! as any
+    expect(c.description).toContain('cpfix-work')
+    expect(c.description).toMatch(/Copilot can read files in this folder/)
+    expect(c.description).not.toMatch(/[│╭╰╮╯]/)
+    expect(c.description).not.toContain('Confirm folder trust')
+    const path = c.description.match(/\/private\/tmp\/\S+/)![0]
+    expect(path.endsWith('cpfix-work')).toBe(true) // one path with no break in it, not two pieces
+  })
+
+  it('the account question after /login', () => {
+    const c = parseCopilotApproval(fx('copilot-account.txt'))! as any
+    expect(c.message).toBe('What account do you want to log into?')
+    expect(c.options.map((o: any) => o.label)).toEqual(['GitHub.com', 'GitHub Enterprise Cloud (*.ghe.com)', 'Your organization (Microsoft Entra)'])
+    expect(c.options.map((o: any) => o.key)).toEqual(['1', '2', '3'])
+  })
+
+  it('the sign-in method question', () => {
+    const c = parseCopilotApproval(fx('copilot-signin-method.txt'))! as any
+    expect(c.message).toBe('How do you want to sign in?')
+    expect(c.options.map((o: any) => o.label)).toEqual(['Sign in with your browser (recommended)', 'Sign in with a device code'])
+  })
+
+  it('gives no card once the menu is answered (the normal prompt is back)', () => {
+    expect(parseCopilotApproval(fx('copilot-after-trust.txt'))).toBeNull()
+  })
+
+  it('gives no card when conversation output follows the menu (a stale capture)', () => {
+    const stale = fx('copilot-account.txt').trimEnd() + '\n\n ● Signed in as someone\n'
+    expect(parseCopilotApproval(stale)).toBeNull()
+  })
+
+  it('gives no card for a picker that shares the footer but asks no question (a title, not a "?")', () => {
+    const picker = ' Select a model\n ❯ 1. Claude Sonnet 4.5\n   2. GPT-5\n ↑/↓ to navigate · enter to select\n'
+    expect(parseCopilotApproval(picker)).toBeNull()
+  })
+
+  it('gives no card for a numbered list in the conversation without the menu footer', () => {
+    expect(parseCopilotApproval(' Which one do you want?\n 1. first\n 2. second\n')).toBeNull()
+    expect(parseCopilotApproval('')).toBeNull()
+    expect(parseCopilotApproval(undefined as any)).toBeNull()
+  })
+
+  it('does not guess when the options do not start at 1', () => {
+    expect(parseCopilotApproval(' Do you want it?\n ❯ 2. Yes\n   3. No\n ↑/↓ to navigate · enter to select\n')).toBeNull()
+  })
+
+  it('is what parseApprovalForProgram returns for a Copilot agent, and only for a Copilot agent', () => {
+    expect(parseApprovalForProgram('copilot', fx('copilot-trust.txt'))).not.toBeNull()
+    expect(parseApprovalForProgram('GitHub Copilot CLI', fx('copilot-account.txt'))).not.toBeNull()
+    expect(parseApprovalForProgram('grok', fx('copilot-trust.txt'))).toBeNull()
+    expect(parseApprovalForProgram('codex', fx('copilot-trust.txt'))).toBeNull()
+    expect(parseApprovalForProgram('claude', fx('copilot-trust.txt'))).toBeNull()
+  })
+
+  it('the other tools\' readers do not mistake a Copilot menu for theirs', () => {
+    for (const f of ['copilot-trust.txt', 'copilot-account.txt', 'copilot-signin-method.txt']) {
+      expect(parseGrokApproval(fx(f)), f).toBeNull()
+      expect(parseCodexApproval(fx(f)), f).toBeNull()
+    }
   })
 })

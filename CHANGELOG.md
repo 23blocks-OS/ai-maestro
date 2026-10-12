@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.69.1] - 2026-10-12 - GitHub Copilot CLI questions appear as cards in the chat (F038, F040)
+
+### Added
+- **Cards for the questions Copilot CLI asks by itself.** "Do you trust the files in this folder?" (Yes / Yes and remember / No), and after `/login`: "What account do you want to log into?" and "How do you want to sign in?". Each shows as a card with one button per choice; a click sends the matching number to the terminal, which Copilot accepts immediately. AI Maestro does not handle the login: it only shows what the program asks.
+- The reader (`parseCopilotApproval`, in `lib/pane-approval.mjs` next to the Grok and Codex readers) was built from **four real captures** taken by launching Copilot CLI 1.0.96 in tmux **without signing in** (`tests/fixtures/approval/copilot-*.txt`). It only treats a menu as a question when the line above the options ends with "?", so pickers that share Copilot's footer (a model list) get no card, and the footer must be the last thing on screen, so an answered menu leaves no stale card. Copilot marks its own conversation lines with a filled circle; the reader knows that without changing how Grok and Codex are read.
+- `approvalKindForProgram` knows Copilot by whole name (`copilot`, `copilot-cli`, `github-copilot`, `github-copilot-cli`), like the launcher; the older `gh copilot` extension is not matched.
+
+### Not yet
+- The card for Copilot's "may I run this command?" question: it only appears in a real conversation (needs a login) and nobody has seen that screen yet. Copilot's chat history and working/idle status are still open (F038).
+
 ## [0.69.0] - 2026-10-12 - The wake dialog starts on the agent's own tool and its permissions are up front (F040, step 1)
 
 Step 1 of the wake and create redesign (backlog F040; design in the backlog item).

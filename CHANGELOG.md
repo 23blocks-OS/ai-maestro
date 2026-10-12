@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.68.0] - 2026-10-12 - The SQL skill can change data, with a person's approval
+
+Plugin 1.8.0 (agentic-sql 1.3.0). Backlog F037.
+
+### Added
+- **`safe-psql-write`**, the write door of the SQL skill. An agent proposes one `INSERT` or `UPDATE` (`DELETE` only when hard delete is turned on in the settings; off by default). The system checks it against a settings file that lists the tables and columns that may change, runs it inside a transaction that is rolled back, and stores a request. A person approves that exact statement in a real terminal (`safe-psql-write approve <id>`: shows the before and after, asks for `yes`, or the environment name for production). Then `apply` runs it once, and rolls back if the row count differs from the dry run. It uses its own limited database login, never prints values, and keeps a log without values. Approval is refused for piped input and inside an agent session. The AI Maestro installer and updater put `safe-psql-write` on the PATH.
+- Website and README text for the write door; `docs/skills.html` says plugin 1.8.0.
+
+### Fixed
+- **The read command mangled a literal `%` when a query had no parameters.** It sent `%%` to the database, so `WHERE name = '100%'` compared against `100%%` and matched the wrong rows. A parameter dict is now always passed. Released since agentic-sql 1.2.0.
+
+### Changed
+- The read command now refuses a database login that can write any table (column-level grants included), so the read and write logins cannot be swapped by mistake.
+- `plugin` submodule moves to plugin 1.8.0.
+
+### Not yet
+- The approval card in the AI Maestro chat, the Claude Code approval mod, and the `agentic-support` hand-off are still open in F037.
+
 ## [0.67.8] - 2026-10-12 - F037 design decided
 
 ### Fixed

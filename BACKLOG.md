@@ -55,7 +55,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F034** — [Compare Google's A2UI with the Agent Actions Protocol](./backlog/F034-compare-a2ui-with-agent-actions-protocol.md) — `Todo` (research; pasted summary not yet verified)
 - **F035** — [Agents only write their own area: the outbox design (AMP delivery)](./backlog/F035-amp-outbox-delivery.md) — `Todo` (design note written, awaiting review; fixes #555; continues F027 Phase 3)
 - **F036** — [Pi and OpenClaw: from "runs in the terminal" to real support](./backlog/F036-pi-and-openclaw-support.md) — `Todo` (Pi launch 0.67.4; Node/zstd and launch-check findings from a mac-mini test)
-- **F037** — [Let the SQL skill change data, but only with a person's approval](./backlog/F037-sql-writes-with-approval.md) — `Todo` (design decided 2026-10-12; read-only stays the default; nothing built)
+- **F037** — [Let the SQL skill change data, but only with a person's approval](./backlog/F037-sql-writes-with-approval.md) — `In Progress` (0.68.0: write door and terminal approval shipped; AI Maestro card, Claude Code mod and support hand-off open)
 
 ## Bugs
 

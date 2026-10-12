@@ -25,7 +25,7 @@ import os from 'os'
 import path from 'path'
 import { PERMISSION_MODE_TO_CLI, type AgentPermissionMode } from '@/types/agent'
 
-export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'wrapper'
+export type ProgramKind = 'claude' | 'codex' | 'aider' | 'cursor' | 'gemini' | 'opencode' | 'openclaw' | 'grok' | 'pi' | 'wrapper'
 
 export interface ResolvedProgram {
   /** Shell-ready command to launch, or null if it could not be resolved. */
@@ -117,15 +117,20 @@ export function resolveProgramCommand(program: string): ResolvedProgram {
   if (lower.includes('opencode')) return { command: 'opencode', kind: 'opencode' }
   if (lower.includes('openclaw')) return { command: 'openclaw', kind: 'openclaw' }
   if (lower.includes('grok')) return { command: 'grok', kind: 'grok' }
+  // Pi (pi.dev): matched on the WHOLE name, never a substring, because "pi" sits inside far too many
+  // other words. Pi 1.x needs Node 22.19 or newer on the PATH of the tmux session.
+  if (PI_NAMES.has(lower.replace(/\s+/g, '-'))) return { command: 'pi', kind: 'pi' }
 
   return {
     command: null,
     kind: null,
     error:
       `unrecognised program "${p}". Use a known name (claude, codex, cursor, gemini, ` +
-      `opencode, openclaw, grok) or an absolute path to an executable wrapper.`,
+      `opencode, openclaw, grok, pi) or an absolute path to an executable wrapper.`,
   }
 }
+
+const PI_NAMES = new Set(['pi', 'pi-agent', 'pi-coding-agent'])
 
 /** True for the two values that mean "give me a shell, launch nothing". */
 export function isNoProgram(program: string): boolean {

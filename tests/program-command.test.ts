@@ -51,6 +51,10 @@ describe('known program names', () => {
     ['openclaw', 'openclaw'],
     ['grok', 'grok'],
     ['Grok Build', 'grok'],
+    ['pi', 'pi'],
+    ['Pi', 'pi'],
+    ['pi-coding-agent', 'pi'],
+    ['Pi Coding Agent', 'pi'],
   ])('resolves %s to %s', (program, expected) => {
     expect(resolveProgramCommand(program).command).toBe(expected)
   })
@@ -146,6 +150,24 @@ describe('isNoProgram', () => {
 
   it('a real program is not "no program"', () => {
     expect(isNoProgram('claude-code')).toBe(false)
+  })
+})
+
+describe('pi', () => {
+  it('resolves to the pi command with kind pi', () => {
+    expect(resolveProgramCommand('Pi')).toEqual({ command: 'pi', kind: 'pi' })
+  })
+
+  it.each(['pipeline', 'pilot', 'spi', 'pi; rm -rf /', 'pie', 'pi2', 'api'])(
+    'does not treat %s as Pi (whole-name match only)',
+    (name) => {
+      const r = resolveProgramCommand(name)
+      expect(r.kind).not.toBe('pi')
+    },
+  )
+
+  it('keeps unrecognised names an error, not a guess', () => {
+    expect(resolveProgramCommand('pied-piper').command).toBeNull()
   })
 })
 

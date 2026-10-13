@@ -56,6 +56,11 @@ function sandbox(opts: { built?: boolean; pm2Knows?: boolean } = {}) {
   fs.mkdirSync(bin)
   if (opts.built !== false) fs.mkdirSync(path.join(repo, '.next'))
   fs.writeFileSync(path.join(repo, 'ecosystem.config.js'), 'module.exports = {}\n')
+  // The command sees ONLY the fakes and the few tools it needs: a CI runner has a real Chrome in /usr/bin.
+  for (const tool of ['curl', 'sleep', 'uname', 'dirname', 'sed', 'cat']) {
+    const real = execFileSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).trim()
+    fs.symlinkSync(real, path.join(bin, tool))
+  }
   const fake = (name: string, body: string) => {
     fs.writeFileSync(path.join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 })
   }
@@ -68,8 +73,8 @@ function sandbox(opts: { built?: boolean; pm2Knows?: boolean } = {}) {
   // Async: the "server" lives in this process, so a blocking spawn would starve it.
   const run = (args: string[], port: number, extra: Record<string, string> = {}) =>
     new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
-      const child = spawn('bash', [CMD, ...args], {
-        env: { PATH: `${bin}:/usr/bin:/bin`, HOME: dir, AIM_REPO: repo, AIM_PORT: String(port), AIM_WAIT: '10', AIM_OS: 'Linux', ...extra },
+      const child = spawn('/bin/bash', [CMD, ...args], {
+        env: { PATH: bin, HOME: dir, AIM_REPO: repo, AIM_PORT: String(port), AIM_WAIT: '10', AIM_OS: 'Linux', ...extra },
       })
       let stdout = ''
       let stderr = ''
@@ -119,8 +124,8 @@ describe('ai-maestro start', () => {
   it('starts it from the ecosystem file when pm2 does not know it, and waits until it answers', async () => {
     const port = await freePort()
     const sb = sandbox()
-    const child = spawn('bash', [CMD, 'start'], {
-      env: { PATH: `${sb.bin}:/usr/bin:/bin`, HOME: sb.dir, AIM_REPO: sb.repo, AIM_PORT: String(port), AIM_WAIT: '20', AIM_OS: 'Linux' },
+    const child = spawn('/bin/bash', [CMD, 'start'], {
+      env: { PATH: sb.bin, HOME: sb.dir, AIM_REPO: sb.repo, AIM_PORT: String(port), AIM_WAIT: '20', AIM_OS: 'Linux' },
     })
     let out = ''
     child.stdout.on('data', (d) => { out += d })

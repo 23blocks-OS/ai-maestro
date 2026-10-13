@@ -1014,6 +1014,16 @@ export default function DashboardPage() {
                                 </>
                               )}
                             </button>
+                            {canWakeInOneClick(agent) && (
+                              <button
+                                onClick={() => handleWakeAgent(agent, true)}
+                                disabled={wakingAgentId === agent.id}
+                                className="mt-3 text-sm text-gray-400 hover:text-green-400 underline-offset-2 hover:underline disabled:opacity-50"
+                                data-testid="wake-with"
+                              >
+                                Wake with… (choose the tool and how freely)
+                              </button>
+                            )}
                           </div>
                         </div>
                       ) : session.standalone ? (
@@ -1068,6 +1078,16 @@ export default function DashboardPage() {
                                 </>
                               )}
                             </button>
+                            {canWakeInOneClick(agent) && (
+                              <button
+                                onClick={() => handleWakeAgent(agent, true)}
+                                disabled={wakingAgentId === agent.id}
+                                className="mt-3 text-sm text-gray-400 hover:text-green-400 underline-offset-2 hover:underline disabled:opacity-50"
+                                data-testid="wake-with"
+                              >
+                                Wake with… (choose the tool and how freely)
+                              </button>
+                            )}
                           </div>
                         </div>
                       ) : (

@@ -5,14 +5,12 @@ import { motion } from 'framer-motion'
 import { X, ChevronRight, Monitor, Server, Cloud, Lock, Wifi, WifiOff, Box } from 'lucide-react'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import DirectoryPicker from './DirectoryPicker'
-import TrustLevelSelector from './TrustLevelSelector'
 import LaunchChoicePanel from './launch/LaunchChoicePanel'
 import { useLaunchChoice, type LaunchChoice } from '@/hooks/useLaunchChoice'
-import { programForCreate } from '@/lib/program-choices'
+import { programForCreate, CONTAINER_TOOL_IDS, PROGRAM_CHOICES } from '@/lib/program-choices'
 import { MODE_SUMMARY } from '@/lib/freedom'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
-import type { AgentPermissionMode } from '@/types/agent'
 import { getRandomAlias } from '@/lib/agent-utils'
 
 // --- Types ---
@@ -178,9 +176,15 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [dockerOnWake, setDockerOnWake] = useState('')
   const [dockerOnHibernate, setDockerOnHibernate] = useState('')
   const [dockerGithubToken, setDockerGithubToken] = useState('')
-  const [permissionMode, setPermissionMode] = useState<AgentPermissionMode>('supervised')
   // The tool and how freely it acts, for a local agent. Starts on Claude Code, Careful, as the wizard always did.
   const launch = useLaunchChoice({ defaultProgram: 'claude-code', defaultPermissionMode: 'supervised' })
+  // A container image carries three tools. Moving to Docker or AWS from a tool it does not have goes back to Claude Code.
+  useEffect(() => {
+    if (runtime === 'tmux' || (CONTAINER_TOOL_IDS as readonly string[]).includes(launch.selectedId)) return
+    const claude = PROGRAM_CHOICES.find((c) => c.id === 'claude')
+    if (claude) launch.handleProgramChange(claude)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runtime, launch.selectedId])
   const [dockerMeshAware, setDockerMeshAware] = useState(false)
   const [dockerAutoRemove, setDockerAutoRemove] = useState(false)
 
@@ -248,8 +252,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
 
     const personaName = getRandomAlias(agentName)
     const avatarUrl = getPreviewAvatarUrl(agentName)
-    // Local agents run the tool chosen in the summary; Docker and AWS agents run Claude Code, as before.
-    const program = runtime === 'tmux' ? programForCreate(launch.selected) : 'claude-code'
+    // The tool chosen in the summary. A container runs it by its command (claude, codex, gemini); a local agent is stored under its program name.
+    const program = runtime === 'tmux' ? programForCreate(launch.selected) : launch.selected.command
 
     try {
       if (runtime === 'ec2' || runtime === 'ecs') {
@@ -258,7 +262,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
           provider: runtime,
           label: personaName,
           avatar: avatarUrl,
-          program: 'claude',
+          program,
         }
         if (runtime === 'ecs' && cloudEcrImageOverride) cloudPayload.ecrImageUrl = cloudEcrImageOverride
         if (cloudAwsRegion !== 'us-east-1') cloudPayload.awsRegion = cloudAwsRegion
@@ -272,7 +276,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
           if (cloudEcsCpu !== 512) cloudPayload.cpu = cloudEcsCpu
           if (cloudEcsMemory !== 1024) cloudPayload.memory = cloudEcsMemory
         }
-        if (cloudAnthropicKey) cloudPayload.anthropicKey = cloudAnthropicKey
+        if (cloudAnthropicKey && launch.selected.kind === 'claude') cloudPayload.anthropicKey = cloudAnthropicKey
         if (cloudGithubToken) cloudPayload.githubToken = cloudGithubToken
 
         const response = await fetch('/api/agents/cloud/create', {
@@ -294,6 +298,9 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
           avatar: avatarUrl,
         }
 
+        // How freely it acts is part of the tool choice now, so it is sent whether or not Advanced is open.
+        if (launch.modes.length > 0 && launch.permissionMode !== 'supervised') dockerPayload.permissionMode = launch.permissionMode
+
         if (showAdvanced) {
           if (dockerCpus !== 2) dockerPayload.cpus = dockerCpus
           if (dockerMemory !== '4g') dockerPayload.memory = dockerMemory
@@ -310,7 +317,6 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
             dockerPayload.hooks = hooks
           }
           if (dockerGithubToken) dockerPayload.githubToken = dockerGithubToken
-          if (permissionMode !== 'supervised') dockerPayload.permissionMode = permissionMode
           if (dockerMeshAware) dockerPayload.meshAware = true
           if (dockerAutoRemove) dockerPayload.autoRemove = true
         }
@@ -357,7 +363,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, permissionMode, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch])
+  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch])
 
   // Animation timer
   const isCloudRuntime = runtime === 'ec2' || runtime === 'ecs'
@@ -554,7 +560,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                   dockerMounts, setDockerMounts, dockerEnvVars, setDockerEnvVars,
                   dockerOnWake, setDockerOnWake, dockerOnHibernate, setDockerOnHibernate,
                   dockerGithubToken, setDockerGithubToken,
-                  permissionMode, setPermissionMode, dockerMeshAware, setDockerMeshAware,
+                  dockerMeshAware, setDockerMeshAware,
                   dockerAutoRemove, setDockerAutoRemove,
                   cloudEcrImageOverride, setCloudEcrImageOverride,
                   cloudDomain, setCloudDomain, cloudSslEmail, setCloudSslEmail,
@@ -590,7 +596,6 @@ interface BubbleState {
   dockerOnWake: string; setDockerOnWake: (v: string) => void
   dockerOnHibernate: string; setDockerOnHibernate: (v: string) => void
   dockerGithubToken: string; setDockerGithubToken: (v: string) => void
-  permissionMode: AgentPermissionMode; setPermissionMode: (v: AgentPermissionMode) => void
   launch: LaunchChoice
   dockerMeshAware: boolean; setDockerMeshAware: (v: boolean) => void
   dockerAutoRemove: boolean; setDockerAutoRemove: (v: boolean) => void
@@ -837,11 +842,12 @@ function CreateFooter({ state, hosts, onCreate }: { state: BubbleState; hosts: H
   const who = state.agentName || 'Your agent'
   const where = host?.isSelf ? 'this computer' : (host?.name || state.hostId || 'this computer')
   const folder = state.workingDirectory || `~/agents/${state.agentName || '<name>'}`
+  const how = state.launch.modes.length > 0 && !isCloud ? `, ${MODE_SUMMARY[state.launch.permissionMode]}` : ''
   const reviewText = isCloud
-    ? `${who} will be deployed to AWS (${RUNTIME_LABEL[state.runtime]}).`
+    ? `${who} will run ${state.launch.selected.name}, deployed to AWS (${RUNTIME_LABEL[state.runtime]}).`
     : state.runtime === 'docker'
-      ? `${who} will run Claude Code in ${folder}, in a Docker container on ${where}.`
-      : `${who} will run ${state.launch.selected.name}${state.launch.modes.length > 0 ? `, ${MODE_SUMMARY[state.launch.permissionMode]}` : ''}, in ${folder} on ${where}.`
+      ? `${who} will run ${state.launch.selected.name}${how}, in ${folder}, in a Docker container on ${where}.`
+      : `${who} will run ${state.launch.selected.name}${how}, in ${folder} on ${where}.`
   const disabled = isEc2MissingRequired || !state.agentName
 
   return (
@@ -879,7 +885,18 @@ function LaunchSection({ state, hosts }: { state: BubbleState; hosts: Host[] }) 
           )}
         </div>
       ) : (
-        <SummaryRow label="AI Tool" value="Claude Code" />
+        <div data-testid="create-launch-choice">
+          <LaunchChoicePanel
+            c={state.launch}
+            displayName={state.agentName || 'your agent'}
+            compact
+            onlyTools={CONTAINER_TOOL_IDS}
+            hideFreedom={state.runtime !== 'docker'}
+            note={state.runtime === 'docker'
+              ? 'The container image has Claude Code, Codex CLI and Gemini CLI installed.'
+              : 'The server installs the tool you choose when it is set up.'}
+          />
+        </div>
       )}
 
       {/* Advanced options — collapsible */}
@@ -939,12 +956,6 @@ function LaunchSection({ state, hosts }: { state: BubbleState; hosts: Host[] }) 
                       </div>
                     ))}
                     <button onClick={() => state.setDockerEnvVars([...state.dockerEnvVars, { key: '', value: '' }])} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">+ Add variable</button>
-                  </div>
-
-                  {/* Trust Level */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-gray-500 font-medium">Trust Level</label>
-                    <TrustLevelSelector value={state.permissionMode} onChange={state.setPermissionMode} compact />
                   </div>
 
                   {/* Toggles */}
@@ -1016,10 +1027,10 @@ function LaunchSection({ state, hosts }: { state: BubbleState; hosts: Host[] }) 
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs text-gray-500 font-medium">API Keys (optional)</label>
-                    <div>
+                    {state.launch.selected.kind === 'claude' && <div>
                       <label className="text-xs text-gray-400">Anthropic API Key</label>
                       <input type="password" value={state.cloudAnthropicKey} onChange={(e) => state.setCloudAnthropicKey(e.target.value)} placeholder="sk-ant-..." className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
+                    </div>}
                     <div>
                       <label className="text-xs text-gray-400">GitHub Token</label>
                       <input type="password" value={state.cloudGithubToken} onChange={(e) => state.setCloudGithubToken(e.target.value)} placeholder="ghp_..." className="w-full mt-0.5 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
@@ -1032,15 +1043,6 @@ function LaunchSection({ state, hosts }: { state: BubbleState; hosts: Host[] }) 
         </div>
       )}
 
-    </div>
-  )
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-gray-400">{label}</span>
-      <span className="text-gray-200 font-medium truncate ml-4 text-right">{value}</span>
     </div>
   )
 }

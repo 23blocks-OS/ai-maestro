@@ -42,14 +42,17 @@ function toolName(program: string): string {
   return matchProgramName(program)?.command || program
 }
 
+/** What a one-click wake starts, in words: "Claude Code, asks before changes". */
+export function wakeSummary(agent: WakeableAgent): string {
+  const mode = oneClickWakeOptions(agent).permissionMode
+  return `${toolName(agent.program || '')}${mode ? `, ${MODE_SUMMARY[mode]}` : ''}`
+}
+
 /** The line shown while a one-click wake runs: what it starts and how freely. */
 export function oneClickToast(name: string, agent: WakeableAgent): { title: string; message: string; handsOff: boolean } {
-  const program = agent.program || ''
-  const mode = oneClickWakeOptions(agent).permissionMode
-  const how = mode ? `, ${MODE_SUMMARY[mode]}` : ''
   return {
     title: `Waking ${name}`,
-    message: `${toolName(program)}${how}. Shift-click Wake to choose differently.`,
-    handsOff: mode === 'fullAutonomy',
+    message: `${wakeSummary(agent)}. Shift-click Wake to choose differently.`,
+    handsOff: oneClickWakeOptions(agent).permissionMode === 'fullAutonomy',
   }
 }

@@ -69,6 +69,27 @@ export function programForCreate(choice: ProgramChoice): string {
   return choice.kind ? storedProgramName(choice.kind, choice.command) : choice.command
 }
 
+/**
+ * The tools baked into the agent container image (agent-container/Dockerfile) and installed on an AWS server
+ * (infrastructure/terraform/aws-agent/user_data.sh). A Docker or AWS agent can only run one of these.
+ */
+export const CONTAINER_TOOL_IDS = ['claude', 'codex', 'gemini'] as const
+
+const CONTAINER_KINDS: ProgramKind[] = ['claude', 'codex', 'gemini']
+
+/**
+ * The command a container starts for a program name. "claude-code" and "Claude Code" are names, not commands
+ * (the npm package installs `claude`), so the old wizard's `claude-code` typed a command that does not exist.
+ * A name this image has no tool for passes through unchanged, so a custom image keeps working.
+ */
+export function containerProgram(program: string | undefined | null): string {
+  const name = (program || '').trim()
+  if (!name) return 'claude'
+  if (looksLikeProgramPath(name)) return name
+  const matched = matchProgramName(name)
+  return matched && CONTAINER_KINDS.includes(matched.kind) ? matched.command : name
+}
+
 /** The offered choice for an agent's stored program, or null (a wrapper path, Aider, Cursor, anything else). */
 export function choiceForProgram(program: string | undefined | null): ProgramChoice | null {
   if (!program || !program.trim()) return null

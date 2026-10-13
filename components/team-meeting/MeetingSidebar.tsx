@@ -277,7 +277,7 @@ export default function MeetingSidebar({
                           ? 'text-gray-400 hover:text-amber-400'
                           : 'text-gray-400 hover:text-emerald-400'
                     }`}
-                    title={isOnline ? 'Hibernate agent' : 'Wake agent'}
+                    title={isOnline ? 'Hibernate agent' : 'Wake agent (Shift-click to choose how)'}
                   >
                     {isWaking || isHibernating ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -377,7 +377,7 @@ export default function MeetingSidebar({
                         : 'text-gray-600 opacity-0 group-hover:opacity-100 hover:text-emerald-400 hover:bg-gray-700/50'
                     }
                   `}
-                  title={isOnline ? 'Hibernate agent' : 'Wake agent'}
+                  title={isOnline ? 'Hibernate agent' : 'Wake agent (Shift-click to choose how)'}
                 >
                   {isWaking || isHibernating ? (
                     <Loader2 className="w-3 h-3 animate-spin" />

@@ -2,6 +2,8 @@
 
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
+import { canWakeInOneClick, oneClickWakeOptions } from '@/lib/wake-flow'
+import { buildWakeBody } from '@/lib/wake-request'
 import { useState } from 'react'
 import {
   Power,
@@ -68,7 +70,10 @@ export default function AgentCard({
       const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program: 'claude', hostUrl: agent.hostUrl }),
+        // Wake with what the agent already runs. The old body always asked for Claude Code, so a Grok, Copilot or Pi agent woke as Claude.
+        body: JSON.stringify(canWakeInOneClick(agent)
+          ? buildWakeBody('', oneClickWakeOptions(agent), agent.hostUrl)
+          : { program: 'claude', hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {

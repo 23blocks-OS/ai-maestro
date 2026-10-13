@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.75.0] - 2026-10-13 - Docker and AWS agents choose their tool, "Wake with…" is a button, and the phone can wake an agent (F040 finished)
+
+### Added
+- **Docker and AWS agents choose their tool.** The create page shows the same tiles for them, limited to the three tools the container image and an AWS server install: Claude Code, Codex CLI and Gemini CLI. For Docker, the "how much should it ask first" choice (Claude Code only) is part of the same panel instead of a separate Trust Level box inside Advanced, and it is sent whether or not Advanced is open. AWS agents start the bare tool, so no freedom choice is shown; the Anthropic key field appears only for Claude Code. The review sentence names the tool.
+- **A visible "Wake with…".** A small sliders button next to Wake in the sidebar, a "Wake with… (choose the tool and how freely)" link under Wake Agent on the full-page wake screens, and "Wake with…" in the agent menu. Shift-click still works.
+- **The phone can wake an agent.** Picking a sleeping agent in the Hosts tab used to land on a blank terminal. It now shows the agent, what waking will start ("Claude Code, asks before every change"), a Wake button and "Wake with…" (the same dialog as the desktop), with 44 px touch targets and the error or "its program did not start" message inline. With no agent online, the empty screen sends you to the Hosts tab.
+
+### Fixed
+- **Docker agents created from the wizard ran `claude-code`**, a command that does not exist in the image (the npm package installs `claude`). The container command now turns the names an agent is stored under ("claude-code", "Claude Code", "Codex CLI") into the real command; a wrapper path or a tool the image does not know passes through unchanged, so a custom image keeps working.
+- **The zoom pages woke every agent as Claude Code**, even a Grok, Copilot or Pi agent. They now wake with what the agent runs, like the sidebar.
+
+### Verified in a browser
+Isolated instance (fake home, real tmux untouched, wake and create requests intercepted so nothing started): the sidebar row of a sleeping agent shows the new sliders button and it opens the dialog on the agent's own tool and mode; the create page with Docker chosen offers Claude Code, Codex CLI and Gemini CLI with the container note, and the requests were `program: codex` (nothing else) and `program: claude, permissionMode: fullAutonomy`; on a 390 px phone, the Hosts tab leads to the wake panel, Wake sent `{permissionMode: supervised}`, "Wake with…" opens the dialog and fits, and an agent with no recorded tool shows "Choose how to wake it". AWS was locked in that instance (no `aws configure` there), so its payload is covered by the tests only. The tool tile names now wrap on a phone ("GitHub Copilot CLI" was cut off).
+
+### Tests
+`tests/f040-containers-wake-with-phone.test.ts` (17): the container command table, a guard that the offered container tools match what the Dockerfile and the AWS user-data install, the wizard payloads, the visible control, the zoom pages and the phone panel. One older Docker test asserted the broken `claude-code` command and now asserts `claude`.
+
 ## [0.74.0] - 2026-10-12 - Creating an agent is one page (F040 step 3)
 
 The create wizard was a chat: four questions one at a time, a Back button and "Step 1 of 4". It is now a single form with everything pre-filled, so the fast path is to type a name and press Create.

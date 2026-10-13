@@ -25,6 +25,7 @@ import {
   Settings,
   Network,
   Play,
+  SlidersHorizontal,
   Circle,
   Wifi,
   WifiOff,
@@ -1408,6 +1409,19 @@ export default function AgentList({
                                                 ) : (
                                                   <Power className="w-3 h-3" />
                                                 )}
+                                              </button>
+                                            )}
+                                            {/* Wake with...: choose the tool and how freely, instead of waking with what the agent has */}
+                                            {isHibernated && canWakeInOneClick(agent) && (
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); setWakeDialogAgent(agent) }}
+                                                disabled={wakingAgents.has(agent.id)}
+                                                className="p-1 rounded hover:bg-green-500/20 text-gray-400 hover:text-green-400 transition-all duration-200 disabled:opacity-50"
+                                                title="Wake with… (choose the tool and how freely it acts)"
+                                                aria-label="Wake with…"
+                                                data-testid="wake-with"
+                                              >
+                                                <SlidersHorizontal className="w-3 h-3" />
                                               </button>
                                             )}
                                             <a

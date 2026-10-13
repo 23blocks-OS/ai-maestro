@@ -22,6 +22,9 @@ export default function LaunchChoicePanel({
   withExecMode = false,
   compact = false,
   hostUrl,
+  onlyTools,
+  hideFreedom = false,
+  note,
 }: {
   c: LaunchChoice
   displayName: string
@@ -32,8 +35,18 @@ export default function LaunchChoicePanel({
   compact?: boolean
   /** The host the agent will run on (a configured host's URL); empty means this one. Used for the readiness check. */
   hostUrl?: string
+  /**
+   * Offer only these tools (a container image has three), with no "More tools", no readiness check (the image
+   * carries them) and no tool options: the container builds its own command.
+   */
+  onlyTools?: readonly string[]
+  /** Leave out the "how much should it ask first" choice (AWS agents start the bare tool). */
+  hideFreedom?: boolean
+  /** A line under the tool description, for what is special about where it runs. */
+  note?: string
 }) {
-  const { tool: readinessOf } = useToolReadiness(hostUrl)
+  const { tool: realReadinessOf } = useToolReadiness(hostUrl)
+  const readinessOf: typeof realReadinessOf = onlyTools ? () => undefined : realReadinessOf
   const pad = compact ? 'px-0' : 'px-6'
   const isWaking = disabled
   const {
@@ -42,7 +55,7 @@ export default function LaunchChoicePanel({
     setShowMore, setShowAdvanced, setShowExact, setExecMode, setPermissionMode,
     chooseStop, toggleReadOnly, setOption, handleProgramChange,
   } = c
-  const hasAdvanced = decls.length > 0 || (withExecMode && selected.kind === 'claude')
+  const hasAdvanced = !onlyTools && (decls.length > 0 || (withExecMode && selected.kind === 'claude'))
 
   // A compact tile: two per row, so the permission choice below stays on screen without scrolling.
   const renderChoice = (option: ProgramChoice) => {
@@ -85,11 +98,16 @@ export default function LaunchChoicePanel({
       <div className={`${pad} ${compact ? 'pt-0' : 'pt-4'} pb-3`}>
         <p className="text-sm text-zinc-300 mb-2">What should {displayName} run?</p>
         <div className="grid grid-cols-2 gap-2">
-          {currentOption && renderChoice(currentOption)}
-          {main.map(renderChoice)}
-          {shell.map(renderChoice)}
+          {onlyTools ? PROGRAM_CHOICES.filter((x) => onlyTools.includes(x.id)).map(renderChoice) : (
+            <>
+              {currentOption && renderChoice(currentOption)}
+              {main.map(renderChoice)}
+              {shell.map(renderChoice)}
+            </>
+          )}
         </div>
         <p className="mt-2 text-xs text-zinc-500" data-testid="wake-tool-description">{selected.description}</p>
+        {note && <p className="mt-1 text-[11px] text-zinc-500" data-testid="tool-note">{note}</p>}
                 {(() => {
                   const r = selectedId === 'current' ? undefined : readinessOf(selectedId)
                   if (!r) return null
@@ -101,19 +119,23 @@ export default function LaunchChoicePanel({
                   const tone = r.state === 'ready' ? 'text-zinc-500' : r.state === 'missing' ? 'text-amber-300' : 'text-red-300'
                   return <p className={`mt-1 text-[11px] break-words ${tone}`} data-testid="tool-readiness" data-state={r.state}>{text}</p>
                 })()}
-        <button
-          type="button"
-          onClick={() => setShowMore(!showMore)}
-          className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          <ChevronRight className={`w-3 h-3 transition-transform ${showMore ? 'rotate-90' : ''}`} />
-          More tools (terminal only)
-        </button>
-        {showMore && <div className="mt-2 grid grid-cols-2 gap-2">{more.map(renderChoice)}</div>}
+        {!onlyTools && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowMore(!showMore)}
+              className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <ChevronRight className={`w-3 h-3 transition-transform ${showMore ? 'rotate-90' : ''}`} />
+              More tools (terminal only)
+            </button>
+            {showMore && <div className="mt-2 grid grid-cols-2 gap-2">{more.map(renderChoice)}</div>}
+          </>
+        )}
       </div>
 
       {/* Permissions: shown up front, and only for tools that have them */}
-      {modes.length > 0 && (
+      {modes.length > 0 && !hideFreedom && (
         <div className={`${pad} pb-3`} data-testid="wake-permissions">
           <p className="text-xs text-zinc-500 mb-2">How much should it ask first?</p>
           <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${stops.length}, minmax(0, 1fr))` }} role="group" aria-label="How much it asks first">
@@ -171,7 +193,7 @@ export default function LaunchChoicePanel({
           )}
         </div>
       )}
-      {modes.length === 0 && noChoiceNote && (
+      {modes.length === 0 && noChoiceNote && !hideFreedom && (
         <p className={`${pad} pb-3 text-[11px] text-zinc-500`} data-testid="wake-no-permissions">{noChoiceNote}</p>
       )}
 

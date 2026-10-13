@@ -275,7 +275,7 @@ export default function AgentBadge({
                   className="w-full px-3 py-1.5 text-left text-sm text-slate-300 hover:bg-green-500/10 hover:text-green-400 flex items-center gap-2"
                 >
                   <Power className="w-3.5 h-3.5" />
-                  Wake Agent
+                  Wake with…
                 </button>
               )}
 

@@ -9,6 +9,8 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { ArrowLeft, Loader2, AlertCircle, X } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
+import { canWakeInOneClick, oneClickWakeOptions } from '@/lib/wake-flow'
+import { buildWakeBody } from '@/lib/wake-request'
 import type { Agent } from '@/types/agent'
 
 // Dynamic import for AgentCardView
@@ -64,7 +66,8 @@ function ZoomAgentContent() {
       await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program: 'claude' }),
+        // Wake with what the agent already runs (it used to always ask for Claude Code).
+        body: JSON.stringify(canWakeInOneClick(agent) ? buildWakeBody('', oneClickWakeOptions(agent)) : { program: 'claude' }),
       })
     } catch (error) {
       console.error('Failed to wake agent:', error)

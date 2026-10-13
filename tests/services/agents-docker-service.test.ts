@@ -1622,6 +1622,22 @@ describe('buildAiToolCommand', () => {
     expect(result).not.toContain('--permission-mode')
   })
 
+  it('runs `claude` for the names the create wizard and older agents use ("claude-code", "Claude Code")', () => {
+    // The npm package installs a `claude` command; there is no `claude-code` binary in the image.
+    expect(buildAiToolCommand({ program: 'claude-code' })).toBe('claude')
+    expect(buildAiToolCommand({ program: 'Claude Code', permissionMode: 'smartAuto' })).toBe('claude --permission-mode auto')
+  })
+
+  it('runs codex and gemini by their commands, without Claude flags', () => {
+    expect(buildAiToolCommand({ program: 'Codex CLI', permissionMode: 'fullAutonomy' })).toBe('codex')
+    expect(buildAiToolCommand({ program: 'gemini' })).toBe('gemini')
+  })
+
+  it('leaves a program the image does not know, and a wrapper path, as given', () => {
+    expect(buildAiToolCommand({ program: 'my-tool' })).toBe('my-tool')
+    expect(buildAiToolCommand({ program: '/opt/bin/claude-sandboxed.sh' })).toBe('/opt/bin/claude-sandboxed.sh')
+  })
+
   it('defaults to claude when no program specified', () => {
     const result = buildAiToolCommand({ permissionMode: 'planOnly' })
     expect(result).toBe('claude --permission-mode plan')
@@ -1670,8 +1686,8 @@ describe('buildAiToolCommand', () => {
     expect(result).toBe('claude --permission-mode bypassPermissions --model claude-sonnet-4-6')
   })
 
-  it('treats claude-code program name as claude-compatible (receives permission flags)', () => {
+  it('treats the claude-code program name as Claude Code: it runs `claude` (the npm package has no `claude-code` command) with the permission flags', () => {
     const result = buildAiToolCommand({ program: 'claude-code', permissionMode: 'trustEdits' })
-    expect(result).toBe('claude-code --permission-mode acceptEdits')
+    expect(result).toBe('claude --permission-mode acceptEdits')
   })
 })

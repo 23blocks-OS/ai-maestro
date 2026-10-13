@@ -9,6 +9,7 @@ import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
 import MobileCallOverlay from './MobileCallOverlay'
+import MobileWakePanel from './MobileWakePanel'
 import { Terminal, Mail, RefreshCw, Activity, Server, MessageSquare, Phone } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
@@ -53,6 +54,8 @@ export default function MobileDashboard({
   }, [onlineAgents, activeAgentId])
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)
+  // The Hosts tab lists every agent, so one that is asleep can be picked. It needs a way to be woken here.
+  const activeIsAsleep = !!activeAgent && activeAgent.session?.status !== 'online'
 
   const handleAgentSelect = (agentId: string) => {
     setActiveAgentId(agentId)
@@ -140,13 +143,33 @@ export default function MobileDashboard({
       {/* Main Content */}
       <main className="flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
         {/* Empty State - only show on terminal/messages tabs */}
-        {onlineAgents.length === 0 && (activeTab === 'terminal' || activeTab === 'messages') && (
+        {onlineAgents.length === 0 && (activeTab === 'terminal' || activeTab === 'messages') && !(activeTab === 'terminal' && activeIsAsleep) && (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
             <Terminal className="w-16 h-16 text-gray-600 mb-4" />
             <p className="text-lg font-medium text-gray-300 mb-2">No Online Agents</p>
-            <p className="text-sm text-gray-500">
-              Start an agent&apos;s tmux session to connect
+            <p className="text-sm text-gray-500 mb-5">
+              Pick an agent in the Hosts tab to wake it
             </p>
+            <button
+              onClick={() => setActiveTab('hosts')}
+              className="min-h-[44px] px-5 py-2 rounded-lg bg-blue-600 text-white text-sm active:bg-blue-500"
+              data-testid="mobile-open-hosts"
+            >
+              Open Hosts
+            </button>
+          </div>
+        )}
+
+        {/* An agent that is asleep: wake it from here */}
+        {activeTab === 'terminal' && activeAgent && activeIsAsleep && (
+          <div className="absolute inset-0 z-10">
+            <MobileWakePanel
+              key={activeAgent.id}
+              agent={activeAgent}
+              name={getAgentDisplayName(activeAgent)}
+              hostName={hosts.find(h => h.id === activeAgent.hostId)?.name}
+              onWoken={onRefresh}
+            />
           </div>
         )}
 

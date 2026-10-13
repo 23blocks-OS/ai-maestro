@@ -22,6 +22,7 @@ import type { AgentPermissionMode } from '@/types/agent'
 import { CONTAINER_CWD_GEMINI_PROJECT } from '@/lib/container-utils'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
+import { containerProgram } from '@/lib/program-choices'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -87,10 +88,10 @@ const CONTAINER_HOME = '/home/claude'
  *   3. 'supervised' (default, no flag injected)
  */
 export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | 'permissionMode' | 'yolo' | 'programArgs' | 'model' | 'prompt'> & { name?: string }): string {
-  const program = body.program || 'claude'
+  const program = containerProgram(body.program)
   let aiTool = program
   const effectivePermMode: AgentPermissionMode = body.permissionMode || (body.yolo ? 'fullAutonomy' : 'supervised')
-  if (effectivePermMode !== 'supervised' && (program === 'claude' || program === 'claude-code')) {
+  if (effectivePermMode !== 'supervised' && program === 'claude') {
     aiTool += ` --permission-mode ${PERMISSION_MODE_TO_CLI[effectivePermMode]}`
   }
   // Give Claude Code the agent's native session name (opt-in). Surfaces in the
@@ -1249,7 +1250,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
 
   // Build the AI_TOOL environment variable
   const aiTool = buildAiToolCommand(body)
-  const program = body.program || 'claude'
+  const program = containerProgram(body.program)
 
   const containerName = `aim-${name}`
   const workDir = body.workingDirectory || '/tmp'

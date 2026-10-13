@@ -1,6 +1,6 @@
 # F040 - Waking and creating agents: launch options declared per tool, one-click wake
 
-**Status:** In Progress (step 1 shipped in 0.69.0; steps 2 to 4 open)
+**Status:** Done in 0.75.0 apart from the items under "Still open" below
 **Type:** Feature / UX redesign
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12 ("selecting permissions on agent wake up is a nightmare ... evaluate that UX and UI and design a better flow")
@@ -64,3 +64,8 @@ F028 (Grok), F036 (Pi, OpenClaw), F038 (Copilot CLI), F039 (a way back in), F033
 - 2026-10-12, 0.73.0 - **Step 4 shipped: readiness check** (installed / version / Node for Pi, per host, as an agent's shell sees it; shown on the tiles and as one line). Sign-in is not checked by design. Open: fold the chat-style create wizard into one page; Docker/AWS tool choice; a visible "Wake with..." control.
 - 2026-10-12, 0.74.0 - **Step 3 finished for local agents: the create wizard is one pre-filled page** (Name / Where it works / Where it runs / What runs it, pinned Create). Open: Docker/AWS tool choice, a visible "Wake with..." control, the phone layout cannot wake an agent.
 - **Open:** step 2 (every option declared per tool, generated form with the command preview, plain-words freedom stops), step 3 (one-page create), step 4 (readiness check), the Copilot cards from the real screens, Pi's chat view.
+- 2026-10-13, 0.75.0 - **The last three items.** Docker and AWS agents choose their tool (Claude Code, Codex CLI, Gemini CLI: what the image and an AWS server install; Docker also gets the freedom choice, AWS does not); "Wake with…" is a visible control in the sidebar, the full-page wake screens and the agent menu; the phone shows a wake panel for a sleeping agent. Two bugs found on the way and fixed: Docker agents from the wizard ran a `claude-code` command that does not exist, and the zoom pages woke every agent as Claude Code.
+
+## Still open (smaller, not blocking)
+
+Codex, Gemini and OpenCode launch options once verified on a real install; models listed from the tool (`pi --list-models`); the Hands-off "I understand" tick (skipped on purpose); launch options (model, resume) for container agents; Grok, Copilot and Pi in the container image (they are not installed there).

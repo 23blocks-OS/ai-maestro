@@ -14,6 +14,7 @@ import {
   type ProgramChoice,
 } from '@/lib/program-choices'
 import type { WakeChoiceOptions } from '@/lib/wake-request'
+import { MODE_SUMMARY, STOP_LABEL, STOP_HELP, stopsFor, canReadOnly, stopForMode, modeForStop, type FreedomStop } from '@/lib/freedom'
 import { launchOptionsFor, sanitizeLaunchOptions, previewCommand, type LaunchOptions } from '@/lib/launch-options'
 
 interface WakeAgentDialogProps {
@@ -36,14 +37,6 @@ interface WakeAgentDialogProps {
 
 const ICONS: Record<string, typeof Code2> = { claude: Sparkles, terminal: Terminal, current: Cpu }
 
-const MODE_SUMMARY: Record<AgentPermissionMode, string> = {
-  supervised: 'asks before every change',
-  planOnly: 'read-only',
-  trustEdits: 'edits freely, asks before commands',
-  smartAuto: 'asks only for risky actions',
-  fullAutonomy: 'asks for nothing',
-}
-
 export default function WakeAgentDialog({
   isOpen,
   onClose,
@@ -61,6 +54,8 @@ export default function WakeAgentDialog({
   const [remember, setRemember] = useState(true)
   const [showMore, setShowMore] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showExact, setShowExact] = useState(false)
+  const [modeBeforeReadOnly, setModeBeforeReadOnly] = useState<AgentPermissionMode>('supervised')
   const [options, setOptions] = useState<LaunchOptions>({})
   const [isWaking, setIsWaking] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -84,6 +79,7 @@ export default function WakeAgentDialog({
     const remembered = sanitizeLaunchOptions(kind, defaultLaunchOptions)
     setOptions(remembered)
     setShowAdvanced(Object.keys(remembered).length > 0)
+    setShowExact(false)
     setIsWaking(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, defaultProgram, defaultPermissionMode, JSON.stringify(defaultLaunchOptions || {})])
@@ -95,6 +91,14 @@ export default function WakeAgentDialog({
   const selected = currentOption || PROGRAM_CHOICES.find((c) => c.id === selectedId) || PROGRAM_CHOICES[0]
   const modes = permissionModesFor(selected.kind)
   const noChoiceNote = noPermissionChoiceNote(selected.kind)
+  const stops = stopsFor(selected.kind)
+  const { stop: currentStop, readOnly } = stopForMode(permissionMode)
+  const chooseStop = (stop: FreedomStop) => setPermissionMode(modeForStop(selected.kind, stop, false, permissionMode))
+  const toggleReadOnly = (on: boolean) => {
+    if (on) { setModeBeforeReadOnly(permissionMode); setPermissionMode('planOnly') }
+    else setPermissionMode(modeBeforeReadOnly === 'planOnly' ? 'supervised' : modeBeforeReadOnly)
+  }
+  const missingStops = (['careful', 'balanced', 'handsOff'] as FreedomStop[]).filter((st) => !stops.includes(st))
   const decls = launchOptionsFor(selected.kind)
   const clean = sanitizeLaunchOptions(selected.kind, options)
   const setCount = Object.keys(clean).length
@@ -224,11 +228,58 @@ export default function WakeAgentDialog({
                 {modes.length > 0 && (
                   <div className="px-6 pb-3" data-testid="wake-permissions">
                     <p className="text-xs text-zinc-500 mb-2">How much should it ask first?</p>
-                    <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact allowed={modes} hideDetail={permissionMode === 'fullAutonomy'} />
+                    <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${stops.length}, minmax(0, 1fr))` }} role="group" aria-label="How much it asks first">
+                      {stops.map((st) => {
+                        const on = !readOnly && currentStop === st
+                        const danger = st === 'handsOff'
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => chooseStop(st)}
+                            disabled={isWaking || readOnly}
+                            aria-pressed={on}
+                            data-testid={`wake-stop-${st}`}
+                            className={`px-2 py-2 rounded-lg border text-sm font-medium transition-all disabled:opacity-40 ${
+                              on
+                                ? danger ? 'border-red-500 bg-red-500/10 text-red-300' : 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                : 'border-zinc-700 bg-zinc-800/50 text-zinc-300 hover:border-zinc-600'
+                            }`}
+                          >
+                            {STOP_LABEL[st]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {canReadOnly(selected.kind) && (
+                      <label className="mt-2 flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                        <input type="checkbox" checked={readOnly} onChange={(e) => toggleReadOnly(e.target.checked)} disabled={isWaking} className="rounded border-zinc-600" data-testid="wake-read-only" />
+                        Read-only: it can look around but cannot change anything
+                      </label>
+                    )}
+                    {!readOnly && <p className="mt-2 text-[11px] text-zinc-500" data-testid="wake-stop-help">{STOP_HELP[currentStop]}</p>}
+                    {missingStops.length > 0 && (
+                      <p className="mt-1 text-[11px] text-zinc-600" data-testid="wake-missing-stops">
+                        {missingStops.map((st) => STOP_LABEL[st]).join(' and ')} {missingStops.length > 1 ? 'are' : 'is'} not available for {selected.name}: it only has {modes.length} permission setting{modes.length > 1 ? 's' : ''}.
+                      </p>
+                    )}
                     {permissionMode === 'fullAutonomy' && (
                       <p className="mt-2 text-[11px] text-red-300 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">
                         Nothing will ask before it acts. It can edit any file and run any command as you. Use it for a throwaway folder or a container.
                       </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowExact(!showExact)}
+                      className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      <ChevronRight className={`w-3 h-3 transition-transform ${showExact ? 'rotate-90' : ''}`} />
+                      Exact setting{' '}<span className="text-zinc-600">({MODE_SUMMARY[permissionMode]})</span>
+                    </button>
+                    {showExact && (
+                      <div className="mt-2" data-testid="wake-exact">
+                        <TrustLevelSelector value={permissionMode} onChange={setPermissionMode} compact allowed={modes} hideDetail />
+                      </div>
                     )}
                   </div>
                 )}

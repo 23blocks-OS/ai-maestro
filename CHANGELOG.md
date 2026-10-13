@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.71.0] - 2026-10-12 - One-click wake, and "how much should it ask" in plain words (F040 step 2)
+
+Two changes to how an agent is woken. Waking no longer asks questions it already knows the answer to, and the permission choice is three plain stops instead of five Claude-named modes.
+
+### Changed
+- **One click wakes.** When an agent already has a tool recorded, Wake starts it with its saved tool, permission mode and options, with no dialog. A message says what is starting and how freely ("Claude Code, asks before every change. Shift-click Wake to choose differently."); a hands-off agent gets a warning-coloured message. The dialog still opens for a first wake (nothing recorded) and on **Shift-click**. Same behaviour in the agent list, the meeting sidebar and the main page. Not remembered by this path, so a one-click wake never rewrites the agent.
+- **Careful, Balanced, Hands-off, plus a Read-only switch.** Each tool maps the stops to its own flags (Claude Code and Grok Build: default, accept edits, bypass; Read-only is plan mode). A stop a tool cannot honour is not offered: Copilot CLI shows Careful and Hands-off and says why Balanced is missing. Pi and the terminal-only tools show no choice. The five exact modes stay available under "Exact setting", so Smart auto is still reachable and is kept when Balanced is clicked.
+- The dialog is shorter: the Claude Code dialog went from 815 px to 640 px, so tools, the stops, the red hands-off warning, the exact command and the summary fit a 900 px window without scrolling.
+- The wake button's tooltip now says "Shift-click to choose how".
+
+### Added
+- `lib/freedom.ts` (stops, their per-tool mapping, round trip with the five modes) and `lib/wake-flow.ts` (one decision, shared by every screen, for "wake now or ask").
+
+### Verified in a browser
+An isolated instance (own port, fake home, five made-up agents; real fleet untouched; every wake request intercepted so nothing started): a plain click sent one request and opened no dialog; a never-woken agent and a Shift-click opened the dialog; Careful, Balanced, Read-only (stops greyed), un-ticking Read-only (back to Balanced), Hands-off (red warning) and Smart auto from the exact list each changed the command line to the real flag (`default`, `acceptEdits`, `plan`, `bypassPermissions`, `auto`); the final request carried the chosen mode, the options and `remember`.
+
+### Decisions to confirm
+- Hands-off has no "I understand" tick-box (the design suggested one): an agent already saved as Hands-off would ask for it on every wake. The red warning and the red summary stay.
+- "Wake with..." is Shift-click for now, not a visible button; the small icon buttons have no room for a second one. A visible control is an easy follow-up.
+
 ## [0.70.0] - 2026-10-12 - Each tool declares what you can choose at launch (F040 step 2)
 
 The wake dialog now offers the options a tool really has, and shows the exact command it will run. Before, the only choices were the tool and the permission mode; the model, "continue the last session", reasoning effort and the rest could only be set by editing the agent's arguments by hand.

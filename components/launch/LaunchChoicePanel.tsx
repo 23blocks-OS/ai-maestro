@@ -83,7 +83,7 @@ export default function LaunchChoicePanel({
             }`}
           />
         )}
-        <span className={`${compact ? 'text-xs leading-tight' : 'text-sm truncate'} font-medium ${isSelected ? 'text-emerald-400' : 'text-zinc-200'}`}>{option.name}</span>
+        <span className={`${compact ? 'text-xs leading-tight' : 'text-sm leading-tight sm:truncate'} font-medium ${isSelected ? 'text-emerald-400' : 'text-zinc-200'}`}>{option.name}</span>
       </button>
     )
   }

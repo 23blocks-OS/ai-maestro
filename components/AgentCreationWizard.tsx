@@ -846,7 +846,7 @@ function CreateFooter({ state, hosts, onCreate }: { state: BubbleState; hosts: H
   const reviewText = isCloud
     ? `${who} will run ${state.launch.selected.name}, deployed to AWS (${RUNTIME_LABEL[state.runtime]}).`
     : state.runtime === 'docker'
-      ? `${who} will run ${state.launch.selected.name}${how} in ${folder}, in a Docker container on ${where}.`
+      ? `${who} will run ${state.launch.selected.name}${how}, in ${folder}, in a Docker container on ${where}.`
       : `${who} will run ${state.launch.selected.name}${how}, in ${folder} on ${where}.`
   const disabled = isEc2MissingRequired || !state.agentName
 

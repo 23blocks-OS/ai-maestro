@@ -14,6 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **Docker agents created from the wizard ran `claude-code`**, a command that does not exist in the image (the npm package installs `claude`). The container command now turns the names an agent is stored under ("claude-code", "Claude Code", "Codex CLI") into the real command; a wrapper path or a tool the image does not know passes through unchanged, so a custom image keeps working.
 - **The zoom pages woke every agent as Claude Code**, even a Grok, Copilot or Pi agent. They now wake with what the agent runs, like the sidebar.
 
+### Verified in a browser
+Isolated instance (fake home, real tmux untouched, wake and create requests intercepted so nothing started): the sidebar row of a sleeping agent shows the new sliders button and it opens the dialog on the agent's own tool and mode; the create page with Docker chosen offers Claude Code, Codex CLI and Gemini CLI with the container note, and the requests were `program: codex` (nothing else) and `program: claude, permissionMode: fullAutonomy`; on a 390 px phone, the Hosts tab leads to the wake panel, Wake sent `{permissionMode: supervised}`, "Wake with…" opens the dialog and fits, and an agent with no recorded tool shows "Choose how to wake it". AWS was locked in that instance (no `aws configure` there), so its payload is covered by the tests only. The tool tile names now wrap on a phone ("GitHub Copilot CLI" was cut off).
+
 ### Tests
 `tests/f040-containers-wake-with-phone.test.ts` (17): the container command table, a guard that the offered container tools match what the Dockerfile and the AWS user-data install, the wizard payloads, the visible control, the zoom pages and the phone panel. One older Docker test asserted the broken `claude-code` command and now asserts `claude`.
 

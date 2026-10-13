@@ -1,30 +1,21 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, ChevronRight, Monitor, Server, Cloud, Lock, Wifi, WifiOff, Box } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { motion } from 'framer-motion'
+import { X, ChevronRight, Monitor, Server, Cloud, Lock, Wifi, WifiOff, Box } from 'lucide-react'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import DirectoryPicker from './DirectoryPicker'
 import TrustLevelSelector from './TrustLevelSelector'
 import LaunchChoicePanel from './launch/LaunchChoicePanel'
 import { useLaunchChoice, type LaunchChoice } from '@/hooks/useLaunchChoice'
 import { programForCreate } from '@/lib/program-choices'
+import { MODE_SUMMARY } from '@/lib/freedom'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
 import type { AgentPermissionMode } from '@/types/agent'
 import { getRandomAlias } from '@/lib/agent-utils'
 
 // --- Types ---
-
-type WizardStep = 'name' | 'directory' | 'deployment' | 'confirm' | 'creating' | 'done'
-
-interface ChatMessage {
-  id: string
-  role: 'robot' | 'user'
-  text: string
-  step: WizardStep
-  widget?: 'text-input' | 'directory-picker' | 'deployment-picker' | 'summary'
-}
 
 interface DockerMount {
   hostPath: string
@@ -52,28 +43,6 @@ interface DeploymentOption {
 }
 
 // --- Constants ---
-
-const STEP_ORDER: WizardStep[] = ['name', 'directory', 'deployment', 'confirm']
-
-let msgCounter = 0
-function makeMsg(role: 'robot' | 'user', text: string, step: WizardStep, widget?: ChatMessage['widget']): ChatMessage {
-  return { id: `msg-${++msgCounter}-${Math.random().toString(36).slice(2, 6)}`, role, text, step, widget }
-}
-
-function robotQuestion(step: WizardStep): ChatMessage {
-  switch (step) {
-    case 'name':
-      return makeMsg('robot', "What's your agent's name?", step, 'text-input')
-    case 'directory':
-      return makeMsg('robot', 'Where should this agent work?', step, 'directory-picker')
-    case 'deployment':
-      return makeMsg('robot', 'Where do you want to run this agent?', step, 'deployment-picker')
-    case 'confirm':
-      return makeMsg('robot', "Here's your new agent! Ready to bring it to life?", step, 'summary')
-    default:
-      return makeMsg('robot', '', step)
-  }
-}
 
 // --- Build deployment options from hosts ---
 
@@ -193,12 +162,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [robotAvatarIndex] = useState(() => Math.floor(Math.random() * 45))
   const robotAvatarUrl = `/avatars/robots_${robotAvatarIndex.toString().padStart(2, '0')}.png`
 
-  const chatEndRef = useRef<HTMLDivElement>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [step, setStep] = useState<WizardStep>('name')
 
   // Agent configuration
-  const [agentName, setAgentName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentOption | null>(null)
   const [hostId, setHostId] = useState('')
@@ -249,109 +214,37 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   // Input state
   const [nameInput, setNameInput] = useState('')
   const [nameError, setNameError] = useState('')
+  const agentName = nameInput.trim()
 
-  // Widget tracking
-  const [activeWidgetStep, setActiveWidgetStep] = useState<WizardStep | null>(null)
-  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => { if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current) }
-  }, [])
-
-  // Initialize first question
+  // The form starts filled in: this computer, run directly, its own folder. Typing a name and pressing Create is the fast path.
   const [initialized, setInitialized] = useState(false)
   useEffect(() => {
     if (hostsLoading || initialized) return
     setInitialized(true)
-    setStep('name')
-    setActiveWidgetStep('name')
-
-    // Default to self host
-    const selfHost = hosts.find(h => h.isSelf) || hosts[0]
-    if (selfHost) setHostId(selfHost.id)
-
-    setTimeout(() => {
-      setMessages([
-        makeMsg('robot', "Hey! Let's set up a new agent.", 'name'),
-        robotQuestion('name'),
-      ])
-    }, 200)
+    const first = buildDeploymentOptions(hosts).find(o => o.group === 'local' && o.runtime === 'tmux' && o.available)
+    if (first) {
+      setSelectedDeployment(first)
+      setHostId(first.hostId)
+      setRuntime(first.runtime)
+    } else {
+      const selfHost = hosts.find(h => h.isSelf) || hosts[0]
+      if (selfHost) setHostId(selfHost.id)
+    }
   }, [hostsLoading, initialized, hosts])
-
-  // Auto-scroll
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [messages, showLetsGo, isCreating])
-
-  // Advance
-  const advance = useCallback((userText: string, nextStep: WizardStep) => {
-    const userMsg = makeMsg('user', userText, step)
-    setMessages(prev => [...prev, userMsg])
-    setActiveWidgetStep(null)
-
-    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
-    transitionTimerRef.current = setTimeout(() => {
-      transitionTimerRef.current = null
-      setStep(nextStep)
-      setActiveWidgetStep(nextStep)
-      setMessages(prev => [...prev, robotQuestion(nextStep)])
-    }, 400)
-  }, [step])
-
-  // Go back
-  const goBack = useCallback(() => {
-    if (transitionTimerRef.current) {
-      clearTimeout(transitionTimerRef.current)
-      transitionTimerRef.current = null
-    }
-    const idx = STEP_ORDER.indexOf(step)
-    if (idx <= 0) return
-
-    const prevStep = STEP_ORDER[idx - 1]
-    setMessages(msgs => msgs.filter(m => m.step !== step && !(m.step === prevStep && m.role === 'user')))
-    setStep(prevStep)
-    setActiveWidgetStep(prevStep)
-  }, [step])
-
-  // --- Handlers ---
-
-  const handleNameSubmit = useCallback(() => {
-    const trimmed = nameInput.trim()
-    if (!trimmed) return
-    if (!/^[a-zA-Z0-9_\-]+$/.test(trimmed)) {
-      setNameError('Only letters, numbers, dashes, and underscores')
-      return
-    }
-    setAgentName(trimmed)
-    setNameError('')
-    advance(trimmed, 'directory')
-  }, [nameInput, advance])
-
-  const handleDirectoryConfirm = useCallback(() => {
-    advance(workingDirectory || `~/agents/${agentName} (its own folder)`, 'deployment')
-  }, [workingDirectory, agentName, advance])
-
-  const handleDirectorySkip = useCallback(() => {
-    setWorkingDirectory('')
-    advance(`~/agents/${agentName} (its own folder)`, 'deployment')
-  }, [agentName, advance])
 
   const handleDeploymentSelect = useCallback((option: DeploymentOption) => {
     if (!option.available) return
     setSelectedDeployment(option)
     setHostId(option.hostId)
     setRuntime(option.runtime)
-    advance(option.label, 'confirm')
-  }, [advance])
+  }, [])
 
   // --- Create agent ---
   const handleCreate = useCallback(async () => {
+    if (!agentName) { setNameError('Give it a name'); return }
+    if (!/^[a-zA-Z0-9_\-]+$/.test(agentName)) { setNameError('Only letters, numbers, dashes, and underscores'); return }
+    setNameError('')
     setIsCreating(true)
-    setStep('creating')
-    setMessages(prev => [...prev, makeMsg('user', "Let's do it!", 'confirm')])
 
     const personaName = getRandomAlias(agentName)
     const avatarUrl = getPreviewAvatarUrl(agentName)
@@ -517,9 +410,6 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   }, [creationSuccess, animationPhase])
 
   // Computed
-  const stepNumber = STEP_ORDER.indexOf(step) + 1
-  const totalSteps = STEP_ORDER.length
-  const canGoBack = step !== 'creating' && step !== 'done' && STEP_ORDER.indexOf(step) > 0
   const deploymentOptions = buildDeploymentOptions(hosts)
 
   // --- Render ---
@@ -636,8 +526,6 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                       onClick={() => {
                         setIsCreating(false)
                         setCreationError('')
-                        setStep('confirm')
-                        setActiveWidgetStep('confirm')
                       }}
                       className="px-4 py-2 text-sm bg-gray-800 text-gray-200 rounded-lg hover:bg-gray-700 transition-colors"
                     >
@@ -647,82 +535,39 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                 )}
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                <AnimatePresence initial={false}>
-                  {messages.map((msg) => (
-                    <ChatBubble
-                      key={msg.id}
-                      message={msg}
-                      robotAvatarUrl={robotAvatarUrl}
-                      isActiveWidget={msg.role === 'robot' && msg.widget !== undefined && msg.step === activeWidgetStep}
-                      hosts={hosts}
-                      deploymentOptions={deploymentOptions}
-                      state={{
-                        agentName, workingDirectory, hostId, runtime, selectedDeployment,
-                        showAdvanced, setShowAdvanced,
-                        dockerCpus, setDockerCpus, dockerMemory, setDockerMemory,
-                        dockerMounts, setDockerMounts, dockerEnvVars, setDockerEnvVars,
-                        dockerOnWake, setDockerOnWake, dockerOnHibernate, setDockerOnHibernate,
-                        dockerGithubToken, setDockerGithubToken,
-                        permissionMode, setPermissionMode, dockerMeshAware, setDockerMeshAware,
-                        dockerAutoRemove, setDockerAutoRemove,
-                        cloudEcrImageOverride, setCloudEcrImageOverride,
-                        cloudDomain, setCloudDomain, cloudSslEmail, setCloudSslEmail,
-                        cloudKeyName, setCloudKeyName, cloudAwsRegion, setCloudAwsRegion,
-                        cloudInstanceType, setCloudInstanceType,
-                        cloudEcsCpu, setCloudEcsCpu, cloudEcsMemory, setCloudEcsMemory,
-                        cloudAnthropicKey, setCloudAnthropicKey, cloudGithubToken, setCloudGithubToken,
-                        launch,
-                      }}
-                      nameInput={nameInput}
-                      nameError={nameError}
-                      onNameChange={(v) => { setNameInput(v); setNameError('') }}
-                      onNameSubmit={handleNameSubmit}
-                      onDirectoryChange={setWorkingDirectory}
-                      onDirectoryConfirm={handleDirectoryConfirm}
-                      onDirectorySkip={handleDirectorySkip}
-                      onDeploymentSelect={handleDeploymentSelect}
-                      onCreate={handleCreate}
-                    />
-                  ))}
-                </AnimatePresence>
-                <div ref={chatEndRef} />
-              </div>
+              <CreateForm
+                nameInput={nameInput}
+                nameError={nameError}
+                onNameChange={(v) => { setNameInput(v); setNameError('') }}
+                onCreate={handleCreate}
+                workingDirectory={workingDirectory}
+                onDirectoryChange={setWorkingDirectory}
+                hosts={hosts}
+                hostId={hostId}
+                deploymentOptions={deploymentOptions}
+                selectedDeployment={selectedDeployment}
+                onDeploymentSelect={handleDeploymentSelect}
+                state={{
+                  agentName, workingDirectory, hostId, runtime, selectedDeployment,
+                  showAdvanced, setShowAdvanced,
+                  dockerCpus, setDockerCpus, dockerMemory, setDockerMemory,
+                  dockerMounts, setDockerMounts, dockerEnvVars, setDockerEnvVars,
+                  dockerOnWake, setDockerOnWake, dockerOnHibernate, setDockerOnHibernate,
+                  dockerGithubToken, setDockerGithubToken,
+                  permissionMode, setPermissionMode, dockerMeshAware, setDockerMeshAware,
+                  dockerAutoRemove, setDockerAutoRemove,
+                  cloudEcrImageOverride, setCloudEcrImageOverride,
+                  cloudDomain, setCloudDomain, cloudSslEmail, setCloudSslEmail,
+                  cloudKeyName, setCloudKeyName, cloudAwsRegion, setCloudAwsRegion,
+                  cloudInstanceType, setCloudInstanceType,
+                  cloudEcsCpu, setCloudEcsCpu, cloudEcsMemory, setCloudEcsMemory,
+                  cloudAnthropicKey, setCloudAnthropicKey, cloudGithubToken, setCloudGithubToken,
+                  launch,
+                }}
+              />
             )}
           </div>
         </div>
-
-        {/* Footer */}
-        {!isCreating && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-700/50">
-            <div>
-              {canGoBack && (
-                <button
-                  onClick={goBack}
-                  className="text-sm text-gray-400 hover:text-gray-200 transition-colors flex items-center gap-1"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">
-                Step {stepNumber} of {totalSteps}
-              </span>
-              <div className="flex gap-1">
-                {Array.from({ length: totalSteps }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      i < stepNumber ? 'bg-blue-500' : 'bg-gray-700'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -761,195 +606,16 @@ interface BubbleState {
   cloudGithubToken: string; setCloudGithubToken: (v: string) => void
 }
 
-function ChatBubble({
-  message,
-  robotAvatarUrl,
-  isActiveWidget,
-  hosts,
-  deploymentOptions,
-  state,
-  nameInput,
-  nameError,
-  onNameChange,
-  onNameSubmit,
-  onDirectoryChange,
-  onDirectoryConfirm,
-  onDirectorySkip,
-  onDeploymentSelect,
-  onCreate,
-}: {
-  message: ChatMessage
-  robotAvatarUrl: string
-  isActiveWidget: boolean
-  hosts: Host[]
-  deploymentOptions: DeploymentOption[]
-  state: BubbleState
-  nameInput: string
-  nameError: string
-  onNameChange: (v: string) => void
-  onNameSubmit: () => void
-  onDirectoryChange: (v: string) => void
-  onDirectoryConfirm: () => void
-  onDirectorySkip: () => void
-  onDeploymentSelect: (opt: DeploymentOption) => void
-  onCreate: () => void
-}) {
-  const isRobot = message.role === 'robot'
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className={`flex ${isRobot ? 'justify-start' : 'justify-end'}`}
-    >
-      {isRobot && (
-        <div className="flex-shrink-0 mr-2 mt-1">
-          <img src={robotAvatarUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-700" />
-        </div>
-      )}
-      <div className="max-w-[85%]">
-        <div
-          className={`rounded-xl px-3.5 py-2.5 text-sm ${
-            isRobot
-              ? 'bg-gray-800 text-gray-200 rounded-tl-sm'
-              : 'bg-blue-600 text-white rounded-tr-sm'
-          }`}
-        >
-          {message.text}
-        </div>
-
-        {isRobot && message.widget && isActiveWidget && (
-          <div className="mt-2">
-            {message.widget === 'text-input' && (
-              <NameInput
-                value={nameInput}
-                onChange={onNameChange}
-                onSubmit={onNameSubmit}
-                error={nameError}
-              />
-            )}
-
-            {message.widget === 'directory-picker' && (
-              <DirectoryStep
-                value={state.workingDirectory}
-                onChange={onDirectoryChange}
-                onConfirm={onDirectoryConfirm}
-                onSkip={onDirectorySkip}
-                hostId={state.hostId}
-                hosts={hosts}
-              />
-            )}
-
-            {message.widget === 'deployment-picker' && (
-              <DeploymentPicker
-                options={deploymentOptions}
-                onSelect={onDeploymentSelect}
-              />
-            )}
-
-            {message.widget === 'summary' && (
-              <SummaryCard
-                state={state}
-                hosts={hosts}
-                onCreate={onCreate}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    </motion.div>
-  )
-}
-
 // --- Widgets ---
-
-function NameInput({
-  value,
-  onChange,
-  onSubmit,
-  error,
-}: {
-  value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-  error: string
-}) {
-  return (
-    <div>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') onSubmit() }}
-          placeholder="my-agent"
-          autoFocus
-          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <button
-          onClick={onSubmit}
-          disabled={!value.trim()}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-      {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-      {!error && <p className="text-xs text-gray-500 mt-1">Letters, numbers, dashes, and underscores only</p>}
-    </div>
-  )
-}
-
-function DirectoryStep({
-  value,
-  onChange,
-  onConfirm,
-  onSkip,
-  hostId,
-  hosts,
-}: {
-  value: string
-  onChange: (v: string) => void
-  onConfirm: () => void
-  onSkip: () => void
-  hostId: string
-  hosts: Host[]
-}) {
-  const host = hosts.find(h => h.id === hostId)
-  const remoteHostId = host && !host.isSelf ? host.id : undefined
-
-  return (
-    <div className="space-y-2">
-      <DirectoryPicker
-        value={value}
-        onChange={onChange}
-        hostId={remoteHostId}
-      />
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onConfirm}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors"
-        >
-          Select this folder
-        </button>
-        <button
-          onClick={onSkip}
-          className="px-3 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
-        >
-          Skip (give it its own folder, ~/agents/&lt;name&gt;)
-        </button>
-      </div>
-    </div>
-  )
-}
 
 function DeploymentPicker({
   options,
   onSelect,
+  selectedId,
 }: {
   options: DeploymentOption[]
   onSelect: (opt: DeploymentOption) => void
+  selectedId?: string
 }) {
   const localOptions = options.filter(o => o.group === 'local')
   const meshOptions = options.filter(o => o.group === 'mesh')
@@ -963,6 +629,7 @@ function DeploymentPicker({
         icon={<Monitor className="w-3.5 h-3.5" />}
         options={localOptions}
         onSelect={onSelect}
+        selectedId={selectedId}
       />
 
       {/* MESH SERVERS */}
@@ -972,6 +639,7 @@ function DeploymentPicker({
           icon={<Server className="w-3.5 h-3.5" />}
           options={meshOptions}
           onSelect={onSelect}
+        selectedId={selectedId}
         />
       )}
 
@@ -981,6 +649,7 @@ function DeploymentPicker({
         icon={<Cloud className="w-3.5 h-3.5" />}
         options={cloudOptions}
         onSelect={onSelect}
+        selectedId={selectedId}
       />
     </div>
   )
@@ -991,11 +660,13 @@ function DeploymentGroup({
   icon,
   options,
   onSelect,
+  selectedId,
 }: {
   title: string
   icon: React.ReactNode
   options: DeploymentOption[]
   onSelect: (opt: DeploymentOption) => void
+  selectedId?: string
 }) {
   return (
     <div>
@@ -1010,7 +681,9 @@ function DeploymentGroup({
             onClick={() => opt.available && onSelect(opt)}
             disabled={!opt.available}
             className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-all ${
-              opt.available
+              opt.id === selectedId
+                ? 'bg-blue-500/10 border-blue-500 cursor-pointer'
+                : opt.available
                 ? 'bg-gray-800/60 border-gray-700 hover:border-blue-500/50 hover:bg-gray-800 cursor-pointer'
                 : 'bg-gray-800/20 border-gray-800 opacity-50 cursor-not-allowed'
             }`}
@@ -1043,36 +716,162 @@ function DeploymentGroup({
   )
 }
 
-function SummaryCard({
-  state,
-  hosts,
-  onCreate,
-}: {
-  state: BubbleState
-  hosts: Host[]
-  onCreate: () => void
-}) {
-  const host = hosts.find(h => h.id === state.hostId)
-  const runtimeLabel = {
-    tmux: 'Direct (tmux)',
-    docker: 'Docker container',
-    ec2: 'AWS EC2 (dedicated)',
-    ecs: 'AWS ECS Fargate (serverless)',
-  }[state.runtime] || state.runtime
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h4 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{title}</h4>
+      {children}
+    </section>
+  )
+}
 
+/**
+ * The whole create flow on one page: a name, where it works, where it runs, then what runs it and the Create button.
+ * Everything is pre-filled (this computer, run directly, its own folder, Claude Code, Careful), so the fast path is to
+ * type a name and press Create; "Change" opens the other choices.
+ */
+function CreateForm({
+  nameInput, nameError, onNameChange, onCreate, workingDirectory, onDirectoryChange,
+  hosts, hostId, deploymentOptions, selectedDeployment, onDeploymentSelect, state,
+}: {
+  nameInput: string
+  nameError: string
+  onNameChange: (v: string) => void
+  onCreate: () => void
+  workingDirectory: string
+  onDirectoryChange: (v: string) => void
+  hosts: Host[]
+  hostId: string
+  deploymentOptions: DeploymentOption[]
+  selectedDeployment: DeploymentOption | null
+  onDeploymentSelect: (opt: DeploymentOption) => void
+  state: BubbleState
+}) {
+  const [showFolder, setShowFolder] = useState(false)
+  const [showWhere, setShowWhere] = useState(false)
+  const isCloud = state.runtime === 'ec2' || state.runtime === 'ecs'
+  const host = hosts.find(h => h.id === hostId)
+  const remoteHostId = host && !host.isSelf ? host.id : undefined
+  const name = nameInput.trim()
+
+  return (
+    <>
+    <div className="flex-1 overflow-y-auto p-4 space-y-4" data-testid="create-form">
+      <FormSection title="Name">
+        <input
+          type="text"
+          value={nameInput}
+          onChange={(e) => onNameChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') onCreate() }}
+          placeholder="my-agent"
+          autoFocus
+          data-testid="create-name"
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        />
+        {nameError
+          ? <p className="text-xs text-red-400 mt-1">{nameError}</p>
+          : <p className="text-xs text-gray-500 mt-1">Letters, numbers, dashes, and underscores only</p>}
+      </FormSection>
+
+      {!isCloud && (
+        <FormSection title="Where it works">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-gray-200 truncate" data-testid="create-folder">
+              {workingDirectory || `~/agents/${name || '<name>'}`}
+              {!workingDirectory && <span className="text-gray-500"> (its own folder)</span>}
+            </span>
+            <button
+              type="button"
+              onClick={() => { if (showFolder && workingDirectory) onDirectoryChange(''); setShowFolder(!showFolder) }}
+              className="text-xs text-blue-400 hover:text-blue-300 flex-shrink-0"
+            >
+              {showFolder ? 'Use its own folder' : 'Change'}
+            </button>
+          </div>
+          {showFolder && (
+            <div className="mt-2">
+              <DirectoryPicker value={workingDirectory} onChange={onDirectoryChange} hostId={remoteHostId} />
+            </div>
+          )}
+        </FormSection>
+      )}
+
+      <FormSection title="Where it runs">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-gray-200 truncate" data-testid="create-where">
+            {selectedDeployment?.label || 'Choose where it runs'}
+            {selectedDeployment && <span className="text-gray-500"> · {selectedDeployment.description}</span>}
+          </span>
+          <button type="button" onClick={() => setShowWhere(!showWhere)} className="text-xs text-blue-400 hover:text-blue-300 flex-shrink-0">
+            {showWhere ? 'Done' : 'Change'}
+          </button>
+        </div>
+        {showWhere && (
+          <div className="mt-2">
+            <DeploymentPicker options={deploymentOptions} onSelect={(o) => { onDeploymentSelect(o); setShowWhere(false) }} selectedId={selectedDeployment?.id} />
+          </div>
+        )}
+      </FormSection>
+
+      <FormSection title="What runs it">
+        <LaunchSection state={state} hosts={hosts} />
+      </FormSection>
+    </div>
+    <CreateFooter state={state} hosts={hosts} onCreate={onCreate} />
+    </>
+  )
+}
+
+const RUNTIME_LABEL: Record<Runtime, string> = {
+  tmux: 'Direct (tmux)',
+  docker: 'Docker container',
+  ec2: 'AWS EC2 (dedicated)',
+  ecs: 'AWS ECS Fargate (serverless)',
+}
+
+/** The pinned bottom of the form: one sentence saying what will be created, and the Create button. */
+function CreateFooter({ state, hosts, onCreate }: { state: BubbleState; hosts: Host[]; onCreate: () => void }) {
+  const host = hosts.find(h => h.id === state.hostId)
+  const isCloud = state.runtime === 'ec2' || state.runtime === 'ecs'
   const isEc2MissingRequired = state.runtime === 'ec2' && (!state.cloudDomain || !state.cloudSslEmail || !state.cloudKeyName)
+  const who = state.agentName || 'Your agent'
+  const where = host?.isSelf ? 'this computer' : (host?.name || state.hostId || 'this computer')
+  const folder = state.workingDirectory || `~/agents/${state.agentName || '<name>'}`
+  const reviewText = isCloud
+    ? `${who} will be deployed to AWS (${RUNTIME_LABEL[state.runtime]}).`
+    : state.runtime === 'docker'
+      ? `${who} will run Claude Code in ${folder}, in a Docker container on ${where}.`
+      : `${who} will run ${state.launch.selected.name}${state.launch.modes.length > 0 ? `, ${MODE_SUMMARY[state.launch.permissionMode]}` : ''}, in ${folder} on ${where}.`
+  const disabled = isEc2MissingRequired || !state.agentName
+
+  return (
+    <div className="px-4 py-3 border-t border-gray-700/50 bg-gray-900">
+      <p className="text-xs text-gray-400 leading-relaxed mb-2" data-testid="create-review">{reviewText}</p>
+      <button
+        onClick={onCreate}
+        disabled={disabled}
+        data-testid="create-submit"
+        className={`w-full px-4 py-2.5 text-white font-semibold rounded-lg shadow-lg transition-all duration-300 text-sm ${
+          disabled
+            ? 'bg-gray-600 cursor-not-allowed shadow-none'
+            : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/25 hover:shadow-green-500/40'
+        }`}
+      >
+        {isCloud ? 'Deploy to AWS!' : 'Create Agent!'}
+      </button>
+    </div>
+  )
+}
+
+/** What runs it: the launch choice for a local agent, plus the Docker and AWS options. */
+function LaunchSection({ state, hosts }: { state: BubbleState; hosts: Host[] }) {
+  const host = hosts.find(h => h.id === state.hostId)
 
   return (
     <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4 space-y-2.5">
-      <SummaryRow label="Name" value={state.agentName} />
-      {state.runtime !== 'ec2' && state.runtime !== 'ecs' && (
-        <SummaryRow label="Directory" value={state.workingDirectory || (state.runtime === 'tmux' ? `~/agents/${state.agentName}` : 'default')} />
-      )}
-      <SummaryRow label="Deployment" value={runtimeLabel} />
-      <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || state.hostId || 'Local')} />
       {state.runtime === 'tmux' ? (
-        <div className="border-t border-gray-700/50 pt-3" data-testid="create-launch-choice">
-          <LaunchChoicePanel c={state.launch} displayName={state.agentName} compact hostUrl={host && !host.isSelf ? host.url : undefined} />
+        <div data-testid="create-launch-choice">
+          <LaunchChoicePanel c={state.launch} displayName={state.agentName || 'your agent'} compact hostUrl={host && !host.isSelf ? host.url : undefined} />
           {state.launch.preview && (
             <p className="mt-2 text-[11px] text-gray-500 break-all" data-testid="create-preview">
               Will run: <code className="text-gray-300 font-mono">{state.launch.preview}</code>
@@ -1233,17 +1032,6 @@ function SummaryCard({
         </div>
       )}
 
-      <button
-        onClick={onCreate}
-        disabled={isEc2MissingRequired}
-        className={`w-full mt-3 px-4 py-2.5 text-white font-semibold rounded-lg shadow-lg transition-all duration-300 text-sm ${
-          isEc2MissingRequired
-            ? 'bg-gray-600 cursor-not-allowed shadow-none'
-            : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/25 hover:shadow-green-500/40 transform hover:scale-[1.02]'
-        }`}
-      >
-        {(state.runtime === 'ec2' || state.runtime === 'ecs') ? 'Deploy to AWS!' : 'Create Agent!'}
-      </button>
     </div>
   )
 }

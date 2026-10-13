@@ -3,6 +3,25 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.74.0] - 2026-10-12 - Creating an agent is one page (F040 step 3)
+
+The create wizard was a chat: four questions one at a time, a Back button and "Step 1 of 4". It is now a single form with everything pre-filled, so the fast path is to type a name and press Create.
+
+### Changed
+- **One form, four sections**: **Name**; **Where it works** (its own folder `~/agents/<name>` unless you press Change); **Where it runs** (this computer, run directly, unless you press Change, which lists the other computers, Docker and AWS with the current one highlighted); **What runs it** (the tool tiles with readiness dots, Careful / Balanced / Hands-off, options and the exact command for a local agent; Docker and AWS keep their advanced options).
+- **A pinned footer** states what will be created in one sentence ("aria will run GitHub Copilot CLI, asks for nothing, in ~/agents/aria on this computer.") above the Create button, so Create is always on screen. Enter in the name box also creates.
+- The name is checked when you press Create (empty: the button is disabled; invalid characters: the same message as before).
+- The creating animation, the success screen, the "program did not start" warning, the Windows folder notes and the error screen with a way back are unchanged.
+
+### Removed
+The chat bubbles, the step counter, the Back button and the two-second pauses between questions: about 220 lines of step machinery.
+
+### Verified in a browser
+Isolated instance (fake home, real tmux untouched, request intercepted so nothing was created): the form opens pre-filled (own folder, This Mac direct, Claude Code, Careful) with the readiness dots; the Create button is on screen without scrolling; empty name disables it, an invalid name shows the message; typing `aria` updates the sentence; choosing GitHub Copilot CLI and Hands-off updates it and the create request was `program: copilot, permissionMode: fullAutonomy, launchOptions: {}`; both Change controls open their picker and close again, with the folder picker offering "Use its own folder" to go back.
+
+### Still open in F040
+Docker and AWS agents still run Claude Code only (no tool choice for them), and a visible "Wake with..." control (it is still Shift-click).
+
 ## [0.73.0] - 2026-10-12 - The wake dialog and create wizard say which tools can actually start on the host (F040 step 4)
 
 Until now you found out a tool was missing after the click ("did not start"). The tool tiles now carry a small status dot, and the selected tool shows one line saying whether it is installed, its version, and if not, how to install it.

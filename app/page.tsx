@@ -27,6 +27,7 @@ import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon,
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
+import { canWakeInOneClick, oneClickWakeOptions, oneClickToast } from '@/lib/wake-flow'
 
 // Dynamic imports for heavy components that are conditionally rendered
 // This reduces initial bundle size by ~100KB+
@@ -489,16 +490,25 @@ export default function DashboardPage() {
   const [wakeDialogAgent, setWakeDialogAgent] = useState<Agent | null>(null)
 
   // Opens the wake dialog to select CLI
-  const handleWakeAgent = (agent: Agent) => {
+  const handleWakeAgent = (agent: Agent, choose?: boolean) => {
     if (wakingAgentId === agent.id) return
-    setWakeDialogAgent(agent)
+    // One click wakes with what the agent already has; Shift-click, or a first wake, opens the dialog.
+    if (choose || !canWakeInOneClick(agent)) {
+      setWakeDialogAgent(agent)
+      return
+    }
+    const t = oneClickToast(agent.alias || agent.name, agent)
+    addToast({ type: t.handsOff ? 'warning' : 'info', title: t.title, message: t.message, duration: 4000 })
+    void performWake(agent, '', oneClickWakeOptions(agent))
+  }
+
+  const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
+    if (!wakeDialogAgent) return
+    await performWake(wakeDialogAgent, program, options)
   }
 
   // Performs the actual wake with selected program
-  const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
-    if (!wakeDialogAgent) return
-
-    const agent = wakeDialogAgent
+  const performWake = async (agent: Agent, program: string, options?: WakeChoiceOptions) => {
 
     // Close dialog immediately so UI isn't blocked
     setWakeDialogAgent(null)
@@ -988,7 +998,7 @@ export default function DashboardPage() {
                             <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
                             <button
-                              onClick={() => handleWakeAgent(agent)}
+                              onClick={(e) => handleWakeAgent(agent, e.shiftKey)}
                               disabled={wakingAgentId === agent.id}
                               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
                             >
@@ -1042,7 +1052,7 @@ export default function DashboardPage() {
                             <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">Wake this agent to use the chat interface</p>
                             <button
-                              onClick={() => handleWakeAgent(agent)}
+                              onClick={(e) => handleWakeAgent(agent, e.shiftKey)}
                               disabled={wakingAgentId === agent.id}
                               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
                             >

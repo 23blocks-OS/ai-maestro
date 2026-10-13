@@ -10,6 +10,7 @@ import type { TaskWithDeps } from '@/types/task'
 import WakeAgentDialog from '@/components/WakeAgentDialog'
 import { useToast } from '@/contexts/ToastContext'
 import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
+import { canWakeInOneClick, oneClickWakeOptions, oneClickToast } from '@/lib/wake-flow'
 
 interface MeetingSidebarProps {
   agents: Agent[]
@@ -76,13 +77,22 @@ export default function MeetingSidebar({
   const handleWake = (agent: Agent, e: React.MouseEvent) => {
     e.stopPropagation()
     if (wakingAgents.has(agent.id)) return
-    setWakeDialogAgent(agent)
+    // One click wakes with what the agent already has; Shift-click, or a first wake, opens the dialog.
+    if (e.shiftKey || !canWakeInOneClick(agent)) {
+      setWakeDialogAgent(agent)
+      return
+    }
+    const t = oneClickToast(agent.alias || agent.name, agent)
+    addToast({ type: t.handsOff ? 'warning' : 'info', title: t.title, message: t.message, duration: 4000 })
+    void performWake(agent, '', oneClickWakeOptions(agent))
   }
 
   const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
     if (!wakeDialogAgent) return
+    await performWake(wakeDialogAgent, program, options)
+  }
 
-    const agent = wakeDialogAgent
+  const performWake = async (agent: Agent, program: string, options?: WakeChoiceOptions) => {
     setWakingAgents(prev => new Set(prev).add(agent.id))
 
     try {

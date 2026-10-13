@@ -54,6 +54,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { computeHash, getAvatarUrl } from '@/lib/hash-utils'
 import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
+import { canWakeInOneClick, oneClickWakeOptions, oneClickToast } from '@/lib/wake-flow'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -488,14 +489,23 @@ export default function AgentList({
   const handleWake = (agent: UnifiedAgent, e: React.MouseEvent) => {
     e.stopPropagation()
     if (wakingAgents.has(agent.id)) return
-    // Open the dialog to select which CLI to use
-    setWakeDialogAgent(agent)
+    // One click wakes with what the agent already has (its tool, mode and options). The dialog opens for a
+    // first wake, or when the person asks to choose (Shift-click).
+    if (e.shiftKey || !canWakeInOneClick(agent)) {
+      setWakeDialogAgent(agent)
+      return
+    }
+    const t = oneClickToast(agent.alias || agent.name, agent)
+    addToast({ type: t.handsOff ? 'warning' : 'info', title: t.title, message: t.message, duration: 4000 })
+    void performWake(agent, '', oneClickWakeOptions(agent))
   }
 
   const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
     if (!wakeDialogAgent) return
+    await performWake(wakeDialogAgent, program, options)
+  }
 
-    const agent = wakeDialogAgent
+  const performWake = async (agent: UnifiedAgent, program: string, options?: WakeChoiceOptions) => {
     setWakingAgents(prev => new Set(prev).add(agent.id))
 
     try {
@@ -1391,7 +1401,7 @@ export default function AgentList({
                                                 onClick={(e) => handleWake(agent, e)}
                                                 disabled={wakingAgents.has(agent.id)}
                                                 className="p-1 rounded hover:bg-green-500/20 text-gray-400 hover:text-green-400 transition-all duration-200 disabled:opacity-50"
-                                                title="Wake agent (start session)"
+                                                title="Wake agent (Shift-click to choose how)"
                                               >
                                                 {wakingAgents.has(agent.id) ? (
                                                   <RefreshCw className="w-3 h-3 animate-spin" />

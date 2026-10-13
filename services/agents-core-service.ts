@@ -67,6 +67,7 @@ import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, grokPermissionFlags, copilotPermissionFlags, type ResolvedProgram } from '@/lib/program-command'
+import { sanitizeLaunchOptions, launchOptionArgs } from '@/lib/launch-options'
 import { rememberLaunchChoice } from '@/lib/launch-choice'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import {
@@ -211,6 +212,8 @@ export interface WakeAgentParams {
   allowHostFallback?: boolean
   /** Save the program and permission mode on the agent after a successful choice (F040). */
   remember?: boolean
+  /** The tool's declared launch choices for this wake (lib/launch-options). Validated on the server; unknown or invalid ones are dropped. */
+  launchOptions?: Record<string, string | boolean>
 }
 
 export interface HibernateAgentParams {
@@ -1674,7 +1677,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
 
     // The screen asked to remember what this agent is woken with (F040). Best effort: a failed save never
     // stops the wake, and only a program that will really launch is stored.
-    if (remember) rememberLaunchChoice(agentId, { program: programOverride, permissionMode: params.permissionMode })
+    if (remember) rememberLaunchChoice(agentId, { program: programOverride, permissionMode: params.permissionMode, launchOptions: params.launchOptions })
 
     // ─── Cloud (containerized) agents: dispatch to docker before host tmux ───
     // Fixes swickson/ai-maestro#6 — without this branch, wakeAgent silently runs
@@ -1884,8 +1887,12 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
             fullCommand = `${startCommand} ${args}`
           }
         }
-        if (agent.model) {
-          fullCommand = `${fullCommand} --model ${agent.model}`
+        // The tool's declared launch choices (lib/launch-options): this wake's, else the ones remembered on the
+        // agent. The model among them replaces the agent's model; the rest follow the permission flags below.
+        const launchOpts = sanitizeLaunchOptions(resolved.kind, params.launchOptions ?? agent.launchOptions)
+        const chosenModel = typeof launchOpts.model === 'string' ? launchOpts.model : agent.model
+        if (chosenModel) {
+          fullCommand = `${fullCommand} --model ${chosenModel}`
         }
 
         // Grok Build: its own flag set (see grokPermissionFlags). None of the
@@ -1900,6 +1907,12 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         if (resolved.kind === 'copilot') {
           const copilotFlags = copilotPermissionFlags(params.permissionMode || agent.permissionMode)
           if (copilotFlags) fullCommand = `${fullCommand} ${copilotFlags}`
+        }
+
+        // Pi and Copilot CLI choices (continue, effort, extra folder...), and Grok's continue. Claude Code has only the model.
+        if (resolved.kind !== 'claude') {
+          const optionArgs = launchOptionArgs(resolved.kind, launchOpts)
+          if (optionArgs.length > 0) fullCommand = `${fullCommand} ${optionArgs.join(' ')}`
         }
 
         // Inject --permission-mode for claude-based programs. Keyed off the

@@ -14,6 +14,7 @@ import {
   type ProgramChoice,
 } from '@/lib/program-choices'
 import type { WakeChoiceOptions } from '@/lib/wake-request'
+import { launchOptionsFor, sanitizeLaunchOptions, previewCommand, type LaunchOptions } from '@/lib/launch-options'
 
 interface WakeAgentDialogProps {
   isOpen: boolean
@@ -29,6 +30,8 @@ interface WakeAgentDialogProps {
   defaultPermissionMode?: AgentPermissionMode
   /** The agent's own program. The dialog starts on it (it used to always start on Claude Code). */
   defaultProgram?: string
+  /** The options remembered on the agent (model, effort, continue...). */
+  defaultLaunchOptions?: LaunchOptions
 }
 
 const ICONS: Record<string, typeof Code2> = { claude: Sparkles, terminal: Terminal, current: Cpu }
@@ -49,6 +52,7 @@ export default function WakeAgentDialog({
   agentAlias,
   defaultPermissionMode,
   defaultProgram,
+  defaultLaunchOptions,
 }: WakeAgentDialogProps) {
   const start = initialWakeSelection(defaultProgram, defaultPermissionMode)
   const [selectedId, setSelectedId] = useState<string>(start.choiceId)
@@ -57,6 +61,7 @@ export default function WakeAgentDialog({
   const [remember, setRemember] = useState(true)
   const [showMore, setShowMore] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [options, setOptions] = useState<LaunchOptions>({})
   const [isWaking, setIsWaking] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -74,9 +79,14 @@ export default function WakeAgentDialog({
     setExecMode('terminal')
     setRemember(true)
     setShowMore(PROGRAM_CHOICES.find((c) => c.id === s.choiceId)?.group === 'more')
-    setShowAdvanced(false)
+    // Options remembered on the agent are shown open, so nothing hidden changes how it starts.
+    const kind = PROGRAM_CHOICES.find((c) => c.id === s.choiceId)?.kind
+    const remembered = sanitizeLaunchOptions(kind, defaultLaunchOptions)
+    setOptions(remembered)
+    setShowAdvanced(Object.keys(remembered).length > 0)
     setIsWaking(false)
-  }, [isOpen, defaultProgram, defaultPermissionMode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultProgram, defaultPermissionMode, JSON.stringify(defaultLaunchOptions || {})])
 
   const currentOption: ProgramChoice | null =
     selectedId === 'current' && defaultProgram
@@ -85,12 +95,28 @@ export default function WakeAgentDialog({
   const selected = currentOption || PROGRAM_CHOICES.find((c) => c.id === selectedId) || PROGRAM_CHOICES[0]
   const modes = permissionModesFor(selected.kind)
   const noChoiceNote = noPermissionChoiceNote(selected.kind)
+  const decls = launchOptionsFor(selected.kind)
+  const clean = sanitizeLaunchOptions(selected.kind, options)
+  const setCount = Object.keys(clean).length
+  const hasAdvanced = decls.length > 0 || selected.kind === 'claude'
+  const preview = selectedId === 'current' || selected.command === 'none'
+    ? null
+    : previewCommand({ command: selected.command, kind: selected.kind, mode: modes.length > 0 ? permissionMode : undefined, options: clean })
+  const setOption = (id: string, value: string | boolean | undefined) =>
+    setOptions((prev) => {
+      const next = { ...prev }
+      if (value === undefined || value === '' || value === false) delete next[id]
+      else next[id] = value
+      return next
+    })
 
   const handleProgramChange = (choice: ProgramChoice) => {
     setSelectedId(choice.id)
     const allowed = permissionModesFor(choice.kind)
     // A mode the new tool cannot honour falls back to the safe default instead of silently staying selected.
     setPermissionMode((prev) => (allowed.includes(prev) ? prev : 'supervised'))
+    // Options belong to a tool: keep only the ones the new tool declares.
+    setOptions((prev) => sanitizeLaunchOptions(choice.kind, prev))
   }
 
   const handleConfirm = () => {
@@ -98,6 +124,7 @@ export default function WakeAgentDialog({
     onConfirm(selectedId === 'current' ? '' : selected.id, {
       permissionMode: modes.length > 0 ? permissionMode : undefined,
       execMode: selected.kind === 'claude' ? execMode : undefined,
+      launchOptions: decls.length > 0 ? clean : undefined,
       remember,
     })
     // The dialog is closed by the parent once the wake finishes.
@@ -209,42 +236,90 @@ export default function WakeAgentDialog({
                   <p className="px-6 pb-3 text-[11px] text-zinc-500" data-testid="wake-no-permissions">{noChoiceNote}</p>
                 )}
 
-                {/* Advanced: execution mode, Claude Code only. Collapsed: most people never change it. */}
-                {selected.kind === 'claude' && (
-                  <div className="px-6 pb-3">
+                {/* More options: the tool's own declared choices (generated), then Claude's execution mode. Collapsed unless
+                    something is already set, so nothing hidden changes how the agent starts. */}
+                {hasAdvanced && (
+                  <div className="px-6 pb-3" data-testid="wake-options">
                     <button
                       type="button"
                       onClick={() => setShowAdvanced(!showAdvanced)}
                       className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                     >
                       <ChevronRight className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
-                      Advanced
+                      More options{setCount > 0 ? ` (${setCount} set)` : ''}
                     </button>
                     {showAdvanced && (
-                      <div className="mt-2">
-                        <p className="text-xs text-zinc-500 mb-2">Execution mode</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setExecMode('terminal')}
-                            disabled={isWaking}
-                            className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'terminal' ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
-                          >
-                            <div className={`text-sm font-medium ${execMode === 'terminal' ? 'text-emerald-400' : 'text-zinc-200'}`}>Terminal</div>
-                            <div className="text-[11px] text-zinc-500">tmux TUI · full terminal</div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setExecMode('streaming')}
-                            disabled={isWaking}
-                            className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'streaming' ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
-                          >
-                            <div className={`text-sm font-medium ${execMode === 'streaming' ? 'text-amber-400' : 'text-zinc-200'}`}>Streaming</div>
-                            <div className="text-[11px] text-zinc-500">clean chat · no terminal</div>
-                          </button>
-                        </div>
-                        {execMode === 'streaming' && (
-                          <p className="text-[11px] text-amber-400/70 mt-2">Continues the agent’s latest conversation. No terminal view. Needs a headless token.</p>
+                      <div className="mt-2 space-y-2.5">
+                        {decls.map((d) => {
+                          const raw = options[d.id]
+                          const typed = typeof raw === 'string' ? raw : ''
+                          const invalid = d.type === 'text' && typed.trim() !== '' && clean[d.id] === undefined
+                          return (
+                            <div key={d.id}>
+                              {d.type === 'toggle' ? (
+                                <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                                  <input type="checkbox" checked={raw === true} onChange={(e) => setOption(d.id, e.target.checked)} disabled={isWaking} className="rounded border-zinc-600" />
+                                  {d.label}
+                                </label>
+                              ) : (
+                                <label className="block">
+                                  <span className="block text-xs text-zinc-400 mb-1">{d.label}</span>
+                                  {d.type === 'choice' ? (
+                                    <select
+                                      value={typed}
+                                      onChange={(e) => setOption(d.id, e.target.value)}
+                                      disabled={isWaking}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-xs text-zinc-200"
+                                    >
+                                      <option value="">default</option>
+                                      {d.choices?.map((c) => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      value={typed}
+                                      onChange={(e) => setOption(d.id, e.target.value)}
+                                      disabled={isWaking}
+                                      placeholder={d.placeholder}
+                                      spellCheck={false}
+                                      className={`w-full bg-zinc-800 border rounded-md px-2 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 ${invalid ? 'border-red-500/60' : 'border-zinc-700'}`}
+                                    />
+                                  )}
+                                </label>
+                              )}
+                              <p className={`mt-1 text-[11px] ${invalid ? 'text-red-300' : 'text-zinc-600'}`}>
+                                {invalid ? 'Letters, digits and . _ - / : @ + ~ only, no spaces. This value will not be used.' : d.help}
+                              </p>
+                            </div>
+                          )
+                        })}
+                        {selected.kind === 'claude' && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-2">Execution mode</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setExecMode('terminal')}
+                                disabled={isWaking}
+                                className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'terminal' ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
+                              >
+                                <div className={`text-sm font-medium ${execMode === 'terminal' ? 'text-emerald-400' : 'text-zinc-200'}`}>Terminal</div>
+                                <div className="text-[11px] text-zinc-500">tmux TUI · full terminal</div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setExecMode('streaming')}
+                                disabled={isWaking}
+                                className={`p-2.5 rounded-lg border text-left transition-all ${execMode === 'streaming' ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}
+                              >
+                                <div className={`text-sm font-medium ${execMode === 'streaming' ? 'text-amber-400' : 'text-zinc-200'}`}>Streaming</div>
+                                <div className="text-[11px] text-zinc-500">clean chat · no terminal</div>
+                              </button>
+                            </div>
+                            {execMode === 'streaming' && (
+                              <p className="text-[11px] text-amber-400/70 mt-2">Continues the agent’s latest conversation. No terminal view. Needs a headless token.</p>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -262,6 +337,11 @@ export default function WakeAgentDialog({
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-zinc-700 bg-zinc-800/50">
+                {preview && (
+                  <p className="text-[11px] mb-1.5 text-zinc-500 break-all max-h-16 overflow-y-auto" data-testid="wake-preview">
+                    Will run: <code className="text-zinc-300 font-mono">{preview}</code>
+                  </p>
+                )}
                 <p className={`text-[11px] mb-3 ${modes.length > 0 && permissionMode === 'fullAutonomy' ? 'text-red-300' : 'text-zinc-500'}`} data-testid="wake-summary">
                   {selectedId === 'current'
                     ? `${displayName} will keep running ${defaultProgram}.`

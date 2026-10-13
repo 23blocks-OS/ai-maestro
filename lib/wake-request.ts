@@ -13,6 +13,8 @@ export interface WakeChoiceOptions {
   execMode?: 'terminal' | 'streaming'
   /** Save the program and mode on the agent, so the next wake needs no choice. */
   remember?: boolean
+  /** The tool's declared launch choices (lib/launch-options); the server validates them. */
+  launchOptions?: Record<string, string | boolean>
 }
 
 export function buildWakeBody(
@@ -26,6 +28,8 @@ export function buildWakeBody(
   if (options?.permissionMode && (ALL_PERMISSION_MODES as string[]).includes(options.permissionMode)) {
     body.permissionMode = options.permissionMode
   }
+  // An empty set is sent too: it means "none", and must not fall back to what the agent remembered.
+  if (options?.launchOptions) body.launchOptions = options.launchOptions
   if (options?.remember === true) body.remember = true
   return body
 }

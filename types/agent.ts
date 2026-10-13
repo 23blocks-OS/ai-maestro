@@ -244,6 +244,7 @@ export interface Agent {
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
   taskDescription: string       // What this agent is working on
   programArgs?: string          // CLI arguments passed to the program on launch (e.g., "--continue --chrome")
+  launchOptions?: Record<string, string | boolean>  // The tool's declared launch choices (lib/launch-options): model, effort, resume...
   permissionMode?: AgentPermissionMode  // Trust level for agent autonomy (default: 'supervised')
   launchCount?: number          // Number of times agent has been woken/launched (0 = never launched)
   tags?: string[]               // Optional tags (e.g., ["backend", "api", "typescript"])
@@ -561,6 +562,7 @@ export interface UpdateAgentRequest {
   taskDescription?: string
   program?: string              // Set by wake-and-remember (F040); validated by resolveProgramCommand at launch
   programArgs?: string          // CLI arguments passed to the program on launch
+  launchOptions?: Record<string, string | boolean>  // Set by wake-and-remember (F040); validated by lib/launch-options
   permissionMode?: AgentPermissionMode  // Update trust level
   tags?: string[]
   owner?: string

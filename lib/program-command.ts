@@ -120,37 +120,5 @@ export function isNoProgram(program: string): boolean {
   return isNoProgramName(program)
 }
 
-/**
- * Grok Build launch flags for an agent's permission mode.
- *
- * Grok's `--permission-mode` takes the SAME values Claude Code does (default,
- * acceptEdits, auto, dontAsk, bypassPermissions, plan), so the Claude mapping
- * applies unchanged; full autonomy uses Grok's own `--always-approve` (the
- * documented name for bypassPermissions). Supervised adds nothing: it is
- * Grok's default.
- *
- * Deliberately NOT here: Claude's --channels, alternate-screen and telemetry
- * env. Folder trust: Grok has no trust flag and shows no trust prompt on a fresh
- * folder (verified on 1.0.46), so unlike Claude (~/.claude.json) nothing needs
- * pre-trusting.
- */
-export function grokPermissionFlags(mode: AgentPermissionMode | string | undefined | null): string {
-  const m = (mode || 'supervised') as AgentPermissionMode
-  if (m === 'supervised') return ''
-  if (m === 'fullAutonomy') return '--always-approve'
-  const cli = PERMISSION_MODE_TO_CLI[m]
-  return cli ? `--permission-mode ${cli}` : ''
-}
-
-/**
- * GitHub Copilot CLI launch flags for an agent's permission mode (checked on Copilot CLI 1.0.96, 2026-10-12).
- *
- * Supervised adds nothing: Copilot asks before it runs a tool. Full autonomy uses `--allow-all-tools`, which
- * stops the per-tool questions but keeps Copilot's path and URL checks (`--allow-all` and `--yolo` would also
- * switch those off, so they are not used). Copilot has no equivalents of Claude's plan, accept-edits and auto
- * modes, so those add nothing. First launch in a new folder asks "Do you trust the files in this folder?";
- * that question is the person's to answer, so no flag here answers it.
- */
-export function copilotPermissionFlags(mode: AgentPermissionMode | string | undefined | null): string {
-  return mode === 'fullAutonomy' ? '--allow-all-tools' : ''
-}
+// Grok Build and Copilot CLI permission flags live in lib/launch-options (browser-safe, shared with the wake dialog).
+export { grokPermissionFlags, copilotPermissionFlags } from '@/lib/launch-options'

@@ -317,6 +317,12 @@ if [ -x "./scripts/install-aim-secret.sh" ]; then
     ./scripts/install-aim-secret.sh || print_warning "Could not install aim-secret on the PATH"
 fi
 
+# The way back in: the `ai-maestro` command, the AI Maestro app (macOS) or menu entry (Linux desktop).
+# Refreshes what is there; never turns start-at-login on by itself (see scripts/install-launcher.sh).
+if [ "${AIM_NO_LAUNCHER:-}" != "1" ] && [ -x "./scripts/install-launcher.sh" ]; then
+    ./scripts/install-launcher.sh </dev/null || print_warning "Could not install the AI Maestro launcher (AIM_NO_LAUNCHER=1 skips it)"
+fi
+
 # safe-psql (the agentic-sql skill's SQL gate) on the PATH, in a private Python environment
 if [ -x "./scripts/install-safe-psql.sh" ]; then
     ./scripts/install-safe-psql.sh || print_warning "Could not set up safe-psql (the agentic-sql skill will say so and stop)"

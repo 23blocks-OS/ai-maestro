@@ -32,6 +32,7 @@ SKIP_GRAPH=false
 SKIP_DOCS=false
 SKIP_HOOKS=false
 SKIP_AGENT_CLI=false
+SKIP_LAUNCHER=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -68,6 +69,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_AGENT_CLI=true
             shift
             ;;
+        --skip-launcher)
+            SKIP_LAUNCHER=true
+            shift
+            ;;
         -h|--help)
             echo "AI Maestro - Complete Installation Script"
             echo ""
@@ -82,6 +87,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-docs            Skip documentation tools"
             echo "  --skip-hooks           Skip Claude Code hooks"
             echo "  --skip-agent-cli       Skip agent management CLI"
+            echo "  --skip-launcher        Skip the ai-maestro command and the desktop app / menu entry"
             echo "  -h, --help             Show this help message"
             exit 0
             ;;
@@ -925,6 +931,17 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             ./install-agent-cli.sh
         fi
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
+
+    # The way back in: the ai-maestro command, the AI Maestro app (macOS) or menu entry (Linux desktop)
+    if [ "$SKIP_LAUNCHER" != true ] && [ -f "scripts/install-launcher.sh" ]; then
+        echo ""
+        print_step "Installing the AI Maestro launcher..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./scripts/install-launcher.sh </dev/null || print_warning "Could not install the launcher (re-run: ./scripts/install-launcher.sh)"
+        else
+            ./scripts/install-launcher.sh || print_warning "Could not install the launcher (re-run: ./scripts/install-launcher.sh)"
+        fi
     fi
 
     # Install selected gateways

@@ -15,6 +15,8 @@ export async function POST(request: Request) {
       avatar: body.avatar,
       programArgs: body.programArgs,
       program: body.program,
+      permissionMode: body.permissionMode,
+      launchOptions: body.launchOptions,
     })
 
     return toResponse(result)

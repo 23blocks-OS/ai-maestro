@@ -6,6 +6,9 @@ import { X, ArrowLeft, ChevronRight, Monitor, Server, Cloud, Lock, Wifi, WifiOff
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import DirectoryPicker from './DirectoryPicker'
 import TrustLevelSelector from './TrustLevelSelector'
+import LaunchChoicePanel from './launch/LaunchChoicePanel'
+import { useLaunchChoice, type LaunchChoice } from '@/hooks/useLaunchChoice'
+import { programForCreate } from '@/lib/program-choices'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
 import type { AgentPermissionMode } from '@/types/agent'
@@ -211,6 +214,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [dockerOnHibernate, setDockerOnHibernate] = useState('')
   const [dockerGithubToken, setDockerGithubToken] = useState('')
   const [permissionMode, setPermissionMode] = useState<AgentPermissionMode>('supervised')
+  // The tool and how freely it acts, for a local agent. Starts on Claude Code, Careful, as the wizard always did.
+  const launch = useLaunchChoice({ defaultProgram: 'claude-code', defaultPermissionMode: 'supervised' })
   const [dockerMeshAware, setDockerMeshAware] = useState(false)
   const [dockerAutoRemove, setDockerAutoRemove] = useState(false)
 
@@ -350,7 +355,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
 
     const personaName = getRandomAlias(agentName)
     const avatarUrl = getPreviewAvatarUrl(agentName)
-    const program = 'claude-code'  // Default to Claude Code
+    // Local agents run the tool chosen in the summary; Docker and AWS agents run Claude Code, as before.
+    const program = runtime === 'tmux' ? programForCreate(launch.selected) : 'claude-code'
 
     try {
       if (runtime === 'ec2' || runtime === 'ecs') {
@@ -436,6 +442,9 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
             label: personaName,
             avatar: avatarUrl,
             program,
+            // Sent only for a tool that has them; the server drops anything the tool cannot honour.
+            permissionMode: launch.modes.length > 0 ? launch.permissionMode : undefined,
+            launchOptions: launch.decls.length > 0 ? launch.clean : undefined,
           }),
         })
         const data = await response.json().catch(() => ({}))
@@ -455,7 +464,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, permissionMode, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken])
+  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, permissionMode, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch])
 
   // Animation timer
   const isCloudRuntime = runtime === 'ec2' || runtime === 'ecs'
@@ -663,6 +672,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                         cloudInstanceType, setCloudInstanceType,
                         cloudEcsCpu, setCloudEcsCpu, cloudEcsMemory, setCloudEcsMemory,
                         cloudAnthropicKey, setCloudAnthropicKey, cloudGithubToken, setCloudGithubToken,
+                        launch,
                       }}
                       nameInput={nameInput}
                       nameError={nameError}
@@ -736,6 +746,7 @@ interface BubbleState {
   dockerOnHibernate: string; setDockerOnHibernate: (v: string) => void
   dockerGithubToken: string; setDockerGithubToken: (v: string) => void
   permissionMode: AgentPermissionMode; setPermissionMode: (v: AgentPermissionMode) => void
+  launch: LaunchChoice
   dockerMeshAware: boolean; setDockerMeshAware: (v: boolean) => void
   dockerAutoRemove: boolean; setDockerAutoRemove: (v: boolean) => void
   cloudEcrImageOverride: string; setCloudEcrImageOverride: (v: string) => void
@@ -1059,7 +1070,18 @@ function SummaryCard({
       )}
       <SummaryRow label="Deployment" value={runtimeLabel} />
       <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || state.hostId || 'Local')} />
-      <SummaryRow label="AI Tool" value="Claude Code" />
+      {state.runtime === 'tmux' ? (
+        <div className="border-t border-gray-700/50 pt-3" data-testid="create-launch-choice">
+          <LaunchChoicePanel c={state.launch} displayName={state.agentName} compact />
+          {state.launch.preview && (
+            <p className="mt-2 text-[11px] text-gray-500 break-all" data-testid="create-preview">
+              Will run: <code className="text-gray-300 font-mono">{state.launch.preview}</code>
+            </p>
+          )}
+        </div>
+      ) : (
+        <SummaryRow label="AI Tool" value="Claude Code" />
+      )}
 
       {/* Advanced options — collapsible */}
       {(state.runtime === 'docker' || state.runtime === 'ec2' || state.runtime === 'ecs') && (

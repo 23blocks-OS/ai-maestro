@@ -7,7 +7,7 @@
  * Claude-named modes for every tool.
  */
 import type { AgentPermissionMode } from '@/types/agent'
-import { matchProgramName, isNoProgramName, looksLikeProgramPath, type ProgramKind } from '@/lib/program-names'
+import { matchProgramName, isNoProgramName, looksLikeProgramPath, storedProgramName, type ProgramKind } from '@/lib/program-names'
 
 export const ALL_PERMISSION_MODES: AgentPermissionMode[] = ['supervised', 'planOnly', 'trustEdits', 'smartAuto', 'fullAutonomy']
 
@@ -59,6 +59,15 @@ export const PROGRAM_CHOICES: ProgramChoice[] = [
   { id: 'openclaw', name: 'OpenClaw', description: 'Runs in the terminal tab; no chat view yet', command: 'openclaw', kind: 'openclaw', group: 'more' },
   { id: 'terminal', name: 'Terminal Only', description: 'Plain shell without an AI assistant', command: 'none', kind: null, group: 'shell' },
 ]
+
+/**
+ * The program value a NEW agent is stored with for a chosen tool: Claude Code under its long-standing
+ * "claude-code", a plain terminal as "none", every other tool under its command.
+ */
+export function programForCreate(choice: ProgramChoice): string {
+  if (choice.command === 'none') return 'none'
+  return choice.kind ? storedProgramName(choice.kind, choice.command) : choice.command
+}
 
 /** The offered choice for an agent's stored program, or null (a wrapper path, Aider, Cursor, anything else). */
 export function choiceForProgram(program: string | undefined | null): ProgramChoice | null {

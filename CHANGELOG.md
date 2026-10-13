@@ -3,6 +3,27 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.72.0] - 2026-10-12 - Creating an agent: choose the tool and how freely it acts; create and wake now start a program the same way (F040 step 3, first part)
+
+The create wizard always started Claude Code and had no way to choose anything else; the permission choice existed only inside Docker's advanced options. And creating an agent typed a bare `claude`, while a wake built the full command, so a new agent behaved differently until its first wake.
+
+### Added
+- **The wizard's summary step is the launch choice** for an agent that runs on this computer: the same tool tiles, Careful / Balanced / Hands-off (+ Read-only), "More options" and "Will run: ..." line as the wake dialog. It is one shared panel (`components/launch/LaunchChoicePanel.tsx`) and one shared state hook (`hooks/useLaunchChoice.ts`), so the two screens cannot drift. Docker and AWS agents are unchanged (Claude Code, as before).
+- `POST /api/sessions/create` accepts `permissionMode` and `launchOptions`. Each is checked against the tool: a mode the tool has no flag for, an option it does not declare, or a value with shell characters is dropped, not stored. What is kept is saved on the agent, so the next wake starts the same way. Remote hosts get both.
+
+### Changed
+- **One launch command builder** (`lib/launch-command.ts`) for waking and creating, pinned by golden tests for every tool and mode. A new Claude Code agent now starts exactly as a wake would start it: the scrollback fix (`CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`, so the terminal tab can scroll from the first minute), the permission mode, and, when enabled, the channel flag, telemetry and native session name. Before, those only appeared after the first wake. The wake's own behaviour is unchanged (same strings, now tested).
+- The wake dialog is now built from the shared panel and hook: 420 lines became 170, with the same behaviour.
+- Panel has a compact mode for the wizard's narrow column.
+
+### Verified
+- Unit tests: golden command strings for Claude, Grok, Copilot, Pi and the rest; `createSession` types the full command, saves mode and options, drops what a tool cannot honour and refuses shell characters.
+- In a browser (isolated instance, fake home; real fleet and tmux untouched, nothing created): the summary shows the panel; Claude Code and Careful by default and the create request carried `program: claude-code, permissionMode: supervised, launchOptions: {}`; choosing Copilot narrowed the stops to Careful and Hands-off with the reason for the missing one, Hands-off changed the line to `copilot --allow-all-tools`, and setting a model and effort gave `copilot --model gpt-5 --allow-all-tools --reasoning-effort high`.
+- Not captured in a browser: the create request for a non-default choice (the browser session was unstable at that point); that path is covered by the `createSession` tests.
+
+### Not in this step
+The wizard is still the chat-style flow (name, folder, where, summary). Folding it into one page, the readiness check and showing a tool's installed state are the rest of F040 step 3 and 4.
+
 ## [0.71.0] - 2026-10-12 - One-click wake, and "how much should it ask" in plain words (F040 step 2)
 
 Two changes to how an agent is woken. Waking no longer asks questions it already knows the answer to, and the permission choice is three plain stops instead of five Claude-named modes.

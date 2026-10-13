@@ -63,6 +63,10 @@ import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram } from '@/lib/program-command'
+import { buildLaunchCommand } from '@/lib/launch-command'
+import { sanitizeLaunchOptions } from '@/lib/launch-options'
+import { permissionModesFor } from '@/lib/program-choices'
+import type { AgentPermissionMode } from '@/types/agent'
 import { paneSubmitted, paneStaged, clearInputKeys } from '@/lib/notification-service'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import crypto from 'crypto'
@@ -90,6 +94,10 @@ export interface CreateSessionParams {
   avatar?: string
   programArgs?: string
   program?: string
+  /** How freely the tool may act (see lib/program-choices for what each tool honours). Saved on the agent. */
+  permissionMode?: string
+  /** The tool's declared launch choices (lib/launch-options). Validated here; saved on the agent. */
+  launchOptions?: Record<string, string | boolean>
 }
 
 export interface RestoreResult {
@@ -837,6 +845,14 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
 }>> {
   const { name, workingDirectory, agentId, hostId, label, avatar, programArgs, program } = params
 
+  // The tool the agent runs decides which permission modes and options mean anything. Anything the tool cannot
+  // honour is dropped, not stored: it would look chosen and do nothing.
+  const chosenProgram = program || 'claude-code'
+  const chosenKind = isNoProgram(chosenProgram) ? null : resolveProgramCommand(chosenProgram).kind
+  const allowedModes = permissionModesFor(chosenKind)
+  const chosenMode = allowedModes.includes(params.permissionMode as AgentPermissionMode) ? (params.permissionMode as AgentPermissionMode) : undefined
+  const chosenOptions = sanitizeLaunchOptions(chosenKind, params.launchOptions)
+
   if (!name || typeof name !== 'string') {
     return missingField('name')
   }
@@ -855,7 +871,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     try {
       const remoteUrl = `${targetHost.url}/api/sessions/create`
       console.log(`[Sessions] Creating session "${name}" on remote host ${targetHost.name} at ${remoteUrl}`)
-      const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label, avatar, programArgs, program })
+      const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label, avatar, programArgs, program, permissionMode: params.permissionMode, launchOptions: params.launchOptions })
       console.log(`[Sessions] Successfully created session "${name}" on ${targetHost.name}`)
       return { data, status: 200 }
     } catch (error) {
@@ -921,6 +937,8 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
         createSession: true,
         workingDirectory: cwd,
         programArgs: programArgs || '',
+        ...(chosenMode ? { permissionMode: chosenMode } : {}),
+        ...(Object.keys(chosenOptions).length > 0 ? { launchOptions: chosenOptions } : {}),
       })
       console.log(`[Sessions] Registered new agent: ${agentName} (${registeredAgent.id})`)
     } catch (createError) {
@@ -971,17 +989,23 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     if (!resolved.command) {
       console.error(`[Sessions] Not launching a program in ${actualSessionName}: ${resolved.error}`)
     } else {
-      let startCommand = resolved.command
-
-      if (programArgs && typeof programArgs === 'string') {
-        const sanitized = programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
-        if (sanitized) startCommand = `${startCommand} ${sanitized}`
-      }
+      // The bare command, for the launch check and its messages (the wake does the same).
+      const startCommand = resolved.command
+      // The command that is typed: one builder for creating and waking, so a new agent starts exactly as a wake
+      // would start it (permission mode, options, and for Claude Code the fixed AI Maestro additions).
+      const fullCommand = buildLaunchCommand({
+        command: startCommand,
+        kind: resolved.kind,
+        agentName,
+        programArgs: typeof programArgs === 'string' ? programArgs : undefined,
+        permissionMode: chosenMode ?? registeredAgent?.permissionMode,
+        launchOptions: Object.keys(chosenOptions).length > 0 ? chosenOptions : registeredAgent?.launchOptions,
+      })
 
       await new Promise(resolve => setTimeout(resolve, 300))
 
       try {
-        await runtime.sendKeys(actualSessionName, `"${startCommand}"`, { enter: true })
+        await runtime.sendKeys(actualSessionName, `"${fullCommand}"`, { enter: true })
       } catch (progError) {
         console.warn(`[Sessions] Could not launch program in ${actualSessionName}:`, progError)
       }

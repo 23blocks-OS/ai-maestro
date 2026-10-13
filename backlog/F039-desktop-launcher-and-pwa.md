@@ -1,6 +1,6 @@
 # F039 - A way back in: an `ai-maestro` command, a desktop launcher and a PWA
 
-**Status:** Todo (designed 2026-10-12; built after F040 step 1)
+**Status:** Done (0.77.0). Juan said "go F039" on 2026-10-13 and accepted the recommendations: app window when Chrome/Edge is installed, ask at install and default to yes for start at login, the existing logo as the icon. Not built: menu-bar status item, Windows (WSL) shortcut.
 **Type:** Feature (installer)
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12 ("a icon in the user desktop or wrapper or PWA so the user can just click there and reopen AI Maestro if they forget about the url and port")

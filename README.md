@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.76.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.77.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -98,6 +98,8 @@ Dashboard opens at `http://localhost:23000`
 ```bash
 ./update-aimaestro.sh -y
 ```
+
+**Come back to it** without remembering the address: the installer adds an `ai-maestro` command (`ai-maestro open` starts the server if it is down, then opens the dashboard; also `start`, `stop`, `status`) and, on a Mac, an **AI Maestro** app in `~/Applications` you can drag to the Dock. It can also start at login. Chrome and Edge offer "Install app" from the dashboard too. Skip all of it with `--skip-launcher`; remove it with `./scripts/install-launcher.sh --remove`.
 
 ---
 

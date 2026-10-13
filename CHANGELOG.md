@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.77.0] - 2026-10-13 - A way back in: the `ai-maestro` command, an app icon, and install as an app (F039)
+
+Until now there was no way back into AI Maestro except remembering `http://localhost:23000` and starting the server yourself.
+
+### Added
+- **The `ai-maestro` command** (installed in `~/.local/bin`): `ai-maestro open` opens the dashboard and starts the server first if it is down (waits until it answers, then opens); `start`, `stop` (your agents' tmux sessions keep running) and `status` (exit 0 running, 3 not). It only talks to pm2; it never runs tmux or kills anything.
+- **An AI Maestro app on macOS**: `~/Applications/AI Maestro.app`, with the icon, built by the installer and refreshed by every update. Drag it to the Dock. Click it and the dashboard opens, starting the server if needed; if it cannot start, an alert says why. It opens in a window of its own when Chrome, Edge, Brave or Chromium is installed (set `AIM_OPEN_MODE=browser` for a normal tab). On a Linux desktop the installer adds an "AI Maestro" entry to the applications menu.
+- **Start at login (optional)**: a user-level LaunchAgent on macOS (an autostart entry on Linux), no `sudo`. The installer asks (default yes on a desktop); an update never turns it on by itself and keeps it if you have it. `./scripts/install-launcher.sh --login-item` / `--no-login-item` change it; `--remove` takes the command, the app and the login item away. It starts the server only if it is not already running, so it does not fight pm2's own start at boot.
+- **Install as an app from the browser**: a web app manifest (name, standalone window, 192 / 512 / maskable icons) and an Apple touch icon, so Chrome and Edge offer "Install app", Safari "Add to Dock", and phones "Add to Home Screen". Browsers only allow the install on `localhost` or https; a dashboard opened through a LAN or Tailscale address is not installable (the macOS app covers that).
+
+### Notes
+`./install.sh --skip-launcher` and `AIM_NO_LAUNCHER=1 ./update-aimaestro.sh` skip all of it. A server with no desktop (a Linux box over ssh) gets only the command. Not built yet: a menu-bar status item, a Windows (WSL) shortcut.
+
 ## [0.76.0] - 2026-10-13 - Codex CLI gets its options and freedom stops (F040)
 
 Codex was the one main tool with nothing to choose: "Codex uses its own approval setting. AI Maestro does not set it yet." Its flags are now mapped from `codex --help` (0.153.4), and each one was run against the installed binary to confirm it parses.

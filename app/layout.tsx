@@ -28,8 +28,9 @@ export const metadata: Metadata = {
       { url: '/favicon.ico', sizes: '16x16 32x32 48x48' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
-    apple: '/logo-constellation.svg',
+    apple: '/icons/apple-touch-icon.png',
   },
+  appleWebApp: { capable: true, title: 'AI Maestro', statusBarStyle: 'default' },
 }
 
 export const viewport: Viewport = {

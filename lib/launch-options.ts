@@ -50,6 +50,13 @@ const DECLARATIONS: Partial<Record<ProgramKind, LaunchOptionDecl[]>> = {
     { id: 'addDir', label: 'Extra folder', help: 'One more folder it may read and write (no spaces in the path).', type: 'text', flag: '--add-dir',
       placeholder: '~/projects/shared', pattern: 'path' },
   ],
+  // Codex CLI 0.153.4 (`codex --help`). Its "continue" is the `resume --last` subcommand, not a flag, so it is not offered.
+  codex: [
+    MODEL,
+    { id: 'search', label: 'Live web search', help: 'Lets it search the web without asking each time.', type: 'toggle', flag: '--search' },
+    { id: 'addDir', label: 'Extra folder', help: 'One more folder it may write to (no spaces in the path).', type: 'text', flag: '--add-dir',
+      placeholder: '~/projects/shared', pattern: 'path' },
+  ],
   pi: [
     MODEL,
     { id: 'thinking', label: 'Thinking level', help: 'How much it reasons before answering.', type: 'choice', flag: '--thinking',
@@ -134,10 +141,23 @@ export function copilotPermissionFlags(mode: AgentPermissionMode | string | unde
   return mode === 'fullAutonomy' ? '--allow-all-tools' : ''
 }
 
+/**
+ * Codex CLI's flags for a permission mode (checked on 0.153.4). Supervised adds nothing: its own default.
+ * Read-only is `--sandbox read-only`. Smart auto is `--approve-for-me` (approval requests are reviewed
+ * automatically inside the workspace-write sandbox). Full autonomy is its bypass flag. It has no accept-edits mode.
+ */
+export function codexPermissionFlags(mode: AgentPermissionMode | string | undefined | null): string {
+  if (mode === 'planOnly') return '--sandbox read-only'
+  if (mode === 'smartAuto') return '--approve-for-me'
+  if (mode === 'fullAutonomy') return '--dangerously-bypass-approvals-and-sandbox'
+  return ''
+}
+
 /** The permission flags for a tool, as the server adds them (Claude Code: `--permission-mode`, unless supervised). */
 export function permissionFlagsFor(kind: ProgramKind | null | undefined, mode: AgentPermissionMode | string | undefined | null): string {
   if (kind === 'grok') return grokPermissionFlags(mode)
   if (kind === 'copilot') return copilotPermissionFlags(mode)
+  if (kind === 'codex') return codexPermissionFlags(mode)
   if (kind === 'claude') {
     const m = (mode || 'supervised') as AgentPermissionMode
     return m === 'supervised' ? '' : `--permission-mode ${PERMISSION_MODE_TO_CLI[m]}`

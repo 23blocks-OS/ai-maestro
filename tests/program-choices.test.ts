@@ -49,17 +49,21 @@ describe('which permission modes a tool can honour', () => {
     expect(permissionModesFor('grok')).toEqual(ALL_PERMISSION_MODES)
   })
 
+  it('Codex CLI takes its default, read-only, automatic review and no sandbox', () => {
+    expect(permissionModesFor('codex')).toEqual(['supervised', 'planOnly', 'smartAuto', 'fullAutonomy'])
+  })
+
   it('Copilot CLI takes only supervised and full autonomy', () => {
     expect(permissionModesFor('copilot')).toEqual(['supervised', 'fullAutonomy'])
   })
 
-  it.each(['pi', 'codex', 'gemini', 'opencode', 'openclaw', 'aider', 'cursor', null, undefined])('%s has nothing to choose', (k) => {
+  it.each(['pi', 'gemini', 'opencode', 'openclaw', 'aider', 'cursor', null, undefined])('%s has nothing to choose', (k) => {
     expect(permissionModesFor(k as any)).toEqual([])
   })
 
   it('says why there is no choice for Pi and Codex, and says nothing for tools that have one', () => {
     expect(noPermissionChoiceNote('pi')).toMatch(/never asks/)
-    expect(noPermissionChoiceNote('codex')).toMatch(/own approval setting/)
+    expect(noPermissionChoiceNote('codex')).toBeNull()
     expect(noPermissionChoiceNote('claude')).toBeNull()
     expect(noPermissionChoiceNote('copilot')).toBeNull()
   })
@@ -121,7 +125,8 @@ describe('the wake dialog starts on the agent\'s own tool (it used to always sta
   it('falls back to supervised when the tool cannot honour the stored mode, instead of showing a mode that does nothing', () => {
     expect(initialWakeSelection('copilot', 'planOnly').mode).toBe('supervised')
     expect(initialWakeSelection('pi', 'fullAutonomy').mode).toBe('supervised')
-    expect(initialWakeSelection('codex', 'smartAuto').mode).toBe('supervised')
+    expect(initialWakeSelection('codex', 'trustEdits').mode).toBe('supervised')
+    expect(initialWakeSelection('codex', 'smartAuto').mode).toBe('smartAuto')
   })
 
   it('ignores a garbage stored mode', () => {

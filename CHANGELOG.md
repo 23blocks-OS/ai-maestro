@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.76.0] - 2026-10-13 - Codex CLI gets its options and freedom stops (F040)
+
+Codex was the one main tool with nothing to choose: "Codex uses its own approval setting. AI Maestro does not set it yet." Its flags are now mapped from `codex --help` (0.153.4), and each one was run against the installed binary to confirm it parses.
+
+### Added
+- **Freedom for Codex**, in the same Careful / Balanced / Hands-off + Read-only control as Claude Code and Grok: Careful = Codex's own default (no flag); Balanced = `--approve-for-me` (approval requests reviewed automatically inside the workspace-write sandbox); Hands-off = `--dangerously-bypass-approvals-and-sandbox`; Read-only = `--sandbox read-only`.
+- **Codex options** under "More options": model (`--model`), live web search (`--search`), an extra writable folder (`--add-dir`). "Continue" is not offered: in Codex it is the `resume --last` subcommand, not a flag.
+- **Docker agents running Codex** get the same freedom flags (the container command builder uses the shared mapping), so the choice shown in the create page is the choice applied.
+
+### Notes
+`--approve-for-me` and `--search` need a recent Codex; an older install rejects an unknown flag and the program will not start (the readiness check shows the version).
+
+### Closing F040
+Everything planned for the redesign is shipped. Left as optional follow-ups, because each needs a tool we do not have installed to verify against: options for Gemini and OpenCode, models listed from the tool, container-image support for Grok, Copilot and Pi.
+
 ## [0.75.0] - 2026-10-13 - Docker and AWS agents choose their tool, "Wake with…" is a button, and the phone can wake an agent (F040 finished)
 
 ### Added

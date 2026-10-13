@@ -23,6 +23,7 @@ import { CONTAINER_CWD_GEMINI_PROJECT } from '@/lib/container-utils'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 import { containerProgram } from '@/lib/program-choices'
+import { codexPermissionFlags } from '@/lib/launch-options'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -93,6 +94,10 @@ export function buildAiToolCommand(body: Pick<DockerCreateRequest, 'program' | '
   const effectivePermMode: AgentPermissionMode = body.permissionMode || (body.yolo ? 'fullAutonomy' : 'supervised')
   if (effectivePermMode !== 'supervised' && program === 'claude') {
     aiTool += ` --permission-mode ${PERMISSION_MODE_TO_CLI[effectivePermMode]}`
+  }
+  if (program === 'codex') {
+    const flags = codexPermissionFlags(effectivePermMode)
+    if (flags) aiTool += ` ${flags}`
   }
   // Give Claude Code the agent's native session name (opt-in). Surfaces in the
   // statusline session_name field, terminal title, and `claude --resume <name>`.

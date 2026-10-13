@@ -1617,9 +1617,11 @@ describe('buildAiToolCommand', () => {
   })
 
   it('does NOT add --permission-mode for non-claude programs even with permissionMode set', () => {
+    // Codex has its own flags; Gemini has none, and neither gets Claude's --permission-mode.
     const result = buildAiToolCommand({ program: 'codex', permissionMode: 'fullAutonomy' })
-    expect(result).toBe('codex')
+    expect(result).toBe('codex --dangerously-bypass-approvals-and-sandbox')
     expect(result).not.toContain('--permission-mode')
+    expect(buildAiToolCommand({ program: 'gemini', permissionMode: 'fullAutonomy' })).toBe('gemini')
   })
 
   it('runs `claude` for the names the create wizard and older agents use ("claude-code", "Claude Code")', () => {
@@ -1629,7 +1631,8 @@ describe('buildAiToolCommand', () => {
   })
 
   it('runs codex and gemini by their commands, without Claude flags', () => {
-    expect(buildAiToolCommand({ program: 'Codex CLI', permissionMode: 'fullAutonomy' })).toBe('codex')
+    expect(buildAiToolCommand({ program: 'Codex CLI', permissionMode: 'supervised' })).toBe('codex')
+    expect(buildAiToolCommand({ program: 'Codex CLI', permissionMode: 'fullAutonomy' })).toBe('codex --dangerously-bypass-approvals-and-sandbox')
     expect(buildAiToolCommand({ program: 'gemini' })).toBe('gemini')
   })
 

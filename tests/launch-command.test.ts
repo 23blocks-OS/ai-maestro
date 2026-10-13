@@ -59,6 +59,13 @@ describe('buildLaunchCommand: the other tools', () => {
 
   it('a tool with no declaration adds only the agent\'s own arguments and model', () => {
     expect(buildLaunchCommand({ ...base, command: 'codex', kind: 'codex', programArgs: '--full-auto', model: 'o3' })).toBe('codex --full-auto --model o3')
+    // Codex's own flags, read from `codex --help` 0.153.4.
+    const codex = { ...base, command: 'codex', kind: 'codex' as const }
+    expect(buildLaunchCommand({ ...codex, permissionMode: 'supervised' })).toBe('codex')
+    expect(buildLaunchCommand({ ...codex, permissionMode: 'planOnly' })).toBe('codex --sandbox read-only')
+    expect(buildLaunchCommand({ ...codex, permissionMode: 'smartAuto' })).toBe('codex --approve-for-me')
+    expect(buildLaunchCommand({ ...codex, permissionMode: 'fullAutonomy', launchOptions: { model: 'gpt-5', search: true } })).toBe('codex --model gpt-5 --dangerously-bypass-approvals-and-sandbox --search')
+    expect(buildLaunchCommand({ ...codex, permissionMode: 'trustEdits' })).toBe('codex')
     expect(buildLaunchCommand({ ...base, command: 'gemini', kind: 'gemini', permissionMode: 'fullAutonomy', launchOptions: { continue: true } })).toBe('gemini')
   })
 })

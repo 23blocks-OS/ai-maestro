@@ -1,6 +1,6 @@
 # F040 - Waking and creating agents: launch options declared per tool, one-click wake
 
-**Status:** Done in 0.75.0 apart from the items under "Still open" below
+**Status:** Done (0.76.0); optional follow-ups under "Still open" need tools we do not have installed
 **Type:** Feature / UX redesign
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12 ("selecting permissions on agent wake up is a nightmare ... evaluate that UX and UI and design a better flow")
@@ -66,6 +66,8 @@ F028 (Grok), F036 (Pi, OpenClaw), F038 (Copilot CLI), F039 (a way back in), F033
 - **Open:** step 2 (every option declared per tool, generated form with the command preview, plain-words freedom stops), step 3 (one-page create), step 4 (readiness check), the Copilot cards from the real screens, Pi's chat view.
 - 2026-10-13, 0.75.0 - **The last three items.** Docker and AWS agents choose their tool (Claude Code, Codex CLI, Gemini CLI: what the image and an AWS server install; Docker also gets the freedom choice, AWS does not); "Wake with…" is a visible control in the sidebar, the full-page wake screens and the agent menu; the phone shows a wake panel for a sleeping agent. Two bugs found on the way and fixed: Docker agents from the wizard ran a `claude-code` command that does not exist, and the zoom pages woke every agent as Claude Code.
 
-## Still open (smaller, not blocking)
+- 2026-10-13, 0.76.0 - **Codex mapped**: Careful (own default), Balanced (`--approve-for-me`), Hands-off (`--dangerously-bypass-approvals-and-sandbox`), Read-only (`--sandbox read-only`); options model, web search, extra folder; Docker agents running Codex get the same flags. Every flag was run against codex 0.153.4.
 
-Codex, Gemini and OpenCode launch options once verified on a real install; models listed from the tool (`pi --list-models`); the Hands-off "I understand" tick (skipped on purpose); launch options (model, resume) for container agents; Grok, Copilot and Pi in the container image (they are not installed there).
+## Still open (optional; each needs the tool installed to verify)
+
+Options for Gemini and OpenCode; models listed from the tool (`pi --list-models`); the Hands-off "I understand" tick (skipped on purpose: one red warning already shows); launch options (model, resume) for container agents; Grok, Copilot and Pi in the container image.

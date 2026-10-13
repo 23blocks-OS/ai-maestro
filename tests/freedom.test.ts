@@ -4,17 +4,19 @@ import { ALL_PERMISSION_MODES, permissionModesFor } from '@/lib/program-choices'
 import type { AgentPermissionMode } from '@/types/agent'
 
 describe('which stops each tool offers', () => {
-  it('Claude Code and Grok Build offer all three, Copilot CLI only the two it has', () => {
+  it('Claude Code, Grok Build and Codex CLI offer all three, Copilot CLI only the two it has', () => {
+    expect(stopsFor('codex')).toEqual(['careful', 'balanced', 'handsOff'])
     expect(stopsFor('claude')).toEqual(['careful', 'balanced', 'handsOff'])
     expect(stopsFor('grok')).toEqual(['careful', 'balanced', 'handsOff'])
     expect(stopsFor('copilot')).toEqual(['careful', 'handsOff'])
   })
 
   it('tools with no permission setting offer none', () => {
-    for (const k of ['pi', 'codex', 'gemini', 'opencode', 'openclaw', null, undefined] as const) expect(stopsFor(k as never)).toEqual([])
+    for (const k of ['pi', 'gemini', 'opencode', 'openclaw', null, undefined] as const) expect(stopsFor(k as never)).toEqual([])
   })
 
-  it('only Claude Code and Grok Build can be read-only', () => {
+  it('only Claude Code, Grok Build and Codex CLI can be read-only', () => {
+    expect(canReadOnly('codex')).toBe(true)
     expect(canReadOnly('claude')).toBe(true)
     expect(canReadOnly('grok')).toBe(true)
     expect(canReadOnly('copilot')).toBe(false)

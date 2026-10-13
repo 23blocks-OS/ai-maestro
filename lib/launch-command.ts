@@ -7,7 +7,7 @@
  */
 import { PERMISSION_MODE_TO_CLI, type AgentPermissionMode } from '@/types/agent'
 import type { ProgramKind } from '@/lib/program-names'
-import { sanitizeLaunchOptions, launchOptionArgs, grokPermissionFlags, copilotPermissionFlags } from '@/lib/launch-options'
+import { sanitizeLaunchOptions, launchOptionArgs, grokPermissionFlags, copilotPermissionFlags, codexPermissionFlags } from '@/lib/launch-options'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 
@@ -45,13 +45,18 @@ export function buildLaunchCommand(input: LaunchCommandInput): string {
   const model = typeof options.model === 'string' ? options.model : input.model
   if (model) full = `${full} --model ${model}`
 
-  // Grok Build and Copilot CLI have their own permission flags. None of the Claude-only additions below apply.
+  // Grok Build, Copilot CLI and Codex have their own permission flags. None of the Claude-only additions below apply.
   if (kind === 'grok') {
     const flags = grokPermissionFlags(input.permissionMode)
     if (flags) full = `${full} ${flags}`
   }
   if (kind === 'copilot') {
     const flags = copilotPermissionFlags(input.permissionMode)
+    if (flags) full = `${full} ${flags}`
+  }
+
+  if (kind === 'codex') {
+    const flags = codexPermissionFlags(input.permissionMode)
     if (flags) full = `${full} ${flags}`
   }
 

@@ -17,6 +17,8 @@ const MODES_BY_KIND: Partial<Record<ProgramKind, AgentPermissionMode[]>> = {
   grok: ALL_PERMISSION_MODES,
   // Copilot CLI: it asks before a tool (supervised) or runs with --allow-all-tools. No plan/accept-edits/auto.
   copilot: ['supervised', 'fullAutonomy'],
+  // Codex CLI: its default, read-only sandbox, automatic review of approvals, or no sandbox at all.
+  codex: ['supervised', 'planOnly', 'smartAuto', 'fullAutonomy'],
 }
 
 /** The permission modes AI Maestro can apply to this tool (empty: nothing to choose). */
@@ -29,7 +31,6 @@ export function noPermissionChoiceNote(kind: ProgramKind | null | undefined): st
   if (!kind || permissionModesFor(kind).length > 0) return null
   switch (kind) {
     case 'pi': return 'Pi never asks before it acts, so there is nothing to choose. Run it where you are happy for it to change things.'
-    case 'codex': return 'Codex uses its own approval setting. AI Maestro does not set it yet.'
     default: return 'This tool has no permission setting that AI Maestro can apply.'
   }
 }

@@ -9,7 +9,8 @@ describe('launchOptionsFor: what each tool declares', () => {
     expect(launchOptionsFor('grok').map((o) => o.id)).toEqual(['model', 'continue'])
     expect(launchOptionsFor('copilot').map((o) => o.id)).toEqual(['model', 'effort', 'continue', 'addDir'])
     expect(launchOptionsFor('pi').map((o) => o.id)).toEqual(['model', 'thinking', 'continue', 'noSession'])
-    for (const k of ['codex', 'gemini', 'opencode', 'openclaw', 'cursor', 'aider', null, undefined] as const) {
+    expect(launchOptionsFor('codex').map((o) => o.id)).toEqual(['model', 'search', 'addDir'])
+    for (const k of ['gemini', 'opencode', 'openclaw', 'cursor', 'aider', null, undefined] as const) {
       expect(launchOptionsFor(k as never)).toEqual([])
     }
   })
@@ -74,7 +75,8 @@ describe('launchOptionArgs and modelFromOptions', () => {
   it('reads the model separately, validated', () => {
     expect(modelFromOptions('pi', { model: 'anthropic/claude-opus' })).toBe('anthropic/claude-opus')
     expect(modelFromOptions('pi', { model: 'a b' })).toBeUndefined()
-    expect(modelFromOptions('codex', { model: 'x' })).toBeUndefined()
+    expect(modelFromOptions('codex', { model: 'gpt-5' })).toBe('gpt-5')
+    expect(modelFromOptions('gemini', { model: 'x' })).toBeUndefined()
   })
 })
 

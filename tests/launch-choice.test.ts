@@ -83,4 +83,37 @@ describe('remembering what an agent was woken with (F040)', () => {
     expect(() => rememberLaunchChoice('a1', { program: 'grok' })).not.toThrow()
     expect(rememberLaunchChoice('a1', { program: 'grok' }).saved).toBe(false)
   })
+
+  describe('the tool\'s own options (F040 step 2)', () => {
+    it('saves valid options for the tool, dropping unknown and invalid ones', () => {
+      mocks.getAgent.mockReturnValue(agent({ program: 'copilot' }))
+      rememberLaunchChoice('a1', { launchOptions: { model: 'gpt-5', continue: true, thinking: 'high', addDir: 'a b' } })
+      expect(mocks.updateAgent).toHaveBeenCalledWith('a1', { launchOptions: { model: 'gpt-5', continue: true } })
+    })
+
+    it('saves an empty set, so unticking everything clears what was remembered', () => {
+      mocks.getAgent.mockReturnValue(agent({ program: 'copilot', launchOptions: { continue: true } }))
+      rememberLaunchChoice('a1', { launchOptions: {} })
+      expect(mocks.updateAgent).toHaveBeenCalledWith('a1', { launchOptions: {} })
+    })
+
+    it('does not write when the options are unchanged', () => {
+      mocks.getAgent.mockReturnValue(agent({ program: 'pi', launchOptions: { thinking: 'low' } }))
+      const r = rememberLaunchChoice('a1', { launchOptions: { thinking: 'low' } })
+      expect(r.saved).toBe(true)
+      expect(mocks.updateAgent).not.toHaveBeenCalled()
+    })
+
+    it('judges the options by the tool being woken, not the one stored', () => {
+      mocks.getAgent.mockReturnValue(agent({ program: 'claude-code' }))
+      rememberLaunchChoice('a1', { program: 'pi', launchOptions: { thinking: 'high' } })
+      expect(mocks.updateAgent).toHaveBeenCalledWith('a1', { program: 'pi', launchOptions: { thinking: 'high' } })
+    })
+
+    it('a wrapper agent keeps its program and gets no options saved', () => {
+      mocks.getAgent.mockReturnValue(agent({ program: '/usr/local/bin/claude-sandboxed.sh' }))
+      expect(rememberLaunchChoice('a1', { launchOptions: { model: 'opus' } }).saved).toBe(false)
+      expect(mocks.updateAgent).not.toHaveBeenCalled()
+    })
+  })
 })

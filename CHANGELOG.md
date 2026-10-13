@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.70.0] - 2026-10-12 - Each tool declares what you can choose at launch (F040 step 2)
+
+The wake dialog now offers the options a tool really has, and shows the exact command it will run. Before, the only choices were the tool and the permission mode; the model, "continue the last session", reasoning effort and the rest could only be set by editing the agent's arguments by hand.
+
+### Added
+- **A declaration per tool** (`lib/launch-options.ts`), read from each tool's own `--help` on 2026-10-12: Claude Code (model); Grok Build (model, continue); Copilot CLI 1.0.96 (model, reasoning effort, continue, extra folder); Pi (model, thinking level, continue, do not save the session). Grok's reasoning-effort flag is left out because its values are not documented. A tool we only open in the terminal has none. A new tool is one declaration plus tests, not a new screen.
+- **"More options" in the wake dialog**, generated from the declaration (a text box, a list or a tick box per option), closed by default, and open when the agent already has remembered options so nothing hidden changes how it starts.
+- **"Will run: ..." under the form**: the exact command (tool, model, permission flag, options). It is built by the same code the server uses. AI Maestro's own fixed additions for Claude Code (channels, telemetry, session name) are not choices and are not listed.
+- **Remembered on the agent** (`launchOptions`) with the tool and permission mode when "Remember this" is ticked. An empty set clears what was remembered. Options are judged against the tool being woken, so switching from Claude Code to Pi does not carry a Claude-only option over.
+
+### Safety
+Option values end up in a shell command line, so each is checked against a strict pattern on the screen and again on the server: no spaces, quotes, `;`, `$`, backticks, pipes or a leading `-`; a choice must be on the tool's list; a tick box counts only when it is exactly true. A value that fails is dropped, never repaired, and the screen says "This value will not be used" in red. Remote agents get the options too (the wake is forwarded with them).
+
+### Moved
+- `grokPermissionFlags` and `copilotPermissionFlags` now live in `lib/launch-options.ts` (browser-safe) and are re-exported from `lib/program-command.ts`, so the screen and the server read the same code.
+
+### Verified in a browser
+An isolated instance (own port, fake home, five made-up agents; the real fleet was not touched): the preview matches what the server builds; remembered options open the section ("3 set"); an invalid model is refused with a warning and never reaches the preview; editing a value, a list and a tick box updates the line; pressing Wake sends `{"program":"copilot","permissionMode":"fullAutonomy","launchOptions":{...},"remember":true}` (request intercepted, nothing started). A wrapper-script agent shows no options.
+
+### Not in this step
+The plain-words freedom stops (Careful, Balanced, Hands-off) and one-click wake with "Wake with...", the one-page create wizard, and the readiness check are the next steps of F040.
+
 ## [0.69.2] - 2026-10-12 - The wake dialog fits on one screen (found by looking at it in a real browser)
 
 The first look at the live 0.69.1 dialog, using the `agent-browser` skill, showed that "permissions up front" was not true on screen: five full-width tool cards pushed the permission choice and the hands-off warning below the fold of a 900 px window (the dialog was 828 px tall and scrolled). The logic was right; the layout was not.

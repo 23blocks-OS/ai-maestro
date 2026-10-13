@@ -33,4 +33,10 @@ describe('the wake request body (F040)', () => {
   it('never carries the execution mode to the server (the screen uses it for the streaming tab)', () => {
     expect(buildWakeBody('claude', { execMode: 'streaming' })).toEqual({ program: 'claude' })
   })
+
+  it('sends the launch options, and an empty set too (it means "none", not "keep what was remembered")', () => {
+    expect(buildWakeBody('copilot', { launchOptions: { continue: true } }).launchOptions).toEqual({ continue: true })
+    expect(buildWakeBody('copilot', { launchOptions: {} }).launchOptions).toEqual({})
+    expect('launchOptions' in buildWakeBody('copilot', {})).toBe(false)
+  })
 })

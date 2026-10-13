@@ -26,7 +26,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop, Zap } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
-import { buildWakeBody } from '@/lib/wake-request'
+import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
 
 // Dynamic imports for heavy components that are conditionally rendered
 // This reduces initial bundle size by ~100KB+
@@ -495,7 +495,7 @@ export default function DashboardPage() {
   }
 
   // Performs the actual wake with selected program
-  const handleWakeConfirm = async (program: string, options?: { permissionMode?: string; execMode?: 'terminal' | 'streaming'; remember?: boolean }) => {
+  const handleWakeConfirm = async (program: string, options?: WakeChoiceOptions) => {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
@@ -1224,6 +1224,7 @@ export default function DashboardPage() {
           agentAlias={wakeDialogAgent?.alias}
           defaultPermissionMode={(wakeDialogAgent as any)?.permissionMode}
           defaultProgram={(wakeDialogAgent as any)?.program}
+          defaultLaunchOptions={(wakeDialogAgent as any)?.launchOptions}
         />
 
         {/* Help Panel */}

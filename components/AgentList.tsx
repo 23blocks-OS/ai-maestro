@@ -1525,6 +1525,7 @@ export default function AgentList({
         agentAlias={wakeDialogAgent?.alias}
         defaultPermissionMode={(wakeDialogAgent as any)?.permissionMode}
         defaultProgram={(wakeDialogAgent as any)?.program}
+        defaultLaunchOptions={(wakeDialogAgent as any)?.launchOptions}
       />
     </div>
   )

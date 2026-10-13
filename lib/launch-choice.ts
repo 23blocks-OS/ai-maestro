@@ -7,18 +7,19 @@ import { getAgent, updateAgent } from '@/lib/agent-registry'
 import { resolveProgramCommand } from '@/lib/program-command'
 import { storedProgramName, looksLikeProgramPath } from '@/lib/program-names'
 import { permissionModesFor } from '@/lib/program-choices'
+import { sanitizeLaunchOptions } from '@/lib/launch-options'
 import type { AgentPermissionMode } from '@/types/agent'
 
 const MODES: string[] = ['supervised', 'planOnly', 'trustEdits', 'smartAuto', 'fullAutonomy']
 
 export function rememberLaunchChoice(
   agentId: string,
-  choice: { program?: string; permissionMode?: string },
+  choice: { program?: string; permissionMode?: string; launchOptions?: Record<string, string | boolean> },
 ): { saved: boolean; program?: string; permissionMode?: string } {
   try {
     const agent = getAgent(agentId)
     if (!agent) return { saved: false }
-    const updates: { program?: string; permissionMode?: AgentPermissionMode } = {}
+    const updates: { program?: string; permissionMode?: AgentPermissionMode; launchOptions?: Record<string, string | boolean> } = {}
 
     // An agent that runs a wrapper script (often a sandbox) keeps it. A launch choice must never silently
     // replace it with a bare tool; changing it is a deliberate edit of the agent.
@@ -46,10 +47,19 @@ export function rememberLaunchChoice(
       }
     }
 
-    if (!updates.program && !updates.permissionMode) return { saved: false }
+    // The tool's own options (model, effort, continue...): only those the tool declares, and only valid ones.
+    // An empty set is saved too, so unticking everything clears what was remembered.
+    let optionsGiven = false
+    if (choice.launchOptions !== undefined && kind) {
+      optionsGiven = true
+      const clean = sanitizeLaunchOptions(kind, choice.launchOptions)
+      if (JSON.stringify(clean) !== JSON.stringify(agent.launchOptions || {})) updates.launchOptions = clean
+    }
+
+    if (!updates.program && !updates.permissionMode && !optionsGiven) return { saved: false }
     if (updates.program === agent.program) delete updates.program
     if (updates.permissionMode === agent.permissionMode) delete updates.permissionMode
-    if (!updates.program && !updates.permissionMode) return { saved: true, program: agent.program, permissionMode: agent.permissionMode }
+    if (!updates.program && !updates.permissionMode && !updates.launchOptions) return { saved: true, program: agent.program, permissionMode: agent.permissionMode }
 
     updateAgent(agentId, updates)
     return { saved: true, program: updates.program ?? agent.program, permissionMode: updates.permissionMode ?? agent.permissionMode }

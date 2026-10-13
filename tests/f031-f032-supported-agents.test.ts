@@ -55,6 +55,9 @@ describe('F032 / F038: Copilot is named only at the tier it actually has', () =>
 
   it('the wake dialog offers GitHub Copilot CLI with the command copilot (the tool list lives in lib/program-choices.ts)', () => {
     expect(read('lib/program-choices.ts')).toMatch(/id:\s*'copilot'[\s\S]*?command:\s*'copilot'/)
-    expect(read('components/WakeAgentDialog.tsx')).toMatch(/PROGRAM_CHOICES/)
+    // The dialog renders the shared launch panel (also used by the create wizard), which lists PROGRAM_CHOICES.
+    expect(read('components/WakeAgentDialog.tsx')).toMatch(/LaunchChoicePanel/)
+    expect(read('components/launch/LaunchChoicePanel.tsx')).toMatch(/PROGRAM_CHOICES/)
+    expect(read('components/AgentCreationWizard.tsx')).toMatch(/LaunchChoicePanel/)
   })
 })

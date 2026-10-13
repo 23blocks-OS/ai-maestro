@@ -532,6 +532,7 @@ export interface CreateAgentRequest {
   model?: string
   taskDescription: string
   programArgs?: string          // CLI arguments passed to the program on launch
+  launchOptions?: Record<string, string | boolean>  // The tool's declared launch choices (lib/launch-options)
   permissionMode?: AgentPermissionMode  // Trust level (default: 'supervised')
   tags?: string[]
   workingDirectory?: string

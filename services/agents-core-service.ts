@@ -42,7 +42,6 @@ import {
   parseNameForDisplay,
   computeSessionName,
   isCallSession,
-  PERMISSION_MODE_TO_CLI,
 } from '@/types/agent'
 import {
   loadAgents,
@@ -59,15 +58,13 @@ import {
 } from '@/lib/agent-registry'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/lib/hosts-config'
-import { claudeSessionNameFlag } from '@/lib/claude-session-name'
-import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
-import { resolveProgramCommand, isNoProgram, grokPermissionFlags, copilotPermissionFlags, type ResolvedProgram } from '@/lib/program-command'
-import { sanitizeLaunchOptions, launchOptionArgs } from '@/lib/launch-options'
+import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
+import { buildLaunchCommand } from '@/lib/launch-command'
 import { rememberLaunchChoice } from '@/lib/launch-choice'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import {
@@ -1879,88 +1876,18 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
 
         const startCommand = resolved.command
 
-        // Build full command with programArgs and model
-        let fullCommand = startCommand
-        if (agent.programArgs) {
-          const args = sanitizeArgs(agent.programArgs)
-          if (args) {
-            fullCommand = `${startCommand} ${args}`
-          }
-        }
-        // The tool's declared launch choices (lib/launch-options): this wake's, else the ones remembered on the
-        // agent. The model among them replaces the agent's model; the rest follow the permission flags below.
-        const launchOpts = sanitizeLaunchOptions(resolved.kind, params.launchOptions ?? agent.launchOptions)
-        const chosenModel = typeof launchOpts.model === 'string' ? launchOpts.model : agent.model
-        if (chosenModel) {
-          fullCommand = `${fullCommand} --model ${chosenModel}`
-        }
-
-        // Grok Build: its own flag set (see grokPermissionFlags). None of the
-        // Claude-only additions below (--channels, telemetry, session name)
-        // apply to it.
-        if (resolved.kind === 'grok') {
-          const grokFlags = grokPermissionFlags(params.permissionMode || agent.permissionMode)
-          if (grokFlags) fullCommand = `${fullCommand} ${grokFlags}`
-        }
-
-        // GitHub Copilot CLI: its own permission flags (see copilotPermissionFlags). Nothing Claude-specific applies.
-        if (resolved.kind === 'copilot') {
-          const copilotFlags = copilotPermissionFlags(params.permissionMode || agent.permissionMode)
-          if (copilotFlags) fullCommand = `${fullCommand} ${copilotFlags}`
-        }
-
-        // Pi and Copilot CLI choices (continue, effort, extra folder...), and Grok's continue. Claude Code has only the model.
-        if (resolved.kind !== 'claude') {
-          const optionArgs = launchOptionArgs(resolved.kind, launchOpts)
-          if (optionArgs.length > 0) fullCommand = `${fullCommand} ${optionArgs.join(' ')}`
-        }
-
-        // Inject --permission-mode for claude-based programs. Keyed off the
-        // resolved KIND, not the literal command, so a wrapper named
-        // e.g. claude-sandboxed.sh still gets Claude Code's flags — losing
-        // --permission-mode on a sandboxed agent would be a silent downgrade.
-        if (resolved.kind === 'claude') {
-          const effectiveMode = params.permissionMode || agent.permissionMode || 'supervised'
-          if (effectiveMode !== 'supervised') {
-            const cliMode = PERMISSION_MODE_TO_CLI[effectiveMode]
-            fullCommand = `${fullCommand} --permission-mode ${cliMode}`
-          }
-
-          // Give Claude Code the agent's native session name (opt-in via
-          // AIMAESTRO_SESSION_NAME). Surfaces in the statusline session_name
-          // field, terminal title, and `claude --resume <name>`.
-          fullCommand = `${fullCommand}${claudeSessionNameFlag(agentName, 'claude')}`
-
-          // Channels: reliable idle-agent wake via MCP turn-injection. When
-          // AIMAESTRO_CHANNEL_FLAG is set, the agent boots with the amp channel so
-          // deliver() can inject messages straight into the session (no fragile
-          // tmux send-keys wake). Two forms:
-          //   production:  "--channels plugin:amp@ai-maestro-marketplace"
-          //                (after the amp channel plugin is published + the org
-          //                 admin allowlists it — no interactive dialog)
-          //   local dev:   "--dangerously-load-development-channels server:amp"
-          //                (shows a one-time consent dialog — not for the fleet)
-          // Off by default: the fleet is unaffected until this env var is set.
-          if (process.env.AIMAESTRO_CHANNEL_FLAG) {
-            fullCommand = `${fullCommand} ${process.env.AIMAESTRO_CHANNEL_FLAG}`
-          }
-
-          // Force the inline renderer so terminal SCROLLBACK works. Claude Code's
-          // fullscreen/alternate-screen renderer (rolled out as default across
-          // 2.1.11x→2.1.20x) keeps ZERO tmux history — the pane shows
-          // alternate_on=1, history_size=0, so there is nothing to scroll and
-          // capture-pane returns one screenful. Setting this env var returns
-          // Claude's output to the normal buffer, restoring scrollback in the
-          // web terminal. (Escape hatch: AIMAESTRO_KEEP_ALT_SCREEN=true keeps
-          // fullscreen for users who don't need scroll.)
-          if (process.env.AIMAESTRO_KEEP_ALT_SCREEN !== 'true') {
-            fullCommand = `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 ${fullCommand}`
-          }
-
-          // Opt-in OTLP telemetry: export claude_code.* metrics to AI Maestro's
-          // receiver, correlated to this agent via session.id (off by default).
-          fullCommand = `${claudeTelemetryEnvPrefix('claude')}${fullCommand}`
-        }
+        // One builder for waking and creating (lib/launch-command): the tool, the agent's extra arguments and model,
+        // the permission flags, the tool's declared options, and for Claude Code the fixed AI Maestro additions.
+        // This wake's options win, else the ones remembered on the agent.
+        const fullCommand = buildLaunchCommand({
+          command: startCommand,
+          kind: resolved.kind,
+          agentName,
+          programArgs: agent.programArgs,
+          model: agent.model,
+          permissionMode: params.permissionMode || agent.permissionMode,
+          launchOptions: params.launchOptions ?? agent.launchOptions,
+        })
 
         // Small delay to let the session initialize
         await new Promise(resolve => setTimeout(resolve, 300))

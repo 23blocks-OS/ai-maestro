@@ -10,6 +10,7 @@ import {
   noPermissionChoiceNote,
   choiceForProgram,
   initialWakeSelection,
+  programForCreate,
 } from '@/lib/program-choices'
 import { resolveProgramCommand } from '@/lib/program-command'
 import TrustLevelSelector from '@/components/TrustLevelSelector'
@@ -131,5 +132,25 @@ describe('the wake dialog starts on the agent\'s own tool (it used to always sta
     expect(initialWakeSelection('/usr/local/bin/claude-sandboxed.sh', 'trustEdits').choiceId).toBe('current')
     expect(initialWakeSelection('cursor', undefined).choiceId).toBe('current')
     expect(initialWakeSelection('aider', undefined).choiceId).toBe('current')
+  })
+})
+
+describe('programForCreate: what a new agent is stored with', () => {
+  it('Claude Code keeps its long-standing name, a terminal is "none", every other tool is its command', () => {
+    const byId = (id: string) => PROGRAM_CHOICES.find((c) => c.id === id)!
+    expect(programForCreate(byId('claude'))).toBe('claude-code')
+    expect(programForCreate(byId('terminal'))).toBe('none')
+    expect(programForCreate(byId('grok'))).toBe('grok')
+    expect(programForCreate(byId('copilot'))).toBe('copilot')
+    expect(programForCreate(byId('pi'))).toBe('pi')
+    expect(programForCreate(byId('gemini'))).toBe('gemini')
+  })
+
+  it('every value it produces is understood by the launcher', () => {
+    for (const c of PROGRAM_CHOICES) {
+      const v = programForCreate(c)
+      if (v === 'none') continue
+      expect(resolveProgramCommand(v).kind, v).toBe(c.kind)
+    }
   })
 })

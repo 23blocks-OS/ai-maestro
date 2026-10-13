@@ -27,6 +27,8 @@ interface WakeAgentDialogProps {
   defaultProgram?: string
   /** The options remembered on the agent (model, effort, continue...). */
   defaultLaunchOptions?: LaunchOptions
+  /** The host the agent lives on, for the readiness check (empty: this host). */
+  hostUrl?: string
 }
 
 export default function WakeAgentDialog({
@@ -38,6 +40,7 @@ export default function WakeAgentDialog({
   defaultPermissionMode,
   defaultProgram,
   defaultLaunchOptions,
+  hostUrl,
 }: WakeAgentDialogProps) {
   const c = useLaunchChoice({ defaultProgram, defaultPermissionMode, defaultLaunchOptions, resetKey: isOpen })
   const [remember, setRemember] = useState(true)
@@ -114,7 +117,7 @@ export default function WakeAgentDialog({
               </div>
 
               <div className="overflow-y-auto">
-                <LaunchChoicePanel c={c} displayName={displayName} disabled={isWaking} withExecMode />
+                <LaunchChoicePanel c={c} displayName={displayName} disabled={isWaking} withExecMode hostUrl={hostUrl} />
 
                 {/* Remember */}
                 {selectedId !== 'current' && (

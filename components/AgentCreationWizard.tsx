@@ -1072,7 +1072,7 @@ function SummaryCard({
       <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || state.hostId || 'Local')} />
       {state.runtime === 'tmux' ? (
         <div className="border-t border-gray-700/50 pt-3" data-testid="create-launch-choice">
-          <LaunchChoicePanel c={state.launch} displayName={state.agentName} compact />
+          <LaunchChoicePanel c={state.launch} displayName={state.agentName} compact hostUrl={host && !host.isSelf ? host.url : undefined} />
           {state.launch.preview && (
             <p className="mt-2 text-[11px] text-gray-500 break-all" data-testid="create-preview">
               Will run: <code className="text-gray-300 font-mono">{state.launch.preview}</code>

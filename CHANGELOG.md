@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.73.0] - 2026-10-12 - The wake dialog and create wizard say which tools can actually start on the host (F040 step 4)
+
+Until now you found out a tool was missing after the click ("did not start"). The tool tiles now carry a small status dot, and the selected tool shows one line saying whether it is installed, its version, and if not, how to install it.
+
+### Added
+- **`GET /api/tools/readiness`** (and the same in headless mode): for each tool (Claude Code, Codex, Grok Build, Copilot CLI, Pi, Gemini, OpenCode, OpenClaw) whether it is found, runs and has a version; plus the Node an agent's shell would use. Results are cached for a minute.
+- **Checked the way an agent's shell sees it.** The server's own PATH differs from an agent's login shell (this bit us with `aim-secret`), so the PATH is asked of the login shell once and every tool is looked up on that. Tools are found by walking the PATH and run with a fixed argv (`--version`); no shell string is built from anything a caller can send.
+- **Pi's Node requirement is checked**: Pi needs Node 22.15+, 23.8+ or 24+; on an older Node it shows "Found, but it will not start: Needs Node 22.15 or newer, an agent's shell has v20.19.4" instead of failing at wake.
+- **On the screen** (wake dialog and create wizard, same panel): green, amber or red dot on each tile; under the selected tool, "Installed · v2.1.296", "Not installed on this host. To install: npm install -g @github/copilot", or "Found, but it will not start: ...". Install commands are shown only where verified (Claude Code, Codex, Copilot CLI, Pi, Gemini CLI); Grok, OpenCode and OpenClaw say "not installed" without a guess.
+- **Other hosts**: an agent that lives on another computer is checked on that computer (the request is forwarded). Only a host AI Maestro already knows is accepted; any other URL is refused with a 400, so the endpoint cannot be used to make the server fetch arbitrary addresses.
+
+### Not checked, on purpose
+Whether you are signed in. Every tool asks for that itself, and AI Maestro shows what a tool asks as a card in the chat.
+
+### Behaviour
+Nothing is blocked: a missing tool only shows a warning, and waking works as before. If the check fails or is slow, the panel shows nothing rather than a false warning.
+
+### Verified
+Real run on this Mac through its login shell: Claude Code 2.1.296, Codex 0.153.4 and Grok Build 1.0.46 ready; Copilot CLI, Pi, Gemini, OpenCode and OpenClaw missing, with the right install commands. In a browser (isolated instance, real tool folders in its agent shell, real tmux untouched): dots on every tile; "Installed · v2.1.296" for Claude, the amber install line for Copilot and for Pi, "Installed · v1.0.46" for Grok; the endpoint returned 400 for an unknown host. 18 new tests (rules, service with a fake machine including shell-injection-shaped hosts, and an every-offered-tool-is-checked guard).
+
 ## [0.72.0] - 2026-10-12 - Creating an agent: choose the tool and how freely it acts; create and wake now start a program the same way (F040 step 3, first part)
 
 The create wizard always started Claude Code and had no way to choose anything else; the permission choice existed only inside Docker's advanced options. And creating an agent typed a bare `claude`, while a wake built the full command, so a new agent behaved differently until its first wake.

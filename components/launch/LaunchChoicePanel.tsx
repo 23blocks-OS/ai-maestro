@@ -82,7 +82,7 @@ export default function LaunchChoicePanel({
   return (
     <>
       {/* Tool */}
-      <div className={`${pad} pt-4 pb-3`}>
+      <div className={`${pad} ${compact ? 'pt-0' : 'pt-4'} pb-3`}>
         <p className="text-sm text-zinc-300 mb-2">What should {displayName} run?</p>
         <div className="grid grid-cols-2 gap-2">
           {currentOption && renderChoice(currentOption)}

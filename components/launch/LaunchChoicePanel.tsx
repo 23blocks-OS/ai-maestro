@@ -11,6 +11,7 @@ import { PROGRAM_CHOICES, noPermissionChoiceNote, permissionModesFor, type Progr
 import { MODE_SUMMARY, STOP_LABEL, STOP_HELP, stopsFor, canReadOnly, type FreedomStop } from '@/lib/freedom'
 import { launchOptionsFor } from '@/lib/launch-options'
 import type { LaunchChoice } from '@/hooks/useLaunchChoice'
+import { useToolReadiness } from '@/hooks/useToolReadiness'
 
 const ICONS: Record<string, typeof Code2> = { claude: Sparkles, terminal: Terminal, current: Cpu }
 
@@ -20,6 +21,7 @@ export default function LaunchChoicePanel({
   disabled = false,
   withExecMode = false,
   compact = false,
+  hostUrl,
 }: {
   c: LaunchChoice
   displayName: string
@@ -28,7 +30,10 @@ export default function LaunchChoicePanel({
   withExecMode?: boolean
   /** For a narrow column (the create wizard): no side padding, smaller text, tile names may wrap. */
   compact?: boolean
+  /** The host the agent will run on (a configured host's URL); empty means this one. Used for the readiness check. */
+  hostUrl?: string
 }) {
+  const { tool: readinessOf } = useToolReadiness(hostUrl)
   const pad = compact ? 'px-0' : 'px-6'
   const isWaking = disabled
   const {
@@ -56,6 +61,15 @@ export default function LaunchChoicePanel({
         } disabled:opacity-50 disabled:cursor-not-allowed`}
       >
         <Icon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-emerald-400' : 'text-zinc-400'}`} />
+        {readinessOf(option.id) && (
+          <span
+            aria-hidden
+            data-testid={`tool-dot-${option.id}`}
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 order-last ml-auto ${
+              readinessOf(option.id)!.state === 'ready' ? 'bg-emerald-500' : readinessOf(option.id)!.state === 'missing' ? 'bg-amber-500' : 'bg-red-500'
+            }`}
+          />
+        )}
         <span className={`${compact ? 'text-xs leading-tight' : 'text-sm truncate'} font-medium ${isSelected ? 'text-emerald-400' : 'text-zinc-200'}`}>{option.name}</span>
       </button>
     )
@@ -76,6 +90,17 @@ export default function LaunchChoicePanel({
           {shell.map(renderChoice)}
         </div>
         <p className="mt-2 text-xs text-zinc-500" data-testid="wake-tool-description">{selected.description}</p>
+                {(() => {
+                  const r = selectedId === 'current' ? undefined : readinessOf(selectedId)
+                  if (!r) return null
+                  const text = r.state === 'ready'
+                    ? `Installed${r.version ? ` · v${r.version}` : ''}`
+                    : r.state === 'missing'
+                      ? `Not installed on this host.${r.install ? ` To install: ${r.install}` : ''}`
+                      : `Found, but it will not start: ${r.problem || 'it did not run.'}`
+                  const tone = r.state === 'ready' ? 'text-zinc-500' : r.state === 'missing' ? 'text-amber-300' : 'text-red-300'
+                  return <p className={`mt-1 text-[11px] break-words ${tone}`} data-testid="tool-readiness" data-state={r.state}>{text}</p>
+                })()}
         <button
           type="button"
           onClick={() => setShowMore(!showMore)}

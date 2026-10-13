@@ -309,6 +309,7 @@ import {
 } from '@/services/config-service'
 
 import { runDiagnostics } from '@/services/diagnostics-service'
+import { toolReadinessRequest } from '@/services/tool-readiness-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 
 // ---------------------------------------------------------------------------
@@ -527,6 +528,10 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/diagnostics$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await runDiagnostics())
+  }},
+  { method: 'GET', pattern: /^\/api\/tools\/readiness$/, paramNames: [], handler: async (req, res) => {
+    const hostUrl = new URL(req.url || '', 'http://localhost').searchParams.get('hostUrl')
+    sendServiceResult(res, await toolReadinessRequest(hostUrl))
   }},
   { method: 'GET', pattern: /^\/api\/docker\/info$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getDockerInfo())

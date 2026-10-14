@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.1] - 2026-10-14 - Plugin 1.9.0: agents know what to do after proposing a database change
+
+### Changed
+- The plugin submodule moves to 1.9.0: **agentic-sql 1.4.0** (after `safe-psql-write propose` the agent tells the person in one sentence, never approves, polls `status` and acts on each outcome; `status --json`) and **agentic-support 1.1.1** (a data change goes through the agentic-sql write door). Restart long-running Claude Code sessions to load the new skill text; `claude plugin update` ships it.
+
 ## [0.81.0] - 2026-10-14 - Approve a database change inside Claude Code (F037)
 
 ### Added

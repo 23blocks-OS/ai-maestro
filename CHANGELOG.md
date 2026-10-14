@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.77.1] - 2026-10-14 - Sidebar: hovering an agent no longer hides its name
+
+### Fixed
+- **The agent's name disappeared while the pointer was on its row.** The row's buttons (favourite, wake, wake with…, companion, profile, delete) appeared in the row and took the width the name needs, so a sleeping agent, which has the most buttons, lost its name entirely. The buttons now float over the right end of the row (with a soft fade), and the name stays where it was. Seen in a browser with five sleeping agents and one with a long label.
+
 ## [0.77.0] - 2026-10-13 - A way back in: the `ai-maestro` command, an app icon, and install as an app (F039)
 
 Until now there was no way back into AI Maestro except remembering `http://localhost:23000` and starting the server yourself.

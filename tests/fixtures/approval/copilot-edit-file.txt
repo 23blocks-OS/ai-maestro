@@ -1,0 +1,45 @@
+ [Current]  Sessions   Issues   Pull requests   Gists
+
+                                                                                                                                           ┃
+ ● Let me run that.                                                                                                                        ┃
+                                                                                                                                           ┃
+ ! This permission request could no longer be answered. Please try your request again.                                                     ┃
+                                                                                                                                           ┃
+ ● Operation cancelled by user                                                                                                             ┃
+                                                                                                                                           ┃
+ ❯ RUNCMD rm created.txt                                                                                                             08:23 ┃
+                                                                                                                                           ┃
+ ● Let me run that.                                                                                                                        ┃
+                                                                                                                                           ┃
+ ● The command finished. Everything looks fine.                                                                                            ┃
+                                                                                                                                           ┃
+ ❯ RUNCMD touch zzz.txt                                                                                                              08:23 ┃
+                                                                                                                                           ┃
+ ● Let me run that.                                                                                                                        ┃
+                                                                                                                                           ┃
+ ● The command finished. Everything looks fine.                                                                                            ┃
+                                                                                                                                           ┃
+ ❯ RUNTOOL edit {"path":"/home/dev/work/projB/notes.txt","old_str":"hello b","new_str":"hello c"}                                    08:23 ┃
+                                                                                                                                           ┃
+ ● Using a tool.                                                                                                                           ┃
+                                                                                                                                           ┃
+ ○ Edit notes.txt                                                                                                                       5s ┃
+                                                                                                                                           ┃
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Edit file                                                                                                                                │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│ notes.txt +1 -1                                                                                                                          │
+│ /home/dev/work/projB                                                                                                                     │
+│                                                                                                                                          │
+│ 1 -   hello b                                                                                                                            │
+│ 1 +   hello c                                                                                                                            │
+│ 2                                                                                                                                        │
+│                                                                                                                                          │
+│ Do you want to edit /home/dev/work/projB/notes.txt?                                                                                      │
+│                                                                                                                                          │
+│ ❯ 1. Yes                                                                                                                                 │
+│   2. Yes, and don't ask again for file operations when in this directory (/home/dev/.../projB)                                           │
+│   3. No, and tell Copilot what to do differently (Esc to stop)                                                                           │
+│                                                                                                                                          │
+│ ↑/↓ to navigate · enter to select · esc to cancel                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -46,7 +46,7 @@ export async function getConversationMessages(
   }
 
   // Find the current conversation JSONL (shared logic with server.mjs)
-  const currentConversation = resolveJsonlPath(agent) // dispatches by program (claude / codex / grok)
+  const currentConversation = resolveJsonlPath(agent) // dispatches by program (claude / codex / grok / copilot)
   if (!currentConversation) {
     return {
       data: {

@@ -351,8 +351,8 @@ export function getLocalSnapshots(now: number = Date.now()): SnapshotMap {
   if (!Array.isArray(agents)) return out
 
   for (const agent of agents) {
-    // A codex or grok transcript has a different shape: no snapshot rather than a wrong one
-    if (/codex|grok/.test((agent.program || '').toLowerCase())) continue
+    // A codex, grok or copilot transcript has a different shape: no snapshot rather than a wrong one
+    if (/codex|grok|copilot/.test((agent.program || '').toLowerCase())) continue
     const file = transcriptPathFor(agent, now)
     const base = file ? readTranscriptSnapshot(file) : null
     const snap = composeSnapshot(base, freshReport(agent.id, now, base), now)

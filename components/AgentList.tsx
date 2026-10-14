@@ -1364,8 +1364,13 @@ export default function AgentList({
                                             </div>
                                           </div>
 
-                                          {/* Action buttons - show on hover */}
-                                          <div className="hidden group-hover/agent:flex items-center gap-1">
+                                          {/* Action buttons - show on hover. They float over the right end of the row: in the
+                                              flow they took the space the name needs, and a sleeping agent (the most buttons)
+                                              lost its name entirely while the pointer was on it. */}
+                                          <div
+                                            data-testid="agent-row-actions"
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover/agent:flex items-center gap-1 pl-6 pr-1 py-1 rounded-r-lg bg-gradient-to-l from-sidebar-hover from-75% to-transparent"
+                                          >
                                             {/* Favorite toggle */}
                                             <button
                                               onClick={(e) => {

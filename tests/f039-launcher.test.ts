@@ -195,7 +195,8 @@ describe('ai-maestro open', () => {
     await serve(port)
     const sb = sandbox()
     expect((await sb.run(['open'], port)).status).toBe(0)
-    await new Promise((r) => setTimeout(r, 300)) // the browser is started in the background
+    // The browser is started in the background: wait for its call to appear, up to 5 s (a loaded machine is slow).
+    for (let i = 0; i < 50 && sb.calls().length === 0; i++) await new Promise((r) => setTimeout(r, 100))
     expect(sb.calls()).toEqual([`google-chrome --app=http://localhost:${port}`])
   })
 

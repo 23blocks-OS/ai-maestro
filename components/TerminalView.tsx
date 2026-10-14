@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKe
 import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { createResizeMessage } from '@/lib/websocket'
+import { isTouchOnTerminal } from '@/lib/terminal-touch'
 import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import MobileKeyToolbar from './MobileKeyToolbar'
@@ -550,18 +551,12 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
     const terminalElement = terminalRef.current
 
     const handleTouchStart = (e: TouchEvent) => {
-      // Check if touch is within terminal bounds
-      const rect = terminalElement.getBoundingClientRect()
-      const touch = e.touches[0]
-
-      if (
-        touch.clientX >= rect.left &&
-        touch.clientX <= rect.right &&
-        touch.clientY >= rect.top &&
-        touch.clientY <= rect.bottom
-      ) {
+      // The touch is the terminal's only if the element it landed on is inside the terminal. A bounding-box
+      // check also matched a hidden terminal (the chat is drawn over the same box), and the preventDefault
+      // below then stopped the chat from scrolling (#556).
+      if (isTouchOnTerminal(terminalElement, e.target)) {
         isTouchingTerminal = true
-        touchStartY = touch.clientY
+        touchStartY = e.touches[0].clientY
       }
     }
 

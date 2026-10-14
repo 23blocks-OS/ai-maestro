@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.77.2] - 2026-10-14 - The chat scrolls on a phone again (#556)
+
+### Fixed
+- **Messages would not scroll on an iPhone (Safari), reported by a user on an iPhone 11 over Tailscale (#556).** On a phone the terminal stays mounted under the chat, hidden. A document-wide touch handler made the terminal scroll, and decided that a touch was "on the terminal" by comparing the finger with the terminal's box. The hidden terminal keeps its box and the chat sits in the same place, so every swipe on the chat counted as a swipe on the invisible terminal and was cancelled (`preventDefault`): the messages did not move. It now asks the element the finger landed on, which is never the hidden terminal. The terminal still scrolls with its own touches. It also stops the view toggle buttons (drawn over the terminal) from starting a terminal scroll.
+
+### How it was checked
+A swipe was simulated in a browser at phone size with touch on, on the chat view: before, the swipe was cancelled; after, it is not. On the terminal view the swipe is still handled by the terminal. Real iPhone Safari was not available for the check, so it is worth a look on the phone after the next deploy.
+
 ## [0.77.1] - 2026-10-14 - Sidebar: hovering an agent no longer hides its name
 
 ### Fixed

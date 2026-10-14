@@ -942,7 +942,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           </div>
         )}
 
-        {!isLoading && messages.length === 0 && !error && (
+        {/* not while a card is waiting: the empty state is h-full and would push the card out of sight */}
+        {!isLoading && messages.length === 0 && !error && secretRequests.length === 0 && sqlWriteRequests.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <MessageSquare className="w-16 h-16 mb-4 opacity-30" />
             <p className="text-base text-gray-400">Talk to {agent.label || agent.name || agent.alias || 'this agent'}</p>

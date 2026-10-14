@@ -1,0 +1,8 @@
+{
+  "name": "ai-maestro-sql-approval",
+  "version": "0.1.0",
+  "description": "Shows a database change an agent proposed with safe-psql-write (what changes, which rows, which environment) and lets you approve it by typing the environment name, or reject it, without leaving Claude Code. Needs Claude Code 2.1.287 or later.",
+  "author": { "name": "23blocks-OS", "url": "https://github.com/23blocks-OS/ai-maestro" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

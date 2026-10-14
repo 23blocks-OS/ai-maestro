@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.80.0] - 2026-10-14 - Chat view and "may I run this?" cards for GitHub Copilot CLI (F038)
+
+### Added
+- **A Copilot agent's conversation shows in the chat view.** AI Maestro reads Copilot's session log (`events.jsonl` under `~/.copilot/session-state/<id>/`, or `COPILOT_HOME`) for the agent's working directory: your messages, its replies, its reasoning, shell and file tool calls (bash, view, create and edit show as Bash, Read, Write and Edit cards) and their results, and session errors (as a "Copilot error: …" divider). A resumed session appends to the same log and is followed.
+- **Working / idle for Copilot**, from the same log: a turn that is open reads as working (the chat pulse and the session list), the way Codex does. A "working" in a log with no write for 10 minutes is not trusted.
+- **"Do you want to run this command?" and the file edit / create questions are cards**, with the command shown as a command. Answers are the keys Copilot itself takes: 1 yes, 2 yes and remember, 3 no (the next chat message becomes the reason, as Copilot does).
+
+### How it was checked
+Against real Copilot CLI 1.0.97 output, produced without any GitHub login: Copilot's own bring-your-own-model mode pointed at a fake model server on this machine, so no token was involved. Real session files covered a conversation, a resumed session, shell calls (success, non-zero exit, refused with feedback), file create and edit, thinking text, an upstream error after retries, and the permission events (requested, approved, approved for location, denied, cancelled). Three permission screens were captured from the real pane. **Not checked:** anything with a real GitHub login or Copilot's own models (field names or tools may differ), sub-agent tasks, skills, MCP tools, `/compact`, plan mode, URL / MCP / outside-folder questions, the arguments of view, grep and glob (mapped by name), the top of the create-file screen, a long command that wraps in the card (falls back to the text in the description), and the server wiring in a live chat.
+
+### Notes
+A message typed into Copilot's box and followed at once by Enter had its Enter swallowed (a second Enter submitted it); rely on the delivery check. The sidebar's status feed does not read Copilot's log yet (F038 item 3); the chat pulse and the session list do.
+
 ## [0.79.0] - 2026-10-14 - Approve an agent's database change from the chat (F037)
 
 ### Added

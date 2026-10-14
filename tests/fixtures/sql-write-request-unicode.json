@@ -1,0 +1,52 @@
+{
+  "id": "w-1d51adfa5386",
+  "created": 1791987609.360062,
+  "expires": 1791988209.360062,
+  "status": "pending",
+  "environment": "staging",
+  "env_var": "FIXTURE_WRITE_URL",
+  "table": "public.customers",
+  "kind": "UPDATE",
+  "columns": [
+    "plan",
+    "email"
+  ],
+  "sql": "UPDATE customers SET plan = %(plan)s, email = %(e)s WHERE name = %(n)s",
+  "params": {
+    "plan": "pró 😀 \"q\"",
+    "e": "jos\\é@example.test",
+    "n": "Bo"
+  },
+  "param_names": [
+    "e",
+    "n",
+    "plan"
+  ],
+  "rows": 1,
+  "diff": [
+    {
+      "key": [
+        2
+      ],
+      "changes": {
+        "email": [
+          "bo@example.test",
+          "jos\\é@example.test"
+        ],
+        "plan": [
+          "free",
+          "pró 😀 \"q\""
+        ]
+      }
+    }
+  ],
+  "diff_truncated": false,
+  "has_pk": true,
+  "reason": "",
+  "agent": "fixture-agent",
+  "ttl": 600,
+  "max_rows": 25,
+  "settings_path": "/home/person/.safe-psql/write.yaml",
+  "settings_sha256": "07179045a01b886a",
+  "fingerprint": "4e19457f6d60fe360049be861227b3bc50866b489fa8a992cbf3ad22f246d2cf"
+}

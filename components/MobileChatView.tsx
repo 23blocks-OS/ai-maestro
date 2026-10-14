@@ -2,6 +2,8 @@
 
 import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
+import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
+import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import AgentStatusRow from './AgentStatusRow'
@@ -253,6 +255,7 @@ function ThinkingBlock({ text }: { text: string }) {
 
 export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, workingDirectory, address }: MobileChatViewProps) {
   const { requests: secretRequests, refresh: refreshSecretRequests } = useSecretRequests(agentId)
+  const { requests: sqlWriteRequests, refresh: refreshSqlWriteRequests } = useSqlWriteRequests(agentId)
   // One status for every view (the sidebar and terminal read the same feed)
   const { presenceOf, snapshotOf } = useSessionActivity()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -897,6 +900,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
         {secretRequests.map((r) => (
           <div key={r.id} className="px-3 py-2 border-b border-gray-800">
             <SecretRequestCard agentId={agentId} request={r} onDone={refreshSecretRequests} />
+          </div>
+        ))}
+        {sqlWriteRequests.map((r) => (
+          <div key={r.id} className="px-3 py-2 border-b border-gray-800 max-h-[60vh] overflow-y-auto">
+            <SqlWriteRequestCard agentId={agentId} request={r} onDone={refreshSqlWriteRequests} />
           </div>
         ))}
         {showPermission && (

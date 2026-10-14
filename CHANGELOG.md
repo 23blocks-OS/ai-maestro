@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.79.0] - 2026-10-14 - Approve an agent's database change from the chat (F037)
+
+### Added
+- **An approval card for SQL writes.** When an agent proposes a database change through the agentic-sql skill (`safe-psql-write propose`), the chat now shows a card: what will change (the statement, the table, how many rows, the before and after of each row, which environment, a countdown to expiry) and the agent's reason. You approve by typing the environment name, or reject. Nothing has been changed until the agent then runs `safe-psql-write apply`, which repeats every check. It works in the desktop chat and the phone chat, and the approval and the rejection are also served by headless hosts.
+- The server only reads and updates the request file the wrapper wrote; it never runs the wrapper and never touches the database. It makes the same state change the wrapper's own approve makes, and refuses an expired request, one that changed after it was proposed, one that is not pending, or a wrong environment name. It tells the agent (by id only, never a value) that the request was approved or rejected. The audit line goes to the wrapper's `write.log`, tagged `via: ai-maestro`.
+- A new section in `docs/CHAT-ARCHITECTURE.md` and `docs/F037-agentic-sql-card-handoff.md` (what the agentic-sql skill text and the Claude Code mod should say; to be upstreamed in the agentic-sql repo).
+
+### Honest limits
+Answering is accepted only from a real browser page of this server (`Sec-Fetch-Site: same-origin`, or an `Origin` whose host is the `Host`), plus the typed environment. That stops an agent approving by accident or with a plain `curl`. It does **not** stop an agent that forges those headers or edits the request file: AI Maestro has no sign-in by design and the agent and you share one OS user. The database login's own limits (listed tables and columns only) are the real backstop, and the terminal approval (`safe-psql-write approve`) is still the stronger door. The card says so.
+
+### How it was checked
+The request-file fixtures come from the real wrapper run against a throwaway Postgres 16, and the JavaScript fingerprint matches the wrapper's on both (plain, and quotes/backslash/accents/emoji). In a browser (desktop and 390 px phone, isolated instance): the card renders, Approve stays disabled until the environment is typed exactly, approving marks the request approved with the fingerprint intact and writes an audit line with no values, and the card disappears. **Not checked:** a remote-host proxy, a real agent receiving the notification, and the wrapper's own terminal approve against this transition.
+
+### Notes
+Requests are matched to an agent by the `agent` field (its name or id); one stamped with `$USER` only appears in the terminal. The server reads `$SAFE_PSQL_HOME` (default `~/.safe-psql`) from its own environment. Still open for F037: the Claude Code approval mod, the agentic-sql skill text (hand-off file above), the agentic-support hand-off, and a live test against a real staging database.
+
 ## [0.78.0] - 2026-10-14 - Chat view for Pi agents (F036)
 
 ### Added

@@ -1,0 +1,45 @@
+{
+  "id": "w-2c210826956f",
+  "created": 1791987602.98405,
+  "expires": 1791988202.98405,
+  "status": "pending",
+  "environment": "staging",
+  "env_var": "FIXTURE_WRITE_URL",
+  "table": "public.customers",
+  "kind": "UPDATE",
+  "columns": [
+    "plan"
+  ],
+  "sql": "UPDATE customers SET plan = %(plan)s WHERE email = %(email)s",
+  "params": {
+    "plan": "pro",
+    "email": "ana@example.test"
+  },
+  "param_names": [
+    "email",
+    "plan"
+  ],
+  "rows": 1,
+  "diff": [
+    {
+      "key": [
+        1
+      ],
+      "changes": {
+        "plan": [
+          "free",
+          "pro"
+        ]
+      }
+    }
+  ],
+  "diff_truncated": false,
+  "has_pk": true,
+  "reason": "customer asked to be moved to Pro",
+  "agent": "fixture-agent",
+  "ttl": 600,
+  "max_rows": 25,
+  "settings_path": "/home/person/.safe-psql/write.yaml",
+  "settings_sha256": "07179045a01b886a",
+  "fingerprint": "3f38cc28b1e1d13c1b87bc700cd3e8b49f0bf494bfa6385c955766f4d5353e5c"
+}

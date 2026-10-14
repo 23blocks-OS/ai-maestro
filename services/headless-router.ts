@@ -153,6 +153,7 @@ import {
 import { wakeAgentRequest, hibernateAgentRequest } from '@/services/agents-wake-service'
 import { getOwnSchedule, setOwnSchedule } from '@/services/agent-own-schedule-service'
 import { createSecretRequest, listSecretRequests, answerSecretRequest } from '@/services/agent-secret-requests-service'
+import { listSqlWriteRequests, answerSqlWriteRequest } from '@/services/agent-sql-write-requests-service'
 import { getPendingWakesReport } from '@/services/pending-wakes-service'
 import { logClientEvent } from '@/services/debug-service'
 import { receiveClaudeLogs, receiveClaudeMetrics } from '@/services/telemetry-service'
@@ -1108,6 +1109,17 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/secret-requests\/([^/]+)$/, paramNames: ['id', 'rid'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
     sendServiceResult(res, await answerSecretRequest(params.id, params.rid, body))
+  }},
+  // SQL write requests (F037): the chat shows the agentic-sql wrapper's pending requests and answers them.
+  // Answering needs a same-origin browser request; the service checks the headers.
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/sql-write-requests$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await listSqlWriteRequests(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/sql-write-requests\/([^/]+)$/, paramNames: ['id', 'rid'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await answerSqlWriteRequest(params.id, params.rid, body, {
+      secFetchSite: getHeader(req, 'sec-fetch-site'), origin: getHeader(req, 'origin'), host: getHeader(req, 'host'),
+    }))
   }},
   // The agent's OWN schedule (agent-owned state, lib/agent-schedule.ts)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/schedule$/, paramNames: ['id'], handler: async (_req, res, params) => {

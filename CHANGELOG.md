@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.0] - 2026-10-14 - Approve a database change inside Claude Code (F037)
+
+### Added
+- **A Claude Code mod for SQL write approvals** (`mods/ai-maestro-sql-approval`). When an agent proposes a change with `safe-psql-write propose`, a band above the prompt says what it wants to change, with Review and Reject. Review shows the environment, the statement, the values, the reason and the before and after of each row; you approve by typing the environment name. `/sql-approval` opens it. It shows only this session's agent's requests (same identity rule as the wrapper), re-reads the file before approving (still pending, not expired, same fingerprint), and writes an audit line with names only. It never connects to the database; the agent still runs `apply`, which repeats every check. Same honest limit as the chat card: it stops accidents and the sanctioned path, not an agent that edits the request file.
+- Docs: a section in `docs/CLAUDE-CODE-MODS.md`.
+
+### Shipped in the other repositories (same item)
+- **agentic-sql 1.4.0:** the skill now says what to do after `propose` (tell the person, never approve, poll `status`, act on each outcome) and `safe-psql-write status <id> --json`. **agentic-support 1.1.1:** a data change goes through the agentic-sql write door.
+
+### How it was checked
+`claude plugin validate` and `claude plugin test` (9 tests against an in-memory file system: approve needs the exact name, changed / expired / answered / missing requests are refused, reject drops the values, only this agent's pending requests show, no values in the log). **Not checked:** the band and pane in a real Claude Code session.
+
 ## [0.80.0] - 2026-10-14 - Chat view and "may I run this?" cards for GitHub Copilot CLI (F038)
 
 ### Added

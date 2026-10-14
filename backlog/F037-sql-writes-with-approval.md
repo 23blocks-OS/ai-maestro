@@ -1,6 +1,6 @@
 # F037 - Let the SQL skill change data, but only with a person's approval
 
-**Status:** In Progress (the write door and terminal approval shipped in agentic-sql 1.3.0 / plugin 1.8.0 / AI Maestro 0.68.0; the AI Maestro card, the Claude Code mod and the support hand-off are open)
+**Status:** In Progress (the write door and terminal approval shipped in agentic-sql 1.3.0 / plugin 1.8.0 / AI Maestro 0.68.0; the AI Maestro card shipped in 0.79.0, the Claude Code mod in 0.81.0, the skill text and support hand-off are agentic-sql 1.4.0 and agentic-support 1.1.1; what is left is a live test against a real staging database)
 **Type:** Feature (extends the agentic-sql skill and its `safe-psql` wrapper)
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12 ("sometimes the SQL queries will actually update and write data, is that considered, and still possible?")

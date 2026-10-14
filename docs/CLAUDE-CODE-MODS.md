@@ -95,6 +95,26 @@ claude plugin validate mods/ai-maestro-secrets
 claude plugin test mods/ai-maestro-secrets
 ```
 
+## The SQL approval mod: `mods/ai-maestro-sql-approval`
+
+When an agent proposes a database change with `safe-psql-write propose` (the agentic-sql skill), the person can approve it without leaving Claude Code. A band above the prompt says what the agent wants ("An agent wants to update 3 row(s) in public.users (staging)") with **Review** and **Reject**. Review opens a pane with the same things the terminal approval screen shows: environment, statement, SQL, values, reason and the before and after of each row. You approve by typing the environment name; anything else is refused. `/sql-approval` opens it too.
+
+What it does and does not do:
+
+- It reads the request files the wrapper writes (`$SAFE_PSQL_HOME/requests`, default `~/.safe-psql/requests`) every 10 seconds and shows only the requests whose `agent` is this session's agent (`AIM_AGENT_NAME`, else `AIM_AGENT_ID`, else `$USER`, the wrapper's own rule).
+- Approving does the same state change as the wrapper's `approve` (`status: approved`, `approved_by`, `approved_at`, `apply_by`, `approved_fingerprint`), after re-reading the file: the request must still be pending, not expired, and carry the fingerprint you saw. Rejecting sets `rejected` and drops the values. Both append an audit line (names only, `via: claude-code-mod`) to `write.log`. The wrapper's own `approve` cannot be used from here, because it refuses to run inside an agent session and needs a terminal.
+- It never connects to the database and never runs the wrapper. The agent still has to run `safe-psql-write apply`, which repeats every check, including the fingerprint, so a request edited after you saw it is refused there. The agent is told with a note that carries only the request id (`[SQL WRITE] request w-... was approved`).
+- **Honest limit:** the agent and you share one OS user, so this stops accidents and the sanctioned path, not an agent that edits the request file itself. The write login's own limits (listed tables and columns, row cap) are the real backstop. The terminal approval remains the stronger door.
+- It uses `$.fs` (read, list, write), `$.env`, `$.clock`, `$.command`, `$.prompt.submit`, `$.state` and `$.ui`; no network, no process.
+
+```bash
+claude --plugin-dir /path/to/ai-maestro/mods/ai-maestro-sql-approval
+claude plugin validate mods/ai-maestro-sql-approval
+claude plugin test mods/ai-maestro-sql-approval
+```
+
+Tested with `claude plugin test` (the logic against an in-memory file system). The band and pane were not driven by a real Claude Code session.
+
 ## Verified live
 
 Tested on 2026-10-02 between a Mac with no tmux session (this mod) and a Linux host with an AI Maestro-native agent in tmux, over the AMP mesh:

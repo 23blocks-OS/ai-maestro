@@ -1,6 +1,6 @@
 # F037 hand-off: what the agentic-sql skill and the Claude Code mod should say and do
 
-For upstreaming to `23blocks-OS/agentic-sql` (skill text) and the Claude Code mod. AI Maestro now ships the chat card (`SqlWriteRequestCard`, `docs/CHAT-ARCHITECTURE.md`). Nothing under `plugin/` was changed.
+Done: the skill text went upstream as agentic-sql 1.4.0 (with `status --json`), the support pointer as agentic-support 1.1.1, and the Claude Code mod is `mods/ai-maestro-sql-approval` (0.81.0). This file records what they rely on. AI Maestro now ships the chat card (`SqlWriteRequestCard`, `docs/CHAT-ARCHITECTURE.md`). Nothing under `plugin/` was changed.
 
 ## What the card relies on (do not change without telling AI Maestro)
 

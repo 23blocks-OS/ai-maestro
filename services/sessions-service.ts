@@ -35,6 +35,7 @@ import { loadAgents } from '@/lib/agent-registry'
 // the hook-fed sessionActivity map — derive it from its own transcript instead.
 import { resolveJsonlPath } from '@/lib/chat-transcript.mjs'
 import { codexLiveStatusFromFile } from '@/lib/transcript-codex.mjs'
+import { copilotLiveStatusFromFile, isCopilotProgram } from '@/lib/transcript-copilot.mjs'
 const isCodexProgram = (a: any) => (a?.program || '').toLowerCase().includes('codex')
 
 /**
@@ -44,11 +45,13 @@ const isCodexProgram = (a: any) => (a?.program || '').toLowerCase().includes('co
  * the activity map said.
  */
 function codexSessionStatus(agent: any): 'active' | 'idle' | null {
-  if (!isCodexProgram(agent)) return null
+  // F038: Copilot is the same case (no hook, events.jsonl carries the turn lifecycle).
+  const copilot = isCopilotProgram(agent?.program)
+  if (!isCodexProgram(agent) && !copilot) return null
   try {
     const file = resolveJsonlPath(agent)
     if (!file) return null
-    const s = codexLiveStatusFromFile(file.path)
+    const s = copilot ? copilotLiveStatusFromFile(file.path) : codexLiveStatusFromFile(file.path)
     return s === 'working' ? 'active' : s === 'idle' ? 'idle' : null
   } catch {
     return null

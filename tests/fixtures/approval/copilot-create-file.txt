@@ -1,0 +1,22 @@
+                                                                                                                                           ┃
+ ● The command finished. Everything looks fine.                                                                                            ┃
+                                                                                                                                           ┃
+ ❯ RUNTOOL create {"path":"/home/dev/work/projB/new.txt","file_text":"line one\nline two\n"}                                         08:21 ┃
+                                                                                                                                           ┃
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Create file                                                                                                                              │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│ new.txt +2 -0                                                                                                                            │
+│ /home/dev/work/projB                                                                                                                     │
+│                                                                                                                                          │
+│ 1 +   line one                                                                                                                           │
+│ 2 +   line two                                                                                                                           │
+│                                                                                                                                          │
+│ Do you want to create /home/dev/work/projB/new.txt?                                                                                      │
+│                                                                                                                                          │
+│ ❯ 1. Yes                                                                                                                                 │
+│   2. Yes, and don't ask again for file operations when in this directory (/home/dev/.../projB)                                           │
+│   3. No, and tell Copilot what to do differently (Esc to stop)                                                                           │
+│                                                                                                                                          │
+│ ↑/↓ to navigate · enter to select · esc to cancel                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

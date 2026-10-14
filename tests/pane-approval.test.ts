@@ -182,3 +182,48 @@ describe('Copilot CLI approval card (captured panes)', () => {
     }
   })
 })
+
+// Real captures: GitHub Copilot CLI 1.0.97 in tmux, 2026-10-14, driven against a local fake OpenAI-compatible
+// model (bring-your-own-provider mode, no GitHub login). These are the "may I run this?" questions Copilot
+// asks in a conversation. Paths are sanitised; every line keeps its width.
+describe('Copilot CLI tool-permission cards (captured panes)', () => {
+  it('"Do you want to run this command?": the command becomes a Bash tool input, three options, No is a no', () => {
+    const c = parseCopilotApproval(fx('copilot-run-command.txt'))! as any
+    expect(c.status).toBe('permission_request')
+    expect(c.message).toBe('Do you want to run this command?')
+    expect(c.toolName).toBe('Bash')
+    expect(c.toolInput).toEqual({ command: 'rm -f zzz.txt && echo done' })
+    expect(c.description).toBe('Do you want to run this command?')
+    expect(c.options.map((o: any) => [o.key, o.value])).toEqual([['1', 'yes'], ['2', 'yes'], ['3', 'no']])
+    expect(c.options[1].label).toMatch(/^Yes, and don't ask again for `rm` in this directory/)
+    expect(c.answerByKey).toBe(true)
+  })
+
+  it('"Do you want to edit <file>?": the question names the file, the diff stays in the description, no Bash input', () => {
+    const c = parseCopilotApproval(fx('copilot-edit-file.txt'))! as any
+    expect(c.message).toBe('Do you want to edit /home/dev/work/projB/notes.txt?')
+    expect(c.description).toMatch(/1 -\s+hello b/)
+    expect(c.description).toMatch(/1 \+\s+hello c/)
+    expect(c.toolName).toBeUndefined()
+    expect(c.options).toHaveLength(3)
+    expect(c.options[1].label).toMatch(/^Yes, and don't ask again for file operations when in this directory/)
+  })
+
+  it('"Do you want to create <file>?" works from a capture cut mid-box (no top border)', () => {
+    const c = parseCopilotApproval(fx('copilot-create-file.txt'))! as any
+    expect(c.message).toBe('Do you want to create /home/dev/work/projB/new.txt?')
+    expect(c.description).toMatch(/2 \+\s+line two/)
+    expect(c.options.map((o: any) => o.value)).toEqual(['yes', 'yes', 'no'])
+  })
+
+  it('is only offered to a Copilot agent', () => {
+    expect(parseApprovalForProgram('copilot', fx('copilot-run-command.txt'))).not.toBeNull()
+    expect(parseApprovalForProgram('codex', fx('copilot-run-command.txt'))).toBeNull()
+    expect(parseApprovalForProgram('grok', fx('copilot-run-command.txt'))).toBeNull()
+  })
+
+  it('leaves no card once the prompt is answered (the footer is gone)', () => {
+    const answered = fx('copilot-run-command.txt').split('\n').slice(0, -14).join('\n') + '\n\n ● The command finished.\n'
+    expect(parseCopilotApproval(answered)).toBeNull()
+  })
+})

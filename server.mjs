@@ -28,6 +28,7 @@ import {
 // F004 Phase 2: a codex agent has no AI Maestro hook, so its live "working"
 // indicator is derived from the turn-lifecycle events in its own transcript.
 import { codexLiveStatus, codexLiveStatusFromFile } from './lib/transcript-codex.mjs'
+import { copilotLiveStatus, copilotLiveStatusFromFile, isCopilotProgram } from './lib/transcript-copilot.mjs'
 const isCodexProgram = (agent) => (agent?.program || '').toLowerCase().includes('codex')
 import {
   getOrCreateStreamSession,
@@ -228,6 +229,13 @@ async function getChatHistory(sessionName, agentId) {
   if (isCodexProgram(agent)) {
     hookState = codexLiveStatus(lines) === 'working' ? { status: 'working', source: 'codex' } : null
   }
+  // F038: Copilot has no AI Maestro hook either; its events.jsonl says whether a turn is open.
+  // The approval card (below) still comes from the pane, which replaces this when a menu is up.
+  if (isCopilotProgram(agent.program)) {
+    hookState = copilotLiveStatus(lines, { ageMs: Date.now() - file.mtime.getTime() }) === 'working'
+      ? { status: 'working', source: 'copilot' }
+      : null
+  }
 
   // If the file no longer has permission_request but the server remembers one,
   // serve the remembered one — this is what keeps a pending approval visible
@@ -344,6 +352,7 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
 
     sessionState.jsonlWatcher = true
     sessionState._codexAgent = isCodexProgram(agent)
+    sessionState._copilotAgent = isCopilotProgram(agent.program)
     sessionState._program = agent.program
 
     // Watch hook state file for real-time permission/status updates
@@ -435,6 +444,11 @@ function broadcastHookState(sessionName, sessionState) {
   const workingDir = sessionState._hookStateWorkingDir
   if (!workingDir) return
   let state = readHookState(workingDir)
+  // F038: no hook state for Copilot; show "working" while its event log has a turn open.
+  if (!state && sessionState._copilotAgent && sessionState.jsonlFilePath &&
+      copilotLiveStatusFromFile(sessionState.jsonlFilePath) === 'working') {
+    state = { status: 'working', source: 'copilot' }
+  }
   // Fallback: if the hook didn't surface a permission prompt but the pane is
   // clearly showing one, build a card from the pane so it ALWAYS shows in chat.
   // Grok: its hook reports permission_request without the menu, so for Grok the

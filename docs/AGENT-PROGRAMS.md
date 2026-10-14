@@ -55,7 +55,11 @@ What was checked (Pi 1.1.0, 2026-10-12, on this Mac and on mac-mini through AI M
 
 **Node version.** Pi 1.x needs **Node 22.19 or newer in the 22 line, or Node 24+**: it uses `zlib.createZstdDecompress`, which Node 23.x only has from 23.8. Node 23.5 passes Pi's version check and then crashes at startup with `createZstdDecompress is not a function` (seen on mac-mini, 2026-10-12). On Node 20 the package manager installs the older `legacy-node20` build instead. Install a current Node 22 beside the others (for example `nvm install 22`) or use Pi's own installer (`curl -fsSL https://pi.dev/install.sh | sh`), which can set up a private Node for Pi, so the host's default Node does not have to change. Run `pi` once and `/login` on every host that runs Pi agents.
 
-**Today:** launch, terminal tab and wake by typing into the pane. **Not yet:** chat history, working/idle status and "needs you". Pi has a JSON event mode and an RPC mode that could feed them later.
+**Chat history (reader built; not yet seen on a live Pi agent in AI Maestro).** `lib/transcript-pi.mjs` reads Pi's session files: user messages, assistant text, thinking blocks, tool calls (shown as tool cards, a `bash` call as Bash) and tool results, and model errors as visible text. It was written against real Pi 1.2.0 session files (print mode and the interactive TUI in tmux), produced with a local fake model server, so the format is verified but no real model's output was involved. Sessions live in `<PI_CODING_AGENT_SESSION_DIR, else PI_CODING_AGENT_DIR or ~/.pi/agent>/sessions/--<cwd with / replaced by ->--/<timestamp>_<uuid>.jsonl`; AI Maestro picks the newest file whose first line (`{"type":"session","cwd":...}`) matches the agent's working directory, and it follows Pi's real path (a symlinked directory is matched too). Pi writes the user's message to the file as soon as it is sent and each assistant message or tool result when it finishes. Limits: `compaction` and `branch_summary` entries are mapped from Pi's documentation but were not seen in a real file; a session branched with `/tree` or `/fork` is shown in file order, not by branch; a `sessionDir` set only in a project's `.pi/settings.json` is not read (use the environment variable or the default).
+
+**Status (derivable, not wired).** The transcript shows where a turn is (`piLiveStatus`: user message, tool call or tool result last means working; a final assistant reply or error means idle; a retry after an error shows as working). It is not connected to the status feed yet, because a Pi that dies mid-turn would read "working" until it is restarted.
+
+**Today:** launch, terminal tab, wake by typing into the pane, and chat history as above. **Not yet:** working/idle status and "needs you" (Pi asks no approval, so there is nothing to build for the second).
 
 ## GitHub Copilot CLI
 
@@ -77,4 +81,4 @@ OpenClaw is recognised as a program (`openclaw`), and AI Maestro discovers OpenC
 
 ## Anything else
 
-Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; Pi, OpenClaw, GitHub Copilot CLI, Cursor, Gemini CLI, OpenCode and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.
+Any terminal agent works in the terminal tab, and messages wake it by typing into the pane. Chat history, status and approval cards need a reader for that program's files; OpenClaw, GitHub Copilot CLI, Cursor, Gemini CLI, OpenCode and others do not have one yet. Aider is deprecated: it is no longer listed, and agents that already run it keep launching.

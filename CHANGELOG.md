@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.78.0] - 2026-10-14 - Chat view for Pi agents (F036)
+
+### Added
+- **A Pi agent's conversation now shows in the chat view.** AI Maestro reads Pi's session files (JSONL under `~/.pi/agent/sessions`, or `PI_CODING_AGENT_SESSION_DIR`) for the agent's working directory, the same way it already reads Claude Code, Codex and Grok: your messages, Pi's replies, its thinking, tool calls (bash shows as a Bash card, `path` is previewed as the file) and visible model errors. It works for agents whose program is `pi`, `pi-agent` or `pi-coding-agent` (whole name, so `api-tool` does not match). Pi records the real path of the folder (`/tmp` is `/private/tmp` on a Mac), so both are matched.
+
+### How it was checked
+Against real Pi 1.2.0 session files: a six-turn conversation in print mode and one from the interactive screen, produced with a fake model server so nobody's credentials were involved. Covered: user message, reply, thinking, a bash call with its result, a failed tool call, and a model error (Pi retries three times; each failed attempt shows as its own error line). **Not seen in a real file, mapped from Pi's documentation only:** compaction and branch summaries, other tools (grep, find, ls), images, branches made with /tree or /fork (shown in file order). Not yet looked at in a live AI Maestro chat with a real model.
+
+### Not done
+Pi's working/idle status from its transcript exists (`piLiveStatus`) but is not wired into the status feed: a Pi that dies mid-turn would read "working" forever, and the status has one source on purpose. A `sessionDir` set only in a project's `.pi/settings.json` is not read.
+
 ## [0.77.2] - 2026-10-14 - The chat scrolls on a phone again (#556)
 
 ### Fixed

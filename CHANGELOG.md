@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.3] - 2026-10-15 - Docs: HTTPS over Tailscale for the mobile app
+
+### Added
+- **"HTTPS inside your tailnet" in `docs/NETWORK-ACCESS.md`** (Option E): `tailscale serve --bg --https=443 http://localhost:23000` gives each machine a real `https://<machine>.<tailnet>.ts.net` address with a valid certificate, reachable only inside the tailnet. The iOS app can use it with no App Transport Security exception; WebSockets run over `wss://`. Plain HTTP over Tailscale keeps working. Requested by the mobile app team, tested on 0.81.2. The same steps are on the mobile page of the website.
+
+### Changed
+- **Website SEO pass** (audit with the agentic-seo build audit: 23 of 23 pages pass). Titles over 60 characters and descriptions over 160 are shortened on 15 pages; `security.html`'s thin description is longer; every page that lacked them gets a `robots` and an `author` meta tag. No URL, canonical or sitemap change.
+
 ## [0.81.2] - 2026-10-14 - A waiting approval card shows in a chat with no messages yet
 
 ### Fixed

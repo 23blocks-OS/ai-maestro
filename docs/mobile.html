@@ -12,7 +12,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile AI Agent Dashboard: Monitor Claude Code Remotely</title>
-    <meta name="description" content="Mobile AI agent dashboard for Claude Code, Codex, Grok Build. Secure remote access to autonomous agents from phone or tablet. Future of work: code from anywhere.">
+    <meta name="description" content="Mobile AI agent dashboard for Claude Code, Codex and Grok Build. Secure remote access to your autonomous agents from phone or tablet. Code from anywhere.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="author" content="23blocks">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -558,6 +560,13 @@ yarn dev</pre>
                             <p class="text-sm text-slate-400 mt-2">Find your machine name in Tailscale app → Machines</p>
                         </div>
                     </div>
+                </div>
+
+                <div class="mt-8 bg-slate-950 border-l-4 border-secondary p-4 rounded-r-lg">
+                    <p class="font-semibold text-white mb-1">🔐 Want HTTPS? (recommended for the iOS app)</p>
+                    <p class="text-slate-200 text-sm mb-2">Turn on MagicDNS and HTTPS Certificates in the Tailscale admin console (one time), then run this on each machine that runs AI Maestro:</p>
+                    <pre class="bg-gray-800 text-green-400 p-3 rounded text-sm overflow-x-auto">tailscale serve --bg --https=443 http://localhost:23000</pre>
+                    <p class="text-slate-200 text-sm mt-2">Your machine is now at <code class="bg-slate-800 px-2 py-1 rounded">https://YOUR-MACHINE-NAME.YOUR-TAILNET.ts.net</code>, with a valid certificate and no port, and only reachable inside your tailnet. Plain HTTP keeps working. Details in the <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/NETWORK-ACCESS.md" class="text-primary underline">network access guide</a>.</p>
                 </div>
 
                 <div class="mt-8 bg-slate-950 border-l-4 border-primary p-4 rounded-r-lg">

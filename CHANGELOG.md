@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.2] - 2026-10-14 - A waiting approval card shows in a chat with no messages yet
+
+### Fixed
+- **The SQL write approval card (and the secret request card) could not be seen in a chat with no messages.** The "Talk to <agent>" empty state fills the whole height and the cards are drawn after it, so they sat below the fold until you scrolled. Found in the live test of 0.81.0. The empty state now steps aside while a card is waiting, in the desktop and the phone chat.
+
 ## [0.81.1] - 2026-10-14 - Plugin 1.9.0: agents know what to do after proposing a database change
 
 ### Changed

@@ -596,7 +596,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     <div className="flex flex-col h-full bg-gray-900">
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-1 py-2" style={{ minHeight: 0 }}>
-        {messages.length === 0 && !error && (
+        {messages.length === 0 && !error && secretRequests.length === 0 && sqlWriteRequests.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <p className="text-sm">No messages yet</p>
             <p className="text-xs mt-1">Conversation will appear here</p>

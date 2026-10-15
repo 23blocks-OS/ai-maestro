@@ -12,6 +12,7 @@ Complete guide for accessing AI Maestro from different locations and networks.
 | **Tailscale** | Direct IP | `http://100.80.12.6:23000` | Tailscale running |
 | **Local network** | Custom domain | `http://mac-mini.aimaestro:23000` | Router DNS or /etc/hosts |
 | **Tailscale** | Custom domain | `http://aimaestro.yourdomain.com:23000` | DNS configuration |
+| **Tailscale** | HTTPS (`tailscale serve`) | `https://mac-mini.<tailnet>.ts.net` | MagicDNS + HTTPS certificates |
 
 ---
 
@@ -274,6 +275,35 @@ tailscale funnel 23000
 ```bash
 tailscale funnel --disable 23000
 ```
+
+#### Option E: HTTPS inside your tailnet (`tailscale serve`)
+
+**URL:** `https://<machine>.<tailnet>.ts.net` (no port, valid certificate, reachable only from your tailnet)
+
+Use this when a client wants a real HTTPS address, for example the iOS mobile app. Plain HTTP to a Tailscale IP needs an App Transport Security exception on iOS, which App Review may question and which some iOS versions break. An HTTPS address needs no exception and works on any iOS version.
+
+**Setup:**
+1. In the [Tailscale admin console](https://login.tailscale.com/admin/dns), turn on **MagicDNS** and **HTTPS Certificates** (one time per tailnet).
+2. On each machine running AI Maestro that you want to reach:
+```bash
+tailscale serve --bg --https=443 http://localhost:23000
+# macOS app: /Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg --https=443 http://localhost:23000
+```
+3. Open `https://<machine>.<tailnet>.ts.net`. In the mobile app, enter that address in the Host field. The app accepts `https://` and uses `wss://` for the WebSocket paths (`/status`, `/term`).
+
+**To stop:**
+```bash
+tailscale serve --https=443 off
+```
+
+**Good to know:**
+- The first request after enabling can take a few seconds while Tailscale provisions the certificate.
+- Run the `serve` command on every machine you want to reach.
+- The machine and tailnet names appear in public certificate-transparency logs. The host itself stays reachable only inside the tailnet (this is `serve`, not `funnel`).
+- Plain HTTP keeps working. It already travels inside Tailscale's encrypted tunnel, so HTTPS is recommended for the mobile app, not required.
+- Mesh peers and `/api/hosts/identity` report the address configured for the host in `~/.aimaestro/hosts.json`, not the address a request came in on. To have peers use the HTTPS address, set the host URL to it there.
+
+---
 
 ---
 

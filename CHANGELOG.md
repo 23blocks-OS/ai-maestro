@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.3] - 2026-10-15 - Docs: HTTPS over Tailscale for the mobile app
+
+### Added
+- **"HTTPS inside your tailnet" in `docs/NETWORK-ACCESS.md`** (Option E): `tailscale serve --bg --https=443 http://localhost:23000` gives each machine a real `https://<machine>.<tailnet>.ts.net` address with a valid certificate, reachable only inside the tailnet. The iOS app can use it with no App Transport Security exception; WebSockets run over `wss://`. Plain HTTP over Tailscale keeps working. Requested by the mobile app team, tested on 0.81.2.
+
 ## [0.81.2] - 2026-10-14 - A waiting approval card shows in a chat with no messages yet
 
 ### Fixed

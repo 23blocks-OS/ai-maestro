@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.5] - 2026-10-16 - Long tokens can be stored; the chat no longer shows copies of your messages as the agent's
+
+### Fixed
+- **A long credential could not be stored in the macOS keychain, and the error showed part of it.** `security -i` cuts a line at about 4096 characters and runs the rest as a command, echoing it in the error: `Could not store FORMS_ADMIN_TOKEN_3METAS: security: unknown command "c5cGJu..."`. A value whose encoded form does not fit on one line is now stored in numbered pieces (`NAME#1`, `NAME#2`, ...) with a marker written last, read back whole, and removed with the secret; a missing piece is reported as damage, never as a wrong value. Short values are stored exactly as before. Checked against the real keychain with a 7 KB dummy.
+- **Error text can no longer carry a value.** Anything quoted in an OS tool's error, and any long token-like run, is replaced with `[…]` before it reaches the card, the CLI or a log (`redactSecrets`).
+- **Your own message appeared again under the agent's name, and raw `<total_tokens>...</total_tokens>` text showed up as agent messages.** Claude Code writes `api-request-blob` lines that carry a copy of what it sent to the model, with a role and content; the chat drew every line with a message payload as an agent bubble. Only `user` and `assistant` lines are conversation now. Checked on the real transcripts of two agents.
+
 ## [0.81.4] - 2026-10-15 - When saving a secret fails, the card says why and how to fix it
 
 ### Added

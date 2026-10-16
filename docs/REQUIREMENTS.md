@@ -30,7 +30,7 @@ This document outlines all prerequisites and installation steps required to run 
 
 **One command installs everything:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
 ```
 
 This automatically:
@@ -41,7 +41,7 @@ This automatically:
 
 **See all options:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --help
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- --help
 ```
 
 ---

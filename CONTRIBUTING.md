@@ -73,7 +73,7 @@ Thank you for your interest in contributing to AI Maestro! This document provide
 The fastest way to get AI Maestro running for testing your changes:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
 ```
 
 This automatically installs prerequisites, clones, and builds the project.

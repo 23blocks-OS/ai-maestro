@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.7] - 2026-10-16 - A clean Linux machine can now install AI Maestro
+
+Found by running the install the way a reader would, on a bare Ubuntu container (nothing but the OS). Four things stopped it.
+
+### Fixed
+- **`curl ... | sh` failed on Ubuntu and Debian** with `Syntax error: "(" unexpected`. The installer needs bash, and `sh` is dash there. Every install command in the README, the docs and the website now says `| bash`, and the installer hands itself over to bash if it is started with `sh` (from a pipe or a file), so old copies of the command work too.
+- **The terminal module could not be built.** On a machine without a compiler and python3 (a minimal image or container) `yarn install` ended with "Could not find any Python installation to use". The installer now installs `build-essential` and `python3` (or the equivalent for dnf, pacman, zypper and apk) when `make`, a C++ compiler or `python3` is missing.
+- **The server did not answer on `localhost:23000` inside Docker.** Docker, Kubernetes and some shells export `HOSTNAME=<the machine's own name>`, and the server used that as the address to listen on, so only the container's own address worked and the installer said "service did not start". The machine's own name is now treated as "not set". `HOSTNAME=localhost` and other explicit values still work as documented.
+
 ## [0.81.6] - 2026-10-16 - Plugin 1.9.1: a session is no longer named after the wrong agent
 
 ### Changed

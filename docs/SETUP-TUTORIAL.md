@@ -52,14 +52,14 @@ Follow these steps to connect your first peer.
 **Recommended: One-Line Installer**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
 ```
 
 This handles prerequisites, installation, and configuration automatically.
 
 **With auto-start (recommended):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --auto-start
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- --auto-start
 ```
 
 ---

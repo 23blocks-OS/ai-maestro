@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  assertSecretName, createScrubber, secretVariants, setSecret, getSecret, listSecretNames, deleteSecret, getBackend,
+  assertSecretName, createScrubber, secretVariants, setSecret, getSecret, listSecretNames, deleteSecret, getBackend, explainBackendFailure, doctorVault,
 } from '../lib/secret-vault.mjs'
 
 const CLI = path.resolve(__dirname, '../scripts/aim-secret.mjs')
@@ -256,5 +256,51 @@ describe('what the model can see', () => {
     const text = fs.readFileSync(transcript, 'utf8')
     for (const v of secretVariants(SECRET)) expect(text).not.toContain(v)
     expect(text).toContain('[secret:MY_KEY]')
+  })
+})
+
+describe('help when the store fails', () => {
+  it('explains the macOS errors in plain words', () => {
+    expect(explainBackendFailure('security: SecKeychainItemCreateFromContent (<default>): Write permissions error.')).toMatch(/pm2 kill/)
+    expect(explainBackendFailure('add-generic-password: returned -61')).toMatch(/outside your desktop login session/)
+    expect(explainBackendFailure('SecKeychainItemCreateFromContent: User interaction is not allowed.')).toMatch(/unlock-keychain/)
+    expect(explainBackendFailure('returned -25308')).toMatch(/locked/)
+    expect(explainBackendFailure('something we have never seen')).toBeNull()
+    expect(explainBackendFailure('')).toBeNull()
+  })
+
+  it('doctor passes on a working store and leaves nothing behind', async () => {
+    const r = await doctorVault()
+    expect(r).toEqual({ ok: true, backend: 'file' })
+    expect(listSecretNames()).toEqual([])
+    expect(await getSecret('AIM_DOCTOR_PROBE')).toBeNull()
+  })
+
+  it('a locked or refused keychain is explained, and the value is never in the message', async () => {
+    const bin = path.join(dir, 'bin')
+    fs.mkdirSync(bin)
+    fs.writeFileSync(path.join(bin, 'security'), '#!/bin/bash\n[ "$1" = "-i" ] && cat >/dev/null\necho "security: SecKeychainItemCreateFromContent (<default>): Write permissions error." >&2\nexit 1\n', { mode: 0o755 })
+    const kenv = { ...env, PATH: `${bin}:${process.env.PATH}`, AIM_VAULT_BACKEND: 'keychain', AIM_VAULT_ALLOW_REAL: '1', VITEST: '1' }
+    const set = await new Promise<{ code: number; err: string }>((resolve) => {
+      const c = spawn('node', [CLI, 'set', 'MY_KEY', '--stdin'], { env: kenv, stdio: ['pipe', 'pipe', 'pipe'] })
+      let err = ''
+      c.stderr.on('data', (d) => (err += d))
+      c.on('close', (code) => resolve({ code: code ?? -1, err }))
+      c.stdin.end('some-secret-value')
+    })
+    expect(set.code).not.toBe(0)
+    expect(set.err).toMatch(/pm2 save && pm2 kill && pm2 resurrect/)
+    expect(set.err).toMatch(/When saving a secret fails/)
+    expect(set.err).not.toContain('some-secret-value')
+    const doctor = await new Promise<{ code: number; err: string }>((resolve) => {
+      const c = spawn('node', [CLI, 'doctor'], { env: kenv, stdio: ['pipe', 'pipe', 'pipe'] })
+      let err = ''
+      c.stderr.on('data', (d) => (err += d))
+      c.on('close', (code) => resolve({ code: code ?? -1, err }))
+      c.stdin.end()
+    })
+    expect(doctor.code).toBe(1)
+    expect(doctor.err).toMatch(/cannot save a secret here/)
+    expect(doctor.err).toMatch(/pm2 kill/)
   })
 })

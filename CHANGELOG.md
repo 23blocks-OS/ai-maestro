@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.4] - 2026-10-15 - When saving a secret fails, the card says why and how to fix it
+
+### Added
+- **Plain-language help when the keychain or keyring refuses a secret.** The card used to show the raw macOS text (`SecKeychainItemCreateFromContent: Write permissions error`). It now says what is wrong and what to do: a pm2 daemon started outside your desktop login session (restart it from your own Terminal: `pm2 save && pm2 kill && pm2 resurrect`), a locked login keychain (`security unlock-keychain ...`, or use `aim-secret backend file` on a host nobody signs in to), a refused prompt, or a locked Linux keyring. The card links to the new "When saving a secret fails" section in `docs/SECRETS.md`.
+- **`aim-secret doctor`**: tests that this machine can save and read a secret (with a throwaway item, never one of yours), and says what is wrong if it cannot. Exit code 1 on a problem.
+
+### Fixed
+- The error message on the card was cut at 300 characters; it now keeps up to 700 so the fix is not truncated.
+
 ## [0.81.3] - 2026-10-15 - Docs: HTTPS over Tailscale for the mobile app
 
 ### Added

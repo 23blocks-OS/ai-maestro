@@ -147,7 +147,7 @@ export async function answerSecretRequest(agentId: string, requestId: string, ra
   } catch (e) {
     // The message of a VaultError never contains the value (it names the problem and the way out).
     const message = e instanceof Error ? e.message : 'the vault could not store it'
-    return invalidRequest(`Could not store ${named.name}: ${message}`.slice(0, 300))
+    return invalidRequest(`Could not store ${named.name}: ${message}`.slice(0, 700))
   }
   removeRequest(requestId)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // aim-secret: store credentials locally and let agents use them without seeing them (F033).
 import {
-  VaultError, backendKind, backendSource, deleteSecret, execWithSecrets, hasSecret, listSecretNames, setSavedBackend, setSecret,
+  VaultError, backendKind, backendSource, deleteSecret, execWithSecrets, hasSecret, listSecretNames, setSavedBackend, setSecret, doctorVault,
 } from '../lib/secret-vault.mjs'
 import { requestSecret } from '../lib/secret-request-client.mjs'
 
@@ -15,6 +15,7 @@ const USAGE = `aim-secret - local secret vault. Agents use secrets; they never r
                                  (for agents) ask the user to store NAME; they type it into a card in
                                  the AI Maestro chat, never into this command
   aim-secret status              which store is in use, and why
+  aim-secret doctor              test that this machine can save a secret, and say what is wrong if it cannot
   aim-secret backend NAME        keychain | libsecret | file | auto: remember the store for this machine
                                  (use file on a headless server with no keyring)
   aim-secret exec --use NAME [--use ENV=NAME ...] -- COMMAND [ARGS...]
@@ -101,6 +102,12 @@ async function main(argv) {
     return process.exit(r.code)
   }
   if (cmd === 'status') return console.log(`backend: ${backendKind()} (${backendSource()})`)
+  if (cmd === 'doctor') {
+    const r = await doctorVault()
+    if (r.ok) return console.log(`ok: ${r.backend} can save and read a secret on this machine`)
+    console.error(`problem: ${r.backend} cannot save a secret here\n${r.problem}\n${r.help}`)
+    process.exit(1)
+  }
   if (cmd === 'backend') {
     if (!rest[0]) die('usage: aim-secret backend keychain|libsecret|file|auto', 2)
     setSavedBackend(rest[0])

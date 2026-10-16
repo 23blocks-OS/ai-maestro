@@ -96,7 +96,19 @@ export default function SecretRequestCard({ agentId, request, onDone }: Props) {
             autoFocus
           />
           {!nameOk && <p className="text-[11px] text-red-300 mb-2">Use capital letters, digits and underscores, like OPENAI_API_KEY.</p>}
-          {error && <p className="text-[11px] text-red-300 mb-2">{error}</p>}
+          {error && (
+            <div className="text-[11px] text-red-300 mb-2" role="alert">
+              <p>{error}</p>
+              <a
+                className="underline text-sky-300"
+                href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SECRETS.md#when-saving-a-secret-fails"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Help: when saving a secret fails
+              </a>
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               type="submit"

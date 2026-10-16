@@ -33,6 +33,20 @@ aim-secret status           # shows the store and where the choice came from
 
 The environment variable `AIM_VAULT_BACKEND` overrides the saved setting. `scripts/install-aim-secret.sh` (run by `update-aimaestro.sh`) puts `aim-secret` on the PATH.
 
+## When saving a secret fails
+
+The card (or `aim-secret set`) shows what the machine said and what to do. Run `aim-secret doctor` on the machine that runs AI Maestro to test it: it saves and removes a throwaway item (never one of your secrets) and says what is wrong.
+
+| What you see | What it means | What to do |
+|---|---|---|
+| macOS: `Write permissions error` (-61) | AI Maestro's pm2 daemon was started outside your desktop login session (for example from ssh or a background job), so macOS will not let it write to your keychain. | On that Mac, in a Terminal you opened yourself: `pm2 save && pm2 kill && pm2 resurrect`. This restarts AI Maestro; tmux sessions are not touched. Run `aim-secret doctor` to confirm. |
+| macOS: `User interaction is not allowed` (-25308) | The login keychain is locked and nobody can answer its prompt. Typical after a reboot with no one signed in. | Unlock it on that Mac: `security unlock-keychain ~/Library/Keychains/login.keychain-db`, or sign in at its screen. On a host nobody signs in to, use `aim-secret backend file`. |
+| macOS: `User canceled` or an authorization error | The keychain refused access. | Unlock it, approve the prompt if one appears on that Mac, and try again. |
+| Linux: `did not answer within 15s` | The keyring is locked or missing, usually on a server or over ssh. Nothing can answer its password prompt. | Unlock it in a desktop session, or `aim-secret backend file` (encrypted file, only as safe as its permissions). |
+| `no secure store found` | Linux without `libsecret-tools`. | Install `libsecret-tools`, or `aim-secret backend file`. |
+
+A failed save stores nothing, so enter the value again after the fix. AI Maestro never needs your keychain password and will not ask for it.
+
 ## What the scrubbing does and does not do
 
 `exec` replaces the value in the command's output (stdout and stderr) with `[secret:NAME]`, including the base64, URL-encoded, JSON-escaped and hex forms, and values split across output chunks.

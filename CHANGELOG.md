@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.8] - 2026-10-16 - Plugin 1.9.2: the first hour of AMP on a clean machine
+
+### Fixed
+- **`amp-init` no longer makes a second identity for an agent you created first.** An agent created in the dashboard or with `aimaestro-agent.sh create` now keeps the id AI Maestro gave it, so messages land in the inbox the server watches and the agent is woken.
+- **A second or third agent can be initialised.** An explicit `--name` for a different agent is no longer reported as "already initialized" as the first one, and `--force` no longer reuses another agent's id.
+- **Clean machines:** the fallback id is well-formed (no more "AMP config mismatch" on every command) and `xxd` is no longer required.
+
+### Changed
+- AMP scripts 0.3.2, plugin 1.9.2.
+
 ## [0.81.7] - 2026-10-16 - A clean Linux machine can now install AI Maestro
 
 Found by running the install the way a reader would, on a bare Ubuntu container (nothing but the OS). Four things stopped it.

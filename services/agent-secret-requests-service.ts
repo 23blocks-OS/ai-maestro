@@ -15,7 +15,7 @@ import { getAgent } from '@/lib/agent-registry'
 import { isSelf } from '@/lib/hosts-config'
 import { isSafeAgentId } from '@/lib/safe-ids'
 import { createRequest, listRequests, getRequest, removeRequest } from '@/lib/secret-requests'
-import { assertSecretName, hasSecret, setSecret } from '@/lib/secret-vault.mjs'
+import { assertSecretName, hasSecret, setSecret, redactSecrets } from '@/lib/secret-vault.mjs'
 import { agentNotFound, invalidField, invalidRequest, missingField, serviceError, type ServiceResult } from '@/services/service-errors'
 
 const PROXY_TIMEOUT_MS = 15000
@@ -147,7 +147,7 @@ export async function answerSecretRequest(agentId: string, requestId: string, ra
   } catch (e) {
     // The message of a VaultError never contains the value (it names the problem and the way out).
     const message = e instanceof Error ? e.message : 'the vault could not store it'
-    return invalidRequest(`Could not store ${named.name}: ${message}`.slice(0, 700))
+    return invalidRequest(redactSecrets(`Could not store ${named.name}: ${message}`).slice(0, 700))
   }
   removeRequest(requestId)
 

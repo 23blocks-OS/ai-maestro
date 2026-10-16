@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  assertSecretName, createScrubber, secretVariants, setSecret, getSecret, listSecretNames, deleteSecret, getBackend, explainBackendFailure, doctorVault,
+  assertSecretName, createScrubber, secretVariants, setSecret, getSecret, listSecretNames, deleteSecret, getBackend, explainBackendFailure, doctorVault, redactSecrets,
 } from '../lib/secret-vault.mjs'
 
 const CLI = path.resolve(__dirname, '../scripts/aim-secret.mjs')
@@ -302,5 +302,92 @@ describe('help when the store fails', () => {
     expect(doctor.code).toBe(1)
     expect(doctor.err).toMatch(/cannot save a secret here/)
     expect(doctor.err).toMatch(/pm2 kill/)
+  })
+})
+
+describe('long values in the macOS keychain', () => {
+  // A stand-in for `security` that keeps items in files and, like the real one, cuts an interactive line
+  // at about 4096 characters and runs the rest as a command (echoing it in the error).
+  function shim(): { bin: string; store: string } {
+    const bin = path.join(dir, 'shimbin')
+    const store = path.join(dir, 'kc')
+    fs.mkdirSync(bin, { recursive: true })
+    fs.mkdirSync(store, { recursive: true })
+    fs.writeFileSync(path.join(bin, 'security'), `#!/bin/bash
+STORE="${store}"
+acct() { while [ $# -gt 0 ]; do [ "$1" = "-a" ] && { echo "$2"; return; }; shift; done; }
+file() { echo "$STORE/$(echo "$1" | tr '#' '_')"; }
+case "$1" in
+  -i)
+    while IFS= read -r line; do
+      if [ \${#line} -gt 4090 ]; then
+        echo "security: unknown command \"\${line:4090}\"" >&2; exit 1
+      fi
+      set -- $line
+      a=$(acct "$@"); v="\${line##* -w }"
+      printf '%s' "$v" > "$(file "$a")"
+    done ;;
+  find-generic-password) a=$(acct "$@"); f="$(file "$a")"; [ -f "$f" ] || exit 44; cat "$f"; echo ;;
+  delete-generic-password) a=$(acct "$@"); f="$(file "$a")"; [ -f "$f" ] || exit 44; rm -f "$f" ;;
+  *) exit 1 ;;
+esac
+`, { mode: 0o755 })
+    return { bin, store }
+  }
+  function vault(sh: { bin: string }, js: string): Promise<{ code: number; out: string; err: string }> {
+    return new Promise((resolve) => {
+      const c = spawn('node', ['--input-type=module', '-e',
+        `import * as v from ${JSON.stringify(path.resolve(__dirname, '../lib/secret-vault.mjs'))}\n${js}`],
+      { env: { ...env, PATH: `${sh.bin}:${process.env.PATH}`, AIM_VAULT_BACKEND: 'keychain', AIM_VAULT_ALLOW_REAL: '1', VITEST: '1' }, stdio: ['pipe', 'pipe', 'pipe'] })
+      let out = ''
+      let err = ''
+      c.stdout.on('data', (d) => (out += d))
+      c.stderr.on('data', (d) => (err += d))
+      c.on('close', (code) => resolve({ code: code ?? -1, out, err }))
+      c.stdin.end()
+    })
+  }
+  const LONG = 'eyJ' + 'abcdEFGH0123456789_-'.repeat(350) // 7 KB, a long token
+
+  it('stores and reads back a value longer than one interactive line', async () => {
+    const sh = shim()
+    const r = await vault(sh, `await v.setSecret('FORMS_ADMIN_TOKEN', ${JSON.stringify(LONG)}); const back = await v.getSecret('FORMS_ADMIN_TOKEN'); console.log(back === ${JSON.stringify(LONG)} ? 'SAME' : 'DIFFERENT')`)
+    expect(r.err).toBe('')
+    expect(r.out.trim()).toBe('SAME')
+    expect(fs.readdirSync(sh.store).filter((f) => f.startsWith('FORMS_ADMIN_TOKEN_')).length).toBeGreaterThan(1)
+  })
+
+  it('keeps a short value as one item, as before', async () => {
+    const sh = shim()
+    const r = await vault(sh, `await v.setSecret('SHORT_KEY', 'sk-live-1234567890'); console.log(await v.getSecret('SHORT_KEY'))`)
+    expect(r.out.trim()).toBe('sk-live-1234567890')
+    expect(fs.readdirSync(sh.store)).toEqual(['SHORT_KEY'])
+  })
+
+  it('replacing a long value with a short one, and deleting, leave no pieces behind', async () => {
+    const sh = shim()
+    await vault(sh, `await v.setSecret('K_ONE', ${JSON.stringify(LONG)})`)
+    await vault(sh, `await v.setSecret('K_ONE', 'short-value-123')`)
+    expect(fs.readdirSync(sh.store)).toEqual(['K_ONE'])
+    await vault(sh, `await v.setSecret('K_TWO', ${JSON.stringify(LONG)})`)
+    await vault(sh, `await v.deleteSecret('K_TWO')`)
+    expect(fs.readdirSync(sh.store)).toEqual(['K_ONE'])
+  })
+
+  it('a missing piece is reported as damage, not returned as a wrong value', async () => {
+    const sh = shim()
+    await vault(sh, `await v.setSecret('K_THREE', ${JSON.stringify(LONG)})`)
+    fs.rmSync(path.join(sh.store, 'K_THREE_2'))
+    const r = await vault(sh, `try { await v.getSecret('K_THREE') } catch (e) { console.log(e.message) }`)
+    expect(r.out).toMatch(/damaged/)
+    expect(r.out).not.toContain('eyJ')
+  })
+
+  it('an error that quotes the value is redacted', () => {
+    const quoted = 'security: unknown command "c5cGJuUnRaVzUwY3pwM2NtbDBaU0lzSW1Gd2NGOW1iM0p0Y3pweVpXRmtJaXdp"'
+    const out = redactSecrets(quoted)
+    expect(out).not.toContain('c5cGJu')
+    expect(out).toContain('unknown command')
+    expect(redactSecrets('plain words stay: Write permissions error')).toBe('plain words stay: Write permissions error')
   })
 })

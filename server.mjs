@@ -10,6 +10,7 @@ import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
+import { resolveBindHost } from './lib/bind-host.mjs'
 // Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
 import { approvalKindForProgram, parseApprovalForProgram } from './lib/pane-approval.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
@@ -100,7 +101,7 @@ process.on('SIGPIPE', () => {
 // =============================================================================
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
+const hostname = resolveBindHost() // 0.0.0.0 allows network access; HOSTNAME overrides it (see lib/bind-host.mjs)
 const port = parseInt(process.env.PORT || '23000', 10)
 
 // Server mode: 'full' (default) = Next.js + UI, 'headless' = API-only (no Next.js)

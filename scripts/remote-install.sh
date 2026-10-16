@@ -11,6 +11,21 @@
 #   --uninstall         Remove AI Maestro installation
 #   -h, --help          Show help
 
+# This installer needs bash (arrays, [[ ]]). On Ubuntu and Debian `sh` is dash, so `curl ... | sh` used to stop with
+# `Syntax error: "(" unexpected`. Hand over to bash before the rest of the file is read. Only POSIX syntax up to here.
+if [ -z "${BASH_VERSION:-}" ]; then
+    if ! command -v bash >/dev/null 2>&1; then
+        echo "The AI Maestro installer needs bash. Install bash, then run it again." >&2
+        exit 1
+    fi
+    # Run from a file (sh ./remote-install.sh): use that file. Piped from curl, $0 is the shell's own name.
+    case "$0" in
+        sh|-sh|dash|-dash|ash|-ash|bash|-bash|"") ;;
+        *) [ -f "$0" ] && exec bash "$0" "$@" ;;
+    esac
+    exec bash -c "$(curl -fsSL "${AIM_INSTALLER_URL:-https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh}")" bash "$@"
+fi
+
 set -e
 
 # =============================================================================
@@ -29,7 +44,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.81.6"
+VERSION="0.81.7"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -760,6 +775,36 @@ act2_install_prerequisites() {
             _install_pkg jq
         fi
         [ "$SKIP_SYSPKG" != true ] && maestro_ok "jq installed"
+    fi
+
+    # Build tools. The terminal module (node-pty) is compiled during `yarn install` when no prebuilt binary
+    # matches the machine, and that needs make, a C++ compiler and python3. Ubuntu servers and desktops have
+    # python3; a minimal image or container has none of them, and the install then failed at the very end
+    # with "Could not find any Python installation to use".
+    if [ "$OS" != "macos" ] && [ "$SKIP_SYSPKG" != true ] && [ "$SKIP_PREREQS" != true ]; then
+        local need_build=false
+        command -v make >/dev/null 2>&1 || need_build=true
+        command -v python3 >/dev/null 2>&1 || need_build=true
+        { command -v g++ >/dev/null 2>&1 || command -v c++ >/dev/null 2>&1; } || need_build=true
+        if [ "$need_build" = true ]; then
+            echo ""
+            maestro_say "Setting up build tools (make, a C++ compiler, python3)..."
+            if command -v apt-get &>/dev/null; then
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq build-essential python3 || maestro_warn "Could not install build tools; the terminal module may fail to build"
+            elif command -v dnf &>/dev/null; then
+                sudo dnf install -y gcc-c++ make python3 || maestro_warn "Could not install build tools; the terminal module may fail to build"
+            elif command -v pacman &>/dev/null; then
+                sudo pacman -S --noconfirm --needed base-devel python || maestro_warn "Could not install build tools; the terminal module may fail to build"
+            elif command -v zypper &>/dev/null; then
+                sudo zypper install -y gcc-c++ make python3 || maestro_warn "Could not install build tools; the terminal module may fail to build"
+            elif command -v apk &>/dev/null; then
+                sudo apk add build-base python3 || maestro_warn "Could not install build tools; the terminal module may fail to build"
+            else
+                maestro_warn "Install make, a C++ compiler and python3 with your package manager"
+            fi
+            maestro_ok "Build tools ready"
+        fi
     fi
 
     # AI Tool choice (skip if --skip-ai-tool or user already has Claude)

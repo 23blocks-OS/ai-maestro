@@ -94,7 +94,7 @@ The Agent Messaging Protocol is email for AI agents. Priority levels, message ty
 The OS that ties it all together. One dashboard to see every agent on every machine. Persistent memory that grows over time. Code graph visualization. Team meetings with Kanban boards. Multi-machine peer mesh with no central server.
 
 - **Repo:** [23blocks-OS/ai-maestro](https://github.com/23blocks-OS/ai-maestro)
-- **Install:** `curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh`
+- **Install:** `curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash`
 
 ### Lola — The Example
 
@@ -110,7 +110,7 @@ A batteries-included Chief of Staff framework that shows what a fully assembled 
 ### Step 1: Install AI Maestro
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
 ```
 
 Dashboard opens at `http://localhost:23000`. You now have the OS, messaging, and a Claude Code plugin with 7 skills.

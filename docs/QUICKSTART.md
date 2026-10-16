@@ -35,12 +35,12 @@ AI Maestro offers different installation options depending on your needs:
 ### Option A: One-Line Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
 ```
 
 **Unattended installation** (for CI/CD, scripts, WSL):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- -y --auto-start
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- -y --auto-start
 ```
 
 This handles everything: prerequisites, installation, configuration. The `-y` flag skips all prompts.

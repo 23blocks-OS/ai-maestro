@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.81.6] - 2026-10-16 - Plugin 1.9.1: a session is no longer named after the wrong agent
+
+### Changed
+- The plugin submodule moves to 1.9.1 with the AMP scripts at **0.3.1**. A session in a folder below one that an agent owns used to be named after that agent even when the folder was your home folder or `/tmp`, so `amp-identity` could answer as an unrelated agent (found when a new agent registered from a scratch folder and was told it was `specs-probe-macbook`). A broad folder now matches only the exact folder, in the AMP commands and the status line.
+- **`amp-init --remember`** writes `CLAUDE_AGENT_NAME` into the project folder's `.claude/settings.local.json` (keeping its other settings; refused in a broad folder or when the file is not JSON), so every later Claude Code session there knows which agent it is. `amp-init` now also tells AI Maestro which folder the agent works in when it registers (never a broad one), and prints the one command that makes the name stick.
+- The status line says "this session has no agent name (set CLAUDE_AGENT_NAME, or run amp-init --name <agent> --remember)" instead of "not configured (run amp-init)"; a named agent with no address still says "not configured". The "Multiple AMP agents found" error says how to name the session once.
+- Restart long-running Claude Code sessions to load the new scripts; `claude plugin update` ships them.
+
 ## [0.81.5] - 2026-10-16 - Long tokens can be stored; the chat no longer shows copies of your messages as the agent's
 
 ### Fixed

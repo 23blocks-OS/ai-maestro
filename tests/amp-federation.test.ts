@@ -67,6 +67,10 @@ describe('federation: provider authentication', () => {
     const k = await generateKeyPair()
     expect(publicHexFromPem(k.publicPem)).toBe(k.publicHex)
     expect(publicHexFromPem('garbage')).toBeNull()
+    // Crabmail publishes the bare 32-byte key as 64 hex characters
+    expect(publicHexFromPem(k.publicHex)).toBe(k.publicHex)
+    expect(publicHexFromPem(k.publicHex.toUpperCase())).toBe(k.publicHex)
+    expect(publicHexFromPem('ab'.repeat(31))).toBeNull()
   })
 })
 
@@ -153,5 +157,22 @@ describe('federation: POST /api/v1/federation/deliver', () => {
     const r = await deliverFederated(b.provider, b.body, b.auth)
     expect(r.status).toBe(409)
     expect(r.data.error).toBe('key_conflict')
+  })
+})
+
+import { discoveryUrls, documentFor } from '@/lib/amp-federation-auth'
+
+describe('federation: where a provider is discovered', () => {
+  it('tries the bare domain, then the api. host (Crabmail serves its API there)', () => {
+    expect(discoveryUrls('crabmail.ai')).toEqual([
+      'https://crabmail.ai/.well-known/agent-messaging.json',
+      'https://api.crabmail.ai/.well-known/agent-messaging.json',
+    ])
+  })
+  it('accepts a document only when it names the provider asked for and carries a key', () => {
+    expect(documentFor('crabmail.ai', { provider: 'crabmail.ai', public_key: 'PEM' })).toMatchObject({ public_key: 'PEM' })
+    expect(documentFor('crabmail.ai', { provider: 'other.example', public_key: 'PEM' })).toBeNull()
+    expect(documentFor('crabmail.ai', { provider: 'crabmail.ai' })).toBeNull()
+    expect(documentFor('crabmail.ai', '<html>')).toBeNull()
   })
 })

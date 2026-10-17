@@ -41,9 +41,10 @@ import os from 'os'
 
 import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHost, updateAgent, deleteAgent, markAgentAsAMPRegistered, checkMeshAgentExists, getAMPRegisteredAgents } from '@/lib/agent-registry'
 import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader, revokeApiKey, rotateApiKey, revokeAllKeysForAgent } from '@/lib/amp-auth'
-import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
+import { saveKeyPair, loadKeyPair, loadAllRegistrations, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
 import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-keys'
 import { deriveDidKey } from '@/lib/amp-did'
+import { agentHasAddress, findAgentByAddress } from '@/lib/agent-addresses'
 import { revokeFingerprint, isRevoked } from '@/lib/amp-revocation'
 import { checkReplay } from '@/lib/amp-replay'
 import { verifyProviderRequest, senderBelongsToProvider, publicHexFromPem } from '@/lib/amp-federation-auth'
@@ -57,7 +58,7 @@ import { initAgentAMPHome, isSafeMessageId } from '@/lib/amp-inbox-writer'
 import { deliverViaWebSocket } from '@/lib/amp-websocket'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId, getSelfHost, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
-import { AMP_PROTOCOL_VERSION, getAMPProviderDomain } from '@/lib/types/amp'
+import { AMP_PROTOCOL_VERSION, getAMPProviderDomain, buildAMPAddress } from '@/lib/types/amp'
 import type {
   AMPHealthResponse,
   AMPInfoResponse,
@@ -1706,43 +1707,34 @@ export function resolveAgentAddress(
 
   const decodedAddress = decodeURIComponent(address)
 
-  // Extract agent name from address (name@domain)
+  // The address names the agent: any of the addresses it has, in any tenant.
+  // Falling back to the first name keeps older callers that pass a bare name working.
+  const organization = getOrganization() || undefined
   const atIndex = decodedAddress.indexOf('@')
   const agentName = atIndex >= 0 ? decodedAddress.substring(0, atIndex) : decodedAddress
-
-  // Find agent by name
-  const agent = getAgentByNameAnyHost(agentName)
+  const agent: any = (atIndex >= 0 ? findAgentByAddress(loadAgents() as any[], decodedAddress, organization) : undefined)
+    || getAgentByNameAnyHost(agentName)
 
   if (!agent) {
-    // Also try searching all agents by AMP address metadata
-    const allAgents = loadAgents()
-    const byAddress = allAgents.find((a: any) =>
-      a.metadata?.amp?.address === decodedAddress
-    )
-    if (!byAddress) {
-      return {
-        data: { error: 'not_found', message: `Agent not found: ${decodedAddress}` },
-        status: 404
-      }
-    }
-
-    const keyPair = loadKeyPair(byAddress.id)
     return {
-      data: {
-        address: decodedAddress,
-        alias: byAddress.alias || byAddress.label,
-        public_key: keyPair?.publicPem || '',
-        key_algorithm: 'Ed25519',
-        fingerprint: keyPair?.fingerprint || (byAddress.metadata?.amp?.fingerprint as string) || '',
-        did: deriveDidKey(keyPair?.publicHex) || (byAddress.metadata?.amp?.did as string) || null,
-        online: byAddress.sessions?.some((s: any) => s.status === 'online') || false,
-      } as AMPAgentResolveResponse,
-      status: 200
+      data: { error: 'not_found', message: `Agent not found: ${decodedAddress}` },
+      status: 404
     }
   }
 
-  const keyPair = loadKeyPair(agent.id)
-  const ampAddress = (agent.metadata?.amp?.address as string) || decodedAddress
+  // The key held here belongs to the local identity only. For an address the agent
+  // has at another provider (its Crabmail address), the key is that provider's
+  // business: answering with the local key would present the wrong key for it.
+  const localAddress = ((agent.metadata?.amp?.address as string)
+    || (agent.name ? buildAMPAddress(agent.name, organization) : '')).toLowerCase()
+  // Mesh callers also spell the tenant as a host id (name@mini-lola.aimaestro.local):
+  // anything under our own provider domain is the local identity.
+  const isLocalIdentity = atIndex < 0 || !localAddress || decodedAddress.toLowerCase() === localAddress
+    || decodedAddress.toLowerCase().endsWith('.aimaestro.local')
+  const keyPair = isLocalIdentity ? loadKeyPair(agent.id) : null
+  const ampAddress = isLocalIdentity ? ((agent.metadata?.amp?.address as string) || decodedAddress) : decodedAddress
+  const registration = isLocalIdentity ? null
+    : loadAllRegistrations(agent.id).find(r => r.address?.toLowerCase() === decodedAddress.toLowerCase())
 
   return {
     data: {
@@ -1750,8 +1742,8 @@ export function resolveAgentAddress(
       alias: agent.alias || agent.label,
       public_key: keyPair?.publicPem || '',
       key_algorithm: 'Ed25519',
-      fingerprint: keyPair?.fingerprint || (agent.metadata?.amp?.fingerprint as string) || '',
-      did: deriveDidKey(keyPair?.publicHex) || (agent.metadata?.amp?.did as string) || null,
+      fingerprint: keyPair?.fingerprint || registration?.fingerprint || (isLocalIdentity ? (agent.metadata?.amp?.fingerprint as string) : '') || '',
+      did: isLocalIdentity ? (deriveDidKey(keyPair?.publicHex) || (agent.metadata?.amp?.did as string) || null) : null,
       online: agent.sessions?.some((s: any) => s.status === 'online') || false,
     } as AMPAgentResolveResponse,
     status: 200
@@ -2074,6 +2066,16 @@ export async function deliverFederated(
     const recipientName = envelope.to.split('@')[0]
     const resolved = resolveAgentIdentifier(recipientName)
     const localAgent = resolved?.agentId ? getAgent(resolved.agentId) : null
+
+    // The agent must actually have the address the mail is for. Matching the first
+    // name alone would deliver mail for sebastian@othertenant to our sebastian.
+    if (localAgent && !agentHasAddress(localAgent, envelope.to, getOrganization() || undefined)) {
+      console.warn(`[Federation] REJECTED — ${localAgent.name || recipientName} has no address ${envelope.to}`)
+      return {
+        data: { error: 'not_found', message: `No agent here has the address '${envelope.to}'` },
+        status: 404
+      }
+    }
 
     if (!localAgent) {
       if (resolved?.agentId) {

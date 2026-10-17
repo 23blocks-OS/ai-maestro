@@ -59,6 +59,16 @@ export function publicHexFromPem(key: string): string | null {
   if (typeof key !== 'string') return null
   const trimmed = key.trim()
   if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return trimmed.toLowerCase()
+  // Base64 of the key's DER (SPKI) form, which Crabmail also accepts at registration
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed) && trimmed.length >= 56) {
+    try {
+      const obj = crypto.createPublicKey({ key: Buffer.from(trimmed, 'base64'), format: 'der', type: 'spki' })
+      if (obj.asymmetricKeyType !== 'ed25519') return null
+      return obj.export({ type: 'spki', format: 'der' }).subarray(-32).toString('hex')
+    } catch {
+      return null
+    }
+  }
   try {
     const obj = crypto.createPublicKey(trimmed)
     if (obj.asymmetricKeyType !== 'ed25519') return null

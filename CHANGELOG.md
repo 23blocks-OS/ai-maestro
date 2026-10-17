@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.83.0] - 2026-10-17 - One agent, several addresses
+
+An agent can be registered in several tenants (the local network, Crabmail), with a different address and key in each. The server treated an agent as having one address and matched mail by first name only.
+
+### Fixed
+- **Mail from outside is delivered only to an address the agent has.** The federation endpoint matched the recipient by the part before the `@`, so mail for `sebastian@othertenant.example` reached our `sebastian`. It now answers 404 unless the agent has that exact address (main address, `metadata.amp.addresses`, provider registrations, or the implicit local address).
+- **Resolving an address no longer lends the local key to another tenant's address.** `GET /api/v1/agents/resolve/<address>` finds the agent by any of its addresses; the local key is returned only for the local identity (including host-id spellings under `.aimaestro.local`). For the agent's address at another provider it returns that registration's fingerprint and an empty key.
+
+### Added
+- `lib/agent-addresses.ts`: the list of an agent's addresses, from one place.
+- Plugin 1.11.0 (AMP scripts 0.5.0): the status line shows `+N` for an agent's other addresses, and `amp-inbox` prints `To:` for a message sent to a non-main address.
+- Docs: "One agent, several addresses" in `docs/AGENT-MESSAGING-GUIDE.md`.
+
 ## [0.82.1] - 2026-10-17 - Crabmail can reach the federation endpoint
 
 Found by checking the real Crabmail discovery document against the 0.82.0 code, before any Crabmail request arrived.

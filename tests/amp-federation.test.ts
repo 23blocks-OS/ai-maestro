@@ -71,6 +71,9 @@ describe('federation: provider authentication', () => {
     expect(publicHexFromPem(k.publicHex)).toBe(k.publicHex)
     expect(publicHexFromPem(k.publicHex.toUpperCase())).toBe(k.publicHex)
     expect(publicHexFromPem('ab'.repeat(31))).toBeNull()
+    // base64 of the DER (SPKI) form
+    const der = crypto.createPublicKey(k.publicPem).export({ type: 'spki', format: 'der' }).toString('base64')
+    expect(publicHexFromPem(der)).toBe(k.publicHex)
   })
 })
 

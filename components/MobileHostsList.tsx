@@ -16,6 +16,7 @@ import {
 import type { Agent } from '@/types/agent'
 import InfraIcon from './InfraIcon'
 import { useHosts } from '@/hooks/useHosts'
+import { isSelfHost } from '@/lib/host-kind'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 
 interface MobileHostsListProps {
@@ -40,8 +41,8 @@ export default function MobileHostsList({
   const { hosts, loading: hostsLoading, error: hostsError } = useHosts()
   const { getSessionActivity, presenceOf } = useSessionActivity()
 
-  // Find the local host (type === 'local') to use as default
-  const localHost = useMemo(() => hosts.find(h => h.type === 'local'), [hosts])
+  // The host serving this dashboard (isSelf), the default
+  const localHost = useMemo(() => hosts.find(h => h.isSelf) || hosts.find(h => isSelfHost(h)), [hosts])
   const localHostId = localHost?.id || ''
 
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set([localHostId]))
@@ -123,7 +124,7 @@ export default function MobileHostsList({
 
   const getHostUrl = (hostId: string) => {
     const host = hosts.find((h) => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase())
-    if (host?.type === 'local') {
+    if (host && isSelfHost(host)) {
       // Show the actual host being accessed (works on mobile)
       if (typeof window !== 'undefined') {
         return window.location.host
@@ -160,8 +161,8 @@ export default function MobileHostsList({
       const hostA = hosts.find(h => h.id === a)
       const hostB = hosts.find(h => h.id === b)
       // Local host comes first
-      if (hostA?.type === 'local') return -1
-      if (hostB?.type === 'local') return 1
+      if (isSelfHost(hostA)) return -1
+      if (isSelfHost(hostB)) return 1
       return getHostName(a).localeCompare(getHostName(b))
     })
   }, [hosts, groupedAgents])
@@ -334,7 +335,7 @@ export default function MobileHostsList({
                     <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   )}
                   <HostIcon className={`w-5 h-5 flex-shrink-0 ${
-                    hosts.find(h => h.id === hostId)?.type === 'local' ? 'text-blue-400' : 'text-purple-400'
+                    isSelfHost(hosts.find(h => h.id === hostId)) ? 'text-blue-400' : 'text-purple-400'
                   }`} />
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-medium text-white truncate">

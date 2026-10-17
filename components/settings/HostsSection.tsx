@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2 } from 'lucide-react'
 import type { Host } from '@/types/host'
+import { isRemoteHost, isSelfHost } from '@/lib/host-kind'
 import localVersion from '@/version.json'
 
 interface OrganizationInfo {
@@ -502,7 +503,7 @@ export default function HostsSection() {
                     )}
 
                     {/* Sync Status (for remote hosts with sync info) */}
-                    {host.type === 'remote' && host.syncSource && (
+                    {isRemoteHost(host) && host.syncSource && (
                       <>
                         <span className="text-gray-600">•</span>
                         <div className="flex items-center gap-1.5 text-purple-400">
@@ -518,7 +519,7 @@ export default function HostsSection() {
                     )}
 
                     {/* Last Sync Error */}
-                    {host.type === 'remote' && host.lastSyncError && (
+                    {isRemoteHost(host) && host.lastSyncError && (
                       <>
                         <span className="text-gray-600">•</span>
                         <div className="flex items-center gap-1.5 text-orange-400" title={host.lastSyncError}>
@@ -533,7 +534,7 @@ export default function HostsSection() {
 
               {/* Actions */}
               <div className="flex items-center gap-2 ml-4">
-                {host.type === 'remote' && (
+                {isRemoteHost(host) && (
                   <button
                     onClick={() => checkHealth(host)}
                     disabled={healthStatus[host.id] === 'checking'}
@@ -552,7 +553,7 @@ export default function HostsSection() {
                   <Edit2 className="w-4 h-4 text-gray-400" />
                 </button>
 
-                {host.type !== 'local' && (
+                {!isSelfHost(host) && (
                   <button
                     onClick={() => handleDelete(host.id)}
                     className="p-2 hover:bg-gray-700 rounded transition-colors"

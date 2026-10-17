@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle, Database } from 'lucide-react'
 import ConversationDetailPanel from './ConversationDetailPanel'
 import { useHosts } from '@/hooks/useHosts'
+import { isRemoteHost } from '@/lib/host-kind'
 
 interface WorkTreeProps {
   sessionName: string
@@ -80,7 +81,7 @@ export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isA
     const host = hosts.find(h => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase())
 
     // If host found and it's remote (type !== 'local'), use its URL
-    if (host && host.type === 'remote') {
+    if (host && isRemoteHost(host)) {
       console.log(`[WorkTree] Agent ${agentId} is on remote host ${host.id} (${host.url})`)
       return host.url
     }

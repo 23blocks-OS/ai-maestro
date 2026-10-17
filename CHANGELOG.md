@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.83.1] - 2026-10-17 - Other hosts' agents on the Work tab and the hosts screens
+
+Several screens decided whether a host was "another machine" from its `type` field. That field is deprecated and most hosts do not have it (on this mesh, mac-mini has none), so those hosts were treated as this machine.
+
+### Fixed
+- **Work tab for agents on other hosts.** The desktop and mobile Work tabs asked this host's server for an agent on a host without `type: "remote"`. That server answers "success" with an empty record, so the tab showed no work. They now use the agent's own host unless it is this machine.
+- **Mobile host list** treated only hosts with `type: "local"` as this machine, so the list's order, icon colour and address were wrong. It now uses `isSelf`.
+- **Settings, Hosts:** the connection test and sync notes were hidden for hosts without `type`, and the delete button showed for this machine. Both now follow `isSelf`.
+- **Doctor and startup peer registration** skipped hosts without `type: "remote"`. They now cover every enabled host that is not this machine.
+- **Adding a host** no longer requires the deprecated `type`, and syncs unless `type` is `local`.
+
+One helper, `lib/host-kind.ts`, now answers "remote or this machine" for the screens.
+
+**Not changed or not checked:** the Messages tab already follows the agent's host and was not touched. I did not reproduce the report that Messages shows "AMP not set up" for pas-lola on mini-lola; that needs the screen Juan saw.
+
 ## [0.83.0] - 2026-10-17 - One agent, several addresses
 
 An agent can be registered in several tenants (the local network, Crabmail), with a different address and key in each. The server treated an agent as having one address and matched mail by first name only.

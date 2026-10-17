@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.82.1] - 2026-10-17 - Crabmail can reach the federation endpoint
+
+Found by checking the real Crabmail discovery document against the 0.82.0 code, before any Crabmail request arrived.
+
+### Fixed
+- **Provider discovery looked only at the bare domain.** Crabmail serves its website on `crabmail.ai` (the well-known path there is a 404 page) and its API, with the provider document, on `api.crabmail.ai`. Every Crabmail request would have been refused. Discovery now tries the bare domain, then `api.<provider>`, and accepts a document only if it names the provider that was asked for.
+- **Provider keys published as bare hex are accepted.** Crabmail publishes its provider key as 64 hex characters, not a PEM. Both forms work, for provider keys and for `sender_public_key`.
+
 ## [0.82.0] - 2026-10-17 - Signatures are checked: on read, on forwarded mail, and for outside providers
 
 A review for the 3Metas guide asked: does the receiver verify the Ed25519 signature before the message is shown? On the server route it did. On three other paths it did not, and the protocol (07-security, 06-federation) requires it. This release closes them, ahead of the first open service that lets people outside the organization send AMP mail.

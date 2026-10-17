@@ -51,11 +51,18 @@ function isPrivateAddress(ip: string): boolean {
   return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80') || v.startsWith('::ffff:')
 }
 
-/** The 32 raw bytes of an Ed25519 public key, as hex, from a PEM. */
-export function publicHexFromPem(pem: string): string | null {
+/**
+ * The 32 raw bytes of an Ed25519 public key, as hex. Accepts a PEM (what the spec's
+ * examples show) or the bare 64-character hex (what Crabmail publishes).
+ */
+export function publicHexFromPem(key: string): string | null {
+  if (typeof key !== 'string') return null
+  const trimmed = key.trim()
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return trimmed.toLowerCase()
   try {
-    const der = crypto.createPublicKey(pem).export({ type: 'spki', format: 'der' })
-    if (der.length < 44) return null
+    const obj = crypto.createPublicKey(trimmed)
+    if (obj.asymmetricKeyType !== 'ed25519') return null
+    const der = obj.export({ type: 'spki', format: 'der' })
     return der.subarray(der.length - 32).toString('hex')
   } catch {
     return null
@@ -64,23 +71,47 @@ export function publicHexFromPem(pem: string): string | null {
 
 const cache = new Map<string, { doc: ProviderDocument | null; expires: number }>()
 
+/**
+ * Where a provider keeps its discovery document. Providers that serve a website on
+ * their bare domain (Crabmail: crabmail.ai is the site, api.crabmail.ai is the API)
+ * publish it on the `api.` host, so both are tried, in this order. A document counts
+ * only when it names the provider it was asked for: a page served by some other
+ * domain cannot vouch for it.
+ */
+export function discoveryUrls(provider: string): string[] {
+  return [`https://${provider}/.well-known/agent-messaging.json`, `https://api.${provider}/.well-known/agent-messaging.json`]
+}
+
+export function documentFor(provider: string, doc: unknown): ProviderDocument | null {
+  if (!doc || typeof doc !== 'object') return null
+  const d = doc as ProviderDocument & { provider?: unknown }
+  if (typeof d.public_key !== 'string') return null
+  if (typeof d.provider === 'string' && d.provider.toLowerCase() !== provider.toLowerCase()) return null
+  return d
+}
+
 /** Discovery by well-known URL over HTTPS. Never follows redirects, never reaches private addresses. */
 export const fetchProviderDocument: FetchProviderDocument = async (provider) => {
   if (!isPlausibleProviderName(provider)) return null
   const hit = cache.get(provider)
   if (hit && hit.expires > Date.now()) return hit.doc
   let doc: ProviderDocument | null = null
-  try {
-    const addrs = await dns.promises.lookup(provider, { all: true })
-    if (addrs.length === 0 || addrs.some(a => isPrivateAddress(a.address))) throw new Error('private address')
-    const res = await fetch(`https://${provider}/.well-known/agent-messaging.json`, {
-      redirect: 'error',
-      signal: AbortSignal.timeout(5000),
-      headers: { Accept: 'application/json' },
-    })
-    if (res.ok) doc = (await res.json()) as ProviderDocument
-  } catch {
-    doc = null
+  for (const url of discoveryUrls(provider)) {
+    try {
+      const host = new URL(url).hostname
+      const addrs = await dns.promises.lookup(host, { all: true })
+      if (addrs.length === 0 || addrs.some(a => isPrivateAddress(a.address))) continue
+      const res = await fetch(url, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(5000),
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) continue
+      doc = documentFor(provider, await res.json())
+      if (doc) break
+    } catch {
+      /* try the next place */
+    }
   }
   cache.set(provider, { doc, expires: Date.now() + (doc ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS) })
   return doc

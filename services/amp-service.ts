@@ -46,7 +46,7 @@ import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-k
 import { deriveDidKey } from '@/lib/amp-did'
 import { revokeFingerprint, isRevoked } from '@/lib/amp-revocation'
 import { checkReplay } from '@/lib/amp-replay'
-import { verifyProviderRequest, senderBelongsToProvider } from '@/lib/amp-federation-auth'
+import { verifyProviderRequest, senderBelongsToProvider, publicHexFromPem } from '@/lib/amp-federation-auth'
 import type { FetchProviderDocument } from '@/lib/amp-federation-auth'
 import { buildVerification, checkSignature, tenantOf } from '@/lib/amp-trust'
 import type { SignatureCheck, VerificationRecord } from '@/lib/amp-trust'
@@ -2022,7 +2022,7 @@ export async function deliverFederated(
         status: 403
       }
     }
-    const fwdKeyHex = typeof sender_public_key === 'string' ? extractPublicKeyHex(sender_public_key) : null
+    const fwdKeyHex = typeof sender_public_key === 'string' ? publicHexFromPem(sender_public_key) : null
     if (!envelope.signature || !fwdKeyHex) {
       return {
         data: { error: 'invalid_signature', message: 'A signed message and the sender public key are required', details: { from: envelope.from } },

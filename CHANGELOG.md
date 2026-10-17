@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.82.0] - 2026-10-17 - Signatures are checked: on read, on forwarded mail, and for outside providers
+
+A review for the 3Metas guide asked: does the receiver verify the Ed25519 signature before the message is shown? On the server route it did. On three other paths it did not, and the protocol (07-security, 06-federation) requires it. This release closes them, ahead of the first open service that lets people outside the organization send AMP mail.
+
+### Security
+- **The federation endpoint now authenticates the forwarding provider.** `POST /api/v1/federation/deliver` trusted whatever name came in the `X-AMP-Provider` header. It now requires `X-AMP-Signature` and `X-AMP-Timestamp` (signature over `<timestamp>.<raw body>`), looks up the provider's key at its `/.well-known/agent-messaging.json` (HTTPS, no redirects, no private addresses, cached an hour), and refuses requests more than five minutes old.
+- **Mail from outside is always strict.** The sender's address must belong to the forwarding provider, the message must be signed, the key must not be revoked or have changed, and the signature must verify. Before, a failed check only set a flag and the message was delivered.
+- **Mail forwarded between your own hosts is verified.** The sending host now sends the sender's public key with the message; the receiving host checks the signature and records the result. A bad signature is refused. Mail from an older host (no key) or from a sender whose key changed is delivered but recorded as unverified.
+- **Every delivered message records the result** in `local.verification` (`state`, `trust` per protocol 07: verified / external / untrusted, `method`, `reason`).
+- **`amp-read` and `amp-inbox` print `Signature: VERIFIED | UNVERIFIED | BAD SIGNATURE`** (AMP scripts 0.4.0, plugin 1.10.0), also for same-machine messages that were written straight into the inbox. `--json` carries `verification`.
+
+### Notes
+- VERIFIED means signed with the key registered for that address. It does not prove the person behind the agent wrote it.
+- This host does not send federated mail yet, so it still publishes no provider key.
+- Docs: "Who sent it: signatures and trust" in `docs/AGENT-MESSAGING-GUIDE.md`.
+
 ## [0.81.8] - 2026-10-16 - Plugin 1.9.2: the first hour of AMP on a clean machine
 
 ### Fixed

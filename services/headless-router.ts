@@ -1483,10 +1483,15 @@ const routes: Route[] = [
     sendServiceResult(res, await rotateKeypair(body, getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/federation\/deliver$/, paramNames: [], handler: async (req, res) => {
-    const body = await readJsonBody(req)
+    // The provider signs the raw body, so read the text and parse it ourselves.
+    const { text, tooLarge } = await readBoundedText(req, 10 * 1024 * 1024)
+    if (tooLarge) { sendServiceResult(res, { data: { error: 'payload_too_large' }, status: 413 }); return }
+    let body: any
+    try { body = JSON.parse(text) } catch { sendServiceResult(res, { data: { error: 'invalid_request', message: 'Invalid JSON body' }, status: 400 }); return }
     const result = await deliverFederated(
       getHeader(req, 'X-AMP-Provider'),
       body,
+      { signature: getHeader(req, 'X-AMP-Signature'), timestamp: getHeader(req, 'X-AMP-Timestamp'), rawBody: text },
     )
     sendServiceResult(res, result)
   }},

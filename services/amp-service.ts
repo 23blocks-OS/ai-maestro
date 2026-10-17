@@ -46,6 +46,10 @@ import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-k
 import { deriveDidKey } from '@/lib/amp-did'
 import { revokeFingerprint, isRevoked } from '@/lib/amp-revocation'
 import { checkReplay } from '@/lib/amp-replay'
+import { verifyProviderRequest, senderBelongsToProvider } from '@/lib/amp-federation-auth'
+import type { FetchProviderDocument } from '@/lib/amp-federation-auth'
+import { buildVerification, checkSignature, tenantOf } from '@/lib/amp-trust'
+import type { SignatureCheck, VerificationRecord } from '@/lib/amp-trust'
 import { canonicalStringify } from '@/lib/amp-canonical-json'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
@@ -338,7 +342,8 @@ async function forwardToHost(
   recipientName: string,
   envelope: AMPEnvelope,
   body: AMPRouteRequest,
-  selfHostId: string
+  selfHostId: string,
+  senderPublicPem?: string
 ): Promise<{ ok: boolean; result?: Record<string, unknown>; error?: string }> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), FORWARD_TIMEOUT_MS)
@@ -361,6 +366,8 @@ async function forwardToHost(
         priority: body.priority,
         in_reply_to: body.in_reply_to,
         signature: envelope.signature,
+        // The receiving host checks the signature with this key (protocol 07).
+        ...(senderPublicPem ? { sender_public_key: senderPublicPem } : {}),
         _forwarded: {
           original_from: envelope.from,
           original_to: envelope.to,
@@ -398,6 +405,7 @@ interface LocalDeliveryOptions {
   forwardedFrom: string | null
   senderPublicKeyHex: string | undefined
   body: AMPRouteRequest
+  verification?: VerificationRecord
 }
 
 /**
@@ -411,7 +419,7 @@ interface LocalDeliveryOptions {
  * went nowhere with nothing anywhere saying so.
  */
 async function deliverLocally(opts: LocalDeliveryOptions): Promise<{ delivered: boolean; error?: string }> {
-  const { envelope, payload, recipientAgentName, senderAgent, senderName, forwardedFrom, senderPublicKeyHex, body } = opts
+  const { envelope, payload, recipientAgentName, senderAgent, senderName, forwardedFrom, senderPublicKeyHex, body, verification } = opts
 
   const result = await deliver({
     envelope,
@@ -421,6 +429,7 @@ async function deliverLocally(opts: LocalDeliveryOptions): Promise<{ delivered: 
     senderName,
     senderHost: senderAgent?.hostId || forwardedFrom || 'unknown',
     recipientAgentId: opts.localAgent.id,
+    verification,
     subject: body.subject,
     priority: body.priority,
     messageType: payload.type,
@@ -841,7 +850,7 @@ export async function routeMessage(
           tenantId: getOrganization() || 'default',
           address: `mesh@${forwardedFrom}`
         }
-        console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom} (signature NOT verified -- trusted host)`)
+        console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom} (trusted host; the sender signature is checked below)`)
       }
     }
 
@@ -1016,26 +1025,63 @@ export async function routeMessage(
       recordKnownKey(senderAddress, senderFp, now)
     }
 
+    // The key this signature is checked against: the sender's own registered
+    // key when it lives on this host, or, for mail forwarded by another mesh
+    // host, the key that host sends along with it (hosts in the mesh are trusted
+    // to speak for their own agents; the ledger below still pins the key).
+    const fwdMeta = isMeshForwarded ? ((body as any)._forwarded as { original_to?: string } | undefined) : undefined
+    const meshKeyHex = isMeshForwarded && typeof (body as any).sender_public_key === 'string'
+      ? extractPublicKeyHex((body as any).sender_public_key)
+      : null
+    const checkKeyHex = senderKeyPair?.publicHex || meshKeyHex || null
+    const signedFields = {
+      from: envelope.from,
+      // A forwarding host names the recipient by bare name; the sender signed the full address.
+      to: typeof fwdMeta?.original_to === 'string' ? fwdMeta.original_to : envelope.to,
+      subject: envelope.subject,
+      priority: body.priority || 'normal',
+      in_reply_to: body.in_reply_to || '',
+      payload: body.payload,
+    }
+    let signatureCheck: SignatureCheck = body.signature ? 'no_key' : 'unsigned'
+    let verifyReason: string | undefined
+
     if (body.signature) {
-      if (senderKeyPair?.publicHex) {
-        const payloadHash = crypto
-          .createHash('sha256')
-          .update(canonicalStringify(body.payload))
-          .digest('base64')
-
-        const signatureData = [
-          envelope.from, envelope.to, envelope.subject,
-          body.priority || 'normal', body.in_reply_to || '', payloadHash
-        ].join('|')
-
-        if (!verifySignature(signatureData, body.signature, senderKeyPair.publicHex)) {
-          console.warn(`[AMP Route] REJECTED — invalid signature from ${envelope.from}`)
-          return {
-            data: { error: 'invalid_signature', message: 'Message signature failed verification', details: { from: envelope.from } },
-            status: 403
+      if (checkKeyHex) {
+        // Mesh keys get the same pinning as local ones, but a changed key there
+        // downgrades the message to unverified instead of refusing it: the
+        // forwarding host is trusted, and a remote key rotation reaches this
+        // ledger only through this very path.
+        let meshKeyConflict = false
+        if (!senderKeyPair?.publicHex && meshKeyHex) {
+          const meshFp = calculateFingerprint(meshKeyHex)
+          if (isRevoked(meshFp)) {
+            console.warn(`[AMP Route] REJECTED — key_revoked (mesh) for ${envelope.from}: ${meshFp.slice(0, 20)}…`)
+            return {
+              data: { error: 'key_revoked', message: 'Message signed with a revoked key', details: { fingerprint: meshFp } },
+              status: 403
+            }
+          }
+          if (checkKnownKey(envelope.from, meshFp).status === 'conflict') {
+            meshKeyConflict = true
+          } else {
+            recordKnownKey(envelope.from, meshFp, now)
           }
         }
-        console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+        if (meshKeyConflict) {
+          signatureCheck = 'no_key'
+          verifyReason = 'key_conflict'
+        } else {
+          signatureCheck = checkSignature(signedFields, body.signature, checkKeyHex)
+          if (signatureCheck === 'bad') {
+            console.warn(`[AMP Route] REJECTED — invalid signature from ${envelope.from}`)
+            return {
+              data: { error: 'invalid_signature', message: 'Message signature failed verification', details: { from: envelope.from } },
+              status: 403
+            }
+          }
+          console.log(`[AMP Route] Verified signature from ${envelope.from}${isMeshForwarded ? ' (mesh-forwarded)' : ''}`)
+        }
       } else if (STRICT && !isMeshForwarded) {
         console.warn(`[AMP Route] REJECTED — no registered key to verify signature from ${envelope.from}`)
         return {
@@ -1053,6 +1099,17 @@ export async function routeMessage(
     } else {
       console.log(`[AMP Route] No signature provided by ${envelope.from}`)
     }
+
+    const recipientTenant = tenantOf(body.to) || (getOrganization() || 'default').toLowerCase()
+    const verification: VerificationRecord = buildVerification({
+      check: signatureCheck,
+      sameTenant: tenantOf(envelope.from) === recipientTenant,
+      method: isMeshForwarded ? 'mesh-forwarded' : 'route',
+      fields: signedFields,
+      publicHex: checkKeyHex,
+      now,
+    })
+    if (verifyReason) verification.reason = verifyReason
 
     // ── Provider Scope Check ───────────────────────────────────────────
     const organization = getOrganization() || undefined
@@ -1139,7 +1196,7 @@ export async function routeMessage(
       }
 
       console.log(`[AMP Route] Forwarding to ${recipientName}@${resolvedHostId} via ${remoteHost.url}`)
-      const fwd = await forwardToHost(remoteHost, recipientName, envelope, body, selfHostIdValue)
+      const fwd = await forwardToHost(remoteHost, recipientName, envelope, body, selfHostIdValue, senderKeyPair?.publicPem)
 
       if (fwd.ok) {
         return {
@@ -1192,7 +1249,7 @@ export async function routeMessage(
     try {
       await deliverLocally({
         envelope, payload: body.payload, localAgent, recipientAgentName,
-        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex, body
+        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex, body, verification
       })
 
       return {
@@ -1883,7 +1940,8 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
 
 export async function deliverFederated(
   providerName: string | null,
-  body: { envelope: AMPEnvelope; payload: AMPPayload; sender_public_key?: string }
+  body: { envelope: AMPEnvelope; payload: AMPPayload; sender_public_key?: string },
+  auth: { signature: string | null; timestamp: string | null; rawBody: string; fetchDoc?: FetchProviderDocument } = { signature: null, timestamp: null, rawBody: '' }
 ): Promise<ServiceResult<any>> {
   try {
     // ── Provider Identity ───────────────────────────────────────────────
@@ -1902,6 +1960,21 @@ export async function deliverFederated(
         status: 429,
         headers: { 'Retry-After': '60' }
       }
+    }
+
+    // ── Provider Authentication (06-federation) ─────────────────────────
+    // The forwarding provider must prove who it is. A header name alone proves
+    // nothing, and this endpoint is the one outsiders will reach.
+    const providerAuth = await verifyProviderRequest({
+      provider: providerName,
+      timestamp: auth.timestamp,
+      signature: auth.signature,
+      rawBody: auth.rawBody,
+      fetchDoc: auth.fetchDoc,
+    })
+    if (!providerAuth.ok) {
+      console.warn(`[Federation] REJECTED provider ${providerName}: ${providerAuth.message}`)
+      return { data: { error: providerAuth.error, message: providerAuth.message }, status: providerAuth.status }
     }
 
     // ── Body Validation ────────────────────────────────────────────────
@@ -1937,25 +2010,65 @@ export async function deliverFederated(
       }
     }
 
-    // ── Message Signature Verification ──────────────────────────────────
-    let signatureVerified = false
-    if (envelope.signature && sender_public_key) {
-      try {
-        const payloadHash = crypto
-          .createHash('sha256')
-          .update(canonicalStringify(payload))
-          .digest('base64')
-
-        const signatureData = [
-          envelope.from, envelope.to, envelope.subject,
-          envelope.priority || 'normal', envelope.in_reply_to || '', payloadHash
-        ].join('|')
-
-        signatureVerified = verifySignature(signatureData, envelope.signature, sender_public_key)
-      } catch {
-        console.warn(`[Federation] Signature verification failed for ${envelope.id}`)
+    // ── Sender Verification (07-security) ───────────────────────────────
+    // Mail from outside is always strict: the sender must belong to the
+    // provider that forwarded it, and must have signed with the key the
+    // provider vouches for. An unsigned or badly signed message is refused,
+    // never delivered with a flag.
+    if (!senderBelongsToProvider(envelope.from, providerName)) {
+      console.warn(`[Federation] REJECTED — ${envelope.from} does not belong to provider ${providerName}`)
+      return {
+        data: { error: 'provider_mismatch', message: 'The sender address does not belong to the forwarding provider', details: { from: envelope.from, provider: providerName } },
+        status: 403
       }
     }
+    const fwdKeyHex = typeof sender_public_key === 'string' ? extractPublicKeyHex(sender_public_key) : null
+    if (!envelope.signature || !fwdKeyHex) {
+      return {
+        data: { error: 'invalid_signature', message: 'A signed message and the sender public key are required', details: { from: envelope.from } },
+        status: 403
+      }
+    }
+    const fwdFp = calculateFingerprint(fwdKeyHex)
+    if (isRevoked(fwdFp)) {
+      return { data: { error: 'key_revoked', message: 'Message signed with a revoked key', details: { fingerprint: fwdFp } }, status: 403 }
+    }
+    const fwdConflict = checkKnownKey(envelope.from, fwdFp)
+    if (fwdConflict.status === 'conflict') {
+      return {
+        data: {
+          error: 'key_conflict',
+          message: `Sender ${envelope.from} public key changed from its known fingerprint`,
+          details: { address: envelope.from, knownFingerprint: fwdConflict.knownFingerprint, presentedFingerprint: fwdFp }
+        },
+        status: 409
+      }
+    }
+    const fwdFields = {
+      from: envelope.from,
+      to: envelope.to,
+      subject: envelope.subject,
+      priority: envelope.priority || 'normal',
+      in_reply_to: envelope.in_reply_to || '',
+      payload,
+    }
+    const fwdCheck = checkSignature(fwdFields, envelope.signature, fwdKeyHex)
+    if (fwdCheck !== 'verified') {
+      console.warn(`[Federation] REJECTED — invalid signature from ${envelope.from}`)
+      return {
+        data: { error: 'invalid_signature', message: 'Message signature failed verification', details: { from: envelope.from } },
+        status: 403
+      }
+    }
+    recordKnownKey(envelope.from, fwdFp, new Date().toISOString())
+    const signatureVerified = true
+    const verification: VerificationRecord = buildVerification({
+      check: fwdCheck,
+      sameTenant: tenantOf(envelope.from) === tenantOf(envelope.to),
+      method: 'federation',
+      fields: fwdFields,
+      publicHex: fwdKeyHex,
+    })
 
     // ── Recipient Resolution ────────────────────────────────────────────
     const recipientName = envelope.to.split('@')[0]
@@ -1986,7 +2099,8 @@ export async function deliverFederated(
       envelope,
       payload,
       recipientAgentName: localAgent.name || recipientName,
-      senderPublicKeyHex: signatureVerified ? sender_public_key : undefined,
+      senderPublicKeyHex: signatureVerified ? fwdKeyHex : undefined,
+      verification,
       senderName: envelope.from.split('@')[0],
       senderHost: providerName,
       recipientAgentId: localAgent.id,

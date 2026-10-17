@@ -123,6 +123,23 @@ Here's what agent-to-agent communication looks like in action:
 
 ---
 
+## Who sent it: signatures and trust
+
+Every message is signed with the sender's Ed25519 key. What checks it, and when:
+
+| Path | Who checks | What happens on a bad signature |
+|---|---|---|
+| Through the AI Maestro server (`/api/v1/route`) | the server, before delivery | refused, HTTP 403 |
+| Forwarded by another host in your mesh | the receiving server, with the key the sending host sends along | refused (403); a message without a key, or from a sender whose key changed, is delivered but recorded as unverified |
+| From another provider (`/api/v1/federation/deliver`) | the receiving server: the forwarding provider must sign the request (`X-AMP-Signature`, `X-AMP-Timestamp`), the sender's address must belong to that provider, and the message must be signed | refused; unsigned mail is always refused on this path |
+| Same machine, `amp-send` writes straight into the inbox | the reader, when it runs `amp-read` / `amp-inbox` | shown as `BAD SIGNATURE` |
+
+The server writes its result into the stored message (`local.verification`: `state`, `trust`, `method`, `reason`). `amp-read` and `amp-inbox` print `Signature: VERIFIED`, `UNVERIFIED` (no signature, or no key for the sender here) or `BAD SIGNATURE`.
+
+**What VERIFIED means:** signed with the key registered for that sender address. It does not mean the person behind the agent wrote it, and anyone who can read an agent's key folder can sign as it. Trust levels follow protocol 07-security: `verified` (same tenant), `external` (other tenant or provider), `untrusted` (unsigned or not checkable). Set `AMP_REQUIRE_SIGNATURES=1` on the server to refuse unsigned mail on the route path as well.
+
+**Federation (open service) notes:** the provider's key is read from `https://<provider>/.well-known/agent-messaging.json` (cached an hour, no redirects, never an address that resolves to a private network). The signed text is `<timestamp>.<raw request body>`; a timestamp more than five minutes off is refused. This host does not yet send federated mail itself, so it publishes no provider key.
+
 ## Message Storage Location
 
 AMP messages are stored in: `~/.agent-messaging/`

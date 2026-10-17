@@ -3,6 +3,8 @@
  * inbox. `../../x` wrote JSON anywhere under the user's home. Ids are now plain
  * tokens, refused by the service (400 invalid_field) and by the writer itself.
  */
+import crypto from 'node:crypto'
+import { generateKeyPair } from '@/lib/amp-keys'
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import fs from 'fs'
 import os from 'os'
@@ -71,7 +73,16 @@ describe('deliverFederated', () => {
   it('answers 400 invalid_field for a hostile id and writes nothing', async () => {
     const before = walk(outer).length
     for (const id of HOSTILE) {
-      const r = await svc.deliverFederated('peer.example', { envelope: env(id), payload: { type: 'notification', message: 'm' } as any })
+      // A provider that has authenticated: the hostile id must still be refused before anything is written.
+      const body = { envelope: env(id), payload: { type: 'notification', message: 'm' } as any }
+      const rawBody = JSON.stringify(body)
+      const ts = String(Math.floor(Date.now() / 1000))
+      const provider = await generateKeyPair()
+      const r = await svc.deliverFederated('peer.example', body, {
+        rawBody, timestamp: ts,
+        signature: crypto.sign(null, Buffer.from(`${ts}.${rawBody}`), provider.privatePem).toString('base64'),
+        fetchDoc: async () => ({ public_key: provider.publicPem }),
+      })
       expect(r.status).toBe(400)
       expect((r.data as any).error).toBe('invalid_field')
     }

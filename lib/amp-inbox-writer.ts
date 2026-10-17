@@ -14,6 +14,7 @@
  * amp-inbox.sh and other AMP scripts to work correctly per-agent.
  */
 
+import type { VerificationRecord } from '@/lib/amp-trust'
 import { promises as fs } from 'fs'
 import * as fsSync from 'fs'
 import path from 'path'
@@ -324,7 +325,8 @@ export async function writeToAMPInbox(
   payload: AMPPayload,
   recipientAgent?: string,
   senderPublicKey?: string,
-  recipientAgentId?: string
+  recipientAgentId?: string,
+  verification?: VerificationRecord
 ): Promise<string | null> {
   try {
     if (!isSafeMessageId(envelope.id)) {
@@ -377,7 +379,10 @@ export async function writeToAMPInbox(
       local: {
         received_at: new Date().toISOString(),
         delivery_method: 'local',
-        status: 'unread'
+        status: 'unread',
+        // What the receiving server found when it checked the signature
+        // (protocol 07-security). Readers show it; see lib/amp-trust.ts.
+        ...(verification ? { verification } : {})
       },
       ...(senderPublicKey ? { sender_public_key: senderPublicKey } : {})
     }

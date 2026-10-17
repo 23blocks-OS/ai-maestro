@@ -27,12 +27,15 @@ import { getAgent } from '@/lib/agent-registry'
 import { senderAddressOf, senderLabel } from '@/lib/sender-label'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { WakeOutcome } from '@/lib/wake-chain'
+import type { VerificationRecord } from '@/lib/amp-trust'
 
 export interface DeliveryInput {
   envelope: AMPEnvelope
   payload: AMPPayload
   recipientAgentName: string
   senderPublicKeyHex?: string
+  /** Result of the signature check, recorded in the stored message. */
+  verification?: VerificationRecord
   // Notification context
   senderName: string
   senderHost?: string
@@ -67,7 +70,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   const {
     envelope, payload, recipientAgentName, senderPublicKeyHex,
     senderName, senderHost, recipientAgentId,
-    subject, priority, messageType,
+    subject, priority, messageType, verification,
   } = input
 
   // The sender as the envelope signs it. Shown wherever the agent reads a sender,
@@ -95,7 +98,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     console.error(`[Delivery] No recipientAgentId for ${recipientAgentName} - cannot write inbox`)
     return { delivered: false, notified: false, error: 'No recipient agent UUID' }
   }
-  const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex, recipientAgentId)
+  const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex, recipientAgentId, verification)
   if (!inboxPath) {
     return { delivered: false, notified: false, error: 'Failed to write to AMP inbox' }
   }

@@ -15,6 +15,7 @@ import {
   Calendar
 } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
+import { isRemoteHost } from '@/lib/host-kind'
 
 // Timeout constants for mobile - longer to handle slow networks
 const LOCAL_API_TIMEOUT = 10000 // 10 seconds for local
@@ -119,7 +120,7 @@ export default function MobileWorkTree({
     const host = hosts.find(h => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase())
 
     // If host found and it's remote (type !== 'local'), use its URL with remote timeout
-    if (host && host.type === 'remote') {
+    if (host && isRemoteHost(host)) {
       return { url: host.url, timeout: REMOTE_API_TIMEOUT }
     }
 

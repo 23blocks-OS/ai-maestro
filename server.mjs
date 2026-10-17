@@ -2676,7 +2676,7 @@ async function startServer(handleRequest) {
       try {
         const hostsResponse = await fetch(`http://localhost:${port}/api/hosts`)
         const hostsData = await hostsResponse.json()
-        const remoteHosts = (hostsData.hosts || []).filter(h => h.type === 'remote' && h.enabled)
+        const remoteHosts = (hostsData.hosts || []).filter(h => !h.isSelf && h.enabled)
 
         if (remoteHosts.length > 0) {
           console.log(`[Host Sync] Registering with ${remoteHosts.length} remote host(s) on startup...`)

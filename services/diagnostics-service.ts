@@ -418,7 +418,7 @@ export async function runDiagnostics(): Promise<ServiceResult<DiagnosticReport>>
   // Check remote hosts
   try {
     const hosts = getHosts()
-    const remoteHosts = hosts.filter(h => h.type === 'remote' && h.enabled && !isSelf(h.id))
+    const remoteHosts = hosts.filter(h => h.enabled && !isSelf(h.id))
 
     if (remoteHosts.length > 0) {
       const hostChecks = await Promise.all(

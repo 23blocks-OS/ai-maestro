@@ -402,8 +402,8 @@ export async function addNewHost(params: AddHostParams): Promise<ServiceResult<a
     const { host, syncEnabled } = params
 
     // Validate required fields
-    if (!host.id || !host.name || !host.url || !host.type) {
-      return invalidRequest('Missing required fields: id, name, url, type')
+    if (!host.id || !host.name || !host.url) {
+      return invalidRequest('Missing required fields: id, name, url')
     }
 
     // Validate ID format (alphanumeric, dash, underscore)
@@ -419,7 +419,7 @@ export async function addNewHost(params: AddHostParams): Promise<ServiceResult<a
     }
 
     // Use sync-enabled add for remote hosts, regular add for local
-    if (syncEnabled && host.type === 'remote') {
+    if (syncEnabled && host.type !== 'local') {
       const syncResult = await addHostWithSync(host)
 
       return {

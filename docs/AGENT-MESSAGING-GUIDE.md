@@ -140,6 +140,17 @@ The server writes its result into the stored message (`local.verification`: `sta
 
 **Federation (open service) notes:** the provider's key is read from `https://<provider>/.well-known/agent-messaging.json` (cached an hour, no redirects, never an address that resolves to a private network). The signed text is `<timestamp>.<raw request body>`; a timestamp more than five minutes off is refused. This host does not yet send federated mail itself, so it publishes no provider key.
 
+## One agent, several addresses
+
+An agent can be registered in several tenants, and has one address and one key in each: for example `sebastian@rnd23blocks.aimaestro.local` on your local network and `sebastian@23blocks.crabmail.ai` at Crabmail. They are separate identities of the same agent.
+
+- **Where the addresses come from:** the main one in the registry (`metadata.amp.address`, optionally a list in `metadata.amp.addresses`), plus every provider registration saved in the agent's folders (`~/.agent-messaging/agents/<id>/registrations/*.json`), plus the implicit `<name>@<organization>.aimaestro.local`.
+- **Mail from outside goes only to an address the agent has.** `POST /api/v1/federation/deliver` answers 404 for `sebastian@othertenant.example` even though an agent called sebastian exists here.
+- **Resolving an address** (`GET /api/v1/agents/resolve/<address>`) finds the owner by any of its addresses. The key it returns is the one held here, for the local address only; for the agent's address at another provider it returns that registration's fingerprint and an empty key, never the local key.
+- **Sending:** `amp-send` writes the From address from the recipient's provider, so a reply to a Crabmail sender leaves from the Crabmail address.
+- **Reading:** after `amp-fetch`, mail for every address is in the one inbox. `amp-inbox` prints `To:` when a message was sent to a non-main address; the status line shows `+N` for the other addresses.
+- **Not automatic:** nothing fetches provider mail on a schedule yet. Run `amp-fetch`.
+
 ## Message Storage Location
 
 AMP messages are stored in: `~/.agent-messaging/`

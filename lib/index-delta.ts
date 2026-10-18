@@ -21,6 +21,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { shouldLogChange } from './log-on-change'
+import { summarizeJsonl } from './jsonl'
 
 // ============================================================================
 // THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
@@ -79,16 +80,22 @@ function hasFileChanged(filePath: string): boolean {
     if (cachedSize !== undefined && cachedSize === currentSize) {
       return false
     }
-    fileSizeCache.set(filePath, currentSize)
     return true
   } catch {
     return false
   }
 }
 
-function updateFileSizeCache(filePath: string) {
+function updateFileSizeCache(filePath: string, indexedSize?: number) {
   try {
-    fileSizeCache.set(filePath, fs.statSync(filePath).size)
+    const size = fs.statSync(filePath).size
+    // If the file grew while embeddings were running, its appended lines were
+    // outside the ingestion snapshot. Do not mark those new bytes as indexed.
+    if (indexedSize !== undefined && size !== indexedSize) {
+      fileSizeCache.delete(filePath)
+      return
+    }
+    fileSizeCache.set(filePath, size)
   } catch {
     // ignore
   }
@@ -322,7 +329,7 @@ async function getLiveTmuxWorkingDirectory(sessionName: string): Promise<string 
 // ============================================================================
 // EXTRACT CONVERSATION METADATA (reads file once, extracts everything)
 // ============================================================================
-function extractConversationMetadata(jsonlPath: string, projectPath: string): {
+async function extractConversationMetadata(jsonlPath: string, projectPath: string): Promise<{
   sessionId: string | null
   cwd: string | null
   firstUserMessage: string | null
@@ -332,9 +339,8 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
   lastMessageAt: number | null
   modelNames: string
   messageCount: number
-} {
-  const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
-  const allLines = fileContent.split('\n').filter(line => line.trim())
+}> {
+  const { head, tail, messageCount } = await summarizeJsonl(jsonlPath)
 
   let sessionId: string | null = null
   let cwd: string | null = null
@@ -345,7 +351,7 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
   let lastMessageAt: number | null = null
   const modelSet = new Set<string>()
 
-  const metadataLines = allLines.slice(0, 50)
+  const metadataLines = head
   for (const line of metadataLines) {
     try {
       const message = JSON.parse(line)
@@ -372,9 +378,9 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
     }
   }
 
-  for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
+  for (let i = tail.length - 1; i >= 0; i--) {
     try {
-      const message = JSON.parse(allLines[i])
+      const message = JSON.parse(tail[i])
       if (message.timestamp) {
         lastMessageAt = new Date(message.timestamp).getTime()
         break
@@ -393,7 +399,7 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
     firstMessageAt,
     lastMessageAt,
     modelNames: Array.from(modelSet).join(', '),
-    messageCount: allLines.length
+    messageCount
   }
 }
 
@@ -464,7 +470,7 @@ async function runIndexDeltaPinned(
   agentId: string,
   options: { dryRun?: boolean; batchSize?: number }
 ): Promise<IndexDeltaResult> {
-  const { dryRun = false, batchSize = 10 } = options
+  const { dryRun = false, batchSize = 2 } = options
 
   const releaseSlot = await acquireIndexSlot(agentId)
 
@@ -655,7 +661,7 @@ async function runIndexDeltaPinned(
           console.log(`[Delta Index] Discovered new conversation: ${path.relative(claudeDir, fullPath)}`)
 
           try {
-            const metadata = extractConversationMetadata(fullPath, projectPath)
+            const metadata = await extractConversationMetadata(fullPath, projectPath)
             await recordConversation(agentDb, {
               jsonl_file: fullPath,
               project_path: projectPath,
@@ -783,6 +789,7 @@ async function runIndexDeltaPinned(
 
       const delta = conv.currentLineCount - conv.last_indexed_message_count
 
+      const indexedSize = fs.statSync(conv.jsonl_file).size
       const stats = await indexConversationDelta(
         agentDb,
         conv.jsonl_file,
@@ -793,13 +800,13 @@ async function runIndexDeltaPinned(
       await recordConversation(agentDb, {
         jsonl_file: conv.jsonl_file,
         project_path: conv.project_path,
-        message_count: conv.currentLineCount,
+        message_count: stats.totalMessages,
         last_indexed_at: Date.now(),
-        last_indexed_message_count: conv.currentLineCount,
+        last_indexed_message_count: stats.totalMessages,
       })
 
       // Update file size cache after successful indexing
-      updateFileSizeCache(conv.jsonl_file)
+      updateFileSizeCache(conv.jsonl_file, indexedSize)
 
       results.push({
         file: conv.jsonl_file,

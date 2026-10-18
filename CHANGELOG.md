@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.83.2] - 2026-10-18 - Reading transcripts no longer freezes the server
+
+Every place that read a Claude Code transcript loaded the whole file into memory with `readFileSync(...).split('\n')`, synchronously, on the server's event loop. Memory initialisation also walked every transcript on the machine once per agent. On a host with about 3 GB of transcript history and 24 agents, each dashboard load froze the server for minutes.
+
+### Fixed
+- **Transcripts are streamed.** `lib/jsonl.ts` reads them line by line. Metadata needs only the first 50 lines, the last 20 and a count (`summarizeJsonl`); the working-directory match reads only the first 10 lines (`readJsonlHeadSync`). Line numbering is unchanged (nonblank lines), so saved offsets stay valid.
+- **Memory initialisation scans only the agent's own folders.** It looked at every transcript under `~/.claude/projects`, once per agent. It now looks only under each of the agent's working directories, encoded the way Claude Code names its folders. A transcript matches an agent by cwd, so the result is the same.
+- **Indexing keeps at most two messages in memory.** The full and delta ingest paths were near-copies; they are now one streaming function that embeds two messages at a time.
+- **Lines appended during indexing are indexed on the next run.** After indexing, the file-size cache recorded the file's current size, including lines written while embeddings ran, which the read had not seen. Those lines then waited until the transcript changed again. Indexing now stops at the count it started with, records that count, and leaves the size uncached if the file grew.
+
+**Not changed:** the embedding model still runs inside the server process.
+
 ## [0.83.1] - 2026-10-17 - Other hosts' agents on the Work tab and the hosts screens
 
 Several screens decided whether a host was "another machine" from its `type` field. That field is deprecated and most hosts do not have it (on this mesh, mac-mini has none), so those hosts were treated as this machine.

@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.83.3] - 2026-10-18 - The embedding model runs in its own process
+
+The embedding model (transformers.js with ONNX Runtime) ran inside the server. Its native memory grew with use and was never returned, Next could bundle `lib/rag/embeddings.ts` more than once and load the model twice, and every batch blocked the server's CPU. On a Mac the growth went to compressed memory and swap, where RSS does not show it, until the machine froze.
+
+### Fixed
+- **The model loads only in a child process,** `lib/rag/embedding-worker.mjs`. The server never imports transformers.js. One queue per server process (`lib/rag/embedding-client.mjs`, kept on `globalThis` so every bundle shares it) sends the worker two texts at a time.
+- **The worker is bounded.** It is replaced after 64 batches or when its memory passes 512 MB, and exits after 30 seconds idle. On macOS memory is the physical footprint from `vmmap` (`lib/process-footprint.mjs`), sampled every 16 batches, because RSS misses compressed and swapped pages. A crash, a hung request (2 minutes) or a malformed answer fails that request and replaces the worker; a replacement starts only after the old one exits, so two copies of the model never overlap. The queue refuses new work past 64 requests or 16 MB of text.
+- **The model cache moved out of `.next/`.** It was under `.next/server/.cache`, which a rebuild deletes. It is now `~/.aimaestro/cache/transformers` (`AIMAESTRO_EMBEDDING_CACHE_DIR` overrides); an existing cached model is copied once.
+- **Stored vectors are exactly the vector.** `vectorToBuffer` stored the whole underlying buffer; for a vector that is a view into a larger buffer, that was the wrong bytes.
+
+New settings are listed in `docs/RAG-SYSTEM.md`: `AIMAESTRO_EMBEDDING_MAX_BATCHES`, `AIMAESTRO_EMBEDDING_MAX_MB`, `AIMAESTRO_EMBEDDING_CACHE_DIR`.
+
 ## [0.83.2] - 2026-10-18 - Reading transcripts no longer freezes the server
 
 Every place that read a Claude Code transcript loaded the whole file into memory with `readFileSync(...).split('\n')`, synchronously, on the server's event loop. Memory initialisation also walked every transcript on the machine once per agent. On a host with about 3 GB of transcript history and 24 agents, each dashboard load froze the server for minutes.

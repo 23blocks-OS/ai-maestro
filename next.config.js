@@ -43,7 +43,7 @@ const nextConfig = {
       config.externals.push({
         'node-pty': 'commonjs node-pty',
         'cozo-node': 'commonjs cozo-node',
-        // Don't externalize @huggingface/transformers - it's ESM-only and needs webpack bundling
+        // Transformers/ONNX load only in the embedding child process (lib/rag/embedding-worker.mjs).
         'onnxruntime-node': 'commonjs onnxruntime-node',
         'sharp': 'commonjs sharp',
         'pg': 'commonjs pg',

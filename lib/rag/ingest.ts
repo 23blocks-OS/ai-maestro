@@ -20,6 +20,7 @@ import { embedTexts, vectorToBuffer } from './embeddings'
 import { extractTerms, extractCodeSymbols } from './keywords'
 import { msgId } from './id'
 import { isCopilotLine, copilotLineToIndexMessages } from '@/lib/transcript-copilot.mjs'
+import { readJsonlLines, summarizeJsonl, readJsonlHeadSync } from '@/lib/jsonl'
 
 /**
  * Extract text from Claude's message content format
@@ -78,6 +79,7 @@ export interface ConversationMessage {
   cwd?: string
 }
 
+
 /**
  * One transcript line as the messages to index. A Claude line is one message as it stands. A
  * Copilot line (`events.jsonl`, dotted event types) maps to zero, one or two messages through
@@ -113,141 +115,72 @@ export async function ingestConversation(
     onProgress?: (processed: number, total: number) => void
   } = {}
 ): Promise<IngestionStats> {
+  return ingestStream(agentDb, conversationFile, 0, options)
+}
+
+/** Stream history or its delta, retaining at most two parsed messages. */
+async function ingestStream(
+  agentDb: AgentDatabase,
+  conversationFile: string,
+  skip: number,
+  options: { batchSize?: number; onProgress?: (processed: number, total: number) => void },
+): Promise<IngestionStats> {
   const startTime = Date.now()
+  if (!Number.isInteger(skip) || skip < 0) throw new Error('Invalid transcript offset')
+  if (options.batchSize !== undefined && (!Number.isInteger(options.batchSize) || options.batchSize < 1)) {
+    throw new Error('Invalid ingestion batch size')
+  }
+  const batchSize = Math.min(options.batchSize || 2, 2)
+  // Count without retaining either raw lines or parsed messages. Bound the
+  // second pass to this snapshot; appends will be picked up on the next run.
+  const { messageCount } = await summarizeJsonl(conversationFile, 0, 0)
   const stats: IngestionStats = {
-    totalMessages: 0,
-    processedMessages: 0,
-    skippedMessages: 0,
-    embeddingsGenerated: 0,
-    termsExtracted: 0,
-    symbolsExtracted: 0,
-    durationMs: 0,
+    totalMessages: messageCount, processedMessages: 0, skippedMessages: 0,
+    embeddingsGenerated: 0, termsExtracted: 0, symbolsExtracted: 0, durationMs: 0,
   }
-
-  console.log(`[Ingest] Processing conversation: ${conversationFile}`)
-
-  // Read and parse JSONL file
-  const fileContent = fs.readFileSync(conversationFile, 'utf-8')
-  const lines = fileContent.split('\n').filter((line) => line.trim())
-  stats.totalMessages = lines.length
-
-  console.log(`[Ingest] Found ${stats.totalMessages} messages`)
-
-  // Parse messages
-  const messages: ConversationMessage[] = []
-  for (const line of lines) {
-    try {
-      messages.push(...parseConversationLine(line))
-    } catch (err) {
-      console.warn(`[Ingest] Failed to parse line: ${line.substring(0, 50)}...`)
-      stats.skippedMessages++
-    }
-  }
-
-  // Process messages in batches
-  const batchSize = options.batchSize || 10
-  const batches: ConversationMessage[][] = []
-  for (let i = 0; i < messages.length; i += batchSize) {
-    batches.push(messages.slice(i, i + batchSize))
-  }
-
-  console.log(`[Ingest] Processing ${batches.length} batches (batch size: ${batchSize})`)
-
-  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-    const batch = batches[batchIdx]
-
-    // Extract text content from messages with their indices (ensure strings)
-    const textsWithIndices: Array<{ text: string; index: number }> = []
-    batch.forEach((msg, idx) => {
-      const content = msg.message?.content || ''
-      const text = extractTextFromContent(content)
-      if (text.trim().length > 0) {
-        textsWithIndices.push({ text, index: idx })
-      }
-    })
-
-    if (textsWithIndices.length === 0) {
-      stats.skippedMessages += batch.length
-      continue
-    }
-
-    // Generate embeddings for batch (parallel processing)
-    const embeddings = await embedTexts(textsWithIndices.map(t => t.text))
+  if (messageCount <= skip) return { ...stats, durationMs: Date.now() - startTime }
+  const batch: Array<{ message: ConversationMessage; lineNumber: number; text: string }> = []
+  const flush = async () => {
+    if (!batch.length) return
+    const embeddings = await embedTexts(batch.map(item => item.text))
     stats.embeddingsGenerated += embeddings.length
-
-    // Create a map of batch index -> embedding
-    const embeddingMap = new Map<number, Float32Array>()
-    textsWithIndices.forEach((item, embIdx) => {
-      embeddingMap.set(item.index, embeddings[embIdx])
-    })
-
-    // Process each message in batch
     for (let i = 0; i < batch.length; i++) {
-      const msg = batch[i]
-      const content = msg.message?.content || ''
-
-      // Extract text from content (handles strings, arrays of content blocks, etc.)
-      const text = extractTextFromContent(content)
-
-      if (text.trim().length === 0) {
-        stats.skippedMessages++
-        continue
-      }
-
-      // Get embedding for this message
-      const embedding = embeddingMap.get(i)
-      if (!embedding) {
-        console.error(`[Ingest] No embedding found for message ${i}`)
-        stats.skippedMessages++
-        continue
-      }
-
-      // Stable message ID — seeded by (conversation, text) so re-indexing the
-      // same message upserts instead of inserting a duplicate.
+      const { message: msg, text, lineNumber } = batch[i]
       const timestamp = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
       const messageId = msgId.message(timestamp, `${conversationFile}\n${text}`)
-
-      // Extract terms and symbols
       const terms = extractTerms(text)
       const symbols = extractCodeSymbols(text)
       stats.termsExtracted += terms.length
       stats.symbolsExtracted += symbols.length
-
-      // Convert embedding to buffer
-      const embeddingBuffer = vectorToBuffer(embedding)
-
-      // Store in CozoDB (includes vectors, terms, symbols - all per-agent)
-      await upsertMessage(
-        agentDb,
-        {
-          msg_id: messageId,
-          conversation_file: conversationFile,
-          role: msg.type,
-          ts: timestamp,
-          text: text,
-        },
-        embeddingBuffer,
-        terms,
-        symbols
-      )
-
+      await upsertMessage(agentDb, {
+        msg_id: messageId, conversation_file: conversationFile,
+        role: msg.type, ts: timestamp, text,
+      }, vectorToBuffer(embeddings[i]), terms, symbols)
       stats.processedMessages++
-
-      // Report progress
-      if (options.onProgress) {
-        const totalProcessed = batchIdx * batchSize + i + 1
-        options.onProgress(totalProcessed, stats.totalMessages)
-      }
+      options.onProgress?.(lineNumber, messageCount)
     }
-
-    console.log(`[Ingest] Batch ${batchIdx + 1}/${batches.length} complete`)
+    batch.length = 0
   }
-
+  let lineNumber = 0
+  for await (const line of readJsonlLines(conversationFile)) {
+    if (++lineNumber > messageCount) break
+    if (lineNumber <= skip) continue
+    // One line is one message (Claude) or zero to two (Copilot events). Progress stays counted in lines.
+    let messages: ConversationMessage[]
+    try { messages = parseConversationLine(line) }
+    catch { stats.skippedMessages++; continue }
+    for (const message of messages) {
+      const text = extractTextFromContent(message?.message?.content || '')
+      if (!text.trim()) { stats.skippedMessages++; continue }
+      batch.push({ message, lineNumber, text })
+    }
+    if (batch.length >= batchSize) await flush()
+  }
+  // If the snapshot cannot be read in full, do not advance its saved offset.
+  if (lineNumber < messageCount) throw new Error('Transcript changed during indexing; retry')
+  await flush()
   stats.durationMs = Date.now() - startTime
-
-  console.log(`[Ingest] ✅ Completed in ${stats.durationMs}ms`)
-  console.log(`[Ingest] Stats:`, stats)
-
+  console.log(`[Ingest] ${conversationFile}: ${stats.processedMessages} messages in ${stats.durationMs}ms`)
   return stats
 }
 
@@ -349,8 +282,7 @@ export function findConversationFiles(agentId: string, workingDirectories: strin
 
   // Filter by working directories
   for (const file of allJsonlFiles) {
-    const fileContent = fs.readFileSync(file, 'utf-8')
-    const lines = fileContent.split('\n').filter((line) => line.trim())
+    const lines = readJsonlHeadSync(file, 10)
 
     // Check first 10 lines for matching working directory
     for (const line of lines.slice(0, 10)) {
@@ -383,153 +315,5 @@ export async function indexConversationDelta(
     batchSize?: number
   } = {}
 ): Promise<IngestionStats> {
-  const batchSize = options.batchSize || 10
-  const startTime = Date.now()
-
-  console.log(`[Delta Index] Processing ${conversationFile}`)
-  console.log(`[Delta Index] Last indexed: ${lastIndexedMessageCount} messages`)
-
-  // Parse JSONL file
-  const fileContent = fs.readFileSync(conversationFile, 'utf-8')
-  const allLines = fileContent.split('\n').filter(line => line.trim())
-
-  const currentMessageCount = allLines.length
-  const delta = currentMessageCount - lastIndexedMessageCount
-
-  console.log(`[Delta Index] Current messages: ${currentMessageCount}`)
-  console.log(`[Delta Index] Delta to index: ${delta}`)
-
-  if (delta <= 0) {
-    console.log(`[Delta Index] No new messages to index`)
-    return {
-      totalMessages: currentMessageCount,
-      processedMessages: 0,
-      skippedMessages: 0,
-      embeddingsGenerated: 0,
-      termsExtracted: 0,
-      symbolsExtracted: 0,
-      durationMs: Date.now() - startTime,
-    }
-  }
-
-  // Parse only the new messages (starting from lastIndexedMessageCount)
-  const messages: ConversationMessage[] = []
-  for (let i = lastIndexedMessageCount; i < allLines.length; i++) {
-    try {
-      messages.push(...parseConversationLine(allLines[i]))
-    } catch (err) {
-      console.error(`[Delta Index] Failed to parse line ${i}:`, err)
-    }
-  }
-
-  console.log(`[Delta Index] Parsed ${messages.length} new messages`)
-
-  const stats: IngestionStats = {
-    totalMessages: currentMessageCount,
-    processedMessages: 0,
-    skippedMessages: 0,
-    embeddingsGenerated: 0,
-    termsExtracted: 0,
-    symbolsExtracted: 0,
-    durationMs: 0,
-  }
-
-  // Batch process new messages
-  const batches: ConversationMessage[][] = []
-  for (let i = 0; i < messages.length; i += batchSize) {
-    batches.push(messages.slice(i, i + batchSize))
-  }
-
-  console.log(`[Delta Index] Processing ${batches.length} batches of ${batchSize} messages`)
-
-  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-    const batch = batches[batchIdx]
-    console.log(`[Delta Index] Batch ${batchIdx + 1}/${batches.length}`)
-
-    // Extract texts for embedding with their indices
-    const textsWithIndices: Array<{ text: string; index: number }> = []
-    batch.forEach((msg, idx) => {
-      const content = msg.message?.content || ''
-      const text = extractTextFromContent(content)
-      if (text.trim().length > 0) {
-        textsWithIndices.push({ text, index: idx })
-      }
-    })
-
-    // Skip batch if no valid texts (all messages had empty content)
-    if (textsWithIndices.length === 0) {
-      console.log(`[Delta Index] Batch ${batchIdx + 1}/${batches.length} - no valid texts, skipping`)
-      stats.skippedMessages += batch.length
-      continue
-    }
-
-    // Generate embeddings in batch
-    const embeddings = await embedTexts(textsWithIndices.map(t => t.text))
-    stats.embeddingsGenerated += embeddings.length
-
-    // Create a map of batch index -> embedding
-    const embeddingMap = new Map<number, Float32Array>()
-    textsWithIndices.forEach((item, embIdx) => {
-      embeddingMap.set(item.index, embeddings[embIdx])
-    })
-
-    // Process each message
-    for (let i = 0; i < batch.length; i++) {
-      const msg = batch[i]
-      const content = msg.message?.content || ''
-
-      // Extract text from content (handles strings, arrays of content blocks, etc.)
-      const text = extractTextFromContent(content)
-
-      if (!text || text.trim().length === 0) {
-        stats.skippedMessages++
-        continue
-      }
-
-      // Get embedding for this message
-      const embedding = embeddingMap.get(i)
-      if (!embedding) {
-        console.error(`[Delta Index] No embedding found for message ${i}`)
-        stats.skippedMessages++
-        continue
-      }
-
-      // Stable message ID — same seeding as full ingest above, so the delta
-      // path and the full path agree on an id for the same message.
-      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
-      const id = msgId.message(ts, `${conversationFile}\n${text}`)
-
-      // Extract terms and symbols
-      const terms = extractTerms(text)
-      const symbols = extractCodeSymbols(text)
-      stats.termsExtracted += terms.length
-      stats.symbolsExtracted += symbols.length
-
-      // Convert embedding to buffer
-      const embeddingBuffer = vectorToBuffer(embedding)
-
-      // Upsert message to CozoDB (includes vectors, terms, symbols - all per-agent)
-      await upsertMessage(
-        agentDb,
-        {
-          msg_id: id,
-          conversation_file: conversationFile,
-          role: msg.type,
-          ts,
-          text,
-        },
-        embeddingBuffer,
-        terms,
-        symbols
-      )
-
-      stats.processedMessages++
-    }
-  }
-
-  stats.durationMs = Date.now() - startTime
-
-  console.log(`[Delta Index] ✅ Indexed ${stats.processedMessages} new messages in ${stats.durationMs}ms`)
-
-  return stats
+  return ingestStream(agentDb, conversationFile, lastIndexedMessageCount, options)
 }

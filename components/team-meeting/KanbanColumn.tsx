@@ -52,7 +52,7 @@ export default function KanbanColumn({ config, tasks, onDrop, onSelectTask, onQu
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        flex flex-col min-w-[220px] flex-1 rounded-xl transition-all duration-200
+        flex flex-col min-w-[160px] flex-1 rounded-xl transition-all duration-200
         bg-gray-900/50 border
         ${isDragOver ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-950/20' : 'border-gray-800/50'}
       `}

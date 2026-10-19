@@ -8,7 +8,8 @@ import { primaryAmpAddress } from '@/lib/status-format'
 import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileConversationDetail from './MobileConversationDetail'
-import { Terminal, Mail, RefreshCw, Activity, Phone, MessageSquare, Plus, Settings, Monitor } from 'lucide-react'
+import AgentBoardPanel from './AgentBoardPanel'
+import { Terminal, Mail, RefreshCw, Activity, KanbanSquare, Phone, MessageSquare, Plus, Settings, Monitor } from 'lucide-react'
 import InfraIcon from './InfraIcon'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
@@ -32,7 +33,7 @@ export default function TabletDashboard({
 }: TabletDashboardProps) {
   const { hosts } = useHosts()
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'agent' | 'messages' | 'work'>('agent')
+  const [activeTab, setActiveTab] = useState<'agent' | 'messages' | 'work' | 'board'>('agent')
   const [viewMode, setViewMode] = useState<'terminal' | 'chat'>('chat')
   const [connectionStatus, setConnectionStatus] = useState<{ [agentId: string]: boolean }>({})
   const [selectedConversation, setSelectedConversation] = useState<{
@@ -318,6 +319,13 @@ export default function TabletDashboard({
               />
             </div>
           )}
+          {/* Board tab: this agent's cards, on the host where it lives */}
+          {activeTab === 'board' && activeAgent && (
+            <div className="absolute inset-0 flex flex-col">
+              <AgentBoardPanel agent={activeAgent} agents={agents} hostUrl={getAgentBaseUrl(activeAgent)} />
+            </div>
+          )}
+
         </main>
       </div>
 
@@ -361,6 +369,18 @@ export default function TabletDashboard({
           >
             <Mail className="w-5 h-5 mb-0.5" />
             <span className="text-xs font-medium">Messages</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('board')}
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
+              activeTab === 'board'
+                ? 'text-blue-400 bg-gray-800/50'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <KanbanSquare className="w-5 h-5 mb-0.5" />
+            <span className="text-xs font-medium">Board</span>
           </button>
 
           <button

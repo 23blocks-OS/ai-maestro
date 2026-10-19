@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User } from 'lucide-react'
+import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Hourglass, Lock, User } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 
 interface TaskCardProps {
@@ -14,6 +14,7 @@ const statusConfig: Record<TaskStatus, { icon: typeof Circle; color: string; bg:
   pending: { icon: Circle, color: 'text-gray-400', bg: 'bg-gray-400' },
   in_progress: { icon: PlayCircle, color: 'text-blue-400', bg: 'bg-blue-400' },
   review: { icon: Eye, color: 'text-amber-400', bg: 'bg-amber-400' },
+  waiting: { icon: Hourglass, color: 'text-orange-400', bg: 'bg-orange-400' },
   completed: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400' },
 }
 
@@ -25,8 +26,9 @@ export default function TaskCard({ task, onSelect, onStatusChange }: TaskCardPro
     e.stopPropagation()
     if (task.isBlocked) return
     const cycle: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'completed']
+    // A waiting card goes back to work; waiting itself is chosen in the detail view (it needs a "waiting on")
     const idx = cycle.indexOf(task.status)
-    const next = cycle[(idx + 1) % cycle.length]
+    const next = task.status === 'waiting' ? 'in_progress' : cycle[(idx + 1) % cycle.length]
     onStatusChange(task.id, next)
   }
 

@@ -44,7 +44,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.84.1"
+VERSION="0.85.2"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -409,7 +409,7 @@ uninstall() {
         "amp-read.sh" "amp-reply.sh" "amp-status.sh" "amp-register.sh"
         "amp-fetch.sh" "amp-delete.sh" "amp-forward.sh" "amp-search.sh"
         "amp-thread.sh"
-        "aimaestro-agent.sh"
+        "aimaestro-agent.sh" "aimaestro-task.sh"
         "memory-search.sh" "memory-helper.sh"
         "graph-describe.sh" "graph-find-callers.sh" "graph-find-callees.sh"
         "graph-find-related.sh" "graph-find-by-type.sh" "graph-find-serializers.sh"

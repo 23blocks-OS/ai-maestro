@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.84.1] - 2026-10-19 - Spec: email bridge wakes on trusted mail, digests the rest
+
+### Added
+- `docs/EMAIL-BRIDGE-TRUST-SPLIT-SPEC.md`: a spec, no code, for the email bridge on mini-lola (trusted-and-authenticated mail wakes an agent, everything else goes into a digest). Built from reading the bridge's source; it also lists four defects in today's bridge (a failed notification is lost, no UIDVALIDITY, unsanitised subject text, a first run would announce old mail). Nothing on mini-lola was changed.
+
 ## [0.84.0] - 2026-10-19 - Pick skills when you create an agent
 
 ### Added

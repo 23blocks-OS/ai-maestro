@@ -6,12 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.84.0] - 2026-10-19 - Pick skills when you create an agent
 
 ### Added
-- The new-agent screen has an optional **Skills** section: search the plugins of every marketplace registered on this computer and tick the ones the agent should have. It appears for a Claude Code agent run directly on this computer. Nothing in the screen names any particular skill; a plugin shows up when its marketplace is registered.
+- The new-agent screen has an optional **Skills** row ("None · Add", like Where it works): open it to see the plugins of every marketplace registered on this computer and tick the ones the agent should have. The footer line says which skills it will get. It appears for a Claude Code agent run directly on this computer. Nothing in the screen names any particular skill; a plugin shows up when its marketplace is registered.
 - `POST /api/agents/:id/skills/install` (also in headless mode): installs plugins (`plugin@marketplace`) for an agent. It runs `claude plugin install … --scope project` in the agent's folder, so the plugin's skills and hooks actually load in Claude Code, and records the plugin's skills on the agent (Skills tab). Only plugins found in a registered marketplace are accepted.
 
 ### Not changed or not checked
 - Attaching a skill from the profile's Skills tab still only records it on the agent; it does not install the plugin. The new section is the way to get a plugin loaded.
-- Agents in Docker, in the cloud or on another host do not get the section yet. I did not run the screen in a browser or install a plugin through it; the install service is tested with the `claude` CLI faked.
+- Agents in Docker, in the cloud or on another host do not get the section yet. Tried in a browser on an isolated instance (own home and tmux socket): ticking a plugin, Create, the plugin enabled in the agent's folder, its skills recorded, and the row hiding for Codex. Not tried: a failed install in the browser (covered by the service tests).
 
 ## [0.83.2] - 2026-10-18 - Agents can be created on any Claude model family
 

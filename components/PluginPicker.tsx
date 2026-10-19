@@ -53,13 +53,15 @@ export default function PluginPicker({ selected, onChange }: { selected: string[
 
   return (
     <div data-testid="create-plugins">
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Search skills"
-        className="w-full px-3 py-1.5 mb-2 bg-gray-800 border border-gray-600 rounded-lg text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-      />
+      {rows.length > 6 && (
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search skills"
+          className="w-full px-3 py-1.5 mb-2 bg-gray-800 border border-gray-600 rounded-lg text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        />
+      )}
       <div className="max-h-48 overflow-y-auto space-y-1">
         {shown.map(r => (
           <label key={r.ref} className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-gray-800/60 cursor-pointer">

@@ -771,6 +771,7 @@ function CreateForm({
 }) {
   const [showFolder, setShowFolder] = useState(false)
   const [showWhere, setShowWhere] = useState(false)
+  const [showSkills, setShowSkills] = useState(false)
   const isCloud = state.runtime === 'ec2' || state.runtime === 'ecs'
   const host = hosts.find(h => h.id === hostId)
   const remoteHostId = host && !host.isSelf ? host.id : undefined
@@ -842,11 +843,26 @@ function CreateForm({
       {/* Plugins install into the agent's folder on this computer, for Claude Code */}
       {state.runtime === 'tmux' && !remoteHostId && state.launch.selected.kind === 'claude' && (
         <FormSection title="Skills (optional)">
-          <PluginPicker selected={skillPlugins} onChange={onSkillPluginsChange} />
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-gray-200 truncate" data-testid="create-skills">
+              {skillPlugins.length === 0
+                ? <span className="text-gray-500">None</span>
+                : skillPlugins.map(r => r.split('@')[0]).join(', ')}
+            </span>
+            <button type="button" onClick={() => setShowSkills(!showSkills)} className="text-xs text-blue-400 hover:text-blue-300 flex-shrink-0">
+              {showSkills ? 'Done' : skillPlugins.length === 0 ? 'Add' : 'Change'}
+            </button>
+          </div>
+          {showSkills && (
+            <div className="mt-2">
+              <PluginPicker selected={skillPlugins} onChange={onSkillPluginsChange} />
+              <p className="text-[11px] text-gray-500 mt-2">Installed for this agent only, in its folder. Plugins can include hooks that run in its sessions.</p>
+            </div>
+          )}
         </FormSection>
       )}
     </div>
-    <CreateFooter state={state} hosts={hosts} onCreate={onCreate} />
+    <CreateFooter state={state} hosts={hosts} onCreate={onCreate} skillPlugins={skillPlugins} />
     </>
   )
 }
@@ -859,7 +875,7 @@ const RUNTIME_LABEL: Record<Runtime, string> = {
 }
 
 /** The pinned bottom of the form: one sentence saying what will be created, and the Create button. */
-function CreateFooter({ state, hosts, onCreate }: { state: BubbleState; hosts: Host[]; onCreate: () => void }) {
+function CreateFooter({ state, hosts, onCreate, skillPlugins }: { state: BubbleState; hosts: Host[]; onCreate: () => void; skillPlugins: string[] }) {
   const host = hosts.find(h => h.id === state.hostId)
   const isCloud = state.runtime === 'ec2' || state.runtime === 'ecs'
   const isEc2MissingRequired = state.runtime === 'ec2' && (!state.cloudDomain || !state.cloudSslEmail || !state.cloudKeyName)
@@ -871,7 +887,7 @@ function CreateFooter({ state, hosts, onCreate }: { state: BubbleState; hosts: H
     ? `${who} will run ${state.launch.selected.name}, deployed to AWS (${RUNTIME_LABEL[state.runtime]}).`
     : state.runtime === 'docker'
       ? `${who} will run ${state.launch.selected.name}${how}, in ${folder}, in a Docker container on ${where}.`
-      : `${who} will run ${state.launch.selected.name}${how}, in ${folder} on ${where}.`
+      : `${who} will run ${state.launch.selected.name}${how}, in ${folder} on ${where}${skillPlugins.length > 0 ? `, with ${skillPlugins.length === 1 ? 'the skill' : 'the skills'} ${skillPlugins.map(r => r.split('@')[0]).join(', ')}` : ''}.`
   const disabled = isEc2MissingRequired || !state.agentName
 
   return (

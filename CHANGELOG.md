@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.85.1] - 2026-10-19 - The agent-list count was frozen at build time
+
+### Fixed
+- `GET /api/tasks/summary`, which feeds the open-cards count on the agent list, took no request, so a production build prerendered it once and served that answer forever: the count never changed after a deploy. It is now always computed fresh. Found by reading the count back on the live server after deploying 0.85.0; the isolated test instance ran in development mode, which hid it. A test keeps the route dynamic.
+
 ## [0.85.0] - 2026-10-19 - A board for every agent, next to Canvas
 
 ### Added

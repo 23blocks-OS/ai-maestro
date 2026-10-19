@@ -122,7 +122,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
     || JSON.stringify(blockedBy) !== JSON.stringify(task.blockedBy)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
         <span className="text-xs text-gray-400 font-medium">Task Detail</span>

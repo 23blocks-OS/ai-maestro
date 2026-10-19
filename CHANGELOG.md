@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.85.2] - 2026-10-19 - A card can wait on an agent on another host
+
+### Fixed
+- `aimaestro-task.sh wait <id> --on <agent>` (and the Waiting picker) refused any agent that is not on this host ("Unknown agent"), which is most agents a card waits on. The server no longer looks the agent up: `waitingOn` takes an agent id **or a name**, any host, shown as given; the dashboard shows the agent's name when it knows the id. A value that is not a plausible id or name (spaces, slashes, 100+ characters) is still refused. Reported by Lola from mini-lola, with 23b-hr on mac-mini.
+
 ## [0.85.1] - 2026-10-19 - The agent-list count was frozen at build time
 
 ### Fixed

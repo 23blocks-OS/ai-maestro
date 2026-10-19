@@ -38,13 +38,20 @@ export interface TaskParams {
   waitingNote?: string
 }
 
-/** A card waiting must say what on: juan, outside, hold, or the id of an agent that exists. */
+/** An agent a card can wait on: an id or a name, any host (the mesh knows agents this host does not). */
+const WAITING_AGENT = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,99}$/
+
+/**
+ * A card waiting must say what on: juan, outside, hold, or an agent (id or name). The agent is
+ * NOT looked up: this host's registry knows only its own agents, and most waits are on an agent
+ * on another host. It is shown as given; the dashboard resolves ids to names when it can.
+ */
 function checkWaiting(status: string | undefined, waitingOn: string | undefined, existing?: Task): ServiceResult<never> | null {
   const effective = status ?? existing?.status
   if (effective !== 'waiting') return null
   const on = waitingOn ?? existing?.waitingOn
-  if (!on) return invalidField('waitingOn', 'A waiting card needs waitingOn: juan, outside, hold, or an agent id')
-  if (!WAITING_FIXED.includes(on) && !getAgent(on)) return invalidField('waitingOn', `Unknown agent: ${String(on).slice(0, 60)}`)
+  if (!on) return invalidField('waitingOn', 'A waiting card needs waitingOn: juan, outside, hold, or an agent id or name')
+  if (!WAITING_FIXED.includes(on) && !WAITING_AGENT.test(on)) return invalidField('waitingOn', 'waitingOn must be juan, outside, hold, or an agent id or name (letters, digits, . _ @ -)')
   return null
 }
 

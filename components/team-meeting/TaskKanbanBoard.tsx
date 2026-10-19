@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Archive, Circle, PlayCircle, Eye, CheckCircle2 } from 'lucide-react'
+import { X, Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import KanbanColumn from './KanbanColumn'
@@ -13,6 +13,7 @@ const COLUMNS: { status: TaskStatus; label: string; dotColor: string; icon: type
   { status: 'pending', label: 'To Do', dotColor: 'bg-gray-400', icon: Circle },
   { status: 'in_progress', label: 'In Progress', dotColor: 'bg-blue-400', icon: PlayCircle },
   { status: 'review', label: 'Review', dotColor: 'bg-amber-400', icon: Eye },
+  { status: 'waiting', label: 'Waiting', dotColor: 'bg-orange-400', icon: Hourglass },
   { status: 'completed', label: 'Done', dotColor: 'bg-emerald-400', icon: CheckCircle2 },
 ]
 
@@ -25,6 +26,10 @@ interface TaskKanbanBoardProps {
   onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
   onClose?: () => void
   teamName: string
+  /** Heading; the team boards say "Kanban Board" */
+  title?: string
+  onAddComment?: (task: TaskWithDeps, text: string, deliver: boolean) => Promise<{ delivered?: boolean; reason?: string }>
+  onRetryComment?: (task: TaskWithDeps, commentId: string) => Promise<{ delivered?: boolean; reason?: string }>
 }
 
 export default function TaskKanbanBoard({
@@ -36,9 +41,13 @@ export default function TaskKanbanBoard({
   onCreateTask,
   onClose,
   teamName,
+  title = 'Kanban Board',
+  onAddComment,
+  onRetryComment,
 }: TaskKanbanBoardProps) {
   const [selectedTask, setSelectedTask] = useState<TaskWithDeps | null>(null)
   const [quickAddStatus, setQuickAddStatus] = useState<TaskStatus | null>(null)
+  const [waitingTaskId, setWaitingTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,6 +64,12 @@ export default function TaskKanbanBoard({
   const handleDrop = async (taskId: string, newStatus: TaskStatus) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task || task.status === newStatus || task.isBlocked) return
+    if (newStatus === 'waiting') {
+      // Waiting needs a "waiting on": open the card with the picker
+      setSelectedTask(task)
+      setWaitingTaskId(taskId)
+      return
+    }
     await onUpdateTask(taskId, { status: newStatus })
   }
 
@@ -82,7 +97,7 @@ export default function TaskKanbanBoard({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-white">Kanban Board</h3>
+          <h3 className="text-sm font-medium text-white">{title}</h3>
           {teamName && (
             <span className="text-xs text-gray-500">{teamName}</span>
           )}
@@ -128,9 +143,12 @@ export default function TaskKanbanBoard({
               task={freshSelectedTask}
               agents={agents}
               allTasks={tasks}
-              onUpdate={async (taskId, updates) => { await onUpdateTask(taskId, updates) }}
+              onUpdate={async (taskId, updates) => { await onUpdateTask(taskId, updates); setWaitingTaskId(null) }}
               onDelete={async (taskId) => { await onDeleteTask(taskId); setSelectedTask(null) }}
-              onClose={() => setSelectedTask(null)}
+              onClose={() => { setSelectedTask(null); setWaitingTaskId(null) }}
+              onAddComment={onAddComment}
+              onRetryComment={onRetryComment}
+              startWaiting={waitingTaskId === freshSelectedTask.id}
             />
           </div>
         </div>

@@ -44,6 +44,7 @@ import Link from 'next/link'
 import AgentCreationWizard from './AgentCreationWizard'
 import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
+import { useTaskSummary } from '@/hooks/useTaskSummary'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
 import { SubconsciousStatus } from './SubconsciousStatus'
 import AgentBadge from './AgentBadge'
@@ -135,6 +136,7 @@ export default function AgentList({
 
   // Host management
   const { hosts } = useHosts()
+  const taskCounts = useTaskSummary(hosts)
   const [selectedHostFilter, setSelectedHostFilter] = useState<string>(() => {
     if (typeof window === 'undefined') return 'all'
     return localStorage.getItem('agent-sidebar-host-filter') || 'all'
@@ -1328,6 +1330,19 @@ export default function AgentList({
                                                       {unreadCounts[agent.id]}
                                                     </span>
                                                   </div>
+                                                )}
+
+                                                {/* Open cards on the agent's board; red when one waits on you */}
+                                                {taskCounts[agent.id]?.open > 0 && (
+                                                  <span
+                                                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                                                      taskCounts[agent.id].waitingOnJuan > 0 ? 'bg-red-500/80 text-white' : 'bg-gray-700 text-gray-300'
+                                                    }`}
+                                                    title={`${taskCounts[agent.id].open} open on its board` + (taskCounts[agent.id].waitingOnJuan > 0 ? `, ${taskCounts[agent.id].waitingOnJuan} waiting on you` : '')}
+                                                    data-testid="board-count"
+                                                  >
+                                                    {taskCounts[agent.id].open}
+                                                  </span>
                                                 )}
 
                                                 {/* Status indicator */}

@@ -14,7 +14,7 @@ interface TeamKanbanSectionProps {
 export default function TeamKanbanSection({ teamId, teamName, agents, teamAgentIds }: TeamKanbanSectionProps) {
   const {
     tasks, tasksByStatus,
-    createTask, updateTask, deleteTask,
+    createTask, updateTask, deleteTask, addComment, retryComment,
   } = useTasks(teamId)
 
   // Filter agents to team members only
@@ -30,6 +30,8 @@ export default function TeamKanbanSection({ teamId, teamName, agents, teamAgentI
         onDeleteTask={deleteTask}
         onCreateTask={createTask}
         teamName={teamName}
+        onAddComment={addComment}
+        onRetryComment={retryComment}
       />
     </div>
   )

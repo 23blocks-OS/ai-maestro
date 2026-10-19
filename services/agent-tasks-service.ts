@@ -1,0 +1,274 @@
+/**
+ * Agent Tasks Service
+ *
+ * The board of one agent: its own cards (agent scope), the cards of its teams assigned to it
+ * (team scope), and comments from the operator that are handed to the agent's session.
+ * Routes are thin wrappers that call these functions.
+ *
+ * An operator comment is a convention on a trusted network, not proof of who wrote it:
+ * AI Maestro has no login, so the server trusts the `author.kind` it is given. Anything that
+ * is not exactly "operator" is treated as an agent comment, which is stored but never injected.
+ */
+
+import {
+  agentScope, teamScope, loadScopeTasks, createScopeTask, getScopeTask, updateScopeTask, deleteScopeTask,
+  wouldCreateScopeCycle, addScopeComment, markCommentDelivered, resolveTaskDeps, isSafeScopeId,
+} from '@/lib/task-registry'
+import { getAgent, loadAgents } from '@/lib/agent-registry'
+import { loadTeams, getTeam } from '@/lib/team-registry'
+import { injectMeetingPrompt } from '@/services/agents-chat-service'
+import {
+  type ServiceResult, missingField, notFound, invalidField, operationFailed, invalidRequest,
+  circularDependency, selfReference,
+} from '@/services/service-errors'
+import type { Task, TaskComment, TaskScope, TaskStatus, TaskWithDeps, WaitingOn } from '@/types/task'
+
+const STATUSES: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'waiting', 'completed']
+const WAITING_FIXED = ['juan', 'outside', 'hold']
+const MAX_TEXT = 4000
+
+export interface TaskParams {
+  subject?: string
+  description?: string
+  status?: string
+  assigneeAgentId?: string | null
+  blockedBy?: string[]
+  priority?: number
+  waitingOn?: string
+  waitingNote?: string
+}
+
+/** A card waiting must say what on: juan, outside, hold, or the id of an agent that exists. */
+function checkWaiting(status: string | undefined, waitingOn: string | undefined, existing?: Task): ServiceResult<never> | null {
+  const effective = status ?? existing?.status
+  if (effective !== 'waiting') return null
+  const on = waitingOn ?? existing?.waitingOn
+  if (!on) return invalidField('waitingOn', 'A waiting card needs waitingOn: juan, outside, hold, or an agent id')
+  if (!WAITING_FIXED.includes(on) && !getAgent(on)) return invalidField('waitingOn', `Unknown agent: ${String(on).slice(0, 60)}`)
+  return null
+}
+
+function clean(text: string): string {
+  // Keep newlines and tabs, drop other control characters
+  return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, MAX_TEXT)
+}
+
+function resolved(tasks: Task[]): TaskWithDeps[] {
+  return resolveTaskDeps(tasks)
+}
+
+// ── Board (agent + team cards) ──────────────────────────────────────────────
+
+export interface BoardCard extends TaskWithDeps {
+  scope: 'agent' | 'team'
+  teamName?: string
+}
+
+/**
+ * Everything on one agent's board on this host: its own cards, and cards on the boards of the
+ * teams it belongs to that are assigned to it. Project cards live on the project's host and are
+ * fetched by the client (0.86.0).
+ */
+export function getAgentBoard(agentId: string): ServiceResult<{ cards: BoardCard[] }> {
+  const agent = getAgent(agentId)
+  if (!agent) return notFound('Agent', agentId)
+
+  const cards: BoardCard[] = resolved(loadScopeTasks(agentScope(agentId))).map(t => ({ ...t, scope: 'agent' as const }))
+  for (const team of loadTeams()) {
+    if (!team.agentIds?.includes(agentId)) continue
+    const all = resolved(loadScopeTasks(teamScope(team.id)))
+    for (const t of all) {
+      if (t.assigneeAgentId === agentId) cards.push({ ...t, scope: 'team', teamName: team.name })
+    }
+  }
+  return { data: { cards }, status: 200 }
+}
+
+export function listAgentTasks(agentId: string, filter: { status?: string; waitingOn?: string } = {}): ServiceResult<{ tasks: TaskWithDeps[] }> {
+  const agent = getAgent(agentId)
+  if (!agent) return notFound('Agent', agentId)
+  let tasks = resolved(loadScopeTasks(agentScope(agentId)))
+  if (filter.status) tasks = tasks.filter(t => t.status === filter.status)
+  if (filter.waitingOn) tasks = tasks.filter(t => t.status === 'waiting' && t.waitingOn === filter.waitingOn)
+  return { data: { tasks }, status: 200 }
+}
+
+const OWN_BOARD = "A card on an agent's own board stays that agent's; use a team or a project to share work"
+
+export function createAgentTask(agentId: string, params: TaskParams): ServiceResult<{ task: Task }> {
+  if (params.assigneeAgentId && params.assigneeAgentId !== agentId) return invalidField('assigneeAgentId', OWN_BOARD)
+  return createInScope(agentScope(agentId), params, () => (getAgent(agentId) ? null : notFound('Agent', agentId)))
+}
+
+export function createInScope(scope: TaskScope, params: TaskParams, guard?: () => ServiceResult<never> | null): ServiceResult<{ task: Task }> {
+  const g = guard?.()
+  if (g) return g
+  if (!params.subject || typeof params.subject !== 'string' || !params.subject.trim()) return missingField('subject')
+  if (params.blockedBy !== undefined && (!Array.isArray(params.blockedBy) || params.blockedBy.some(b => typeof b !== 'string'))) {
+    return invalidField('blockedBy', 'blockedBy must be an array of task ID strings')
+  }
+  if (params.assigneeAgentId && !getAgent(params.assigneeAgentId)) return invalidField('assigneeAgentId', 'Unknown agent')
+  if (params.status && !STATUSES.includes(params.status as TaskStatus)) return invalidField('status', `status must be one of ${STATUSES.join(', ')}`)
+  const w = checkWaiting(params.status, params.waitingOn)
+  if (w) return w
+  try {
+    const task = createScopeTask(scope, {
+      subject: params.subject.trim(),
+      description: params.description,
+      assigneeAgentId: params.assigneeAgentId,
+      blockedBy: params.blockedBy,
+      priority: params.priority,
+    })
+    if (params.status && params.status !== 'pending') {
+      const r = updateScopeTask(scope, task.id, { status: params.status as TaskStatus, waitingOn: params.waitingOn as WaitingOn | undefined, waitingNote: params.waitingNote })
+      return { data: { task: r.task || task }, status: 201 }
+    }
+    return { data: { task }, status: 201 }
+  } catch (error) {
+    return operationFailed('create task', (error as Error).message)
+  }
+}
+
+export function updateAgentTask(agentId: string, taskId: string, params: TaskParams): ServiceResult<{ task: Task; unblocked?: Task[] }> {
+  if (!getAgent(agentId)) return notFound('Agent', agentId)
+  if (params.assigneeAgentId && params.assigneeAgentId !== agentId) return invalidField('assigneeAgentId', OWN_BOARD)
+  return updateInScope(agentScope(agentId), taskId, params)
+}
+
+export function updateInScope(scope: TaskScope, taskId: string, params: TaskParams): ServiceResult<{ task: Task; unblocked?: Task[] }> {
+  if (!isSafeScopeId(scope.id)) return invalidField('id', 'Invalid id')
+  const existing = getScopeTask(scope, taskId)
+  if (!existing) return notFound('Task', taskId)
+  if (params.status !== undefined && !STATUSES.includes(params.status as TaskStatus)) return invalidField('status', `status must be one of ${STATUSES.join(', ')}`)
+  if (params.assigneeAgentId && !getAgent(params.assigneeAgentId)) return invalidField('assigneeAgentId', 'Unknown agent')
+  if (params.blockedBy !== undefined) {
+    if (!Array.isArray(params.blockedBy) || params.blockedBy.some(b => typeof b !== 'string')) return invalidField('blockedBy', 'blockedBy must contain only string task IDs')
+    for (const dep of params.blockedBy) {
+      if (dep === taskId) return selfReference('A task cannot depend on itself')
+      if (wouldCreateScopeCycle(scope, taskId, dep)) return circularDependency(`Adding dependency on task ${dep} would create a circular reference`)
+    }
+  }
+  const w = checkWaiting(params.status, params.waitingOn, existing)
+  if (w) return w
+  try {
+    const result = updateScopeTask(scope, taskId, {
+      subject: params.subject,
+      description: params.description,
+      status: params.status as TaskStatus | undefined,
+      assigneeAgentId: params.assigneeAgentId,
+      blockedBy: params.blockedBy,
+      priority: params.priority,
+      waitingOn: params.waitingOn as WaitingOn | undefined,
+      waitingNote: params.waitingNote,
+    })
+    if (!result.task) return notFound('Task', taskId)
+    return { data: { task: result.task, unblocked: result.unblocked }, status: 200 }
+  } catch (error) {
+    return operationFailed('update task', (error as Error).message)
+  }
+}
+
+export function deleteAgentTask(agentId: string, taskId: string): ServiceResult<{ success: boolean }> {
+  if (!getAgent(agentId)) return notFound('Agent', agentId)
+  if (!deleteScopeTask(agentScope(agentId), taskId)) return notFound('Task', taskId)
+  return { data: { success: true }, status: 200 }
+}
+
+// ── Comments and delivery ───────────────────────────────────────────────────
+
+export interface CommentParams {
+  author?: { kind?: string; id?: string }
+  text?: string
+  deliver?: boolean
+}
+
+function envelope(task: Task, comment: TaskComment, authorLabel: string): string {
+  const when = new Date(comment.createdAt).toISOString().replace('T', ' ').slice(0, 16)
+  return `[TASK ${task.id.slice(0, 8)}] ${clean(task.subject).replace(/\s+/g, ' ').slice(0, 120)} - instruction from ${authorLabel} (AI Maestro board, ${when} UTC): ${comment.text}`
+}
+
+/**
+ * Hand an operator comment to the card's assignee. Never throws; the comment stays stored
+ * with deliveredAt null when the session cannot take it, and can be sent again.
+ */
+export async function deliverComment(scope: TaskScope, taskId: string, commentId: string): Promise<ServiceResult<{ delivered: boolean; reason?: string }>> {
+  const task = getScopeTask(scope, taskId)
+  const comment = task?.comments?.find(c => c.id === commentId)
+  if (!task || !comment) return notFound('Comment', commentId)
+  if (comment.author.kind !== 'operator') return invalidRequest('Only operator comments are sent to the agent')
+  if (!task.assigneeAgentId) return { data: { delivered: false, reason: 'No one is assigned to this card yet' }, status: 200 }
+  const result = await injectMeetingPrompt({ agentId: task.assigneeAgentId, injection: envelope(task, comment, 'the operator') })
+  if (result.status >= 200 && result.status < 300) {
+    markCommentDelivered(scope, taskId, commentId)
+    return { data: { delivered: true }, status: 200 }
+  }
+  const reason = (result.data as { message?: string; error?: string } | undefined)?.message || (result.data as { error?: string } | undefined)?.error || 'The agent could not take it'
+  return { data: { delivered: false, reason }, status: 200 }
+}
+
+export async function addCommentInScope(
+  scope: TaskScope,
+  taskId: string,
+  params: CommentParams
+): Promise<ServiceResult<{ comment: TaskComment; delivered?: boolean; reason?: string }>> {
+  if (!isSafeScopeId(scope.id)) return invalidField('id', 'Invalid id')
+  if (typeof params.text !== 'string' || !params.text.trim()) return missingField('text')
+  if (!getScopeTask(scope, taskId)) return notFound('Task', taskId)
+  // Only the exact word "operator" counts; a missing or odd value is an agent comment and is never injected
+  const kind: 'operator' | 'agent' = params.author?.kind === 'operator' ? 'operator' : 'agent'
+  const authorId = typeof params.author?.id === 'string' ? params.author.id.slice(0, 80) : undefined
+  const comment = addScopeComment(scope, taskId, { author: { kind, ...(authorId && { id: authorId }) }, text: clean(params.text).trim() })
+  if (!comment) return notFound('Task', taskId)
+  if (kind === 'operator' && params.deliver !== false) {
+    const r = await deliverComment(scope, taskId, comment.id)
+    const d = r.data as { delivered: boolean; reason?: string }
+    return { data: { comment: { ...comment, deliveredAt: d.delivered ? new Date().toISOString() : null }, delivered: d.delivered, reason: d.reason }, status: 201 }
+  }
+  return { data: { comment }, status: 201 }
+}
+
+export async function addAgentTaskComment(agentId: string, taskId: string, params: CommentParams) {
+  if (!getAgent(agentId)) return notFound('Agent', agentId)
+  return addCommentInScope(agentScope(agentId), taskId, params)
+}
+
+export async function addTeamTaskComment(teamId: string, taskId: string, params: CommentParams) {
+  if (!getTeam(teamId)) return notFound('Team', teamId)
+  return addCommentInScope(teamScope(teamId), taskId, params)
+}
+
+/** Send an operator comment again (the Retry button). */
+export async function retryAgentTaskComment(agentId: string, taskId: string, commentId: string) {
+  if (!getAgent(agentId)) return notFound('Agent', agentId)
+  return deliverComment(agentScope(agentId), taskId, commentId)
+}
+
+export async function retryTeamTaskComment(teamId: string, taskId: string, commentId: string) {
+  if (!getTeam(teamId)) return notFound('Team', teamId)
+  return deliverComment(teamScope(teamId), taskId, commentId)
+}
+
+// ── Summary for the agent list ──────────────────────────────────────────────
+
+export interface TaskCounts { open: number; waiting: number; waitingOnJuan: number }
+
+/** Open cards per agent on this host (own cards + team cards assigned to it): one call for the whole list. */
+export function getTaskSummary(): ServiceResult<{ agents: Record<string, TaskCounts> }> {
+  const out: Record<string, TaskCounts> = {}
+  const add = (agentId: string | null | undefined, t: Task) => {
+    if (!agentId || t.status === 'completed' || t.status === 'backlog') return
+    const c = out[agentId] || (out[agentId] = { open: 0, waiting: 0, waitingOnJuan: 0 })
+    c.open += 1
+    if (t.status === 'waiting') {
+      c.waiting += 1
+      if (t.waitingOn === 'juan') c.waitingOnJuan += 1
+    }
+  }
+  for (const a of loadAgents()) {
+    for (const t of loadScopeTasks(agentScope(a.id))) add(t.assigneeAgentId || a.id, t)
+  }
+  for (const team of loadTeams()) {
+    for (const t of loadScopeTasks(teamScope(team.id))) add(t.assigneeAgentId, t)
+  }
+  return { data: { agents: out }, status: 200 }
+}

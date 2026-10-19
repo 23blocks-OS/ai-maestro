@@ -10,6 +10,7 @@ import { getRuntimeMode, setRuntimeMode } from '@/lib/runtime-mode'
 import MessageCenter from '@/components/MessageCenter'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
+import AgentBoardPanel from '@/components/AgentBoardPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import TabletDashboard from '@/components/TabletDashboard'
@@ -23,7 +24,7 @@ import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { useToast } from '@/contexts/ToastContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop, Zap } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop, Zap, KanbanSquare } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
@@ -121,10 +122,10 @@ export default function DashboardPage() {
     setLayoutOverride(next)
     localStorage.setItem('aimaestro-layout-mode', next)
   }
-  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'streaming' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'search' | 'export' | 'playback'>(() => {
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'streaming' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'board' | 'search' | 'export' | 'playback'>(() => {
     if (typeof window === 'undefined') return 'chat'
     const saved = localStorage.getItem('aimaestro-active-tab')
-    const validTabs = ['terminal', 'chat', 'messages', 'worktree', 'graph', 'memory', 'docs', 'canvas', 'search', 'export', 'playback']
+    const validTabs = ['terminal', 'chat', 'messages', 'worktree', 'graph', 'memory', 'docs', 'canvas', 'board', 'search', 'export', 'playback']
     return (saved && validTabs.includes(saved) ? saved : 'chat') as any
   })
   // Persist tab choice in localStorage
@@ -909,6 +910,18 @@ export default function DashboardPage() {
                       Canvas
                     </button>
                     <button
+                      onClick={() => setActiveTab('board')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'board'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                      data-testid="tab-board"
+                    >
+                      <KanbanSquare className="w-4 h-4" />
+                      Board
+                    </button>
+                    <button
                       onClick={() => setActiveTab('search')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'search'
@@ -1153,6 +1166,12 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         hostUrl={getAgentBaseUrl(agent)}
                         isActive={true}
+                      />
+                    ) : activeTab === 'board' ? (
+                      <AgentBoardPanel
+                        agent={agent}
+                        agents={agents}
+                        hostUrl={getAgentBaseUrl(agent)}
                       />
                     ) : activeTab === 'search' ? (
                       <div className="flex-1 overflow-auto p-4">

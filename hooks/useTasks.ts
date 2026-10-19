@@ -3,6 +3,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 
+export type TaskUpdates = {
+  subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null
+  blockedBy?: string[]; priority?: number; waitingOn?: string; waitingNote?: string
+}
+
+export type CommentResult = { delivered?: boolean; reason?: string }
+
 interface UseTasksResult {
   tasks: TaskWithDeps[]
   loading: boolean
@@ -13,10 +20,12 @@ interface UseTasksResult {
   tasksByStatus: Record<TaskStatus, TaskWithDeps[]>
   tasksByAgent: Record<string, TaskWithDeps[]>
   createTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
-  updateTask: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number }) => Promise<{ unblocked: TaskWithDeps[] }>
+  updateTask: (taskId: string, updates: TaskUpdates) => Promise<{ unblocked: TaskWithDeps[] }>
   deleteTask: (taskId: string) => Promise<void>
   assignTask: (taskId: string, agentId: string | null) => Promise<void>
   refreshTasks: () => Promise<void>
+  addComment: (task: TaskWithDeps, text: string, deliver: boolean) => Promise<CommentResult>
+  retryComment: (task: TaskWithDeps, commentId: string) => Promise<CommentResult>
 }
 
 export function useTasks(teamId: string | null): UseTasksResult {
@@ -68,7 +77,7 @@ export function useTasks(teamId: string | null): UseTasksResult {
     await fetchTasks()
   }, [teamId, fetchTasks])
 
-  const updateTask = useCallback(async (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number }) => {
+  const updateTask = useCallback(async (taskId: string, updates: TaskUpdates) => {
     if (!teamId) return { unblocked: [] as TaskWithDeps[] }
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
@@ -101,6 +110,27 @@ export function useTasks(teamId: string | null): UseTasksResult {
     await updateTask(taskId, { assigneeAgentId: agentId })
   }, [updateTask])
 
+  const addComment = useCallback(async (task: TaskWithDeps, text: string, deliver: boolean): Promise<CommentResult> => {
+    if (!teamId) return {}
+    const res = await fetch(`/api/teams/${teamId}/tasks/${task.id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ author: { kind: 'operator' }, text, deliver }),
+    })
+    if (!res.ok) throw new Error('Could not save the comment')
+    const data = await res.json()
+    await fetchTasks()
+    return { delivered: data.delivered, reason: data.reason }
+  }, [teamId, fetchTasks])
+
+  const retryComment = useCallback(async (task: TaskWithDeps, commentId: string): Promise<CommentResult> => {
+    if (!teamId) return {}
+    const res = await fetch(`/api/teams/${teamId}/tasks/${task.id}/comments/${commentId}`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    await fetchTasks()
+    return { delivered: data.delivered, reason: data.reason }
+  }, [teamId, fetchTasks])
+
   const pendingTasks = useMemo(() => tasks.filter(t => t.status === 'pending'), [tasks])
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
   const completedTasks = useMemo(() => tasks.filter(t => t.status === 'completed'), [tasks])
@@ -111,6 +141,7 @@ export function useTasks(teamId: string | null): UseTasksResult {
       pending: [],
       in_progress: [],
       review: [],
+      waiting: [],
       completed: [],
     }
     tasks.forEach(t => {
@@ -146,5 +177,7 @@ export function useTasks(teamId: string | null): UseTasksResult {
     deleteTask,
     assignTask,
     refreshTasks: fetchTasks,
+    addComment,
+    retryComment,
   }
 }

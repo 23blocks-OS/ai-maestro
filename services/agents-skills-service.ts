@@ -15,7 +15,9 @@ import {
   updateAiMaestroSkills,
   getAgent,
 } from '@/lib/agent-registry'
-import { getSkillById } from '@/lib/marketplace-skills'
+import { getSkillById, getAllMarketplaceSkills } from '@/lib/marketplace-skills'
+import { resolveClaudeBinary } from '@/lib/memory/summarizer'
+import { execFile } from 'child_process'
 import { agentRegistry } from '@/lib/agent'
 import fs from 'fs/promises'
 import path from 'path'
@@ -229,4 +231,72 @@ export async function saveSkillSettings(
   }
 
   return { data: { success: true, message: 'Settings saved' }, status: 200 }
+}
+
+
+// ── Install plugins for an agent ────────────────────────────────────────────
+
+/** `plugin@marketplace`, the form `claude plugin install` takes. Same characters the marketplace folders use. */
+const PLUGIN_REF = /^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+export interface PluginInstallResult {
+  plugin: string
+  installed: boolean
+  recorded: number
+  error?: string
+}
+
+function runClaude(claude: string, args: string[], cwd: string): Promise<{ ok: boolean; output: string }> {
+  return new Promise(resolve => {
+    execFile(claude, args, { cwd, timeout: 120_000, encoding: 'utf8' }, (err, stdout, stderr) => {
+      resolve({ ok: !err, output: `${stdout || ''}${stderr || ''}`.trim().slice(0, 300) })
+    })
+  })
+}
+
+/**
+ * Give an agent the plugins a person picked (`plugin@marketplace`). A plugin's skills AND hooks only
+ * load in Claude Code once the plugin is installed, so this does both: it installs the plugin at
+ * project scope in the agent's folder, and records the plugin's skills on the agent (the Skills tab).
+ * Only plugins that appear in a registered marketplace are accepted, and the CLI is run with argv.
+ */
+export async function installAgentPlugins(
+  agentId: string,
+  body: { plugins?: unknown }
+): Promise<ServiceResult<{ results: PluginInstallResult[] }>> {
+  const agent = getAgent(agentId)
+  if (!agent) return notFound('Agent', agentId)
+  if (!Array.isArray(body.plugins) || body.plugins.length === 0) return missingField('plugins')
+  const refs = [...new Set(body.plugins.map(String))]
+  const bad = refs.find(r => !PLUGIN_REF.test(r))
+  if (bad) return invalidField('plugins', `Not a plugin reference (plugin@marketplace): ${bad.slice(0, 60)}`)
+
+  const folder = agent.sessions?.[0]?.workingDirectory || agent.workingDirectory
+  if (!folder || !path.isAbsolute(folder)) return operationFailed('install plugins: the agent has no folder yet')
+  const claude = resolveClaudeBinary()
+
+  const { skills } = await getAllMarketplaceSkills()
+  const results: PluginInstallResult[] = []
+  for (const ref of refs) {
+    const [plugin, marketplace] = ref.split('@')
+    const pluginSkills = skills.filter(sk => sk.plugin === plugin && sk.marketplace === marketplace)
+    if (pluginSkills.length === 0) {
+      results.push({ plugin: ref, installed: false, recorded: 0, error: 'Not found in a registered marketplace' })
+      continue
+    }
+    let installed = false
+    let error: string | undefined
+    if (!claude) {
+      error = 'The claude CLI was not found on this host'
+    } else {
+      const r = await runClaude(claude, ['plugin', 'install', ref, '--scope', 'project'], folder)
+      installed = r.ok
+      if (!r.ok) error = r.output || 'claude plugin install failed'
+    }
+    const recorded = addMarketplaceSkills(agentId, pluginSkills.map(sk => ({
+      id: sk.id, marketplace: sk.marketplace, plugin: sk.plugin, name: sk.name, version: sk.version,
+    }))) ? pluginSkills.length : 0
+    results.push({ plugin: ref, installed, recorded, ...(error && { error }) })
+  }
+  return { data: { results }, status: 200 }
 }

@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.85.0] - 2026-10-19 - A board for every agent, next to Canvas
+
+### Added
+- **Board tab** next to Canvas (desktop, and the tablet and phone layouts): what this agent is doing, where each card is, and what it waits for. It shows the agent's own cards plus the cards of its teams that are assigned to it, each labelled by where it lives. Backlog, To Do, In Progress, Review, **Waiting**, Done: all six fit on screen.
+- **Waiting** column. A waiting card says what it waits on: you, another agent, someone outside, or on hold. The card shows it ("Waiting on you").
+- **Instructions on a card.** Open a card, write an instruction and press "Send to agent": it is stored on the card and handed to the assignee's session as `[TASK <id>] <subject> - instruction from the operator ...`. A comment that could not be handed over shows "not sent" with a Retry button. "Save as note" keeps a comment on the card without telling the agent. Comments written by agents are stored and shown, never injected. The card says it plainly: an operator comment is a convention on a trusted network, not proof of who wrote it (there is no login).
+- **Agent board store**: `~/.aimaestro/agents/<id>/tasks.json`, on the host where the agent lives. Until now a task needed a team, and only 23 of 113 agents are in one.
+- **A count on the agent list**: open cards per agent (red when one waits on you), from one call per host.
+- API (also in headless mode): `GET/POST /api/agents/:id/tasks`, `PATCH|PUT|DELETE /api/agents/:id/tasks/:taskId`, `POST /api/agents/:id/tasks/:taskId/comments` (and `/comments/:commentId` to send again), `GET /api/agents/:id/board`, `GET /api/tasks/summary`, and `POST /api/teams/:id/tasks/:taskId/comments[/:commentId]`. An unknown agent is a 404, not an empty board. A card on an agent's own board stays that agent's; sharing work is a team card.
+- Team boards got the Waiting column and the comment box too.
+
+### Not changed or not checked
+- The project scope (a board for a piece of work that crosses agents and teams) is 0.86.0. The `aimaestro-task.sh` command and the skill that tells agents to move their cards come with plugin 1.12.0.
+- "Handed to the session" is what "sent" means: the text was typed into the agent's pane (or queued where that path is switched on). It does not mean the agent has read it. If the queue path is enabled (`MAESTRO_MEETING_CONTEXT_KINDS`), a restart before the agent's next turn drops a queued instruction; Retry sends it again.
+- Tried in a browser on an isolated instance: open the tab, a card, Send to agent (it arrived in the pane), the Waiting picker and column, the count. Not tried: a remote agent's board in a browser (it calls the agent's own host like the Work tab does), and the tablet and phone layouts.
+
 ## [0.84.0] - 2026-10-19 - Pick skills when you create an agent
 
 ### Added

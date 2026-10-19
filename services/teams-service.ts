@@ -61,6 +61,8 @@ export interface UpdateTaskParams {
   assigneeAgentId?: string
   blockedBy?: string[]
   priority?: number
+  waitingOn?: string
+  waitingNote?: string
 }
 
 export interface CreateDocumentParams {
@@ -82,7 +84,7 @@ export interface NotifyTeamParams {
   teamName: string
 }
 
-const VALID_TASK_STATUSES = ['backlog', 'pending', 'in_progress', 'review', 'completed']
+const VALID_TASK_STATUSES = ['backlog', 'pending', 'in_progress', 'review', 'waiting', 'completed']
 
 // ===========================================================================
 // PUBLIC API -- called by API routes
@@ -243,7 +245,7 @@ export function updateTeamTask(
     return notFound('Task', taskId)
   }
 
-  const { subject, description, status, assigneeAgentId, blockedBy, priority } = params
+  const { subject, description, status, assigneeAgentId, blockedBy, priority, waitingOn, waitingNote } = params
 
   // Validate blockedBy to prevent circular dependencies
   if (Array.isArray(blockedBy)) {
@@ -262,7 +264,12 @@ export function updateTeamTask(
 
   // Validate status enum
   if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
-    return invalidField('status', 'Invalid status. Must be backlog, pending, in_progress, review, or completed')
+    return invalidField('status', 'Invalid status. Must be backlog, pending, in_progress, review, waiting, or completed')
+  }
+
+  // A waiting card says what it waits on: juan, outside, hold, or an agent id
+  if ((status ?? existing.status) === 'waiting' && !(waitingOn ?? existing.waitingOn)) {
+    return invalidField('waitingOn', 'A waiting card needs waitingOn: juan, outside, hold, or an agent id')
   }
 
   try {
@@ -273,6 +280,8 @@ export function updateTeamTask(
       assigneeAgentId,
       blockedBy,
       priority,
+      waitingOn,
+      waitingNote,
     })
 
     if (!result.task) {

@@ -134,6 +134,10 @@ import {
   saveSkillSettings,
   installAgentPlugins,
 } from '@/services/agents-skills-service'
+import {
+  listAgentTasks, createAgentTask, updateAgentTask, deleteAgentTask, getAgentBoard, getTaskSummary,
+  addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment, retryTeamTaskComment,
+} from '@/services/agent-tasks-service'
 
 import {
   getSubconsciousStatus as getAgentSubconsciousStatus,
@@ -1608,6 +1612,44 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, createTeamTask(params.id, body))
+  }},
+  { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)\/comments\/([^/]+)$/, paramNames: ['id', 'taskId', 'commentId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await retryTeamTaskComment(params.id, params.taskId, params.commentId))
+  }},
+  { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)\/comments$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await addTeamTaskComment(params.id, params.taskId, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getTaskSummary())
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/board$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getAgentBoard(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, listAgentTasks(params.id, { status: query.status || undefined, waitingOn: query.waitingOn || undefined }))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, createAgentTask(params.id, body))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/tasks\/([^/]+)\/comments\/([^/]+)$/, paramNames: ['id', 'taskId', 'commentId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await retryAgentTaskComment(params.id, params.taskId, params.commentId))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/tasks\/([^/]+)\/comments$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await addAgentTaskComment(params.id, params.taskId, body))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateAgentTask(params.id, params.taskId, body))
+  }},
+  { method: 'PUT', pattern: /^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateAgentTask(params.id, params.taskId, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, deleteAgentTask(params.id, params.taskId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (_req, res, params) => {
     sendServiceResult(res, getTeamDocument(params.id, params.docId))

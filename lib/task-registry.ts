@@ -1,7 +1,11 @@
 /**
- * Task Registry - File-based CRUD for team task persistence
+ * Task Registry - File-based CRUD for task persistence, in three scopes.
  *
- * Storage: ~/.aimaestro/teams/tasks-{teamId}.json (one per team)
+ * Storage:
+ *   team    ~/.aimaestro/teams/tasks-{teamId}.json
+ *   agent   ~/.aimaestro/agents/{agentId}/tasks.json     (on the host where the agent lives)
+ *   project ~/.aimaestro/projects/{projectId}/tasks.json (on the owner agent's host)
+ * The team-only functions (loadTasks(teamId) ...) are kept for existing callers.
  * Mirrors the pattern from lib/team-registry.ts
  */
 
@@ -10,24 +14,44 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { loadAgents } from '@/lib/agent-registry'
-import type { Task, TaskWithDeps, TasksFile } from '@/types/task'
+import type { Task, TaskComment, TaskScope, TaskWithDeps, TasksFile } from '@/types/task'
 
-const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
+const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
+const TEAMS_DIR = path.join(AIMAESTRO_DIR, 'teams')
 
-function ensureTeamsDir() {
-  if (!fs.existsSync(TEAMS_DIR)) {
-    fs.mkdirSync(TEAMS_DIR, { recursive: true })
+/** Ids become file names, so only characters that cannot climb out of the folder are accepted. */
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
+
+export function isSafeScopeId(id: string): boolean {
+  return typeof id === 'string' && SAFE_ID.test(id)
+}
+
+export const teamScope = (id: string): TaskScope => ({ kind: 'team', id })
+export const agentScope = (id: string): TaskScope => ({ kind: 'agent', id })
+export const projectScope = (id: string): TaskScope => ({ kind: 'project', id })
+
+function scopeDir(scope: TaskScope): string {
+  if (!isSafeScopeId(scope.id)) throw new Error(`Invalid ${scope.kind} id`)
+  if (scope.kind === 'team') return TEAMS_DIR
+  if (scope.kind === 'agent') return path.join(AIMAESTRO_DIR, 'agents', scope.id)
+  return path.join(AIMAESTRO_DIR, 'projects', scope.id)
+}
+
+function tasksFilePath(scope: TaskScope): string {
+  const dir = scopeDir(scope)
+  return scope.kind === 'team' ? path.join(dir, `tasks-${scope.id}.json`) : path.join(dir, 'tasks.json')
+}
+
+function ensureScopeDir(scope: TaskScope) {
+  const dir = scopeDir(scope)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
   }
 }
 
-function tasksFilePath(teamId: string): string {
-  return path.join(TEAMS_DIR, `tasks-${teamId}.json`)
-}
-
-export function loadTasks(teamId: string): Task[] {
+export function loadScopeTasks(scope: TaskScope): Task[] {
   try {
-    ensureTeamsDir()
-    const filePath = tasksFilePath(teamId)
+    const filePath = tasksFilePath(scope)
     if (!fs.existsSync(filePath)) {
       return []
     }
@@ -35,21 +59,29 @@ export function loadTasks(teamId: string): Task[] {
     const parsed: TasksFile = JSON.parse(data)
     return Array.isArray(parsed.tasks) ? parsed.tasks : []
   } catch (error) {
-    console.error(`Failed to load tasks for team ${teamId}:`, error)
+    console.error(`Failed to load tasks for ${scope.kind} ${scope.id}:`, error)
     return []
   }
 }
 
-export function saveTasks(teamId: string, tasks: Task[]): boolean {
+export function saveScopeTasks(scope: TaskScope, tasks: Task[]): boolean {
   try {
-    ensureTeamsDir()
+    ensureScopeDir(scope)
     const file: TasksFile = { version: 1, tasks }
-    fs.writeFileSync(tasksFilePath(teamId), JSON.stringify(file, null, 2), 'utf-8')
+    fs.writeFileSync(tasksFilePath(scope), JSON.stringify(file, null, 2), 'utf-8')
     return true
   } catch (error) {
-    console.error(`Failed to save tasks for team ${teamId}:`, error)
+    console.error(`Failed to save tasks for ${scope.kind} ${scope.id}:`, error)
     return false
   }
+}
+
+export function loadTasks(teamId: string): Task[] {
+  return loadScopeTasks(teamScope(teamId))
+}
+
+export function saveTasks(teamId: string, tasks: Task[]): boolean {
+  return saveScopeTasks(teamScope(teamId), tasks)
 }
 
 /**
@@ -89,6 +121,37 @@ export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
   })
 }
 
+export function createScopeTask(scope: TaskScope, data: {
+  subject: string
+  description?: string
+  assigneeAgentId?: string | null
+  blockedBy?: string[]
+  priority?: number
+}): Task {
+  const tasks = loadScopeTasks(scope)
+  const now = new Date().toISOString()
+
+  const task: Task = {
+    id: uuidv4(),
+    ...(scope.kind === 'team' && { teamId: scope.id }),
+    ...(scope.kind === 'project' && { projectId: scope.id }),
+    ...(scope.kind === 'agent' && { ownerAgentId: scope.id }),
+    subject: data.subject,
+    description: data.description,
+    status: 'pending',
+    // An agent's own card is that agent's unless it is given to someone else
+    assigneeAgentId: data.assigneeAgentId || (scope.kind === 'agent' ? scope.id : null),
+    blockedBy: data.blockedBy || [],
+    priority: data.priority,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  tasks.push(task)
+  saveScopeTasks(scope, tasks)
+  return task
+}
+
 export function createTask(data: {
   teamId: string
   subject: string
@@ -97,41 +160,27 @@ export function createTask(data: {
   blockedBy?: string[]
   priority?: number
 }): Task {
-  const tasks = loadTasks(data.teamId)
-  const now = new Date().toISOString()
+  const { teamId, ...rest } = data
+  return createScopeTask(teamScope(teamId), rest)
+}
 
-  const task: Task = {
-    id: uuidv4(),
-    teamId: data.teamId,
-    subject: data.subject,
-    description: data.description,
-    status: 'pending',
-    assigneeAgentId: data.assigneeAgentId || null,
-    blockedBy: data.blockedBy || [],
-    priority: data.priority,
-    createdAt: now,
-    updatedAt: now,
-  }
-
-  tasks.push(task)
-  saveTasks(data.teamId, tasks)
-  return task
+export function getScopeTask(scope: TaskScope, taskId: string): Task | null {
+  return loadScopeTasks(scope).find(t => t.id === taskId) || null
 }
 
 export function getTask(teamId: string, taskId: string): Task | null {
-  const tasks = loadTasks(teamId)
-  return tasks.find(t => t.id === taskId) || null
+  return getScopeTask(teamScope(teamId), taskId)
 }
 
 /**
  * Update a task and return newly unblocked tasks if status changed to completed
  */
-export function updateTask(
-  teamId: string,
+export function updateScopeTask(
+  scope: TaskScope,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote'>>
 ): { task: Task | null; unblocked: Task[] } {
-  const tasks = loadTasks(teamId)
+  const tasks = loadScopeTasks(scope)
   const index = tasks.findIndex(t => t.id === taskId)
   if (index === -1) return { task: null, unblocked: [] }
 
@@ -148,6 +197,12 @@ export function updateTask(
     ...tasks[index],
     ...cleanUpdates,
     updatedAt: now,
+  }
+
+  // A card that stops waiting forgets what it waited on
+  if (updates.status && updates.status !== 'waiting') {
+    delete tasks[index].waitingOn
+    delete tasks[index].waitingNote
   }
 
   // Set timestamps based on status changes
@@ -171,15 +226,23 @@ export function updateTask(
     })
   }
 
-  saveTasks(teamId, tasks)
+  saveScopeTasks(scope, tasks)
   return { task: tasks[index], unblocked }
+}
+
+export function updateTask(
+  teamId: string,
+  taskId: string,
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote'>>
+): { task: Task | null; unblocked: Task[] } {
+  return updateScopeTask(teamScope(teamId), taskId, updates)
 }
 
 /**
  * Delete a task and clean up references in other tasks' blockedBy arrays
  */
-export function deleteTask(teamId: string, taskId: string): boolean {
-  const tasks = loadTasks(teamId)
+export function deleteScopeTask(scope: TaskScope, taskId: string): boolean {
+  const tasks = loadScopeTasks(scope)
   const filtered = tasks
     .filter(t => t.id !== taskId)
     .map(t => ({
@@ -188,15 +251,19 @@ export function deleteTask(teamId: string, taskId: string): boolean {
     }))
 
   if (filtered.length === tasks.length) return false
-  saveTasks(teamId, filtered)
+  saveScopeTasks(scope, filtered)
   return true
+}
+
+export function deleteTask(teamId: string, taskId: string): boolean {
+  return deleteScopeTask(teamScope(teamId), taskId)
 }
 
 /**
  * Check if adding a dependency would create a circular reference
  */
-export function wouldCreateCycle(teamId: string, taskId: string, dependencyId: string): boolean {
-  const tasks = loadTasks(teamId)
+export function wouldCreateScopeCycle(scope: TaskScope, taskId: string, dependencyId: string): boolean {
+  const tasks = loadScopeTasks(scope)
   const visited = new Set<string>()
 
   function hasCycle(currentId: string): boolean {
@@ -213,4 +280,42 @@ export function wouldCreateCycle(teamId: string, taskId: string, dependencyId: s
   }
 
   return hasCycle(dependencyId)
+}
+
+export function wouldCreateCycle(teamId: string, taskId: string, dependencyId: string): boolean {
+  return wouldCreateScopeCycle(teamScope(teamId), taskId, dependencyId)
+}
+
+// ── Comments ────────────────────────────────────────────────────────────────
+
+export function addScopeComment(
+  scope: TaskScope,
+  taskId: string,
+  data: { author: TaskComment['author']; text: string }
+): TaskComment | null {
+  const tasks = loadScopeTasks(scope)
+  const task = tasks.find(t => t.id === taskId)
+  if (!task) return null
+  const comment: TaskComment = {
+    id: uuidv4(),
+    author: data.author,
+    text: data.text,
+    createdAt: new Date().toISOString(),
+    deliveredAt: null,
+  }
+  task.comments = [...(task.comments || []), comment]
+  task.updatedAt = comment.createdAt
+  saveScopeTasks(scope, tasks)
+  return comment
+}
+
+export function markCommentDelivered(scope: TaskScope, taskId: string, commentId: string): boolean {
+  const tasks = loadScopeTasks(scope)
+  const comment = tasks.find(t => t.id === taskId)?.comments?.find(c => c.id === commentId)
+  if (!comment) return false
+  if (!comment.deliveredAt) {
+    comment.deliveredAt = new Date().toISOString()
+    saveScopeTasks(scope, tasks)
+  }
+  return true
 }

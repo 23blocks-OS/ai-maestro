@@ -13,6 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **A count on the agent list**: open cards per agent (red when one waits on you), from one call per host.
 - API (also in headless mode): `GET/POST /api/agents/:id/tasks`, `PATCH|PUT|DELETE /api/agents/:id/tasks/:taskId`, `POST /api/agents/:id/tasks/:taskId/comments` (and `/comments/:commentId` to send again), `GET /api/agents/:id/board`, `GET /api/tasks/summary`, and `POST /api/teams/:id/tasks/:taskId/comments[/:commentId]`. An unknown agent is a 404, not an empty board. A card on an agent's own board stays that agent's; sharing work is a team card.
 - Team boards got the Waiting column and the comment box too.
+- **Plugin 1.12.0**: `aimaestro-task.sh` (add, start, review, done, move, wait --on, comment, list, show; own board by default, `--team` for a team board) and the `agent-tasks` skill that tells agents when to move a card and how to answer an operator instruction. `update-aimaestro.sh` installs it with the other plugin scripts; the uninstaller removes it. Tested against a fake board API (`tests/aimaestro-task-cli.test.ts`, 16 tests).
 
 ### Not changed or not checked
 - The project scope (a board for a piece of work that crosses agents and teams) is 0.86.0. The `aimaestro-task.sh` command and the skill that tells agents to move their cards come with plugin 1.12.0.

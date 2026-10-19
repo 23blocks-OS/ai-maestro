@@ -409,7 +409,7 @@ uninstall() {
         "amp-read.sh" "amp-reply.sh" "amp-status.sh" "amp-register.sh"
         "amp-fetch.sh" "amp-delete.sh" "amp-forward.sh" "amp-search.sh"
         "amp-thread.sh"
-        "aimaestro-agent.sh"
+        "aimaestro-agent.sh" "aimaestro-task.sh"
         "memory-search.sh" "memory-helper.sh"
         "graph-describe.sh" "graph-find-callers.sh" "graph-find-callees.sh"
         "graph-find-related.sh" "graph-find-by-type.sh" "graph-find-serializers.sh"

@@ -1,0 +1,4 @@
+node_modules
+.env
+email-state.json
+*.log

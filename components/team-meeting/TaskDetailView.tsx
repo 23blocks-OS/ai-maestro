@@ -209,7 +209,9 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
           <select
             value={assigneeAgentId}
             onChange={e => setAssigneeAgentId(e.target.value)}
-            className="w-full text-[11px] bg-gray-800/50 text-gray-300 rounded px-2 py-1 mt-1 focus:outline-none focus:ring-1 focus:ring-gray-600"
+            disabled={task.scope === 'agent'}
+            title={task.scope === 'agent' ? "A card on an agent's own board stays that agent's. Use a team to share work." : undefined}
+            className="w-full text-[11px] bg-gray-800/50 text-gray-300 rounded px-2 py-1 mt-1 focus:outline-none focus:ring-1 focus:ring-gray-600 disabled:opacity-60"
           >
             <option value="">Unassigned</option>
             {agents.map(a => (

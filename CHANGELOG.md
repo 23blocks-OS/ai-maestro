@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.83.2] - 2026-10-18 - Agents can be created on any Claude model family
+
+### Fixed
+- `aimaestro-agent.sh` (v1.0.2) refused `--model claude-fable-5-1`: its check allowed only sonnet, opus and haiku, so an agent asked for the newest model was created on an older one. Any lowercase model family is now accepted (`fable`, `claude-fable-5-1`, `claude-opus-5-5-20261001`); the pattern is still anchored, so nothing else passes. Reported by lbf-hr. Plugin 1.11.1.
+
 ## [0.83.1] - 2026-10-17 - Other hosts' agents on the Work tab and the hosts screens
 
 Several screens decided whether a host was "another machine" from its `type` field. That field is deprecated and most hosts do not have it (on this mesh, mac-mini has none), so those hosts were treated as this machine.

@@ -132,6 +132,7 @@ import {
   removeSkill,
   getSkillSettings,
   saveSkillSettings,
+  installAgentPlugins,
 } from '@/services/agents-skills-service'
 
 import {
@@ -1087,6 +1088,10 @@ const routes: Route[] = [
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await updateSkills(params.id, body))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/skills\/install$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await installAgentPlugins(params.id, body))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)

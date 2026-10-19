@@ -7,6 +7,7 @@ import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimatio
 import DirectoryPicker from './DirectoryPicker'
 import LaunchChoicePanel from './launch/LaunchChoicePanel'
 import { useLaunchChoice, type LaunchChoice } from '@/hooks/useLaunchChoice'
+import PluginPicker from '@/components/PluginPicker'
 import { programForCreate, CONTAINER_TOOL_IDS, PROGRAM_CHOICES } from '@/lib/program-choices'
 import { MODE_SUMMARY } from '@/lib/freedom'
 import { useHosts } from '@/hooks/useHosts'
@@ -218,6 +219,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   // Input state
   const [nameInput, setNameInput] = useState('')
   const [nameError, setNameError] = useState('')
+  const [skillPlugins, setSkillPlugins] = useState<string[]>([])
   const agentName = nameInput.trim()
 
   // The form starts filled in: this computer, run directly, its own folder. Typing a name and pressing Create is the fast path.
@@ -350,6 +352,17 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
         if (!response.ok) {
           throw new Error(data.message || data.error || 'Failed to create agent')
         }
+        if (skillPlugins.length > 0 && data?.agentId) {
+          const picked = await fetch(`/api/agents/${data.agentId}/skills/install`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plugins: skillPlugins }),
+          }).then(r => r.json()).catch(() => null)
+          const failedPlugins = (picked?.results || []).filter((r: { installed: boolean }) => !r.installed)
+          if (!picked || failedPlugins.length > 0) {
+            setCreationWarning(`The agent was created, but ${picked ? failedPlugins.map((r: { plugin: string; error?: string }) => `${r.plugin}${r.error ? ` (${r.error})` : ''}`).join(', ') : 'its skills'} did not install. Add them from its profile.`)
+          }
+        }
         if (data?.programStarted === false && data?.programError) {
           setCreationWarning(data.programError)
         }
@@ -363,7 +376,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch])
+  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch, skillPlugins])
 
   // Animation timer
   const isCloudRuntime = runtime === 'ec2' || runtime === 'ecs'
@@ -553,6 +566,8 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                 deploymentOptions={deploymentOptions}
                 selectedDeployment={selectedDeployment}
                 onDeploymentSelect={handleDeploymentSelect}
+                skillPlugins={skillPlugins}
+                onSkillPluginsChange={setSkillPlugins}
                 state={{
                   agentName, workingDirectory, hostId, runtime, selectedDeployment,
                   showAdvanced, setShowAdvanced,
@@ -737,7 +752,7 @@ function FormSection({ title, children }: { title: string; children: React.React
  */
 function CreateForm({
   nameInput, nameError, onNameChange, onCreate, workingDirectory, onDirectoryChange,
-  hosts, hostId, deploymentOptions, selectedDeployment, onDeploymentSelect, state,
+  hosts, hostId, deploymentOptions, selectedDeployment, onDeploymentSelect, skillPlugins, onSkillPluginsChange, state,
 }: {
   nameInput: string
   nameError: string
@@ -750,6 +765,8 @@ function CreateForm({
   deploymentOptions: DeploymentOption[]
   selectedDeployment: DeploymentOption | null
   onDeploymentSelect: (opt: DeploymentOption) => void
+  skillPlugins: string[]
+  onSkillPluginsChange: (refs: string[]) => void
   state: BubbleState
 }) {
   const [showFolder, setShowFolder] = useState(false)
@@ -821,6 +838,13 @@ function CreateForm({
       <FormSection title="What runs it">
         <LaunchSection state={state} hosts={hosts} />
       </FormSection>
+
+      {/* Plugins install into the agent's folder on this computer, for Claude Code */}
+      {state.runtime === 'tmux' && !remoteHostId && state.launch.selected.kind === 'claude' && (
+        <FormSection title="Skills (optional)">
+          <PluginPicker selected={skillPlugins} onChange={onSkillPluginsChange} />
+        </FormSection>
+      )}
     </div>
     <CreateFooter state={state} hosts={hosts} onCreate={onCreate} />
     </>

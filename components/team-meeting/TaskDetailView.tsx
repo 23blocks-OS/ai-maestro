@@ -132,7 +132,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {/* Status buttons */}
         <div className="flex flex-wrap gap-1">
           {([

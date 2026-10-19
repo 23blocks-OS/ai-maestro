@@ -60,12 +60,18 @@ describe('agent board', () => {
     expect(createAgentTask('a1', { subject: '   ' }).status).toBe(400)
   })
 
-  it('waiting needs waitingOn: juan, outside, hold or a real agent', () => {
+  it('waiting needs waitingOn: juan, outside, hold, or an agent id or name (any host)', () => {
     const id = ((createAgentTask('a1', { subject: 'x' }).data as any).task as { id: string }).id
     expect(updateAgentTask('a1', id, { status: 'waiting' }).status).toBe(400)
-    expect(updateAgentTask('a1', id, { status: 'waiting', waitingOn: 'ghost' }).status).toBe(400)
-    for (const on of ['juan', 'outside', 'hold', 'a2']) {
-      expect(updateAgentTask('a1', id, { status: 'waiting', waitingOn: on }).status).toBe(200)
+    // not an agent name or id at all
+    for (const bad of ['has space', '../x', '-lead', 'a/b', '', 'x'.repeat(200)]) {
+      expect(updateAgentTask('a1', id, { status: 'waiting', waitingOn: bad }).status, bad).toBe(400)
+    }
+    // juan/outside/hold, a local agent, an agent this host has never heard of (it lives on another host), a name
+    for (const on of ['juan', 'outside', 'hold', 'a2', '343aef8a-b788-4cb6-b961-a51a9dc775b4', '23b-hr']) {
+      const r = updateAgentTask('a1', id, { status: 'waiting', waitingOn: on })
+      expect(r.status, on).toBe(200)
+      expect(((r.data as any).task as { waitingOn: string }).waitingOn).toBe(on)
     }
   })
 

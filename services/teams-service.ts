@@ -269,7 +269,7 @@ export function updateTeamTask(
 
   // A waiting card says what it waits on: juan, outside, hold, or an agent id
   if ((status ?? existing.status) === 'waiting' && !(waitingOn ?? existing.waitingOn)) {
-    return invalidField('waitingOn', 'A waiting card needs waitingOn: juan, outside, hold, or an agent id')
+    return invalidField('waitingOn', 'A waiting card needs waitingOn: juan, outside, hold, or an agent id or name')
   }
 
   try {

@@ -24,7 +24,9 @@ export function waitingLabel(task: TaskWithDeps, agentName?: (id: string) => str
   if (on === 'juan') return 'Waiting on you'
   if (on === 'outside') return 'Waiting on someone outside'
   if (on === 'hold') return 'On hold'
-  return `Waiting on ${agentName?.(on) || on.slice(0, 8)}`
+  // An id is shown as the agent's name when this dashboard knows it; a name is shown as given
+  const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(on)
+  return `Waiting on ${agentName?.(on) || (isId ? on.slice(0, 8) : on)}`
 }
 
 export default function KanbanCard({ task, onSelect }: KanbanCardProps) {

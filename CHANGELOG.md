@@ -3,6 +3,25 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.85.3] - 2026-10-19 - The email bridge: wake on trusted mail, digest the rest
+
+### Added
+- **`tools/email-bridge`**, the email bridge that runs on mini-lola, now lives in the repository with tests (71) and its own CI job. It was loose files on the host.
+- **The trust split** (`SPLIT_MODE=off|shadow|on`; design in `docs/EMAIL-BRIDGE-TRUST-SPLIT-SPEC.md`). With `on`, mail from an allowlisted sender that our mail server authenticated (the topmost `Authentication-Results` carrying our own authserv-id; alignment by public-suffix organisational domain) wakes the agent at once, high priority and body-less by default. Everything else goes into a digest at 08:00, 13:00 and 18:00 or when 25 are waiting. An allowlisted sender that fails authentication is counted only: no sender, no subject. Polls every 2 minutes in `on`.
+- `shadow` does today's behaviour and logs each mail's class (UID, sender domain, the authserv-ids seen; never a subject or body). A one-week shadow run is how the real authserv-id and allowlist get confirmed. `DRY_RUN=true` logs what would be sent and sends nothing.
+
+### Fixed (in every mode)
+- A failed notification was lost: the cursor moved on anyway. Now it stays below the failed mail and retries, up to `MAX_SEND_RETRIES`, then dead-letters.
+- The mailbox's `UIDVALIDITY` was not stored; a rebuilt mailbox would have skipped new mail. Now a change moves the cursor without replaying anything, and announced Message-IDs are remembered.
+- Subject and sender text reached the agent unsanitised. Now one line, control and bidi characters removed, capped.
+- A first run with no cursor would have announced every unseen mail. Now it announces nothing old.
+- The IMAP client turned off TLS certificate checking, and the trust decision rests on headers fetched over that connection. It now checks the certificate (`IMAP_INSECURE_TLS=true` restores the old behaviour).
+- The state file is written atomically.
+
+### Not changed or not checked
+- Nothing is deployed by this release of AI Maestro; the bridge is installed on mini-lola separately (see the bridge README). It starts in `shadow`.
+- RAN: a read-only dry run against the real mailbox on mini-lola (9 real headers fetched, parsed and classified; the mail server's id is `mx.google.com`). Not run: a real send in `on` mode, a digest, or a UIDVALIDITY change against a real mailbox (all covered by the tests with a fake mailbox). `jpelaez@3metas.com` was already unreachable for the live bridge and still is.
+
 ## [0.85.2] - 2026-10-19 - A card can wait on an agent on another host
 
 ### Fixed

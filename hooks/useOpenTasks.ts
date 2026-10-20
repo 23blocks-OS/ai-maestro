@@ -19,8 +19,10 @@ export function useOpenTasks(hosts: Host[]) {
   const key = hosts.map(h => `${h.id}|${h.url}|${h.enabled}`).join(',')
 
   const load = useCallback(async () => {
-    const targets = hosts.filter(h => h.enabled !== false)
-    if (targets.length === 0) return
+    // With no host list yet (or none at all) ask this host, as the agent list does: never wait forever
+    const targets: Host[] = hosts.length > 0
+      ? hosts.filter(h => h.enabled !== false)
+      : [{ id: 'local', name: 'This host', url: '', isSelf: true } as Host]
     const results = await Promise.all(targets.map(async host => {
       const base = isSelfHost(host) ? '' : host.url.replace(/\/$/, '')
       try {

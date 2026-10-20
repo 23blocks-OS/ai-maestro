@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.86.0] - 2026-10-19 - The Eisenhower matrix: what matters now
+
+### Added
+- **A Matrix view of the same cards as the board** (not a second task store). Four squares, the usual layout: urgent + important (**Do first**), important only (**Schedule**), urgent only (**Delegate**), neither (**Delete**), with a "Not placed" tray beside them. Drag a card between squares to place it; drag it to the tray to take it off. Click a card for the same detail as the board (comments, Send to agent, waiting). Completed cards never show.
+  - **Matrix tab** next to Board on each agent: its own cards plus team cards assigned to it, read from the agent's own host.
+  - **Matrix page** (amber "Matrix" link in the header, `/matrix`): every open card of every agent on every host, one call per host; filter by agent or "Waiting on me"; a host that is down is named, so an empty square is never mistaken for "no work".
+- **Two fields on a card, `urgent` and `important`, each true, false or null.** null means "not placed": false/false is a real answer (Delete), so it cannot also mean "nobody has looked". The quadrant is derived when you read a card and never stored. A card in a square can be In Progress or Waiting: the matrix does not touch the kanban status. A card picker "Matrix" in the card detail does the same as dragging; board cards show their quadrant (Q1-Q4).
+- API (also headless): `urgent` and `important` on `PATCH|PUT` of a card (true, false or null; anything else is a 400, not read as false); `quadrant` on every card; `GET /api/agents/:id/tasks?quadrant=q1|q2|q3|q4|unplaced`; and **`GET /api/tasks`**, every open card on a host with its agent (`?quadrant`, `?waitingOn`, `?agent`), which the mesh page fans out over and which "Waiting on Juan" can use next.
+- **Plugin 1.13.0**: `aimaestro-task.sh place <id> q1|q2|q3|q4|none`, `add ... --quadrant q1..q4`, `list --quadrant q1..q4|unplaced`, the quadrant letter in `list` and `show`; the `agent-tasks` skill says to place a card when you add it and move it when the deadline or the owner changes. 23 command tests.
+
+### Not changed or not checked
+- Project cards are not on the matrix yet (the project scope is 0.87.0). The tablet and phone layouts do not have a Matrix tab yet.
+- Tried in a browser on an isolated instance: the mesh page and the agent tab, dragging into a square and back to the tray, the card picker, the badges, the agent-list count. Not tried: a remote host's cards on the mesh page in a browser, and a touch screen (drag and drop is for a mouse; the card picker works without it).
+
 ## [0.85.4] - 2026-10-19 - Email bridge: a "company" class, labelled in the digest, never a wake
 
 ### Added

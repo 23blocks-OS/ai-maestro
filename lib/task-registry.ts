@@ -128,6 +128,7 @@ export function createScopeTask(scope: TaskScope, data: {
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
+  org?: string | null
 }): Task {
   const tasks = loadScopeTasks(scope)
   const now = new Date().toISOString()
@@ -142,6 +143,7 @@ export function createScopeTask(scope: TaskScope, data: {
     status: 'pending',
     // An agent's own card is that agent's unless it is given to someone else
     assigneeAgentId: data.assigneeAgentId || (scope.kind === 'agent' ? scope.id : null),
+    ...(data.org ? { org: data.org } : {}),
     blockedBy: data.blockedBy || [],
     priority: data.priority,
     createdAt: now,
@@ -179,7 +181,7 @@ export function getTask(teamId: string, taskId: string): Task | null {
 export function updateScopeTask(
   scope: TaskScope,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org'>>
 ): { task: Task | null; unblocked: Task[] } {
   const tasks = loadScopeTasks(scope)
   const index = tasks.findIndex(t => t.id === taskId)
@@ -199,6 +201,9 @@ export function updateScopeTask(
     ...cleanUpdates,
     updatedAt: now,
   }
+
+  // org: null takes the card off its organization (the assignee's applies again)
+  if (updates.org === null) delete tasks[index].org
 
   // A card that stops waiting forgets what it waited on
   if (updates.status && updates.status !== 'waiting') {
@@ -234,7 +239,7 @@ export function updateScopeTask(
 export function updateTask(
   teamId: string,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org'>>
 ): { task: Task | null; unblocked: Task[] } {
   return updateScopeTask(teamScope(teamId), taskId, updates)
 }

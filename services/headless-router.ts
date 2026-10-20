@@ -142,6 +142,7 @@ import {
   listProjects, createProject, getProjectById, updateProject, deleteProject, listProjectTasks, createProjectTask,
   updateProjectTask, deleteProjectTask, addProjectTaskComment, retryProjectTaskComment,
 } from '@/services/projects-service'
+import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
 import {
   getSubconsciousStatus as getAgentSubconsciousStatus,
@@ -1676,6 +1677,34 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/projects\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, deleteProject(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/orgs$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listOrgs())
+  }},
+  { method: 'POST', pattern: /^\/api\/orgs$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, createOrg(body))
+  }},
+  { method: 'GET', pattern: /^\/api\/orgs\/default$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getDefault())
+  }},
+  { method: 'PUT', pattern: /^\/api\/orgs\/default$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, setDefault(body))
+  }},
+  { method: 'GET', pattern: /^\/api\/orgs\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getOrgById(params.id))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/orgs\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateOrg(params.id, body))
+  }},
+  { method: 'PUT', pattern: /^\/api\/orgs\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateOrg(params.id, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/orgs\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, deleteOrg(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, Trash2, Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, Send, RotateCw } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import { QUADRANTS, quadrantOf, type Quadrant, type TaskWithDeps, type TaskStatus } from '@/types/task'
@@ -12,7 +12,7 @@ interface TaskDetailViewProps {
   task: TaskWithDeps
   agents: Agent[]
   allTasks: TaskWithDeps[]
-  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null }) => Promise<void>
+  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null; org?: string | null }) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onClose: () => void
   /** When given, the card shows a comment box. deliver=true sends the text to the assignee's session. */
@@ -27,6 +27,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
   const [description, setDescription] = useState(task.description || '')
   const [assigneeAgentId, setAssigneeAgentId] = useState(task.assigneeAgentId || '')
   const [blockedBy, setBlockedBy] = useState<string[]>(task.blockedBy)
+  const [org, setOrg] = useState(task.org || '')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [waitingDraft, setWaitingDraft] = useState<{ on: string; note: string } | null>(
@@ -42,7 +43,16 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
     setDescription(task.description || '')
     setAssigneeAgentId(task.assigneeAgentId || '')
     setBlockedBy(task.blockedBy)
-  }, [task.id, task.subject, task.description, task.assigneeAgentId, task.blockedBy])
+    setOrg(task.org || '')
+  }, [task.id, task.subject, task.description, task.assigneeAgentId, task.blockedBy, task.org])
+
+  // Organizations a card can be labelled for: those named by any agent's org: tag, on every host
+  const orgChoices = useMemo(() => {
+    const found = new Set<string>()
+    for (const a of agents) for (const t of a.tags || []) if (t.toLowerCase().startsWith('org:')) found.add(t.slice(4).trim().toLowerCase())
+    if (org) found.add(org)
+    return [...found].filter(Boolean).sort()
+  }, [agents, org])
 
   const handleSave = async () => {
     setSaving(true)
@@ -52,6 +62,8 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
         description: description.trim() || undefined,
         assigneeAgentId: assigneeAgentId || null,
         blockedBy,
+        // Only sent when changed, and never for a team card (team boards do not keep a company label)
+        ...(task.scope !== 'team' && org !== (task.org || '') ? { org: org || null } : {}),
       })
     } finally {
       setSaving(false)
@@ -120,6 +132,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
     || description !== (task.description || '')
     || assigneeAgentId !== (task.assigneeAgentId || '')
     || JSON.stringify(blockedBy) !== JSON.stringify(task.blockedBy)
+    || (task.scope !== 'team' && org !== (task.org || ''))
 
   return (
     <div className="flex flex-col h-full flex-1 min-h-0">
@@ -246,6 +259,21 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
             ))}
           </select>
         </div>
+
+        {/* Organization: which company this card is for (otherwise its assignee's) */}
+        {task.scope !== 'team' && (
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Organization</label>
+            <select
+              value={org}
+              onChange={e => setOrg(e.target.value)}
+              className="w-full text-[11px] bg-gray-800/50 text-gray-300 rounded px-2 py-1 mt-1 focus:outline-none focus:ring-1 focus:ring-gray-600"
+            >
+              <option value="">The assignee&apos;s organization</option>
+              {orgChoices.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Dependencies */}
         <DependencyPicker

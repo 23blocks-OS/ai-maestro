@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.6] - 2026-10-20 - The credential card now shows for an agent on another host
+
+### Fixed
+- **A credential request (`aim-secret request NAME`) from an agent on another host never showed its card in the chat.** Reported by Juan: 3m-gm, which lives on mac-mini, asked for HUNTER_API_KEY, and the card did not appear on the dashboard of this Mac. The request existed, on mac-mini. The card asks the dashboard's own host, which forwards a request for a remote agent to that agent's host, but only for agents in its own registry; an agent that lives only on another host was answered "agent not found", so the card polled, got a 404, and showed nothing. The host now asks its peers which one owns the agent (remembered for a minute so the 3-second polling does not probe each time) and forwards there: listing the requests, answering with the value, and declining. The value still goes straight to the agent's host and is never stored or logged on the way.
+- **The SQL write approval card had the same flaw and gets the same fix.**
+- Tests: `tests/owning-host.test.ts` (which peer, only enabled peers and never this host, remembered, none found), and the two service tests gain the "agent this host does not know" cases. The earlier tests only covered an agent that was in the local registry with a host URL, which is why this passed CI.
+
 ## [0.87.5] - 2026-10-20 - Copilot chat fixes from the issue tracker, repeatable tag flags (plugin 1.14.1)
 
 ### Fixed

@@ -17,6 +17,7 @@
  */
 import os from 'os'
 import { getAgent } from '@/lib/agent-registry'
+import { findPeerHostUrl } from '@/lib/owning-host'
 import { isSelf } from '@/lib/hosts-config'
 import { isSafeAgentId } from '@/lib/safe-ids'
 import {
@@ -47,10 +48,14 @@ function asObject(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
 }
 
-function checkAgent(agentId: string): ServiceResult<never> | { agent: any; remoteUrl?: string } {
+async function checkAgent(agentId: string): Promise<ServiceResult<never> | { agent: any; remoteUrl?: string }> {
   if (!isSafeAgentId(agentId)) return agentNotFound(agentId)
   const agent = getAgent(agentId)
-  if (!agent) return agentNotFound(agentId)
+  if (!agent) {
+    // An agent this host does not know may live on a peer, which owns its requests
+    const peer = await findPeerHostUrl(agentId)
+    return peer ? { agent: null, remoteUrl: peer } : agentNotFound(agentId)
+  }
   const isLocal = !agent.hostId || isSelf(agent.hostId) || (agent.hostUrl ? isSelf(agent.hostUrl) : false)
   return { agent, remoteUrl: isLocal ? undefined : agent.hostUrl }
 }
@@ -79,7 +84,7 @@ function belongsTo(r: SqlWriteRequest, agent: any): boolean {
 }
 
 export async function listSqlWriteRequests(agentId: string): Promise<ServiceResult<any>> {
-  const where = checkAgent(agentId)
+  const where = await checkAgent(agentId)
   if ('status' in where) return where
   if (where.remoteUrl) return proxy(where.remoteUrl, 'GET', `/api/agents/${agentId}/sql-write-requests`)
   const now = Date.now() / 1000
@@ -108,7 +113,7 @@ async function notifyAgent(agent: any, requestId: string, text: string, subject:
 }
 
 export async function answerSqlWriteRequest(agentId: string, requestId: string, rawBody: unknown, headers: AnswerHeaders): Promise<ServiceResult<any>> {
-  const where = checkAgent(agentId)
+  const where = await checkAgent(agentId)
   if ('status' in where) return where
   if (!isSameOriginBrowser(headers)) {
     return forbidden('Approve or reject this in the AI Maestro chat, from the browser page. A script, curl or an agent cannot answer for you.')

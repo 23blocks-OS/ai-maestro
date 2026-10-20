@@ -5,6 +5,7 @@ const VALUE = 'sk-live-Z9x8y7w6V5u4-do-not-leak'
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   isSelf: vi.fn(),
+  findPeerHostUrl: vi.fn(async (_id: string): Promise<string | undefined> => undefined),
   setSecret: vi.fn(async (_n: string, _v: string) => {}),
   hasSecret: vi.fn(async (_n: string) => false),
   runWakeChain: vi.fn(async (_ctx: any) => ({ confirmed: true, notified: true, deferred: false })),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/agent-registry', () => ({ getAgent: mocks.getAgent }))
 vi.mock('@/lib/hosts-config', () => ({ isSelf: mocks.isSelf }))
+vi.mock('@/lib/owning-host', () => ({ findPeerHostUrl: mocks.findPeerHostUrl }))
 vi.mock('@/lib/wake-chain', () => ({ runWakeChain: mocks.runWakeChain }))
 vi.mock('@/lib/secret-vault.mjs', async () => {
   const real = await vi.importActual<any>('@/lib/secret-vault.mjs')
@@ -167,5 +169,36 @@ describe('an agent on another host', () => {
     expect(JSON.stringify(r)).not.toContain(VALUE)
     expect(logged.join('\n')).not.toContain(VALUE)
     vi.unstubAllGlobals()
+  })
+})
+
+describe('an agent this host does not know, that lives on a peer (the dashboard shows it, the registry here does not)', () => {
+  it('lists its requests from the peer instead of answering "agent not found"', async () => {
+    mocks.findPeerHostUrl.mockResolvedValue('http://100.80.12.6:23000')
+    const seen: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      seen.push(url)
+      return { status: 200, json: async () => ({ requests: [{ id: 'r1', name: 'HUNTER_API_KEY', note: null, createdAt: 1 }] }) }
+    }))
+    const r = await listSecretRequests('33bcd570-5424-4a97-94a4-ec52c597827d')
+    expect(r.status).toBe(200)
+    expect((r.data as any).requests[0].name).toBe('HUNTER_API_KEY')
+    expect(seen[0]).toBe('http://100.80.12.6:23000/api/agents/33bcd570-5424-4a97-94a4-ec52c597827d/secret-requests')
+    vi.unstubAllGlobals()
+  })
+
+  it('forwards the answer to the peer; the value is not stored or logged here', async () => {
+    mocks.findPeerHostUrl.mockResolvedValue('http://100.80.12.6:23000')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ status: 200, json: async () => ({ stored: true, name: 'HUNTER_API_KEY' }) })))
+    const r = await answerSecretRequest('33bcd570-5424-4a97-94a4-ec52c597827d', '11111111-2222-3333-4444-555555555555', { value: VALUE })
+    expect(r.status).toBe(200)
+    expect(mocks.setSecret).not.toHaveBeenCalled()
+    expect(logged.join('\n')).not.toContain(VALUE)
+    vi.unstubAllGlobals()
+  })
+
+  it('is still "agent not found" when no peer knows it', async () => {
+    mocks.findPeerHostUrl.mockResolvedValue(undefined)
+    expect((await listSecretRequests('nobody-anywhere')).status).toBe(404)
   })
 })

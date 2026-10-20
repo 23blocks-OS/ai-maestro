@@ -6,10 +6,12 @@ import path from 'path'
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   isSelf: vi.fn(),
+  findPeerHostUrl: vi.fn(async (_id: string): Promise<string | undefined> => undefined),
   runWakeChain: vi.fn(async (_ctx: any) => ({ confirmed: true, notified: true, deferred: false })),
 }))
 vi.mock('@/lib/agent-registry', () => ({ getAgent: mocks.getAgent }))
 vi.mock('@/lib/hosts-config', () => ({ isSelf: mocks.isSelf }))
+vi.mock('@/lib/owning-host', () => ({ findPeerHostUrl: mocks.findPeerHostUrl }))
 vi.mock('@/lib/wake-chain', () => ({ runWakeChain: mocks.runWakeChain }))
 
 import { answerSqlWriteRequest, listSqlWriteRequests, isSameOriginBrowser } from '@/services/agent-sql-write-requests-service'
@@ -206,5 +208,17 @@ describe('rejecting', () => {
   it('refuses a request that is no longer pending', async () => {
     put({ status: 'approved' })
     expect((await answerSqlWriteRequest('agent-1', ID, { action: 'reject' }, BROWSER)).status).toBe(409)
+  })
+})
+
+describe('an agent this host does not know, that lives on a peer', () => {
+  it('lists its pending requests from the peer', async () => {
+    mocks.findPeerHostUrl.mockResolvedValue('http://100.80.12.6:23000')
+    const seen: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => { seen.push(url); return { status: 200, json: async () => ({ requests: [] }) } }))
+    const r = await listSqlWriteRequests('33bcd570-5424-4a97-94a4-ec52c597827d')
+    expect(r.status).toBe(200)
+    expect(seen[0]).toBe('http://100.80.12.6:23000/api/agents/33bcd570-5424-4a97-94a4-ec52c597827d/sql-write-requests')
+    vi.unstubAllGlobals()
   })
 })

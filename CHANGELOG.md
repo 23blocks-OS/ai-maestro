@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.3] - 2026-10-20 - The chat approval card comes back after the transcript catches up
+
+### Fixed
+- **The approval card could be missing in the chat until you switched to another agent and back.** The server pushes the permission state once, and only when it differs from the last one it sent. The browser drops its card when an assistant message arrives in the transcript. When the transcript line landed after the card was pushed, the card was dropped and the server, seeing the same state, never pushed it again; only a reconnect (switching agents) re-sent it. The server now forgets what it last sent when an assistant message clears the stored permission, so the reads it schedules after a tool call push the live state again.
+- Found by reading the code: I could not reproduce it against a live approval prompt here, so this is the cause the code shows, not one I watched happen.
+
 ## [0.87.2] - 2026-10-20 - A project card can name its assignee
 
 ### Fixed

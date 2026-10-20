@@ -528,8 +528,14 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
     if (messages.length === 0) return
 
     // Clear stored permission when assistant responds (permission cycle is over)
+    // The browser drops its permission card on the same event (ChatView clears hookState
+    // when an assistant message arrives). If the card was already pushed, the "changed?"
+    // cache below would swallow the next identical read and the browser would never get it
+    // back until a reconnect (the "switch agent and come back" symptom). Forget what we
+    // last sent so the reads scheduled after a tool_use push the live state again.
     if (messages.some(m => m.type === 'assistant') && sessionState._lastPermission) {
       sessionState._lastPermission = null
+      sessionState._lastHookState = null
     }
 
     // Clear activity indicator when new messages arrive (tool completed, response started)

@@ -261,26 +261,23 @@ export function deleteTask(teamId: string, taskId: string): boolean {
 }
 
 /**
- * Check if adding a dependency would create a circular reference
+ * Would making `taskId` wait on `dependencyId` create a loop? It would if
+ * `dependencyId` already waits on `taskId`, directly or through other cards:
+ * follow each card's blockedBy from the dependency and see whether we reach taskId.
  */
 export function wouldCreateScopeCycle(scope: TaskScope, taskId: string, dependencyId: string): boolean {
   const tasks = loadScopeTasks(scope)
   const visited = new Set<string>()
-
-  function hasCycle(currentId: string): boolean {
+  const stack = [dependencyId]
+  while (stack.length > 0) {
+    const currentId = stack.pop() as string
     if (currentId === taskId) return true
-    if (visited.has(currentId)) return false
+    if (visited.has(currentId)) continue
     visited.add(currentId)
-
     const task = tasks.find(t => t.id === currentId)
-    if (!task) return false
-
-    // Check what this task blocks (tasks that depend on it)
-    const blockers = tasks.filter(t => t.blockedBy.includes(currentId))
-    return blockers.some(b => hasCycle(b.id))
+    if (task) stack.push(...task.blockedBy)
   }
-
-  return hasCycle(dependencyId)
+  return false
 }
 
 export function wouldCreateCycle(teamId: string, taskId: string, dependencyId: string): boolean {

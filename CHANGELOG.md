@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.1] - 2026-10-20 - Card dependencies: the loop check works
+
+### Fixed
+- **A card can no longer be made to wait, directly or through other cards, on a card that already waits on it.** The check walked the dependencies the wrong way: it flagged a dependency a card already had and missed a real loop, so two cards could end up each waiting on the other, blocked forever. It now follows each card's `blockedBy` from the new dependency and refuses if it reaches the card being edited (HTTP 400 `circular_dependency`, as before). It also stops on data that already holds a loop.
+- Tests changed (`tests/task-registry.test.ts`, `wouldCreateCycle`): the old tests asserted the wrong direction (for example that `b` waiting on `a`, which it already does, is a loop, and that `a` waiting on `b` is not). They now assert: `a` waiting on `c` in the chain `a <- b <- c` IS a loop (3 and 4 cards, and the 2-card case); a dependency a card already has, and a card waiting further down the same chain, is NOT; plus independent cards, a missing card, a diamond, and already-looped data.
+- Only team boards check this today (agent and project boards do not take `blockedBy` edits yet).
+
 ## [0.87.0] - 2026-10-19 - Projects: work that crosses agents and teams
 
 ### Added

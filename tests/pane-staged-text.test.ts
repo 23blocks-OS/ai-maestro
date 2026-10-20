@@ -207,3 +207,29 @@ describe('alternate screen (fullscreen renderer) — captured from a live agent'
     expect(splitPaneAtInput(ALT_SUBMITTED).accepted).toContain('the single word ACK')
   })
 })
+
+describe('a Copilot-style prompt echo (right border on every line, right-aligned time on the first)', () => {
+  const echoed = [
+    ' ❯ Test B: reply OK                                                      11:40 ┃',
+    '                                                                               ┃',
+    '   - point one -> arrow                                                        ┃',
+    '   - point two                                                                 ┃',
+    '',
+    ' ❯ ',
+  ].join('\n')
+  const message = 'Test B: reply OK\n\n- point one -> arrow\n- point two'
+
+  it('counts a multi-line message as submitted (so it is not pasted a second time)', () => {
+    expect(paneSubmitted(echoed, message)).toBe(true)
+  })
+
+  it('still does not count text that is not on the pane', () => {
+    expect(paneSubmitted(echoed, 'something else entirely')).toBe(false)
+  })
+
+  it('still sees text staged in the input box as staged, not submitted', () => {
+    const staged = ['some old output', '', ' ❯ Test B: reply OK', '   - point one -> arrow'].join('\n')
+    expect(paneSubmitted(staged, 'Test B: reply OK - point one -> arrow')).toBe(false)
+    expect(paneStaged(staged, 'Test B: reply OK - point one -> arrow')).toBe(true)
+  })
+})

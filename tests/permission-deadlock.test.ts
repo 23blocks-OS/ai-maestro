@@ -122,4 +122,9 @@ describe('the approval card is pushed again after an assistant message clears it
     expect(hookBroadcast).toMatch(/hookJson === sessionState\._clearedHookJson/)
     expect(hookBroadcast).toContain('isAgentAtPermissionPrompt(sessionName, sessionState._program)')
   })
+
+  it('does the same for a question: a waiting_for_input state is pushed again when its AskUserQuestion line lands', () => {
+    expect(jsonlBroadcast).toContain('askUserQuestionIn')
+    expect(jsonlBroadcast).toMatch(/waiting_for_input/)
+  })
 })

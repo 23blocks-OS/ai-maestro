@@ -26,6 +26,7 @@ import {
   readHookState,
   hookStateFilePath,
 } from './lib/chat-transcript.mjs'
+import { askUserQuestionIn } from './lib/question-state.mjs'
 // F004 Phase 2: a codex agent has no AI Maestro hook, so its live "working"
 // indicator is derived from the turn-lifecycle events in its own transcript.
 import { codexLiveStatus, codexLiveStatusFromFile } from './lib/transcript-codex.mjs'
@@ -561,6 +562,15 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
       sessionState.chatClients.forEach(ws => {
         if (ws.readyState === 1) try { ws.send(clearMsg) } catch {}
       })
+    }
+
+    // A question card is live only while the hook says waiting_for_input, and the browser drops that
+    // state when the assistant message carrying the question arrives (the same race as the approval
+    // card). If the state was already pushed, push it again right behind the messages, or the
+    // question shows as "answered" until a reconnect.
+    if (messages.some(m => askUserQuestionIn(m)) && /"status":"waiting_for_input"/.test(sessionState._lastHookState || '')) {
+      sessionState._lastHookState = null
+      reassertPermission = true
     }
 
     const msg = JSON.stringify({ type: 'chat:messages', data: messages })

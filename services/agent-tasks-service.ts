@@ -315,9 +315,12 @@ export async function forwardInstruction(
 
 /** The assignee's side of a forwarded instruction: type it into the agent's session on this host. */
 export async function receiveInstruction(agentId: string, body: { text?: unknown }): Promise<ServiceResult<{ delivered: boolean; reason?: string }>> {
-  if (!getAgent(agentId)) return notFound('Agent', agentId)
+  // A card may name its assignee ("pas-lola") instead of holding the id; this host knows it by either
+  const agent = getAgent(agentId)
+    || loadAgents().find(a => !a.deletedAt && a.name?.toLowerCase() === agentId.toLowerCase())
+  if (!agent) return notFound('Agent', agentId)
   if (typeof body.text !== 'string' || !body.text.trim()) return missingField('text')
-  const result = await injectMeetingPrompt({ agentId, injection: clean(body.text) })
+  const result = await injectMeetingPrompt({ agentId: agent.id, injection: clean(body.text) })
   if (result.status >= 200 && result.status < 300) return { data: { delivered: true }, status: 200 }
   const reason = (result.data as { message?: string; error?: string } | undefined)?.message || (result.data as { error?: string } | undefined)?.error || 'The agent could not take it'
   return { data: { delivered: false, reason }, status: 200 }

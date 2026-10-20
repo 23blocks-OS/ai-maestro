@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.2] - 2026-10-20 - A project card can name its assignee
+
+### Fixed
+- **An instruction on a project card now reaches an assignee that is stored by name.** Found in the first real two-host test (card assigned to `pas-lola`, project on one Mac, agent on mini-lola): the host that holds the agent looked it up by id only and answered 404, so the sender reported "No host I can reach knows this agent". The receiving side now accepts the id or the agent's name and types into the session by id.
+
 ## [0.87.1] - 2026-10-20 - Card dependencies: the loop check works
 
 ### Fixed

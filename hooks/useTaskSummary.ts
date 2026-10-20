@@ -8,7 +8,8 @@ export interface TaskCounts { open: number; waiting: number; waitingOnJuan: numb
 
 /**
  * Open cards per agent across every host: ONE call per host (not one per agent), every 30 s.
- * Each host answers for the agents it holds; an unreachable host just contributes nothing.
+ * Each host answers for the cards it holds (an agent's own and team cards, and the project cards it stores);
+ * an unreachable host just contributes nothing.
  */
 export function useTaskSummary(hosts: Host[]): Record<string, TaskCounts> {
   const [counts, setCounts] = useState<Record<string, TaskCounts>>({})
@@ -31,7 +32,17 @@ export function useTaskSummary(hosts: Host[]): Record<string, TaskCounts> {
           return {}
         }
       }))
-      if (!cancelled) setCounts(Object.assign({}, ...results))
+      if (cancelled) return
+      // A project card is counted by the host that stores the project, for an agent that may live on another host:
+      // the same agent can appear in several answers, so add them up instead of letting one overwrite the other
+      const total: Record<string, TaskCounts> = {}
+      for (const answer of results) {
+        for (const [agentId, c] of Object.entries(answer)) {
+          const t = (total[agentId] ||= { open: 0, waiting: 0, waitingOnJuan: 0 })
+          t.open += c.open; t.waiting += c.waiting; t.waitingOnJuan += c.waitingOnJuan
+        }
+      }
+      setCounts(total)
     }
     load()
     const timer = setInterval(load, 30_000)

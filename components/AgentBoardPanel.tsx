@@ -1,6 +1,7 @@
 'use client'
 
 import { useAgentBoard } from '@/hooks/useAgentBoard'
+import { useHosts } from '@/hooks/useHosts'
 import TaskKanbanBoard from '@/components/team-meeting/TaskKanbanBoard'
 import type { Agent } from '@/types/agent'
 
@@ -16,7 +17,8 @@ export default function AgentBoardPanel({
   agents: Agent[]
   hostUrl: string
 }) {
-  const { tasks, tasksByStatus, loading, error, createTask, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl)
+  const { hosts } = useHosts()
+  const { tasks, tasksByStatus, loading, error, createTask, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts)
   const name = agent.label || agent.name || agent.alias || agent.id.slice(0, 8)
 
   return (

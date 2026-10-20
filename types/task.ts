@@ -72,6 +72,9 @@ export interface TaskWithDeps extends Task {
   assigneeName?: string          // Resolved agent display name
   scope?: 'agent' | 'team' | 'project'  // Which board the card lives on (set on an agent's board)
   teamName?: string
+  projectName?: string
+  /** For a project card: the host that stores the project (with projectId, its address) */
+  hostId?: string
   /** Derived from urgent and important; null when not placed */
   quadrant?: Quadrant | null
 }

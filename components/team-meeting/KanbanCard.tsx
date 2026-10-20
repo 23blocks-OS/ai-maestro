@@ -85,8 +85,8 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
         )}
 
         {task.scope && task.scope !== 'agent' && (
-          <span className="text-[10px] text-sky-400/80 truncate max-w-[40%]" title={task.teamName}>
-            {task.scope === 'team' ? `team: ${task.teamName || ''}` : task.scope}
+          <span className="text-[10px] text-sky-400/80 truncate max-w-[40%]" title={task.scope === 'project' ? task.projectName : task.teamName}>
+            {task.scope === 'team' ? `team: ${task.teamName || ''}` : task.scope === 'project' ? `project: ${task.projectName || ''}` : task.scope}
           </span>
         )}
 

@@ -9,12 +9,14 @@ export interface CardRef {
   id: string
   scope?: 'agent' | 'team' | 'project'
   teamId?: string
+  projectId?: string
   ownerAgentId?: string
   agentId?: string
 }
 
 /** `base` is the host's address, '' for this host */
 export function cardUrl(base: string, card: CardRef): string {
+  if (card.scope === 'project' && card.projectId) return `${base}/api/projects/${card.projectId}/tasks/${card.id}`
   if (card.scope === 'team' && card.teamId) return `${base}/api/teams/${card.teamId}/tasks/${card.id}`
   return `${base}/api/agents/${card.ownerAgentId || card.agentId}/tasks/${card.id}`
 }
@@ -26,9 +28,10 @@ async function failMessage(res: Response, fallback: string): Promise<string> {
 
 export async function patchCard(base: string, card: CardRef, updates: TaskUpdates): Promise<void> {
   // A card on an agent's own board stays that agent's: the assignee is never sent for it
-  const body = card.scope === 'team' ? updates : { ...updates, assigneeAgentId: undefined }
+  const shared = card.scope === 'team' || card.scope === 'project'
+  const body = shared ? updates : { ...updates, assigneeAgentId: undefined }
   const res = await fetch(cardUrl(base, card), {
-    method: card.scope === 'team' ? 'PUT' : 'PATCH',
+    method: shared ? 'PUT' : 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })

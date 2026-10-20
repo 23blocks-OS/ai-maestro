@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import type { Host } from '@/types/host'
+import { isSelfHost } from '@/lib/host-kind'
+import { cardUrl } from '@/lib/task-client'
 import type { TaskUpdates, CommentResult } from '@/hooks/useTasks'
 
 /**
@@ -9,8 +12,11 @@ import type { TaskUpdates, CommentResult } from '@/hooks/useTasks'
  * `hostUrl` is the host the agent lives on ('' = this host). Every call goes to that host: a host
  * that does not own the agent has no cards for it, and a wrong host looks like an empty board.
  */
-export function useAgentBoard(agentId: string | null, hostUrl: string = '') {
-  const [tasks, setTasks] = useState<TaskWithDeps[]>([])
+/** A card with the host that holds it, set for project cards (their project can be on any host) */
+export type BoardCard = TaskWithDeps & { hostBase?: string }
+
+export function useAgentBoard(agentId: string | null, hostUrl: string = '', hosts: Host[] = []) {
+  const [tasks, setTasks] = useState<BoardCard[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,12 +27,27 @@ export function useAgentBoard(agentId: string | null, hostUrl: string = '') {
       if (res.status === 404) throw new Error('This host does not know this agent')
       if (!res.ok) throw new Error('Could not load the board')
       const data = await res.json()
-      setTasks(data.cards || [])
+      // Project cards for this agent: a project is stored on its owner's host, which may not be this agent's,
+      // so every host is asked. A host that does not answer simply adds nothing.
+      const targets = hosts.length > 0 ? hosts.filter(h => h.enabled !== false) : [{ id: 'local', name: 'This host', url: '', isSelf: true } as Host]
+      const projectCards = (await Promise.all(targets.map(async host => {
+        const base = isSelfHost(host) ? '' : host.url.replace(/\/$/, '')
+        try {
+          const r = await fetch(`${base}/api/projects?assignee=${encodeURIComponent(agentId)}`, { signal: AbortSignal.timeout(6000) })
+          if (!r.ok) return []
+          const d = await r.json()
+          return ((d.projects || []) as Array<{ cards?: TaskWithDeps[] }>).flatMap(p => (p.cards || []).map(c => ({ ...c, hostBase: base })))
+        } catch {
+          return []
+        }
+      }))).flat()
+      setTasks([...(data.cards || []), ...projectCards])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The host is offline or out of reach')
     }
-  }, [agentId, hostUrl])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, hostUrl, hosts.map(h => `${h.id}|${h.url}|${h.enabled}`).join(',')])
 
   useEffect(() => {
     if (!agentId) { setTasks([]); return }
@@ -37,10 +58,12 @@ export function useAgentBoard(agentId: string | null, hostUrl: string = '') {
   }, [agentId, fetchBoard])
 
   // A card is changed through the API of the board it lives on
-  const base = useCallback((task: TaskWithDeps) =>
-    task.scope === 'team' && task.teamId
-      ? `${hostUrl}/api/teams/${task.teamId}/tasks/${task.id}`
-      : `${hostUrl}/api/agents/${agentId}/tasks/${task.id}`, [agentId, hostUrl])
+  const base = useCallback((task: BoardCard) =>
+    task.scope === 'project' && task.projectId
+      ? cardUrl(task.hostBase ?? '', { id: task.id, scope: 'project', projectId: task.projectId })
+      : task.scope === 'team' && task.teamId
+        ? `${hostUrl}/api/teams/${task.teamId}/tasks/${task.id}`
+        : `${hostUrl}/api/agents/${agentId}/tasks/${task.id}`, [agentId, hostUrl])
 
   const createTask = useCallback(async (data: { subject: string; description?: string; blockedBy?: string[]; priority?: number }) => {
     if (!agentId) return
@@ -59,9 +82,9 @@ export function useAgentBoard(agentId: string | null, hostUrl: string = '') {
     if (!task) return { unblocked: [] as TaskWithDeps[] }
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } as TaskWithDeps : t))
     // A card on the agent's own board stays the agent's: the assignee is not sent
-    const body = task.scope === 'team' ? updates : { ...updates, assigneeAgentId: undefined }
+    const body = task.scope === 'team' || task.scope === 'project' ? updates : { ...updates, assigneeAgentId: undefined }
     const res = await fetch(base(task), {
-      method: task.scope === 'team' ? 'PUT' : 'PATCH',
+      method: task.scope === 'team' || task.scope === 'project' ? 'PUT' : 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })

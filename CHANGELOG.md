@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.89.2] - 2026-10-20 - Role and company next to an agent's name
+
+### Added
+- **"Name · role · company" where an agent appears.** The chat header, the board title and the sidebar list now show the agent's role and company (from its `role:` and `org:` tags) next to its name: "Emilia · gm · 3metas". The sidebar keeps the technical name on that line when a label is shown. An agent without the tags looks as before. The mobile app and message sender lines do not show it yet.
+- Tests: `tests/agent-role-line.test.ts` (the tags, missing tags, repeated tags, and the header).
+
 ## [0.89.1] - 2026-10-20 - Meeting chat: one send to everyone, an answer for each agent, agents on other hosts included
 
 ### Fixed

@@ -1,5 +1,6 @@
 'use client'
 
+import { agentRoleLine } from '@/lib/agent-role-line'
 import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
@@ -894,6 +895,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         hostId={agent.hostId}
         remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
+        roleLine={agentRoleLine(agent.tags)}
         workingDirectory={agentWorkingDirectory(agent)}
         address={primaryAmpAddress(agent as any)}
         snapshot={snapshotOf(agent)}

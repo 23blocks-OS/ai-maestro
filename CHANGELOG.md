@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.86.1] - 2026-10-19 - A board mod: an agent sees its own board in the terminal
+
+### Added
+- **`mods/ai-maestro-board`**, a Claude Code mod for agents that run without the dashboard (a lolabot, a session started by hand): a count in the status line and a `/board` command with the cards by column, what each waits on and its quadrant. Read-only. It finds the agent the way `amp-helper.sh` does (with an `agentId` option for a lolabot), reads the host's AI Maestro server through `curl`, and falls back to the board file when no server runs. 20 tests with `claude plugin test`; details and limits in `docs/CLAUDE-CODE-MODS.md`.
+
+### Not changed or not checked
+- Nothing changes in AI Maestro itself; the mod is installed by pointing Claude Code at `mods/ai-maestro-board`. The status line and `/board` were not driven by a real Claude Code session (the same limit the other mods have). Without a server an agent can see its board but not move cards. The mod tests are not run by CI (they need the `claude` CLI).
+
 ## [0.86.0] - 2026-10-19 - The Eisenhower matrix: what matters now
 
 ### Added

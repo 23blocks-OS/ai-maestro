@@ -115,6 +115,24 @@ claude plugin test mods/ai-maestro-sql-approval
 
 Tested with `claude plugin test` (the logic against an in-memory file system). The band and pane were not driven by a real Claude Code session.
 
+## The board mod: `mods/ai-maestro-board`
+
+Shows an agent its own AI Maestro task board inside the terminal, for agents that run **without** the AI Maestro dashboard (a lolabot, a Claude Code session started by hand). A count in the status line (`board: 4 open, 1 waiting on you`) and a `/board` command that lists the cards by column with what each one waits on and its Eisenhower quadrant (Q1 do first, Q2 schedule, Q3 delegate, Q4 delete, `--` not placed). Inside AI Maestro the dashboard's Board and Matrix tabs show the same cards.
+
+- **Read-only.** It never writes a card. The agent moves cards with `aimaestro-task.sh` (the `agent-tasks` skill); this mod only shows them. It uses `$.process.run` for `curl` with `-f` and no write method, `$.fs.read` for one file, `$.env` for seven variables, `$.clock`, `$.command`, `$.state` and `$.ui.status`. `claude plugin validate mods/ai-maestro-board` prints exactly that.
+- **Which agent:** the plugin option `agentId` first; then `AIM_AGENT_ID` (set in sessions AI Maestro starts), `CLAUDE_AGENT_ID`, the folder name in `AMP_DIR` (the way `amp-helper.sh` finds the AMP identity), then a name (`AIM_AGENT_NAME`, `CLAUDE_AGENT_NAME`) that the server turns into an id. A lolabot has no id in its config; its id is its AMP identity id, so set the `agentId` option to it. An id that is not a plain file name is never used.
+- **Where the cards come from:** the AI Maestro server on this host (`GET /api/agents/<id>/board`, which also carries team cards and the quadrant; address from the `apiUrl` option, else `AIMAESTRO_API`, else `http://localhost:23000`), else the board file `~/.aimaestro/agents/<id>/tasks.json` that the server would have read (own cards only, and the mod works the quadrant out from the two answers). With neither, `/board` says what is missing.
+- **Refreshes every 30 seconds.** Card text comes from other people and agents, so control and escape characters are stripped before it is shown.
+- **Honest limits.** The mods API is early access (Claude Code 2.1.287 or later) and can be blocked by managed settings. Without a server an agent can see its board but not move cards: moving them goes through the server's API, and a second writer is deliberately not added. The status line may be shared with other mods (the inbox mod writes there too); I did not check how Claude Code arbitrates. Project cards are not on the board yet.
+
+```bash
+claude --plugin-dir /path/to/ai-maestro/mods/ai-maestro-board
+claude plugin validate mods/ai-maestro-board
+claude plugin test mods/ai-maestro-board
+```
+
+Tested with `claude plugin test` (20 tests, the logic with the engine's answers from memory) and run once for real outside the harness: the mod's own file under Node, with a real `curl`, against the live server (the server's board, the file fallback, and an unknown agent). The status line and `/board` were not driven by a real Claude Code session.
+
 ## Verified live
 
 Tested on 2026-10-02 between a Mac with no tmux session (this mod) and a Linux host with an AI Maestro-native agent in tmux, over the AMP mesh:

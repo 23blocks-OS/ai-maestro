@@ -41,6 +41,20 @@ export interface TaskParams {
   /** true, false, or null to clear (not placed) */
   urgent?: boolean | null
   important?: boolean | null
+  /** Organization slug, or null to clear */
+  org?: string | null
+}
+
+const ORG_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+/** org is a slug (the `org:` tag value, lowercase) or null; it is normalised to lowercase here */
+function checkOrg(params: TaskParams): ServiceResult<never> | null {
+  if (params.org === undefined || params.org === null) return null
+  if (typeof params.org !== 'string' || !ORG_SLUG.test(params.org.trim().toLowerCase())) {
+    return invalidField('org', 'org must be an organization id: lowercase letters, digits and hyphens (the value of the agent org: tag)')
+  }
+  params.org = params.org.trim().toLowerCase()
+  return null
 }
 
 /** urgent and important are true, false, or null (= not placed); anything else is a mistake, not "false" */
@@ -198,8 +212,11 @@ export function createInScope(scope: TaskScope, params: TaskParams, guard?: () =
   if (w) return w
   const pl = checkPlacement(params)
   if (pl) return pl
+  const og = checkOrg(params)
+  if (og) return og
   try {
     const task = createScopeTask(scope, {
+      org: params.org,
       subject: params.subject.trim(),
       description: params.description,
       assigneeAgentId: params.assigneeAgentId,
@@ -244,8 +261,11 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
   if (w) return w
   const pl = checkPlacement(params)
   if (pl) return pl
+  const og = checkOrg(params)
+  if (og) return og
   try {
     const result = updateScopeTask(scope, taskId, {
+      org: params.org,
       subject: params.subject,
       description: params.description,
       status: params.status as TaskStatus | undefined,

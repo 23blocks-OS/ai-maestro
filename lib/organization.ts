@@ -11,7 +11,10 @@
  * "Shown, not enforced": an organization is a label. It does not restrict who can read what.
  */
 
-export const NO_ORG = '(no organization)'
+import type { OrganizationRecord } from '@/types/org'
+
+/** Where agents and cards with no organization of their own are shown, until a default is chosen */
+export const DEFAULT_ORG = 'personal'
 
 export interface OrgAgentInput {
   id: string
@@ -28,6 +31,8 @@ export interface OrgCardInput {
   subject: string
   status: string
   agentId: string
+  /** The organization this card is labelled for; without it the assignee's organization applies */
+  org?: string | null
   scope?: 'agent' | 'team' | 'project'
   projectId?: string
   projectName?: string
@@ -75,6 +80,14 @@ export interface OrgRelation {
 
 export interface Organization {
   id: string
+  /** The record's name, or the id when only tags and cards name this organization */
+  name: string
+  description?: string
+  /** The host that stores the record; undefined when there is no record */
+  recordHostId?: string
+  hasRecord: boolean
+  /** The organization agents and cards with no org of their own are shown under */
+  isDefault: boolean
   agents: OrgAgent[]
   cards: OrgCardInput[]
   projects: OrgProjectInput[]
@@ -102,15 +115,17 @@ export function buildOrganizations(
   agents: OrgAgentInput[],
   cardsIn: OrgCardInput[],
   projects: OrgProjectInput[],
+  records: OrganizationRecord[] = [],
+  defaultOrg: string = DEFAULT_ORG,
 ): Organization[] {
   const byId = new Map<string, OrgAgentInput>()
   for (const a of agents) if (!byId.has(a.id)) byId.set(a.id, a)
 
   const orgsOfAgent = (id: string): string[] => {
     const a = byId.get(id)
-    if (!a) return [NO_ORG]
+    if (!a) return [defaultOrg]
     const o = tagValues(a.tags, 'org')
-    return o.length > 0 ? o : [NO_ORG]
+    return o.length > 0 ? o : [defaultOrg]
   }
 
   // The same card can come from two hosts; keep one
@@ -120,14 +135,14 @@ export function buildOrganizations(
 
   const sameOrg = (x: string, y: string) => {
     const a = orgsOfAgent(x)
-    return orgsOfAgent(y).some(o => o !== NO_ORG && a.includes(o))
+    return orgsOfAgent(y).some(o => a.includes(o))
   }
 
   const orgs = new Map<string, Organization>()
   const get = (id: string): Organization => {
     let o = orgs.get(id)
     if (!o) {
-      o = { id, agents: [], cards: [], projects: [], relations: [], stats: { agents: 0, open: 0, waiting: 0, blocked: 0, projects: 0, waitingOnOperator: 0 } }
+      o = { id, name: id, hasRecord: false, isDefault: id === defaultOrg, agents: [], cards: [], projects: [], relations: [], stats: { agents: 0, open: 0, waiting: 0, blocked: 0, projects: 0, waitingOnOperator: 0 } }
       orgs.set(id, o)
     }
     return o
@@ -153,12 +168,28 @@ export function buildOrganizations(
     for (const o of view.orgs) get(o).agents.push(view)
   }
 
-  for (const c of cards) for (const o of orgsOfAgent(c.agentId)) get(o).cards.push(c)
+  // A card labelled for an organization belongs to it, whoever holds it; otherwise it follows its assignee
+  const orgsOfCard = (c: OrgCardInput): string[] => (c.org ? [c.org] : orgsOfAgent(c.agentId))
+  for (const c of cards) for (const o of orgsOfCard(c)) get(o).cards.push(c)
+
+  // Records: the same id on two hosts is one organization; the most recently changed record wins
+  const newest = new Map<string, OrganizationRecord>()
+  for (const r of records) {
+    const prev = newest.get(r.id)
+    if (!prev || r.updatedAt > prev.updatedAt) newest.set(r.id, r)
+  }
+  for (const r of newest.values()) {
+    const o = get(r.id)
+    o.name = r.name
+    o.description = r.description
+    o.recordHostId = r.hostId
+    o.hasRecord = true
+  }
 
   for (const p of projects) {
     // A project belongs to its owner's organization, and to every organization with a card on it
-    const members = new Set<string>(p.ownerAgentId ? orgsOfAgent(p.ownerAgentId) : [NO_ORG])
-    for (const c of cards) if (c.projectId === p.id) for (const o of orgsOfAgent(c.agentId)) members.add(o)
+    const members = new Set<string>(p.ownerAgentId ? orgsOfAgent(p.ownerAgentId) : [defaultOrg])
+    for (const c of cards) if (c.projectId === p.id) for (const o of orgsOfCard(c)) members.add(o)
     for (const o of members) get(o).projects.push(p)
   }
 
@@ -198,7 +229,9 @@ export function buildOrganizations(
     }
   }
 
-  // Named organizations first (largest first), the unlabelled group last
+  // The default organization is always listed, so someone working alone sees where their work is.
+  // Largest first, the default last.
+  get(defaultOrg)
   return [...orgs.values()].sort((a, b) =>
-    (a.id === NO_ORG ? 1 : 0) - (b.id === NO_ORG ? 1 : 0) || b.stats.agents - a.stats.agents || a.id.localeCompare(b.id))
+    (a.isDefault ? 1 : 0) - (b.isDefault ? 1 : 0) || b.stats.agents - a.stats.agents || a.id.localeCompare(b.id))
 }

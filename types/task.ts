@@ -52,6 +52,8 @@ export interface Task {
   description?: string           // Detailed description / acceptance criteria
   status: TaskStatus
   assigneeAgentId?: string | null
+  /** The organization (a slug, like the `org:` tag value) this card is for; unset = the assignee's organization */
+  org?: string | null
   blockedBy: string[]            // Task IDs that must complete first
   priority?: number              // 0=highest (optional ordering)
   waitingOn?: WaitingOn          // Required while status is 'waiting'

@@ -8,6 +8,8 @@ export type TaskUpdates = {
   blockedBy?: string[]; priority?: number; waitingOn?: string; waitingNote?: string
   /** true / false when placed on the matrix, null to take it off */
   urgent?: boolean | null; important?: boolean | null
+  /** Organization id, or null to go back to the assignee's */
+  org?: string | null
 }
 
 export type CommentResult = { delivered?: boolean; reason?: string }

@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.89.0] - 2026-10-20 - Organizations: records, a company label on cards, a default, and plugin commands
+
+### Added
+- **Organization records.** An organization can now have a name and a description (`/api/orgs`, and the Org page: New, Edit, "Name it" for one that only exists as tags). The id is the value of the agents' `org:` tag, so agents join an organization by their tags as before; a record only adds the name behind the id. A record lives on the host where it was created; the Org page asks every host and joins them by id (the most recently changed record wins), and names a host that is down.
+- **A company label on a card.** A card on an agent's own board or on a project can carry `org`. Without it the card is for its assignee's organization; with it, the card belongs to that organization whoever holds it, so a freelancer's work for each company stays separate. Set it when adding or editing a card (Organization field in the card detail, `org` in the API); the Org page shows the label on the card. Team boards do not keep it (a team board has no per-card organization yet).
+- **A default organization.** An agent with no `org:` tag, and a card with no label, is shown under the default, `personal` until changed ("Make default" on the Org page, `PUT /api/orgs/default`, `org default <id>`). Someone working alone sees everything under "personal" with no setup, and the old "(no organization)" group is gone. The default is a setting of the host whose dashboard you look at.
+- **Plugin 1.15.0 (`aimaestro-task.sh`):** `org list` (records on every host, the default marked), `org add "<name>" [--id] [--desc]`, `org default [<org>]`, `org label <card> <org>|none`, `add ... --org <org>`, and an `Org:` line in `show`. The agent-tasks skill says when to label a card, and that the command finds a project's host by itself.
+- Tests: `tests/orgs-service.test.ts` (records, card label, default), `tests/organization.test.ts` (records, labelled cards, the default), `tests/aimaestro-task-org.test.ts` (the commands against two fake hosts).
+
+### Shown, not enforced
+- An organization, a label and the default are for viewing. AI Maestro has no per-agent access control by design: nothing here limits who can read another company's cards. "Personal" is a name, not a private space.
+
 ## [0.88.0] - 2026-10-20 - Organization: a company's agents, work and relations on one page
 
 ### Added

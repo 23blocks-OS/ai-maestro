@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Hourglass, Link2, Lock } from 'lucide-react'
+import { Hourglass, Link2, Lock, Pencil } from 'lucide-react'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
-import { NO_ORG, type Organization, type OrgAgent, type OrgCardInput, type OrgRelation, type RelationKind } from '@/lib/organization'
+import { type Organization, type OrgAgent, type OrgCardInput, type OrgRelation, type RelationKind } from '@/lib/organization'
 
 type Tab = 'agents' | 'work' | 'projects' | 'relations'
 
@@ -30,10 +30,14 @@ interface Props {
   org: Organization
   nameOf: (agentId: string) => string
   presenceOf: (agentId: string) => AgentPresence
+  /** Open the form to name or describe this organization (creates the record when there is none) */
+  onEdit?: () => void
+  /** Make this the organization that agents and cards with none of their own are shown under */
+  onMakeDefault?: () => void
 }
 
 /** One organization: its agents, the work they hold, the projects it takes part in, and how the agents relate. */
-export default function OrganizationView({ org, nameOf, presenceOf }: Props) {
+export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMakeDefault }: Props) {
   const [tab, setTab] = useState<Tab>('agents')
   const s = org.stats
 
@@ -55,6 +59,26 @@ export default function OrganizationView({ org, nameOf, presenceOf }: Props) {
 
   return (
     <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0">
+          <h2 className="text-base font-medium text-gray-100 truncate">{org.name}</h2>
+          <p className="text-xs text-gray-400">
+            {org.description || (org.hasRecord ? 'No description.' : org.isDefault ? 'The default: agents and cards with no organization of their own are shown here.' : 'Named only by tags and cards: no record yet.')}
+            <span className="text-gray-600"> · org:{org.id}</span>
+            {org.isDefault && <span className="ml-1.5 text-[10px] text-sky-300 bg-sky-500/10 rounded px-1.5">default</span>}
+          </p>
+        </div>
+        <div className="ml-auto flex gap-1.5 flex-shrink-0">
+          {onMakeDefault && !org.isDefault && (
+            <button onClick={onMakeDefault} className="text-[11px] px-2 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700" title="Show agents and cards that have no organization of their own under this one">Make default</button>
+          )}
+          {onEdit && (
+            <button onClick={onEdit} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">
+              <Pencil className="w-3 h-3" /> {org.hasRecord ? 'Edit' : 'Name it'}
+            </button>
+          )}
+        </div>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Stat label="Agents" value={s.agents} />
         <Stat label="Open cards" value={s.open} />
@@ -111,6 +135,7 @@ export default function OrganizationView({ org, nameOf, presenceOf }: Props) {
                 {cards.map(c => (
                   <li key={c.id} className="flex items-center gap-2 text-xs rounded border border-gray-800 bg-gray-900/40 px-2.5 py-1.5">
                     <span className="text-gray-200 truncate">{c.subject}</span>
+                    {c.org && <span className="text-[10px] text-sky-300 bg-sky-500/10 rounded px-1.5" title="This card is labelled for this organization">org:{c.org}</span>}
                     {c.projectName && <span className="text-[10px] text-indigo-300 bg-indigo-500/10 rounded px-1.5">{c.projectName}</span>}
                     {c.status === 'waiting' && <Hourglass className="w-3 h-3 text-amber-400" />}
                     <span className="ml-auto text-[10px] text-gray-500">{STATUS_LABEL[c.status] || c.status}</span>
@@ -156,7 +181,7 @@ export default function OrganizationView({ org, nameOf, presenceOf }: Props) {
 
       <p className="flex items-center gap-1.5 text-[11px] text-gray-600 pt-2">
         <Lock className="w-3 h-3" />
-        {org.id === NO_ORG ? 'Agents without an org: tag.' : 'Built from each agent’s org:, kind: and role: tags.'} An organization is shown, not enforced: it does not limit who can read what.
+        Built from each agent’s org:, kind: and role: tags; an agent with no org: tag is shown under the default. An organization is shown, not enforced: it does not limit who can read what.
       </p>
     </div>
   )

@@ -63,6 +63,8 @@ export interface UpdateTaskParams {
   priority?: number
   waitingOn?: string
   waitingNote?: string
+  urgent?: boolean | null
+  important?: boolean | null
 }
 
 export interface CreateDocumentParams {
@@ -245,7 +247,10 @@ export function updateTeamTask(
     return notFound('Task', taskId)
   }
 
-  const { subject, description, status, assigneeAgentId, blockedBy, priority, waitingOn, waitingNote } = params
+  const { subject, description, status, assigneeAgentId, blockedBy, priority, waitingOn, waitingNote, urgent, important } = params
+  for (const [key, v] of [['urgent', urgent], ['important', important]] as const) {
+    if (v !== undefined && v !== null && typeof v !== 'boolean') return invalidField(key, `${key} must be true, false or null`)
+  }
 
   // Validate blockedBy to prevent circular dependencies
   if (Array.isArray(blockedBy)) {
@@ -282,6 +287,8 @@ export function updateTeamTask(
       priority,
       waitingOn,
       waitingNote,
+      urgent,
+      important,
     })
 
     if (!result.task) {

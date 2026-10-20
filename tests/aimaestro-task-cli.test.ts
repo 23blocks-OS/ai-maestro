@@ -16,9 +16,9 @@ let base = ''
 
 const AGENT = 'agent-1'
 const cards = [
-  { id: 'aaaaaaaa-1111', scope: 'agent', subject: 'Ship the banner', status: 'pending', comments: [] },
-  { id: 'aaaaaaaa-2222', scope: 'agent', subject: 'Fix the footer', status: 'waiting', waitingOn: 'juan', waitingNote: 'copy', comments: [{ author: { kind: 'operator' }, text: 'hi', createdAt: '2026-10-19T10:00:00Z' }] },
-  { id: 'bbbbbbbb-3333', scope: 'team', teamId: 't1', teamName: 'Team One', subject: 'Team job', status: 'in_progress', comments: [] },
+  { id: 'aaaaaaaa-1111', scope: 'agent', subject: 'Ship the banner', status: 'pending', quadrant: 'q1', comments: [] },
+  { id: 'aaaaaaaa-2222', scope: 'agent', subject: 'Fix the footer', status: 'waiting', waitingOn: 'juan', waitingNote: 'copy', quadrant: null, comments: [{ author: { kind: 'operator' }, text: 'hi', createdAt: '2026-10-19T10:00:00Z' }] },
+  { id: 'bbbbbbbb-3333', scope: 'team', teamId: 't1', teamName: 'Team One', subject: 'Team job', status: 'in_progress', quadrant: 'q3', comments: [] },
 ]
 
 beforeAll(async () => {
@@ -154,5 +154,61 @@ describe.skipIf(!haveTools)('aimaestro-task.sh', () => {
     const r = await run(['list'], { AIMAESTRO_API: 'http://127.0.0.1:1' })
     expect(r.code).toBe(1)
     expect(r.err).toContain('Could not reach AI Maestro')
+  })
+
+  describe('the Eisenhower matrix', () => {
+    it('place sets both answers: q1 urgent+important, q2 important only, q3 urgent only, q4 neither', async () => {
+      const table: Array<[string, boolean, boolean]> = [['q1', true, true], ['q2', false, true], ['q3', true, false], ['q4', false, false]]
+      for (const [q, urgent, important] of table) {
+        const r = await run(['place', 'aaaaaaaa-1', q])
+        expect(r.code, q).toBe(0)
+        expect(writes()).toEqual([{ method: 'PATCH', url: `/api/agents/${AGENT}/tasks/aaaaaaaa-1111`, body: { urgent, important } }])
+      }
+    })
+
+    it('place none takes the card off the matrix with nulls, not false (false/false would be q4)', async () => {
+      await run(['place', 'aaaaaaaa-1', 'none'])
+      expect(writes()[0].body).toEqual({ urgent: null, important: null })
+    })
+
+    it('place refuses an unknown quadrant and writes nothing', async () => {
+      const r = await run(['place', 'aaaaaaaa-1', 'q5'])
+      expect(r.code).toBe(1)
+      expect(r.err).toContain("Unknown quadrant 'q5'")
+      expect(writes()).toEqual([])
+      expect((await run(['place', 'aaaaaaaa-1'])).err).toContain('place needs a quadrant')
+    })
+
+    it('place on a team card goes through the team API', async () => {
+      await run(['place', 'bbbb', 'q2'])
+      expect(writes()).toEqual([{ method: 'PUT', url: '/api/teams/t1/tasks/bbbbbbbb-3333', body: { urgent: false, important: true } }])
+    })
+
+    it('add --quadrant creates the card already placed', async () => {
+      await run(['add', 'Placed from the start', '--quadrant', 'q2'])
+      expect(writes()[0]).toMatchObject({ method: 'POST', url: `/api/agents/${AGENT}/tasks`, body: { subject: 'Placed from the start', urgent: false, important: true } })
+      const bad = await run(['add', 'x', '--quadrant', 'nope'])
+      expect(bad.code).toBe(1)
+      expect(writes()).toEqual([])
+    })
+
+    it('list shows the quadrant letter ("--" when not placed) and filters by it', async () => {
+      const all = await run(['list'])
+      expect(all.out).toContain('aaaaaaaa  pending      Q1  Ship the banner')
+      expect(all.out).toContain('waiting      --  Fix the footer')
+      const q1 = await run(['list', '--quadrant', 'q1'])
+      expect(q1.out).toContain('Ship the banner')
+      expect(q1.out).not.toContain('Fix the footer')
+      const none = await run(['list', '--quadrant', 'unplaced'])
+      expect(none.out).toContain('Fix the footer')
+      expect(none.out).not.toContain('Ship the banner')
+      expect((await run(['list', '--quadrant', 'q2'])).out).toContain('No cards.')
+      expect((await run(['list', '--quadrant', 'x'])).code).toBe(1)
+    })
+
+    it('show says where the card is on the matrix', async () => {
+      expect((await run(['show', 'aaaaaaaa-1'])).out).toContain('Quadrant: Q1')
+      expect((await run(['show', 'aaaaaaaa-2'])).out).toContain('Quadrant: not placed')
+    })
   })
 })

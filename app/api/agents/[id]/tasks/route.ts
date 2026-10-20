@@ -1,5 +1,5 @@
 /**
- * GET  /api/agents/:id/tasks  — the agent's own cards (?status, ?waitingOn)
+ * GET  /api/agents/:id/tasks  — the agent's own cards (?status, ?waitingOn, ?quadrant=q1|q2|q3|q4|unplaced)
  * POST /api/agents/:id/tasks  — add a card to the agent's own board
  *
  * Thin wrapper — business logic in services/agent-tasks-service.ts
@@ -15,6 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return toResponse(listAgentTasks(id, {
     status: url.searchParams.get('status') || undefined,
     waitingOn: url.searchParams.get('waitingOn') || undefined,
+    quadrant: url.searchParams.get('quadrant') || undefined,
   }))
 }
 

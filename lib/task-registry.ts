@@ -14,7 +14,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { loadAgents } from '@/lib/agent-registry'
-import type { Task, TaskComment, TaskScope, TaskWithDeps, TasksFile } from '@/types/task'
+import { quadrantOf, type Task, type TaskComment, type TaskScope, type TaskWithDeps, type TasksFile } from '@/types/task'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const TEAMS_DIR = path.join(AIMAESTRO_DIR, 'teams')
@@ -117,6 +117,7 @@ export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
       blocks,
       isBlocked,
       assigneeName,
+      quadrant: quadrantOf(task),
     }
   })
 }
@@ -178,7 +179,7 @@ export function getTask(teamId: string, taskId: string): Task | null {
 export function updateScopeTask(
   scope: TaskScope,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important'>>
 ): { task: Task | null; unblocked: Task[] } {
   const tasks = loadScopeTasks(scope)
   const index = tasks.findIndex(t => t.id === taskId)
@@ -233,7 +234,7 @@ export function updateScopeTask(
 export function updateTask(
   teamId: string,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important'>>
 ): { task: Task | null; unblocked: Task[] } {
   return updateScopeTask(teamScope(teamId), taskId, updates)
 }

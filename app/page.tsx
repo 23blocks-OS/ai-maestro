@@ -11,6 +11,7 @@ import MessageCenter from '@/components/MessageCenter'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
 import AgentBoardPanel from '@/components/AgentBoardPanel'
+import AgentMatrixPanel from '@/components/matrix/AgentMatrixPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import TabletDashboard from '@/components/TabletDashboard'
@@ -24,7 +25,7 @@ import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { useToast } from '@/contexts/ToastContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop, Zap, KanbanSquare } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink, PanelTop, Zap, KanbanSquare, LayoutGrid } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { buildWakeBody, type WakeChoiceOptions } from '@/lib/wake-request'
@@ -122,10 +123,10 @@ export default function DashboardPage() {
     setLayoutOverride(next)
     localStorage.setItem('aimaestro-layout-mode', next)
   }
-  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'streaming' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'board' | 'search' | 'export' | 'playback'>(() => {
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'streaming' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'canvas' | 'board' | 'matrix' | 'search' | 'export' | 'playback'>(() => {
     if (typeof window === 'undefined') return 'chat'
     const saved = localStorage.getItem('aimaestro-active-tab')
-    const validTabs = ['terminal', 'chat', 'messages', 'worktree', 'graph', 'memory', 'docs', 'canvas', 'board', 'search', 'export', 'playback']
+    const validTabs = ['terminal', 'chat', 'messages', 'worktree', 'graph', 'memory', 'docs', 'canvas', 'board', 'matrix', 'search', 'export', 'playback']
     return (saved && validTabs.includes(saved) ? saved : 'chat') as any
   })
   // Persist tab choice in localStorage
@@ -922,6 +923,18 @@ export default function DashboardPage() {
                       Board
                     </button>
                     <button
+                      onClick={() => setActiveTab('matrix')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'matrix'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                      data-testid="tab-matrix"
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                      Matrix
+                    </button>
+                    <button
                       onClick={() => setActiveTab('search')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'search'
@@ -1169,6 +1182,12 @@ export default function DashboardPage() {
                       />
                     ) : activeTab === 'board' ? (
                       <AgentBoardPanel
+                        agent={agent}
+                        agents={agents}
+                        hostUrl={getAgentBaseUrl(agent)}
+                      />
+                    ) : activeTab === 'matrix' ? (
+                      <AgentMatrixPanel
                         agent={agent}
                         agents={agents}
                         hostUrl={getAgentBaseUrl(agent)}

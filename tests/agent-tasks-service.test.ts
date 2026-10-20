@@ -28,8 +28,9 @@ vi.mock('@/services/agents-chat-service', () => ({ injectMeetingPrompt: (...a: u
 
 import {
   createAgentTask, updateAgentTask, deleteAgentTask, listAgentTasks, getAgentBoard, getTaskSummary,
-  addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment,
+  addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment, getOpenTasks,
 } from '@/services/agent-tasks-service'
+import { updateTeamTask } from '@/services/teams-service'
 import { createTask, isSafeScopeId, loadScopeTasks, saveScopeTasks } from '@/lib/task-registry'
 
 describe('agent board', () => {
@@ -222,5 +223,112 @@ describe('scope ids become file names', () => {
     expect(loadScopeTasks({ kind: 'agent', id: '../../etc' })).toEqual([])
     expect(saveScopeTasks({ kind: 'agent', id: '../../etc' }, [])).toBe(false)
     expect(Object.keys(fsStore).length).toBe(before)
+  })
+})
+
+describe('the Eisenhower matrix: urgent and important are true, false or null', () => {
+  beforeEach(() => {
+    for (const k of Object.keys(fsStore)) delete fsStore[k]
+    n = 0
+  })
+  const add = (subject: string, extra: Record<string, unknown> = {}) => ((createAgentTask('a1', { subject, ...extra } as any).data as any).task as { id: string })
+  const card = (id: string) => (listAgentTasks('a1').data as any).tasks.find((t: any) => t.id === id)
+
+  it('a new card is not placed: no quadrant (false/false would be Q4, a real placement)', () => {
+    expect(card(add('x').id).quadrant).toBeNull()
+  })
+
+  it('the quadrant is derived from both answers: q1 urgent+important, q2 important only, q3 urgent only, q4 neither', () => {
+    const table: Array<[boolean, boolean, string]> = [[true, true, 'q1'], [false, true, 'q2'], [true, false, 'q3'], [false, false, 'q4']]
+    for (const [urgent, important, q] of table) {
+      const id = add(`c-${q}`).id
+      expect(updateAgentTask('a1', id, { urgent, important }).status).toBe(200)
+      expect(card(id).quadrant).toBe(q)
+    }
+  })
+
+  it('only one answer given: still not placed', () => {
+    const id = add('half').id
+    updateAgentTask('a1', id, { urgent: true })
+    expect(card(id).quadrant).toBeNull()
+    updateAgentTask('a1', id, { important: false })
+    expect(card(id).quadrant).toBe('q3')
+  })
+
+  it('null clears the placement', () => {
+    const id = add('moves').id
+    updateAgentTask('a1', id, { urgent: true, important: true })
+    expect(card(id).quadrant).toBe('q1')
+    updateAgentTask('a1', id, { urgent: null, important: null })
+    expect(card(id).quadrant).toBeNull()
+  })
+
+  it('anything that is not true, false or null is refused, not read as false', () => {
+    const id = add('x').id
+    for (const bad of ['true', 1, 0, 'yes', {}, []]) {
+      expect(updateAgentTask('a1', id, { urgent: bad as any }).status, String(bad)).toBe(400)
+      expect(updateAgentTask('a1', id, { important: bad as any }).status, String(bad)).toBe(400)
+    }
+    expect(createAgentTask('a1', { subject: 'y', urgent: 'maybe' as any }).status).toBe(400)
+  })
+
+  it('a card can be created already placed', () => {
+    const id = add('placed', { urgent: false, important: true }).id
+    expect(card(id).quadrant).toBe('q2')
+  })
+
+  it('the placement does not touch the kanban status', () => {
+    const id = add('s').id
+    updateAgentTask('a1', id, { status: 'waiting', waitingOn: 'juan' })
+    updateAgentTask('a1', id, { urgent: true, important: true })
+    expect(card(id)).toMatchObject({ status: 'waiting', waitingOn: 'juan', quadrant: 'q1' })
+  })
+
+  it('list filters by quadrant and by unplaced; an unknown quadrant is a 400', () => {
+    const a = add('a').id, b = add('b').id
+    add('c')
+    updateAgentTask('a1', a, { urgent: true, important: true })
+    updateAgentTask('a1', b, { urgent: false, important: false })
+    const ids = (q: string) => ((listAgentTasks('a1', { quadrant: q }).data as any).tasks as any[]).map(t => t.subject)
+    expect(ids('q1')).toEqual(['a'])
+    expect(ids('q4')).toEqual(['b'])
+    expect(ids('unplaced')).toEqual(['c'])
+    expect(ids('q2')).toEqual([])
+    expect(listAgentTasks('a1', { quadrant: 'q9' }).status).toBe(400)
+  })
+
+  it('team cards take the placement too', () => {
+    const t = createTask({ teamId: 't1', subject: 'team job', assigneeAgentId: 'a1' })
+    const r = updateTeamTask('t1', t.id, { urgent: true, important: false })
+    expect(r.status).toBe(200)
+    expect(updateTeamTask('t1', t.id, { urgent: 'x' as any }).status).toBe(400)
+  })
+
+  it('GET /api/tasks: every open card on the host, own and team, with the agent, never a completed one', () => {
+    const a = add('own q1').id
+    updateAgentTask('a1', a, { urgent: true, important: true })
+    const done = add('finished').id
+    updateAgentTask('a1', done, { status: 'completed' })
+    createAgentTask('a2', { subject: 'beta own' })
+    const t = createTask({ teamId: 't1', subject: 'team for a2', assigneeAgentId: 'a2' })
+    updateTeamTask('t1', t.id, { urgent: false, important: true })
+    createTask({ teamId: 't1', subject: 'nobody has it' })
+    const cards = (getOpenTasks().data as any).cards as Array<{ subject: string; agentId: string; agentName: string; scope: string; quadrant: string | null }>
+    expect(cards.map(c => c.subject).sort()).toEqual(['beta own', 'own q1', 'team for a2'])
+    expect(cards.find(c => c.subject === 'team for a2')).toMatchObject({ agentId: 'a2', agentName: 'beta', scope: 'team', quadrant: 'q2' })
+    expect(cards.find(c => c.subject === 'own q1')).toMatchObject({ agentId: 'a1', agentName: 'alpha', scope: 'agent', quadrant: 'q1' })
+  })
+
+  it('GET /api/tasks filters by quadrant, waitingOn and agent', () => {
+    const a = add('one').id
+    updateAgentTask('a1', a, { urgent: true, important: true, status: 'waiting', waitingOn: 'juan' } as any)
+    createAgentTask('a2', { subject: 'two' })
+    const subjects = (f: Record<string, string>) => ((getOpenTasks(f).data as any).cards as any[]).map(c => c.subject)
+    expect(subjects({ quadrant: 'q1' })).toEqual(['one'])
+    expect(subjects({ quadrant: 'unplaced' })).toEqual(['two'])
+    expect(subjects({ waitingOn: 'juan' })).toEqual(['one'])
+    expect(subjects({ agent: 'a2' })).toEqual(['two'])
+    expect(subjects({ agent: 'beta' })).toEqual(['two'])
+    expect(getOpenTasks({ quadrant: 'nope' }).status).toBe(400)
   })
 })

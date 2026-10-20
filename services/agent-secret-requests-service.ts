@@ -13,6 +13,7 @@
  */
 import { getAgent } from '@/lib/agent-registry'
 import { isSelf } from '@/lib/hosts-config'
+import { findPeerHostUrl } from '@/lib/owning-host'
 import { isSafeAgentId } from '@/lib/safe-ids'
 import { createRequest, listRequests, getRequest, removeRequest } from '@/lib/secret-requests'
 import { assertSecretName, hasSecret, setSecret, redactSecrets } from '@/lib/secret-vault.mjs'
@@ -25,10 +26,13 @@ function asObject(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
 }
 
-/** Where the agent lives: undefined when it is on this host, otherwise its host URL. */
-function remoteHostOf(agentId: string): { known: boolean; remoteUrl?: string } {
+/** Where the agent lives: undefined when it is on this host, otherwise its host URL. An agent this host does not know may live on a peer. */
+async function remoteHostOf(agentId: string): Promise<{ known: boolean; remoteUrl?: string }> {
   const agent = getAgent(agentId)
-  if (!agent) return { known: false }
+  if (!agent) {
+    const peer = await findPeerHostUrl(agentId)
+    return peer ? { known: true, remoteUrl: peer } : { known: false }
+  }
   const isLocal = !agent.hostId || isSelf(agent.hostId) || (agent.hostUrl ? isSelf(agent.hostUrl) : false)
   return { known: true, remoteUrl: isLocal ? undefined : agent.hostUrl }
 }
@@ -51,9 +55,9 @@ async function proxy(remoteUrl: string, method: 'GET' | 'POST', path: string, pa
   }
 }
 
-function checkAgent(agentId: string): ServiceResult<never> | { remoteUrl?: string } {
+async function checkAgent(agentId: string): Promise<ServiceResult<never> | { remoteUrl?: string }> {
   if (!isSafeAgentId(agentId)) return agentNotFound(agentId)
-  const where = remoteHostOf(agentId)
+  const where = await remoteHostOf(agentId)
   if (!where.known) return agentNotFound(agentId)
   return { remoteUrl: where.remoteUrl }
 }
@@ -89,7 +93,7 @@ async function notifyAgent(agentId: string, requestId: string, text: string, sub
 }
 
 export async function createSecretRequest(agentId: string, rawBody: unknown): Promise<ServiceResult<any>> {
-  const where = checkAgent(agentId)
+  const where = await checkAgent(agentId)
   if ('status' in where) return where
   const body = asObject(rawBody)
   const named = validName(body.name)
@@ -106,7 +110,7 @@ export async function createSecretRequest(agentId: string, rawBody: unknown): Pr
 }
 
 export async function listSecretRequests(agentId: string): Promise<ServiceResult<any>> {
-  const where = checkAgent(agentId)
+  const where = await checkAgent(agentId)
   if ('status' in where) return where
   if (where.remoteUrl) return proxy(where.remoteUrl, 'GET', `/api/agents/${agentId}/secret-requests`)
   return {
@@ -116,7 +120,7 @@ export async function listSecretRequests(agentId: string): Promise<ServiceResult
 }
 
 export async function answerSecretRequest(agentId: string, requestId: string, rawBody: unknown): Promise<ServiceResult<any>> {
-  const where = checkAgent(agentId)
+  const where = await checkAgent(agentId)
   if ('status' in where) return where
   if (!/^[A-Za-z0-9-]{8,64}$/.test(requestId)) return invalidField('requestId', 'invalid request id')
   const body = asObject(rawBody)

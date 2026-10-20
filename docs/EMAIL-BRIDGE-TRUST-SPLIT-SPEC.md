@@ -35,7 +35,8 @@ Three classes per mail:
 | Class | Rule |
 |---|---|
 | trusted | sender is on the allowlist AND the receiving server's authentication passed (below) |
-| spoofed | sender is on the allowlist but authentication did not pass (failed, absent or unreadable) |
+| company | the sender's domain is on `COMPANY_DOMAINS` (exact match, not a subdomain) AND authentication passed (added 2026-10-19 on Lola's proposal; Juan confirms before `on`) |
+| spoofed | the sender is on the allowlist, or on a company domain, but authentication did not pass (failed, absent or unreadable) |
 | external | sender is not on the allowlist |
 
 Authentication, in order:
@@ -52,6 +53,7 @@ Authentication, in order:
 | Class | What the bridge sends | When |
 |---|---|---|
 | trusted | One AMP message to `DEFAULT_RECIPIENT`, priority high, subject `Email (trusted): <sanitized subject>` | at the next poll |
+| company | Added to the digest, labelled `[domain] subject`; never a wake | digest time |
 | external | Added to the digest, nothing else | digest time |
 | spoofed | Counted only: the digest carries one line, `N suspicious: sender on the allowlist failed authentication`. No subject, no sender, no body. Also logged with UID and Message-ID | digest time |
 

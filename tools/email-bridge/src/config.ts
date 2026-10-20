@@ -21,7 +21,10 @@ export interface Config {
   debug: boolean
   /** Log what would be sent and send nothing */
   dryRun: boolean
+  /** The wake class: operator addresses (exact, or @domain for exactly that domain) */
   trustedSenders: string[]
+  /** The company class: bare domains (exact match). Authenticated mail from them goes into the digest, labelled, and never wakes anyone */
+  companyDomains: string[]
   /** The receiving mail server's authserv-id; empty means nobody can be trusted */
   authservId: string
   digestTimes: string[]
@@ -90,6 +93,7 @@ export function loadConfig(env: Env = process.env): Config {
     debug: bool(env, 'DEBUG', false),
     dryRun: bool(env, 'DRY_RUN', false),
     trustedSenders: list(env, 'TRUSTED_SENDERS').map(s => s.toLowerCase()),
+    companyDomains: list(env, 'COMPANY_DOMAINS').map(s => s.toLowerCase().replace(/^@/, '')),
     authservId: (env.AUTHSERV_ID || '').trim().toLowerCase(),
     digestTimes: parseDigestTimes(times.length > 0 ? times : ['08:00', '13:00', '18:00']),
     digestMaxPending: int(env, 'DIGEST_MAX_PENDING', 25, 1),

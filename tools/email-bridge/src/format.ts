@@ -52,7 +52,7 @@ export function trustedNotification(
 
 export interface PendingItem {
   uid: number
-  cls: 'external' | 'spoofed'
+  cls: 'external' | 'company' | 'spoofed'
   account: string
   fromDomain: string
   /** Already sanitized and capped when stored */
@@ -66,24 +66,32 @@ export function clock(d: Date): string { return `${pad(d.getHours())}:${pad(d.ge
 
 export function digestMessage(items: PendingItem[], since: Date | null, showSubjects: boolean, fieldMax: number): OutMessage {
   const external = items.filter(i => i.cls === 'external')
+  const company = items.filter(i => i.cls === 'company')
   const spoofed = items.filter(i => i.cls === 'spoofed')
   const lines: string[] = [
-    `[EMAIL digest] ${items.length} new${since ? ` since ${clock(since)}` : ''}, none from trusted senders`,
+    `[EMAIL digest] ${items.length} new${since ? ` since ${clock(since)}` : ''}, none from the operator`,
   ]
   const accounts = [...new Set(items.map(i => i.account))].sort()
   for (const a of accounts) {
     const e = external.filter(i => i.account === a).length
+    const c = company.filter(i => i.account === a).length
     const s = spoofed.filter(i => i.account === a).length
     const parts: string[] = []
+    if (c) parts.push(`${c} from company domains`)
     if (e) parts.push(`${e} external`)
-    if (s) parts.push(`${s} suspicious (allowlisted sender failed authentication)`)
+    if (s) parts.push(`${s} suspicious (a company or operator address failed authentication)`)
     lines.push(`Account ${sanitizeField(a, fieldMax)}: ${parts.join(', ')}`)
   }
   // Counts per sender domain, external only: a spoofed mail never names its sender or its subject
   const byDomain = new Map<string, number>()
   for (const i of external) byDomain.set(i.fromDomain, (byDomain.get(i.fromDomain) || 0) + 1)
   const top = [...byDomain.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5)
-  if (top.length > 0) lines.push(`Top senders: ${top.map(([d, n]) => `${sanitizeField(d, fieldMax)} (${n})`).join(', ')}`)
+  if (top.length > 0) lines.push(`Top external senders: ${top.map(([d, n]) => `${sanitizeField(d, fieldMax)} (${n})`).join(', ')}`)
+  if (showSubjects && company.length > 0) {
+    // Authenticated company mail is labelled and shows its sender domain; it is still only a subject line
+    lines.push('Company mail (authenticated, sanitized, first 10):')
+    company.slice(0, 10).forEach((i, n) => lines.push(` ${n + 1}. [${sanitizeField(i.fromDomain, fieldMax)}] ${sanitizeField(i.subject, fieldMax)}`))
+  }
   if (showSubjects && external.length > 0) {
     lines.push('Subjects (sanitized, first 10):')
     external.slice(0, 10).forEach((i, n) => lines.push(` ${n + 1}. ${sanitizeField(i.subject, fieldMax)}`))

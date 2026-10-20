@@ -98,3 +98,33 @@ describe('the draft survives leaving the chat', () => {
     expect(chatView).toMatch(/localStorage\.removeItem\(draftKey\)/)
   })
 })
+
+describe('the approval card is pushed again after an assistant message clears it', () => {
+  const jsonlBroadcast = server.slice(
+    server.indexOf('function broadcastJsonlUpdates('),
+    server.indexOf('function cleanupSession(')
+  )
+  const hookBroadcast = server.slice(
+    server.indexOf('function broadcastHookState('),
+    server.indexOf('function broadcastJsonlUpdates(')
+  )
+
+  it('forgets what it last sent, or the unchanged state is swallowed and the card never returns', () => {
+    expect(jsonlBroadcast).toMatch(/_lastPermission = null\s+sessionState\._lastHookState = null/)
+  })
+
+  it('pushes the live state right behind the messages, so a card still on the pane does not blink off', () => {
+    expect(jsonlBroadcast).toMatch(/if \(reassertPermission\) broadcastHookState\(/)
+  })
+
+  it('holds back the hook state that was cleared unless the pane still shows the menu (answered at the terminal)', () => {
+    expect(jsonlBroadcast).toContain('_clearedHookJson')
+    expect(hookBroadcast).toMatch(/hookJson === sessionState\._clearedHookJson/)
+    expect(hookBroadcast).toContain('isAgentAtPermissionPrompt(sessionName, sessionState._program)')
+  })
+
+  it('does the same for a question: a waiting_for_input state is pushed again when its AskUserQuestion line lands', () => {
+    expect(jsonlBroadcast).toContain('askUserQuestionIn')
+    expect(jsonlBroadcast).toMatch(/waiting_for_input/)
+  })
+})

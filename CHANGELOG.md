@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.88.0] - 2026-10-20 - Organization: a company's agents, work and relations on one page
+
+### Added
+- **An Org page (header, "Org") shows one company across every host.** It groups agents by their `org:` tag, with `kind:` and `role:` from the same tags: for the organization you pick it shows its agents (name, role, kind, host, status, open and waiting cards), its open work by agent, the projects it takes part in, and the relations between agents (who hands work to whom through a project, who waits on whom, who is blocked by whom), marking the ones that cross organizations. An agent with two `org:` tags appears in both; agents with none are listed under "(no organization)".
+- It is a roll-up like the Matrix and Projects pages: one call per host, and a host that is down is named on the page, so a missing company is never mistaken for an empty one. Cards are matched to agents by agent id, not by host, so a project card on one host assigned to an agent on another lands in the right company. No new store: it reads the tags, cards and projects that exist.
+- Tests: `tests/organization.test.ts` (grouping across hosts, two organizations on one agent, duplicate cards from two hosts, a project on one host with an assignee on another, relations and cross-organization marking, unknown agents).
+
+### Fixed
+- **Messages showed an agent's technical name, not its label.** A message from `3m-gm` read "3m-gm" in the inbox and the sent list (desktop and mobile), because an AMP message carries only the name from the sender's address. The label (Emilia) is now looked up in the agents of every host, so a sender on another host shows its name too. Two agents with the same name and different labels show the plain name. Tests: `tests/agent-label.test.ts`. An agent that is offline is not in that list and keeps its technical name.
+
+### Fixed
+- **Messages showed an agent's technical name, not its label.** A message from `3m-gm` read "3m-gm" in the inbox and the sent list (desktop and mobile), because an AMP message carries only the name from the sender's address. The label (Emilia) is now looked up in the agents of every host, so a sender on another host shows its name too. Two agents with the same name and different labels show the plain name. Tests: `tests/agent-label.test.ts`. An agent that is offline is not in that list and keeps its technical name.
+
+### Shown, not enforced
+- An organization is a label for viewing. AI Maestro has no per-agent access control by design, so this page does not stop anyone on the network from reading another company's cards.
+
 ## [0.87.6] - 2026-10-20 - The credential card now shows for an agent on another host
 
 ### Fixed

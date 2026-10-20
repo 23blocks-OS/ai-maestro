@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2 } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2 } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -57,6 +57,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <FolderGit2 className="w-3.5 h-3.5" />
             Projects
+          </a>
+          <a
+            href="/org"
+            className="text-sm px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Organization: a company's agents, work and relations"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            Org
           </a>
           <a
             href="/matrix"

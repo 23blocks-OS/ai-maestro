@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { labelLookup } from '@/lib/agent-label'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server, ShieldCheck, Globe, HelpCircle } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
@@ -24,6 +25,7 @@ interface MessageCenterProps {
 }
 
 export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl, isActive = false }: MessageCenterProps) {
+  const labelOf = useMemo(() => labelLookup(allAgents), [allAgents])
   // Use agentId as primary identifier if available, fall back to sessionName
   const messageIdentifier = agentId || sessionName
   // Base URL for API calls - empty for local, full URL for remote hosts
@@ -708,7 +710,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className={`text-sm font-semibold truncate ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
-                              {(msg as any).fromLabel || msg.fromAlias || msg.from}
+                              {(msg as any).fromLabel || labelOf(msg.from) || msg.fromAlias || msg.from}
                             </span>
                             {getPriorityIcon(msg.priority)}
                           </div>
@@ -771,7 +773,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-200 truncate">
-                          {(selectedMessage as any).fromLabel || selectedMessage.fromAlias || selectedMessage.from}
+                          {(selectedMessage as any).fromLabel || labelOf(selectedMessage.from) || selectedMessage.fromAlias || selectedMessage.from}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span className="truncate">{selectedMessage.fromAlias || selectedMessage.from}@{selectedMessage.fromHost || 'unknown-host'}</span>
@@ -931,7 +933,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-gray-300 truncate">
-                              {(msg as any).toLabel || msg.toAlias || msg.to}
+                              {(msg as any).toLabel || labelOf(msg.to) || msg.toAlias || msg.to}
                             </span>
                             {getPriorityIcon(msg.priority)}
                           </div>
@@ -985,7 +987,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                       <span className="font-medium text-sm text-gray-400 mt-0.5 flex-shrink-0">To:</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-200 truncate">
-                          {(selectedMessage as any).toLabel || selectedMessage.toAlias || selectedMessage.to}
+                          {(selectedMessage as any).toLabel || labelOf(selectedMessage.to) || selectedMessage.toAlias || selectedMessage.to}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span className="truncate">{selectedMessage.toAlias || selectedMessage.to}@{selectedMessage.toHost || 'unknown-host'}</span>

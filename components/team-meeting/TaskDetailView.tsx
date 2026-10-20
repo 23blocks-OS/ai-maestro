@@ -235,6 +235,10 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
             className="w-full text-[11px] bg-gray-800/50 text-gray-300 rounded px-2 py-1 mt-1 focus:outline-none focus:ring-1 focus:ring-gray-600 disabled:opacity-60"
           >
             <option value="">Unassigned</option>
+            {/* A project card can be for an agent this dashboard does not list (another host): show who it is for */}
+            {assigneeAgentId && !agents.some(a => a.id === assigneeAgentId) && (
+              <option value={assigneeAgentId}>{task.assigneeName || assigneeAgentId}</option>
+            )}
             {agents.map(a => (
               <option key={a.id} value={a.id}>
                 {a.label || a.name || a.alias || a.id.slice(0, 8)}

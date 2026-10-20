@@ -21,7 +21,8 @@ export function useProjectBoard(projectId: string | null, hostBase: string) {
       if (res.status === 404) throw new Error('This project no longer exists on its host')
       if (!res.ok) throw new Error('Could not load the project')
       const data = await res.json()
-      setTasks(data.tasks || [])
+      // On a project's own board the scope label is noise: drop the fields that only label a card on someone else's board
+      setTasks(((data.tasks || []) as TaskWithDeps[]).map(t => ({ ...t, scope: undefined, projectName: undefined, hostId: undefined })))
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The host is offline or out of reach')

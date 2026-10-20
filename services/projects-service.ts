@@ -21,6 +21,16 @@ import { type ServiceResult, missingField, notFound, invalidField, operationFail
 import type { Project, ProjectStatus, ProjectView } from '@/types/project'
 import type { Task, TaskComment, TaskWithDeps } from '@/types/task'
 
+/**
+ * A card on a project can be for an agent this host does not know (it lives on another host): show the name
+ * it was given, or the start of its id, instead of nothing. The dashboard resolves ids to names when it can.
+ */
+function named<T extends TaskWithDeps>(t: T): T {
+  if (t.assigneeName || !t.assigneeAgentId) return t
+  const who = t.assigneeAgentId
+  return { ...t, assigneeName: /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(who) ? who.slice(0, 8) : who }
+}
+
 const MAX_NAME = 80
 const MAX_DESCRIPTION = 2000
 
@@ -73,7 +83,7 @@ export function listProjects(filter: { assignee?: string } = {}): ServiceResult<
     const v = view(p)
     if (!filter.assignee) { out.push(v); continue }
     const cards = resolveTaskDeps(loadScopeTasks(projectScope(p.id))).filter(t => t.assigneeAgentId === filter.assignee)
-      .map(t => ({ ...t, scope: 'project' as const, projectName: p.name, hostId: v.hostId }))
+      .map(t => named({ ...t, scope: 'project' as const, projectName: p.name, hostId: v.hostId }))
     if (cards.length > 0) out.push({ ...v, cards })
   }
   return { data: { projects: out }, status: 200 }
@@ -129,7 +139,7 @@ export function listProjectTasks(id: string, filter: { assignee?: string; status
   const p = getProject(id)
   if (!p) return notFound('Project', id)
   const v = view(p)
-  let tasks = resolveTaskDeps(loadScopeTasks(projectScope(id))).map(t => ({ ...t, scope: 'project' as const, projectName: p.name, hostId: v.hostId }))
+  let tasks = resolveTaskDeps(loadScopeTasks(projectScope(id))).map(t => named({ ...t, scope: 'project' as const, projectName: p.name, hostId: v.hostId }))
   if (filter.assignee) tasks = tasks.filter(t => t.assigneeAgentId === filter.assignee)
   if (filter.status) tasks = tasks.filter(t => t.status === filter.status)
   return { data: { project: v, tasks }, status: 200 }

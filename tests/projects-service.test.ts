@@ -328,3 +328,15 @@ describe('the assignee\'s side of a forwarded instruction', () => {
     expect(r.data).toMatchObject({ delivered: false, reason: 'Session alpha is not active' })
   })
 })
+
+describe('the assignee shown on a project card', () => {
+  it('an agent this host does not know is shown by the name it was given, or the start of its id', () => {
+    const p = project()
+    card(p.id, { subject: 'by name', assigneeAgentId: '23b-counsel' })
+    card(p.id, { subject: 'by id', assigneeAgentId: '343aef8a-b788-4cb6-b961-a51a9dc775b4' })
+    card(p.id, { subject: 'local', assigneeAgentId: 'a1' })
+    card(p.id, { subject: 'nobody' })
+    const by = Object.fromEntries(((listProjectTasks(p.id).data as any).tasks as any[]).map(t => [t.subject, t.assigneeName]))
+    expect(by).toEqual({ 'by name': '23b-counsel', 'by id': '343aef8a', local: 'alpha', nobody: undefined })
+  })
+})

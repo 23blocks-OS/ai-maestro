@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.85.4] - 2026-10-19 - Email bridge: a "company" class, labelled in the digest, never a wake
+
+### Added
+- `COMPANY_DOMAINS` in the email bridge: authenticated mail from a company domain (exact match, e.g. `3metas.com`) goes into the digest with its domain and subject, labelled, and never wakes an agent. A company address that fails authentication or has no authentication headers is `spoofed` (counted only), as for an operator. `TRUSTED_SENDERS` is now the wake class only (operator addresses). Proposed by Lola; Juan confirms before `SPLIT_MODE=on`. In `shadow` the log shows both classes. 79 tests.
+
 ## [0.85.3] - 2026-10-19 - The email bridge: wake on trusted mail, digest the rest
 
 ### Added

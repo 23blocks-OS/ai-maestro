@@ -463,87 +463,75 @@ describe('resolveTaskDeps', () => {
 // ============================================================================
 
 describe('wouldCreateCycle', () => {
-  it('detects a cycle through a 3-node chain (A blocks B blocks C, adding C->A)', () => {
-    // Dependency chain: C.blockedBy=[B], B.blockedBy=[A] -- meaning A blocks B blocks C
-    // wouldCreateCycle('team-1', 'c', 'a') walks from A through tasks it blocks:
-    //   A blocks B (because B.blockedBy includes A), B blocks C (because C.blockedBy includes B)
-    //   reaches taskId 'c' -> cycle detected
-    const tasks = [
-      makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
-      makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
-      makeTask({ id: 'c', teamId: 'team-1', blockedBy: ['b'] }),
-    ]
-    saveTasks('team-1', tasks)
+  // wouldCreateCycle(team, T, D) asks: if T waits on D, is there a loop?
+  // There is when D already waits on T, directly or through other cards.
+  const chain = () => saveTasks('team-1', [
+    makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
+    makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
+    makeTask({ id: 'c', teamId: 'team-1', blockedBy: ['b'] }),
+    makeTask({ id: 'd', teamId: 'team-1', blockedBy: ['c'] }),
+  ])
 
-    expect(wouldCreateCycle('team-1', 'c', 'a')).toBe(true)
+  it('detects a loop through a 3-card chain (c waits on b waits on a; a now waits on c)', () => {
+    chain()
+    expect(wouldCreateCycle('team-1', 'a', 'c')).toBe(true)
   })
 
-  it('detects a transitive cycle through a 4-node chain', () => {
-    // Chain: D.blockedBy=[C], C.blockedBy=[B], B.blockedBy=[A]
-    // Adding A as a dependency of D would create: A -> B -> C -> D -> A
-    const tasks = [
-      makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
-      makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
-      makeTask({ id: 'c', teamId: 'team-1', blockedBy: ['b'] }),
-      makeTask({ id: 'd', teamId: 'team-1', blockedBy: ['c'] }),
-    ]
-    saveTasks('team-1', tasks)
-
-    expect(wouldCreateCycle('team-1', 'd', 'a')).toBe(true)
+  it('detects a loop through a 4-card chain', () => {
+    chain()
+    expect(wouldCreateCycle('team-1', 'a', 'd')).toBe(true)
   })
 
-  it('detects a 2-node cycle (B depends on A, adding A depends on B)', () => {
-    // B.blockedBy=[A] -- A blocks B. If we add A.blockedBy=[B], that is A -> B -> A.
-    // wouldCreateCycle('team-1', 'a', 'b') walks from B: B blocks? nothing. Returns false.
-    // But wouldCreateCycle('team-1', taskId, depId) where the dep already blocks taskId
-    // through the existing chain DOES detect it via the blocks traversal.
-    // Here we check the reverse direction which the function handles:
-    // B.blockedBy=[A] means A blocks B. Checking wouldCreateCycle('team-1', 'b', 'a'):
-    //   hasCycle('a'): finds blockers of 'a' = tasks where blockedBy includes 'a' = [B]
-    //   hasCycle('b'): 'b' === taskId -> true
-    const tasks = [
+  it('detects a 2-card loop (b waits on a; a now waits on b)', () => {
+    saveTasks('team-1', [
       makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
       makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
-    ]
-    saveTasks('team-1', tasks)
-
-    // "Would adding A as a dependency of B create a cycle?" -- yes, B already depends on A
-    expect(wouldCreateCycle('team-1', 'b', 'a')).toBe(true)
+    ])
+    expect(wouldCreateCycle('team-1', 'a', 'b')).toBe(true)
   })
 
-  it('returns false when no cycle would be created', () => {
-    const tasks = [
+  it('does not flag a dependency the card already has (b waits on a, saved again)', () => {
+    saveTasks('team-1', [
       makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
-      makeTask({ id: 'b', teamId: 'team-1', blockedBy: [] }),
-    ]
-    saveTasks('team-1', tasks)
-
-    // A and B are independent; making B depend on A does not create a cycle
+      makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
+    ])
     expect(wouldCreateCycle('team-1', 'b', 'a')).toBe(false)
   })
 
-  it('returns false when dependency id does not exist in tasks', () => {
-    const tasks = [
-      makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
-    ]
-    saveTasks('team-1', tasks)
+  it('does not flag a longer way round to a card that already waits down the chain', () => {
+    chain()
+    expect(wouldCreateCycle('team-1', 'd', 'a')).toBe(false)
+  })
 
+  it('returns false for independent cards', () => {
+    saveTasks('team-1', [
+      makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
+      makeTask({ id: 'b', teamId: 'team-1', blockedBy: [] }),
+    ])
+    expect(wouldCreateCycle('team-1', 'b', 'a')).toBe(false)
+  })
+
+  it('returns false when the dependency id does not exist', () => {
+    saveTasks('team-1', [makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] })])
     expect(wouldCreateCycle('team-1', 'a', 'non-existent')).toBe(false)
   })
 
-  it('returns false for independent branches in a diamond graph', () => {
-    // Diamond: A blocks B and C independently. D depends on both B and C.
-    // Adding a dependency from B to C should be safe (no cycle).
-    const tasks = [
+  it('returns false in a diamond (b and c both wait on a; c now waits on b)', () => {
+    saveTasks('team-1', [
       makeTask({ id: 'a', teamId: 'team-1', blockedBy: [] }),
       makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
       makeTask({ id: 'c', teamId: 'team-1', blockedBy: ['a'] }),
       makeTask({ id: 'd', teamId: 'team-1', blockedBy: ['b', 'c'] }),
-    ]
-    saveTasks('team-1', tasks)
-
-    // Making C depend on B: C.blockedBy would add B. Walk from B:
-    //   B blocks D (D.blockedBy includes B). D blocks nothing. Never reaches C. Safe.
+    ])
     expect(wouldCreateCycle('team-1', 'c', 'b')).toBe(false)
+  })
+
+  it('terminates on data that already contains a loop', () => {
+    saveTasks('team-1', [
+      makeTask({ id: 'a', teamId: 'team-1', blockedBy: ['b'] }),
+      makeTask({ id: 'b', teamId: 'team-1', blockedBy: ['a'] }),
+      makeTask({ id: 'x', teamId: 'team-1', blockedBy: [] }),
+    ])
+    expect(wouldCreateCycle('team-1', 'x', 'a')).toBe(false)
   })
 })

@@ -8,6 +8,24 @@ interface MeetingMessage extends MessageSummary {
   displayFrom: string   // Resolved display name
 }
 
+export interface MeetingAgentDelivery {
+  agentId: string
+  name: string
+  hostId?: string
+  status: 'delivered' | 'failed'
+  notified: boolean
+  verified: boolean
+  deferred: boolean
+  error?: string
+}
+
+/** What happened to the last message sent: one row per agent */
+export interface MeetingDelivery {
+  message: string
+  sentAt: string
+  results: MeetingAgentDelivery[]
+}
+
 interface UseMeetingMessagesOptions {
   meetingId: string | null
   participantIds: string[]
@@ -20,6 +38,9 @@ interface UseMeetingMessagesResult {
   unreadCount: number
   sendToAgent: (agentId: string, message: string) => Promise<void>
   broadcastToAll: (message: string) => Promise<void>
+  lastDelivery: MeetingDelivery | null
+  retryFailed: () => Promise<void>
+  dismissDelivery: () => void
   markAsRead: () => void
   loading: boolean
 }
@@ -35,6 +56,7 @@ export function useMeetingMessages({
   const lastFetchRef = useRef<string | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const seenCountRef = useRef(0)
+  const [lastDelivery, setLastDelivery] = useState<MeetingDelivery | null>(null)
 
   // Stabilize participantIds — only change when the sorted list actually changes
   const participantKey = useMemo(() => [...participantIds].sort().join(','), [participantIds])
@@ -132,75 +154,65 @@ export function useMeetingMessages({
     setMessages(prev => [...prev, optimistic])
   }, [meetingId])
 
-  const sendToAgent = useCallback(async (agentId: string, message: string) => {
-    if (!meetingId) return
-    const pIds = stableParticipantIds.current
-    addOptimistic(message, agentId)
+  // One call to the server sends to everyone and answers per agent; a failure is shown, never swallowed
+  const post = useCallback(async (message: string, recipients?: string[]): Promise<MeetingDelivery> => {
+    const sentAt = new Date().toISOString()
     try {
-      await fetch('/api/messages', {
+      const res = await fetch(`/api/meetings/${encodeURIComponent(meetingId || '')}/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: 'maestro',
-          fromAlias: 'Maestro',
-          to: agentId,
-          subject: `[MEETING:${meetingId}] ${teamName}`,
-          content: {
-            type: 'notification',
-            message,
-            context: {
-              meeting: {
-                meetingId,
-                teamName,
-                participantIds: pIds,
-                isBroadcast: false,
-              },
-            },
-          },
-        }),
+        body: JSON.stringify({ message, participantIds: stableParticipantIds.current, teamName, recipients }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const reason = data?.message || `the server answered ${res.status}`
+        const ids = recipients || stableParticipantIds.current
+        return { message, sentAt, results: ids.map(agentId => ({ agentId, name: agentId.slice(0, 8), status: 'failed' as const, notified: false, verified: false, deferred: false, error: reason })) }
+      }
+      return { message, sentAt, results: data.results || [] }
     } catch (err) {
-      console.error('Failed to send message:', err)
+      const reason = err instanceof Error ? err.message : 'the request failed'
+      const ids = recipients || stableParticipantIds.current
+      return { message, sentAt, results: ids.map(agentId => ({ agentId, name: agentId.slice(0, 8), status: 'failed' as const, notified: false, verified: false, deferred: false, error: reason })) }
+    }
+  }, [meetingId, teamName])
+
+  const finish = useCallback((delivery: MeetingDelivery) => {
+    // Merge with a previous try of the same text: a retry replaces the failed rows, keeps the delivered ones
+    setLastDelivery(prev => {
+      if (!prev || prev.message !== delivery.message) return delivery
+      const retried = new Set(delivery.results.map(r => r.agentId))
+      return { ...delivery, results: [...prev.results.filter(r => !retried.has(r.agentId)), ...delivery.results] }
+    })
+    // Every send failed: nothing arrived, so the optimistic bubble would lie
+    if (delivery.results.length > 0 && delivery.results.every(r => r.status === 'failed')) {
+      setMessages(prev => prev.filter(m => !(m.id.startsWith('optimistic-') && m.preview === delivery.message)))
     }
     // Refresh after a short delay to let file I/O settle
     setTimeout(() => fetchMessages(), 300)
-  }, [meetingId, teamName, participantKey, fetchMessages, addOptimistic])
+  }, [fetchMessages])
+
+  const sendToAgent = useCallback(async (agentId: string, message: string) => {
+    if (!meetingId) return
+    addOptimistic(message, agentId)
+    finish(await post(message, [agentId]))
+  }, [meetingId, post, addOptimistic, finish])
 
   const broadcastToAll = useCallback(async (message: string) => {
     if (!meetingId) return
-    const pIds = stableParticipantIds.current
-    // Show one optimistic message for the broadcast (not N copies)
+    // One optimistic message for the broadcast (not N copies)
     addOptimistic(message)
-    // Send individual messages to each participant
-    await Promise.all(
-      pIds.map(agentId =>
-        fetch('/api/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from: 'maestro',
-            fromAlias: 'Maestro',
-            to: agentId,
-            subject: `[MEETING:${meetingId}] ${teamName}`,
-            content: {
-              type: 'notification',
-              message,
-              context: {
-                meeting: {
-                  meetingId,
-                  teamName,
-                  participantIds: pIds,
-                  isBroadcast: true,
-                },
-              },
-            },
-          }),
-        }).catch(err => console.error(`Failed to send to ${agentId}:`, err))
-      )
-    )
-    // Refresh after a short delay to let file I/O settle
-    setTimeout(() => fetchMessages(), 300)
-  }, [meetingId, teamName, participantKey, fetchMessages, addOptimistic])
+    finish(await post(message))
+  }, [meetingId, post, addOptimistic, finish])
+
+  const retryFailed = useCallback(async () => {
+    if (!meetingId || !lastDelivery) return
+    const failed = lastDelivery.results.filter(r => r.status === 'failed').map(r => r.agentId)
+    if (failed.length === 0) return
+    finish(await post(lastDelivery.message, failed))
+  }, [meetingId, lastDelivery, post, finish])
+
+  const dismissDelivery = useCallback(() => setLastDelivery(null), [])
 
   const markAsRead = useCallback(() => {
     seenCountRef.current = messages.length
@@ -213,6 +225,9 @@ export function useMeetingMessages({
     unreadCount,
     sendToAgent,
     broadcastToAll,
+    lastDelivery,
+    retryFailed,
+    dismissDelivery,
     markAsRead,
     loading,
   }

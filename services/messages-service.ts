@@ -35,7 +35,8 @@ import {
 import type { MessageSummary } from '@/lib/messageQueue'
 import { sendFromUI } from '@/lib/message-send'
 import { forwardFromUI } from '@/lib/message-send'
-import { searchAgents } from '@/lib/agent-registry'
+import { searchAgents, getAgent as getLocalAgent } from '@/lib/agent-registry'
+import { findPeerHostUrl } from '@/lib/owning-host'
 import { getSelfHostId, getSelfHost } from '@/lib/hosts-config'
 import {
   loadMeetings,
@@ -366,11 +367,13 @@ export interface GetMeetingMessagesParams {
   meetingId: string | null
   participants: string | null
   since: string | null
+  /** Set by a peer that already split the participants: answer for this host only, never forward */
+  local?: string | null
 }
 
 export async function getMeetingMessages(
   params: GetMeetingMessagesParams,
-): Promise<ServiceResult<{ meetingId: string; messages: MessageSummary[]; count: number }>> {
+): Promise<ServiceResult<{ meetingId: string; messages: MessageSummary[]; count: number; unreachable?: string[] }>> {
   const { meetingId, participants: participantsParam, since } = params
 
   if (!meetingId) {
@@ -381,8 +384,15 @@ export async function getMeetingMessages(
   }
 
   const participantIds = participantsParam.split(',').filter(Boolean)
+
+  // Participants this host does not hold live on a peer: ask the owning host for their side of the
+  // conversation, and say so when one cannot be reached (an empty list would look like silence).
+  const remoteIds = params.local ? [] : participantIds.filter(id => !getLocalAgent(id))
+  const localIds = participantIds.filter(id => !remoteIds.includes(id))
+  const remote = await fetchRemoteMeetingMessages(meetingId, remoteIds, since)
+
   // Include 'maestro' as a pseudo-participant
-  const allParticipants = [...new Set([...participantIds, 'maestro'])]
+  const allParticipants = [...new Set([...localIds, 'maestro'])]
 
   const seenIds = new Set<string>()
   const meetingMessages: MessageSummary[] = []
@@ -411,6 +421,12 @@ export async function getMeetingMessages(
     }
   }
 
+  for (const msg of remote.messages) {
+    if (seenIds.has(msg.id)) continue
+    seenIds.add(msg.id)
+    meetingMessages.push(msg)
+  }
+
   // Sort chronologically (oldest first for chat display)
   meetingMessages.sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
@@ -433,9 +449,42 @@ export async function getMeetingMessages(
       meetingId,
       messages: deduped,
       count: deduped.length,
+      ...(remote.unreachable.length > 0 ? { unreachable: remote.unreachable } : {}),
     },
     status: 200,
   }
+}
+
+/** The meeting messages of participants that live on other hosts, one request per owning host */
+async function fetchRemoteMeetingMessages(
+  meetingId: string,
+  remoteIds: string[],
+  since: string | null,
+): Promise<{ messages: MessageSummary[]; unreachable: string[] }> {
+  const out: MessageSummary[] = []
+  const unreachable: string[] = []
+  if (remoteIds.length === 0) return { messages: out, unreachable }
+
+  const byHost = new Map<string, string[]>()
+  await Promise.all(remoteIds.map(async (id) => {
+    const url = await findPeerHostUrl(id)
+    if (!url) { unreachable.push(id); return }
+    byHost.set(url, [...(byHost.get(url) || []), id])
+  }))
+
+  await Promise.all([...byHost.entries()].map(async ([url, ids]) => {
+    try {
+      const q = new URLSearchParams({ meetingId, participants: ids.join(','), local: '1' })
+      if (since) q.set('since', since)
+      const res = await fetch(`${url.replace(/\/$/, '')}/api/messages/meeting?${q}`, { signal: AbortSignal.timeout(5000) })
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
+      out.push(...((data.messages as MessageSummary[]) || []))
+    } catch {
+      unreachable.push(...ids)
+    }
+  }))
+  return { messages: out, unreachable }
 }
 
 // ---------------------------------------------------------------------------

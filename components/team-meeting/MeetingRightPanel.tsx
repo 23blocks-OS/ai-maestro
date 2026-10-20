@@ -5,7 +5,7 @@ import { X, ListTodo, MessageSquare, Maximize2 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import TaskPanel from './TaskPanel'
-import MeetingChatPanel from './MeetingChatPanel'
+import MeetingChatPanel, { type MeetingDeliveryProps } from './MeetingChatPanel'
 
 export type RightPanelTab = 'tasks' | 'chat'
 
@@ -27,6 +27,7 @@ interface MeetingRightPanelProps {
   chatUnreadCount: number
   onSendToAgent: (agentId: string, message: string) => Promise<void>
   onBroadcastToAll: (message: string) => Promise<void>
+  delivery?: MeetingDeliveryProps
   onMarkChatRead?: () => void
   onExpandChat?: () => void
   chatOverlayOpen?: boolean
@@ -49,6 +50,7 @@ export default function MeetingRightPanel({
   chatUnreadCount,
   onSendToAgent,
   onBroadcastToAll,
+  delivery,
   onMarkChatRead,
   onExpandChat,
   chatOverlayOpen,
@@ -150,6 +152,7 @@ export default function MeetingRightPanel({
             messages={chatMessages}
             onSendToAgent={onSendToAgent}
             onBroadcastToAll={onBroadcastToAll}
+            delivery={delivery}
           />
         )}
       </div>

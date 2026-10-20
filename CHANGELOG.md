@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.89.1] - 2026-10-20 - Meeting chat: one send to everyone, an answer for each agent, agents on other hosts included
+
+### Fixed
+- **A meeting message now reaches agents on other hosts.** The meeting chat used to send one request per agent from the browser, to this host only. An agent that lives on another host was not in this host's registry, so its message failed and nobody saw it. The server now sends to every participant at once (`POST /api/meetings/<id>/broadcast`) and posts to the host that owns each remote agent.
+- **A failed send is no longer silent.** The chat shows "Reached 3 of 5" under the box, names each agent that was not reached with the reason (not found on any host, the host cannot be reached, the host answered an error), and offers "Retry" for only those agents. Agents that got the message but are busy or offline are named as "waiting in the inbox". If every send failed, the "sent" bubble is taken back.
+- **Meeting history includes the other hosts.** Replies stored on a peer host are fetched from it and merged (`/api/messages/meeting`); a participant whose host cannot be reached is reported as `unreachable` instead of looking like silence.
+- **The "meeting is starting" notice** (`/api/teams/notify`) is handed to the host that owns a remote agent instead of answering "Agent not found".
+
+### Tests
+- `tests/meeting-broadcast.test.ts` (local and remote agents, an unknown agent, a failed local send, a host down, a host timing out without holding up the others, retry to named recipients, input limits), `tests/meeting-delivery-strip.test.ts` (what the strip says), and the notify cases in `tests/services/teams-service.test.ts`. Also run on a two-instance rig (a self host and a peer): delivery to the peer's inbox, the peer stopped, then a retry after it came back.
+
 ## [0.89.0] - 2026-10-20 - Organizations: records, a company label on cards, a default, and plugin commands
 
 ### Added

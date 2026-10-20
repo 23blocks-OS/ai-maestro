@@ -51,6 +51,8 @@ vi.mock('@/lib/task-registry', () => mockTasks)
 vi.mock('@/lib/document-registry', () => mockDocs)
 vi.mock('@/lib/agent-registry', () => mockAgentRegistry)
 vi.mock('@/lib/notification-service', () => mockNotificationService)
+const mockOwningHost = vi.hoisted(() => ({ findPeerHostUrl: vi.fn() }))
+vi.mock('@/lib/owning-host', () => mockOwningHost)
 
 // ============================================================================
 // Import module under test (after mocks)
@@ -804,13 +806,33 @@ describe('notifyTeamAgents', () => {
 
   it('handles agent not found gracefully', async () => {
     mockAgentRegistry.getAgent.mockReturnValue(null)
+    mockOwningHost.findPeerHostUrl.mockResolvedValue(undefined)
 
     const result = await notifyTeamAgents({ agentIds: ['nonexistent'], teamName: 'Team' })
 
     expect(result.status).toBe(200)
     expect((result.data as any)?.results[0]).toEqual(
-      expect.objectContaining({ agentId: 'nonexistent', success: false, reason: 'Agent not found' })
+      expect.objectContaining({ agentId: 'nonexistent', success: false, reason: 'Agent not found on any host' })
     )
+  })
+
+  it('hands an agent on another host to that host', async () => {
+    mockAgentRegistry.getAgent.mockReturnValue(null)
+    mockOwningHost.findPeerHostUrl.mockResolvedValue('http://peer.test:23000')
+    const calls: Array<{ url: string; body: any }> = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (url: any, init: any) => {
+      calls.push({ url: String(url), body: JSON.parse(init.body) })
+      return new Response(JSON.stringify({ results: [{ agentId: 'remote-1', success: true }] }), { status: 200 })
+    }) as typeof fetch
+    try {
+      const result = await notifyTeamAgents({ agentIds: ['remote-1'], teamName: 'Team' })
+      expect((result.data as any)?.results[0]).toEqual({ agentId: 'remote-1', success: true })
+      expect(calls[0].url).toBe('http://peer.test:23000/api/teams/notify')
+      expect(calls[0].body).toEqual({ agentIds: ['remote-1'], teamName: 'Team' })
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 
   it('handles partial failure (some agents not found)', async () => {

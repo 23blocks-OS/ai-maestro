@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     meetingId: searchParams.get('meetingId'),
     participants: searchParams.get('participants'),
     since: searchParams.get('since'),
+    local: searchParams.get('local'),
   })
   return toResponse(result)
 }

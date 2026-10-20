@@ -437,6 +437,12 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
     isActive: state.phase === 'active',
   })
 
+  const deliveryProps = {
+    lastDelivery: chatHook.lastDelivery,
+    retryFailed: chatHook.retryFailed,
+    dismissDelivery: chatHook.dismissDelivery,
+  }
+
   // Poll unread message counts per agent (every 10s)
   const [messageCountsByAgent, setMessageCountsByAgent] = useState<Record<string, number>>({})
   useEffect(() => {
@@ -632,6 +638,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
                   messages={chatHook.messages}
                   onSendToAgent={chatHook.sendToAgent}
                   onBroadcastToAll={chatHook.broadcastToAll}
+                  delivery={deliveryProps}
                   onClose={() => dispatch({ type: 'CLOSE_CHAT' })}
                 />
               ) : (
@@ -658,6 +665,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
                   chatUnreadCount={chatHook.unreadCount}
                   onSendToAgent={chatHook.sendToAgent}
                   onBroadcastToAll={chatHook.broadcastToAll}
+                  delivery={deliveryProps}
                   onMarkChatRead={chatHook.markAsRead}
                   onExpandChat={() => dispatch({ type: 'OPEN_CHAT' })}
                   chatOverlayOpen={state.chatOpen}

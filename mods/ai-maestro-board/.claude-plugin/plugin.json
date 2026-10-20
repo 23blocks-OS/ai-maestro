@@ -1,0 +1,31 @@
+{
+  "name": "ai-maestro-board",
+  "version": "0.1.0",
+  "description": "Shows an agent its own AI Maestro task board inside the terminal: a count in the status line and a /board command that lists the cards by column, with what each waits on and its Eisenhower quadrant. Read-only. Works with the AI Maestro server on the host, or from the board file when no server runs. Needs Claude Code 2.1.287 or later.",
+  "author": {
+    "name": "23blocks-OS",
+    "url": "https://github.com/23blocks-OS/ai-maestro"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "agentId": {
+      "type": "string",
+      "title": "Agent id",
+      "description": "Which agent's board to show. Leave empty inside AI Maestro (the session says who it is). Set it for an agent that runs outside AI Maestro, e.g. a lolabot: its AMP identity id.",
+      "default": ""
+    },
+    "apiUrl": {
+      "type": "string",
+      "title": "AI Maestro address",
+      "description": "Where the AI Maestro server of this host listens. Empty means http://localhost:23000 (or AIMAESTRO_API when that is set).",
+      "default": ""
+    },
+    "showStatus": {
+      "type": "boolean",
+      "title": "Show the count in the status line",
+      "description": "Adds e.g. 'board: 4 open, 1 waiting on you' to the status line.",
+      "default": true
+    }
+  }
+}

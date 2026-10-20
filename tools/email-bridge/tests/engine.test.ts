@@ -104,9 +104,9 @@ describe('digest (spec test 18, 20)', () => {
     expect(s.out.priority).toBe('normal')
     const text = s.out.message
     expect(text).toContain('[EMAIL digest] 4 new')
-    expect(text).toContain('none from trusted senders')
-    expect(text).toContain('Account box@example.com: 3 external, 1 suspicious (allowlisted sender failed authentication)')
-    expect(text).toContain('Top senders: shop.com (2), news.org (1)')
+    expect(text).toContain('none from the operator')
+    expect(text).toContain('Account box@example.com: 3 external, 1 suspicious (a company or operator address failed authentication)')
+    expect(text).toContain('Top external senders: shop.com (2), news.org (1)')
     expect(text).toContain('1. Sale')
     expect(text).toContain('Nothing here was opened beyond headers')
   })
@@ -294,5 +294,71 @@ describe('safety (spec tests 28-29)', () => {
     const client = new FakeClient(1, [mail({ uid: 101, from: 'x@shop.com' }), mail({ uid: 102, ar: [AR_FAIL] })])
     await run(client, undefined, undefined, config)
     expect(client.textFetches).toEqual([])
+  })
+})
+
+describe('the company class: labelled in the digest, never a wake', () => {
+  const company = (over = {}) => cfg({ TRUSTED_SENDERS: 'boss@acme.com', COMPANY_DOMAINS: 'acme.com,corp.example', ...over })
+  const hdr = (from: string, ar: string[]) => header({ from, ar })
+
+  it('an authenticated company-domain sender who is not an operator goes to the digest with its domain and subject, and wakes nobody', async () => {
+    const m = mail({ uid: 101, from: 'colleague@acme.com', subject: 'Lunch?', ar: [AR_PASS], rawHeader: hdr('colleague@acme.com', [AR_PASS]) })
+    const { sink, st, r } = await run(new FakeClient(1, [m]), undefined, undefined, company())
+    expect(sink.sent).toHaveLength(0)
+    expect(r.queued).toBe(1)
+    expect(st.pending[0]).toMatchObject({ cls: 'company', fromDomain: 'acme.com', subject: 'Lunch?' })
+  })
+
+  it('an operator address still wakes, even on a company domain', async () => {
+    const m = mail({ uid: 101, from: 'boss@acme.com' })
+    const { sink } = await run(new FakeClient(1, [m]), undefined, undefined, company())
+    expect(sink.sent).toHaveLength(1)
+    expect(sink.sent[0].out.subject.startsWith('Email (trusted):')).toBe(true)
+  })
+
+  it('a company sender that fails authentication is spoofed: counted only, nothing kept', async () => {
+    const m = mail({ uid: 101, from: 'colleague@acme.com', subject: 'Wire money', rawHeader: hdr('colleague@acme.com', [AR_FAIL]) })
+    const { st, sink } = await run(new FakeClient(1, [m]), undefined, undefined, company())
+    expect(sink.sent).toHaveLength(0)
+    expect(st.pending[0]).toMatchObject({ cls: 'spoofed', fromDomain: '', subject: '' })
+  })
+
+  it('a company sender with no authentication headers at all is spoofed too', async () => {
+    const m = mail({ uid: 101, from: 'colleague@acme.com', rawHeader: hdr('colleague@acme.com', []) })
+    const { st } = await run(new FakeClient(1, [m]), undefined, undefined, company())
+    expect(st.pending[0].cls).toBe('spoofed')
+  })
+
+  it('look-alike and sub-domains are external, not company', async () => {
+    const m1 = mail({ uid: 101, from: 'x@acme.com.evil.net', rawHeader: hdr('x@acme.com.evil.net', [AR_PASS]) })
+    const m2 = mail({ uid: 102, from: 'x@mail.acme.com', rawHeader: hdr('x@mail.acme.com', [AR_PASS]) })
+    const { st } = await run(new FakeClient(1, [m1, m2]), undefined, undefined, company())
+    expect(st.pending.map(p => p.cls)).toEqual(['external', 'external'])
+  })
+
+  it('the digest labels company mail and keeps it apart from external', async () => {
+    const st = freshState()
+    st.accounts['box@example.com'] = freshAccount({
+      pending: [
+        { uid: 1, cls: 'company', account: 'box@example.com', fromDomain: '3metas.com', subject: 'Plan', at: '' },
+        { uid: 2, cls: 'external', account: 'box@example.com', fromDomain: 'shop.com', subject: 'Sale', at: '' },
+        { uid: 3, cls: 'spoofed', account: 'box@example.com', fromDomain: '', subject: '', at: '' },
+      ],
+    })
+    const sink = new Sink()
+    await maybeSendDigest({ state: st, cfg: cfg(), notify: sink.notify, now: () => NOW, log: noLog, persist: () => {} })
+    const text = sink.sent[0].out.message
+    expect(text).toContain('1 from company domains, 1 external, 1 suspicious')
+    expect(text).toContain('Company mail (authenticated, sanitized, first 10):')
+    expect(text).toContain('1. [3metas.com] Plan')
+    expect(text).toContain('Top external senders: shop.com (1)')
+    expect(text.match(/suspicious/g)!.length).toBe(1)
+  })
+
+  it('shadow logs the company class so both classes show in the week of shadow', async () => {
+    const lines: string[] = []
+    const m = mail({ uid: 101, from: 'colleague@acme.com', rawHeader: hdr('colleague@acme.com', [AR_PASS]) })
+    await pollAccount({ account: 'box@example.com', client: new FakeClient(1, [m]), st: freshAccount({ uidValidity: 1, lastUid: 100 }), cfg: company({ SPLIT_MODE: 'shadow' }), notify: new Sink().notify, now: () => NOW, log: l => lines.push(l), persist: () => {} })
+    expect(lines.join('\n')).toContain('class=company domain=acme.com')
   })
 })

@@ -30,6 +30,10 @@ describe('config', () => {
     expect(() => parseDigestTimes(['8:00'])).toThrow('HH:MM')
     expect(() => parseDigestTimes(['25:00'])).toThrow('HH:MM')
   })
+  it('COMPANY_DOMAINS are bare, lower-case domains (a leading @ is accepted)', () => {
+    expect(loadConfig({ ...base, COMPANY_DOMAINS: ' 3Metas.com, @23blocks.com ,crabmail.ai' }).companyDomains).toEqual(['3metas.com', '23blocks.com', 'crabmail.ai'])
+    expect(loadConfig(base).companyDomains).toEqual([])
+  })
   it('lists are trimmed and the allowlist is lower-cased', () => {
     const c = loadConfig({ ...base, TRUSTED_SENDERS: ' Boss@Acme.com , @Acme.COM ,', AUTHSERV_ID: ' MX.Example.com ', DIGEST_TIMES: '18:00, 08:00' })
     expect(c.trustedSenders).toEqual(['boss@acme.com', '@acme.com'])

@@ -135,9 +135,9 @@ export async function pollAccount(d: PollDeps): Promise<PollResult> {
       }
       sent = await notify({ to: cfg.aimaestro.defaultRecipient, out: trustedNotification(msg, account, cfg.authservId, cfg.fieldMaxChars, body), email: emailMeta('trusted') })
     } else {
-      // external and spoofed wait for the digest. Nothing the sender wrote is kept for a spoofed mail.
+      // external, company and spoofed wait for the digest. Nothing the sender wrote is kept for a spoofed mail.
       const item: PendingItem = {
-        uid: msg.uid, cls: cls!.cls as 'external' | 'spoofed', account,
+        uid: msg.uid, cls: cls!.cls as 'external' | 'company' | 'spoofed', account,
         fromDomain: cls!.cls === 'spoofed' ? '' : domainOf(msg.fromAddress),
         subject: cls!.cls === 'spoofed' ? '' : sanitizeField(msg.subject, cfg.fieldMaxChars),
         at: d.now().toISOString(),

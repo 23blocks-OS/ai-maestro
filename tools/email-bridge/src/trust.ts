@@ -2,8 +2,9 @@
  * Who a mail is from, and whether the receiving server vouched for it.
  *
  * Three classes (see docs/EMAIL-BRIDGE-TRUST-SPLIT-SPEC.md):
- *   trusted  - the sender is on the allowlist AND our own mail server's authentication passed
- *   spoofed  - the sender is on the allowlist but authentication did not pass
+ *   trusted  - the sender is on the allowlist (operator addresses) AND our own mail server's authentication passed: wakes the agent
+ *   company  - the sender's domain is a company domain AND authentication passed: goes into the digest, labelled, never a wake
+ *   spoofed  - the sender claims the allowlist or a company domain but authentication did not pass
  *   external - everyone else
  *
  * Authentication is read ONLY from an Authentication-Results header that carries our server's
@@ -13,7 +14,7 @@
 
 import { getDomain } from 'tldts'
 
-export type TrustClass = 'trusted' | 'spoofed' | 'external'
+export type TrustClass = 'trusted' | 'company' | 'spoofed' | 'external'
 
 export interface Header { name: string; value: string }
 
@@ -134,11 +135,22 @@ export interface Classification {
   seenIds: string[]
 }
 
-export function classify(fromAddress: string, headers: Header[], cfg: { trustedSenders: string[]; authservId: string }): Classification {
+export function classify(
+  fromAddress: string,
+  headers: Header[],
+  cfg: { trustedSenders: string[]; authservId: string; companyDomains?: string[] }
+): Classification {
   const seenIds = seenAuthservIds(headers)
-  if (!onAllowlist(fromAddress, cfg.trustedSenders)) return { cls: 'external', reason: 'sender not on the allowlist', seenIds }
+  const operator = onAllowlist(fromAddress, cfg.trustedSenders)
+  const domain = fromAddress.includes('@') ? fromAddress.slice(fromAddress.lastIndexOf('@') + 1).toLowerCase() : ''
+  const company = !operator && /^[^@\s]+@[^@\s]+$/.test(fromAddress.trim()) && (cfg.companyDomains || []).includes(domain)
+  if (!operator && !company) return { cls: 'external', reason: 'sender not on the allowlist or a company domain', seenIds }
   const via = authenticated(ourAuthResults(headers, cfg.authservId), fromAddress)
-  if (via) return { cls: 'trusted', reason: `allowlisted and authenticated (${via})`, via, seenIds }
+  if (via) {
+    return operator
+      ? { cls: 'trusted', reason: `allowlisted and authenticated (${via})`, via, seenIds }
+      : { cls: 'company', reason: `company domain and authenticated (${via})`, via, seenIds }
+  }
   const why = !cfg.authservId ? 'AUTHSERV_ID is not set' : seenIds.includes(cfg.authservId) ? 'authentication did not pass' : 'no Authentication-Results from our server'
-  return { cls: 'spoofed', reason: `allowlisted but not authenticated (${why})`, seenIds }
+  return { cls: 'spoofed', reason: `${operator ? 'allowlisted' : 'company domain'} but not authenticated (${why})`, via: undefined, seenIds }
 }

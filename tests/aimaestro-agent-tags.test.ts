@@ -3,6 +3,7 @@ import http from 'http'
 import { spawn, execFileSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import type { AddressInfo } from 'net'
 
 // `aimaestro-agent.sh update --add-tag ... --add-tag ...` against a fake AI Maestro API. Reported from the
@@ -11,6 +12,9 @@ const script = path.join(__dirname, '../plugin/plugins/ai-maestro/scripts/aimaes
 const haveTools = (() => { try { execFileSync('jq', ['--version']); execFileSync('curl', ['--version']); return fs.existsSync(script) } catch { return false } })()
 
 const ID = 'b1359b9e-e79f-460a-918a-877359ee23aa'
+// The script sources common.sh from ~/.local/share/aimaestro/shell-helpers (installed by the installer);
+// give it a throwaway HOME that has the repo's copy, so the test does not depend on this machine.
+let fakeHome = ''
 let server: http.Server
 let base = ''
 let tags: string[] = []
@@ -33,12 +37,16 @@ beforeAll(async () => {
   })
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-agent-tags-'))
+  const helpers = path.join(fakeHome, '.local/share/aimaestro/shell-helpers')
+  fs.mkdirSync(helpers, { recursive: true })
+  fs.copyFileSync(path.join(__dirname, '../scripts/shell-helpers/common.sh'), path.join(helpers, 'common.sh'))
 })
-afterAll(() => { server?.close() })
+afterAll(() => { server?.close(); if (fakeHome) fs.rmSync(fakeHome, { recursive: true, force: true }) })
 
 function update(...args: string[]): Promise<{ code: number | null; out: string }> {
   return new Promise(resolve => {
-    const child = spawn('bash', [script, 'update', ID, ...args], { env: { ...process.env, AIMAESTRO_API_BASE: base, AIMAESTRO_API: base } })
+    const child = spawn('bash', [script, 'update', ID, ...args], { env: { ...process.env, HOME: fakeHome, AIMAESTRO_API_BASE: base, AIMAESTRO_API: base } })
     let out = ''
     child.stdout.on('data', d => { out += d })
     child.stderr.on('data', d => { out += d })

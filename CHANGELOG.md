@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.4] - 2026-10-20 - The approval card: tested against a forced card, and the 0.87.3 fix made safe
+
+### Fixed
+- **Reproduced the missing approval card, and proved the 0.87.3 cause.** In an isolated instance with a scripted agent (its own home and tmux), I forced a permission card and then let the transcript line arrive late, as it does in life. Before the fix the card vanished and never came back (until a reconnect). With the fix it stays.
+- **0.87.3 had a hole, found by the same test and fixed here.** When the agent was answered at the terminal while the hook file still said "permission request", the fix could bring a dead card back (after about 10 seconds, or at once on the next poll). The server now remembers the hook state that an assistant message cleared and only pushes it again while the pane still shows the menu. A new prompt rewrites the hook file, so it is not held back.
+- **No blink.** The live state is now pushed right behind the messages, so a card that is still on the pane does not flash off for a poll interval. Applies to both the desktop and the phone chat, since the fix is on the server.
+- Tests: source-level checks in `tests/permission-deadlock.test.ts` for the three behaviours. The live checks (late tool call, text-only message, answered at the terminal with a stale hook file for 30 seconds, a new prompt afterwards) ran in the isolated instance with a browser, not in CI.
+
 ## [0.87.3] - 2026-10-20 - The chat approval card comes back after the transcript catches up
 
 ### Fixed

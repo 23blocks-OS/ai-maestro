@@ -445,6 +445,7 @@ function broadcastHookState(sessionName, sessionState) {
   const workingDir = sessionState._hookStateWorkingDir
   if (!workingDir) return
   let state = readHookState(workingDir)
+  const hookJson = state ? JSON.stringify(state) : null
   // F038: no hook state for Copilot; show "working" while its event log has a turn open.
   if (!state && sessionState._copilotAgent && sessionState.jsonlFilePath &&
       copilotLiveStatusFromFile(sessionState.jsonlFilePath) === 'working') {
@@ -458,6 +459,14 @@ function broadcastHookState(sessionName, sessionState) {
   if (state?.status !== 'permission_request' || (grokKind && !state.options?.length)) {
     const fromPane = detectPermissionFromPane(sessionName, sessionState._program)
     if (fromPane) state = fromPane
+  }
+  // The hook state that an assistant message already cleared is stale unless the pane still shows the menu
+  if (state?.status === 'permission_request' && hookJson && hookJson === sessionState._clearedHookJson) {
+    if (isAgentAtPermissionPrompt(sessionName, sessionState._program)) {
+      sessionState._clearedHookJson = null
+    } else {
+      state = null
+    }
   }
   // Remember permission_request states so we can serve them on history re-requests
   if (state?.status === 'permission_request') {
@@ -527,6 +536,7 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
     const messages = parseJsonlLines(lines, 50)
     if (messages.length === 0) return
 
+    let reassertPermission = false
     // Clear stored permission when assistant responds (permission cycle is over)
     // The browser drops its permission card on the same event (ChatView clears hookState
     // when an assistant message arrives). If the card was already pushed, the "changed?"
@@ -536,6 +546,12 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
     if (messages.some(m => m.type === 'assistant') && sessionState._lastPermission) {
       sessionState._lastPermission = null
       sessionState._lastHookState = null
+      // The hook file can lag behind the agent (answered at the terminal, hook not yet
+      // rewritten). Remember the hook state we cleared on: it only comes back while the pane
+      // still shows the menu. A new prompt rewrites the file, so it is not held back.
+      const cleared = sessionState._hookStateWorkingDir ? readHookState(sessionState._hookStateWorkingDir) : null
+      sessionState._clearedHookJson = cleared ? JSON.stringify(cleared) : null
+      reassertPermission = true
     }
 
     // Clear activity indicator when new messages arrive (tool completed, response started)
@@ -556,6 +572,8 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
       }
     })
     console.log(`[Chat] Broadcast ${messages.length} messages to ${sentCount}/${sessionState.chatClients.size} clients for ${sessionName}`)
+    // Right behind the messages, so a card that is still on screen at the agent does not blink off
+    if (reassertPermission) broadcastHookState(sessionName, sessionState)
 
     // When tool_use messages appear, permission prompts follow shortly after.
     // Schedule rapid hookState reads to catch them before the file watcher's next poll.

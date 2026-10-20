@@ -12,8 +12,10 @@
 
 import {
   agentScope, teamScope, loadScopeTasks, createScopeTask, getScopeTask, updateScopeTask, deleteScopeTask,
-  wouldCreateScopeCycle, addScopeComment, markCommentDelivered, resolveTaskDeps, isSafeScopeId,
+  wouldCreateScopeCycle, addScopeComment, markCommentDelivered, resolveTaskDeps, isSafeScopeId, projectScope,
 } from '@/lib/task-registry'
+import { getProject, loadProjects } from '@/lib/project-registry'
+import { getHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { loadTeams, getTeam } from '@/lib/team-registry'
 import { injectMeetingPrompt } from '@/services/agents-chat-service'
@@ -48,6 +50,16 @@ function checkPlacement(params: TaskParams): ServiceResult<never> | null {
     if (v !== undefined && v !== null && typeof v !== 'boolean') return invalidField(key, `${key} must be true, false or null`)
   }
   return null
+}
+
+/**
+ * Who a card can be assigned to. On an agent's own board and on a team's board that is an agent this host knows.
+ * On a project board it is any agent on any host (the project is stored on its owner's host, its cards are
+ * for whoever does the work), so only the form of the id or name is checked.
+ */
+function assigneeOk(scope: TaskScope, id: string): boolean {
+  if (scope.kind === 'project') return /^[A-Za-z0-9][A-Za-z0-9._@-]{0,99}$/.test(id)
+  return !!getAgent(id)
 }
 
 /** An agent a card can wait on: an id or a name, any host (the mesh knows agents this host does not). */
@@ -153,6 +165,13 @@ export function getOpenTasks(filter: { quadrant?: string; waitingOn?: string; ag
       }
     }
   }
+  for (const project of loadProjects()) {
+    for (const t of resolved(loadScopeTasks(projectScope(project.id)))) {
+      if (t.status !== 'completed' && t.assigneeAgentId) {
+        cards.push({ ...t, scope: 'project', projectName: project.name, hostId: getSelfHostId(), agentId: t.assigneeAgentId, agentName: nameOf(t.assigneeAgentId) })
+      }
+    }
+  }
   let out = byQuadrant(cards, filter.quadrant)
   if (filter.waitingOn) out = out.filter(c => c.status === 'waiting' && c.waitingOn === filter.waitingOn)
   if (filter.agent) out = out.filter(c => c.agentId === filter.agent || c.agentName === filter.agent)
@@ -173,7 +192,7 @@ export function createInScope(scope: TaskScope, params: TaskParams, guard?: () =
   if (params.blockedBy !== undefined && (!Array.isArray(params.blockedBy) || params.blockedBy.some(b => typeof b !== 'string'))) {
     return invalidField('blockedBy', 'blockedBy must be an array of task ID strings')
   }
-  if (params.assigneeAgentId && !getAgent(params.assigneeAgentId)) return invalidField('assigneeAgentId', 'Unknown agent')
+  if (params.assigneeAgentId && !assigneeOk(scope, params.assigneeAgentId)) return invalidField('assigneeAgentId', scope.kind === 'project' ? 'assigneeAgentId must be an agent id or name' : 'Unknown agent')
   if (params.status && !STATUSES.includes(params.status as TaskStatus)) return invalidField('status', `status must be one of ${STATUSES.join(', ')}`)
   const w = checkWaiting(params.status, params.waitingOn)
   if (w) return w
@@ -213,7 +232,7 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
   const existing = getScopeTask(scope, taskId)
   if (!existing) return notFound('Task', taskId)
   if (params.status !== undefined && !STATUSES.includes(params.status as TaskStatus)) return invalidField('status', `status must be one of ${STATUSES.join(', ')}`)
-  if (params.assigneeAgentId && !getAgent(params.assigneeAgentId)) return invalidField('assigneeAgentId', 'Unknown agent')
+  if (params.assigneeAgentId && !assigneeOk(scope, params.assigneeAgentId)) return invalidField('assigneeAgentId', scope.kind === 'project' ? 'assigneeAgentId must be an agent id or name' : 'Unknown agent')
   if (params.blockedBy !== undefined) {
     if (!Array.isArray(params.blockedBy) || params.blockedBy.some(b => typeof b !== 'string')) return invalidField('blockedBy', 'blockedBy must contain only string task IDs')
     for (const dep of params.blockedBy) {
@@ -259,9 +278,49 @@ export interface CommentParams {
   deliver?: boolean
 }
 
-function envelope(task: Task, comment: TaskComment, authorLabel: string): string {
+function envelope(task: Task, comment: TaskComment, authorLabel: string, where?: string): string {
   const when = new Date(comment.createdAt).toISOString().replace('T', ' ').slice(0, 16)
-  return `[TASK ${task.id.slice(0, 8)}] ${clean(task.subject).replace(/\s+/g, ' ').slice(0, 120)} - instruction from ${authorLabel} (AI Maestro board, ${when} UTC): ${comment.text}`
+  return `[TASK ${task.id.slice(0, 8)}] ${clean(task.subject).replace(/\s+/g, ' ').slice(0, 120)} - instruction from ${authorLabel} (AI Maestro board${where ? `, ${where}` : ''}, ${when} UTC): ${comment.text}`
+}
+
+/**
+ * Hand an instruction to an agent that lives on ANOTHER host. A project card can be assigned to any agent
+ * on any host, but the comment is written on the project's host, which only knows its own agents: ask each
+ * peer host whose agent it is, and stop at the first that takes it. Nothing is invented: if no host answers
+ * for the agent the comment stays "not sent" and can be retried.
+ */
+export async function forwardInstruction(
+  assignee: string, text: string, fetchImpl: typeof fetch = fetch
+): Promise<{ ok: boolean; reason?: string }> {
+  const peers = getHosts().filter(h => !isSelf(h.id) && h.enabled !== false && h.url)
+  let reason = 'No host I can reach knows this agent'
+  for (const host of peers) {
+    try {
+      const res = await fetchImpl(`${host.url.replace(/\/$/, '')}/api/agents/${encodeURIComponent(assignee)}/task-instruction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (res.status === 404) continue // not this host's agent
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data?.delivered) return { ok: true }
+      reason = `${host.name || host.id}: ${data?.reason || data?.message || `HTTP ${res.status}`}`
+    } catch (error) {
+      reason = `${host.name || host.id} did not answer (${error instanceof Error ? error.message : 'error'})`
+    }
+  }
+  return { ok: false, reason }
+}
+
+/** The assignee's side of a forwarded instruction: type it into the agent's session on this host. */
+export async function receiveInstruction(agentId: string, body: { text?: unknown }): Promise<ServiceResult<{ delivered: boolean; reason?: string }>> {
+  if (!getAgent(agentId)) return notFound('Agent', agentId)
+  if (typeof body.text !== 'string' || !body.text.trim()) return missingField('text')
+  const result = await injectMeetingPrompt({ agentId, injection: clean(body.text) })
+  if (result.status >= 200 && result.status < 300) return { data: { delivered: true }, status: 200 }
+  const reason = (result.data as { message?: string; error?: string } | undefined)?.message || (result.data as { error?: string } | undefined)?.error || 'The agent could not take it'
+  return { data: { delivered: false, reason }, status: 200 }
 }
 
 /**
@@ -274,7 +333,18 @@ export async function deliverComment(scope: TaskScope, taskId: string, commentId
   if (!task || !comment) return notFound('Comment', commentId)
   if (comment.author.kind !== 'operator') return invalidRequest('Only operator comments are sent to the agent')
   if (!task.assigneeAgentId) return { data: { delivered: false, reason: 'No one is assigned to this card yet' }, status: 200 }
-  const result = await injectMeetingPrompt({ agentId: task.assigneeAgentId, injection: envelope(task, comment, 'the operator') })
+  const where = scope.kind === 'project' ? `project ${clean(getProject(scope.id)?.name || scope.id).slice(0, 60)}` : undefined
+  const text = envelope(task, comment, 'the operator', where)
+  // A project card may be assigned to an agent on another host: this host then hands the text to that host
+  if (scope.kind === 'project' && !getAgent(task.assigneeAgentId)) {
+    const fwd = await forwardInstruction(task.assigneeAgentId, text)
+    if (fwd.ok) {
+      markCommentDelivered(scope, taskId, commentId)
+      return { data: { delivered: true }, status: 200 }
+    }
+    return { data: { delivered: false, reason: fwd.reason }, status: 200 }
+  }
+  const result = await injectMeetingPrompt({ agentId: task.assigneeAgentId, injection: text })
   if (result.status >= 200 && result.status < 300) {
     markCommentDelivered(scope, taskId, commentId)
     return { data: { delivered: true }, status: 200 }
@@ -346,6 +416,10 @@ export function getTaskSummary(): ServiceResult<{ agents: Record<string, TaskCou
   }
   for (const team of loadTeams()) {
     for (const t of loadScopeTasks(teamScope(team.id))) add(t.assigneeAgentId, t)
+  }
+  // Project cards held on this host count for their assignee, wherever that agent lives; the browser adds the hosts up
+  for (const project of loadProjects()) {
+    for (const t of loadScopeTasks(projectScope(project.id))) add(t.assigneeAgentId, t)
   }
   return { data: { agents: out }, status: 200 }
 }

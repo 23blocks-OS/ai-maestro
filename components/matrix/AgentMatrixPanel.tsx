@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAgentBoard } from '@/hooks/useAgentBoard'
+import { useHosts } from '@/hooks/useHosts'
 import MatrixView, { type MatrixCard } from '@/components/matrix/MatrixView'
 import TaskDetailModal from '@/components/matrix/TaskDetailModal'
 import { QUADRANTS, type Quadrant } from '@/types/task'
@@ -12,7 +13,8 @@ import type { Agent } from '@/types/agent'
  * (own + team cards assigned to it), read from the agent's own host; placing a card changes the same two fields.
  */
 export default function AgentMatrixPanel({ agent, agents, hostUrl }: { agent: Agent; agents: Agent[]; hostUrl: string }) {
-  const { tasks, error, loading, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl)
+  const { hosts } = useHosts()
+  const { tasks, error, loading, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const open = tasks.filter(t => t.status !== 'completed')
   const selected = selectedId ? open.find(t => t.id === selectedId) || null : null

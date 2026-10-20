@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.0] - 2026-10-19 - Projects: work that crosses agents and teams
+
+### Added
+- **Projects**, the third place a card can live (after an agent's own board and a team's). A project is a named piece of work with an **owner agent**, a **status** (active, paused, done) and its own board; a card in it can be **for any agent on any host**. It is stored on the owner's host (`~/.aimaestro/projects/<id>/`) and addressed as `<hostId>:<projectId>`.
+  - **Projects page** (indigo "Projects" link in the header, `/projects`): every project on every host, a form to start one (name, description, the host that stores it, an owner from that host's agents), the project's board (the same six columns, quadrant badges, waiting, comments), its status and delete. A host that is down is named, not silently empty.
+  - **On the agent's own tabs:** the project cards assigned to an agent appear on its **Board** and **Matrix** tabs, labelled "project: <name>", from whichever host stores the project; the agent list's open-card count includes them (added up across hosts). The mesh Matrix and `GET /api/tasks` include them too.
+  - **An instruction on a project card reaches the assignee on whichever host it lives:** the project's host types it into the agent's session if the agent is its own, otherwise it asks each other host (`POST /api/agents/:id/task-instruction`) and the first that knows the agent takes it. If no host can be reached the comment stays "not sent" with the reason and a Retry. The text names the project: `[TASK ...] ... (AI Maestro board, project <name>, ...)`.
+  - A card's assignee can be an agent this host has never heard of (it is stored as the id or name given and shown by it); an agent's own board and a team's still require an agent the host knows.
+- API (also headless): `GET|POST /api/projects` (`?assignee=<agentId>`: the projects with cards for that agent, and those cards), `GET|PATCH|PUT|DELETE /api/projects/:id`, `GET|POST /api/projects/:id/tasks`, `PATCH|PUT|DELETE /api/projects/:id/tasks/:taskId`, `POST .../comments[/:commentId]`, `POST /api/agents/:id/task-instruction`.
+- **Plugin 1.14.0**: `aimaestro-task.sh project add|list|show`, `add "..." --project <hostId:projectId> [--assign <agent>]`, `list --project`, and the project cards assigned to you in `list`, `show` and every card verb (each call goes to the project's own host). 16 command tests against a fake two-host mesh; the skill says how.
+
+### Fixed
+- The card detail showed "Unassigned" for a card assigned to an agent the dashboard does not list; it now shows who it is for.
+- `ChatView` threw "Cannot read properties of null (reading 'send')" from its keep-alive ping when the socket had just gone (seen in the dev overlay); the ping now takes one reference and cannot throw.
+
+### Not changed or not checked
+- Tried in a browser on an isolated, single-host instance: the Projects page (list, create, board), a project card on its assignee's Board, an instruction to a local agent (it reached the pane) and to an agent no host could reach (kept "not sent", with Retry), the agent-list count. **Not tried: a real second host.** The forwarding between hosts is tested with a fake network (the first host that does not know the agent answers 404, the next takes it, a host that is down is named), not between two real AI Maestro hosts.
+- The board mod does not show project cards yet. The project's owner cannot be moved to an agent on another host (the project is stored where its owner lives).
+- **Found, not fixed:** `wouldCreateCycle` (card dependencies) walks the graph the wrong way: it flags a dependency that already exists and misses a real two-card loop (`a` blocked by `b` and `b` blocked by `a`). Its own tests encode that behaviour, so fixing it changes them.
+
 ## [0.86.1] - 2026-10-19 - A board mod: an agent sees its own board in the terminal
 
 ### Added

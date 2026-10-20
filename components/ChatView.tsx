@@ -493,14 +493,17 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     if (!isActive) return
 
     const interval = setInterval(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
+      // One reference for the whole tick: the socket can be replaced or cleared by a reconnect, and a ping
+      // must never throw on a socket that has just gone
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
         // If no pong received in 45s, connection is dead — force reconnect
         if (Date.now() - lastPongRef.current > 45000) {
           console.log('[ChatView] No pong in 45s — forcing reconnect')
-          wsRef.current.close() // triggers onclose → reconnect
+          ws.close() // triggers onclose → reconnect
           return
         }
-        wsRef.current.send(JSON.stringify({ type: 'ping' }))
+        try { ws.send(JSON.stringify({ type: 'ping' })) } catch { /* closed between the check and the send: the reconnect handles it */ }
       }
     }, 15000)
 

@@ -136,8 +136,12 @@ import {
 } from '@/services/agents-skills-service'
 import {
   listAgentTasks, getOpenTasks, createAgentTask, updateAgentTask, deleteAgentTask, getAgentBoard, getTaskSummary,
-  addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment, retryTeamTaskComment,
+  addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment, retryTeamTaskComment, receiveInstruction,
 } from '@/services/agent-tasks-service'
+import {
+  listProjects, createProject, getProjectById, updateProject, deleteProject, listProjectTasks, createProjectTask,
+  updateProjectTask, deleteProjectTask, addProjectTaskComment, retryProjectTaskComment,
+} from '@/services/projects-service'
 
 import {
   getSubconsciousStatus as getAgentSubconsciousStatus,
@@ -1622,6 +1626,56 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/tasks$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, getOpenTasks({ quadrant: query.quadrant || undefined, waitingOn: query.waitingOn || undefined, agent: query.agent || undefined }))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/task-instruction$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await receiveInstruction(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/projects$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, listProjects({ assignee: query.assignee || undefined }))
+  }},
+  { method: 'POST', pattern: /^\/api\/projects$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, createProject(body))
+  }},
+  { method: 'POST', pattern: /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/comments\/([^/]+)$/, paramNames: ['id', 'taskId', 'commentId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await retryProjectTaskComment(params.id, params.taskId, params.commentId))
+  }},
+  { method: 'POST', pattern: /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/comments$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await addProjectTaskComment(params.id, params.taskId, body))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateProjectTask(params.id, params.taskId, body))
+  }},
+  { method: 'PUT', pattern: /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateProjectTask(params.id, params.taskId, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, deleteProjectTask(params.id, params.taskId))
+  }},
+  { method: 'GET', pattern: /^\/api\/projects\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, listProjectTasks(params.id, { assignee: query.assignee || undefined, status: query.status || undefined }))
+  }},
+  { method: 'POST', pattern: /^\/api\/projects\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, createProjectTask(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/projects\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getProjectById(params.id))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/projects\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateProject(params.id, body))
+  }},
+  { method: 'PUT', pattern: /^\/api\/projects\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updateProject(params.id, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/projects\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, deleteProject(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())

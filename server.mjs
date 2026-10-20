@@ -587,7 +587,8 @@ function broadcastJsonlUpdates(sessionName, sessionState) {
 
     // When tool_use messages appear, permission prompts follow shortly after.
     // Schedule rapid hookState reads to catch them before the file watcher's next poll.
-    const hasToolUse = lines.some(l => l.includes('"tool_use"'))
+    // Copilot's events.jsonl has no "tool_use": it writes toolRequests and permission.requested
+    const hasToolUse = lines.some(l => l.includes('"tool_use"') || l.includes('"toolRequests"') || l.includes('permission.requested'))
     if (hasToolUse && sessionState._hookStateWorkingDir) {
       for (const delay of [200, 600, 1200, 2000, 3500]) {
         setTimeout(() => broadcastHookState(sessionName, sessionState), delay)

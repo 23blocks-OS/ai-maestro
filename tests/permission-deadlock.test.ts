@@ -128,3 +128,11 @@ describe('the approval card is pushed again after an assistant message clears it
     expect(jsonlBroadcast).toMatch(/waiting_for_input/)
   })
 })
+
+describe('Copilot agents get the same quick re-check after a tool call', () => {
+  it('treats toolRequests / permission.requested lines like a tool_use', () => {
+    const jsonl = server.slice(server.indexOf('function broadcastJsonlUpdates('), server.indexOf('function cleanupSession('))
+    expect(jsonl).toContain("'\"toolRequests\"'")
+    expect(jsonl).toContain("'permission.requested'")
+  })
+})

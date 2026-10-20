@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.87.5] - 2026-10-20 - Copilot chat fixes from the issue tracker, repeatable tag flags (plugin 1.14.1)
+
+### Fixed
+- **Copilot CLI: a multi-line chat message was delivered twice (#626, reported by JakubRichtr).** Copilot draws a right-hand border on every line and a right-aligned time on the first line of a prompt echo, so a multi-line message never read back as contiguous text; the pane check said "never submitted" and pasted it again. The readback now also compares against the pane with that per-line chrome removed. The plain comparison still goes first, so Claude and the other programs behave as before. Tests: a multi-line echo counts as submitted; text not on the pane and text staged in the input box still do not.
+- **Copilot CLI: the approval card missing until a tab switch (#625, reported by JakubRichtr).** The cause the reporter described is the one fixed in 0.87.3 and 0.87.4 (the server's "changed?" cache swallowed the card after the browser dropped it). What those did not cover: the quick re-check after a tool call looked only for `"tool_use"`, which Copilot's events file never contains. It now also fires on `toolRequests` and `permission.requested`.
+- **`aimaestro-agent.sh update --add-tag a --add-tag b` kept only the last tag (reported by Lola, found while the HRs were tagging agents).** Repeated `--add-tag` and `--remove-tag` flags now all apply, a tag with a space or a colon stays one tag, and the help says so (plugin 1.14.1). `tests/aimaestro-agent-tags.test.ts` runs the script against a fake API; 3 of its 5 cases fail on the old script.
+- **`aimaestro-agent.sh` ended every run on macOS's `/bin/bash` 3.2 with `_TEMP_FILES[@]: unbound variable` and a non-zero exit.** An empty array under `set -u` is an error in that bash; the cleanup handler now guards it.
+
+### Not done (answered on the issues)
+- #627 (Copilot conversations are not indexed for long-term memory) and #555 (a sandboxed Codex agent cannot write another agent's AMP inbox) are real and larger; they stay open with a note on what each needs.
+
 ## [0.87.4] - 2026-10-20 - The approval card: tested against a forced card, and the 0.87.3 fix made safe
 
 ### Fixed

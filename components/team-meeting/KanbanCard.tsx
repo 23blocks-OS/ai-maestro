@@ -78,6 +78,12 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           </span>
         )}
 
+        {task.quadrant && (
+          <span className="text-[10px] font-semibold text-blue-300/90 bg-blue-500/10 rounded px-1 flex-shrink-0" title="Eisenhower quadrant" data-testid="quadrant-badge">
+            {task.quadrant.toUpperCase()}
+          </span>
+        )}
+
         {task.scope && task.scope !== 'agent' && (
           <span className="text-[10px] text-sky-400/80 truncate max-w-[40%]" title={task.teamName}>
             {task.scope === 'team' ? `team: ${task.teamName || ''}` : task.scope}

@@ -11,6 +11,25 @@ export type TaskStatus = 'backlog' | 'pending' | 'in_progress' | 'review' | 'wai
 /** Who a `waiting` card waits on: the operator, another agent (by id), someone outside, or "hold" (paused on purpose). */
 export type WaitingOn = 'juan' | 'outside' | 'hold' | (string & {})
 
+/** Eisenhower quadrants: urgent + important = q1 (do first), important only = q2 (schedule), urgent only = q3 (delegate), neither = q4 (delete) */
+export type Quadrant = 'q1' | 'q2' | 'q3' | 'q4'
+
+export const QUADRANTS: Record<Quadrant, { label: string; urgent: boolean; important: boolean }> = {
+  q1: { label: 'Do first', urgent: true, important: true },
+  q2: { label: 'Schedule', urgent: false, important: true },
+  q3: { label: 'Delegate', urgent: true, important: false },
+  q4: { label: 'Delete', urgent: false, important: false },
+}
+
+/**
+ * The quadrant of a card, derived and never stored. Only when BOTH answers are given: false/false is
+ * a real placement (q4), so a card with a missing answer is "not placed" (null), not q4.
+ */
+export function quadrantOf(t: { urgent?: boolean | null; important?: boolean | null }): Quadrant | null {
+  if (typeof t.urgent !== 'boolean' || typeof t.important !== 'boolean') return null
+  return t.urgent ? (t.important ? 'q1' : 'q3') : (t.important ? 'q2' : 'q4')
+}
+
 export type TaskScopeKind = 'agent' | 'team' | 'project'
 export interface TaskScope { kind: TaskScopeKind; id: string }
 
@@ -37,6 +56,9 @@ export interface Task {
   priority?: number              // 0=highest (optional ordering)
   waitingOn?: WaitingOn          // Required while status is 'waiting'
   waitingNote?: string
+  /** true / false when placed, null or missing when not placed yet */
+  urgent?: boolean | null
+  important?: boolean | null
   comments?: TaskComment[]
   createdAt: string
   updatedAt: string
@@ -50,6 +72,8 @@ export interface TaskWithDeps extends Task {
   assigneeName?: string          // Resolved agent display name
   scope?: 'agent' | 'team' | 'project'  // Which board the card lives on (set on an agent's board)
   teamName?: string
+  /** Derived from urgent and important; null when not placed */
+  quadrant?: Quadrant | null
 }
 
 export interface TasksFile {

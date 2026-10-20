@@ -21,7 +21,7 @@ import {
   type ServiceResult, missingField, notFound, invalidField, operationFailed, invalidRequest,
   circularDependency, selfReference,
 } from '@/services/service-errors'
-import type { Task, TaskComment, TaskScope, TaskStatus, TaskWithDeps, WaitingOn } from '@/types/task'
+import { quadrantOf, type Quadrant, type Task, type TaskComment, type TaskScope, type TaskStatus, type TaskWithDeps, type WaitingOn } from '@/types/task'
 
 const STATUSES: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'waiting', 'completed']
 const WAITING_FIXED = ['juan', 'outside', 'hold']
@@ -36,6 +36,18 @@ export interface TaskParams {
   priority?: number
   waitingOn?: string
   waitingNote?: string
+  /** true, false, or null to clear (not placed) */
+  urgent?: boolean | null
+  important?: boolean | null
+}
+
+/** urgent and important are true, false, or null (= not placed); anything else is a mistake, not "false" */
+function checkPlacement(params: TaskParams): ServiceResult<never> | null {
+  for (const key of ['urgent', 'important'] as const) {
+    const v = params[key]
+    if (v !== undefined && v !== null && typeof v !== 'boolean') return invalidField(key, `${key} must be true, false or null`)
+  }
+  return null
 }
 
 /** An agent a card can wait on: an id or a name, any host (the mesh knows agents this host does not). */
@@ -91,13 +103,60 @@ export function getAgentBoard(agentId: string): ServiceResult<{ cards: BoardCard
   return { data: { cards }, status: 200 }
 }
 
-export function listAgentTasks(agentId: string, filter: { status?: string; waitingOn?: string } = {}): ServiceResult<{ tasks: TaskWithDeps[] }> {
+const QUADRANT_FILTERS = ['q1', 'q2', 'q3', 'q4', 'unplaced']
+
+function byQuadrant<T extends { quadrant?: Quadrant | null }>(tasks: T[], quadrant?: string): T[] {
+  if (!quadrant) return tasks
+  return tasks.filter(t => (quadrant === 'unplaced' ? !t.quadrant : t.quadrant === quadrant))
+}
+
+export function listAgentTasks(agentId: string, filter: { status?: string; waitingOn?: string; quadrant?: string } = {}): ServiceResult<{ tasks: TaskWithDeps[] }> {
   const agent = getAgent(agentId)
   if (!agent) return notFound('Agent', agentId)
+  if (filter.quadrant && !QUADRANT_FILTERS.includes(filter.quadrant)) return invalidField('quadrant', `quadrant must be one of ${QUADRANT_FILTERS.join(', ')}`)
   let tasks = resolved(loadScopeTasks(agentScope(agentId)))
   if (filter.status) tasks = tasks.filter(t => t.status === filter.status)
   if (filter.waitingOn) tasks = tasks.filter(t => t.status === 'waiting' && t.waitingOn === filter.waitingOn)
+  tasks = byQuadrant(tasks, filter.quadrant)
   return { data: { tasks }, status: 200 }
+}
+
+// ── Host-wide read: every open card on this host ────────────────────────────
+
+export interface OpenCard extends TaskWithDeps {
+  /** The agent the card is for: its owner, or the assignee of a team card */
+  agentId: string
+  agentName: string
+}
+
+/**
+ * Open (not completed) cards across every agent and team on this host: the one read the mesh-wide
+ * Matrix and the "Waiting on Juan" filter fan out over. Each host answers for what it holds.
+ */
+export function getOpenTasks(filter: { quadrant?: string; waitingOn?: string; agent?: string } = {}): ServiceResult<{ cards: OpenCard[] }> {
+  if (filter.quadrant && !QUADRANT_FILTERS.includes(filter.quadrant)) return invalidField('quadrant', `quadrant must be one of ${QUADRANT_FILTERS.join(', ')}`)
+  const agents = loadAgents()
+  const nameOf = (id: string) => {
+    const a = agents.find(x => x.id === id)
+    return a ? (a.label || a.name || a.alias || id.slice(0, 8)) : id.slice(0, 8)
+  }
+  const cards: OpenCard[] = []
+  for (const a of agents) {
+    for (const t of resolved(loadScopeTasks(agentScope(a.id)))) {
+      if (t.status !== 'completed') cards.push({ ...t, scope: 'agent', agentId: t.assigneeAgentId || a.id, agentName: nameOf(t.assigneeAgentId || a.id) })
+    }
+  }
+  for (const team of loadTeams()) {
+    for (const t of resolved(loadScopeTasks(teamScope(team.id)))) {
+      if (t.status !== 'completed' && t.assigneeAgentId) {
+        cards.push({ ...t, scope: 'team', teamName: team.name, agentId: t.assigneeAgentId, agentName: nameOf(t.assigneeAgentId) })
+      }
+    }
+  }
+  let out = byQuadrant(cards, filter.quadrant)
+  if (filter.waitingOn) out = out.filter(c => c.status === 'waiting' && c.waitingOn === filter.waitingOn)
+  if (filter.agent) out = out.filter(c => c.agentId === filter.agent || c.agentName === filter.agent)
+  return { data: { cards: out }, status: 200 }
 }
 
 const OWN_BOARD = "A card on an agent's own board stays that agent's; use a team or a project to share work"
@@ -118,6 +177,8 @@ export function createInScope(scope: TaskScope, params: TaskParams, guard?: () =
   if (params.status && !STATUSES.includes(params.status as TaskStatus)) return invalidField('status', `status must be one of ${STATUSES.join(', ')}`)
   const w = checkWaiting(params.status, params.waitingOn)
   if (w) return w
+  const pl = checkPlacement(params)
+  if (pl) return pl
   try {
     const task = createScopeTask(scope, {
       subject: params.subject.trim(),
@@ -126,8 +187,13 @@ export function createInScope(scope: TaskScope, params: TaskParams, guard?: () =
       blockedBy: params.blockedBy,
       priority: params.priority,
     })
-    if (params.status && params.status !== 'pending') {
-      const r = updateScopeTask(scope, task.id, { status: params.status as TaskStatus, waitingOn: params.waitingOn as WaitingOn | undefined, waitingNote: params.waitingNote })
+    const wantsStatus = !!params.status && params.status !== 'pending'
+    const wantsPlace = params.urgent !== undefined || params.important !== undefined
+    if (wantsStatus || wantsPlace) {
+      const r = updateScopeTask(scope, task.id, {
+        ...(wantsStatus && { status: params.status as TaskStatus, waitingOn: params.waitingOn as WaitingOn | undefined, waitingNote: params.waitingNote }),
+        urgent: params.urgent, important: params.important,
+      })
       return { data: { task: r.task || task }, status: 201 }
     }
     return { data: { task }, status: 201 }
@@ -157,6 +223,8 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
   }
   const w = checkWaiting(params.status, params.waitingOn, existing)
   if (w) return w
+  const pl = checkPlacement(params)
+  if (pl) return pl
   try {
     const result = updateScopeTask(scope, taskId, {
       subject: params.subject,
@@ -167,6 +235,8 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
       priority: params.priority,
       waitingOn: params.waitingOn as WaitingOn | undefined,
       waitingNote: params.waitingNote,
+      urgent: params.urgent,
+      important: params.important,
     })
     if (!result.task) return notFound('Task', taskId)
     return { data: { task: result.task, unblocked: result.unblocked }, status: 200 }

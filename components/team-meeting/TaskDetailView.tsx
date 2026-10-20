@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Trash2, Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, Send, RotateCw } from 'lucide-react'
 import type { Agent } from '@/types/agent'
-import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import { QUADRANTS, quadrantOf, type Quadrant, type TaskWithDeps, type TaskStatus } from '@/types/task'
 import DependencyPicker from './DependencyPicker'
 import WaitingFields from './WaitingFields'
 import { waitingLabel } from './KanbanCard'
@@ -12,7 +12,7 @@ interface TaskDetailViewProps {
   task: TaskWithDeps
   agents: Agent[]
   allTasks: TaskWithDeps[]
-  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string }) => Promise<void>
+  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null }) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onClose: () => void
   /** When given, the card shows a comment box. deliver=true sends the text to the assignee's session. */
@@ -163,6 +163,27 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
         {task.isBlocked && (
           <p className="text-[10px] text-amber-500/80">Blocked by incomplete dependencies</p>
         )}
+
+        {/* Eisenhower matrix: where this card sits (the same two answers the Matrix view drags between) */}
+        <div data-testid="matrix-picker">
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider">Matrix</label>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {([null, 'q1', 'q2', 'q3', 'q4'] as Array<Quadrant | null>).map(q => {
+              const active = quadrantOf(task) === q
+              return (
+                <button
+                  key={q || 'none'}
+                  onClick={() => onUpdate(task.id, q ? { urgent: QUADRANTS[q].urgent, important: QUADRANTS[q].important } : { urgent: null, important: null })}
+                  className={`text-[11px] px-2 py-1 rounded transition-colors ${active ? 'bg-blue-600/30 text-blue-300' : 'text-gray-500 hover:bg-gray-800'}`}
+                  title={q ? `${QUADRANTS[q].urgent ? 'Urgent' : 'Not urgent'}, ${QUADRANTS[q].important ? 'important' : 'not important'}` : 'Not on the matrix yet'}
+                  data-testid={`place-${q || 'none'}`}
+                >
+                  {q ? QUADRANTS[q].label : 'Not placed'}
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
         {task.status === 'waiting' && !waitingDraft && (
           <p className="text-[11px] text-orange-300/90">

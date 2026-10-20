@@ -6,6 +6,8 @@ import type { TaskWithDeps, TaskStatus } from '@/types/task'
 export type TaskUpdates = {
   subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null
   blockedBy?: string[]; priority?: number; waitingOn?: string; waitingNote?: string
+  /** true / false when placed on the matrix, null to take it off */
+  urgent?: boolean | null; important?: boolean | null
 }
 
 export type CommentResult = { delivered?: boolean; reason?: string }

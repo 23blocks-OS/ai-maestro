@@ -135,7 +135,7 @@ import {
   installAgentPlugins,
 } from '@/services/agents-skills-service'
 import {
-  listAgentTasks, createAgentTask, updateAgentTask, deleteAgentTask, getAgentBoard, getTaskSummary,
+  listAgentTasks, getOpenTasks, createAgentTask, updateAgentTask, deleteAgentTask, getAgentBoard, getTaskSummary,
   addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment, retryTeamTaskComment,
 } from '@/services/agent-tasks-service'
 
@@ -1620,6 +1620,9 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await addTeamTaskComment(params.id, params.taskId, body))
   }},
+  { method: 'GET', pattern: /^\/api\/tasks$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, getOpenTasks({ quadrant: query.quadrant || undefined, waitingOn: query.waitingOn || undefined, agent: query.agent || undefined }))
+  }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())
   }},
@@ -1627,7 +1630,7 @@ const routes: Route[] = [
     sendServiceResult(res, getAgentBoard(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, listAgentTasks(params.id, { status: query.status || undefined, waitingOn: query.waitingOn || undefined }))
+    sendServiceResult(res, listAgentTasks(params.id, { status: query.status || undefined, waitingOn: query.waitingOn || undefined, quadrant: query.quadrant || undefined }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)

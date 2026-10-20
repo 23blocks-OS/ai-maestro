@@ -311,6 +311,12 @@ describe('the assignee\'s side of a forwarded instruction', () => {
     expect(inject).not.toHaveBeenCalled()
   })
 
+  it('finds the agent by its name too, and types into it by id (a card can name its assignee)', async () => {
+    const r = await receiveInstruction('Alpha', { text: 'by name' })
+    expect((r.data as any).delivered).toBe(true)
+    expect(inject.mock.calls[0][0].agentId).toBe('a1')
+  })
+
   it('text is required, cleaned of control characters, and typed into the agent', async () => {
     expect((await receiveInstruction('a1', {})).status).toBe(400)
     expect((await receiveInstruction('a1', { text: '   ' })).status).toBe(400)

@@ -12,7 +12,7 @@ import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
 import { resolveBindHost } from './lib/bind-host.mjs'
 // Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
-import { approvalKindForProgram, parseApprovalForProgram } from './lib/pane-approval.mjs'
+import { approvalKindForProgram, parseApprovalForProgram, needsPaneApprovalCard } from './lib/pane-approval.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
 import { isValidSessionName } from './lib/tmux-safe.mjs'
 // F026 Phase 0: every tmux call in this file goes through lib/tmux-runtime.mjs
@@ -43,7 +43,8 @@ import {
   companionClients,
   callSessions,
   broadcastStatusUpdate,
-  broadcastChatEvent
+  broadcastChatEvent,
+  observedExpired
 } from './services/shared-state-bridge.mjs'
 
 // =============================================================================
@@ -454,10 +455,17 @@ function broadcastHookState(sessionName, sessionState) {
   }
   // Fallback: if the hook didn't surface a permission prompt but the pane is
   // clearly showing one, build a card from the pane so it ALWAYS shows in chat.
-  // Grok: its hook reports permission_request without the menu, so for Grok the
-  // pane card (options + keys) wins over an option-less hook state.
+  // Grok and Claude Code's observe-only PermissionRequest report a permission_request without the
+  // menu, so an option-less hook state is replaced by the pane card (options + keys).
   const grokKind = approvalKindForProgram(sessionState._program)
-  if (state?.status !== 'permission_request' || (grokKind && !state.options?.length)) {
+  // An observed request the terminal showed to be over (Esc, "No") is no card at all; the activity feed
+  // already reports what the agent is doing now (sweepObservedPermissions). Any other state is
+  // untouched, and the pane is still consulted when the hook has nothing to show.
+  const observedOver = !!(state?.observed && state.status === 'permission_request' &&
+    observedExpired.get(sessionName)?.at === new Date(state.updatedAt).getTime())
+  if (observedOver) {
+    state = null
+  } else if (needsPaneApprovalCard(state, grokKind)) {
     const fromPane = detectPermissionFromPane(sessionName, sessionState._program)
     if (fromPane) state = fromPane
   }
@@ -2648,6 +2656,19 @@ async function startServer(handleRequest) {
         console.error('[Restore] Startup restore failed:', error?.message || error)
       }
     }, 5000)
+
+    // Claude Code fires no hook event when you answer, press Esc or choose "No" at a dialog, so a
+    // permission request the hook reported ("Needs you" from the PermissionRequest event) is expired
+    // here once the terminal no longer shows a decision. In-memory work only until a session reports a
+    // pending permission; then one pane capture per session every 1.5 s.
+    setInterval(async () => {
+      try {
+        const { sweepObservedPermissions } = await import('./services/sessions-service.ts')
+        sweepObservedPermissions()
+      } catch (error) {
+        console.error('[Hook] observed-permission sweep failed:', error?.message || error)
+      }
+    }, 1000)
 
     // Run startup self-diagnostics (non-blocking)
     setTimeout(async () => {

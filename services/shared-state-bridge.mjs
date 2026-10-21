@@ -19,6 +19,7 @@ if (!globalThis._sharedState) {
     companionClients: new Map(),     // agentId -> Set<WebSocket> for /companion-ws
     callSessions: new Map(),         // agentId -> CallSessionState for companion call forks
     hookStatus: new Map(),           // sessionName -> { status, notificationType, at } from the Claude Code hook
+    observedExpired: new Map(),      // sessionName -> { at, status } an observed permission request the pane showed to be over
   }
 }
 // Ensure late-added maps exist for hot-reload / late initialization, and for
@@ -28,6 +29,9 @@ if (!globalThis._sharedState.callSessions) {
 }
 if (!globalThis._sharedState.hookStatus) {
   globalThis._sharedState.hookStatus = new Map()
+}
+if (!globalThis._sharedState.observedExpired) {
+  globalThis._sharedState.observedExpired = new Map()
 }
 
 const state = globalThis._sharedState
@@ -39,6 +43,7 @@ export const statusSubscribers = state.statusSubscribers
 export const companionClients = state.companionClients
 export const callSessions = state.callSessions
 export const hookStatus = state.hookStatus
+export const observedExpired = state.observedExpired
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.

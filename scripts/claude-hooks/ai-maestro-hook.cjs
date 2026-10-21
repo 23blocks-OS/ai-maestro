@@ -19,6 +19,10 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 
+// Where AI Maestro listens. AIM_SERVER_URL moves it (a server on another port, a test instance);
+// the default is the usual local port.
+const aimBase = () => (process.env.AIM_SERVER_URL || 'http://localhost:23000').replace(/\/+$/, '');
+
 // Claude Code's native session id for this invocation (from the hook payload).
 // Single-shot process, so a module-level value set once in main() is sufficient.
 let currentSessionId = null;
@@ -104,7 +108,7 @@ function fetchAgentsOnce() {
         const local = readLocalRegistry();
         agentsPromise = local
             ? Promise.resolve(local)
-            : fetch('http://localhost:23000/api/agents', { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) })
+            : fetch(`${aimBase()}/api/agents`, { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) })
                 .then(res => (res.ok ? res.json().then(d => d.agents || []) : null));
     }
     return agentsPromise;
@@ -160,6 +164,22 @@ function resolveAgent(cwd, agents) {
     return null;
 }
 
+// The hookState the server relays to chat clients: only for events that produce a card or a notice.
+function buildHookStateData(state) {
+    if (!(state.status === 'permission_request' || state.notificationType)) return undefined;
+    return {
+        status: state.status,
+        toolName: state.toolName,
+        toolInput: state.toolInput,
+        description: state.description,
+        options: state.options,
+        message: state.message,
+        notificationType: state.notificationType,
+        // Claude Code's observe-only report: no options, the chat takes them from the pane
+        ...(state.observed && { observed: true }),
+    };
+}
+
 // Broadcast status update via WebSocket (non-blocking)
 async function broadcastStatusUpdate(cwd, state) {
     try {
@@ -174,20 +194,10 @@ async function broadcastStatusUpdate(cwd, state) {
         if (!sessionName) return;
 
         // Build hookState payload for events that produce meaningful state
-        const hookStateData = (state.status === 'permission_request' || state.notificationType)
-            ? {
-                status: state.status,
-                toolName: state.toolName,
-                toolInput: state.toolInput,
-                description: state.description,
-                options: state.options,
-                message: state.message,
-                notificationType: state.notificationType,
-              }
-            : undefined;
+        const hookStateData = buildHookStateData(state);
 
         // Broadcast the status update
-        await fetch('http://localhost:23000/api/sessions/activity/update', {
+        await fetch(`${aimBase()}/api/sessions/activity/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -204,7 +214,7 @@ async function broadcastStatusUpdate(cwd, state) {
         // Claude Code's native session id (present in the hook payload) so the
         // registry can link the agent to its transcript / support native resume.
         if (agent.id) {
-            await fetch(`http://localhost:23000/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
+            await fetch(`${aimBase()}/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: state.status, claudeSessionId: currentSessionId })
@@ -444,7 +454,7 @@ async function checkUnreadMessages(cwd, prompt) {
 
         // Check for unread messages
         const messagesResponse = await fetch(
-            `http://localhost:23000/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
+            `${aimBase()}/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
             { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) }
         );
         if (!messagesResponse.ok) return null;
@@ -495,7 +505,7 @@ async function drainMeetingInjectQueue(cwd) {
         if (!sessionName) return null;
 
         const queueResponse = await fetch(
-            `http://localhost:23000/api/meetings/inject-queue?session=${encodeURIComponent(sessionName)}`,
+            `${aimBase()}/api/meetings/inject-queue?session=${encodeURIComponent(sessionName)}`,
             { signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS) }
         );
         if (!queueResponse.ok) return null;
@@ -524,7 +534,7 @@ async function fetchUnreadMessages(cwd) {
     if (!agent) { debugLog({ event: 'no_agent_for_cwd', cwd }); return null; }
 
     const messagesResponse = await fetch(
-        `http://localhost:23000/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
+        `${aimBase()}/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
         { signal: AbortSignal.timeout(2500) }
     );
     if (!messagesResponse.ok) return null;
@@ -827,7 +837,7 @@ async function recallMemories(cwd, sessionId, prompt) {
         const primer = !prompt;
         const limit = primer ? RECALL_PRIMER_LIMIT : RECALL_PROMPT_LIMIT;
         const qs = primer ? `limit=${limit}` : `limit=${limit + 3}&q=${encodeURIComponent(String(prompt).slice(0, 2000))}`;
-        const res = await fetch(`http://localhost:23000/api/agents/${encodeURIComponent(agent.id)}/memory/recall?${qs}`, {
+        const res = await fetch(`${aimBase()}/api/agents/${encodeURIComponent(agent.id)}/memory/recall?${qs}`, {
             signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS * 2),
         });
         if (!res.ok) return null;
@@ -1095,6 +1105,42 @@ async function main() {
     process.exit(0);
 }
 
+// What a permission report may carry: a short summary of what is asked, never the whole tool
+// input (a Write holds a whole file, a Bash command can hold a token). The state file and the
+// server's status feed both see this.
+const PERMISSION_TEXT_MAX = 300;
+
+function clipText(value, max = PERMISSION_TEXT_MAX) {
+    const text = String(value == null ? '' : value);
+    return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function summarizeToolInput(toolName, toolInput) {
+    const input = toolInput && typeof toolInput === 'object' ? toolInput : {};
+    const out = {};
+    if (typeof input.command === 'string') out.command = clipText(input.command);
+    if (typeof input.file_path === 'string') out.file_path = clipText(input.file_path);
+    if (typeof input.path === 'string') out.path = clipText(input.path);
+    if (toolName === 'AskUserQuestion' && Array.isArray(input.questions) && input.questions[0]) {
+        const q = input.questions[0];
+        out.question = clipText(typeof q === 'string' ? q : q.question || q.header || '');
+    }
+    return out;
+}
+
+// A human-readable line saying what is being asked, clipped.
+function describePermission(toolName, toolInput) {
+    const input = toolInput && typeof toolInput === 'object' ? toolInput : {};
+    if (toolName === 'Edit' && input.file_path) return clipText(`Edit ${input.file_path}?`);
+    if (toolName === 'Write' && input.file_path) return clipText(`Create ${input.file_path}?`);
+    if (toolName === 'Bash' && input.command) return clipText(`Run: ${input.command}`);
+    if (toolName === 'Read' && input.file_path) return clipText(`Read ${input.file_path}?`);
+    if (toolName === 'Grep' && input.path) return clipText(`Search in ${input.path}?`);
+    if (toolName === 'AskUserQuestion') return 'Claude has a question';
+    if (toolName === 'ExitPlanMode') return 'Review the plan';
+    return clipText(`Allow ${toolName}?`);
+}
+
 async function handleEvent(input) {
     agentsPromise = null; // one agent-list load per event (a process handles exactly one)
     currentSessionId = input.session_id || null;
@@ -1134,119 +1180,39 @@ async function handleEvent(input) {
             break;
         }
 
-        case 'PermissionRequest':
-            // Claude is asking for permission to use a tool
-            // Input includes: tool_name, tool_input, tool_use_id, permission_suggestions
-            const toolName = input.tool_name || input.toolName;
-            const toolInput = input.tool_input || input.toolInput || {};
-            const permissionSuggestions = input.permission_suggestions || [];
+        case 'PermissionRequest': {
+            // Claude Code is about to ask for a decision (a tool, a question, a plan). Other agents
+            // get their pending approvals from the pane (lib/pane-approval.mjs), so an event from
+            // one of them is ignored here, as it always was before this hook was registered.
+            if (agent !== 'claude') break;
+            // Input includes: tool_name, tool_input, permission_suggestions (no tool_use_id).
+            const toolName = String(input.tool_name || input.toolName || 'a tool');
+            const rawToolInput = input.tool_input || input.toolInput || {};
 
-            // Create a human-readable description of what's being asked
-            let description = `Allow ${toolName}?`;
-            if (toolName === 'Edit' && toolInput.file_path) {
-                description = `Edit ${toolInput.file_path}?`;
-            } else if (toolName === 'Write' && toolInput.file_path) {
-                description = `Create ${toolInput.file_path}?`;
-            } else if (toolName === 'Bash' && toolInput.command) {
-                description = `Run: ${toolInput.command}`;
-            } else if (toolName === 'Read' && toolInput.file_path) {
-                description = `Read ${toolInput.file_path}?`;
-            } else if (toolName === 'Grep' && toolInput.path) {
-                description = `Search in ${toolInput.path}?`;
-            }
-
-            // Build options matching Claude Code source (Qv2/Vd5 functions).
-            // Structure is always: [Yes] + [middle from suggestions] + [No]
-            const options = [
-                { key: '1', label: 'Yes', value: 'yes' }
-            ];
-
-            // Middle options — built from permission_suggestions using Vd5 logic.
-            // Categorize suggestions into read rules, bash rules, and directories.
-            if (permissionSuggestions.length > 0) {
-                const readPaths = [];
-                const bashCmds = [];
-                const dirs = [];
-
-                for (const s of permissionSuggestions) {
-                    if (s.type === 'addDirectories' && s.directories) {
-                        dirs.push(...s.directories.map(d => d.split('/').pop() || d));
-                    } else if (s.type === 'addRules' && s.rules) {
-                        for (const r of s.rules) {
-                            if (r.toolName === 'Read') {
-                                readPaths.push(r.ruleContent || '');
-                            } else if (r.toolName === 'Bash') {
-                                bashCmds.push(r.ruleContent || '');
-                            }
-                        }
-                    }
-                }
-
-                // Build label following Vd5 logic from Claude Code source
-                let middleLabel = '';
-                const allPaths = [...dirs, ...readPaths.map(p => p.split('/').pop() || p)].filter(Boolean);
-
-                if (allPaths.length > 0 && bashCmds.length > 0) {
-                    middleLabel = `Yes, and allow ${allPaths.join(', ')} access and ${bashCmds.join(', ')} commands`;
-                } else if (allPaths.length > 0) {
-                    middleLabel = readPaths.length > 0
-                        ? `Yes, allow reading from ${allPaths.join(', ')} from this project`
-                        : `Yes, and always allow access to ${allPaths.join(', ')} from this project`;
-                } else if (bashCmds.length > 0) {
-                    middleLabel = `Yes, and don't ask again for ${bashCmds.join(', ')} commands in this project`;
-                } else {
-                    // Generic fallback for other suggestion types
-                    middleLabel = `Yes, and don't ask again for ${toolName} in this project`;
-                }
-
-                options.push({
-                    key: '2',
-                    label: middleLabel,
-                    value: 'yes-apply-suggestions',
-                    suggestions: permissionSuggestions
-                });
-            } else if (['Edit', 'Write', 'MultiEdit'].includes(toolName)) {
-                // File operations always get a session-scoped option per dx2 logic
-                const filePath = toolInput.file_path || toolInput.path || '';
-                const isInCwd = filePath.startsWith(cwd);
-                const label = isInCwd
-                    ? 'Yes, allow all edits during this session'
-                    : `Yes, allow all edits in ${filePath.replace(/\/[^/]+$/, '/')} during this session`;
-                options.push({
-                    key: '2',
-                    label,
-                    value: 'yes-session'
-                });
-            } else if (toolName === 'Read') {
-                options.push({
-                    key: '2',
-                    label: 'Yes, during this session',
-                    value: 'yes-session'
-                });
-            }
-
-            // Last option is always No with feedback
-            options.push({
-                key: String(options.length + 1),
-                label: 'No, and tell Claude what to do differently',
-                value: 'no'
-            });
-
-            // Await the HTTP broadcast for permission_request — this is the critical
-            // path for the chat UI. Other hooks fire-and-forget, but permissions must
-            // reach WebSocket clients before process.exit() kills pending fetches.
+            // Observe-only. Claude Code builds each dialog's options itself and they cannot be derived
+            // from this payload (permission_suggestions does not list them all: a Bash prompt can have
+            // a "switch to auto mode" line it never mentions), so a card built from them could map a
+            // key to the wrong choice. Report that a decision is pending and what is asked, as a short
+            // summary and never the whole input, with no options: the server builds the card's options
+            // and keys from the pane, as it does for any option-less permission_request. The hook never
+            // answers the dialog.
+            // Await the HTTP broadcast — this is the critical path for the chat UI. Other hooks
+            // fire-and-forget, but this must reach WebSocket clients before process.exit() kills it.
             await writeState(cwd, trackPrompt(readState(cwd), input, {
                 status: 'permission_request',
                 toolName,
-                toolInput,
-                description,
-                options,
+                toolInput: summarizeToolInput(toolName, rawToolInput),
+                description: describePermission(toolName, rawToolInput),
+                options: [],
+                observed: true,
+                ...(input.agent_id && { agentId: String(input.agent_id) }),
                 message: `Claude wants to ${toolName.toLowerCase()}`,
                 sessionId,
                 transcriptPath,
                 lastEvent: 'PermissionRequest'
             }));
             break;
+        }
 
         case 'Notification': {
             const notificationType = pick(input, 'notification_type', 'notificationType') || input.type;
@@ -1393,6 +1359,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+    aimBase,
+    buildHookStateData,
+    summarizeToolInput,
+    describePermission,
     rotateDebugLog,
     debugLog,
     pruneChatState,

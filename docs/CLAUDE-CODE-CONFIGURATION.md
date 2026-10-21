@@ -206,6 +206,10 @@ Brief description of the project.
 
 ---
 
+## Hooks that AI Maestro installs
+
+AI Maestro registers one hook script (`ai-maestro-hook.cjs`) for the Claude Code events that tell the dashboard what a session is doing. Since 0.93.7 that includes `PermissionRequest` (Claude Code 2.0.45 or later), registered async and observe-only: it reports that a permission, a question or a plan is pending as soon as Claude Code asks, and never answers it. Rerunning the installer updates entries from older versions in place and keeps a backup of `settings.json`. Details, the events table and the `AIM_PERMISSION_REQUEST_HOOK` switch are in [HOOKS-SETUP.md](./HOOKS-SETUP.md).
+
 ## Agent Messaging Skill Implementation
 
 ### Why We Chose Skills

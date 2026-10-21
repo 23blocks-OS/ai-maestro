@@ -76,6 +76,7 @@ declare global {
     companionClients: Map<string, Set<WebSocket>>
     callSessions: Map<string, CallSessionState>
     hookStatus: Map<string, HookStatusState>
+    observedExpired: Map<string, { at: number; status: 'active' | 'idle' }>
   } | undefined
 }
 
@@ -88,6 +89,7 @@ if (!globalThis._sharedState) {
     companionClients: new Map<string, Set<WebSocket>>(),
     callSessions: new Map<string, CallSessionState>(),
     hookStatus: new Map<string, HookStatusState>(),
+    observedExpired: new Map<string, { at: number; status: 'active' | 'idle' }>(),
   }
 }
 // Ensure late-added maps exist for hot-reload, and for whichever module graph
@@ -98,6 +100,9 @@ if (!globalThis._sharedState.callSessions) {
 }
 if (!globalThis._sharedState.hookStatus) {
   globalThis._sharedState.hookStatus = new Map()
+}
+if (!globalThis._sharedState.observedExpired) {
+  globalThis._sharedState.observedExpired = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -126,6 +131,14 @@ export const callSessions: Map<string, CallSessionState> = state.callSessions
 
 /** sessionName -> last state reported by the Claude Code hook. See HookStatusState. */
 export const hookStatus: Map<string, HookStatusState> = state.hookStatus
+
+/**
+ * sessionName -> an observed permission request (Claude Code's PermissionRequest hook) that the terminal
+ * showed to be over, by the hook report's own timestamp. The hook fires nothing when you answer or press Esc,
+ * so the server records the expiry here and the activity feed reads it. A newer hook report (different `at`)
+ * is not covered. See lib/observed-permission.mjs and sweepObservedPermissions.
+ */
+export const observedExpired: Map<string, { at: number; status: 'active' | 'idle' }> = state.observedExpired
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session

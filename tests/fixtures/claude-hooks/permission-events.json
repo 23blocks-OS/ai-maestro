@@ -1,0 +1,192 @@
+{
+ "bashPermissionRequest": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "touch /work/proj/a.txt",
+   "description": "Create empty file a.txt in the w1 hooks directory"
+  },
+  "permission_suggestions": [
+   {
+    "type": "addDirectories",
+    "directories": [
+     "/work/proj"
+    ],
+    "destination": "session"
+   },
+   {
+    "type": "setMode",
+    "mode": "acceptEdits",
+    "destination": "session"
+   }
+  ]
+ },
+ "askUserQuestionPermissionRequest": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+   "questions": [
+    {
+     "question": "Which color do you prefer?",
+     "header": "Color",
+     "options": [
+      {
+       "label": "Red",
+       "description": "Choose red."
+      },
+      {
+       "label": "Blue",
+       "description": "Choose blue."
+      }
+     ],
+     "multiSelect": false
+    }
+   ]
+  }
+ },
+ "exitPlanModePermissionRequest": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "plan",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "ExitPlanMode",
+  "tool_input": {
+   "plan": "# Plan: create hello.txt\n\n## Context\nThe user wants a file `hello.txt` containing the word \"hi\". This is a trivial, isolated change, so no codebase exploration is needed.\n\n## Steps\n1. Create `/private/work/proj/hello.txt` with the Write tool, with the content `hi` followed by a trailing newline.\n\n## Verification\n- Read `/private/work/proj/hello.txt` and confirm it contains `hi`.\n",
+   "planFilePath": "/home/user/.claude/plans/plan-do-not-execute-functional-journal.md"
+  }
+ },
+ "subagentPermissionRequest": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "default",
+  "agent_id": "aaeb03497f7eb1061",
+  "agent_type": "general-purpose",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "python3 -c \"import time; time.sleep(100)\"",
+   "timeout": 120000,
+   "description": "Run a 100-second sleep with python3"
+  },
+  "permission_suggestions": [
+   {
+    "type": "addRules",
+    "rules": [
+     {
+      "toolName": "Bash",
+      "ruleContent": "python3 -c \"import time; time.sleep(100)\""
+     }
+    ],
+    "behavior": "allow",
+    "destination": "localSettings"
+   }
+  ]
+ },
+ "notificationPermissionPrompt": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "hook_event_name": "Notification",
+  "message": "Claude needs your permission",
+  "notification_type": "permission_prompt"
+ },
+ "notificationIdlePrompt": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "hook_event_name": "Notification",
+  "message": "Claude is waiting for your input",
+  "notification_type": "idle_prompt"
+ },
+ "postToolUseBash": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "touch /work/proj/a.txt",
+   "description": "Create empty file a.txt in the w1 hooks directory"
+  },
+  "tool_response": {
+   "stdout": "",
+   "stderr": "",
+   "interrupted": false,
+   "isImage": false,
+   "noOutputExpected": true
+  },
+  "tool_use_id": "toolu_01U9rE7zfio3CpTkKPV3SkBp",
+  "duration_ms": 835
+ },
+ "postToolBatch": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PostToolBatch",
+  "tool_calls": [
+   {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "touch /work/proj/a.txt",
+     "description": "Create empty file a.txt in the w1 hooks directory"
+    },
+    "tool_use_id": "toolu_01U9rE7zfio3CpTkKPV3SkBp",
+    "tool_response": "(Bash completed with no output)"
+   }
+  ]
+ },
+ "stop": {
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "I ran `touch /work/proj/a.txt`. It completed with no output, so the file should now exist.",
+  "background_tasks": [],
+  "session_crons": []
+ },
+ "_note": "Recorded from Claude Code 2.1.306 on 2026-10-21, paths and ids sanitised. The real Bash permission dialog had FOUR options (Yes / Yes, and always allow access to <dir> / Yes, and switch to auto mode / No); permission_suggestions listed only two entries."
+}

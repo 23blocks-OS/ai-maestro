@@ -3,7 +3,7 @@
  * crash (or an OOM kill) or a reboot the dashboard stayed down (tmux sessions survive, so agents kept
  * running but nothing served the UI). The installer now installs pm2, starts the server under it,
  * and prints the one command that survives a reboot, without running sudo on its own.
- * (The kill -9 recovery, about 12 s under pm2, was measured in a Linux container: docs/LINUX-DEPLOYMENT.md.)
+ * (The kill -9 recovery under pm2, about 1 s, was measured in a Linux container: docs/LINUX-DEPLOYMENT.md.)
  */
 import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'child_process'

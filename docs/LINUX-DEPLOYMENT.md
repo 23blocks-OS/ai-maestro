@@ -65,9 +65,10 @@ it is already built): `AIMAESTRO_SKIP_MEMORY_CHECK=1`.
 Before 0.93.4 the Linux install started a bare `yarn start` unless pm2 already existed. After
 `kill -9` of the server (what an out-of-memory kill looks like) it did not come back; tmux sessions
 survived, so agents kept running while nothing served the dashboard. Now the installer installs
-pm2 and starts AI Maestro with `ecosystem.config.js`. Measured with pm2 on Linux: after `kill -9` of
-the server it was back in about 12 seconds, with no orphan embedding worker; pm2's own daemon costs
-about 54 MB.
+pm2 and starts AI Maestro with `ecosystem.config.js`. Measured on Linux, with the installer's own setup
+(0.93.4, three times): after `kill -9` of the server a new one was serving in 1 second or less; an
+earlier hand-made pm2 setup took about 12 seconds. No orphan embedding worker is left, and pm2's own
+daemon costs about 54 MB.
 
 To survive a reboot, run once (the installer prints the exact line for your machine; it never runs
 sudo for you):
@@ -252,3 +253,17 @@ These sizes come from the formula, **not** from runs at those agent counts. Per 
   `verify-installation.sh` tells you, and now prints the line to add to `~/.bashrc`.
 - The first agent the installer creates starts `claude`, which then waits for a login: log in once on
   the VM (`claude`, then `/login`) or give it a token.
+
+## How the 0.93.4 fixes were checked
+
+In fresh Ubuntu 22.04 containers (arm64, 2 vCPU), running the real installer from the branch:
+- **4 GB:** the installer completed (`STATUS: SUCCESS`), installed pm2, started AI Maestro under it
+  and printed the reboot command; `kill -9` of the server was followed by a new one serving within
+  1 second, three times (pm2 restart counter went 0, 1, 2); `GET /api/agents/<id>/index-delta` answered
+  `{"state":"none"}`, a `POST` with `waitSeconds=1` answered 200 and the next `GET` showed `"state":"done"`;
+  an unknown agent answered 404.
+- **2 GB, no swap:** the installer stopped before the build with "Not enough memory to build AI Maestro:
+  ... RAM + ... swap" and the swap commands, instead of dying in `yarn build`.
+- Not checked in a container: the 202 path with a really long run (covered by unit tests with a fake
+  indexer), the macOS warning, the exit-137 explanation (covered by a test against a stub `yarn`), and
+  `pm2 startup` on a machine with systemd (the container has none, so it printed a generic line).

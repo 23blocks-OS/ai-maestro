@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2 } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -73,6 +73,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <LayoutGrid className="w-3.5 h-3.5" />
             Matrix
+          </a>
+          <a
+            href="/attention"
+            className="text-sm px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Attention: what needs you, across every agent and host"
+          >
+            <BellRing className="w-3.5 h-3.5" />
+            Attention
           </a>
           <a
             href="/team-meeting"

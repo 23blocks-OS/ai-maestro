@@ -326,3 +326,24 @@ describe.skipIf(!haveTools)('aimaestro-task.sh import', () => {
     expect(doc.commands.map((c: { name: string }) => c.name)).toContain('import')
   })
 })
+
+describe.skipIf(!haveTools)('aimaestro-task.sh delete', () => {
+  it('removes a card from the agent\'s own board', async () => {
+    const r = await run(['delete', 'aaaaaaaa-1'])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Deleted aaaaaaaa')
+    expect(writes()).toEqual([{ method: 'DELETE', url: `/api/agents/${AGENT}/tasks/aaaaaaaa-1111`, body: undefined }])
+  })
+
+  it('refuses a team card and writes nothing', async () => {
+    const r = await run(['delete', 'bbbbbbbb-3'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('own board')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('needs a card id that exists', async () => {
+    expect((await run(['delete', 'zzzzzzzz'])).code).toBe(1)
+    expect(writes()).toHaveLength(0)
+  })
+})

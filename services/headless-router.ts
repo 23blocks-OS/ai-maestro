@@ -1575,6 +1575,11 @@ const routes: Route[] = [
     const messages = drainForSession(session)
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ messages, count: messages.length }))
   }},
+  { method: 'POST', pattern: /^\/api\/meetings\/([^/]+)\/broadcast$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    const { broadcastToMeeting } = await import('@/services/meeting-broadcast-service')
+    sendServiceResult(res, await broadcastToMeeting({ meetingId: params.id, message: body.message, participantIds: body.participantIds, teamName: body.teamName, recipients: body.recipients }))
+  }},
   { method: 'GET', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getMeetingById(params.id))
   }},

@@ -29,6 +29,7 @@ import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocum
 import type { TaskStatus } from '@/types/task'
 import { getAgent } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
+import { findPeerHostUrl } from '@/lib/owning-host'
 import { type ServiceResult, missingField, notFound, invalidField, operationFailed, selfReference, circularDependency } from '@/services/service-errors'
 
 export interface CreateTeamParams {
@@ -445,7 +446,22 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
       agentIds.map(async (agentId: string) => {
         const agent = getAgent(agentId)
         if (!agent) {
-          return { agentId, success: false, reason: 'Agent not found' }
+          // Not on this host: the host that has it sends the notification
+          const peer = await findPeerHostUrl(agentId)
+          if (!peer) return { agentId, success: false, reason: 'Agent not found on any host' }
+          try {
+            const res = await fetch(`${peer.replace(/\/$/, '')}/api/teams/notify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: [agentId], teamName }),
+              signal: AbortSignal.timeout(10_000),
+            })
+            const data = await res.json().catch(() => ({}))
+            const first = Array.isArray(data?.results) ? data.results[0] : undefined
+            return res.ok && first ? first : { agentId, success: false, reason: `the host answered ${res.status}` }
+          } catch (error) {
+            return { agentId, success: false, reason: 'the host did not answer' }
+          }
         }
 
         const agentName = agent.name || agent.alias || 'unknown'

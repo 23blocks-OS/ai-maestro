@@ -2,9 +2,10 @@
 
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useState, useRef, useEffect } from 'react'
-import { Send, Users, User, X, Loader2 } from 'lucide-react'
+import { Send, Users, User, X, Loader2, AlertTriangle, Check } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
+import type { MeetingDelivery } from '@/hooks/useMeetingMessages'
 
 interface ChatMessage {
   id: string
@@ -20,6 +21,13 @@ interface ChatMessage {
   displayFrom: string
 }
 
+/** What happened to the last message, per agent, with a way to retry the ones that failed */
+export interface MeetingDeliveryProps {
+  lastDelivery: MeetingDelivery | null
+  retryFailed: () => Promise<void>
+  dismissDelivery: () => void
+}
+
 export type MeetingChatPanelMode = 'sidebar' | 'overlay'
 
 interface MeetingChatPanelProps {
@@ -28,11 +36,12 @@ interface MeetingChatPanelProps {
   onSendToAgent: (agentId: string, message: string) => Promise<void>
   onBroadcastToAll: (message: string) => Promise<void>
   mode?: MeetingChatPanelMode
+  delivery?: MeetingDeliveryProps
   meetingId?: string
   onClose?: () => void
 }
 
-export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBroadcastToAll, mode = 'sidebar', onClose }: MeetingChatPanelProps) {
+export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBroadcastToAll, delivery, mode = 'sidebar', onClose }: MeetingChatPanelProps) {
   const [recipient, setRecipient] = useState<string>('all')
   const [inputText, setInputText] = useState('')
   const [sending, setSending] = useState(false)
@@ -197,6 +206,38 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
         })()}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Who got the last message */}
+      {delivery?.lastDelivery && (() => {
+        const d = delivery.lastDelivery
+        const failed = d.results.filter(r => r.status === 'failed')
+        const waiting = d.results.filter(r => r.status === 'delivered' && r.deferred)
+        const nameOf = (r: { agentId: string; name: string }) => {
+          const a = agents.find(x => x.id === r.agentId)
+          return a ? (a.label || a.name) : r.name
+        }
+        const ok = failed.length === 0
+        return (
+          <div data-testid="meeting-delivery" className={`px-3 py-1.5 border-t text-[11px] ${ok ? 'border-gray-800 text-gray-400' : 'border-amber-900/60 bg-amber-950/30 text-amber-200'}`}>
+            <div className="flex items-center gap-1.5">
+              {ok ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" /> : <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0" />}
+              <span className="flex-1">
+                Reached {d.results.length - failed.length} of {d.results.length}
+                {waiting.length > 0 && <> · waiting in the inbox: {waiting.map(nameOf).join(', ')}</>}
+              </span>
+              {!ok && (
+                <button onClick={() => { void delivery.retryFailed() }} className="px-2 py-0.5 rounded bg-amber-700/50 hover:bg-amber-700 text-amber-100">
+                  Retry {failed.length}
+                </button>
+              )}
+              <button onClick={delivery.dismissDelivery} className="p-0.5 text-gray-500 hover:text-gray-300" title="Dismiss"><X className="w-3 h-3" /></button>
+            </div>
+            {failed.map(r => (
+              <div key={r.agentId} className="pl-5 text-amber-300/90">{nameOf(r)}: {r.error || 'not delivered'}</div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Compose area */}
       <div className="px-3 py-2 border-t border-gray-800">

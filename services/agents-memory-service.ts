@@ -26,6 +26,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import os from 'os'
+import { readJsonlLines, summarizeJsonl } from '@/lib/jsonl'
 import { agentRegistry } from '@/lib/agent'
 import { AgentDatabase } from '@/lib/cozo-db'
 import {
@@ -73,6 +74,7 @@ import { isGenericEntity } from '@/lib/memory/summarizer'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import { parseConversationLine } from '@/lib/rag/ingest'
+import { claudeProjectFolders } from '@/lib/claude-projects'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, accessDenied, operationFailed } from '@/services/service-errors'
 import { unknownAgentResult } from '@/services/agent-guard'
@@ -113,12 +115,12 @@ async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
 /**
  * Parse a transcript into the user/assistant text messages consolidation reads. Claude Code
  * (`~/.claude/projects`) and GitHub Copilot CLI (`~/.copilot/session-state`, mapped through the
- * Copilot reader) go through the same code from here on.
+ * Copilot reader) go through the same code from here on. Streamed, so a large transcript is
+ * never held as one string.
  */
-export function messagesFromTranscript(jsonlFile: string): ConversationMessage[] {
+export async function messagesFromTranscript(jsonlFile: string): Promise<ConversationMessage[]> {
   const messages: ConversationMessage[] = []
-  const lines = fs.readFileSync(jsonlFile, 'utf-8').split('\n').filter(line => line.trim())
-  for (const line of lines) {
+  for await (const line of readJsonlLines(jsonlFile)) {
     try {
       for (const parsed of parseConversationLine(line) as any[]) {
         if (!parsed.type || !['user', 'assistant'].includes(parsed.type)) continue
@@ -215,7 +217,7 @@ async function prepareConversations(
       const onDisk = fs.existsSync(file)
       const offsetKey = onDisk ? file : `${file}${INDEX_OFFSET_SUFFIX}`
       const consolidatedOffset = offsets.get(offsetKey) || 0
-      const messages = onDisk ? messagesFromTranscript(file) : await messagesFromIndex(agentDb, file)
+      const messages = onDisk ? await messagesFromTranscript(file) : await messagesFromIndex(agentDb, file)
       // Only conversations with messages past the last consolidation count toward the limit
       if (messages.length > consolidatedOffset) {
         prepared.push({
@@ -373,12 +375,17 @@ export async function initializeMemory(
           return files
         }
 
-        const allJsonlFiles = findJsonlFiles(claudeProjectsDir)
+        // Scan only this agent's own transcript folders. Walking every
+        // transcript on the machine, once per agent, froze the server for
+        // minutes on hosts with gigabytes of Claude Code history. Claude Code
+        // files a transcript under its encoded cwd, and a transcript matches
+        // an agent by cwd (session ids here are tmux ids, never transcript
+        // ids), so nothing outside these folders could have matched.
+        const allJsonlFiles = claudeProjectFolders(claudeProjectsDir, projectPaths).flatMap(findJsonlFiles)
 
         for (const jsonlPath of allJsonlFiles) {
           try {
-            const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
-            const allLines = fileContent.split('\n').filter(line => line.trim())
+            const { head, tail, messageCount } = await summarizeJsonl(jsonlPath)
 
             let sessionId: string | null = null
             let cwd: string | null = null
@@ -389,7 +396,7 @@ export async function initializeMemory(
             let lastMessageAt: number | null = null
             const modelSet = new Set<string>()
 
-            const metadataLines = allLines.slice(0, 50)
+            const metadataLines = head
             for (const line of metadataLines) {
               try {
                 const message = JSON.parse(line)
@@ -415,9 +422,9 @@ export async function initializeMemory(
               }
             }
 
-            for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
+            for (let i = tail.length - 1; i >= 0; i--) {
               try {
-                const message = JSON.parse(allLines[i])
+                const message = JSON.parse(tail[i])
                 if (message.timestamp) {
                   lastMessageAt = new Date(message.timestamp).getTime()
                   break
@@ -432,7 +439,6 @@ export async function initializeMemory(
               (cwd && projectPaths.has(cwd))
 
             if (belongsToAgent && cwd) {
-              const messageCount = allLines.length
               const modelNames = Array.from(modelSet).join(', ')
               const projectName = cwd.split('/').pop() || 'unknown'
               const conversationsDir = path.dirname(jsonlPath)

@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.93.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.93.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -34,6 +34,35 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
 - **Yours, entirely** — MIT licensed. No account, no telemetry, no per-seat pricing, no hosted tier we upsell you to. Your code and your agents stay on your machines.
+
+---
+
+## See it
+
+<p align="center">
+  <img src="./docs/images/home.png" alt="The AI Maestro dashboard: six agents with role, company and live status (Working, Needs you, Ready), and the header pages" width="900"/>
+</p>
+
+*One dashboard for every agent: who is working, who needs you, who is ready. The header opens the extra pages (Teams, Org, Matrix, Attention, Zoom).*
+
+| | |
+|---|---|
+| <a href="./docs/images/zoom-wall.jpg"><img src="./docs/images/zoom-wall.jpg" alt="Zoom view: every agent as a card with photo, status, role and tags" width="440"/></a><br/>**Zoom.** Every agent at a glance, with photo, status, role and tags. | <a href="./docs/images/agent-profile.jpg"><img src="./docs/images/agent-profile.jpg" alt="Agent profile with identity, program, model, tags and commits" width="440"/></a><br/>**Agent profile.** Name, role, picture, program, model, tags and the commits an agent made. |
+| <a href="./docs/images/matrix.png"><img src="./docs/images/matrix.png" alt="The Matrix: open cards in four Eisenhower squares across all agents, with due badges and co-owners" width="440"/></a><br/>**Matrix.** Every open card in four squares, across agents and hosts. Due dates and co-owners show on the card. | <a href="./docs/images/attention.png"><img src="./docs/images/attention.png" alt="The Attention page: overdue cards, cards in review, cards waiting on you and agents that need you" width="440"/></a><br/>**Attention.** What needs you: overdue cards, work waiting on you, agents asking a question. |
+| <a href="./docs/images/card-detail.jpg"><img src="./docs/images/card-detail.jpg" alt="Card detail with due date, where the card came from and its owners" width="440"/></a><br/>**Card detail.** Due date, several owners and where the card came from. | <a href="./docs/images/team-kanban.png"><img src="./docs/images/team-kanban.png" alt="A team meeting with agent tiles and a Kanban board" width="440"/></a><br/>**Team meeting.** A war room: agent tiles beside a shared Kanban board. |
+| <a href="./docs/images/secrets-card.png"><img src="./docs/images/secrets-card.png" alt="A card in the chat where an agent asks for a credential, with a masked field" width="440"/></a><br/>**Secrets.** An agent asks for a credential; you type it into a masked field in the chat; the agent uses it by name and never sees the value. | <a href="./docs/images/canvas-page.png"><img src="./docs/images/canvas-page.png" alt="A canvas page an agent generated, with a table and Approve and Hold buttons" width="440"/></a><br/>**Canvas.** An agent draws an interactive page in the dashboard; your click goes back to it as an action. |
+| <a href="./docs/images/chat-cards.png"><img src="./docs/images/chat-cards.png" alt="Chat with a question card and an approval card" width="440"/></a><br/>**Chat.** Questions and approvals arrive as cards you answer with one click. | <a href="./docs/images/commit-trace.jpg"><img src="./docs/images/commit-trace.jpg" alt="Commit to session: find which agent session made a commit" width="440"/></a><br/>**Commit to session.** Find which agent session made a commit. |
+
+On a phone: <a href="./docs/images/mobile-matrix.png">Matrix</a> · <a href="./docs/images/mobile-home.png">home</a> · <a href="./docs/images/mobile-board.png">board</a>.
+
+**Short videos** (click to play):
+[<img src="./docs/videos/header-pages-tour.jpg" alt="Tour of the header pages" width="210"/>](./docs/videos/header-pages-tour.mp4)
+[<img src="./docs/videos/cli-card-appears-on-matrix.jpg" alt="A card created from the command line appears on the Matrix" width="210"/>](./docs/videos/cli-card-appears-on-matrix.mp4)
+[<img src="./docs/videos/canvas-action-reaches-agent.jpg" alt="A canvas click reaches the agent" width="210"/>](./docs/videos/canvas-action-reaches-agent.mp4)
+[<img src="./docs/videos/multi-agent-kanban-card-moves.jpg" alt="Cards move across the Kanban while agents work" width="210"/>](./docs/videos/multi-agent-kanban-card-moves.mp4)
+[<img src="./docs/videos/secret-request-and-store.jpg" alt="An agent asks for a secret and you store it" width="210"/>](./docs/videos/secret-request-and-store.mp4)
+
+*Screens are from a demo company ("Northwind Labs"); the multi-agent run uses scripted agents.*
 
 ---
 

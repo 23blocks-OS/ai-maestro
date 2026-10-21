@@ -2545,7 +2545,8 @@ async function startServer(handleRequest) {
   })
 
   // Increase server timeout for long-running operations like doc indexing
-  // Default is 120000 (2 min), we set to 15 minutes
+  // Default is 120000 (2 min), we set to 15 minutes. Work that can take hours (memory
+  // index-delta) is not held to this: it runs as a job, answers 202 and is polled with GET.
   server.timeout = 15 * 60 * 1000
   server.keepAliveTimeout = 15 * 60 * 1000
   server.headersTimeout = 15 * 60 * 1000 + 1000

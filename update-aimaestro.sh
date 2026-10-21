@@ -225,10 +225,19 @@ ECOSYSTEM_CHANGED=${ECOSYSTEM_CHANGED:-false}
 
 echo ""
 print_step "$BUILD" "Building application..."
-if yarn build; then
+# Not enough RAM + swap kills the build with no word about memory: say so first, with the fix
+if [ -f scripts/check-build-memory.sh ] && ! bash scripts/check-build-memory.sh; then
+    print_warning "Skipping the build: not enough memory (the running version stays as it is)"
+    BUILD_FAILED=true
+elif yarn build; then
     print_success "Build complete"
 else
+    build_rc=$?
     print_warning "Build failed - continuing with tool reinstallation"
+    if [ "$build_rc" -eq 137 ]; then
+        echo "         The build was KILLED (exit 137): the machine ran out of memory."
+        echo "         Add swap or use 4 GB of RAM, then run this again. See docs/LINUX-DEPLOYMENT.md"
+    fi
     BUILD_FAILED=true
 fi
 

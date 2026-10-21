@@ -174,7 +174,8 @@ echo "8. Checking PATH..."
 if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
     pass "~/.local/bin is in PATH"
 else
-    warn "~/.local/bin is NOT in PATH - add to ~/.zshrc or ~/.bashrc"
+    warn "~/.local/bin is NOT in PATH, so the agent commands (aimaestro-task.sh, amp-send.sh ...) will not be found."
+    echo "      Fix: echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc   (or ~/.zshrc), then open a new shell"
 fi
 
 # 9. Test script syntax (bash -n)

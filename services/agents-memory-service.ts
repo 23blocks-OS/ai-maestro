@@ -102,7 +102,9 @@ async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
     }
 
     const result = await response.json()
-    if (result.success && result.total_messages_processed > 0) {
+    if (response.status === 202) {
+      console.log('[Memory Service] Delta indexing is still running in the background')
+    } else if (result.success && result.total_messages_processed > 0) {
       console.log(`[Memory Service] Delta indexed ${result.total_messages_processed} messages`)
     } else {
       console.log(`[Memory Service] No new messages to index`)
@@ -1292,9 +1294,58 @@ export async function ingestConversations(
 // PUBLIC API — Delta Index (POST /api/agents/:id/index-delta)
 // ===========================================================================
 
+/**
+ * A delta index of a large history takes hours (about 6 messages a second on a 2-vCPU Linux VM), far
+ * longer than an HTTP request may stay open: the server closes a socket that is idle for 15 minutes
+ * (server.mjs), and a caller on a proxy gives up sooner. So the run is a job. POST starts it (or joins
+ * the one already running for that agent), waits up to `waitSeconds` for it, and answers 202 with the
+ * job's state if it is still going; the run carries on, and GET /api/agents/:id/index-delta tells how
+ * it is doing and how it ended. A run that finishes inside the wait answers exactly as before (200).
+ */
+export interface DeltaIndexJob {
+  state: 'running' | 'done' | 'failed'
+  startedAt: string
+  finishedAt?: string
+  result?: any
+  error?: string
+}
+
+/** Default wait before answering 202; the cap keeps a request under the server's 15-minute socket timeout */
+export const DELTA_WAIT_DEFAULT_SECONDS = 60
+export const DELTA_WAIT_MAX_SECONDS = 600
+
+// Next can bundle this file more than once; the jobs must be one set for the whole process
+const deltaJobs: Map<string, { job: DeltaIndexJob; promise: Promise<void> }> =
+  ((globalThis as any)._aimDeltaIndexJobs ??= new Map())
+
+function snapshotOf(job: DeltaIndexJob): DeltaIndexJob {
+  return { state: job.state, startedAt: job.startedAt, ...(job.finishedAt ? { finishedAt: job.finishedAt } : {}),
+    ...(job.result !== undefined ? { result: job.result } : {}), ...(job.error ? { error: job.error } : {}) }
+}
+
+function startDeltaJob(agentId: string, dryRun: boolean, batchSize: number) {
+  const job: DeltaIndexJob = { state: 'running', startedAt: new Date().toISOString() }
+  const promise = runIndexDelta(agentId, { dryRun, batchSize }).then(
+    (result) => {
+      job.result = result
+      job.state = result.success ? 'done' : 'failed'
+      if (!result.success) job.error = (result as { error?: string }).error || 'index-delta reported failure'
+      job.finishedAt = new Date().toISOString()
+    },
+    (e: unknown) => {
+      job.state = 'failed'
+      job.error = e instanceof Error ? e.message : String(e)
+      job.finishedAt = new Date().toISOString()
+    },
+  )
+  const entry = { job, promise }
+  deltaJobs.set(agentId, entry)
+  return entry
+}
+
 export async function runDeltaIndex(
   agentId: string,
-  options: { dryRun?: boolean; batchSize?: number }
+  options: { dryRun?: boolean; batchSize?: number; waitSeconds?: number }
 ): Promise<ServiceResult<any>> {
   // B009: an unknown (or hostile) id is a 404, not a database folder and a 500
   const unknownAgent = unknownAgentResult(agentId)
@@ -1303,12 +1354,51 @@ export async function runDeltaIndex(
   const dryRun = options.dryRun || false
   const batchSize = options.batchSize || 10
 
-  const result = await runIndexDelta(agentId, { dryRun, batchSize })
-
-  return {
-    data: result,
-    status: result.success ? 200 : 500
+  // A dry run changes nothing and may overlap a real run: answer it directly, as before
+  if (dryRun) {
+    const result = await runIndexDelta(agentId, { dryRun, batchSize })
+    return { data: result, status: result.success ? 200 : 500 }
   }
+
+  const asked = Number.isFinite(options.waitSeconds) ? (options.waitSeconds as number) : DELTA_WAIT_DEFAULT_SECONDS
+  const waitSeconds = Math.min(Math.max(asked, 0), DELTA_WAIT_MAX_SECONDS)
+
+  // One run per agent: a second call joins the one in progress instead of queueing another
+  let entry = deltaJobs.get(agentId)
+  const joined = !!entry && entry.job.state === 'running'
+  if (!entry || entry.job.state !== 'running') entry = startDeltaJob(agentId, dryRun, batchSize)
+  const { job, promise } = entry
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const waited = await Promise.race([
+    promise.then(() => 'finished' as const),
+    new Promise<'waiting'>((resolve) => { timer = setTimeout(() => resolve('waiting'), waitSeconds * 1000) }),
+  ])
+  if (timer) clearTimeout(timer)
+
+  if (waited === 'finished' && job.state === 'done') return { data: job.result, status: 200 }
+  if (waited === 'finished') {
+    return { data: job.result ?? { success: false, error: job.error }, status: 500 }
+  }
+  return {
+    status: 202,
+    data: {
+      success: true,
+      running: true,
+      joined,
+      startedAt: job.startedAt,
+      message: `Indexing is still running (it can take hours on a large history). It carries on in the background; ask GET /api/agents/${agentId}/index-delta for its state.`,
+    },
+  }
+}
+
+/** GET /api/agents/:id/index-delta: the state of the current or the last run (none if this server has not run one) */
+export async function getDeltaIndexStatus(agentId: string): Promise<ServiceResult<any>> {
+  const unknownAgent = unknownAgentResult(agentId)
+  if (unknownAgent) return unknownAgent
+  const entry = deltaJobs.get(agentId)
+  if (!entry) return { data: { state: 'none' }, status: 200 }
+  return { data: snapshotOf(entry.job), status: 200 }
 }
 
 // ===========================================================================

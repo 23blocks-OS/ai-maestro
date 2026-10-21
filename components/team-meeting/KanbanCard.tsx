@@ -3,6 +3,7 @@
 import { Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, User, MessageSquare, AlertCircle } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import { kindLabel } from './TaskOriginBlock'
+import { DueBadge, OwnersLine } from './DueAndOwners'
 
 interface KanbanCardProps {
   task: TaskWithDeps
@@ -85,6 +86,8 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           </span>
         )}
 
+        <DueBadge due={task.due} />
+
         {task.quadrant && (
           <span className="text-[10px] font-semibold text-blue-300/90 bg-blue-500/10 rounded px-1 flex-shrink-0" title="Eisenhower quadrant" data-testid="quadrant-badge">
             {task.quadrant.toUpperCase()}
@@ -95,6 +98,12 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           <span className="text-[10px] text-sky-400/80 truncate max-w-[40%]" title={task.scope === 'project' ? task.projectName : task.teamName}>
             {task.scope === 'team' ? `team: ${task.teamName || ''}` : task.scope === 'project' ? `project: ${task.projectName || ''}` : task.scope}
           </span>
+        )}
+
+        <OwnersLine card={task} />
+
+        {task.shared && (
+          <span className="text-[10px] text-violet-300/80 flex-shrink-0" title="On another agent's board; you are a co-owner" data-testid="shared-badge">shared</span>
         )}
 
         <div className="flex-1" />

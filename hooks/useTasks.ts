@@ -10,6 +10,10 @@ export type TaskUpdates = {
   urgent?: boolean | null; important?: boolean | null
   /** Organization id, or null to go back to the assignee's */
   org?: string | null
+  /** A calendar date, YYYY-MM-DD, or null to clear it */
+  due?: string | null
+  /** The extra owners (agent ids), replacing the list; [] or null clears it */
+  owners?: string[] | null
 }
 
 export type CommentResult = { delivered?: boolean; reason?: string }

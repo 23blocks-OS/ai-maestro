@@ -10,6 +10,7 @@ import MatrixView from '@/components/matrix/MatrixView'
 import TaskDetailModal from '@/components/matrix/TaskDetailModal'
 import { VersionChecker } from '@/components/VersionChecker'
 import { commentOnCard, deleteCard, patchCard, retryCardComment } from '@/lib/task-client'
+import { cardMatchesAgent } from '@/lib/card-agent-filter'
 import { QUADRANTS, type Quadrant } from '@/types/task'
 
 /**
@@ -31,8 +32,12 @@ export default function MatrixPage() {
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [cards, hosts.length])
 
+  // An agent's names (name, alias, label) by id, so an owner listed by name still matches
+  const namesById = useMemo(() => new Map(agents.map(a => [a.id, [a.name, a.alias, a.label].filter((n): n is string => !!n)] as [string, string[]])), [agents])
+
+  // The agent filter matches the primary assignee or a co-owner; each card is listed once
   const shown = cards.filter(c =>
-    (!agentFilter || `${c.hostId}:${c.agentId}` === agentFilter) &&
+    cardMatchesAgent(c, agentFilter, namesById) &&
     (!onlyWaitingOnMe || (c.status === 'waiting' && c.waitingOn === 'juan'))
   )
   const selected = selectedId ? shown.find(c => c.id === selectedId) || null : null

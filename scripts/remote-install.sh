@@ -44,8 +44,9 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.93.3"
-REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
+VERSION="0.93.4"
+# AIMAESTRO_REPO_URL / AIMAESTRO_BRANCH: install a fork or a branch (testing, or a pinned release)
+REPO_URL="${AIMAESTRO_REPO_URL:-https://github.com/23blocks-OS/ai-maestro.git}"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
 TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
@@ -541,6 +542,16 @@ act1_hello_and_discovery() {
         NEED_YARN=true
     fi
 
+    # pm2: the supervisor that restarts the server after a crash or a reboot. Without it the
+    # install started a bare `yarn start`, and a crash left the dashboard down.
+    NEED_PM2=false
+    if have_linux_cmd pm2; then
+        maestro_check "pm2" "$(pm2 --version 2>/dev/null | tail -1) ${GREEN}✓${NC}"
+    else
+        maestro_check "pm2" "${YELLOW}not found${NC}"
+        NEED_PM2=true
+    fi
+
     # tmux
     NEED_TMUX=false
     if command -v tmux &>/dev/null; then
@@ -642,6 +653,7 @@ act1_hello_and_discovery() {
     [ "$NEED_HOMEBREW" = true ] && need_count=$((need_count + 1))
     [ "$NEED_NODE" = true ] && need_count=$((need_count + 1))
     [ "$NEED_YARN" = true ] && need_count=$((need_count + 1))
+    [ "$NEED_PM2" = true ] && need_count=$((need_count + 1))
     [ "$NEED_TMUX" = true ] && need_count=$((need_count + 1))
     [ "$NEED_JQ" = true ] && need_count=$((need_count + 1))
 
@@ -730,6 +742,24 @@ act2_install_prerequisites() {
             sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
         fi
         maestro_ok "Yarn installed"
+    fi
+
+    # pm2 (restarts the server if it dies, and at boot once `pm2 startup` is set up)
+    if [ "$NEED_PM2" = true ]; then
+        echo ""
+        maestro_say "Setting up pm2 (keeps AI Maestro running)..."
+        local pm2_prefix
+        pm2_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+        if [ -w "$pm2_prefix/lib" ] 2>/dev/null; then
+            npm install -g pm2 || { maestro_warn "Could not install pm2 — AI Maestro will start without a supervisor"; }
+        elif [ "$NON_INTERACTIVE" = true ] && ! sudo -n true 2>/dev/null; then
+            maestro_warn "pm2 needs sudo here and sudo asks for a password — AI Maestro will start without a supervisor"
+            maestro_info "Later: sudo npm install -g pm2 && cd $INSTALL_DIR && pm2 start ecosystem.config.js --env production && pm2 save"
+        else
+            maestro_info "System Node detected — using sudo for global npm install..."
+            sudo npm install -g pm2 || { maestro_warn "Could not install pm2 — AI Maestro will start without a supervisor"; }
+        fi
+        have_linux_cmd pm2 && maestro_ok "pm2 installed"
     fi
 
     # System packages (Linux/WSL only)
@@ -1000,11 +1030,27 @@ build_app() {
     local total_steps="${2:-5}"
     maestro_step "$step" "$total_steps" "Building AI Maestro (2-4 min)..." ""
 
+    # Too little RAM + swap: the system kills the build ("Killed", exit 137) and the install
+    # used to stop with no word about memory. Say it first, with the fix. The repo script is
+    # there once the clone is done; a build run from a bare harness skips it.
+    if [ -f scripts/check-build-memory.sh ]; then
+        if ! bash scripts/check-build-memory.sh; then
+            maestro_fail "Not enough memory to build AI Maestro."
+            exit 1
+        fi
+    fi
+
     rm -rf .next 2>/dev/null || true
 
     if ! yarn build >/tmp/aimaestro-build.log 2>&1; then
         if [ ! -f ".next/BUILD_ID" ]; then
             maestro_fail "Build failed — AI Maestro cannot start without it."
+            if grep -q -E 'exit code 137|Killed' /tmp/aimaestro-build.log 2>/dev/null; then
+                echo ""
+                echo "   The build was KILLED (exit 137): the machine ran out of memory."
+                echo "   Add swap or use a machine with 4 GB of RAM; then retry. See docs/LINUX-DEPLOYMENT.md."
+                echo "   Add 4 GB of swap:  sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+            fi
             echo ""
             echo "   Last 15 lines of the build log:"
             tail -15 /tmp/aimaestro-build.log | sed 's/^/     /'
@@ -1023,6 +1069,20 @@ build_app() {
     fi
 
     maestro_step "$step" "$total_steps" "Building AI Maestro..." "done"
+}
+
+# `yarn install` and the build leave a download cache (about 6 GB measured on Ubuntu). On a small
+# cloud disk that is a third of the space. It is the user's yarn cache, shared with other projects,
+# so tell them how to reclaim it instead of deleting it for them.
+note_yarn_cache() {
+    [ "$OS" = "macos" ] && return 0
+    local dir size
+    dir=$(yarn cache dir 2>/dev/null) || return 0
+    [ -d "$dir" ] || return 0
+    size=$(du -sm "$dir" 2>/dev/null | cut -f1)
+    if [ -n "$size" ] && [ "$size" -ge 1024 ]; then
+        maestro_info "Yarn's download cache holds $((size / 1024)) GB ($dir). To get the space back: yarn cache clean"
+    fi
 }
 
 act3_clone_and_build() {
@@ -1139,7 +1199,7 @@ act3_clone_and_build() {
     [ -n "$SELECTED_GATEWAYS" ] && total_steps=6
 
     maestro_step 1 "$total_steps" "Downloading..." ""
-    if ! git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"; then
+    if ! git clone --depth 1 ${AIMAESTRO_BRANCH:+--branch "$AIMAESTRO_BRANCH"} "$REPO_URL" "$INSTALL_DIR"; then
         maestro_fail "Failed to clone repository. Check your network connection."
         exit 1
     fi
@@ -1156,6 +1216,7 @@ act3_clone_and_build() {
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
     build_app 3 "$total_steps"
+    note_yarn_cache
 
     maestro_step 4 "$total_steps" "Setting up agent tools..." ""
     if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
@@ -1275,11 +1336,21 @@ act4_start_and_register() {
             pm2 save 2>/dev/null || true
             # Cap the pm2 logs at 50 MB (B013)
             bash "$INSTALL_DIR/scripts/setup-log-rotation.sh" "$INSTALL_DIR" || true
+            # Surviving a reboot needs one command with root rights. Print it; never run sudo silently.
+            local startup_cmd
+            startup_cmd=$(pm2 startup 2>/dev/null | grep -E '^sudo ' | head -1 || true)
+            if [ -n "$startup_cmd" ]; then
+                maestro_info "To start AI Maestro again after a reboot, run once:  ${startup_cmd}  &&  pm2 save"
+            else
+                maestro_info "To start AI Maestro after a reboot: run  pm2 startup  and follow what it prints, then  pm2 save"
+            fi
         else
-            # No pm2 — start in background
+            # No pm2 — start in background. Nothing restarts it if it dies.
             mkdir -p "$INSTALL_DIR/logs"
             nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
             echo $! > "$INSTALL_DIR/logs/aimaestro.pid"
+            maestro_warn "Started without a supervisor: if AI Maestro stops or the machine reboots, it stays down."
+            maestro_info "Fix: npm install -g pm2 && cd $INSTALL_DIR && pm2 start ecosystem.config.js --env production && pm2 save"
         fi
 
         # Wait for service to come up

@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.93.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.93.4-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -91,7 +91,7 @@ This installs everything you need:
 - Agent messaging system (AMP)
 - The AI Maestro plugin for Claude Code: [14 skills](#skills) and their CLI scripts, plus the `aim-secret` and `safe-psql` helpers
 
-**Time:** 5-10 minutes · **Requires:** Node.js 18+, tmux · *Optional:* Claude Code 2.1.287+ for the [inbox mod](docs/CLAUDE-CODE-MODS.md)
+**Time:** 5-10 minutes · **Requires:** Node.js 18+, tmux, and **4 GB of RAM** to build (or 2 GB plus swap; once built it runs in a few hundred MB) · *Optional:* Claude Code 2.1.287+ for the [inbox mod](docs/CLAUDE-CODE-MODS.md)
 
 <details>
 <summary>Windows (WSL2) / Linux notes</summary>
@@ -104,7 +104,7 @@ wsl --install
 
 New to WSL? WSL is a Linux system with its own disk, so its home folder starts empty. Keep agents there (`~/agents/<name>`, the default), not in `C:\` folders, which are much slower from WSL. Open their files from Windows at `\\wsl.localhost\Ubuntu\home\<you>\agents`. [Windows in 5 minutes](./docs/WINDOWS-INSTALLATION.md#windows-in-5-minutes-read-this-first) · [Full Windows guide](./docs/WINDOWS-INSTALLATION.md)
 
-**Linux:** Ensure build tools are installed: `sudo apt install tmux build-essential`
+**Linux:** Ensure build tools are installed: `sudo apt install tmux build-essential`. On a cloud VM, read the [Linux sizing and deployment guide](./docs/LINUX-DEPLOYMENT.md): the machine to ask for (4 GB RAM, 2 vCPU, 15-25 GB disk), the memory each part uses, and running under pm2.
 </details>
 
 <details>

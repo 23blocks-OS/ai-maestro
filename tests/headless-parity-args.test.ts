@@ -188,6 +188,10 @@ describe('B012 item 9: POST /api/agents/:id/index-delta', () => {
     await call('POST', '/api/agents/a1/index-delta')
     expect(m.runDeltaIndex).toHaveBeenCalledWith('a1', { dryRun: false, batchSize: undefined })
   })
+  it('reads waitSeconds from the query string', async () => {
+    await call('POST', '/api/agents/a1/index-delta?waitSeconds=5')
+    expect(m.runDeltaIndex).toHaveBeenCalledWith('a1', { dryRun: false, batchSize: undefined, waitSeconds: 5 })
+  })
 })
 
 describe('B012 item 10: GET /api/agents/:id/search', () => {

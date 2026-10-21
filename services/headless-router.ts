@@ -61,6 +61,7 @@ import {
   searchConversations,
   ingestConversations,
   runDeltaIndex,
+  getDeltaIndexStatus,
   getTracking,
   initializeTracking,
   getMetrics,
@@ -946,7 +947,11 @@ const routes: Route[] = [
     sendServiceResult(res, await runDeltaIndex(params.id, {
       dryRun: qp(query, 'dryRun') === 'true',
       batchSize: qp(query, 'batchSize') ? parseInt(qp(query, 'batchSize')!) : undefined,
+      waitSeconds: qp(query, 'waitSeconds') ? Number(qp(query, 'waitSeconds')) : undefined,
     }))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/index-delta$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await getDeltaIndexStatus(params.id))
   }},
 
   // Doorbell: a same-host sender rings after writing the inbox file (lib/doorbell.ts)

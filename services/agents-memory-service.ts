@@ -72,6 +72,7 @@ import { entityNeighbourhood, describeRelation } from '@/lib/memory/relations'
 import { isGenericEntity } from '@/lib/memory/summarizer'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
+import { parseConversationLine } from '@/lib/rag/ingest'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, accessDenied, operationFailed } from '@/services/service-errors'
 import { unknownAgentResult } from '@/services/agent-guard'
@@ -109,34 +110,39 @@ async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
   }
 }
 
-/** Parse a Claude Code transcript into the user/assistant text messages consolidation reads. */
-function messagesFromTranscript(jsonlFile: string): ConversationMessage[] {
+/**
+ * Parse a transcript into the user/assistant text messages consolidation reads. Claude Code
+ * (`~/.claude/projects`) and GitHub Copilot CLI (`~/.copilot/session-state`, mapped through the
+ * Copilot reader) go through the same code from here on.
+ */
+export function messagesFromTranscript(jsonlFile: string): ConversationMessage[] {
   const messages: ConversationMessage[] = []
   const lines = fs.readFileSync(jsonlFile, 'utf-8').split('\n').filter(line => line.trim())
   for (const line of lines) {
     try {
-      const parsed = JSON.parse(line)
-      if (!parsed.type || !['user', 'assistant'].includes(parsed.type)) continue
-      let content = ''
-      if (parsed.message?.content) {
-        if (typeof parsed.message.content === 'string') {
-          content = parsed.message.content
-        } else if (Array.isArray(parsed.message.content)) {
-          content = parsed.message.content
-            .filter((block: { type: string }) => block.type === 'text')
-            .map((block: { text: string }) => block.text || '')
-            .join('\n')
+      for (const parsed of parseConversationLine(line) as any[]) {
+        if (!parsed.type || !['user', 'assistant'].includes(parsed.type)) continue
+        let content = ''
+        if (parsed.message?.content) {
+          if (typeof parsed.message.content === 'string') {
+            content = parsed.message.content
+          } else if (Array.isArray(parsed.message.content)) {
+            content = parsed.message.content
+              .filter((block: { type: string }) => block.type === 'text')
+              .map((block: { text: string }) => block.text || '')
+              .join('\n')
+          }
         }
+        if (!content.trim()) continue
+        messages.push({
+          role: parsed.type as 'user' | 'assistant',
+          content: content.trim(),
+          timestamp: parsed.timestamp ? new Date(parsed.timestamp).getTime() : undefined,
+          tool_use: parsed.type === 'assistant' && parsed.message?.content?.some?.(
+            (block: { type: string }) => block.type === 'tool_use'
+          )
+        })
       }
-      if (!content.trim()) continue
-      messages.push({
-        role: parsed.type as 'user' | 'assistant',
-        content: content.trim(),
-        timestamp: parsed.timestamp ? new Date(parsed.timestamp).getTime() : undefined,
-        tool_use: parsed.type === 'assistant' && parsed.message?.content?.some?.(
-          (block: { type: string }) => block.type === 'tool_use'
-        )
-      })
     } catch {
       // Skip malformed lines
     }

@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.90.1] - 2026-10-20 - `aimaestro-agent.sh update <name>` wrote on the wrong agent
+
+### Fixed
+- **A command that names an agent now acts on that agent.** From crab-hr, `aimaestro-agent.sh update crab-cto --add-tag role:cto` put the tag on crab-hr. The agent search is a loose text match that also reads task descriptions; crab-hr's description mentions crab-cto, so it came back first, and the script took the first hit. The same resolver serves `show`, `rename`, `delete`, `hibernate` and the rest, so any of them could act on the wrong agent. An exact id, name, alias or label (any case) now wins; one agent with the text in its name is accepted; several are refused with their names and ids; a hit on a description alone is not a match. Plugin 1.16.1.
+
+### Tests
+- `tests/aimaestro-agent-resolve.test.ts` reproduces the crab scenario against a fake API (the old script fails 4 of its 7 cases): exact name, label, id, case, a description-only hit, an ambiguous partial name, a single partial name.
+
 ## [0.90.0] - 2026-10-20 - Parked cards, where a card came from, a CLI that describes itself
 
 Reviewed from issues #636, #637 and #640 (the other competitor-inspired issues were declined or deferred, with the reasons on each).

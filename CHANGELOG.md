@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.91.0] - 2026-10-21 - Bring an existing task list onto the board (`import`), and the matrix skill for any agent
+
+### Added
+- **`aimaestro-task.sh import <file.json|-> [--dry-run]`** adds many cards at once from a JSON list (`subject`, and optionally `description`, `status`, `quadrant`, `org`, `kind`, `waitingOn`, `waitingNote`). Every item is checked before any is added, a subject already on the agent's own board is skipped (so running it twice is safe), and `--dry-run` shows the counts. Found while checking why the operator's matrix view did not show a task list kept in a markdown file: the matrix shows cards, and that agent's file had 129 tasks against 12 cards.
+- **The `agent-tasks` skill (1.4.0) covers agents that keep a task list of their own**, in any framework: the board is the register and the file is notes; bring the list over once with `import`; then change the card in the same step as the notes. The description now names the Eisenhower matrix and personal task lists so the skill triggers for them. Plugin 1.17.0.
+
+### Tests
+- Six `import` cases in `tests/aimaestro-task-cli.test.ts` (quadrant, status, waiting and origin sent; a subject already on the board skipped; a repeat inside the list; `--dry-run` writes nothing; one bad item and nothing is added; not a list, not JSON, no file).
+
 ## [0.90.1] - 2026-10-20 - `aimaestro-agent.sh update <name>` wrote on the wrong agent
 
 ### Fixed

@@ -29,6 +29,7 @@ beforeAll(async () => {
       seen.push({ method: req.method || '', url: req.url || '', body: raw ? JSON.parse(raw) : undefined })
       const send = (code: number, obj: unknown) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)) }
       if (req.url === `/api/agents/${AGENT}/board`) return send(200, { cards })
+      if (req.url === `/api/agents/${AGENT}/tasks` && req.method === 'GET') return send(200, { tasks: [{ subject: 'T1 Already here' }] })
       if (req.url === `/api/agents/${AGENT}/tasks` && req.method === 'POST') return send(201, { task: { id: 'cccccccc-4444' } })
       if (req.url === '/api/teams/t1/tasks' && req.method === 'POST') return send(201, { task: { id: 'dddddddd-5555' } })
       if (req.url === `/api/agents/${AGENT}/tasks/aaaaaaaa-2222` && req.method === 'PATCH' && JSON.parse(raw).status === 'completed') return send(400, { error: 'invalid_field', message: 'boom from the server' })
@@ -267,5 +268,61 @@ describe.skipIf(!haveTools)('meeting-task.sh schema', () => {
     const help = execFileSync('bash', [script, '--help'], { encoding: 'utf8' })
     expect(help).toContain('meeting-task.sh schema')
     expect(help).not.toContain('set -euo pipefail')
+  })
+})
+
+describe.skipIf(!haveTools)('aimaestro-task.sh import', () => {
+  const file = (items: unknown) => { const f = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'aim-import-')), 'tasks.json'); fs.writeFileSync(f, typeof items === 'string' ? items : JSON.stringify(items)); return f }
+
+  it('adds each card with its quadrant, status and origin, and skips a subject already on the board', async () => {
+    const f = file([
+      { subject: 'T1 Already here', quadrant: 'q1' },
+      { subject: 'T2 Fix the banner', quadrant: 'q1', status: 'in_progress', description: 'copy' },
+      { subject: 'T3 Wait for copy', quadrant: 'q2', status: 'waiting', waitingOn: 'juan', waitingNote: 'final text' },
+      { subject: 'T4 Plain' },
+    ])
+    const r = await run(['import', f])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Added 3, skipped 1 already on your board, failed 0 (of 4)')
+    const w = writes()
+    expect(w).toHaveLength(3)
+    expect(w[0].body).toMatchObject({ subject: 'T2 Fix the banner', status: 'in_progress', description: 'copy', urgent: true, important: true, origin: { agentId: AGENT } })
+    expect(w[1].body).toMatchObject({ subject: 'T3 Wait for copy', status: 'waiting', waitingOn: 'juan', waitingNote: 'final text', urgent: false, important: true })
+    expect(w[2].body.status).toBeUndefined()
+    expect(w[2].body.urgent).toBeUndefined()
+  })
+
+  it('a repeated subject inside the list is added once', async () => {
+    const r = await run(['import', file([{ subject: 'Twice' }, { subject: ' Twice ' }])])
+    expect(r.out).toContain('Added 1, skipped 1')
+    expect(writes()).toHaveLength(1)
+  })
+
+  it('--dry-run reports and writes nothing', async () => {
+    const r = await run(['import', file([{ subject: 'A' }, { subject: 'B' }]), '--dry-run'])
+    expect(r.out).toContain('Would add 2')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('checks every item first: one bad item and nothing is added', async () => {
+    const r = await run(['import', file([{ subject: 'Good' }, { subject: 'Bad', quadrant: 'q9' }, { subject: 'No wait target', status: 'waiting' }, { status: 'pending' }])])
+    expect(r.code).toBe(1)
+    expect(writes()).toHaveLength(0)
+    expect(r.err).toContain('unknown quadrant q9')
+    expect(r.err).toContain('needs waitingOn')
+    expect(r.err).toContain('subject is required')
+    expect(r.err).toContain('Nothing was added')
+  })
+
+  it('refuses a file that is not a list, or not JSON', async () => {
+    expect((await run(['import', file({ subject: 'x' })])).err).toContain('JSON list')
+    expect((await run(['import', file('not json')])).code).toBe(1)
+    expect((await run(['import', '/nonexistent.json'])).err).toContain('Cannot read')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('schema lists import', async () => {
+    const doc = JSON.parse((await run(['schema'], { AIM_AGENT_ID: '' })).out)
+    expect(doc.commands.map((c: { name: string }) => c.name)).toContain('import')
   })
 })

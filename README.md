@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.93.4-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.93.5-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -429,6 +429,10 @@ the source, and sent a fix. In order of arrival:
   stopping undefined values from overwriting task fields on update.
 - **[@meichuanyi](https://github.com/meichuanyi)** — the FAQ section, which is the
   first thing many people read.
+- **[@CamiloCaceres](https://github.com/CamiloCaceres)** (Camilo Caceres) — found
+  that reading transcripts and running the embedding model inside the server froze it
+  on a Mac with 24 agents, and fixed both: transcripts are streamed, and the model runs
+  in its own bounded process (0.93.2 and 0.93.3, [measured on Linux](./docs/LINUX-DEPLOYMENT.md)).
 - **[@weliu](https://github.com/weliu)** (Wenfeng Liu) — corrected the pm2 start
   command to use `ecosystem.config.js`.
 - **[@nodoyuna](https://github.com/nodoyuna)** (Javier Moya, [jaak.ai](https://jaak.ai))

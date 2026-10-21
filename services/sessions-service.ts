@@ -61,7 +61,9 @@ import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { observedPermissionVerdict, OBSERVED_GRACE_MS } from '@/lib/observed-permission.mjs'
+import { capturePaneSync } from '@/lib/tmux-runtime.mjs'
 import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
 import { isSessionIdle, IDLE_THRESHOLD_MS } from '@/lib/session-idle'
 import { getRuntime } from '@/lib/agent-runtime'
@@ -219,7 +221,7 @@ function getHookState(
   workingDir: string,
   maxAgeMs: number = 60000,
   maxWaitingAgeMs: number = WAITING_STATE_TTL_MS
-): { status: string; notificationType?: string; at: number; transcriptPath?: string } | null {
+): { status: string; notificationType?: string; at: number; transcriptPath?: string; observed?: boolean } | null {
   if (!workingDir) return null
 
   const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
@@ -238,13 +240,70 @@ function getHookState(
       const age = Date.now() - at
       if (age > (isWaitingStatus(state.status) ? maxWaitingAgeMs : maxAgeMs)) return null
 
-      return { status: state.status, notificationType: state.notificationType, at, transcriptPath: state.transcriptPath }
+      return { status: state.status, notificationType: state.notificationType, at, transcriptPath: state.transcriptPath, ...(state.observed && { observed: true }) }
     }
   } catch {
     // Ignore errors reading state files
   }
 
   return null
+}
+
+/**
+ * An observed permission request (Claude Code's PermissionRequest hook) that the terminal showed to be
+ * over is no longer "Needs you". The hook fires nothing when the user answers, presses Esc or chooses
+ * "No", so sweepObservedPermissions records the expiry and the feed reads it here: the request is
+ * reported as what the agent is doing now ('active' or 'idle'). A newer hook report has a different
+ * `at` and is not covered.
+ */
+function withObservedExpiry<T extends { status: string; at: number; observed?: boolean }>(sessionName: string, hookState: T | null): T | null {
+  if (!hookState || hookState.status !== 'permission_request' || !hookState.observed) return hookState
+  const expired = observedExpired.get(sessionName)
+  if (!expired || expired.at !== hookState.at) return hookState
+  return { ...hookState, status: expired.status, notificationType: undefined }
+}
+
+const OBSERVED_RECHECK_MS = 1500
+const observedCheckedAt = new Map<string, number>()
+
+/**
+ * Look at the terminal of every agent whose Claude Code hook reported a pending decision and expire the
+ * ones that are over. Cheap by construction: it only visits sessions the hook reported as
+ * permission_request, no younger than OBSERVED_GRACE_MS, at most one pane capture per session per
+ * OBSERVED_RECHECK_MS, and a request is expired once. Called every second by server.mjs. Returns the
+ * number of requests expired.
+ */
+export function sweepObservedPermissions(now: number = Date.now()): number {
+  let expired = 0
+  hookStatusMap.forEach((reported, sessionName) => {
+    if (reported.status !== 'permission_request' || now - reported.at < OBSERVED_GRACE_MS) return
+    if (now - (observedCheckedAt.get(sessionName) || 0) < OBSERVED_RECHECK_MS) return
+    const agent = getAgentByName(sessionName) || getAgentBySession(sessionName)
+    const workingDir = agent && (agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || agent.preferences?.defaultWorkingDirectory)
+    if (!agent || !workingDir) return
+    const hookState = getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS)
+    if (!hookState || hookState.status !== 'permission_request' || !hookState.observed) return
+    if (observedExpired.get(sessionName)?.at === hookState.at) return
+
+    observedCheckedAt.set(sessionName, now)
+    let pane = ''
+    try {
+      pane = capturePaneSync(sessionName, 200, { timeout: 2000 })
+    } catch {
+      return // no pane to look at (another host's agent, session gone): nothing proves it is over
+    }
+    const verdict = observedPermissionVerdict({ ageMs: now - hookState.at, paneText: pane })
+    if (verdict === 'keep') return
+
+    observedExpired.set(sessionName, { at: hookState.at, status: verdict })
+    // The same path the hook uses: updates the hook status map (wake logic) and pushes to /status clients
+    broadcastActivityUpdate(sessionName, verdict, verdict, undefined, agent.id)
+    console.log(`[Hook] ${sessionName}: pending permission over (pane shows no decision), now ${verdict}`)
+    expired++
+  })
+  // Forget sessions that no longer report a pending request
+  observedCheckedAt.forEach((_, name) => { if (hookStatusMap.get(name)?.status !== 'permission_request') observedCheckedAt.delete(name) })
+  return expired
 }
 
 /** Fetch sessions from a remote host */
@@ -613,7 +672,7 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     const workingDir = sessionToWorkingDir.get(sessionName)
     // Bounded the same way: a live terminal must not be labelled "waiting" on the
     // strength of a report from months ago.
-    const hookState = workingDir ? getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS) : null
+    const hookState = workingDir ? withObservedExpiry(sessionName, getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS)) : null
 
     // The hook is the authority when it has a fresh report: it fires the moment
     // a turn starts (UserPromptSubmit) and ends (Stop), and when the agent
@@ -673,7 +732,7 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   for (const [sessionName, workingDir] of sessionToWorkingDir) {
     if (activity[sessionName]) continue
 
-    const fromFile = getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS)
+    const fromFile = withObservedExpiry(sessionName, getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS))
     const fromMap = hookStatusMap.get(sessionName)
     const mapFresh = fromMap && isFresh(fromMap.status, fromMap.at) ? fromMap : null
     const reported =

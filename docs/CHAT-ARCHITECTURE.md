@@ -186,7 +186,7 @@ notification, which any keystroke in the pane defers). That state is **observe-o
 something is pending and what (a short summary), with `options: []` and `observed: true`. Claude Code's
 real dialog options cannot be derived from the payload, so `needsPaneApprovalCard`
 (`lib/pane-approval.mjs`) sends an option-less state to the pane, which supplies the card's options and
-keys; trust-folder and MCP-consent dialogs fire no hook and are read from the pane only. Presence
+keys; trust-folder and MCP-consent dialogs fire no hook and are read from the pane only. Claude Code fires nothing when the user answers or presses Esc, so `sweepObservedPermissions` (`services/sessions-service.ts`, every second from `server.mjs`) expires an observed request once the pane shows no decision (`lib/observed-permission.mjs`, the same menu parser as the card): the feed reports Ready or Working and the chat drops the stale card. Presence
 still comes only from the server feed, as everywhere. See `docs/HOOKS-SETUP.md`.
 
 `_lastPermission` is a **cache, never an authority**. It is cleared only when a

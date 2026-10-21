@@ -139,6 +139,18 @@ describe('PermissionRequest: clearing', () => {
   })
 })
 
+describe('PermissionRequest: any later event replaces it', () => {
+  it('a later idle_prompt notification, a new prompt, or the end of the turn each supersede the request', async () => {
+    replay = createReplay({ cwd: '/work/proj' })
+    await replay.send(ev.bashPermissionRequest)
+    replay.wait(60000)
+    const idle = await replay.send(ev.notificationIdlePrompt)
+    expect(idle.status).toBe('waiting_for_input')
+    expect(idle.notificationType).toBe('idle_prompt')
+    expect(idle.state?.observed).toBeUndefined()
+  })
+})
+
 describe('PermissionRequest: other agents are not affected', () => {
   it('a Grok or Codex event of this name records nothing (their approvals come from the pane)', async () => {
     for (const payload of [grok('PermissionRequest', { cwd: '/work/proj' }), codex('PermissionRequest', { cwd: '/work/proj' })]) {

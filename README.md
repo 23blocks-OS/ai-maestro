@@ -30,7 +30,7 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 **So I built AI Maestro** — one dashboard to see every agent, on every machine, with persistent memory and direct agent-to-agent communication. Today I run 80+ agents across multiple computers, building real companies with them every day.
 
 **What makes this different:**
-- **Works with the agents you already use** — Claude Code, Codex and Grok Build get launch, chat history, status and approval cards. Pi, OpenClaw and GitHub Copilot CLI launch from AI Maestro and run in the terminal tab, as does any other terminal agent. [What each one supports](./docs/AGENT-PROGRAMS.md). We don't lock you in.
+- **Works with the agents you already use** — Claude Code, Codex and Grok Build get launch, chat history, status and approval cards. GitHub Copilot CLI also gets chat history, approval cards and long-term memory. Pi and OpenClaw launch from AI Maestro and run in the terminal tab, as does any other terminal agent. [What each one supports](./docs/AGENT-PROGRAMS.md). We don't lock you in.
 - **Multi-machine from day one** — Peer mesh network with no central server. Nobody else does this.
 - **Agents that communicate** — The Agent Messaging Protocol (AMP) lets agents coordinate directly. You orchestrate, they collaborate.
 - **Yours, entirely** — MIT licensed. No account, no telemetry, no per-seat pricing, no hosted tier we upsell you to. Your code and your agents stay on your machines.
@@ -60,7 +60,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 This installs everything you need:
 - AI Maestro dashboard and service
 - Agent messaging system (AMP)
-- The AI Maestro plugin for Claude Code: [13 skills](#skills) and their CLI scripts, plus the `aim-secret` and `safe-psql` helpers
+- The AI Maestro plugin for Claude Code: [14 skills](#skills) and their CLI scripts, plus the `aim-secret` and `safe-psql` helpers
 
 **Time:** 5-10 minutes · **Requires:** Node.js 18+, tmux · *Optional:* Claude Code 2.1.287+ for the [inbox mod](docs/CLAUDE-CODE-MODS.md)
 
@@ -162,6 +162,8 @@ Agents use a credential without seeing it. `aim-secret` keeps values in a local 
 
 Assemble agents into teams, run meetings in split-pane war rooms, and track tasks on a full Kanban board with drag-and-drop, dependencies, and 5 status columns. Cross-machine teams work seamlessly. This is project management for your AI workforce.
 
+Every agent also keeps its own board, and any agent, in any framework, can feed it with the `agent-tasks` skill. A card can carry a **due date**, **several owners** (it shows on each owner's board), a **kind** (task, idea, bug, research) and **where it came from**. Three extra pages, reached from the header and never replacing the main view, read the same cards: the **Matrix** (Eisenhower squares across all agents and hosts), the **Org** view, and **Attention** (agents that need you, cards waiting on you, overdue cards). [Tasks, Matrix and Attention →](docs/TASKS.md)
+
 ### Claude Code Mods
 
 *A Claude Code session with no tmux has nowhere for a message to land.*
@@ -256,7 +258,7 @@ AI Maestro is the stage. Pick personalities, give them skills, and run them from
 
 ## Skills
 
-The AI Maestro plugin (version 1.7.3) carries 13 skills in the open [Agent Skills Standard](https://agentskills.io/specification) format. An agent loads a skill when its description matches the task.
+The AI Maestro plugin (version 1.18.0) carries 14 skills in the open [Agent Skills Standard](https://agentskills.io/specification) format. An agent loads a skill when its description matches the task.
 
 | Skill | What it does | Source |
 |---|---|---|
@@ -265,6 +267,7 @@ The AI Maestro plugin (version 1.7.3) carries 13 skills in the open [Agent Skill
 | `graph-query` | Callers, dependencies and blast radius from the code graph | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
 | `ai-maestro-agents-management` | Create, rename, hibernate, wake and delete agents | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
 | `planning` | Persistent plan, findings and progress files for long tasks | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
+| `agent-tasks` | The agent's own task board: quadrant, waiting, parked ideas, origin, due dates, shared cards, and `import` of an existing list | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
 | `aim-secret-management` | Use a credential without seeing it; ask the user to store one | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
 | `agent-messaging` | Signed messages between agents (AMP) | [agentmessaging/claude-plugin](https://github.com/agentmessaging/claude-plugin) |
 | `agent-identity` | Sign in with an Ed25519 identity and OAuth 2.0 tokens (AID) | [agentmessaging/agent-identity](https://github.com/agentmessaging/agent-identity) |

@@ -316,3 +316,7 @@ change what the agent does?
   from the raw index the history is rebuilt from.
 - **Relations are only as good as the conversations.** A dependency nobody
   mentioned is not in the graph.
+
+## Copilot CLI agents
+
+Since 0.92.0 the indexer also reads GitHub Copilot CLI sessions (`~/.copilot/session-state/<session>/events.jsonl`) for agents whose program is Copilot, so they get the same indexing and consolidation. See [AGENT-PROGRAMS.md](./AGENT-PROGRAMS.md).

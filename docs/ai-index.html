@@ -43,7 +43,7 @@
           "price": "0",
           "priceCurrency": "USD"
         },
-        "description": "Dashboard and orchestrator for fleets of AI coding agents (Claude Code, Codex, Grok Build and other terminal agents) running in tmux, on one machine or across hosts. Agent messaging, persistent memory, code graph, secrets vault and a plugin with 13 skills.",
+        "description": "Dashboard and orchestrator for fleets of AI coding agents (Claude Code, Codex, Grok Build and other terminal agents) running in tmux, on one machine or across hosts. Agent messaging, persistent memory, code graph, secrets vault and a plugin with 14 skills.",
         "softwareVersion": "0.93.0",
         "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
         "url": "https://ai-maestro.23blocks.com",
@@ -66,7 +66,7 @@
           "Claude Code mods for the inbox and for secrets",
           "Scheduled work that belongs to the agent",
           "Canvas pages that agents draw in the dashboard",
-          "Plugin with 13 skills, including SQL, support and SEO skills",
+          "Plugin with 14 skills, including SQL, support and SEO skills",
           "Zero-configuration auto-discovery of tmux sessions",
           "Standalone agent presence via heartbeat (no tmux required)",
           "Real-time WebSocket terminal streaming",
@@ -173,6 +173,8 @@
                 <li><strong>Portable Agents:</strong> Export/import agents as .zip files for cross-host transfer and cloning.</li>
                 <li><strong>Team Meetings:</strong> Assemble agents into a war room with shared terminal views, task lists, and meeting chat.</li>
                 <li><strong>Kanban Board:</strong> Full-screen drag-and-drop board with 5 columns (Backlog, To Do, In Progress, Review, Done) and task dependency tracking.</li>
+                <li><strong>Matrix, Org and Attention pages:</strong> extra pages from the header that read the same cards. Matrix shows Eisenhower squares across agents and hosts; Attention lists agents that need you, cards waiting on you and overdue cards.</li>
+                <li><strong>Cards:</strong> due dates, several owners, kind (task, idea, bug, research) and where a card came from. Agents manage their own board with the <code>agent-tasks</code> skill.</li>
             </ul>
         </section>
 
@@ -263,7 +265,7 @@
             <h2>Installation Options</h2>
 
             <h3>Option 1: Full Installation (Recommended)</h3>
-            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and the AI Maestro plugin with its 13 skills.</p>
+            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and the AI Maestro plugin with its 14 skills.</p>
             <pre>
 # One command installs everything
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
@@ -277,14 +279,14 @@ cd ai-maestro && yarn install && yarn dev
             </pre>
 
             <h3>Option 2: Plugin Only (Claude Code)</h3>
-            <p>The plugin has 13 skills in the <a href="https://agentskills.io/specification">Agent Skills Standard</a> format. Install it from the Claude Code plugin marketplace:</p>
+            <p>The plugin has 14 skills in the <a href="https://agentskills.io/specification">Agent Skills Standard</a> format. Install it from the Claude Code plugin marketplace:</p>
             <pre>
 /plugin marketplace add 23blocks-OS/ai-maestro-plugins
 /plugin install ai-maestro@ai-maestro-plugins
             </pre>
             <p>Or copy individual SKILL.md folders from the <a href="https://github.com/23blocks-OS/ai-maestro-plugins">plugin repository</a> into your agent's skills directory. The full list is on <a href="https://ai-maestro.23blocks.com/skills.html">the skills page</a>.</p>
 
-            <h3>The 13 skills and what they need</h3>
+            <h3>The 14 skills and what they need</h3>
             <ul>
                 <li><strong>planning</strong>, <strong>agentic-support</strong> - work standalone (no AI Maestro service)</li>
                 <li><strong>agentic-seo</strong> - Python 3 for its audit script</li>
@@ -431,7 +433,7 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>Email Identity:</strong> https://ai-maestro.23blocks.com/email-identity.html</li>
                 <li><strong>Agent Intelligence:</strong> https://ai-maestro.23blocks.com/agent-intelligence.html</li>
                 <li><strong>Long-Term Memory:</strong> https://ai-maestro.23blocks.com/memory.html</li>
-                <li><strong>Skills (13):</strong> https://ai-maestro.23blocks.com/skills.html</li>
+                <li><strong>Skills (14):</strong> https://ai-maestro.23blocks.com/skills.html</li>
                 <li><strong>Open protocols (AMP, AID, AAP, AFP):</strong> https://ai-maestro.23blocks.com/protocols.html</li>
                 <li><strong>Agent Actions and canvases:</strong> https://ai-maestro.23blocks.com/agent-actions.html</li>
                 <li><strong>Ecosystem:</strong> https://ai-maestro.23blocks.com/ecosystem.html</li>
@@ -451,7 +453,7 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>Current Version:</strong> see the releases page on GitHub</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
-                <li><strong>Skills:</strong> 13 skills in the Agent Skills Standard format (agentskills.io/specification)</li>
+                <li><strong>Skills:</strong> 14 skills in the Agent Skills Standard format (agentskills.io/specification)</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
                 <li><strong>Platform Support:</strong> macOS, Windows (WSL2), Linux</li>
                 <li><strong>Zero Config:</strong> Yes, auto-discovers tmux sessions</li>

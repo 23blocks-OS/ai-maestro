@@ -20,6 +20,10 @@ New settings are listed in `docs/RAG-SYSTEM.md`: `AIMAESTRO_EMBEDDING_MAX_BATCHE
 - The first request of a new worker has 10 minutes (`coldTimeoutMs`), not 2: it loads the model and, on a first run, downloads it, and a slow connection would otherwise kill the download and restart it again and again. Later requests keep the 2 minute limit.
 - The old model cache is looked for next to the worker file, not in the working directory.
 
+### Limits
+- Indexing takes about twice as long as before (166 s against 85 s for 2,572 messages on the test Mac), because the model now runs one batch at a time in its own process; in exchange the server's memory peak was 198 MB instead of 739 MB, and its slowest request 0.06 s instead of 0.49 s.
+- Checked on macOS only. Not yet checked on Linux, in `yarn dev`, in headless mode, or with a production-sized transcript history.
+
 ## [0.93.2] - 2026-10-21 - Reading transcripts no longer freezes the server (from Camilo Caceres' #612)
 
 Contributed by Camilo Caceres (@CamiloCaceres) in #612, rebased onto 0.93.1 and made to work with Copilot sessions. Every place that read a Claude Code transcript loaded the whole file with `readFileSync(...).split('\n')`, synchronously, on the server's event loop, and memory initialisation walked every transcript on the machine once per agent. On a host with about 3 GB of transcript history and 24 agents, each dashboard load froze the server for minutes.

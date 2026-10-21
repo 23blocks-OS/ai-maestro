@@ -14,7 +14,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { loadAgents } from '@/lib/agent-registry'
-import { quadrantOf, type Task, type TaskComment, type TaskScope, type TaskWithDeps, type TasksFile } from '@/types/task'
+import { quadrantOf, type TaskKind, type TaskOrigin, type Task, type TaskComment, type TaskScope, type TaskWithDeps, type TasksFile } from '@/types/task'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const TEAMS_DIR = path.join(AIMAESTRO_DIR, 'teams')
@@ -129,6 +129,8 @@ export function createScopeTask(scope: TaskScope, data: {
   blockedBy?: string[]
   priority?: number
   org?: string | null
+  kind?: TaskKind
+  origin?: TaskOrigin
 }): Task {
   const tasks = loadScopeTasks(scope)
   const now = new Date().toISOString()
@@ -144,6 +146,8 @@ export function createScopeTask(scope: TaskScope, data: {
     // An agent's own card is that agent's unless it is given to someone else
     assigneeAgentId: data.assigneeAgentId || (scope.kind === 'agent' ? scope.id : null),
     ...(data.org ? { org: data.org } : {}),
+    ...(data.kind && data.kind !== 'task' ? { kind: data.kind } : {}),
+    ...(data.origin ? { origin: data.origin } : {}),
     blockedBy: data.blockedBy || [],
     priority: data.priority,
     createdAt: now,
@@ -162,6 +166,8 @@ export function createTask(data: {
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
+  kind?: TaskKind
+  origin?: TaskOrigin
 }): Task {
   const { teamId, ...rest } = data
   return createScopeTask(teamScope(teamId), rest)

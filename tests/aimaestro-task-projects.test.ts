@@ -130,7 +130,7 @@ describe.skipIf(!haveTools)('aimaestro-task.sh projects', () => {
     const r = await run(['add', 'Draft the plan', '--project', 'peer:pppppppp'])
     expect(r.code).toBe(0)
     expect(r.out).toContain('Added eeeeeeee  Draft the plan  (project: Outreach)')
-    expect(writes()).toEqual([{ host: 'peer', method: 'POST', url: `/api/projects/${PID}/tasks`, body: { subject: 'Draft the plan', assigneeAgentId: AGENT } }])
+    expect(writes()).toEqual([{ host: 'peer', method: 'POST', url: `/api/projects/${PID}/tasks`, body: { subject: 'Draft the plan', assigneeAgentId: AGENT, origin: { agentId: AGENT, repo: expect.any(String) } } }])
   })
 
   it('--assign gives the card to someone else, a name is turned into an id when the host knows it', async () => {

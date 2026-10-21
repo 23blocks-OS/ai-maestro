@@ -23,6 +23,7 @@ import {
   type ServiceResult, missingField, notFound, invalidField, operationFailed, invalidRequest,
   circularDependency, selfReference,
 } from '@/services/service-errors'
+import { parseKindAndOrigin } from '@/lib/task-origin'
 import { quadrantOf, type Quadrant, type Task, type TaskComment, type TaskScope, type TaskStatus, type TaskWithDeps, type WaitingOn } from '@/types/task'
 
 const STATUSES: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'waiting', 'completed']
@@ -43,6 +44,10 @@ export interface TaskParams {
   important?: boolean | null
   /** Organization slug, or null to clear */
   org?: string | null
+  /** A new card only: task (default), idea, bug or research */
+  kind?: string
+  /** A new card only: where it came from (agent, host, session, thread, repo, note) */
+  origin?: unknown
 }
 
 const ORG_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/
@@ -214,9 +219,13 @@ export function createInScope(scope: TaskScope, params: TaskParams, guard?: () =
   if (pl) return pl
   const og = checkOrg(params)
   if (og) return og
+  const ko = parseKindAndOrigin(params, getSelfHostId())
+  if (!ko.ok) return invalidField(ko.field, ko.message)
   try {
     const task = createScopeTask(scope, {
       org: params.org,
+      kind: ko.value.kind,
+      origin: ko.value.origin,
       subject: params.subject.trim(),
       description: params.description,
       assigneeAgentId: params.assigneeAgentId,

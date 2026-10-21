@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.90.0] - 2026-10-20 - Parked cards, where a card came from, a CLI that describes itself
+
+Reviewed from issues #636, #637 and #640 (the other competitor-inspired issues were declined or deferred, with the reasons on each).
+
+### Added
+- **Cards know where they came from (#636).** A card can carry an `origin`: the agent, its host, repo, conversation and message thread. It is recorded when the card is created and cannot be edited afterwards. The card's detail view shows "Came from" with a link that opens that agent's conversation (`/?agent=<id>`, any host the dashboard lists). The server fills in the host when an agent is named without one. `aimaestro-task.sh add` records it by itself.
+- **Park (#637).** `aimaestro-task.sh park "<subject>" --kind bug|idea|research --note "..."` puts a side discovery in the backlog in one line, so an agent can note it and go back to its task. Cards have an optional `kind` (task, idea, bug, research); parked ones show a small badge on the board and a "Kind" line in `show`. Works on the agent's own board, a team board (`--team`, not assigned to the parker) and a project (`--project`). The agent-tasks skill (1.3.0) teaches when to park.
+- **`schema` (#640).** `aimaestro-task.sh schema` and `meeting-task.sh schema` print every command, flag and exit code as JSON, so an agent can learn the tool in one call. `schema` needs no agent id.
+
+### Fixed
+- `meeting-task.sh --help` printed the first lines of the script's code after the usage text.
+
+### Not done, on purpose
+- No standing rule is installed into users' global instructions (#640): the plugin skill already tells agents when to use the tool.
+
+### Tests
+- `tests/task-origin.test.ts` (the validator, a parked card on an agent board and a team board, a plain task stores neither field, bad values refused, origin cannot be rewritten), `tests/task-origin-block.test.ts` (what the card shows), and park, origin and schema cases in `tests/aimaestro-task-cli.test.ts`. Needs plugin 1.16.0.
+
 ## [0.89.2] - 2026-10-20 - Role and company next to an agent's name
 
 ### Added

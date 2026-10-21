@@ -24,6 +24,8 @@
  */
 
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam } from '@/lib/team-registry'
+import { parseKindAndOrigin } from '@/lib/task-origin'
+import { getSelfHostId } from '@/lib/hosts-config'
 import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
 import type { TaskStatus } from '@/types/task'
@@ -53,6 +55,8 @@ export interface CreateTaskParams {
   assigneeAgentId?: string
   blockedBy?: string[]
   priority?: number
+  kind?: string
+  origin?: unknown
 }
 
 export interface UpdateTaskParams {
@@ -202,6 +206,8 @@ export function createTeamTask(teamId: string, params: CreateTaskParams): Servic
   }
 
   const { subject, description, assigneeAgentId, blockedBy, priority } = params
+  const ko = parseKindAndOrigin(params as { kind?: unknown; origin?: unknown }, getSelfHostId())
+  if (!ko.ok) return invalidField(ko.field, ko.message)
 
   if (!subject || typeof subject !== 'string' || !subject.trim()) {
     return missingField('subject')
@@ -222,6 +228,8 @@ export function createTeamTask(teamId: string, params: CreateTaskParams): Servic
       assigneeAgentId,
       blockedBy,
       priority,
+      kind: ko.value.kind,
+      origin: ko.value.origin,
     })
     return { data: { task }, status: 201 }
   } catch (error) {

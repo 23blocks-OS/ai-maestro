@@ -14,7 +14,7 @@ import type { Agent } from '@/types/agent'
  */
 export default function AgentMatrixPanel({ agent, agents, hostUrl }: { agent: Agent; agents: Agent[]; hostUrl: string }) {
   const { hosts } = useHosts()
-  const { tasks, error, loading, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts)
+  const { tasks, error, loading, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts, [agent.name, agent.alias, agent.label].filter((n): n is string => !!n))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const open = tasks.filter(t => t.status !== 'completed')
   const selected = selectedId ? open.find(t => t.id === selectedId) || null : null

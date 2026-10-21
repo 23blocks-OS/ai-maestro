@@ -299,6 +299,12 @@ const getCategoryColor = (category: string) => {
 - Escape key closes modals in priority order: detail view → quick-add → board
 - Blocked tasks show lock icon, not draggable
 
+**Cards across boards (0.90-0.93):** one card model (`types/task.ts`, `lib/task-registry.ts`) serves agent, team and project boards.
+`kind` and `origin` are validated by `lib/task-origin.ts`; `due` and `owners` by `lib/task-due.ts`. A card with `owners` is also
+read by each owner: `GET /api/tasks/shared?agent=` returns cards on other boards that name the agent, and `hooks/useAgentBoard.ts`
+fans out to peer hosts for it. The Matrix (`/matrix`), Org (`/org`) and Attention (`/attention`, `lib/attention.ts`) pages only read
+cards and the single status feed; none adds a store. Details: [TASKS.md](./TASKS.md).
+
 ### 9. TypeScript Type System Organization
 
 **Strict separation by domain:**

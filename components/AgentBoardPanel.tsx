@@ -19,7 +19,7 @@ export default function AgentBoardPanel({
   hostUrl: string
 }) {
   const { hosts } = useHosts()
-  const { tasks, tasksByStatus, loading, error, createTask, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts)
+  const { tasks, tasksByStatus, loading, error, createTask, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts, [agent.name, agent.alias, agent.label].filter((n): n is string => !!n))
   const name = agentTitle(agent.label || agent.name || agent.alias || agent.id.slice(0, 8), agent.tags)
 
   return (

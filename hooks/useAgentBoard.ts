@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import type { Host } from '@/types/host'
 import { isSelfHost } from '@/lib/host-kind'
-import { cardUrl } from '@/lib/task-client'
+import { cardUrl, dedupeCards, fetchSharedCards } from '@/lib/task-client'
 import type { TaskUpdates, CommentResult } from '@/hooks/useTasks'
 
 /**
@@ -15,7 +15,7 @@ import type { TaskUpdates, CommentResult } from '@/hooks/useTasks'
 /** A card with the host that holds it, set for project cards (their project can be on any host) */
 export type BoardCard = TaskWithDeps & { hostBase?: string }
 
-export function useAgentBoard(agentId: string | null, hostUrl: string = '', hosts: Host[] = []) {
+export function useAgentBoard(agentId: string | null, hostUrl: string = '', hosts: Host[] = [], aliases: string[] = []) {
   const [tasks, setTasks] = useState<BoardCard[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,13 +41,18 @@ export function useAgentBoard(agentId: string | null, hostUrl: string = '', host
           return []
         }
       }))).flat()
-      setTasks([...(data.cards || []), ...projectCards])
+      // Cards on OTHER hosts that list this agent as a co-owner: the agent's own host already put its local ones in
+      // `data.cards`, so it is not asked again. A host that does not answer adds nothing. The names let a host
+      // that does not know the agent match an owner given by name.
+      const sharedCards = await fetchSharedCards(agentId, aliases, targets.map(h => (isSelfHost(h) ? '' : h.url.replace(/\/$/, ''))), hostUrl)
+      // The same card id can come from more than one answer: it is listed once, the board's own copy first
+      setTasks(dedupeCards([...(data.cards || []), ...projectCards, ...sharedCards]))
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The host is offline or out of reach')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, hostUrl, hosts.map(h => `${h.id}|${h.url}|${h.enabled}`).join(',')])
+  }, [agentId, hostUrl, aliases.join(','), hosts.map(h => `${h.id}|${h.url}|${h.enabled}`).join(',')])
 
   useEffect(() => {
     if (!agentId) { setTasks([]); return }
@@ -59,7 +64,10 @@ export function useAgentBoard(agentId: string | null, hostUrl: string = '', host
 
   // A card is changed through the API of the board it lives on
   const base = useCallback((task: BoardCard) =>
-    task.scope === 'project' && task.projectId
+    // A card shared with this agent stays on the board it was made on, on the host that holds it
+    task.shared
+      ? cardUrl(task.hostBase ?? hostUrl, { id: task.id, scope: task.scope, teamId: task.teamId, projectId: task.projectId, ownerAgentId: task.ownerAgentId })
+      : task.scope === 'project' && task.projectId
       ? cardUrl(task.hostBase ?? '', { id: task.id, scope: 'project', projectId: task.projectId })
       : task.scope === 'team' && task.teamId
         ? `${hostUrl}/api/teams/${task.teamId}/tasks/${task.id}`

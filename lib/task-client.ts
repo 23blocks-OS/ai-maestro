@@ -21,6 +21,41 @@ export function cardUrl(base: string, card: CardRef): string {
   return `${base}/api/agents/${card.ownerAgentId || card.agentId}/tasks/${card.id}`
 }
 
+/**
+ * Cards on other hosts that list an agent as a co-owner, for that agent's board. `bases` are the
+ * hosts' addresses ('' = this host); the agent's own host (`ownHostBase`) is skipped because its board
+ * answer already includes its local shared cards. `names` are the other names the agent is known by,
+ * for a host that does not know it. A host that does not answer adds nothing; each card is marked
+ * `shared` and carries the address of the host that holds it, so it is changed through that host.
+ */
+export async function fetchSharedCards<T extends { id: string }>(
+  agentId: string,
+  names: string[],
+  bases: string[],
+  ownHostBase: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Array<T & { shared: true; hostBase: string }>> {
+  const trim = (b: string) => b.replace(/\/$/, '')
+  const as = names.filter(Boolean).join(',')
+  const answers = await Promise.all(bases.filter(b => trim(b) !== trim(ownHostBase)).map(async base => {
+    try {
+      const r = await fetchImpl(`${base}/api/tasks/shared?agent=${encodeURIComponent(agentId)}${as ? `&as=${encodeURIComponent(as)}` : ''}`, { signal: AbortSignal.timeout(6000) })
+      if (!r.ok) return []
+      const d = await r.json()
+      return ((d.cards || []) as T[]).map(c => ({ ...c, shared: true as const, hostBase: base }))
+    } catch {
+      return []
+    }
+  }))
+  return answers.flat()
+}
+
+/** A card id listed once, the first copy winning (the board's own copy comes first) */
+export function dedupeCards<T extends { id: string }>(cards: T[]): T[] {
+  const seen = new Set<string>()
+  return cards.filter(c => !seen.has(c.id) && !!seen.add(c.id))
+}
+
 async function failMessage(res: Response, fallback: string): Promise<string> {
   const detail = await res.json().catch(() => ({}))
   return detail?.message || detail?.error || fallback

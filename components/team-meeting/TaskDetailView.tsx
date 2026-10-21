@@ -7,13 +7,14 @@ import { QUADRANTS, quadrantOf, type Quadrant, type TaskWithDeps, type TaskStatu
 import DependencyPicker from './DependencyPicker'
 import WaitingFields from './WaitingFields'
 import { waitingLabel } from './KanbanCard'
+import { DueBadge } from './DueAndOwners'
 import TaskOriginBlock, { kindLabel } from './TaskOriginBlock'
 
 interface TaskDetailViewProps {
   task: TaskWithDeps
   agents: Agent[]
   allTasks: TaskWithDeps[]
-  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null; org?: string | null }) => Promise<void>
+  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null; org?: string | null; due?: string | null; owners?: string[] | null }) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onClose: () => void
   /** When given, the card shows a comment box. deliver=true sends the text to the assignee's session. */
@@ -199,6 +200,24 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
           </div>
         </div>
 
+        {/* Due date: a calendar day, applied as soon as it is chosen, like the matrix placement above */}
+        <div data-testid="due-picker">
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider">Due</label>
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              type="date"
+              value={task.due || ''}
+              onChange={e => { void onUpdate(task.id, { due: e.target.value || null }) }}
+              className="text-[11px] bg-gray-800/50 text-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-600 [color-scheme:dark]"
+              data-testid="due-input"
+            />
+            <DueBadge due={task.due} />
+            {task.due && (
+              <button onClick={() => { void onUpdate(task.id, { due: null }) }} className="text-[11px] text-gray-500 hover:text-gray-300" data-testid="due-clear">Clear</button>
+            )}
+          </div>
+        </div>
+
         {task.status === 'waiting' && !waitingDraft && (
           <p className="text-[11px] text-orange-300/90">
             {waitingLabel(task, agentName)}{task.waitingNote ? `: ${task.waitingNote}` : ''}
@@ -264,6 +283,38 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Also owned by: agents that share this card. It shows on their board too; they are not notified. */}
+        <div data-testid="owners-picker">
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider">Also owned by</label>
+          <div className="flex flex-wrap items-center gap-1 mt-1">
+            {(task.owners || []).map((o, i) => (
+              <span key={o} className="inline-flex items-center gap-1 text-[11px] bg-gray-800/70 text-gray-300 rounded px-1.5 py-0.5" data-testid="owner-chip">
+                {task.ownerNames?.[i] || agentName(o) || o}
+                <button
+                  onClick={() => { const next = (task.owners || []).filter(x => x !== o); void onUpdate(task.id, { owners: next.length > 0 ? next : null }) }}
+                  className="text-gray-500 hover:text-gray-200"
+                  aria-label={`Remove ${o}`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            ))}
+            <select
+              value=""
+              onChange={e => { if (e.target.value) void onUpdate(task.id, { owners: [...(task.owners || []), e.target.value] }) }}
+              className="text-[11px] bg-gray-800/50 text-gray-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-600"
+              data-testid="owner-add"
+              aria-label="Add an owner"
+            >
+              <option value="">+ Add an owner</option>
+              {agents
+                .filter(a => a.id !== (task.assigneeAgentId || task.ownerAgentId) && !(task.owners || []).some(o => o.toLowerCase() === a.id.toLowerCase() || o.toLowerCase() === (a.name || '').toLowerCase()))
+                .map(a => <option key={a.id} value={a.id}>{a.label || a.name || a.alias || a.id.slice(0, 8)}</option>)}
+            </select>
+          </div>
+          <p className="text-[10px] text-gray-600 mt-1">The card also shows on their board. They are not sent a message.</p>
         </div>
 
         {/* Organization: which company this card is for (otherwise its assignee's) */}

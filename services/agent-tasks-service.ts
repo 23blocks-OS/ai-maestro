@@ -24,6 +24,7 @@ import {
   circularDependency, selfReference,
 } from '@/services/service-errors'
 import { parseKindAndOrigin } from '@/lib/task-origin'
+import { parseDueInput, parseOwnersInput, isCoOwner } from '@/lib/task-due'
 import { quadrantOf, type Quadrant, type Task, type TaskComment, type TaskScope, type TaskStatus, type TaskWithDeps, type WaitingOn } from '@/types/task'
 
 const STATUSES: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'waiting', 'completed']
@@ -44,6 +45,10 @@ export interface TaskParams {
   important?: boolean | null
   /** Organization slug, or null to clear */
   org?: string | null
+  /** YYYY-MM-DD, or null to clear */
+  due?: unknown
+  /** Extra owners (agent ids or names, any host); a list replaces, null or [] clears; not notified */
+  owners?: unknown
   /** A new card only: task (default), idea, bug or research */
   kind?: string
   /** A new card only: where it came from (agent, host, session, thread, repo, note) */
@@ -110,8 +115,52 @@ function resolved(tasks: Task[]): TaskWithDeps[] {
 // ── Board (agent + team cards) ──────────────────────────────────────────────
 
 export interface BoardCard extends TaskWithDeps {
-  scope: 'agent' | 'team'
+  scope: 'agent' | 'team' | 'project'
   teamName?: string
+}
+
+/**
+ * The names an agent can appear under in a card's `owners`: its id, and on a host that knows it its
+ * name, alias and label, plus any the caller adds (the asking host knows the agent, this one may not).
+ */
+function ownerKeys(agentId: string, extra: string[] = []): string[] {
+  const a = getAgent(agentId)
+  return [agentId, ...extra, a?.name, a?.alias, a?.label].filter((x): x is string => !!x)
+}
+
+/**
+ * Open cards on THIS host, in any scope, that list the agent as a co-owner and are not already its own
+ * (not on its own board, not assigned to it). Marked `shared`. A card stays on the board it was made on;
+ * this is a read: the card is changed through its own board's API.
+ */
+export function sharedCardsFor(agentId: string, extraNames: string[] = []): BoardCard[] {
+  const keys = ownerKeys(agentId, extraNames)
+  const out: BoardCard[] = []
+  const take = (tasks: Task[], scope: 'agent' | 'team' | 'project', extra: Partial<BoardCard>, primaryOf: (t: Task) => string | null | undefined) => {
+    if (!tasks.some(t => t.status !== 'completed' && isCoOwner(t.owners || undefined, ...keys))) return
+    for (const t of resolved(tasks)) {
+      if (t.status === 'completed' || !isCoOwner(t.owners || undefined, ...keys)) continue
+      if (primaryOf(t) === agentId) continue
+      out.push({ ...t, scope, shared: true, hostId: getSelfHostId(), ...extra })
+    }
+  }
+  for (const a of loadAgents()) {
+    if (a.id === agentId) continue
+    take(loadScopeTasks(agentScope(a.id)), 'agent', { ownerAgentId: a.id }, t => t.assigneeAgentId || a.id)
+  }
+  for (const team of loadTeams()) {
+    take(loadScopeTasks(teamScope(team.id)), 'team', { teamName: team.name }, t => t.assigneeAgentId)
+  }
+  for (const project of loadProjects()) {
+    take(loadScopeTasks(projectScope(project.id)), 'project', { projectName: project.name }, t => t.assigneeAgentId)
+  }
+  return out
+}
+
+/** The cards on this host that list an agent as a co-owner: what each host answers for the agent's board on other hosts */
+export function getSharedTasks(agentId: string, extraNames: string[] = []): ServiceResult<{ cards: BoardCard[] }> {
+  if (!agentId || !isSafeScopeId(agentId)) return missingField('agent')
+  return { data: { cards: sharedCardsFor(agentId, extraNames.filter(n => /^[A-Za-z0-9][A-Za-z0-9._@-]{0,99}$/.test(n))) }, status: 200 }
 }
 
 /**
@@ -131,6 +180,9 @@ export function getAgentBoard(agentId: string): ServiceResult<{ cards: BoardCard
       if (t.assigneeAgentId === agentId) cards.push({ ...t, scope: 'team', teamName: team.name })
     }
   }
+  // Cards on other boards of THIS host that list the agent as a co-owner (other hosts: GET /api/tasks/shared)
+  const have = new Set(cards.map(c => c.id))
+  for (const c of sharedCardsFor(agentId)) if (!have.has(c.id)) cards.push(c)
   return { data: { cards }, status: 200 }
 }
 
@@ -193,7 +245,14 @@ export function getOpenTasks(filter: { quadrant?: string; waitingOn?: string; ag
   }
   let out = byQuadrant(cards, filter.quadrant)
   if (filter.waitingOn) out = out.filter(c => c.status === 'waiting' && c.waitingOn === filter.waitingOn)
-  if (filter.agent) out = out.filter(c => c.agentId === filter.agent || c.agentName === filter.agent)
+  // The primary assignee or a co-owner (by id or name); a card is still listed once
+  const who = filter.agent
+  if (who) {
+    // The agent may be given by name: resolve it so an owner listed under another of its names still matches
+    const known = loadAgents().find(a => a.id === who || [a.name, a.alias, a.label].some(n => !!n && n.toLowerCase() === who.toLowerCase()))
+    const names = [who, ...ownerKeys(known?.id || who)]
+    out = out.filter(c => c.agentId === who || c.agentName === who || isCoOwner(c.owners || undefined, ...names))
+  }
   return { data: { cards: out }, status: 200 }
 }
 
@@ -221,9 +280,15 @@ export function createInScope(scope: TaskScope, params: TaskParams, guard?: () =
   if (og) return og
   const ko = parseKindAndOrigin(params, getSelfHostId())
   if (!ko.ok) return invalidField(ko.field, ko.message)
+  const due = parseDueInput(params.due)
+  if (!due.ok) return invalidField('due', due.message)
+  const owners = parseOwnersInput(params.owners, [params.assigneeAgentId, scope.kind === 'agent' ? scope.id : null])
+  if (!owners.ok) return invalidField('owners', owners.message)
   try {
     const task = createScopeTask(scope, {
       org: params.org,
+      due: due.value,
+      owners: owners.value,
       kind: ko.value.kind,
       origin: ko.value.origin,
       subject: params.subject.trim(),
@@ -272,9 +337,15 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
   if (pl) return pl
   const og = checkOrg(params)
   if (og) return og
+  const due = parseDueInput(params.due)
+  if (!due.ok) return invalidField('due', due.message)
+  const owners = parseOwnersInput(params.owners, [params.assigneeAgentId === undefined ? existing.assigneeAgentId : params.assigneeAgentId, scope.kind === 'agent' ? scope.id : null])
+  if (!owners.ok) return invalidField('owners', owners.message)
   try {
     const result = updateScopeTask(scope, taskId, {
       org: params.org,
+      due: due.value,
+      owners: owners.value,
       subject: params.subject,
       description: params.description,
       status: params.status as TaskStatus | undefined,

@@ -15,8 +15,9 @@
 
 import { agentRoleLine } from '@/lib/agent-role-line'
 import type { AgentPresence } from '@/lib/agent-presence'
+import { dueLabel, dueState, localToday } from '@/lib/task-due'
 
-export type AttentionKind = 'needs-you' | 'waiting-on-you' | 'in-review'
+export type AttentionKind = 'needs-you' | 'waiting-on-you' | 'in-review' | 'overdue'
 
 export interface AttentionAgentInput {
   id: string
@@ -43,6 +44,8 @@ export interface AttentionCardInput {
   waitingOn?: string
   waitingNote?: string
   updatedAt?: string
+  /** A calendar date, YYYY-MM-DD: an open card past it is listed as overdue */
+  due?: string | null
 }
 
 export interface AttentionItem {
@@ -57,6 +60,8 @@ export interface AttentionItem {
   /** What is needed, in words */
   title: string
   detail?: string
+  /** The card is past its due date (it may be listed for another reason too) */
+  overdue?: boolean
   /** ISO time the wait began, when known */
   since: string | null
   /** Milliseconds waited at `now`; null when the start is not known */
@@ -69,6 +74,12 @@ const ms = (iso?: string | null): number | null => {
   if (!iso) return null
   const t = Date.parse(iso)
   return Number.isNaN(t) ? null : t
+}
+
+/** Local midnight that ends the due day: the moment a card becomes overdue */
+const startOfNextDay = (due: string): number => {
+  const [y, m, d] = due.split('-').map(Number)
+  return new Date(y, m - 1, d + 1).getTime()
 }
 
 export function buildAttention(
@@ -96,22 +107,33 @@ export function buildAttention(
     if (!prev || (ms(c.updatedAt) ?? 0) > (ms(prev.updatedAt) ?? 0)) cards.set(c.id, c)
   }
 
+  // "Today" is the reader's local calendar date; a card is overdue from the start of the day after its due date
+  const today = localToday(new Date(now))
   for (const c of cards.values()) {
     const waitingOnYou = c.status === 'waiting' && c.waitingOn === 'juan'
-    if (!waitingOnYou && c.status !== 'review') continue
+    const overdue = !!c.due && c.status !== 'completed' && dueState(c.due, today).kind === 'overdue'
+    if (!waitingOnYou && c.status !== 'review' && !overdue) continue
     const owner = byId.get(c.agentId)
-    const since = ms(c.updatedAt)
+    // How long it has waited: since its last update (waiting, review) or since it became overdue; when both
+    // apply, the longer one, so a card that is overdue and in review ranks by how late it is
+    const updated = ms(c.updatedAt)
+    const lateSince = overdue && c.due ? startOfNextDay(c.due) : null
+    // A card listed only because it is late has waited since it became overdue, not since it was last edited
+    const lateOnly = !waitingOnYou && c.status !== 'review'
+    const start = lateOnly ? lateSince : [updated, lateSince].filter((t): t is number => t !== null).reduce<number | null>((a, t) => (a === null || t < a ? t : a), null)
+    const detail = [waitingOnYou ? c.waitingNote : undefined, overdue && c.due ? `${dueLabel(c.due, today)} (was due ${c.due})` : undefined].filter(Boolean).join(' · ')
     items.push({
       key: `card:${c.id}`,
-      kind: waitingOnYou ? 'waiting-on-you' : 'in-review',
+      kind: waitingOnYou ? 'waiting-on-you' : c.status === 'review' ? 'in-review' : 'overdue',
       agentId: c.agentId,
       agentName: owner ? display(owner) : (c.agentName || c.agentId.slice(0, 8)),
       roleLine: owner ? agentRoleLine(owner.tags) : '',
       hostId: owner?.hostId ?? c.hostId, hostName: owner?.hostName ?? c.hostName,
       title: c.subject,
-      detail: waitingOnYou ? c.waitingNote : undefined,
-      since: since === null ? null : new Date(since).toISOString(),
-      waitedMs: since === null ? null : Math.max(0, now - since),
+      detail: detail || undefined,
+      overdue,
+      since: start === null ? null : new Date(start).toISOString(),
+      waitedMs: start === null ? null : Math.max(0, now - start),
     })
   }
 
@@ -137,4 +159,5 @@ export const KIND_LABEL: Record<AttentionKind, string> = {
   'needs-you': 'Needs you',
   'waiting-on-you': 'Waiting on you',
   'in-review': 'In review',
+  'overdue': 'Overdue',
 }

@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.93.0] - 2026-10-21 - Due dates and several owners on cards
+
+### Added
+- **Due date.** A card can have a `due` day (`YYYY-MM-DD`, a real calendar day; `null` clears it) on every board: an agent's own, a team's and a project's. The card shows "due Oct 25", amber within 3 days and red "overdue 2d". The card detail has a date input. In the Matrix, inside each square, cards with a due date come first, earliest first; undated cards keep their order after them. The Attention page lists open cards that are overdue.
+- **Several owners.** A card keeps its primary assignee and can list other owners (`owners`: agent ids or names, up to 10; the primary and the board's own agent are dropped; `[]` or `null` clears it). A card shows on each owner's board, marked "shared", including a card stored on another host (`GET /api/tasks/shared?agent=<id>`, asked of every host by the board; a host that does not answer does not break the board, and a card reported by two hosts is shown once). The Matrix, Org and Attention page list a shared card once with all its owners, and filtering by agent matches co-owners; a co-owner does not move a card to another organization. **Naming an owner does not message them.** The card detail says so.
+- **CLI (plugin 1.18.0, skill `agent-tasks` 1.5.0).** `aimaestro-task.sh add --due DATE --owner AGENT`, `due <id> DATE|none`, `owners <id> AGENT... | none`, `list --overdue` (overdue cards are marked in every `list`), `show` prints both, and `import` accepts `due` and `owners` (checked before anything is added). Asked for by Lola for her task file (34 tasks with a due date, up to 5 owner agents per task).
+
+### Limits
+- A shared card appears on a co-owner's board only while it is open (a finished card leaves their Done column).
+- Cross-host sharing is tested with fake peers, not yet two real hosts.
+- On the Attention page "overdue 3d" counts from the due date, while the wait shown beside it counts from the start of the next day, so the two can differ by a day.
+
+### Tests
+- Dates (a day that does not exist is refused, a leap day is accepted), owners (dedupe, limit, primary removed, null clears), create and update on the three board kinds, sharing on this host and through a fake peer, a card from two hosts once, the Matrix sort, the due badge, Attention overdue; and the CLI cases in `tests/aimaestro-task-cli.test.ts`.
+
 ## [0.92.0] - 2026-10-21 - Copilot agents get long-term memory, an Attention page, and "which session made this commit"
 
 Issues #627, #639 and #635. Nothing in the default views changes: the Attention page is a new route with one added link in the header, and the commit list is a collapsed section in the Agent Profile.

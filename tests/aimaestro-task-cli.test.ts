@@ -347,3 +347,82 @@ describe.skipIf(!haveTools)('aimaestro-task.sh delete', () => {
     expect(writes()).toHaveLength(0)
   })
 })
+
+describe.skipIf(!haveTools)('aimaestro-task.sh due and owners', () => {
+  const file = (items: unknown) => { const f = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'aim-due-')), 'tasks.json'); fs.writeFileSync(f, JSON.stringify(items)); return f }
+
+  it('add --due and --owner send the date and the other owners', async () => {
+    await run(['add', 'Ship it', '--due', '2026-10-31', '--owner', 'agent-two', '--owner', 'agent-three'])
+    expect(writes()[0].body).toMatchObject({ subject: 'Ship it', due: '2026-10-31', owners: ['agent-two', 'agent-three'] })
+  })
+
+  it('add refuses a date that is not YYYY-MM-DD before calling the server', async () => {
+    const r = await run(['add', 'x', '--due', '31/10/2026'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('--due must be a date')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('due sets and clears the date on the agent board and on a team card', async () => {
+    await run(['due', 'aaaaaaaa-1', '2026-11-02'])
+    expect(writes()[0]).toMatchObject({ method: 'PATCH', url: `/api/agents/${AGENT}/tasks/aaaaaaaa-1111`, body: { due: '2026-11-02' } })
+    await run(['due', 'aaaaaaaa-1', 'none'])
+    expect(writes()[0].body).toEqual({ due: null })
+    await run(['due', 'bbbbbbbb-3', '2026-11-02'])
+    expect(writes()[0]).toMatchObject({ method: 'PUT', url: '/api/teams/t1/tasks/bbbbbbbb-3333', body: { due: '2026-11-02' } })
+    expect((await run(['due', 'aaaaaaaa-1', 'tomorrow'])).code).toBe(1)
+  })
+
+  it('owners replaces the list, and none clears it', async () => {
+    await run(['owners', 'aaaaaaaa-1', 'agent-two', 'agent-three'])
+    expect(writes()[0]).toMatchObject({ method: 'PATCH', body: { owners: ['agent-two', 'agent-three'] } })
+    await run(['owners', 'aaaaaaaa-1', 'none'])
+    expect(writes()[0].body).toEqual({ owners: [] })
+    expect((await run(['owners', 'aaaaaaaa-1'])).code).toBe(1)
+  })
+
+  it('import carries due and owners, and checks them first', async () => {
+    const ok = await run(['import', file([{ subject: 'T9 With date', due: '2026-12-01', owners: ['a', 'b'] }])])
+    expect(ok.code).toBe(0)
+    expect(writes()[0].body).toMatchObject({ due: '2026-12-01', owners: ['a', 'b'] })
+    const bad = await run(['import', file([{ subject: 'ok' }, { subject: 'Bad date', due: 'soon' }, { subject: 'Bad owners', owners: 'agent-two' }])])
+    expect(bad.code).toBe(1)
+    expect(writes()).toHaveLength(0)
+    expect(bad.err).toContain('due must be a date')
+    expect(bad.err).toContain('owners must be a list')
+  })
+
+  it('schema lists due, owners and --overdue', async () => {
+    const doc = JSON.parse((await run(['schema'], { AIM_AGENT_ID: '' })).out)
+    expect(doc.commands.map((c: { name: string }) => c.name)).toEqual(expect.arrayContaining(['due', 'owners']))
+    expect(JSON.stringify(doc.commands.find((c: { name: string }) => c.name === 'list'))).toContain('--overdue')
+  })
+})
+
+describe.skipIf(!haveTools)('aimaestro-task.sh shows due dates and owners', () => {
+  const late = { id: 'ffffffff-0001', scope: 'agent', subject: 'Late job', status: 'pending', quadrant: 'q1', due: '2020-01-01', owners: ['b2c3d4e5-0000-4000-8000-000000000001', 'x'], comments: [] }
+  const later = { id: 'ffffffff-0002', scope: 'agent', subject: 'Far job', status: 'pending', quadrant: 'q2', due: '2999-01-01', comments: [] }
+  const done = { id: 'ffffffff-0003', scope: 'agent', subject: 'Old finished', status: 'completed', quadrant: null, due: '2020-01-01', comments: [] }
+  it('list marks an overdue open card and counts owners; --overdue shows only overdue open cards', async () => {
+    cards.push(late, later, done)
+    try {
+      const all = await run(['list'])
+      expect(all.out).toContain('[due 2020-01-01 OVERDUE]')
+      expect(all.out).toContain('[+2 owners]')
+      expect(all.out).toContain('[due 2999-01-01]')
+      const od = await run(['list', '--overdue'])
+      expect(od.out).toContain('Late job')
+      expect(od.out).not.toContain('Far job')
+      expect(od.out).not.toContain('Old finished')
+      expect(od.out).not.toContain('Ship the banner')
+    } finally { cards.splice(cards.indexOf(late), 1); cards.splice(cards.indexOf(later), 1); cards.splice(cards.indexOf(done), 1) }
+  })
+  it('show prints the due date and the owners', async () => {
+    cards.push(late)
+    try {
+      const r = await run(['show', 'ffffffff-0001'])
+      expect(r.out).toContain('Due:      2020-01-01')
+      expect(r.out).toContain('Owners:   b2c3d4e5, x')
+    } finally { cards.splice(cards.indexOf(late), 1) }
+  })
+})

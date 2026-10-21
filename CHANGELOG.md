@@ -3,6 +3,30 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.93.6] - 2026-10-21 - Only conversation is indexed: transcript records that are not chat messages are ignored
+
+Found while testing Claude Code 2.1.306 for unattended workers (see the headless report). Since Claude Code 2.1.300 a transcript also holds `api-request-blob` records: the system prompt, the tool list and the message history of each API request, written with `message.role` and `message.content` like a chat message. The memory indexer stored any line that had `message.content`, so those landed in the agent's memory as if said by the person or the agent.
+
+### Fixed
+- **One allow-list says what is conversation** (`lib/transcript-records.mjs`): only `user` and `assistant` records. The indexer (`parseConversationLine`) uses it, so `api-request-blob`, `attachment`, `system`, `last-prompt` and every record type a later Claude Code adds are ignored, not indexed. Copilot lines still go through their own reader. Offsets are unchanged: readers still count every nonblank line, so `last_indexed_message_count` means the same line as before.
+- **The commit trace ignores them too.** A blob replays earlier tool calls and results without a timestamp; the trace read one as a new commit (a record with an empty time). The chat view already skipped them (0.8x fix); it now uses the same predicate. Consolidation input (`messagesFromTranscript`) and the metadata readers were already safe, and now have tests.
+
+### Added
+- `scripts/purge-non-conversation-memory.mjs` removes the rows already stored. The stored `role` is the record's `type`, so a row whose role is not `user`, `assistant` or `system` provably came from a non-conversation record; nothing is guessed from the text. Dry run by default; `--apply` copies each `agent.db` aside first, skips a database another process has open, and deletes the rows with their terms, symbols and vectors. `--agents-dir` points it at a copy. See `docs/RAG-SYSTEM.md`.
+
+### Measured on this Mac (read-only, on copies of the agent databases)
+- 174 of 175 agent databases scanned (the 19.9 GB one was not opened): 2,727,222 message rows, **20,330 of them (0.75%) came from `api-request-blob`**, in 98 agents (up to 1,497 rows in one). No other non-conversation role was found.
+- In the 200 newest transcripts, 12,183 `api-request-blob` records in 35 files (67.6 MB of text), and the same text was being embedded and searched.
+
+### Tests
+- `tests/transcript-record-types.test.ts` runs the real CozoDB in a scratch HOME: before the fix the blob, an attachment and an invented future record type were stored with their type as role; now only the three chat lines are. It also covers the metadata and line counts, delta offsets, consolidation input, the chat view and the commit trace.
+- `tests/transcript-records.test.ts` (the allow-list) and `tests/purge-non-conversation-memory.test.ts` (dry run changes nothing, `--apply` backs up and removes exactly the rows and their dependents, a second run does nothing).
+
+### Not changed
+- `lib/cerebellum/voice-subsystem.ts` reads transcripts by `msg.type === 'human'` or a top-level `role`; a blob has neither, so it is not affected. Left as is.
+- The conversation `message_count` shown by the metadata readers counts nonblank lines (as it always has, attachments and bookkeeping records included), because saved offsets depend on it.
+- Existing databases keep the stored blob rows until the script is run.
+
 ## [0.93.5] - 2026-10-21 - Documentation sweep
 
 ### Documentation

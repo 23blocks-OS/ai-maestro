@@ -322,6 +322,25 @@ const options = {
 
 ## Troubleshooting
 
+### Memory contains system-prompt text
+
+Symptom: a memory search returns text such as "You are Claude Code..." or a tool list, or a
+database is bigger than its conversations explain. Cause: before 0.93.6 the indexer stored every
+transcript line that had `message.content`, including Claude Code's `api-request-blob` records
+(Claude Code 2.1.300 and later). The stored `role` of such a row is the record's own type, so the
+rows can be told apart exactly: a role other than `user`, `assistant` or `system`.
+
+```bash
+# stop AI Maestro first (CozoDB is single-writer), or run against a copy with --agents-dir
+node scripts/purge-non-conversation-memory.mjs                 # dry run: counts per agent and role
+node scripts/purge-non-conversation-memory.mjs --apply         # copies agent.db aside, then deletes
+node scripts/purge-non-conversation-memory.mjs --agent <id> --apply
+```
+
+`--apply` first copies each `agent.db` to `agent.db.before-purge-<time>` (it needs that much free
+disk), skips a database another process has open, and removes the rows with their terms, symbols
+and vectors. Delete the backup once you are satisfied. Nothing is guessed from the text.
+
 ### Build Issues
 
 If you encounter webpack errors with native modules:

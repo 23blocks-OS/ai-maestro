@@ -21,6 +21,7 @@ import { extractTerms, extractCodeSymbols } from './keywords'
 import { msgId } from './id'
 import { isCopilotLine, copilotLineToIndexMessages } from '@/lib/transcript-copilot.mjs'
 import { readJsonlLines, summarizeJsonl, readJsonlHeadSync } from '@/lib/jsonl'
+import { isConversationRecord } from '@/lib/transcript-records.mjs'
 
 /**
  * Extract text from Claude's message content format
@@ -91,7 +92,9 @@ export interface ConversationMessage {
 export function parseConversationLine(line: string): ConversationMessage[] {
   const parsed = JSON.parse(line)
   if (isCopilotLine(parsed)) return copilotLineToIndexMessages(parsed) as unknown as ConversationMessage[]
-  return [parsed as ConversationMessage]
+  // Only what was said: `api-request-blob`, `attachment` and the other record types (and any a
+  // later Claude Code adds) are not conversation, even when they carry `message.content`.
+  return isConversationRecord(parsed) ? [parsed as ConversationMessage] : []
 }
 
 export interface IngestionStats {

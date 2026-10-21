@@ -18,6 +18,7 @@
  * Pure: no file or network access here (see lib/commit-index.ts).
  */
 
+import { isConversationRecord } from '@/lib/transcript-records.mjs'
 import path from 'path'
 
 export interface PendingCall {
@@ -254,6 +255,8 @@ export function scanTranscript(
     if (!isResult && !mayHoldGitCall(raw)) continue
     let obj: any
     try { obj = JSON.parse(raw) } catch { continue }
+    // `api-request-blob` and the other bookkeeping records replay earlier calls and results with no timestamp
+    if (!isConversationRecord(obj)) continue
     const content = obj?.message?.content
     if (!Array.isArray(content)) continue
 

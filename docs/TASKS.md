@@ -12,6 +12,10 @@ serves all three, and every view reads from it.
 
 None of these replaces the default view. They are extra pages reached from the header.
 
+![The Matrix: open cards in four Eisenhower squares, with due badges and co-owners](./images/matrix.png)
+
+![The Attention page: overdue cards, cards waiting on you, agents that need you](./images/attention.png)
+
 ## What a card holds
 
 `subject`, `description`, `status`, `assigneeAgentId`, `blockedBy`, `priority`, plus:
@@ -23,6 +27,11 @@ None of these replaces the default view. They are extra pages reached from the h
 - **origin** (0.90.0): where the card came from: `agentId`, `hostId`, `sessionId`, `threadId`, `repo`, `note`. The card detail shows a "Came from" block that links to the agent.
 - **due** (0.93.0): `YYYY-MM-DD`, a real calendar day. The card shows "due Oct 25" (amber within 3 days, red "overdue 2d"). `null` clears it.
 - **owners** (0.93.0): up to 10 other agents (ids or names) besides the primary assignee. The card appears on each owner's board marked "shared", also when it is stored on another host. The Matrix, Org and Attention pages show it once, with all owners. Naming an owner sends no message.
+
+
+![Card detail with a due date, a "Came from" block and owners](./images/card-detail.jpg)
+
+![The same card on a co-owner's board, marked "shared"](./images/shared-card.png)
 
 Limits of sharing: a shared card appears on a co-owner's board only while it is open, so a finished card leaves their Done column.
 
@@ -45,6 +54,8 @@ aimaestro-task.sh show <id>
 `import` checks everything first and skips a subject already on the board. It accepts `subject`,
 `description`, `status`, `quadrant`, `org`, `kind`, `waitingOn`, `due` and `owners`.
 Team boards use `meeting-task.sh` (same options).
+
+Watch a card created with `--due` and `--owner` appear on the Matrix: [video](./videos/cli-card-appears-on-matrix.mp4) (screens are from a demo company, "Northwind Labs").
 
 ## API
 

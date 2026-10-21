@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - **The Matrix page on a phone.** At phone width the four squares were squeezed into slivers beside the "Not placed" tray and their labels overlapped. Under the `md` breakpoint the page now scrolls as one column: the four squares stacked full width (each with its hint, "Urgent and important" and so on), then "Not placed". The header wraps instead of overflowing. From `md` up nothing changes (the 2x2 grid with the tray beside it, checked at 1440 wide).
 
+### Docs
+- Screenshots and short videos of a demo company ("Northwind Labs") in the README, `docs/TASKS.md` and the website; the multi-agent run uses scripted agents.
+
 ## [0.93.0] - 2026-10-21 - Due dates and several owners on cards
 
 ### Added

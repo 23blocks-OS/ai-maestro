@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.92.0] - 2026-10-21 - Copilot agents get long-term memory, an Attention page, and "which session made this commit"
+
+Issues #627, #639 and #635. Nothing in the default views changes: the Attention page is a new route with one added link in the header, and the commit list is a collapsed section in the Agent Profile.
+
+### Added
+- **Long-term memory for Copilot CLI agents (#627).** The memory indexer now reads Copilot's `~/.copilot/session-state/<session>/events.jsonl` for agents whose program is Copilot, matched by the session's start folder (every session for the agent's folder, not only the newest; a session in a sub-folder goes to the agent that owns the closer folder). Lines go through the existing Copilot reader into the same index as Claude transcripts, so a Copilot agent's conversations are indexed, consolidated and searchable like any other. Claude agents are unaffected. The agent's own host does the indexing, as for every agent. Not yet seen on a real Copilot session (none exists on our hosts): the reporter is asked to confirm.
+- **Attention page (`/attention`, #639).** One list, across every agent and host, of what needs you: agents in "Needs you" (from the same single status feed as everywhere), cards waiting on you, and cards in review, longest wait first. One click opens the agent. A host that does not answer is named in a banner instead of being left out. A new "Attention" link sits beside Matrix and Org in the header; the home grid is unchanged.
+- **Commit to session (#635).** Given a commit id, find the agent session that made it: `GET /api/commits/<sha>` (full id or a prefix of at least 7 characters) asks every host and lists any that could not answer as `unreachable`; `GET /api/agents/<id>/commits` lists an agent's commits by session. The Agent Profile has a collapsed "Commits" section with a find-by-sha box. A squash-merged commit on main resolves through the `(#NNN)` in its subject to the session that opened that PR, marked "likely". Read from each agent's Claude Code transcripts on its own host; no hook or plugin change.
+
+### Limits
+- Commit trace reads Claude Code sessions only (not Codex, Grok, Pi or Copilot); a PR opened from the GitHub page, or a rebase merge with a changed message, cannot be traced; the first lookups on a large fleet are slow and flagged `partial` while the index builds.
+- The Attention page's wait time is the card's last update, so a comment on a card resets it.
+- The AI Maestro skills are still not installed where Copilot reads them (`~/.copilot/skills`); not done because it needs a decision on install and uninstall.
+
 ## [0.91.0] - 2026-10-21 - Bring an existing task list onto the board (`import`), and the matrix skill for any agent
 
 ### Added

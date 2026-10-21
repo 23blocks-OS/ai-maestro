@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.93.5] - 2026-10-21 - Documentation sweep
+
+### Documentation
+- The README credits Camilo Caceres (@CamiloCaceres) among the contributors, for the streaming transcript reader and the bounded embedding worker (0.93.2 and 0.93.3).
+- The machine-readable site index (`docs/ai-index.html`) now states the cloud-VM requirements (4 GB of RAM, or 2 GB plus swap, 2 vCPU, 15-25 GB of disk) and links the Linux sizing guide.
+- Since 0.93.0 the docs cover: due dates, several owners, the Matrix, Org and Attention pages and the `agent-tasks` skill ([docs/TASKS.md](docs/TASKS.md)); screenshots and short videos of a demo company in the README, `docs/TASKS.md` and the website; and the Linux sizing and deployment guide ([docs/LINUX-DEPLOYMENT.md](docs/LINUX-DEPLOYMENT.md)).
+
 ## [0.93.4] - 2026-10-21 - Linux installs check memory and run under pm2, long indexing calls are not cut off, and a Linux sizing guide
 
 We ran 0.93.3 in Linux containers shaped like a small cloud VM (Ubuntu 22.04, 2 vCPU, 2-4 GB) to see how it behaves away from a Mac. It installs and runs, and the AI Maestro server itself is light (about 235 MB idle, 250-380 MB while indexing). The test found four things to fix and produced numbers worth publishing: [docs/LINUX-DEPLOYMENT.md](docs/LINUX-DEPLOYMENT.md).

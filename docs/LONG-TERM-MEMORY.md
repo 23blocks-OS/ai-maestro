@@ -153,6 +153,14 @@ Every agent's messages are indexed into its own database (CozoDB, at
 message text and survives Claude Code's 30-day deletion. This is the episodic
 record everything else is built from.
 
+Only what was said is indexed: a transcript line counts when its `type` is `user` or
+`assistant` (`lib/transcript-records.mjs`, an allow-list). Claude Code writes many other
+record types, and since 2.1.300 one of them, `api-request-blob`, copies the system prompt, the
+tool list and the history of each API request in the same shape as a chat message. Those, and
+any record type a later version adds, are ignored. Offsets are still counted in lines, so a
+saved position means the same line as before. Before 0.93.6 these records were indexed too; see
+[RAG-SYSTEM.md](./RAG-SYSTEM.md#memory-contains-system-prompt-text) to clean an existing database.
+
 ### 2. Consolidation (nightly)
 
 Each agent consolidates once a night at 2 AM (its own schedule, in

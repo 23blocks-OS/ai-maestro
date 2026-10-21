@@ -449,7 +449,7 @@ function extractCopilotMetadata(
 // ============================================================================
 // EXTRACT CONVERSATION METADATA (reads file once, extracts everything)
 // ============================================================================
-async function extractConversationMetadata(jsonlPath: string, projectPath: string): Promise<{
+export async function extractConversationMetadata(jsonlPath: string, projectPath: string): Promise<{
   sessionId: string | null
   cwd: string | null
   firstUserMessage: string | null

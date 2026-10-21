@@ -27,7 +27,8 @@ The RAG system gives AI Maestro agents access to their complete conversation his
 ### ✅ Phase 1: Foundation (Complete)
 
 **Core Modules:**
-- `lib/rag/embeddings.ts` - transformers.js with bge-small-en-v1.5 model
+- `lib/rag/embeddings.ts` - embeds text through a child process (`lib/rag/embedding-client.mjs`)
+- `lib/rag/embedding-worker.mjs` - the only process that loads transformers.js and the bge-small-en-v1.5 model
 - `lib/rag/keywords.ts` - Term/symbol extraction from text and code blocks
 - `lib/rag/bm25.ts` - MiniSearch wrapper for lexical search
 - `lib/rag/id.ts` - Stable SHA-1-based ID generation
@@ -246,12 +247,19 @@ await agentDb.close()
 
 ### Embedding Model
 
-```typescript
-// lib/rag/embeddings.ts
-const MODEL = 'Xenova/bge-small-en-v1.5'
-// 384 dimensions, English, optimized for retrieval
-// CPU-friendly, no GPU required
-```
+`Xenova/bge-small-en-v1.5`: 384 dimensions, English, CPU-friendly.
+
+The model runs in one child process, never in the server. The server queues
+every caller and sends the worker two texts at a time. The worker is replaced
+after a number of batches or when its memory passes a limit, and it exits
+after 30 seconds without work.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AIMAESTRO_EMBEDDING_MAX_BATCHES` | `64` | Batches before the worker is replaced |
+| `AIMAESTRO_EMBEDDING_MAX_MB` | `512` | Worker memory (RSS, or physical footprint on macOS) before it is replaced |
+| `AIMAESTRO_EMBEDDING_CACHE_DIR` | `~/.aimaestro/cache/transformers` | Model cache |
+| `AIMAESTRO_EMBEDDING_DEVICE` | `cpu` | ONNX device; set only on a CUDA-enabled onnxruntime build |
 
 ### Search Weights
 
@@ -328,12 +336,14 @@ webpack: (config, { isServer }) => {
 First run will download the model (~100MB):
 
 ```
-[Embeddings] Loading model: Xenova/bge-small-en-v1.5
-[Embeddings] Loading... 45%
-[Embeddings] Model loaded successfully
+[Embeddings] Loading... 40%
+[Embeddings] Loading... 100%
+[Embeddings] Model loaded in 213ms (pid 94448)
 ```
 
-Model cached at: `~/.cache/huggingface/transformers/`
+Model cached at `~/.aimaestro/cache/transformers/` (outside `.next/`, so a rebuild
+keeps it). A model cached under `.next/server/.cache/` by an earlier version is
+copied there once.
 
 ### Database Migration
 

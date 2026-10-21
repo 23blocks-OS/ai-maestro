@@ -1,191 +1,21 @@
-/**
- * Local Embeddings Module
- * Uses @huggingface/transformers v3 for TypeScript-native embeddings
- * Model: bge-small-en-v1.5 (384-dimensional, English, optimized for retrieval)
- *
- * v3 includes onnxruntime-node for native CPU performance (faster than WASM)
- */
+/** Local embeddings run in one bounded, recyclable child process. */
+import { EmbeddingClient } from './embedding-client.mjs'
 
-import { pipeline, FeatureExtractionPipeline, env } from '@huggingface/transformers';
+export { createLoadProgressLogger } from './load-progress.mjs'
 
-// Configure for Node.js environment
-env.allowLocalModels = false;  // Use HuggingFace Hub
-env.useBrowserCache = false;   // Use filesystem cache in Node.js
-
-// Fast, local, CPU-friendly English embedding model
-const MODEL = 'Xenova/bge-small-en-v1.5';
-
-let extractor: FeatureExtractionPipeline | null = null;
-let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
-
-/**
- * Throttle model-download progress: one line per 10% step per file, and one at
- * 100%. The library reports every tick (hundreds of lines per download).
- */
-export function createLoadProgressLogger(log: (msg: string) => void = console.log) {
-  const lastBucket = new Map<string, number>();
-  return (progress: { file?: string; progress?: number }) => {
-    if (!progress.progress) return;
-    const pct = Math.round(progress.progress);
-    const bucket = pct >= 100 ? 100 : Math.floor(pct / 10) * 10;
-    const key = progress.file ?? '';
-    if (bucket > (lastBucket.get(key) ?? -1)) {
-      lastBucket.set(key, bucket);
-      log(`[Embeddings] Loading... ${bucket}%`);
-    }
-  };
-}
-
-/**
- * Get or initialize the embedding model (singleton pattern with race protection)
- */
-async function getExtractor(): Promise<FeatureExtractionPipeline> {
-  if (extractor) return extractor;
-
-  // Prevent multiple simultaneous initializations
-  if (extractorPromise) return extractorPromise;
-
-  extractorPromise = (async () => {
-    console.log('[Embeddings] Loading model:', MODEL);
-    const logLoadProgress = createLoadProgressLogger();
-    const startTime = Date.now();
-
-    const ext = await pipeline('feature-extraction', MODEL, {
-      dtype: 'q8',  // Quantized for speed (was: quantized: true)
-      // CPU explicitly — NOT 'auto'.
-      //
-      // On Linux, transformers.js 'auto' offers ONNX Runtime the cuda execution
-      // provider first. onnxruntime-node ships CPU-only, so session creation
-      // throws `sessionOptions.executionProviders[0] is unsupported: 'cuda'`
-      // for EVERY batch. The model still downloads and logs "Loading... 100%",
-      // which makes it look healthy; nothing is ever embedded.
-      //
-      // Observed on a 4-CPU Linux host with no GPU: every agent reported
-      // "0 messages, success" for months while its conversations sat unindexed.
-      // macOS resolved 'auto' to CPU, so the same code worked there and the
-      // failure looked host-specific rather than like a bad default.
-      //
-      // Set AIMAESTRO_EMBEDDING_DEVICE to override on a host with a genuine
-      // CUDA-enabled onnxruntime build.
-      device: (process.env.AIMAESTRO_EMBEDDING_DEVICE as any) || 'cpu',
-      progress_callback: (progress: any) => {
-        if (progress.status === 'progress' && progress.progress) {
-          logLoadProgress(progress);
-        }
-      },
-    });
-
-    const loadTime = Date.now() - startTime;
-    console.log(`[Embeddings] Model loaded successfully in ${loadTime}ms`);
-
-    extractor = ext;
-    return ext;
-  })().catch((err) => {
-    // Reset so the next call retries initialization instead of permanently caching the failed promise.
-    // Only extractorPromise matters here: extractor was never assigned if pipeline() threw.
-    extractorPromise = null;
-    throw err;
-  });
-
-  return extractorPromise;
-}
-
-/**
- * L2 normalize a vector (required for cosine similarity)
- */
-function l2Normalize(vec: Float32Array): Float32Array {
-  let sum = 0;
-  for (let i = 0; i < vec.length; i++) {
-    sum += vec[i] * vec[i];
+// Next can bundle this module more than once; a module-local singleton would
+// create duplicate ONNX sessions. Keep the queue on the process global instead.
+const shared = globalThis as typeof globalThis & { _maestroEmbeddings?: EmbeddingClient }
+function getClient(): EmbeddingClient {
+  if (!shared._maestroEmbeddings) {
+    shared._maestroEmbeddings = new EmbeddingClient()
+    process.once('exit', () => shared._maestroEmbeddings?.close())
   }
-  const norm = Math.sqrt(sum) || 1; // Avoid division by zero
-  for (let i = 0; i < vec.length; i++) {
-    vec[i] /= norm;
-  }
-  return vec;
+  return shared._maestroEmbeddings
 }
 
-/**
- * Generate embeddings for one or more texts
- * @param texts - Array of strings to embed
- * @returns Array of L2-normalized Float32Array vectors (384-d each)
- */
 export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
-  // Filter out empty or invalid texts
-  const validTexts = texts.filter(t => t && typeof t === 'string' && t.trim().length > 0);
-
-  if (validTexts.length === 0) {
-    throw new Error('[Embeddings] No valid texts to embed');
-  }
-
-  const ex = await getExtractor();
-
-  // Get embeddings with mean pooling and normalization
-  const output = await ex(validTexts, {
-    pooling: 'mean',
-    normalize: true, // Built-in L2 normalization
-  });
-
-  if (!output) {
-    throw new Error('[Embeddings] Model returned undefined output');
-  }
-
-  // Transformers.js returns a Tensor with shape [batch_size, embedding_dim]
-  // We need to extract each row as a separate embedding
-  const results: Float32Array[] = [];
-
-  // v3 uses .tolist() or direct data access
-  let data: Float32Array | number[];
-  let dims: number[];
-
-  // Handle v3 Tensor API
-  if (typeof output.tolist === 'function') {
-    // v3 style - use tolist() for clean array access
-    const list = output.tolist() as number[][];
-    for (const row of list) {
-      const vec = Float32Array.from(row);
-      results.push(l2Normalize(vec));
-    }
-    return results;
-  }
-
-  // Fallback to data/dims access
-  if (output.data instanceof Float32Array) {
-    data = output.data;
-    dims = output.dims || [validTexts.length, 384];
-  } else if (Array.isArray(output.data)) {
-    data = output.data;
-    dims = output.dims || [validTexts.length, 384];
-  } else if (output instanceof Float32Array) {
-    data = output;
-    dims = [validTexts.length, 384];
-  } else {
-    console.error('[Embeddings] Unexpected output structure:', {
-      type: typeof output,
-      constructor: output.constructor?.name,
-      keys: Object.keys(output),
-      hasData: 'data' in output,
-      dataType: output.data ? typeof output.data : 'no data',
-      hasDims: 'dims' in output,
-      hasTolist: typeof output.tolist,
-    });
-    throw new Error('[Embeddings] Cannot parse model output');
-  }
-
-  // Handle batch outputs - shape is [batch_size, embedding_dim]
-  const batchSize = dims[0] || validTexts.length;
-  const embeddingDim = dims[1] || 384;
-
-  for (let i = 0; i < batchSize; i++) {
-    const start = i * embeddingDim;
-    const end = start + embeddingDim;
-    const vec = data instanceof Float32Array
-      ? data.slice(start, end)
-      : Float32Array.from(data.slice(start, end));
-    results.push(l2Normalize(vec));
-  }
-
-  return results;
+  return getClient().embedTexts(texts)
 }
 
 /**
@@ -207,7 +37,7 @@ export function cosine(a: Float32Array, b: Float32Array): number {
  * Serialize a Float32Array to a Buffer for storage in CozoDB
  */
 export function vectorToBuffer(vec: Float32Array): Buffer {
-  return Buffer.from(vec.buffer);
+  return Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength);
 }
 
 /**
@@ -220,14 +50,15 @@ export function bufferToVector(buf: Buffer): Float32Array {
 /**
  * Batch process large arrays of texts with progress callback
  * @param texts - Array of texts to embed
- * @param batchSize - Number of texts to process at once (default: 32)
+ * @param batchSize - Number of texts to process at once (default: 2)
  * @param onProgress - Optional callback for progress updates
  */
 export async function embedBatch(
   texts: string[],
-  batchSize = 32,
+  batchSize = 2,
   onProgress?: (completed: number, total: number) => void
 ): Promise<Float32Array[]> {
+  if (!Number.isInteger(batchSize) || batchSize < 1) throw new Error('Invalid embedding batch size');
   const results: Float32Array[] = [];
 
   for (let i = 0; i < texts.length; i += batchSize) {

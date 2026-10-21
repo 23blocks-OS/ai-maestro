@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Hourglass, MessageSquare, AlertCircle, User } from 'lucide-react'
 import { QUADRANTS, quadrantOf, type Quadrant, type TaskWithDeps } from '@/types/task'
 import { waitingLabel } from '@/components/team-meeting/KanbanCard'
+import { DueBadge, OwnersLine, ownerLabels } from '@/components/team-meeting/DueAndOwners'
+import { sortByDue } from '@/lib/task-due'
 
 /** A card on the matrix; the mesh-wide view adds the agent (and host) it belongs to */
 export type MatrixCard = TaskWithDeps & { agentName?: string; hostName?: string }
@@ -42,6 +44,7 @@ function CardChip<T extends MatrixCard>({ card, showAgent, onSelect }: { card: T
         {waiting
           ? <span className="text-orange-300/90 truncate" title={card.waitingNote || undefined}>{waitingLabel(card)}</span>
           : <span className="truncate">{card.status.replace('_', ' ')}</span>}
+        <DueBadge due={card.due} />
         <div className="flex-1" />
         {showAgent && card.agentName && (
           <span className="flex items-center gap-1 truncate max-w-[45%]" title={card.hostName ? `${card.agentName} @ ${card.hostName}` : card.agentName}>
@@ -51,6 +54,7 @@ function CardChip<T extends MatrixCard>({ card, showAgent, onSelect }: { card: T
         {unsent && <span title="An instruction has not reached the agent yet"><AlertCircle className="w-3 h-3 text-red-400" /></span>}
         {(card.comments?.length || 0) > 0 && <span className="flex items-center gap-0.5"><MessageSquare className="w-2.5 h-2.5" />{card.comments!.length}</span>}
       </div>
+      {ownerLabels(card).length > 0 && <div className="mt-1 min-w-0"><OwnersLine card={card} /></div>}
     </div>
   )
 }
@@ -79,7 +83,8 @@ export default function MatrixView<T extends MatrixCard>({ cards, onPlace, onSel
     if (!card || quadrantOf(card) === q) return
     await onPlace(card, q)
   }
-  const inQuadrant = (q: Quadrant) => cards.filter(c => quadrantOf(c) === q)
+  // Inside a square: cards with a due date first, earliest first; the rest keep their order
+  const inQuadrant = (q: Quadrant) => sortByDue(cards.filter(c => quadrantOf(c) === q))
   const unplaced = cards.filter(c => quadrantOf(c) === null)
 
   return (

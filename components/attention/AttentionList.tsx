@@ -1,12 +1,13 @@
 'use client'
 
-import { Hourglass, Eye, BellRing } from 'lucide-react'
+import { Hourglass, Eye, BellRing, CalendarClock } from 'lucide-react'
 import { KIND_LABEL, type AttentionItem, type AttentionKind } from '@/lib/attention'
 
 const TONE: Record<AttentionKind, { icon: typeof Hourglass; cls: string }> = {
   'needs-you': { icon: BellRing, cls: 'text-red-300' },
   'waiting-on-you': { icon: Hourglass, cls: 'text-orange-300' },
   'in-review': { icon: Eye, cls: 'text-sky-300' },
+  'overdue': { icon: CalendarClock, cls: 'text-red-300' },
 }
 
 /** "3h", "12m", "2d": how long something has waited */

@@ -112,11 +112,21 @@ export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
       }
     }
 
+    // Extra owners as names where this host knows the agent; an unknown one is shown as given
+    const ownerNames = task.owners && task.owners.length > 0
+      ? task.owners.map(o => {
+          const w = o.toLowerCase()
+          const a = agents.find(x => x.id.toLowerCase() === w || (x.name || '').toLowerCase() === w || (x.alias || '').toLowerCase() === w)
+          return a ? (a.label || a.name || a.alias || a.id.slice(0, 8)) : o
+        })
+      : undefined
+
     return {
       ...task,
       blocks,
       isBlocked,
       assigneeName,
+      ...(ownerNames ? { ownerNames } : {}),
       quadrant: quadrantOf(task),
     }
   })
@@ -129,6 +139,8 @@ export function createScopeTask(scope: TaskScope, data: {
   blockedBy?: string[]
   priority?: number
   org?: string | null
+  due?: string | null
+  owners?: string[] | null
   kind?: TaskKind
   origin?: TaskOrigin
 }): Task {
@@ -146,6 +158,8 @@ export function createScopeTask(scope: TaskScope, data: {
     // An agent's own card is that agent's unless it is given to someone else
     assigneeAgentId: data.assigneeAgentId || (scope.kind === 'agent' ? scope.id : null),
     ...(data.org ? { org: data.org } : {}),
+    ...(data.due ? { due: data.due } : {}),
+    ...(data.owners && data.owners.length > 0 ? { owners: data.owners } : {}),
     ...(data.kind && data.kind !== 'task' ? { kind: data.kind } : {}),
     ...(data.origin ? { origin: data.origin } : {}),
     blockedBy: data.blockedBy || [],
@@ -166,6 +180,8 @@ export function createTask(data: {
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
+  due?: string | null
+  owners?: string[] | null
   kind?: TaskKind
   origin?: TaskOrigin
 }): Task {
@@ -187,7 +203,7 @@ export function getTask(teamId: string, taskId: string): Task | null {
 export function updateScopeTask(
   scope: TaskScope,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org' | 'due' | 'owners'>>
 ): { task: Task | null; unblocked: Task[] } {
   const tasks = loadScopeTasks(scope)
   const index = tasks.findIndex(t => t.id === taskId)
@@ -210,6 +226,9 @@ export function updateScopeTask(
 
   // org: null takes the card off its organization (the assignee's applies again)
   if (updates.org === null) delete tasks[index].org
+  // due: null clears the date; owners: null or an empty list clears the extra owners (a new list replaces the old)
+  if (updates.due === null) delete tasks[index].due
+  if (updates.owners === null || (Array.isArray(updates.owners) && updates.owners.length === 0)) delete tasks[index].owners
 
   // A card that stops waiting forgets what it waited on
   if (updates.status && updates.status !== 'waiting') {
@@ -245,7 +264,7 @@ export function updateScopeTask(
 export function updateTask(
   teamId: string,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org' | 'due' | 'owners'>>
 ): { task: Task | null; unblocked: Task[] } {
   return updateScopeTask(teamScope(teamId), taskId, updates)
 }

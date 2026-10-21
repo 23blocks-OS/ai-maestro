@@ -71,6 +71,10 @@ export interface Task {
   assigneeAgentId?: string | null
   /** The organization (a slug, like the `org:` tag value) this card is for; unset = the assignee's organization */
   org?: string | null
+  /** A calendar date, YYYY-MM-DD (no time, no timezone); unset = no due date */
+  due?: string | null
+  /** Agents (id or name, any host) that also own the card besides assigneeAgentId; they are not notified */
+  owners?: string[] | null
   kind?: TaskKind                // Unset = a task
   origin?: TaskOrigin            // Where the card came from (set at creation)
   blockedBy: string[]            // Task IDs that must complete first
@@ -91,6 +95,10 @@ export interface TaskWithDeps extends Task {
   blocks: string[]               // Derived: task IDs this blocks (computed on read)
   isBlocked: boolean             // true if any blockedBy task not completed
   assigneeName?: string          // Resolved agent display name
+  /** `owners` as names where this host knows the agent (the id or name as given otherwise), same order */
+  ownerNames?: string[]
+  /** Set on an agent's board for a card that is on someone else's board and lists this agent as a co-owner */
+  shared?: boolean
   scope?: 'agent' | 'team' | 'project'  // Which board the card lives on (set on an agent's board)
   teamName?: string
   projectName?: string

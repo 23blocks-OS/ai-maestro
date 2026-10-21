@@ -25,6 +25,7 @@
 
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam } from '@/lib/team-registry'
 import { parseKindAndOrigin } from '@/lib/task-origin'
+import { parseDueInput, parseOwnersInput } from '@/lib/task-due'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
@@ -57,6 +58,8 @@ export interface CreateTaskParams {
   priority?: number
   kind?: string
   origin?: unknown
+  due?: unknown
+  owners?: unknown
 }
 
 export interface UpdateTaskParams {
@@ -70,6 +73,10 @@ export interface UpdateTaskParams {
   waitingNote?: string
   urgent?: boolean | null
   important?: boolean | null
+  /** YYYY-MM-DD, or null to clear */
+  due?: unknown
+  /** Extra owners (agent ids or names); a list replaces, null or [] clears */
+  owners?: unknown
 }
 
 export interface CreateDocumentParams {
@@ -208,6 +215,10 @@ export function createTeamTask(teamId: string, params: CreateTaskParams): Servic
   const { subject, description, assigneeAgentId, blockedBy, priority } = params
   const ko = parseKindAndOrigin(params as { kind?: unknown; origin?: unknown }, getSelfHostId())
   if (!ko.ok) return invalidField(ko.field, ko.message)
+  const due = parseDueInput(params.due)
+  if (!due.ok) return invalidField('due', due.message)
+  const owners = parseOwnersInput(params.owners, [assigneeAgentId])
+  if (!owners.ok) return invalidField('owners', owners.message)
 
   if (!subject || typeof subject !== 'string' || !subject.trim()) {
     return missingField('subject')
@@ -228,6 +239,8 @@ export function createTeamTask(teamId: string, params: CreateTaskParams): Servic
       assigneeAgentId,
       blockedBy,
       priority,
+      due: due.value,
+      owners: owners.value,
       kind: ko.value.kind,
       origin: ko.value.origin,
     })
@@ -260,6 +273,11 @@ export function updateTeamTask(
   for (const [key, v] of [['urgent', urgent], ['important', important]] as const) {
     if (v !== undefined && v !== null && typeof v !== 'boolean') return invalidField(key, `${key} must be true, false or null`)
   }
+
+  const due = parseDueInput(params.due)
+  if (!due.ok) return invalidField('due', due.message)
+  const owners = parseOwnersInput(params.owners, [assigneeAgentId === undefined ? existing.assigneeAgentId : assigneeAgentId])
+  if (!owners.ok) return invalidField('owners', owners.message)
 
   // Validate blockedBy to prevent circular dependencies
   if (Array.isArray(blockedBy)) {
@@ -298,6 +316,8 @@ export function updateTeamTask(
       waitingNote,
       urgent,
       important,
+      due: due.value,
+      owners: owners.value,
     })
 
     if (!result.task) {

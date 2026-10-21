@@ -261,6 +261,15 @@ after 30 seconds without work.
 | `AIMAESTRO_EMBEDDING_CACHE_DIR` | `~/.aimaestro/cache/transformers` | Model cache |
 | `AIMAESTRO_EMBEDDING_DEVICE` | `cpu` | ONNX device; set only on a CUDA-enabled onnxruntime build |
 
+### Memory and time on a small Linux VM
+
+Measured on Ubuntu 22.04 (2 vCPU, 4 GB; see [LINUX-DEPLOYMENT.md](./LINUX-DEPLOYMENT.md)): the server stays at
+250-380 MB while indexing and the worker adds up to about 224 MB; indexing runs at about 6 messages a second,
+one agent at a time; the index costs about 6 KB per message on disk. Linux has no `vmmap`, so the worker's
+memory limit uses plain RSS there. A delta index of a large history runs as a job:
+`POST /api/agents/:id/index-delta` answers 202 after `waitSeconds` (default 60) and
+`GET /api/agents/:id/index-delta` tells how it is going.
+
 ### Search Weights
 
 ```typescript

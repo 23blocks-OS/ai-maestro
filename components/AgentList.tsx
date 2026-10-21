@@ -1,5 +1,6 @@
 'use client'
 
+import { agentRoleLine } from '@/lib/agent-role-line'
 import PresenceLegend from './PresenceLegend'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import LiveAvatar from './LiveAvatar'
@@ -1354,13 +1355,13 @@ export default function AgentList({
                                               </div>
 
                                               {/* Second row: Agent name (when label is shown) */}
-                                              {agent.label && agent.name && (
+                                              {((agent.label && agent.name) || agentRoleLine(agent.tags)) && (
                                                 <div className="flex items-center gap-1 mt-0.5">
                                                   <span
                                                     className="text-[10px] text-gray-500 truncate"
-                                                    title={agent.name}
+                                                    title={[agent.label && agent.name, agentRoleLine(agent.tags)].filter(Boolean).join(' · ')}
                                                   >
-                                                    {agent.name}
+                                                    {[agent.label && agent.name, agentRoleLine(agent.tags)].filter(Boolean).join(' · ')}
                                                   </span>
                                                 </div>
                                               )}

@@ -1,5 +1,6 @@
 'use client'
 
+import { agentTitle } from '@/lib/agent-role-line'
 import { useAgentBoard } from '@/hooks/useAgentBoard'
 import { useHosts } from '@/hooks/useHosts'
 import TaskKanbanBoard from '@/components/team-meeting/TaskKanbanBoard'
@@ -19,7 +20,7 @@ export default function AgentBoardPanel({
 }) {
   const { hosts } = useHosts()
   const { tasks, tasksByStatus, loading, error, createTask, updateTask, deleteTask, addComment, retryComment } = useAgentBoard(agent.id, hostUrl, hosts)
-  const name = agent.label || agent.name || agent.alias || agent.id.slice(0, 8)
+  const name = agentTitle(agent.label || agent.name || agent.alias || agent.id.slice(0, 8), agent.tags)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden" data-testid="agent-board">

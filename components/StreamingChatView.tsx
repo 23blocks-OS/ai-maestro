@@ -1,5 +1,6 @@
 'use client'
 
+import { agentRoleLine } from '@/lib/agent-role-line'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
@@ -285,6 +286,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         hostId={agent.hostId}
         remote={getAgentBaseUrl(agent) !== ''}
         name={agent.label || agent.name || agent.alias || 'Agent'}
+        roleLine={agentRoleLine(agent.tags)}
         workingDirectory={agentWorkingDirectory(agent)}
         address={primaryAmpAddress(agent as any)}
         snapshot={snapshotOf(agent)}

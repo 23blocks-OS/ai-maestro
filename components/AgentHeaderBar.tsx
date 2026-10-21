@@ -21,6 +21,8 @@ export interface AgentHeaderBarProps {
   remote?: boolean
   /** Display name (label, else name) */
   name: string
+  /** "gm · 3metas": the agent's role and company, from its role: and org: tags */
+  roleLine?: string
   workingDirectory?: string | null
   /** The agent's AMP address (name@tenant.aimaestro.local), shown after the folder */
   address?: string | null
@@ -54,7 +56,7 @@ export function shortenPath(p: string): string {
  * only what is known and only when the agent has done a turn, so an empty or
  * unknown agent keeps the compact two-line header.
  */
-export default function AgentHeaderBar({ hostId, remote = false, name, workingDirectory, address, snapshot, presence, status, actions, avatar }: AgentHeaderBarProps) {
+export default function AgentHeaderBar({ hostId, remote = false, name, roleLine, workingDirectory, address, snapshot, presence, status, actions, avatar }: AgentHeaderBarProps) {
   const style = PRESENCE_STYLE[presence]
   const showHost = remote && hostId && hostId !== 'local'
   return (
@@ -67,6 +69,7 @@ export default function AgentHeaderBar({ hostId, remote = false, name, workingDi
           <div className="flex flex-col min-w-0 justify-center">
             <div className="flex items-center gap-2 min-w-0 leading-tight">
               <h3 className="font-semibold text-gray-50 text-[15px] leading-tight truncate min-w-0">{name}</h3>
+              {roleLine && <span className="text-xs leading-tight text-gray-400 truncate min-w-0 flex-shrink" title={roleLine}>{roleLine}</span>}
               <span className="flex items-center gap-1.5 flex-shrink min-w-0" title={style.title}>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
                 <span className={`text-xs leading-tight truncate min-w-0 ${style.text}`}>{status ?? style.label}</span>

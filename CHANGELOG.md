@@ -3,6 +3,29 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.93.7] - 2026-10-21 - "Needs you" shows the moment Claude Code asks, from the PermissionRequest hook (observe-only)
+
+Until now a Claude Code agent showed "Needs you" in the sidebar, on the Attention page and on the phone about **6 seconds after** it asked for a permission, because the only signal was the `permission_prompt` notification, which Claude Code sends after six seconds and defers on every keystroke. The chat card was already fast (it is read from the terminal); the status was not. Claude Code's `PermissionRequest` hook fires at the moment the dialog is drawn.
+
+### Added
+- **The hook reports a pending decision at once.** AI Maestro's hook now handles `PermissionRequest` (a tool approval, a question to you, a plan to review) and records `permission_request` with a short summary of what is asked (the command or file path, cut at 300 characters; never the whole tool input) and, for a subagent, its id. It goes through the same status feed as every other state, so the sidebar, Attention page, mobile app and wake logic see "Needs you" without any view computing it. Measured on Claude Code 2.1.306 (the dialog is visible and the feed says "Needs you" within one 250 ms poll, against 6.03 s and 6.04 s before in two runs); the card's real options (Yes / always allow / switch to auto mode / No) arrive from the terminal about 0.35 s later.
+- **It is observe-only.** The hook never answers the dialog, never blocks or delays Claude Code (it is registered async, exits 0 on any error, and never sets `onFailure`), and reports **no options**: Claude Code builds each dialog's options itself and they cannot be derived from the payload (a Bash prompt can have a "switch to auto mode" line that the payload never lists, so options built from it could press the wrong key). The chat takes the options and keys from the terminal as before (`needsPaneApprovalCard`).
+- **The installer registers it, and updates existing installs.** `install-hooks.sh` registers `PermissionRequest` when `claude --version` is 2.0.45 or later (the first release with the event; older versions can reject an unknown event name). `AIM_PERMISSION_REQUEST_HOOK=0` turns it off (and removes our entry), `=1` skips the version check. Rerunning the installer now also **updates our own entries in place** (a moved script, a missing `async`, the older `Notification` matcher without `elicitation_dialog` that existing installs still have) without touching anyone else's hooks or settings, keeps the previous file as `settings.json.aimaestro-backup-<time>` (newest five), and changes nothing when nothing differs. Before, an event that already had our hook was never updated.
+- **`AIM_SERVER_URL`** moves the address the hook reports to (default `http://localhost:23000`), for a server on another port.
+
+### Fixed
+- The never-registered `PermissionRequest` code in the hook built a card from `permission_suggestions`, which listed 3 options for a 4-line dialog (the "No" key would have chosen "switch to auto mode"). It is gone: Claude events are observe-only, and a `PermissionRequest` from another agent (Grok, Codex) is ignored, as it always was.
+- A `PermissionRequest` without a tool name no longer throws.
+
+### Limits
+- Claude Code fires **no event when you answer, press Esc or choose "No"** at a dialog. The state clears on the next tool batch, the end of the turn or your next prompt, as the other waiting states always did. After Esc or "No" at a dialog the agent can therefore keep showing "Needs you" until its next event; this was already so for any dialog open longer than 6 seconds (measured: the older notification path pins the same way), and now also happens when you dismiss it within 6 seconds. A later change should expire an observed request once the terminal no longer shows a menu.
+- Nothing is reported in `acceptEdits` and `auto` modes (nothing asks), for a Claude Code older than 2.0.45, or for the trust-this-folder and MCP-server consent dialogs, which fire no hook (in our test the server built no card for the MCP dialog from the terminal either; this change does not touch that path).
+- Not covered: MCP-tool permission prompts, Windows, Linux, VS Code and Desktop sessions, managed-settings policies that block hooks.
+
+### Tests
+- Real Claude Code 2.1.306 payloads (`tests/fixtures/claude-hooks`) replayed through the hook: the state at once, no options, the later notification does not replace it, clearing, AskUserQuestion and ExitPlanMode, subagents, summary cutting, other agents ignored. The installer against fake HOMEs: fresh, old Claude Code, forced, opt-out, someone else's `PermissionRequest` hook, a Juan-style old install (old matcher, shared group, other events and settings kept), backup, collapse of duplicates, an unreadable settings file, and a rerun that changes nothing.
+- Live, on an isolated instance with a real Claude Code 2.1.306 session in a private tmux: the timelines above, the approve path (cleared 0.76 s after the dialog closed), and Esc at a dialog (pinned, as written under Limits).
+
 ## [0.93.6] - 2026-10-21 - Only conversation is indexed: transcript records that are not chat messages are ignored
 
 Found while testing Claude Code 2.1.306 for unattended workers (see the headless report). Since Claude Code 2.1.300 a transcript also holds `api-request-blob` records: the system prompt, the tool list and the message history of each API request, written with `message.role` and `message.content` like a chat message. The memory indexer stored any line that had `message.content`, so those landed in the agent's memory as if said by the person or the agent.

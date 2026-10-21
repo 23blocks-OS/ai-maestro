@@ -180,6 +180,15 @@ Three sources, in descending trustworthiness:
 3. `sessionState._lastPermission` — in-memory cache, set from either of the above
    including a pane false-positive.
 
+Since 0.93.7 the hook also reports a pending permission the moment Claude Code asks, from the
+`PermissionRequest` event (about 0.05 s after the tool call, instead of the 6 s `permission_prompt`
+notification, which any keystroke in the pane defers). That state is **observe-only**: it says that
+something is pending and what (a short summary), with `options: []` and `observed: true`. Claude Code's
+real dialog options cannot be derived from the payload, so `needsPaneApprovalCard`
+(`lib/pane-approval.mjs`) sends an option-less state to the pane, which supplies the card's options and
+keys; trust-folder and MCP-consent dialogs fire no hook and are read from the pane only. Presence
+still comes only from the server feed, as everywhere. See `docs/HOOKS-SETUP.md`.
+
 `_lastPermission` is a **cache, never an authority**. It is cleared only when a
 new assistant message arrives, which produced a deadlock:
 

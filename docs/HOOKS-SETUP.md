@@ -295,6 +295,30 @@ ls ~/.agent-messaging/messages/inbox/$(tmux display-message -p '#S')/
 bash -c 'SESSION=$(tmux display-message -p "#S" 2>/dev/null); echo "Session: $SESSION"; ls ~/.agent-messaging/messages/inbox/$SESSION/'
 ```
 
+## The hooks AI Maestro installs itself
+
+Separate from the message hooks above, `install-hooks.sh` (run by the installer and by `update-aimaestro.sh`) registers AI Maestro's own hook, `scripts/claude-hooks/ai-maestro-hook.cjs`, in `~/.claude/settings.json`. It is how the dashboard knows what each Claude Code session is doing, and it delivers AMP notices between turns. It registers:
+
+| Event | Sync / async | What it reports |
+|---|---|---|
+| `SessionStart`, `UserPromptSubmit` | sync | a turn is starting (also where inbox notices are injected) |
+| `Stop` | sync | the turn ended: the agent is ready |
+| `Notification` (`idle_prompt`, `permission_prompt`, `elicitation_dialog`) | sync | the agent waits for you: the slower, keystroke-deferred signal |
+| `PermissionRequest` (Claude Code 2.0.45 or later) | **async, observe-only** | a tool approval, a question or a plan is pending: reported the moment Claude Code asks (about 0.05 s), not 6 s later |
+| `PostToolBatch`, `StopFailure`, `SessionEnd` | async | the agent is working again, an API error ended the turn, the session is gone |
+
+**`PermissionRequest` is observe-only.** The hook never answers the dialog and never delays or blocks Claude Code: it is async, exits 0 on any error, and `onFailure` is never set. It reports a short summary of what is asked (the command or file path, cut at 300 characters; never a whole file or the rest of the tool input) and **no options**: Claude Code builds each dialog's options itself, and they cannot be derived from the hook payload (a Bash prompt can have a "switch to auto mode" line that the payload never lists). The chat builds the card's options and keys from the terminal, as before. Claude Code fires nothing when you answer, so the state clears on the next tool batch, the end of the turn or the next prompt, as the other waiting states do. It does not exist for sessions in `acceptEdits` or `auto` mode (nothing asks), and the trust-this-folder and MCP-consent dialogs fire no hook at all: those are still read from the terminal.
+
+**Updates reach existing installs.** Rerunning the installer replaces our own entries when they differ from the current ones (an older matcher such as `idle_prompt|permission_prompt` without `elicitation_dialog`, a moved script, a missing `async`) and adds missing events. Hooks that are not ours, in the same group or elsewhere, and every other setting stay as they were. When the file changes, the previous copy is kept next to it as `settings.json.aimaestro-backup-<time>` (the newest five are kept); when nothing changes the file is not touched, so a second run is a no-op.
+
+**Switches** (environment variables for the installer):
+
+- `AIM_PERMISSION_REQUEST_HOOK=0` does not register `PermissionRequest` and removes our entry if present.
+- `AIM_PERMISSION_REQUEST_HOOK=1` registers it without looking at the Claude Code version.
+- Unset: registered when `claude --version` reports 2.0.45 or later (an older Claude Code can reject a settings file that names an event it does not know); skipped, with a message, otherwise.
+
+**The hook talks to `http://localhost:23000`.** Set `AIM_SERVER_URL` in the agent's environment when AI Maestro listens somewhere else (another port, a test instance).
+
 ## Security Considerations
 
 **Important**: Hooks run automatically with your current environment's credentials.

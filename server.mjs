@@ -12,7 +12,7 @@ import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
 import { resolveBindHost } from './lib/bind-host.mjs'
 // Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
-import { approvalKindForProgram, parseApprovalForProgram } from './lib/pane-approval.mjs'
+import { approvalKindForProgram, parseApprovalForProgram, needsPaneApprovalCard } from './lib/pane-approval.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
 import { isValidSessionName } from './lib/tmux-safe.mjs'
 // F026 Phase 0: every tmux call in this file goes through lib/tmux-runtime.mjs
@@ -454,10 +454,10 @@ function broadcastHookState(sessionName, sessionState) {
   }
   // Fallback: if the hook didn't surface a permission prompt but the pane is
   // clearly showing one, build a card from the pane so it ALWAYS shows in chat.
-  // Grok: its hook reports permission_request without the menu, so for Grok the
-  // pane card (options + keys) wins over an option-less hook state.
+  // Grok and Claude Code's observe-only PermissionRequest report a permission_request without the
+  // menu, so an option-less hook state is replaced by the pane card (options + keys).
   const grokKind = approvalKindForProgram(sessionState._program)
-  if (state?.status !== 'permission_request' || (grokKind && !state.options?.length)) {
+  if (needsPaneApprovalCard(state, grokKind)) {
     const fromPane = detectPermissionFromPane(sessionName, sessionState._program)
     if (fromPane) state = fromPane
   }

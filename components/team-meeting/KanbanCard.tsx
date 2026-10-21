@@ -2,6 +2,7 @@
 
 import { Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, User, MessageSquare, AlertCircle } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import { kindLabel } from './TaskOriginBlock'
 
 interface KanbanCardProps {
   task: TaskWithDeps
@@ -75,6 +76,12 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           <span className="flex items-center gap-1 text-[10px] text-gray-500 truncate">
             <User className="w-2.5 h-2.5 flex-shrink-0" />
             {task.assigneeName}
+          </span>
+        )}
+
+        {kindLabel(task.kind) && (
+          <span className="text-[10px] font-semibold text-violet-300/90 bg-violet-500/10 rounded px-1 flex-shrink-0" title="Parked by an agent" data-testid="kind-badge">
+            {kindLabel(task.kind)}
           </span>
         )}
 

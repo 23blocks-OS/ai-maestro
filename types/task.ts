@@ -30,6 +30,23 @@ export function quadrantOf(t: { urgent?: boolean | null; important?: boolean | n
   return t.urgent ? (t.important ? 'q1' : 'q3') : (t.important ? 'q2' : 'q4')
 }
 
+/** What a card is. Most are tasks; an agent can park an idea, a bug or a research item it noticed in passing. */
+export type TaskKind = 'task' | 'idea' | 'bug' | 'research'
+export const TASK_KINDS: TaskKind[] = ['task', 'idea', 'bug', 'research']
+
+/** Where a card was born. Recorded at creation, never edited. */
+export interface TaskOrigin {
+  agentId?: string
+  hostId?: string
+  /** The agent's conversation (Claude Code session) when it is known */
+  sessionId?: string
+  /** An AMP message or thread the card came from */
+  threadId?: string
+  repo?: string
+  /** A short line of context written when the card was parked */
+  note?: string
+}
+
 export type TaskScopeKind = 'agent' | 'team' | 'project'
 export interface TaskScope { kind: TaskScopeKind; id: string }
 
@@ -54,6 +71,8 @@ export interface Task {
   assigneeAgentId?: string | null
   /** The organization (a slug, like the `org:` tag value) this card is for; unset = the assignee's organization */
   org?: string | null
+  kind?: TaskKind                // Unset = a task
+  origin?: TaskOrigin            // Where the card came from (set at creation)
   blockedBy: string[]            // Task IDs that must complete first
   priority?: number              // 0=highest (optional ordering)
   waitingOn?: WaitingOn          // Required while status is 'waiting'

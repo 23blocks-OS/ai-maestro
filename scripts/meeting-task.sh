@@ -13,6 +13,7 @@
 #   meeting-task.sh move   <team-id> <task-id> <status>
 #   meeting-task.sh list   <team-id> [--status S] [--owner UUID]
 #   meeting-task.sh delete <team-id> <task-id>
+#   meeting-task.sh schema
 #
 # Shared flags:
 #   --host URL     API base URL (default: $AIMAESTRO_HOST or http://localhost:23000)
@@ -28,7 +29,7 @@ HOST="${AIMAESTRO_HOST:-http://localhost:23000}"
 JSON_OUTPUT=false
 
 print_usage() {
-  sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # --- helpers -----------------------------------------------------------------
@@ -265,6 +266,31 @@ cmd_delete() {
   fi
 }
 
+# --- subcommand: schema ------------------------------------------------------
+
+cmd_schema() {
+  cat <<'SCHEMA'
+{
+  "tool": "meeting-task.sh",
+  "about": "A team's task board from the CLI. For your own board use aimaestro-task.sh.",
+  "shared_flags": [
+    {"flag": "--host", "value": "URL", "about": "API base URL (default $AIMAESTRO_HOST or http://localhost:23000)"},
+    {"flag": "--json", "about": "Print the raw API response"}
+  ],
+  "statuses": ["backlog", "pending", "in_progress", "review", "completed"],
+  "commands": [
+    {"name": "create", "args": ["<team-id>", "<subject>"], "flags": ["--description <text>", "--owner <agent uuid>", "--priority <n>"], "about": "Create a task"},
+    {"name": "update", "args": ["<team-id>", "<task-id>"], "flags": ["--subject <text>", "--description <text>", "--status <status>", "--owner <agent uuid>", "--priority <n>"], "about": "Change a task; at least one flag is required"},
+    {"name": "move", "args": ["<team-id>", "<task-id>", "<status>"], "about": "Move a task to a column"},
+    {"name": "list", "args": ["<team-id>"], "flags": ["--status <status>", "--owner <agent uuid>"], "about": "List tasks"},
+    {"name": "delete", "args": ["<team-id>", "<task-id>"], "about": "Delete a task"},
+    {"name": "schema", "about": "This document"}
+  ],
+  "exit_codes": {"0": "ok", "1": "error: the message is on stderr (bad usage, or the API refused the request)"}
+}
+SCHEMA
+}
+
 # --- main --------------------------------------------------------------------
 
 SUBCMD="${1:-}"
@@ -280,5 +306,6 @@ case "$SUBCMD" in
   move)   cmd_move   "$@" ;;
   list)   cmd_list   "$@" ;;
   delete) cmd_delete "$@" ;;
+  schema) cmd_schema ;;
   *) print_usage; die "Unknown subcommand: ${SUBCMD}" ;;
 esac

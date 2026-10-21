@@ -7,6 +7,7 @@ import { QUADRANTS, quadrantOf, type Quadrant, type TaskWithDeps, type TaskStatu
 import DependencyPicker from './DependencyPicker'
 import WaitingFields from './WaitingFields'
 import { waitingLabel } from './KanbanCard'
+import TaskOriginBlock, { kindLabel } from './TaskOriginBlock'
 
 interface TaskDetailViewProps {
   task: TaskWithDeps
@@ -213,6 +214,11 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
             </div>
           </div>
         )}
+
+        {kindLabel(task.kind) && (
+          <p className="text-[10px] uppercase tracking-wider text-violet-300/90" data-testid="task-kind">{kindLabel(task.kind)}</p>
+        )}
+        <TaskOriginBlock origin={task.origin} agents={agents} />
 
         {/* Subject */}
         <div>

@@ -66,7 +66,7 @@ describe.skipIf(!haveTools)('aimaestro-task.sh', () => {
     const r = await run(['add', 'Write the changelog', '--desc', 'for 0.85'])
     expect(r.code).toBe(0)
     expect(r.out).toContain('Added cccccccc')
-    expect(writes()).toEqual([{ method: 'POST', url: `/api/agents/${AGENT}/tasks`, body: { subject: 'Write the changelog', description: 'for 0.85' } }])
+    expect(writes()).toEqual([{ method: 'POST', url: `/api/agents/${AGENT}/tasks`, body: { subject: 'Write the changelog', description: 'for 0.85', origin: { agentId: AGENT, repo: expect.any(String) } } }])
   })
 
   it('add --team puts it on the team board, assigned to the agent', async () => {
@@ -210,5 +210,62 @@ describe.skipIf(!haveTools)('aimaestro-task.sh', () => {
       expect((await run(['show', 'aaaaaaaa-1'])).out).toContain('Quadrant: Q1')
       expect((await run(['show', 'aaaaaaaa-2'])).out).toContain('Quadrant: not placed')
     })
+  })
+})
+
+describe.skipIf(!haveTools)('aimaestro-task.sh park, origin and schema', () => {
+  it('park puts a backlog card with its kind and origin on the agent\'s own board', async () => {
+    const r = await run(['park', 'Flaky test in sync', '--kind', 'bug', '--note', 'saw it fixing the hook', '--thread', 'msg_17'], { AIM_SESSION_ID: 'sess-9' })
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Parked cccccccc')
+    expect(r.out).toContain('[bug]')
+    expect(writes()).toHaveLength(1)
+    expect(writes()[0]).toMatchObject({
+      method: 'POST', url: `/api/agents/${AGENT}/tasks`,
+      body: { subject: 'Flaky test in sync', status: 'backlog', kind: 'bug', origin: { agentId: AGENT, sessionId: 'sess-9', threadId: 'msg_17', note: 'saw it fixing the hook' } },
+    })
+  })
+
+  it('park defaults to a task, and refuses an unknown kind before calling the server', async () => {
+    await run(['park', 'Look into caching'])
+    expect(writes()[0].body).toMatchObject({ status: 'backlog', kind: 'task' })
+    const bad = await run(['park', 'x', '--kind', 'epic'])
+    expect(bad.code).toBe(1)
+    expect(bad.err).toContain('Unknown kind')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('park --team parks on the team board and does not assign it to the parker', async () => {
+    await run(['park', 'Idea: dark map', '--kind', 'idea', '--team', 't1'])
+    expect(writes()[0]).toMatchObject({ method: 'POST', url: '/api/teams/t1/tasks', body: { kind: 'idea', status: 'backlog' } })
+    expect(writes()[0].body.assigneeAgentId).toBeUndefined()
+  })
+
+  it('add records where the card came from', async () => {
+    await run(['add', 'Write the changelog'])
+    expect(writes()[0].body.origin).toMatchObject({ agentId: AGENT })
+  })
+
+  it('schema is valid JSON, lists park and schema, and needs no agent id', async () => {
+    const r = await run(['schema'], { AIM_AGENT_ID: '' })
+    expect(r.code).toBe(0)
+    const doc = JSON.parse(r.out)
+    expect(doc.tool).toBe('aimaestro-task.sh')
+    const names = doc.commands.map((c: { name: string }) => c.name)
+    expect(names).toEqual(expect.arrayContaining(['add', 'park', 'wait', 'list', 'schema']))
+    expect(doc.kinds).toEqual(['task', 'idea', 'bug', 'research'])
+    expect(doc.exit_codes['0']).toBeTruthy()
+    expect(seen).toHaveLength(0)
+  })
+})
+
+describe.skipIf(!haveTools)('meeting-task.sh schema', () => {
+  it('prints valid JSON that lists the commands, and help stops at the usage text', () => {
+    const script = path.join(__dirname, '../scripts/meeting-task.sh')
+    const doc = JSON.parse(execFileSync('bash', [script, 'schema'], { encoding: 'utf8' }))
+    expect(doc.commands.map((c: { name: string }) => c.name)).toEqual(['create', 'update', 'move', 'list', 'delete', 'schema'])
+    const help = execFileSync('bash', [script, '--help'], { encoding: 'utf8' })
+    expect(help).toContain('meeting-task.sh schema')
+    expect(help).not.toContain('set -euo pipefail')
   })
 })

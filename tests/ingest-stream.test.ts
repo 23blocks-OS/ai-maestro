@@ -67,3 +67,29 @@ it('leaves concurrent appends for the next delta instead of skipping them', asyn
   expect(next.processedMessages).toBe(1)
   expect(vi.mocked(upsertMessage).mock.calls.map(c => c[1].text)).toEqual(['a', 'b', 'new'])
 })
+
+it('indexes a Copilot events.jsonl through the Copilot reader, counting progress in lines', async () => {
+  const { parseConversationLine } = await import('../lib/rag/ingest')
+  const fs = await import('node:fs')
+  const src = path.join(__dirname, 'fixtures', 'copilot', 'events-conversation.jsonl')
+  const text = fs.readFileSync(src, 'utf-8')
+  const lines = text.split('\n').filter(l => l.trim())
+  const expected = lines.flatMap(l => parseConversationLine(l)).filter(m => {
+    const c = m.message?.content
+    return typeof c === 'string' ? c.trim() : Array.isArray(c) ? c.some((b: any) => (b.text || '').trim()) : false
+  })
+  expect(expected.length).toBeGreaterThan(0)
+  const f = file(text)
+  const result = await ingestConversation({} as any, f)
+  expect(result.totalMessages).toBe(lines.length)
+  expect(result.processedMessages).toBe(expected.length)
+  // a delta from the middle indexes exactly what the lines after it hold
+  vi.clearAllMocks()
+  const mid = Math.floor(lines.length / 2)
+  const tail = lines.slice(mid).flatMap(l => parseConversationLine(l)).filter(m => {
+    const c = m.message?.content
+    return typeof c === 'string' ? c.trim() : Array.isArray(c) ? c.some((b: any) => (b.text || '').trim()) : false
+  })
+  const delta = await indexConversationDelta({} as any, f, mid)
+  expect(delta.processedMessages).toBe(tail.length)
+})

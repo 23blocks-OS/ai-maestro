@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.93.2] - 2026-10-21 - Reading transcripts no longer freezes the server (from Camilo Caceres' #612)
+
+Contributed by Camilo Caceres (@CamiloCaceres) in #612, rebased onto 0.93.1 and made to work with Copilot sessions. Every place that read a Claude Code transcript loaded the whole file with `readFileSync(...).split('\n')`, synchronously, on the server's event loop, and memory initialisation walked every transcript on the machine once per agent. On a host with about 3 GB of transcript history and 24 agents, each dashboard load froze the server for minutes.
+
+### Fixed
+- **Transcripts are streamed** (`lib/jsonl.ts`). Metadata needs only the first 50 lines, the last 20 and a count; the working-directory match reads only the first 10 lines. Line numbering is unchanged (nonblank lines), so saved offsets stay valid.
+- **Memory initialisation scans only the agent's own folders** under `~/.claude/projects` (the encoded working directory, also when Claude Code cut a very long name and added a hash: `lib/claude-projects.ts`). A transcript matches an agent by its working directory, and any other transcript is still picked up by the delta indexer's own discovery.
+- **Indexing keeps at most two messages in memory.** The full and delta paths are one streaming function. A line of a Copilot `events.jsonl` still maps to zero, one or two messages, and progress is still counted in lines.
+- **Lines appended during indexing are indexed on the next run** instead of waiting for the file to change again.
+
+### Changed (ours)
+- `messagesFromTranscript` (consolidation) is now async and streams as well; the Copilot metadata reader works from the streamed head and tail.
+
+### Not changed
+- The embedding model still runs inside the server process (next: #613).
+
 ## [0.93.1] - 2026-10-21 - Fixed: Matrix on a phone
 
 ### Fixed

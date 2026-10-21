@@ -74,6 +74,7 @@ import { isGenericEntity } from '@/lib/memory/summarizer'
 import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import { parseConversationLine } from '@/lib/rag/ingest'
+import { claudeProjectFolders } from '@/lib/claude-projects'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, accessDenied, operationFailed } from '@/services/service-errors'
 import { unknownAgentResult } from '@/services/agent-guard'
@@ -380,10 +381,7 @@ export async function initializeMemory(
         // files a transcript under its encoded cwd, and a transcript matches
         // an agent by cwd (session ids here are tmux ids, never transcript
         // ids), so nothing outside these folders could have matched.
-        const allJsonlFiles = Array.from(projectPaths)
-          .map(p => path.join(claudeProjectsDir, p.replace(/[^a-zA-Z0-9]/g, '-')))
-          .filter(d => fs.existsSync(d))
-          .flatMap(findJsonlFiles)
+        const allJsonlFiles = claudeProjectFolders(claudeProjectsDir, projectPaths).flatMap(findJsonlFiles)
 
         for (const jsonlPath of allJsonlFiles) {
           try {

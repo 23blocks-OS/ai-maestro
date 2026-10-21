@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.93.3] - 2026-10-21 - The embedding model runs in its own process (from Camilo Caceres' #613)
+
+Contributed by Camilo Caceres (@CamiloCaceres) in #613, rebased onto 0.93.2. The embedding model (transformers.js with ONNX Runtime) ran inside the server. Its native memory grew with use and was never returned, Next could bundle `lib/rag/embeddings.ts` more than once and load the model twice, and every batch blocked the server's CPU. On a Mac the growth went to compressed memory and swap, where RSS does not show it, until the machine froze.
+
+### Fixed
+- **The model loads only in a child process,** `lib/rag/embedding-worker.mjs`. The server never imports transformers.js. One queue per server process (`lib/rag/embedding-client.mjs`, kept on `globalThis` so every bundle shares it) sends the worker two texts at a time.
+- **The worker is bounded.** It is replaced after 64 batches or when its memory passes 512 MB, and exits after 30 seconds idle. On macOS memory is the physical footprint from `vmmap` (`lib/process-footprint.mjs`), sampled every 16 batches, because RSS misses compressed and swapped pages. A crash, a hung request (2 minutes) or a malformed answer fails that request and replaces the worker; a replacement starts only after the old one exits, so two copies of the model never overlap. The queue refuses new work past 64 requests or 16 MB of text.
+- **The model cache moved out of `.next/`.** It was under `.next/server/.cache`, which a rebuild deletes. It is now `~/.aimaestro/cache/transformers` (`AIMAESTRO_EMBEDDING_CACHE_DIR` overrides); an existing cached model is copied once.
+- **Stored vectors are exactly the vector.** `vectorToBuffer` stored the whole underlying buffer; for a vector that is a view into a larger buffer, that was the wrong bytes.
+
+New settings are listed in `docs/RAG-SYSTEM.md`: `AIMAESTRO_EMBEDDING_MAX_BATCHES`, `AIMAESTRO_EMBEDDING_MAX_MB`, `AIMAESTRO_EMBEDDING_CACHE_DIR`.
+
+### Changed (ours)
+- The worker file is found from the module's own location, then the working directory, then the directory of the script node started, so a server started from another directory (pm2, a service, a script) still finds it.
+- The first request of a new worker has 10 minutes (`coldTimeoutMs`), not 2: it loads the model and, on a first run, downloads it, and a slow connection would otherwise kill the download and restart it again and again. Later requests keep the 2 minute limit.
+- The old model cache is looked for next to the worker file, not in the working directory.
+
 ## [0.93.2] - 2026-10-21 - Reading transcripts no longer freezes the server (from Camilo Caceres' #612)
 
 Contributed by Camilo Caceres (@CamiloCaceres) in #612, rebased onto 0.93.1 and made to work with Copilot sessions. Every place that read a Claude Code transcript loaded the whole file with `readFileSync(...).split('\n')`, synchronously, on the server's event loop, and memory initialisation walked every transcript on the machine once per agent. On a host with about 3 GB of transcript history and 24 agents, each dashboard load froze the server for minutes.

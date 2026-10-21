@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import path from 'node:path'
+import os from 'node:os'
+import fs from 'node:fs'
 import { EmbeddingClient } from '../lib/rag/embedding-client.mjs'
 import { parseFootprint } from '../lib/process-footprint.mjs'
 
@@ -44,7 +46,7 @@ describe('isolated embedding queue', () => {
     expect((await good)[0][0]).toBe(4)
   })
   it('recovers from worker crashes and kills hung workers', async () => {
-    const c = client({ timeoutMs: 500 })
+    const c = client({ timeoutMs: 500, coldTimeoutMs: 500 })
     await expect(c.embedTexts(['CRASH'])).rejects.toThrow('Embedding worker exited')
     await expect(c.embedTexts(['HANG'])).rejects.toThrow('timed out')
     expect((await c.embedTexts(['ok']))[0][0]).toBe(2)
@@ -70,4 +72,23 @@ it('parses physical footprint without confusing peak or virtual memory', () => {
   expect(parseFootprint('Physical footprint:         6.8G\nPhysical footprint (peak):  7.1G')).toBe(6.8 * 1024 ** 3)
   expect(parseFootprint('Physical footprint: 274.1M\n')).toBe(274.1 * 1024 ** 2)
   expect(() => parseFootprint('RSS: 0')).toThrow()
+})
+
+describe('worker location and the first request', () => {
+  it('finds the worker file whatever directory the server was started from', async () => {
+    const { resolveWorkerPath } = await import('../lib/rag/embedding-client.mjs')
+    const here = process.cwd()
+    try {
+      process.chdir(os.tmpdir())
+      const found = resolveWorkerPath()
+      expect(path.basename(found)).toBe('embedding-worker.mjs')
+      expect(fs.existsSync(found)).toBe(true)
+    } finally { process.chdir(here) }
+  })
+  it('gives the first request of a new worker longer than later ones (model load or download)', async () => {
+    const c = client({ timeoutMs: 100, coldTimeoutMs: 3000 })
+    await expect(c.embedTexts(['SLOWSTART'])).resolves.toHaveLength(1)
+    // once warm, a hang is cut at the short limit
+    await expect(c.embedTexts(['HANG'])).rejects.toThrow('timed out')
+  })
 })

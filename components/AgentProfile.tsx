@@ -17,6 +17,7 @@ import TransferAgentDialog from './TransferAgentDialog'
 import ExportAgentDialog from './ExportAgentDialog'
 import DeleteAgentDialog from './DeleteAgentDialog'
 import MemoryViewer from './MemoryViewer'
+import AgentCommitsSection from './AgentCommitsSection'
 import SkillsSection from './SkillsSection'
 import { AgentSkillEditor } from './marketplace'
 import AvatarPicker from './AvatarPicker'
@@ -63,6 +64,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     email: false,
     repositories: false,
     memory: false,
+    commits: false,
     installedSkills: false,
     skillSettings: false,
     metrics: true,
@@ -827,6 +829,26 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
                 {expandedSections.memory && (
                   <MemoryViewer agentId={agent.id} hostUrl={hostUrl} isActive={true} />
+                )}
+              </section>
+
+              {/* Commits Section: which session made a commit (closed until opened; nothing is read before) */}
+              <section>
+                <button
+                  onClick={() => toggleSection('commits')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.commits ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <GitBranch className="w-4 h-4" />
+                  Commits
+                </button>
+
+                {expandedSections.commits && (
+                  <AgentCommitsSection agentId={agent.id} hostUrl={hostUrl} />
                 )}
               </section>
 

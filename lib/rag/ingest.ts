@@ -19,6 +19,7 @@ import { upsertMessage } from '@/lib/cozo-schema-rag'
 import { embedTexts, vectorToBuffer } from './embeddings'
 import { extractTerms, extractCodeSymbols } from './keywords'
 import { msgId } from './id'
+import { isCopilotLine, copilotLineToIndexMessages } from '@/lib/transcript-copilot.mjs'
 
 /**
  * Extract text from Claude's message content format
@@ -77,6 +78,20 @@ export interface ConversationMessage {
   cwd?: string
 }
 
+/**
+ * One transcript line as the messages to index. A Claude line is one message as it stands. A
+ * Copilot line (`events.jsonl`, dotted event types) maps to zero, one or two messages through
+ * the Copilot reader, so a Copilot agent's conversations reach the same index as a Claude
+ * agent's. Throws on text that is not JSON, as JSON.parse does (callers count it as skipped).
+ * The caller's progress is counted in LINES, not messages, so the delta indexer's
+ * append-only semantics are the same for both formats.
+ */
+export function parseConversationLine(line: string): ConversationMessage[] {
+  const parsed = JSON.parse(line)
+  if (isCopilotLine(parsed)) return copilotLineToIndexMessages(parsed) as unknown as ConversationMessage[]
+  return [parsed as ConversationMessage]
+}
+
 export interface IngestionStats {
   totalMessages: number
   processedMessages: number
@@ -122,7 +137,7 @@ export async function ingestConversation(
   const messages: ConversationMessage[] = []
   for (const line of lines) {
     try {
-      messages.push(JSON.parse(line))
+      messages.push(...parseConversationLine(line))
     } catch (err) {
       console.warn(`[Ingest] Failed to parse line: ${line.substring(0, 50)}...`)
       stats.skippedMessages++
@@ -401,8 +416,7 @@ export async function indexConversationDelta(
   const messages: ConversationMessage[] = []
   for (let i = lastIndexedMessageCount; i < allLines.length; i++) {
     try {
-      const message = JSON.parse(allLines[i]) as ConversationMessage
-      messages.push(message)
+      messages.push(...parseConversationLine(allLines[i]))
     } catch (err) {
       console.error(`[Delta Index] Failed to parse line ${i}:`, err)
     }

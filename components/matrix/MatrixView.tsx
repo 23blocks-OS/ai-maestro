@@ -88,31 +88,32 @@ export default function MatrixView<T extends MatrixCard>({ cards, onPlace, onSel
   const unplaced = cards.filter(c => quadrantOf(c) === null)
 
   return (
-    <div className="flex-1 flex gap-3 p-3 overflow-hidden min-h-0" data-testid="matrix-view">
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+    <div className="flex-1 flex flex-col md:flex-row gap-3 p-3 overflow-y-auto md:overflow-hidden min-h-0" data-testid="matrix-view">
+      <div className="md:flex-1 flex flex-col min-w-0 md:min-h-0">
         {/* Column headings */}
-        <div className="grid grid-cols-2 gap-2.5 mb-1.5 pl-6">
+        <div className="hidden md:grid grid-cols-2 gap-2.5 mb-1.5 pl-6">
           <div className="text-[10px] uppercase tracking-wider text-gray-500 text-center">Urgent</div>
           <div className="text-[10px] uppercase tracking-wider text-gray-500 text-center">Not urgent</div>
         </div>
-        <div className="flex-1 flex gap-1.5 min-h-0">
+        <div className="md:flex-1 flex gap-1.5 md:min-h-0">
           {/* Row headings */}
-          <div className="flex flex-col gap-2.5 w-4 flex-shrink-0">
+          <div className="hidden md:flex flex-col gap-2.5 w-4 flex-shrink-0">
             <div className="flex-1 flex items-center justify-center"><span className="text-[10px] uppercase tracking-wider text-gray-500 [writing-mode:vertical-rl] rotate-180">Important</span></div>
             <div className="flex-1 flex items-center justify-center"><span className="text-[10px] uppercase tracking-wider text-gray-500 [writing-mode:vertical-rl] rotate-180">Not important</span></div>
           </div>
-          <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-2.5 min-h-0">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 gap-2.5 md:min-h-0 min-w-0">
             {LAYOUT.map(({ q, tone, dot, hint }) => {
               const list = inQuadrant(q)
               return (
                 <DropZone key={q} over={over === q} setOver={v => setOver(v ? q : null)} onDropCard={id => place(id, q)}
-                  className={`flex flex-col min-h-0 rounded-xl border transition-colors ${tone}`} testId={`quadrant-${q}`}>
+                  className={`flex flex-col md:min-h-0 rounded-xl border transition-colors ${tone}`} testId={`quadrant-${q}`}>
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50" title={hint}>
                     <span className={`w-2 h-2 rounded-full ${dot}`} />
                     <span className="text-xs font-medium text-gray-200">{QUADRANTS[q].label}</span>
                     <span className="text-[10px] text-gray-500 bg-gray-800/80 rounded-full px-1.5">{list.length}</span>
+                    <span className="md:hidden text-[10px] text-gray-500 truncate">{hint}</span>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
+                  <div className="md:flex-1 md:overflow-y-auto p-2 space-y-2 md:min-h-0">
                     {list.map(c => <CardChip key={c.id} card={c} showAgent={showAgent} onSelect={onSelect} />)}
                     {list.length === 0 && <p className="text-[11px] text-gray-600 text-center pt-4">Drop a card here</p>}
                   </div>
@@ -125,12 +126,12 @@ export default function MatrixView<T extends MatrixCard>({ cards, onPlace, onSel
 
       {/* Cards nobody has placed yet */}
       <DropZone over={over === 'tray'} setOver={v => setOver(v ? 'tray' : null)} onDropCard={id => place(id, null)}
-        className="w-60 flex-shrink-0 flex flex-col min-h-0 rounded-xl border border-dashed border-gray-700 bg-gray-900/30 transition-colors" testId="matrix-tray">
+        className="w-full md:w-60 md:flex-shrink-0 flex flex-col md:min-h-0 rounded-xl border border-dashed border-gray-700 bg-gray-900/30 transition-colors" testId="matrix-tray">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50" title="Drag a card into a square to place it; drag it back here to take it off the matrix">
           <span className="text-xs font-medium text-gray-300">Not placed</span>
           <span className="text-[10px] text-gray-500 bg-gray-800/80 rounded-full px-1.5">{unplaced.length}</span>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
+        <div className="md:flex-1 md:overflow-y-auto p-2 space-y-2 md:min-h-0">
           {unplaced.map(c => <CardChip key={c.id} card={c} showAgent={showAgent} onSelect={onSelect} />)}
           {unplaced.length === 0 && <p className="text-[11px] text-gray-600 text-center pt-4">Everything is placed</p>}
         </div>

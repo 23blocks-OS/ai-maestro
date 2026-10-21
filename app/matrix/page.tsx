@@ -54,14 +54,14 @@ export default function MatrixPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
-      <header className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-800 flex-shrink-0">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 border-b border-gray-800 flex-shrink-0">
         <Link href="/" className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-gray-200" aria-label="Back to the dashboard">
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <LayoutGrid className="w-4 h-4 text-blue-400" />
         <h1 className="text-sm font-medium">Matrix</h1>
-        <span className="text-xs text-gray-500">what matters now, across every agent</span>
-        <div className="flex-1" />
+        <span className="hidden md:inline text-xs text-gray-500">what matters now, across every agent</span>
+        <div className="flex-1 min-w-0" />
         <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
           <input type="checkbox" checked={onlyWaitingOnMe} onChange={e => setOnlyWaitingOnMe(e.target.checked)} />
           Waiting on me

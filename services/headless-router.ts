@@ -138,6 +138,7 @@ import {
   listAgentTasks, getOpenTasks, createAgentTask, updateAgentTask, deleteAgentTask, getAgentBoard, getTaskSummary,
   addAgentTaskComment, addTeamTaskComment, retryAgentTaskComment, retryTeamTaskComment, receiveInstruction,
 } from '@/services/agent-tasks-service'
+import { traceCommit, getAgentCommits } from '@/services/commit-trace-service'
 import {
   listProjects, createProject, getProjectById, updateProject, deleteProject, listProjectTasks, createProjectTask,
   updateProjectTask, deleteProjectTask, addProjectTaskComment, retryProjectTaskComment,
@@ -1716,6 +1717,19 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/board$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getAgentBoard(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/commits\/([^/]+)$/, paramNames: ['sha'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, await traceCommit(params.sha, {
+      local: query.local === '1',
+      pr: query.pr ? Number(query.pr) : undefined,
+      repo: query.repo || undefined,
+    }))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/commits$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, await getAgentCommits(params.id, {
+      session: query.session || undefined,
+      limit: query.limit ? Number(query.limit) : undefined,
+    }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, listAgentTasks(params.id, { status: query.status || undefined, waitingOn: query.waitingOn || undefined, quadrant: query.quadrant || undefined }))

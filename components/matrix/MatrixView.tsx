@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Hourglass, MessageSquare, AlertCircle, User } from 'lucide-react'
 import { QUADRANTS, quadrantOf, type Quadrant, type TaskWithDeps } from '@/types/task'
 import { waitingLabel } from '@/components/team-meeting/KanbanCard'
-import { DueBadge, OwnersLine } from '@/components/team-meeting/DueAndOwners'
+import { DueBadge, OwnersLine, ownerLabels } from '@/components/team-meeting/DueAndOwners'
 import { sortByDue } from '@/lib/task-due'
 
 /** A card on the matrix; the mesh-wide view adds the agent (and host) it belongs to */
@@ -46,7 +46,6 @@ function CardChip<T extends MatrixCard>({ card, showAgent, onSelect }: { card: T
           : <span className="truncate">{card.status.replace('_', ' ')}</span>}
         <DueBadge due={card.due} />
         <div className="flex-1" />
-        <OwnersLine card={card} />
         {showAgent && card.agentName && (
           <span className="flex items-center gap-1 truncate max-w-[45%]" title={card.hostName ? `${card.agentName} @ ${card.hostName}` : card.agentName}>
             <User className="w-2.5 h-2.5 flex-shrink-0" />{card.agentName}
@@ -55,6 +54,7 @@ function CardChip<T extends MatrixCard>({ card, showAgent, onSelect }: { card: T
         {unsent && <span title="An instruction has not reached the agent yet"><AlertCircle className="w-3 h-3 text-red-400" /></span>}
         {(card.comments?.length || 0) > 0 && <span className="flex items-center gap-0.5"><MessageSquare className="w-2.5 h-2.5" />{card.comments!.length}</span>}
       </div>
+      {ownerLabels(card).length > 0 && <div className="mt-1 min-w-0"><OwnersLine card={card} /></div>}
     </div>
   )
 }

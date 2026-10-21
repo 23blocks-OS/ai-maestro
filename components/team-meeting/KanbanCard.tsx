@@ -3,7 +3,7 @@
 import { Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, User, MessageSquare, AlertCircle } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import { kindLabel } from './TaskOriginBlock'
-import { DueBadge, OwnersLine } from './DueAndOwners'
+import { DueBadge, OwnersLine, ownerLabels } from './DueAndOwners'
 
 interface KanbanCardProps {
   task: TaskWithDeps
@@ -100,12 +100,6 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           </span>
         )}
 
-        <OwnersLine card={task} />
-
-        {task.shared && (
-          <span className="text-[10px] text-violet-300/80 flex-shrink-0" title="On another agent's board; you are a co-owner" data-testid="shared-badge">shared</span>
-        )}
-
         <div className="flex-1" />
 
         {(task.comments?.some(c => c.author.kind === 'operator' && !c.deliveredAt)) && (
@@ -123,6 +117,16 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           </span>
         )}
       </div>
+
+      {/* Who else owns it, and that it is on someone else's board: a row of its own, the footer is narrow */}
+      {(ownerLabels(task).length > 0 || task.shared) && (
+        <div className="flex items-center gap-2 mt-1 min-w-0">
+          <OwnersLine card={task} />
+          {task.shared && (
+            <span className="text-[10px] text-violet-300/80 flex-shrink-0" title="On another agent's board; you are a co-owner" data-testid="shared-badge">shared</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -21,6 +21,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { shouldLogChange } from './log-on-change'
+import { listCopilotSessions, realDir, isCopilotProgram, isCopilotLine } from '@/lib/transcript-copilot.mjs'
 
 // ============================================================================
 // THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
@@ -186,6 +187,54 @@ function getCachedProjectFiles(): CachedJsonlFile[] {
 }
 
 // ============================================================================
+// COPILOT SESSIONS (~/.copilot/session-state/<session>/events.jsonl)
+// ============================================================================
+// A Copilot agent's conversations live in a different place and format than Claude's. The
+// agent's memory is built on the host where the agent lives, from files on this host, so
+// nothing here crosses hosts. Sessions are matched to an agent by the working directory the
+// session started in (session.start data.context.cwd), all of them, not only the newest.
+
+interface CopilotSession { path: string; sessionId: string; cwd: string; mtimeMs: number }
+
+let copilotSessionCache: { sessions: CopilotSession[]; timestamp: number } | null = null
+const COPILOT_CACHE_TTL = 2 * 60 * 1000 // a new session shows up within two minutes
+
+function getCopilotSessions(): CopilotSession[] {
+  const now = Date.now()
+  if (copilotSessionCache && now - copilotSessionCache.timestamp < COPILOT_CACHE_TTL) return copilotSessionCache.sessions
+  const sessions = listCopilotSessions() as CopilotSession[]
+  copilotSessionCache = { sessions, timestamp: now }
+  return sessions
+}
+
+/** For tests: forget the cached session list. */
+export function resetCopilotSessionCache(): void {
+  copilotSessionCache = null
+}
+
+/** Is this agent a GitHub Copilot CLI agent? */
+function agentIsCopilot(agentId: string): boolean {
+  try {
+    const a = getRegistryAgent(agentId) || getAgentBySession(agentId)
+    return !!a && isCopilotProgram((a as { program?: string }).program)
+  } catch {
+    return false
+  }
+}
+
+/** cwdBelongsTo, also when one side is reached through a symlink (macOS /tmp -> /private/tmp) */
+function copilotCwdBelongsTo(cwd: string, agentWd: string, otherWds: string[]): boolean {
+  if (cwdBelongsTo(cwd, agentWd, otherWds)) return true
+  return cwdBelongsTo(realDir(cwd), realDir(agentWd), otherWds.map(realDir))
+}
+
+/** The Copilot sessions that belong to an agent working in any of `wds` (all of them). */
+function copilotSessionsFor(agentId: string, wds: string[]): CopilotSession[] {
+  const otherWds = otherAgentWorkingDirs(agentId)
+  return getCopilotSessions().filter((s) => wds.some((wd) => copilotCwdBelongsTo(s.cwd, wd, otherWds)))
+}
+
+// ============================================================================
 // AUTO-DISCOVER PROJECTS (uses global cache)
 // ============================================================================
 /**
@@ -259,7 +308,7 @@ async function autoDiscoverProjects(
   // Use global cache instead of scanning per-agent
   const allFiles = getCachedProjectFiles()
 
-  const discoveredProjects = new Map<string, { projectName: string; claudeDir: string }>()
+  const discoveredProjects = new Map<string, { projectName: string; claudeDir?: string }>()
   let matchedConversations = 0
 
   const otherWds = otherAgentWorkingDirs(agentId)
@@ -285,6 +334,19 @@ async function autoDiscoverProjects(
         const claudeDir = path.join(claudeProjectsDir, projectSlug)
         discoveredProjects.set(file.cwd, { projectName, claudeDir })
         console.log(`[Delta Index] Auto-discovered project: ${projectName} (${file.cwd})`)
+      }
+    }
+  }
+
+  // A Copilot agent's projects come from its Copilot sessions, which have no Claude directory
+  // (claude_dir stays unset). A session started in a sub-directory binds the project to that
+  // directory, as a Claude conversation does.
+  if (agentIsCopilot(agentId)) {
+    for (const session of copilotSessionsFor(agentId, ownWds)) {
+      matchedConversations++
+      if (!discoveredProjects.has(session.cwd)) {
+        discoveredProjects.set(session.cwd, { projectName: session.cwd.split('/').pop() || 'unknown' })
+        console.log(`[Delta Index] Auto-discovered Copilot project: ${session.cwd}`)
       }
     }
   }
@@ -320,6 +382,59 @@ async function getLiveTmuxWorkingDirectory(sessionName: string): Promise<string 
 }
 
 // ============================================================================
+// EXTRACT COPILOT CONVERSATION METADATA
+// ============================================================================
+function extractCopilotMetadata(jsonlPath: string, allLines: string[], projectPath: string): ReturnType<typeof extractConversationMetadata> {
+  let sessionId: string | null = null
+  let cwd: string | null = null
+  let firstUserMessage: string | null = null
+  let copilotVersion: string | null = null
+  let firstMessageAt: number | null = null
+  let lastMessageAt: number | null = null
+  const models = new Set<string>()
+
+  const parse = (line: string): any => { try { return JSON.parse(line) } catch { return null } }
+
+  for (const line of allLines.slice(0, 50)) {
+    const ev = parse(line)
+    if (!ev || !isCopilotLine(ev)) continue
+    if (ev.type === 'session.start') {
+      sessionId = ev.data?.sessionId || sessionId
+      cwd = ev.data?.context?.cwd || cwd
+      copilotVersion = ev.data?.copilotVersion ? `Copilot ${ev.data.copilotVersion}` : copilotVersion
+      if (ev.data?.selectedModel) models.add(String(ev.data.selectedModel))
+    }
+    if (ev.timestamp) {
+      const ts = new Date(ev.timestamp).getTime()
+      if (!Number.isNaN(ts) && (!firstMessageAt || ts < firstMessageAt)) firstMessageAt = ts
+    }
+    if (ev.type === 'user.message' && !firstUserMessage && typeof ev.data?.content === 'string') {
+      firstUserMessage = ev.data.content.substring(0, 100).replace(/[\n\r]/g, ' ').trim()
+    }
+  }
+  for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
+    const ev = parse(allLines[i])
+    if (ev?.timestamp) {
+      const ts = new Date(ev.timestamp).getTime()
+      if (!Number.isNaN(ts)) { lastMessageAt = ts; break }
+    }
+  }
+
+  return {
+    // The session id is the folder name; it matches data.sessionId in a real session
+    sessionId: sessionId || path.basename(path.dirname(jsonlPath)),
+    cwd: cwd || projectPath,
+    firstUserMessage,
+    gitBranch: null,
+    claudeVersion: copilotVersion,
+    firstMessageAt,
+    lastMessageAt,
+    modelNames: Array.from(models).join(', '),
+    messageCount: allLines.length,
+  }
+}
+
+// ============================================================================
 // EXTRACT CONVERSATION METADATA (reads file once, extracts everything)
 // ============================================================================
 function extractConversationMetadata(jsonlPath: string, projectPath: string): {
@@ -335,6 +450,11 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
 } {
   const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
   const allLines = fileContent.split('\n').filter(line => line.trim())
+
+  // A Copilot events.jsonl (dotted event types, session.start first) has its own metadata
+  try {
+    if (isCopilotLine(JSON.parse(allLines[0] || ''))) return extractCopilotMetadata(jsonlPath, allLines, projectPath)
+  } catch { /* not a Copilot file: read it as a Claude transcript */ }
 
   let sessionId: string | null = null
   let cwd: string | null = null
@@ -586,6 +706,18 @@ async function runIndexDeltaPinned(
     // Phase 1: DISCOVER new conversation files
     let newConversationsDiscovered = 0
 
+    // A Copilot agent also has conversations under ~/.copilot/session-state. A session belongs
+    // to ONE project: the files already recorded under any project of this agent are not
+    // recorded again under another (a session in /repo/sub matches both /repo and /repo/sub).
+    const copilotAgent = agentIsCopilot(agentId)
+    const copilotKnownFiles = new Set<string>()
+    if (copilotAgent) {
+      for (const projectRow of projectsResult.rows) {
+        const rows = (await getConversations(agentDb, projectRow[0] as string)).rows
+        for (const row of rows) copilotKnownFiles.add(row[0] as string)
+      }
+    }
+
     for (const projectRow of projectsResult.rows) {
       const projectPath = projectRow[0] as string
       let claudeDir = projectRow[2] as string
@@ -621,7 +753,9 @@ async function runIndexDeltaPinned(
         }
       }
 
-      if (!claudeDir || !fs.existsSync(claudeDir)) continue
+      // A Copilot agent's project has no Claude directory (claude_dir is unset); it is not skipped
+      const hasClaudeDir = !!claudeDir && fs.existsSync(claudeDir)
+      if (!hasClaudeDir && !copilotAgent) continue
 
       const existingConvosResult = await getConversations(agentDb, projectPath)
       const existingFiles = new Set(existingConvosResult.rows.map((row: unknown[]) => row[0] as string))
@@ -647,7 +781,7 @@ async function runIndexDeltaPinned(
       }
 
       try {
-        const jsonlPaths = findJsonlRecursive(claudeDir)
+        const jsonlPaths = hasClaudeDir ? findJsonlRecursive(claudeDir) : []
 
         for (const fullPath of jsonlPaths) {
           if (existingFiles.has(fullPath)) continue
@@ -681,6 +815,36 @@ async function runIndexDeltaPinned(
         }
       } catch (err) {
         console.error(`[Delta Index] Error scanning ${claudeDir}:`, err)
+      }
+
+      // Copilot sessions started in this project (or below it)
+      if (copilotAgent) {
+        for (const session of copilotSessionsFor(agentId, [projectPath])) {
+          if (existingFiles.has(session.path) || copilotKnownFiles.has(session.path)) continue
+          console.log(`[Delta Index] Discovered new Copilot conversation: ${session.sessionId}`)
+          try {
+            const metadata = extractConversationMetadata(session.path, projectPath)
+            await recordConversation(agentDb, {
+              jsonl_file: session.path,
+              project_path: projectPath,
+              session_id: metadata.sessionId || session.sessionId,
+              message_count: metadata.messageCount,
+              first_message_at: metadata.firstMessageAt || undefined,
+              last_message_at: metadata.lastMessageAt || undefined,
+              first_user_message: metadata.firstUserMessage || undefined,
+              model_names: metadata.modelNames || undefined,
+              git_branch: metadata.gitBranch || undefined,
+              claude_version: metadata.claudeVersion || undefined,
+              last_indexed_at: 0,
+              last_indexed_message_count: 0
+            })
+            updateFileSizeCache(session.path)
+            copilotKnownFiles.add(session.path)
+            newConversationsDiscovered++
+          } catch (err) {
+            console.error(`[Delta Index] Failed to process Copilot session ${session.sessionId}:`, err)
+          }
+        }
       }
     }
 

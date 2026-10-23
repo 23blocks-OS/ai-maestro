@@ -74,8 +74,8 @@ export function AgentPanel({ agent, name, presence, place, work, cards, partners
       <div className="flex flex-wrap gap-1.5" aria-label="Ways to reach this agent">
         <LinkButton href={`/?agent=${id}&tab=chat`} label="Chat" title="The agent's chat in the dashboard" />
         <LinkButton href={`/?agent=${id}&tab=terminal`} label="Terminal" title="The agent's terminal in the dashboard" />
-        <LinkButton href={`/zoom/agent?id=${id}`} label="Full screen" title="The agent full screen with its terminal" tone="gray" />
-        <LinkButton href={`/companion?agent=${id}`} label="Talk" title="Talk to the agent in Companion mode (voice)" tone="violet" />
+        <LinkButton href={`/zoom/agent?id=${id}`} label="Zoom" title="Join this agent in a Zoom call: its card full screen with its terminal" tone="gray" />
+        <LinkButton href={`/companion?agent=${id}`} label="Companion" title="Call this agent in Companion: its face and its voice" tone="violet" />
       </div>
 
       {(work || cards.length > 0) && (

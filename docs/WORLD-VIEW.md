@@ -14,6 +14,12 @@ The map has three levels:
 
 **Back** with the arrow in the panel or **Escape** (one level up). The **minimap** in the corner shows every island, orange where someone needs you; click one to fly there. Searching for an agent and clicking it takes you straight into its building. Test agents (tagged `org:sandbox`) are not drawn; the header says how many are hidden. **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
 
+## Two ways to draw it: 3D map or 2D office
+
+The header toggle **3D map | 2D office** picks how the world is drawn; the lenses, the spotlight, the replay and the agent card are the same in both. The choice is remembered in this browser. With no saved choice, a phone-width screen or a browser without WebGL gets the office.
+
+The **2D office** is a floor plan seen from above, in plain SVG: an island is a floor, a building is a room on it (a dot per agent), and a room holds its people at desks, standing, away (greyed, with a "zz") or waving with a speech bubble. It needs no WebGL, so it runs on a phone and on a weak machine, and its islands, rooms and people can be reached with the keyboard. There is no VR in it (that is the 3D map's), and no manual zoom or pan: each level frames what is in it.
+
 ## Lenses
 
 The header has three lenses over the same map. They change what is drawn, never where anything stands.
@@ -54,7 +60,7 @@ Select an island and the others dim; the camera flies to it. The search box and 
 ## How it works
 
 - `lib/world/relations.ts` (pure, tested) turns deliveries and cards into ties, lifts them to islands and buildings, and summarises each agent's work; `components/world/WorldPanels.tsx` holds the side panels and the replay bar.
-- `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `lib/world/stage.ts` stands the agents on an island; `lib/world/layout.ts` also lays out each island's skyline; `components/world/WorldScene.tsx` and `Character.tsx` draw them (React Three Fiber, client-only, loaded on demand); `app/world/page.tsx` is the page.
+- `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `lib/world/stage.ts` stands the agents on an island; `lib/world/layout.ts` also lays out each island's skyline; `components/world/WorldScene.tsx` and `Character.tsx` draw them (React Three Fiber, client-only, loaded on demand) and `components/world/OfficeView.tsx` draws the same world in 2D (SVG; `lib/world/office.ts` frames it, `lib/world/look.ts` gives each agent its face); `app/world/page.tsx` is the page.
 - The data is the same as the Zoom and Org views: `useAgents` (every host), `useHosts`, `useOrgs`, and the one status source, `presenceOf`; plus `useOpenTasks` (cards), `useWorldTeams` and `useWorldHistory`. The only backend change is the `history` option on `/api/world/events`.
 - The canvas renders on demand, so an idle map costs no GPU. The scene needs WebGL; without it the list beside the map still works.
 - The flag lives in `lib/experiments.ts` (`EXPERIMENT_KEYS`) and is read with `hooks/useExperiment.ts`.

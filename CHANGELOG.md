@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.99.0] - 2026-10-23 - World view: a 2D office, chosen with a toggle (beta)
+
+The World view can now be drawn as a simple animated 2D office as well as the 3D map, and the header has a toggle between them. Same world, same data, same lenses; a different picture.
+
+### Added
+- **A 2D office** (`components/world/OfficeView.tsx`), plain SVG with CSS animation: no WebGL, no image assets, no new dependencies. An island is a floor, a building is a room on it (a dot per agent in the status colours), and inside a room the agents are small people: **typing** at a desk with the screen glowing, **standing** and breathing, **away** greyed with a floating "zz", and **waving** with a speech bubble. The camera flies between the overview, an island and a room. Speech bubbles with the card waiting on you, the Work lens tags, the Relations arcs, the message pulses, team and search dimming, the replay and the agent card all work as in the 3D map.
+- **A toggle in the World header**, **3D map | 2D office**, remembered in this browser (`aim-world-renderer`). With no saved choice the office is the default on a phone-width screen and where WebGL is not available; the 3D map otherwise. The 3D code is not loaded when the office is chosen.
+- The islands, rooms and people in the 2D office are buttons you can reach with the keyboard (Tab, Enter), which the 3D canvas is not.
+- With "reduce motion" on in the system settings, the office holds still.
+
+### Changed
+- An agent's look (skin, hair, animation phase) comes from one place, `lib/world/look.ts`, so it has the same face in both renderers.
+
+### Fixed
+- In the 3D map, about half of the agents had no hair colour (a signed bit shift of the id hash could index past the palette, leaving it undefined, so those figures showed the default white). Every agent now gets a palette colour.
+
+### Not done
+- Wheel zoom and drag to pan in the 2D office (each level frames its content), pixel-art skins, and VR (the 3D map only). No usage is recorded, so the toggle lets people compare the two but nothing yet measures which one they prefer.
+
+### Tests
+- The office's geometry (fitting a view box to a container, sprite size in a crowd, camera easing) and the shared look.
+
 ## [0.98.1] - 2026-10-23 - Website: a blog, and the first post on human and agent interaction
 
 Docs only; nothing to deploy to the hosts.

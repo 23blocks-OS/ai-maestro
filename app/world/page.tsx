@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight, Activity, ListChecks, Share2, History } from 'lucide-react'
+import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight, Activity, ListChecks, Share2, History, Box, LayoutGrid } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
 import { useAgents } from '@/hooks/useAgents'
 import { useOrgs } from '@/hooks/useOrgs'
@@ -25,6 +25,7 @@ import {
 import { AgentPanel, ReplayBar, TeamsList, TiesList, WaitingList, type PairRow, type Partner, type ReplayState } from '@/components/world/WorldPanels'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Minimap from '@/components/world/Minimap'
+import OfficeView from '@/components/world/OfficeView'
 
 // The 3D scene is client-only and code-split, like Zoom's heavy views
 const WorldScene = dynamic(() => import('@/components/world/WorldScene'), {
@@ -64,6 +65,28 @@ const localDate = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+type Renderer = '3d' | '2d'
+const RENDERER_KEY = 'aim-world-renderer'
+
+/** WebGL available? Without it the 3D map cannot draw, so the office is the way in */
+function webglAvailable(): boolean {
+  try {
+    const c = document.createElement('canvas')
+    return !!(c.getContext('webgl2') || c.getContext('webgl'))
+  } catch {
+    return false
+  }
+}
+
+/** The saved choice; with none, the 2D office on a phone or without WebGL, the 3D map otherwise */
+function initialRenderer(): Renderer {
+  try {
+    const saved = localStorage.getItem(RENDERER_KEY)
+    if (saved === '2d' || saved === '3d') return saved
+  } catch { /* storage blocked: fall through to the default */ }
+  return window.innerWidth < 640 || !webglAvailable() ? '2d' : '3d'
+}
+
 const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 1, ready: 2, offline: 3 }
 
 /**
@@ -84,6 +107,13 @@ function WorldContent() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [selectedBuildingKey, setSelectedBuildingKey] = useState<string | null>(null)
   const [lens, setLens] = useState<WorldLens>('status')
+  // Which picture of the world: the 3D map or the 2D office (null until the saved choice is read)
+  const [renderer, setRendererState] = useState<Renderer | null>(null)
+  useEffect(() => { setRendererState(initialRenderer()) }, [])
+  const setRenderer = (r: Renderer) => {
+    setRendererState(r)
+    try { localStorage.setItem(RENDERER_KEY, r) } catch { /* the choice just is not remembered */ }
+  }
   // A team lit up: everyone else dims
   const [teamId, setTeamId] = useState<string | null>(null)
   // How far back the relations lens looks, in hours
@@ -382,7 +412,7 @@ function WorldContent() {
 
   return (
     <div className="flex h-screen flex-col bg-gray-950 text-gray-100">
-      <header className="flex flex-shrink-0 items-center gap-3 border-b border-gray-800 px-4 py-2.5">
+      <header className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-800 px-4 py-2.5">
         <Link href="/" className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-gray-200" aria-label="Back to the dashboard">
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -396,6 +426,19 @@ function WorldContent() {
             {groups.reduce((n, g) => n + g.counts.needsYou, 0)} need you <ChevronRight className="h-3 w-3" />
           </button>
         )}
+        <div className="flex gap-1" role="group" aria-label="How the world is drawn">
+          {([['3d', '3D map', Box, 'Fly around the fleet in 3D (needs WebGL; VR in a headset)'], ['2d', '2D office', LayoutGrid, 'A simple animated floor plan: light, works everywhere, including a phone']] as const).map(([id, label, Icon, title]) => (
+            <button
+              key={id}
+              onClick={() => setRenderer(id)}
+              title={title}
+              aria-pressed={renderer === id}
+              className={`flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs ${renderer === id ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              <Icon className="h-3 w-3" />{label}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-1" role="group" aria-label="What the world shows">
           {LENSES.map(l => (
             <button
@@ -459,11 +502,22 @@ function WorldContent() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative min-h-[320px] flex-1" data-pulses={pulses.length}>
-            <WorldScene groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-              lens={lens} work={work} ties={sceneTies}
-              selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
-              onBack={goBack} />
-            <Minimap groups={groups} selectedKey={selectedKey} onSelect={selectIsland} />
+            {renderer === null ? (
+              <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
+            ) : renderer === '2d' ? (
+              <OfficeView groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
+                lens={lens} work={work} ties={sceneTies}
+                selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
+                onBack={goBack} />
+            ) : (
+              <>
+              <WorldScene groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
+                lens={lens} work={work} ties={sceneTies}
+                selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
+                onBack={goBack} />
+              <Minimap groups={groups} selectedKey={selectedKey} onSelect={selectIsland} />
+              </>
+            )}
             {replay && (
               <ReplayBar
                 replay={replay}

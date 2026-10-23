@@ -23,6 +23,7 @@ import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Character from '@/components/world/Character'
 import Label from '@/components/world/Label'
 import type { AgentPresence } from '@/lib/agent-presence'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 
 /**
  * Orbit controls from three's own examples (no extra dep): orbit/pan/zoom, no roll.
@@ -112,19 +113,6 @@ function Controls({ extent, focus, enabled }: { extent: number; focus: Focus | n
     else flight.current = null
   })
   return null
-}
-
-/** The operating system's "reduce motion" setting: with it on, characters hold their pose */
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    const q = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const sync = () => setReduced(q.matches)
-    sync()
-    q.addEventListener('change', sync)
-    return () => q.removeEventListener('change', sync)
-  }, [])
-  return reduced
 }
 
 // Mirrors PRESENCE_STYLE (lib/agent-presence.ts) as hex for the canvas

@@ -20,6 +20,10 @@ The header toggle **3D map | 2D office** picks how the world is drawn; the lense
 
 The **2D office** is a floor plan seen from above, in plain SVG: an island is a floor, a building is a room on it (a dot per agent), and a room holds its people at desks, standing, away (greyed, with a "zz") or waving with a speech bubble. It needs no WebGL, so it runs on a phone and on a weak machine, and its islands, rooms and people can be reached with the keyboard. There is no VR in it (that is the 3D map's), and no manual zoom or pan: each level frames what is in it.
 
+## Rooms inside a building
+
+A building with dozens of agents can be split into **rooms by manager, by who works together, by role or by team** (the "Rooms by" buttons in its side panel, for a building of 8 or more). **Manager** gives each agent manager its team (and each person who manages agents theirs); **Together** groups the agents that message each other most over the last day, named for the agent at the centre of each group (inferred from behaviour, so it is a circle, not a purpose); **Role** uses the `role:` tag; **Team** uses the biggest team an agent is on. **Auto** (the default) takes the first of those that puts at least 60% of a 24-or-more building in a named room, and leaves it as one crowd when none does. A group of fewer than 2 goes to **Other**, and a split where one room holds more than 80% of the building is dropped. The offline agents are folded into the away lounge first, then the rest are split.
+
 ## Lenses
 
 The header has three lenses over the same map. They change what is drawn, never where anything stands.

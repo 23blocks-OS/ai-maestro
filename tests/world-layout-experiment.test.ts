@@ -52,3 +52,43 @@ describe('experiment flag', () => {
     expect(readExperiment('world-view')).toBe(false)
   })
 })
+
+import { buildingSize, layoutSkyline } from '@/lib/world/layout'
+
+describe('skyline', () => {
+  const overlap = (a: { x: number; z: number; w: number; d: number }, b: { x: number; z: number; w: number; d: number }) =>
+    Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.z - b.z) < (a.d + b.d) / 2
+
+  it('keeps every building inside the island, never at the rim, and none on top of another', () => {
+    const cases: Array<{ counts: number[]; radius: number }> = [
+      { counts: [55, 12, 3], radius: islandRadius(70) },
+      { counts: [1], radius: islandRadius(1) },
+      { counts: [10, 10, 10, 10, 10, 10, 10, 10], radius: islandRadius(80) },
+      { counts: [66, 48, 26, 12, 10, 3, 1, 1], radius: islandRadius(167) },
+    ]
+    for (const { counts, radius } of cases) {
+      const boxes = layoutSkyline(counts, radius)
+      expect(boxes.map(b => b.index).sort()).toEqual(counts.map((_, i) => i))
+      for (const b of boxes) {
+        for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          expect(Math.hypot(b.x + (dx * b.w) / 2, b.z + (dz * b.d) / 2)).toBeLessThanOrEqual(radius * 0.95)
+        }
+      }
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlap(boxes[i], boxes[j])).toBe(false)
+    }
+  })
+
+  it('puts the biggest building in the middle of the row, at the back, facing out', () => {
+    const boxes = layoutSkyline([2, 30, 5], islandRadius(37))
+    const big = boxes.find(b => b.index === 1)!
+    expect(Math.abs(big.x)).toBeLessThan(1.5)
+    expect(big.z).toBeLessThan(0)
+    expect(Math.max(...boxes.map(b => b.h))).toBe(big.h)
+  })
+
+  it('sizes a building by its agents, within sane bounds', () => {
+    expect(buildingSize(1).h).toBeLessThan(buildingSize(50).h)
+    for (const n of [0, 1, 7, 500]) { const s = buildingSize(n); expect(s.h).toBeLessThanOrEqual(6.5); expect(s.w).toBeLessThanOrEqual(2.6) }
+    expect(layoutSkyline([], 4)).toEqual([])
+  })
+})

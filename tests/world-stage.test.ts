@@ -30,7 +30,7 @@ describe('stageFigures', () => {
     }
   })
 
-  it('reads back to front: sleepers behind, workers, then the ready, with those who need you in front', () => {
+  it('reads back to front: the resting behind, workers, then the ready, with those who need you in front', () => {
     const input = mk({ 'needs-you': 3, ready: 4, working: 4, offline: 4 })
     const { figures } = stageFigures(input, islandRadius(input.length))
     const meanZ = (p: AgentPresence) => {
@@ -45,7 +45,7 @@ describe('stageFigures', () => {
   it('gives each status its pose, and desks only to workers with room for them', () => {
     const small = stageFigures(mk({ working: 2, offline: 1, ready: 1, 'needs-you': 1 }), islandRadius(5)).figures
     const pose = (p: AgentPresence) => small.find(f => f.presence === p)!.pose
-    expect([pose('working'), pose('ready'), pose('needs-you'), pose('offline')]).toEqual(['typing', 'standing', 'waving', 'sleeping'])
+    expect([pose('working'), pose('ready'), pose('needs-you'), pose('offline')]).toEqual(['typing', 'standing', 'waving', 'resting'])
     expect(small.filter(f => f.desk).length).toBe(2)
     expect(small.filter(f => f.presence !== 'working').some(f => f.desk)).toBe(false)
     const crowd = stageFigures(mk({ working: 100 }), 4).figures

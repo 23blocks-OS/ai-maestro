@@ -6,12 +6,13 @@
  *   typing    seated at a desk, hands on the keys (Working)
  *   standing  idle, breathing (Ready)
  *   waving    at the plaza, one arm up, a beacon bobbing over its head (Needs you)
- *   sleeping  lying down, with a Z (Offline)
+ *   resting   standing, greyed out, head bowed, a small zz over it (Offline). Never lying down: an offline
+ *             agent is away, not dead.
  */
 
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import type { Group } from 'three'
+import { CanvasTexture, LinearFilter, type Group } from 'three'
 import type { Pose } from '@/lib/world/stage'
 import Label from '@/components/world/Label'
 
@@ -23,6 +24,35 @@ function hash(id: string): number {
   let h = 2166136261
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619) }
   return h >>> 0
+}
+
+let zzTexture: CanvasTexture | null = null
+/** One small "zz" texture shared by every resting agent (a texture each would be hundreds of canvases) */
+function zzMap(): CanvasTexture {
+  if (!zzTexture) {
+    const c = document.createElement('canvas')
+    c.width = 128
+    c.height = 128
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#9ca3af'
+    ctx.font = '700 70px system-ui, sans-serif'
+    ctx.fillText('z', 18, 100)
+    ctx.font = '700 46px system-ui, sans-serif'
+    ctx.fillText('z', 66, 62)
+    zzTexture = new CanvasTexture(c)
+    zzTexture.minFilter = LinearFilter
+  }
+  return zzTexture
+}
+
+/** The "away" marker over a resting agent */
+function RestBadge() {
+  const map = useMemo(zzMap, [])
+  return (
+    <sprite position={[0.12, 1.22, 0]} scale={[0.34, 0.34, 1]} raycast={() => null}>
+      <spriteMaterial map={map} transparent depthTest={false} opacity={0.85} />
+    </sprite>
+  )
 }
 
 interface CharacterProps {
@@ -50,16 +80,16 @@ export default function Character({ id, pose, color, position, desk, animate, se
   const armR = useRef<Group>(null)
   const beacon = useRef<Group>(null)
 
-  const sleeping = pose === 'sleeping'
+  const resting = pose === 'resting'
   const typing = pose === 'typing'
   const waving = pose === 'waving'
 
   useFrame(({ clock }) => {
     const t = animate ? clock.elapsedTime : 0
     if (root.current) {
-      // Breathing; a sleeper rises and falls slowly
-      const breathe = Math.sin(t * (sleeping ? 1.2 : 2) + phase) * (sleeping ? 0.012 : 0.01)
-      root.current.position.y = (sleeping ? 0.14 : typing ? -0.1 : 0) + breathe
+      // Breathing, slower when resting
+      const breathe = Math.sin(t * (resting ? 1.2 : 2) + phase) * (resting ? 0.008 : 0.01)
+      root.current.position.y = (typing ? -0.1 : 0) + breathe
     }
     if (armL.current && armR.current) {
       if (typing) {
@@ -114,7 +144,7 @@ export default function Character({ id, pose, color, position, desk, animate, se
         </group>
       )}
 
-      <group ref={root} rotation={sleeping ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
+      <group ref={root}>
         {/* Legs (folded under the desk when typing) */}
         {!typing && (
           <>
@@ -134,11 +164,11 @@ export default function Character({ id, pose, color, position, desk, animate, se
           <meshStandardMaterial color={color} emissive={waving ? color : '#000000'} emissiveIntensity={waving ? 0.25 : 0} />
         </mesh>
         {/* Head and hair */}
-        <mesh position={[0, 0.88, 0]}>
+        <mesh position={[0, resting ? 0.85 : 0.88, resting ? 0.03 : 0]}>
           <sphereGeometry args={[0.115, 12, 10]} />
           <meshStandardMaterial color={skin} />
         </mesh>
-        <mesh position={[0, 0.93, -0.02]}>
+        <mesh position={[0, resting ? 0.9 : 0.93, resting ? 0.01 : -0.02]}>
           <sphereGeometry args={[0.12, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color={hair} />
         </mesh>
@@ -165,12 +195,7 @@ export default function Character({ id, pose, color, position, desk, animate, se
           </mesh>
         </group>
       )}
-      {sleeping && (
-        <mesh position={[0.18, 0.5, 0]}>
-          <torusGeometry args={[0.05, 0.015, 6, 12]} />
-          <meshStandardMaterial color="#9ca3af" emissive="#9ca3af" emissiveIntensity={0.4} />
-        </mesh>
-      )}
+      {resting && <RestBadge />}
     </group>
   )
 }

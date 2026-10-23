@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical } from 'lucide-react'
+import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
 import { useAgents } from '@/hooks/useAgents'
 import { useOrgs } from '@/hooks/useOrgs'
@@ -25,10 +25,21 @@ const WorldScene = dynamic(() => import('@/components/world/WorldScene'), {
   ),
 })
 
+// Org first: a company's agents live on several machines, so an org is one island and the hosts
+// are only where its agents happen to run. "By location" is the other cut. (The org + host mode
+// stays in lib/world/grouping.ts; it is no longer offered, because an org spans locations.)
 const MODES: Array<{ id: WorldGroupMode; label: string; title: string }> = [
-  { id: 'host', label: 'Host', title: 'One island per host, orgs pooled' },
-  { id: 'org', label: 'Org', title: 'One island per organization, hosts pooled' },
-  { id: 'org-host', label: 'Org + Host', title: 'One island per (org, host): 23blocks the org, its hosts the islands' },
+  { id: 'org', label: 'By org', title: 'One island per organization, whatever machines its agents run on' },
+  { id: 'host', label: 'By location', title: 'One island per host: where the agents run' },
+]
+
+type StatusFilter = 'all' | AgentPresence
+const FILTERS: Array<{ id: StatusFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'needs-you', label: 'Needs you' },
+  { id: 'working', label: 'Working' },
+  { id: 'ready', label: 'Ready' },
+  { id: 'offline', label: 'Offline' },
 ]
 
 const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 1, ready: 2, offline: 3 }
@@ -43,7 +54,9 @@ function WorldContent() {
   const { agents, loading, error, refreshAgents } = useAgents()
   const { orgs: records } = useOrgs(hosts)
   const { presenceOf } = useSessionActivity()
-  const [mode, setMode] = useState<WorldGroupMode>('org-host')
+  const [mode, setMode] = useState<WorldGroupMode>('org')
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<StatusFilter>('all')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   const orgNames = useMemo(() => {
@@ -81,6 +94,39 @@ function WorldContent() {
         || agentDisplay(x.agent).localeCompare(agentDisplay(y.agent)))
   }, [selected, agentById, presenceOf])
 
+  // Search and status filter: they narrow what the list shows and dim the islands with no match;
+  // the counts stay the true ones.
+  const q = query.trim().toLowerCase()
+  const matches = useMemo(() => {
+    const out: Array<{ agent: (typeof agents)[number]; presence: AgentPresence; groupKey: string }> = []
+    for (const g of groups) {
+      for (const a of g.agents) {
+        const agent = agentById.get(a.id) ?? a
+        const presence = presenceOf(agent)
+        if (filter !== 'all' && presence !== filter) continue
+        if (q && !`${agentDisplay(agent)} ${agent.name ?? ''} ${g.label} ${agent.hostName ?? ''}`.toLowerCase().includes(q)) continue
+        out.push({ agent: agent as (typeof agents)[number], presence, groupKey: g.key })
+      }
+    }
+    return out
+  }, [groups, agentById, presenceOf, filter, q])
+  const filtering = filter !== 'all' || q !== ''
+  const matchedKeys = useMemo(() => new Set(matches.map(m => m.groupKey)), [matches])
+  // With an island selected every other island dims, so the one you are looking at stands out;
+  // with a search or status filter and nothing selected, the islands with no match dim instead.
+  const dimmed = useMemo(() => {
+    if (selectedKey) return new Set(groups.filter(g => g.key !== selectedKey).map(g => g.key))
+    if (filtering) return new Set(groups.filter(g => !matchedKeys.has(g.key)).map(g => g.key))
+    return undefined
+  }, [selectedKey, filtering, groups, matchedKeys])
+
+  const needsYouKeys = useMemo(() => groups.filter(g => g.counts.needsYou > 0).map(g => g.key), [groups])
+  const jumpToNeedsYou = () => {
+    if (needsYouKeys.length === 0) return
+    const i = selectedKey ? needsYouKeys.indexOf(selectedKey) : -1
+    setSelectedKey(needsYouKeys[(i + 1) % needsYouKeys.length])
+  }
+
   const offlineHosts = hosts.filter(h => h.enabled === false)
 
   return (
@@ -94,6 +140,11 @@ function WorldContent() {
         <span className="hidden text-xs text-gray-500 sm:inline">hosts and orgs as islands, agents as figures</span>
         <div className="flex-1" />
         <span className="hidden whitespace-nowrap text-xs text-gray-400 sm:inline">{agents.length} agents · {groups.length} islands</span>
+        {needsYouKeys.length > 0 && (
+          <button onClick={jumpToNeedsYou} className="flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-1 text-xs text-orange-400 hover:bg-orange-500/25" title="Fly to the next island with an agent waiting for you">
+            {groups.reduce((n, g) => n + g.counts.needsYou, 0)} need you <ChevronRight className="h-3 w-3" />
+          </button>
+        )}
         <div className="flex gap-1" role="group" aria-label="Group islands by">
           {MODES.map(m => (
             <button
@@ -136,11 +187,50 @@ function WorldContent() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative min-h-[320px] flex-1">
-            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} />
+            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} />
           </div>
 
           <aside className="w-full flex-shrink-0 overflow-y-auto border-t border-gray-800 lg:w-96 lg:border-l lg:border-t-0">
-            {!selected ? (
+            <div className="space-y-2 border-b border-gray-800 px-4 py-3">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-500" />
+                <input
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search an agent, org or host"
+                  aria-label="Search agents"
+                  className="w-full rounded-lg border border-gray-800 bg-gray-900 py-1.5 pl-8 pr-3 text-sm text-gray-100 placeholder-gray-600 focus:border-teal-600 focus:outline-none"
+                />
+              </label>
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Filter by status">
+                {FILTERS.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFilter(f.id)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs ${filter === f.id ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {filtering && !selected ? (
+              <ul className="divide-y divide-gray-800/60">
+                {matches.length === 0 && <li className="px-4 py-6 text-center text-sm text-gray-500">No agent matches.</li>}
+                {matches.slice(0, 200).map(({ agent, presence, groupKey }) => (
+                  <li key={agent.id}>
+                    <button onClick={() => setSelectedKey(groupKey)} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-gray-900">
+                      <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${PRESENCE_STYLE[presence].dot}`} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-gray-100">{agentDisplay(agent)}</span>
+                        <span className="block truncate text-xs text-gray-500">{groups.find(g => g.key === groupKey)?.label} · {agent.hostName || agent.hostId}</span>
+                      </span>
+                      <span className={`text-xs ${PRESENCE_STYLE[presence].text}`}>{PRESENCE_STYLE[presence].label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : !selected ? (
               <ul className="divide-y divide-gray-800/60">
                 {groups.map(g => (
                   <li key={g.key}>

@@ -9,7 +9,8 @@ It is an **experiment**, off by default. Turn it on in **Settings → Experiment
 - **Island** size follows its agent count; the buildings are decoration that grows with it.
 - **Orange diamond over an island**: at least one agent there needs you.
 - **Dark island**: every host it covers is offline (a host that is disabled, as everywhere else in the UI).
-- **Click an island** to select it: its agents stand on it as capsules in the status colours (green working, orange needs you, yellow ready, grey offline) and the panel lists them, needs-you first. Click an agent to open its Zoom view.
+- **Click an island** to select it: the camera flies in and its agents appear as small people laid out like an office, back to front: **sleeping** (offline) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the plaza on the island's doorstep, waving, with an orange beacon over their heads. The panel lists them, needs-you first; click one to open its Zoom view. Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
+- **Test agents** (tagged `org:sandbox`) are not drawn; the header says how many are hidden.
 - **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
 
 ## Grouping
@@ -25,11 +26,11 @@ Select an island and the others dim; the camera flies to it. The search box and 
 
 ## How it works
 
-- `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `components/world/WorldScene.tsx` draws them (React Three Fiber, client-only, loaded on demand); `app/world/page.tsx` is the page.
+- `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `lib/world/stage.ts` stands the agents on an island; `components/world/WorldScene.tsx` and `Character.tsx` draw them (React Three Fiber, client-only, loaded on demand); `app/world/page.tsx` is the page.
 - The data is the same as the Zoom and Org views: `useAgents` (every host), `useHosts`, `useOrgs`, and the one status source, `presenceOf`. No backend change.
 - The canvas renders on demand, so an idle map costs no GPU. The scene needs WebGL; without it the list beside the map still works.
 - The flag lives in `lib/experiments.ts` (`EXPERIMENT_KEYS`) and is read with `hooks/useExperiment.ts`.
 
 ## Not in this first slice
 
-Message pulses between agents, walking and typing animations, the grouping in the URL.
+Message pulses between agents, characters walking between places, the grouping in the URL.

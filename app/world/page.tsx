@@ -12,7 +12,7 @@ import { useExperiment } from '@/hooks/useExperiment'
 import { VersionChecker } from '@/components/VersionChecker'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { agentDisplay } from '@/lib/organization'
-import { groupAgents, type WorldGroupMode } from '@/lib/world/grouping'
+import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/grouping'
 import type { WorldFigure } from '@/components/world/WorldScene'
 
 // The 3D scene is client-only and code-split, like Zoom's heavy views
@@ -51,7 +51,7 @@ const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 
  */
 function WorldContent() {
   const { hosts } = useHosts()
-  const { agents, loading, error, refreshAgents } = useAgents()
+  const { agents: allAgents, loading, error, refreshAgents } = useAgents()
   const { orgs: records } = useOrgs(hosts)
   const { presenceOf } = useSessionActivity()
   const [mode, setMode] = useState<WorldGroupMode>('org')
@@ -67,6 +67,10 @@ function WorldContent() {
     }
     return Object.fromEntries([...newest].map(([id, r]) => [id, r.name]))
   }, [records])
+
+  // Test and probe sessions (org:sandbox) are not part of the world
+  const agents = useMemo(() => allAgents.filter(a => !isSandboxAgent(a)), [allAgents])
+  const hiddenCount = allAgents.length - agents.length
 
   const agentById = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents])
 
@@ -139,7 +143,7 @@ function WorldContent() {
         <h1 className="text-sm font-medium">World</h1>
         <span className="hidden text-xs text-gray-500 sm:inline">hosts and orgs as islands, agents as figures</span>
         <div className="flex-1" />
-        <span className="hidden whitespace-nowrap text-xs text-gray-400 sm:inline">{agents.length} agents · {groups.length} islands</span>
+        <span className="hidden whitespace-nowrap text-xs text-gray-400 sm:inline">{agents.length} agents · {groups.length} islands{hiddenCount > 0 ? ` · ${hiddenCount} test hidden` : ''}</span>
         {needsYouKeys.length > 0 && (
           <button onClick={jumpToNeedsYou} className="flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-1 text-xs text-orange-400 hover:bg-orange-500/25" title="Fly to the next island with an agent waiting for you">
             {groups.reduce((n, g) => n + g.counts.needsYou, 0)} need you <ChevronRight className="h-3 w-3" />

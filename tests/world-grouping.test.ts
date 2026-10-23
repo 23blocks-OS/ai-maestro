@@ -145,3 +145,12 @@ describe('groupAgents', () => {
     expect(groups.find(g => g.key === 'mac-mini')!.agents.some(a => a.id === 'a1')).toBe(true)
   })
 })
+
+describe('sandbox agents', () => {
+  it('are recognised by org:sandbox only', async () => {
+    const { isSandboxAgent } = await import('@/lib/world/grouping')
+    expect(isSandboxAgent({ tags: ['org:sandbox'] })).toBe(true)
+    expect(isSandboxAgent({ tags: ['sandbox', 'org:23blocks'] })).toBe(false)
+    expect(isSandboxAgent({})).toBe(false)
+  })
+})

@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.95.0] - 2026-10-22 - World view: agents as people (a desk, a plaza, a place to sleep), test agents hidden (beta)
+
+On the World view (beta, Settings → Experiments), select an island and its agents are now **small low-poly people** staged like an office, so the status is a place and a pose as well as a colour. The camera flies in close.
+
+### Added
+- **Characters**, built from primitives (no model files to download or license), each with its own skin, hair and phase, so a crowd does not move in lockstep: **Working** sits at a desk, hands on the keys, screen glowing; **Ready** stands and breathes; **Needs you** stands at the front (the plaza on the island's doorstep), one arm waving, an orange beacon bobbing over its head; **Offline** lies at the back with a Z.
+- **Staging** (`lib/world/stage.ts`, tested): back to front, sleepers, workers, ready, needs-you, on a grid as coarse as the crowd allows, so nobody is off the island or on top of anybody (tests for 3 to 200 agents).
+- **The camera flies in** over the selected island, sized to it, and back out to the whole map when you leave it; grabbing the camera ends the flight. Characters animate only while an island is selected, and **not at all with "reduce motion"** on in the system settings; the overview still draws on demand and an idle map costs no GPU.
+
+### Changed
+- **Test and probe agents are not drawn.** Agents tagged `org:sandbox` (canary, probe and test sessions) stay out of the world (the header says how many are hidden) and remain on the Org page.
+- The buildings leave the selected island, which is now the office.
+
+### Data
+- Every agent now has an org. The 66 untagged agents on this Mac and 11 on mac-mini and mini-lola were tagged (Lolabots Factory, FluidMind, StartTalking, Villa Group, 3Metas, Hackathon, Personal, 23blocks, crabmail, and `sandbox` for test sessions) and org records were created for the new names. Four agents on mini-lola (cleo, email-bot, slack-bot, whatsapp-gateway) are still untagged until their org is decided.
+
 ## [0.94.1] - 2026-10-22 - World view: orgs first, labelled islands, search and jump (beta)
 
 First round of changes after trying the World view on the real fleet.

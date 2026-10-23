@@ -8,12 +8,14 @@
  * figures at once; full figures appear for the selected group alone.
  */
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { CanvasTexture, LinearFilter } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldGroup } from '@/lib/world/grouping'
 import { islandRadius, layoutIslands } from '@/lib/world/layout'
+import { stageFigures } from '@/lib/world/stage'
+import Character from '@/components/world/Character'
 import type { AgentPresence } from '@/lib/agent-presence'
 
 /**
@@ -22,56 +24,94 @@ import type { AgentPresence } from '@/lib/agent-presence'
  * and an idle map costs no GPU. `extent` is the layout's half-width: the camera is
  * placed to see all of it whenever the set of islands changes.
  */
-function Controls({ extent, focus }: { extent: number; focus: [number, number] | null }) {
+function Controls({ extent, focus }: { extent: number; focus: { x: number; z: number; radius: number } | null }) {
   const camera = useThree(s => s.camera)
   const gl = useThree(s => s.gl)
-  const invalidate = useThree(s => s.invalidate)
   const get = useThree(s => s.get)
+  const invalidate = useThree(s => s.invalidate)
   const controls = useMemo(() => {
     const c = new OrbitControlsImpl(camera, gl.domElement)
     c.maxPolarAngle = Math.PI / 2.2
-    c.minDistance = 5
+    c.minDistance = 3
     return c
   }, [camera, gl])
+
+  // Where the camera should be: a view of the whole map, or close over the selected island
+  const overview = useMemo(() => {
+    const reach = Math.max(extent, 8)
+    return { reach, y: reach * 0.9 + 4, z: reach * 1.1 + 6 }
+  }, [extent])
+  const flight = useRef<{ target: [number, number, number]; cam: [number, number, number] } | null>(null)
+  const aspect = () => { const { width, height } = get().size; return width / Math.max(height, 1) }
+
   useEffect(() => {
     const onChange = () => invalidate()
+    // The person grabbing the camera ends any flight in progress
+    const onStart = () => { flight.current = null }
     controls.addEventListener('change', onChange)
-    return () => { controls.removeEventListener('change', onChange); controls.dispose() }
+    controls.addEventListener('start', onStart)
+    return () => {
+      controls.removeEventListener('change', onChange)
+      controls.removeEventListener('start', onStart)
+      controls.dispose()
+    }
   }, [controls, invalidate])
+
+  // A narrow canvas (a phone) sees less sideways, so back the camera off to keep everything in view
   useEffect(() => {
-    // A narrow canvas (a phone) sees less sideways, so back the camera off to keep every island in view
-    const { width, height } = get().size
-    const reach = Math.max(extent, 8) * Math.max(1, 1.7 / (width / Math.max(height, 1)))
-    controls.maxDistance = Math.max(45, reach * 4)
-    camera.position.set(0, reach * 0.9 + 4, reach * 1.1 + 6)
+    controls.maxDistance = Math.max(45, overview.reach * 4)
+    const k = Math.max(1, 1.7 / aspect())
+    camera.position.set(0, overview.y * k, overview.z * k)
     controls.target.set(0, 0, 0)
     controls.update()
     invalidate()
-  }, [controls, camera, extent, invalidate, get])
-  // Fly to the selected island: ease the orbit target (and the camera with it) toward it, or back
-  // to the middle of the map. Frames are requested only while it is moving (demand rendering).
-  const goal = useRef<[number, number]>([0, 0])
-  const flying = useRef(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controls, camera, overview, invalidate])
+
+  // Fly to the selected island (close enough to see its people), or back out to the whole map.
+  const fx = focus?.x, fz = focus?.z, fr = focus?.radius
   useEffect(() => {
-    goal.current = focus ?? [0, 0]
-    flying.current = true
+    const k = Math.max(1, 1.7 / aspect())
+    if (fx === undefined || fz === undefined || fr === undefined) {
+      flight.current = { target: [0, 0, 0], cam: [0, overview.y * k, overview.z * k] }
+    } else {
+      const kk = Math.max(1, 1.2 / aspect())
+      flight.current = { target: [fx, 0, fz], cam: [fx, (fr * 0.9 + 2.6) * kk, fz + (fr * 1.05 + 3.8) * kk] }
+    }
     invalidate()
-  }, [focus, invalidate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fx, fz, fr, overview, invalidate])
+
   useFrame(() => {
-    if (!flying.current) return
-    const [gx, gz] = goal.current
-    const dx = gx - controls.target.x
-    const dz = gz - controls.target.z
-    if (Math.abs(dx) < 0.01 && Math.abs(dz) < 0.01) { flying.current = false; return }
-    const k = 0.14
-    controls.target.x += dx * k
-    controls.target.z += dz * k
-    camera.position.x += dx * k
-    camera.position.z += dz * k
+    const f = flight.current
+    if (!f) return
+    const k = 0.12
+    let moving = false
+    const t = controls.target
+    const c = camera.position
+    for (const [cur, goal, axis] of [[t, f.target, 'x'], [t, f.target, 'y'], [t, f.target, 'z'], [c, f.cam, 'x'], [c, f.cam, 'y'], [c, f.cam, 'z']] as const) {
+      const i = axis === 'x' ? 0 : axis === 'y' ? 1 : 2
+      const d = goal[i] - cur[axis]
+      if (Math.abs(d) > 0.01) { cur[axis] += d * k; moving = true }
+    }
     controls.update()
-    invalidate()
+    if (moving) invalidate()
+    else flight.current = null
   })
   return null
+}
+
+/** The operating system's "reduce motion" setting: with it on, characters hold their pose */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const q = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const sync = () => setReduced(q.matches)
+    sync()
+    q.addEventListener('change', sync)
+    return () => q.removeEventListener('change', sync)
+  }, [])
+  return reduced
 }
 
 /** A name floating over an island, drawn once into a texture (no font or text dependency) */
@@ -127,18 +167,20 @@ interface WorldSceneProps {
   dimmed?: Set<string>
 }
 
-function Island({ group, position, selected, dim, figures, onSelect }: {
+function Island({ group, position, selected, dim, figures, animate, onSelect }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
   dim: boolean
   figures: WorldFigure[]
+  animate: boolean
   onSelect: () => void
 }) {
   const [x, z] = position
   const count = group.counts.total
   const radius = islandRadius(count)
   const buildings = Math.min(5, Math.max(1, Math.ceil(count / 8)))
+  const staged = useMemo(() => (selected ? stageFigures(figures, radius).figures : []), [selected, figures, radius])
   const base = group.offline || dim ? '#1f2937' : selected ? '#0f766e' : '#134e4a'
 
   return (
@@ -154,7 +196,7 @@ function Island({ group, position, selected, dim, figures, onSelect }: {
         <meshStandardMaterial color={base} emissive={selected ? '#0d9488' : '#000000'} emissiveIntensity={selected ? 0.35 : 0} />
       </mesh>
       {/* Buildings: boxes whose height grows with the group's fleet share */}
-      {Array.from({ length: buildings }, (_, i) => {
+      {!selected && Array.from({ length: buildings }, (_, i) => {
         const angle = (i / buildings) * Math.PI * 2
         const bx = Math.cos(angle) * radius * 0.72
         const bz = Math.sin(angle) * radius * 0.72
@@ -174,28 +216,18 @@ function Island({ group, position, selected, dim, figures, onSelect }: {
           <meshStandardMaterial color={PRESENCE_HEX['needs-you']} emissive={PRESENCE_HEX['needs-you']} emissiveIntensity={0.8} />
         </mesh>
       )}
-      {/* Agent figures — selected island only (see LOD rule above) */}
-      {selected && figures.map((f, i) => {
-        const cols = Math.max(1, Math.ceil(Math.sqrt(figures.length)))
-        // Fit the grid inside the ring of buildings, however many agents stand here
-        const step = Math.min(0.85, (radius * 1.0) / cols)
-        const fx = (i % cols - (cols - 1) / 2) * step
-        const fz = (Math.floor(i / cols) - (Math.ceil(figures.length / cols) - 1) / 2) * step
-        return (
-          <group key={f.id} position={[fx, 0, fz]}>
-            <mesh position={[0, 0.55, 0]}>
-              <capsuleGeometry args={[0.16, 0.45, 4, 8]} />
-              <meshStandardMaterial color={PRESENCE_HEX[f.presence]} />
-            </mesh>
-            {f.presence === 'needs-you' && (
-              <mesh position={[0, 1.35, 0]}>
-                <octahedronGeometry args={[0.14]} />
-                <meshStandardMaterial color={PRESENCE_HEX['needs-you']} emissive={PRESENCE_HEX['needs-you']} emissiveIntensity={1} />
-              </mesh>
-            )}
-          </group>
-        )
-      })}
+      {/* Agents as people, on the selected island only (see the LOD rule above) */}
+      {selected && staged.map(f => (
+        <Character
+          key={f.id}
+          id={f.id}
+          pose={f.pose}
+          color={PRESENCE_HEX[f.presence]}
+          position={[f.x, f.z]}
+          desk={f.desk}
+          animate={animate}
+        />
+      ))}
     </group>
   )
 }
@@ -203,9 +235,16 @@ function Island({ group, position, selected, dim, figures, onSelect }: {
 export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
-  const focus = selectedIndex >= 0 ? positions[selectedIndex] : null
+  const focus = useMemo(
+    () => (selectedIndex >= 0 ? { x: positions[selectedIndex][0], z: positions[selectedIndex][1], radius: islandRadius(groups[selectedIndex].counts.total) } : null),
+    [selectedIndex, positions, groups],
+  )
+  const reduced = usePrefersReducedMotion()
+  // Characters move, so the canvas draws continuously while a populated island is selected;
+  // otherwise (the overview, or reduced motion) it draws on demand and an idle map costs no GPU.
+  const animate = !reduced && selectedIndex >= 0 && figures.length > 0
   return (
-    <Canvas frameloop="demand" camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
+    <Canvas frameloop={animate ? 'always' : 'demand'} camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
       <ambientLight intensity={0.7} />
       <directionalLight position={[8, 14, 6]} intensity={1.4} />
       {groups.map((g, i) => (
@@ -216,6 +255,7 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
           selected={g.key === selectedKey}
           dim={dimmed?.has(g.key) ?? false}
           figures={g.key === selectedKey ? figures : []}
+          animate={animate}
           onSelect={() => onSelect(g.key)}
         />
       ))}

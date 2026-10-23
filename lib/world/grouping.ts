@@ -72,6 +72,14 @@ export function getAgentOrg(agent: Pick<WorldAgentInput, 'tags'>): string {
   return tagValues(agent.tags, 'org')[0] || UNASSIGNED_ORG
 }
 
+/** Org whose agents are test and probe sessions: kept out of the world (still on the Org page) */
+export const SANDBOX_ORG = 'sandbox'
+
+/** A test or probe agent (tagged `org:sandbox`), which the world does not draw */
+export function isSandboxAgent(agent: Pick<WorldAgentInput, 'tags'>): boolean {
+  return tagValues(agent.tags, 'org').includes(SANDBOX_ORG)
+}
+
 /** A host is offline when it is disabled (circuit breaker / settings) */
 export function isHostOffline(host: Pick<Host, 'enabled'> | undefined): boolean {
   return host?.enabled === false

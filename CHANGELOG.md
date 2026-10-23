@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.101.0] - 2026-10-24 - World view: rooms inside a crowded building, by folder, role or team (beta)
+
+A building with 54 agents is one crowd. It can now be split into rooms inside the room, each with its name and count.
+
+### Added
+- **Rooms by** (in the building's side panel, for a building of 8 or more agents): **None**, **Folder**, **Role** or **Team**. Until you choose, a room of 24 or more people is split by folder and a smaller one is left alone; your choice is remembered in this browser (`aim-world-zones`).
+  - **Folder:** agents that share a project folder share a room, and so do agents in sibling folders under a shared parent: the 19 agents under `.../23blocks/blocks/<service>/api` are one room, "blocks", and nine agents in one repo are a room named for the repo. The room is the deepest shared parent that at least 3 agents have; home folders, `/Volumes/x` and temp folders are never a room.
+  - **Role:** the `role:` tag (gm, cmo, support, ...), the one `agentRoleLine` already shows.
+  - **Team:** the biggest team the agent is on (teams overlap, so one room each is the only way to draw it); teams of fewer than two visible agents are ignored.
+- A group of fewer than 2 agents folds into **Other** with those who have no folder, role or team; if the split would be one room, it is dropped and the crowd stays as it was.
+- Both renderers draw them: a patch of floor and a name for each room in the 3D map and in the 2D office; people stand inside their room, and relation and report lines follow them.
+- The rule is pure and tested (`lib/world/zones.ts`, `lib/world/rooms.ts`): the folder clustering, the rooms' rectangles (inside the building, none overlapping, bigger for bigger groups), and everyone standing in their own room exactly once.
+
+### Not done
+- Project rooms (a project has an owner agent and cards, but no list of members) and meeting rooms from active team meetings. A room's size is proportional to its people, but it does not grow the building: a room of 40 agents still shrinks them to fit.
+
 ## [0.100.0] - 2026-10-24 - Every agent has a manager: a person, an agent, or both (beta World view: Reports lens)
 
 An agent should always know who it reports to. Until now the model had placeholders (`role: manager`, `chiefOfStaffId`, a free-text `owner`) that nothing read or checked; `owner` held "juanpelaez" for 44 agents and "pas-lola" (an agent) for 9, so a person and an agent could not be told apart.

@@ -19,6 +19,7 @@ import { agentDisplay } from '@/lib/organization'
 import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/grouping'
 import type { WorldAway, WorldFigure, WorldLens } from '@/components/world/WorldScene'
 import { splitAway } from '@/lib/world/stage'
+import { ZONE_MODES, zoneAgents, type ZoneMode } from '@/lib/world/zones'
 import {
   eventsBetween, eventsWithin, idByName, liftTies, outsideTies, reportTies, talkTies, taskTies, tiesAmong, waitingOnYou, workByAgent,
   type AgentTie,
@@ -256,6 +257,26 @@ function WorldContent() {
   const openIsAway = !!selectedAgentId && allFigures.some(f => f.id === selectedAgentId && f.presence === 'offline')
   const split = useMemo(() => splitAway(allFigures, awayOpen || filter === 'offline' || openIsAway), [allFigures, awayOpen, filter, openIsAway])
   const figures = split.shown
+  // Rooms inside a crowded room: by folder, role or team. Until a choice is made, a room of 24 or more people
+  // is split by folder and a smaller one is left as one crowd; a choice is remembered in this browser.
+  const [zoneChoice, setZoneChoice] = useState<ZoneMode | 'auto'>('auto')
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('aim-world-zones')
+      if (v === 'none' || v === 'folder' || v === 'role' || v === 'team') setZoneChoice(v)
+    } catch { /* storage blocked: stay on auto */ }
+  }, [])
+  const pickZones = (m: ZoneMode) => {
+    setZoneChoice(m)
+    try { localStorage.setItem('aim-world-zones', m) } catch { /* the choice is just not remembered */ }
+  }
+  const zoneMode: ZoneMode = zoneChoice === 'auto' ? (figures.length >= 24 ? 'folder' : 'none') : zoneChoice
+  const zones = useMemo(
+    () => (!selectedBuilding || zoneMode === 'none'
+      ? []
+      : zoneAgents(figures.map(f => { const a = agentById.get(f.id); return { id: f.id, workingDirectory: a?.workingDirectory, tags: a?.tags } }), zoneMode, teams)),
+    [selectedBuilding, zoneMode, figures, agentById, teams],
+  )
   const away: WorldAway | undefined = split.away.length >= 1 && (split.folded || awayOpen)
     ? { count: split.away.length, expanded: !split.folded, onToggle: () => setAwayOpen(o => !o) }
     : undefined
@@ -583,13 +604,13 @@ function WorldContent() {
               <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
             ) : renderer === '2d' ? (
               <OfficeView groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-                lens={lens} work={work} ties={sceneTies} away={away} manages={manages}
+                lens={lens} work={work} ties={sceneTies} away={away} manages={manages} zones={zones}
                 selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
                 onBack={goBack} />
             ) : (
               <>
               <WorldScene groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-                lens={lens} work={work} ties={sceneTies} away={away} manages={manages}
+                lens={lens} work={work} ties={sceneTies} away={away} manages={manages} zones={zones}
                 selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
                 onBack={goBack} />
               <Minimap groups={groups} selectedKey={selectedKey} onSelect={selectIsland} />
@@ -762,6 +783,16 @@ function WorldContent() {
                     </p>
                   </div>
                 </div>
+                {selectedBuilding.agents.length >= 8 && (
+                  <div className="flex flex-wrap items-center gap-1 border-b border-gray-800 px-4 py-2" role="group" aria-label="Rooms inside this building">
+                    <span className="mr-1 text-[11px] uppercase tracking-wide text-gray-500">Rooms by</span>
+                    {ZONE_MODES.map(m => (
+                      <button key={m.id} onClick={() => pickZones(m.id)} title={m.title} aria-pressed={zoneMode === m.id}
+                        className={`rounded-full px-2.5 py-0.5 text-xs ${zoneMode === m.id ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>{m.label}</button>
+                    ))}
+                    <span className="ml-1 text-[11px] text-gray-600">{zones.length > 0 ? `${zones.length} rooms` : zoneMode === 'none' ? '' : 'nothing to split by'}</span>
+                  </div>
+                )}
                 {openAgent && (
                   <AgentPanel
                     agent={openAgent}

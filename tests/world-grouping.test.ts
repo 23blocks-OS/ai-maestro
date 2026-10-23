@@ -51,7 +51,7 @@ describe('getAgentOrg', () => {
     expect(getAgentOrg({ tags: ['backend', 'org:23Blocks'] })).toBe('23blocks')
     expect(getAgentOrg({ tags: ['org:23blocks', 'org:3metas'] })).toBe('23blocks')
   })
-  it('falls back to unassigned, never to another org', () => {
+  it('falls back to the default org (personal), never to another company', () => {
     expect(getAgentOrg({ tags: ['backend'] })).toBe(UNASSIGNED_ORG)
     expect(getAgentOrg({})).toBe(UNASSIGNED_ORG)
   })

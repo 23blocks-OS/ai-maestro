@@ -8,8 +8,9 @@
  * figures at once; full figures appear for the selected group alone.
  */
 
-import { useEffect, useMemo } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { CanvasTexture, LinearFilter } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldGroup } from '@/lib/world/grouping'
 import { islandRadius, layoutIslands } from '@/lib/world/layout'
@@ -21,7 +22,7 @@ import type { AgentPresence } from '@/lib/agent-presence'
  * and an idle map costs no GPU. `extent` is the layout's half-width: the camera is
  * placed to see all of it whenever the set of islands changes.
  */
-function Controls({ extent }: { extent: number }) {
+function Controls({ extent, focus }: { extent: number; focus: [number, number] | null }) {
   const camera = useThree(s => s.camera)
   const gl = useThree(s => s.gl)
   const invalidate = useThree(s => s.invalidate)
@@ -47,7 +48,60 @@ function Controls({ extent }: { extent: number }) {
     controls.update()
     invalidate()
   }, [controls, camera, extent, invalidate, get])
+  // Fly to the selected island: ease the orbit target (and the camera with it) toward it, or back
+  // to the middle of the map. Frames are requested only while it is moving (demand rendering).
+  const goal = useRef<[number, number]>([0, 0])
+  const flying = useRef(false)
+  useEffect(() => {
+    goal.current = focus ?? [0, 0]
+    flying.current = true
+    invalidate()
+  }, [focus, invalidate])
+  useFrame(() => {
+    if (!flying.current) return
+    const [gx, gz] = goal.current
+    const dx = gx - controls.target.x
+    const dz = gz - controls.target.z
+    if (Math.abs(dx) < 0.01 && Math.abs(dz) < 0.01) { flying.current = false; return }
+    const k = 0.14
+    controls.target.x += dx * k
+    controls.target.z += dz * k
+    camera.position.x += dx * k
+    camera.position.z += dz * k
+    controls.update()
+    invalidate()
+  })
   return null
+}
+
+/** A name floating over an island, drawn once into a texture (no font or text dependency) */
+function IslandLabel({ text, y, dim }: { text: string; y: number; dim: boolean }) {
+  const { texture, aspect } = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')!
+    const font = '600 44px system-ui, -apple-system, sans-serif'
+    ctx.font = font
+    const w = Math.ceil(ctx.measureText(text).width) + 40
+    canvas.width = w
+    canvas.height = 80
+    ctx.font = font
+    ctx.fillStyle = 'rgba(3, 7, 18, 0.72)'
+    ctx.beginPath()
+    ctx.roundRect(0, 8, w, 64, 32)
+    ctx.fill()
+    ctx.fillStyle = '#e5e7eb'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, 20, 41)
+    const t = new CanvasTexture(canvas)
+    t.minFilter = LinearFilter
+    return { texture: t, aspect: w / 80 }
+  }, [text])
+  useEffect(() => () => texture.dispose(), [texture])
+  return (
+    <sprite position={[0, y, 0]} scale={[1.1 * aspect, 1.1, 1]}>
+      <spriteMaterial map={texture} transparent depthTest={false} opacity={dim ? 0.35 : 1} />
+    </sprite>
+  )
 }
 
 // Mirrors PRESENCE_STYLE (lib/agent-presence.ts) as hex for the canvas
@@ -69,12 +123,15 @@ interface WorldSceneProps {
   onSelect: (key: string) => void
   /** Agents of the selected group, drawn as figures on its island */
   figures: WorldFigure[]
+  /** Islands drawn dim: every island but the selected one, or those with no agent matching the search or filter */
+  dimmed?: Set<string>
 }
 
-function Island({ group, position, selected, figures, onSelect }: {
+function Island({ group, position, selected, dim, figures, onSelect }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
+  dim: boolean
   figures: WorldFigure[]
   onSelect: () => void
 }) {
@@ -82,7 +139,7 @@ function Island({ group, position, selected, figures, onSelect }: {
   const count = group.counts.total
   const radius = islandRadius(count)
   const buildings = Math.min(5, Math.max(1, Math.ceil(count / 8)))
-  const base = group.offline ? '#1f2937' : selected ? '#0f766e' : '#134e4a'
+  const base = group.offline || dim ? '#1f2937' : selected ? '#0f766e' : '#134e4a'
 
   return (
     <group position={[x, 0, z]} onClick={e => {
@@ -105,10 +162,11 @@ function Island({ group, position, selected, figures, onSelect }: {
         return (
           <mesh key={i} position={[bx, h / 2, bz]}>
             <boxGeometry args={[0.9, h, 0.9]} />
-            <meshStandardMaterial color={group.offline ? '#374151' : '#99f6e4'} emissive={group.offline ? '#000000' : '#115e59'} emissiveIntensity={0.4} />
+            <meshStandardMaterial color={group.offline || dim ? '#374151' : '#99f6e4'} emissive={group.offline || dim ? '#000000' : '#115e59'} emissiveIntensity={0.4} />
           </mesh>
         )
       })}
+      <IslandLabel text={group.label} y={Math.max(3.9, radius * 0.5 + 3)} dim={dim} />
       {/* Needs-you beacon over the island */}
       {group.counts.needsYou > 0 && (
         <mesh position={[0, 3.2, 0]}>
@@ -142,8 +200,10 @@ function Island({ group, position, selected, figures, onSelect }: {
   )
 }
 
-export default function WorldScene({ groups, selectedKey, onSelect, figures }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
+  const selectedIndex = groups.findIndex(g => g.key === selectedKey)
+  const focus = selectedIndex >= 0 ? positions[selectedIndex] : null
   return (
     <Canvas frameloop="demand" camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
       <ambientLight intensity={0.7} />
@@ -154,11 +214,12 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures }: W
           group={g}
           position={positions[i]}
           selected={g.key === selectedKey}
+          dim={dimmed?.has(g.key) ?? false}
           figures={g.key === selectedKey ? figures : []}
           onSelect={() => onSelect(g.key)}
         />
       ))}
-      <Controls extent={extent} />
+      <Controls extent={extent} focus={focus} />
     </Canvas>
   )
 }

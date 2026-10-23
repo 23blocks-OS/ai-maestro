@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.94.1] - 2026-10-22 - World view: orgs first, labelled islands, search and jump (beta)
+
+First round of changes after trying the World view on the real fleet.
+
+### Changed
+- **Orgs first.** The map opens grouped **by org**: an organization is one island, whatever machines its agents run on (an org spans locations, so "org + host" islands made no sense and are no longer offered). **By location** (one island per host) is the other cut.
+- **Every agent belongs somewhere.** An agent with no `org:` tag now stands on **Personal**, the Org page's own default, instead of an "unassigned" island. (On this fleet that is 81 agents, many of them company work that still needs its `org:` tag.)
+- **The island you picked stands out:** selecting an island dims every other one, and the camera flies to it (and back to the whole map when you leave it).
+
+### Added
+- **Names on the islands** (they were only in the list).
+- **Search and status filters** (All / Needs you / Working / Ready / Offline) above the list: matching agents are listed, islands with no match dim, and the counts stay the true ones.
+- **"N need you" button** in the header: flies to the next island with an agent waiting for you.
+
 ## [0.94.0] - 2026-10-22 - World view (beta): your hosts and organizations as 3D islands, in Settings → Experiments
 
 A new way to see the whole fleet at a glance: every host or organization is an island, its agents stand on it in their live status colour, and an island with agents waiting for you carries an orange beacon. It is a **beta, off by default**: turn it on in **Settings → Experiments → World view (beta)** and a **World** button appears in the header (the `/world` page). The flag is per browser. Without it nothing changes anywhere and `/world` shows a note pointing to the setting.

@@ -6,11 +6,10 @@
  * (types/agent.ts) and its `org:<id>` tags (types/org.ts, read with the Org
  * page's own `tagValues`). No new store.
  *
- * Two deliberate differences from lib/organization.ts: that page shows an
- * agent under *every* org it tags and parks untagged agents in the default
- * org; a world map needs a partition — every agent on exactly one island, so
+ * One deliberate difference from lib/organization.ts: that page shows an
+ * agent under *every* org it tags; a world map needs a partition — every agent on exactly one island, so
  * counts sum to the fleet — so an agent's org here is its *first* org tag,
- * and untagged agents land in `unassigned`, not in anyone's org.
+ * and untagged agents land in `personal`, the Org page's default org.
  *
  * Status is not re-derived here: callers pass the shared `presenceOf` from
  * hooks/useSessionActivity (Working / Needs you / Ready / Offline,
@@ -22,13 +21,14 @@
  * `offlineHostIds` and is `offline` only when every host it pools is offline.
  */
 
-import { agentDisplay, tagValues } from '@/lib/organization'
+import { agentDisplay, tagValues, DEFAULT_ORG } from '@/lib/organization'
 import type { AgentPresence } from '@/lib/agent-presence'
 import type { Host } from '@/types/host'
 
 export type WorldGroupMode = 'host' | 'org' | 'org-host'
 
-export const UNASSIGNED_ORG = 'unassigned'
+/** Where an agent with no `org:` tag stands: the Org page's own default, `personal` (every agent belongs to a company or to you) */
+export const UNASSIGNED_ORG = DEFAULT_ORG
 
 /** The least of an agent this module needs; the repo's Agent satisfies it */
 export interface WorldAgentInput {
@@ -67,7 +67,7 @@ export interface WorldGroup {
   offlineHostIds: string[]
 }
 
-/** An agent's org: its first `org:<id>` tag, or `unassigned` when it has none */
+/** An agent's org: its first `org:<id>` tag, or `personal` (the Org page's default) when it has none */
 export function getAgentOrg(agent: Pick<WorldAgentInput, 'tags'>): string {
   return tagValues(agent.tags, 'org')[0] || UNASSIGNED_ORG
 }
@@ -109,7 +109,7 @@ export function groupAgents(
   const hostById = new Map((opts.hosts || []).map(h => [h.id, h]))
   const hostLabel = (a: WorldAgentInput) =>
     hostById.get(a.hostId)?.name || a.hostName || a.hostId
-  const orgLabel = (orgId: string) => opts.orgNames?.[orgId] || orgId
+  const orgLabel = (orgId: string) => opts.orgNames?.[orgId] || (orgId === DEFAULT_ORG ? 'Personal' : orgId)
 
   const groups = new Map<string, WorldGroup>()
   const seen = new Set<string>()

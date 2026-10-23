@@ -16,11 +16,12 @@ It is an **experiment**, off by default. Turn it on in **Settings → Experiment
 
 | Mode | One island per | Good for |
 |---|---|---|
-| Host | host | "what is running where" |
-| Org | organization, hosts pooled | "how is each company doing" |
-| Org + Host (default) | organization and host | both: a company's agents on each of its machines |
+| By org (default) | organization, whatever machines its agents run on | "how is each company doing" |
+| By location | host | "what is running where" |
 
-An agent's organization is its first `org:<id>` tag; an agent with none is on `unassigned`. Every agent is on exactly one island, so the counts always add up to the fleet.
+An agent's organization is its first `org:<id>` tag. An agent with none stands on **Personal** (the Org page's default), so tag every agent with its company, or leave it for your own work. Every agent is on exactly one island, so the counts always add up to the fleet.
+
+Select an island and the others dim; the camera flies to it. The search box and status chips narrow the list and dim islands with no match. The orange "N need you" button in the header flies to the next island with an agent waiting for you.
 
 ## How it works
 
@@ -31,4 +32,4 @@ An agent's organization is its first `org:<id>` tag; an agent with none is on `u
 
 ## Not in this first slice
 
-Text labels on the islands, message pulses between agents, walking and typing animations, the grouping in the URL.
+Message pulses between agents, walking and typing animations, the grouping in the URL.

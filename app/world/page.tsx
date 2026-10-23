@@ -61,7 +61,9 @@ function WorldContent() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  // Three levels: the overview, an island (its buildings), a building (its agents)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [selectedBuildingKey, setSelectedBuildingKey] = useState<string | null>(null)
 
   const orgNames = useMemo(() => {
     const newest = new Map<string, { name: string; updatedAt: string }>()
@@ -88,22 +90,36 @@ function WorldContent() {
   )
 
   const selected = groups.find(g => g.key === selectedKey) || null
-  // The open card belongs to the selected island: leave the island (or regroup) and it closes
-  const openAgentId = selected?.agents.some(a => a.id === selectedAgentId) ? selectedAgentId : null
+  const selectedBuilding = selected?.buildings.find(b => b.key === selectedBuildingKey) || null
+  const selectIsland = (key: string | null) => { setSelectedKey(key); setSelectedBuildingKey(null); setSelectedAgentId(null) }
+  const selectBuilding = (key: string) => { setSelectedBuildingKey(key); setSelectedAgentId(null) }
+  // One step up: a building to its island, an island to the overview
+  const goBack = () => { if (selectedBuildingKey) { setSelectedBuildingKey(null); setSelectedAgentId(null) } else selectIsland(null) }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || (e.target instanceof HTMLInputElement)) return
+      if (selectedBuildingKey) { setSelectedBuildingKey(null); setSelectedAgentId(null) } else if (selectedKey) selectIsland(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, selectedBuildingKey])
+  // The open card belongs to the building you are in: leave it (or regroup) and it closes
+  const openAgentId = selectedBuilding?.agents.some(a => a.id === selectedAgentId) ? selectedAgentId : null
   const openAgent = openAgentId ? agentById.get(openAgentId) ?? null : null
 
   const figures: WorldFigure[] = useMemo(
-    () => (selected ? selected.agents.map(a => ({ id: a.id, presence: presenceOf(agentById.get(a.id) ?? a) })) : []),
-    [selected, agentById, presenceOf],
+    () => (selectedBuilding ? selectedBuilding.agents.map(a => ({ id: a.id, presence: presenceOf(agentById.get(a.id) ?? a) })) : []),
+    [selectedBuilding, agentById, presenceOf],
   )
 
   const panelAgents = useMemo(() => {
-    if (!selected) return []
-    return selected.agents
+    if (!selectedBuilding) return []
+    return selectedBuilding.agents
       .map(a => ({ agent: agentById.get(a.id) ?? a, presence: presenceOf(agentById.get(a.id) ?? a) }))
       .sort((x, y) => PRESENCE_RANK[x.presence] - PRESENCE_RANK[y.presence]
         || agentDisplay(x.agent).localeCompare(agentDisplay(y.agent)))
-  }, [selected, agentById, presenceOf])
+  }, [selectedBuilding, agentById, presenceOf])
 
   // Search and status filter: they narrow what the list shows and dim the islands with no match;
   // the counts stay the true ones.
@@ -146,6 +162,11 @@ function WorldContent() {
     for (const g of groups) for (const a of g.agents) m.set(a.id, g.key)
     return m
   }, [groups])
+  const buildingOfAgent = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const g of groups) for (const b of g.buildings) for (const a of b.agents) m.set(a.id, b.key)
+    return m
+  }, [groups])
   const groupOfName = useMemo(() => {
     const m = new Map<string, string>()
     for (const a of agents) {
@@ -179,7 +200,7 @@ function WorldContent() {
   const jumpToNeedsYou = () => {
     if (needsYouKeys.length === 0) return
     const i = selectedKey ? needsYouKeys.indexOf(selectedKey) : -1
-    setSelectedKey(needsYouKeys[(i + 1) % needsYouKeys.length])
+    selectIsland(needsYouKeys[(i + 1) % needsYouKeys.length])
   }
 
   const offlineHosts = hosts.filter(h => h.enabled === false)
@@ -204,7 +225,7 @@ function WorldContent() {
           {MODES.map(m => (
             <button
               key={m.id}
-              onClick={() => { setMode(m.id); setSelectedKey(null) }}
+              onClick={() => { setMode(m.id); selectIsland(null) }}
               title={m.title}
               className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs ${mode === m.id ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
@@ -242,10 +263,10 @@ function WorldContent() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative min-h-[320px] flex-1" data-pulses={pulses.length}>
-            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} pulses={pulses}
+            <WorldScene groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} pulses={pulses}
               selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
-              onBack={() => setSelectedKey(null)} />
-            <Minimap groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} />
+              onBack={goBack} />
+            <Minimap groups={groups} selectedKey={selectedKey} onSelect={selectIsland} />
           </div>
 
           <aside className="w-full flex-shrink-0 overflow-y-auto border-t border-gray-800 lg:w-96 lg:border-l lg:border-t-0">
@@ -277,7 +298,7 @@ function WorldContent() {
                 {matches.length === 0 && <li className="px-4 py-6 text-center text-sm text-gray-500">No agent matches.</li>}
                 {matches.slice(0, 200).map(({ agent, presence, groupKey }) => (
                   <li key={agent.id}>
-                    <button onClick={() => setSelectedKey(groupKey)} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-gray-900">
+                    <button onClick={() => { setSelectedKey(groupKey); setSelectedBuildingKey(buildingOfAgent.get(agent.id) ?? null); setSelectedAgentId(agent.id) }} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-gray-900">
                       <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${PRESENCE_STYLE[presence].dot}`} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-gray-100">{agentDisplay(agent)}</span>
@@ -306,7 +327,7 @@ function WorldContent() {
               <ul className="divide-y divide-gray-800/60">
                 {groups.map(g => (
                   <li key={g.key}>
-                    <button onClick={() => setSelectedKey(g.key)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-900">
+                    <button onClick={() => selectIsland(g.key)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-900">
                       <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${g.offline ? 'bg-gray-600' : g.counts.needsYou > 0 ? 'bg-orange-500' : 'bg-teal-500'}`} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-gray-100">{g.label}</span>
@@ -324,17 +345,55 @@ function WorldContent() {
                 ))}
               </ul>
               </>
-            ) : (
+            ) : !selectedBuilding ? (
               <div>
                 <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-3">
-                  <button onClick={() => setSelectedKey(null)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-200" aria-label="Back to all islands">
+                  <button onClick={goBack} className="rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-200" aria-label="Back to all islands">
                     <ArrowLeft className="h-4 w-4" />
                   </button>
                   <div className="min-w-0">
                     <h2 className="truncate text-sm font-medium">{selected.label}</h2>
                     <p className="text-xs text-gray-500">
-                      {selected.counts.total} agents · {selected.counts.working} working · {selected.counts.needsYou} needs you · {selected.counts.ready} ready · {selected.counts.offline} offline
+                      {selected.buildings.length} building{selected.buildings.length === 1 ? '' : 's'} · {selected.counts.total} agents · {selected.counts.working} working · {selected.counts.needsYou} needs you
                       {selected.offline ? ' · host offline' : ''}
+                    </p>
+                  </div>
+                </div>
+                <p className="px-4 pt-3 text-xs text-gray-500">
+                  {selected.mode === 'org' ? 'One building per host this organization runs on.' : 'One building per organization running on this host.'} Click a building to go inside.
+                </p>
+                <ul className="divide-y divide-gray-800/60">
+                  {selected.buildings.map(b => (
+                    <li key={b.key}>
+                      <button onClick={() => selectBuilding(b.key)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-900">
+                        <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${b.offline ? 'bg-gray-600' : b.counts.needsYou > 0 ? 'bg-orange-500' : 'bg-teal-500'}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm text-gray-100">{b.label}</span>
+                          <span className="block text-xs text-gray-500">
+                            {b.counts.working} working · {b.counts.ready} ready · {b.counts.offline} offline{b.offline ? ' · host offline' : ''}
+                          </span>
+                        </span>
+                        {b.counts.needsYou > 0 && (
+                          <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs text-orange-400">{b.counts.needsYou} need{b.counts.needsYou > 1 ? '' : 's'} you</span>
+                        )}
+                        <span className="text-xs text-gray-500">{b.counts.total}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-3">
+                  <button onClick={goBack} className="rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-200" aria-label="Back to the island">
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] text-gray-500">{selected.label} ›</p>
+                    <h2 className="truncate text-sm font-medium">{selectedBuilding.label}</h2>
+                    <p className="text-xs text-gray-500">
+                      {selectedBuilding.counts.total} agents · {selectedBuilding.counts.working} working · {selectedBuilding.counts.needsYou} needs you · {selectedBuilding.counts.ready} ready · {selectedBuilding.counts.offline} offline
+                      {selectedBuilding.offline ? ' · host offline' : ''}
                     </p>
                   </div>
                 </div>
@@ -345,7 +404,7 @@ function WorldContent() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-100">{agentDisplay(openAgent)}</p>
                         <p className="truncate text-xs text-gray-500">
-                          {selected?.label} · {openAgent.hostName || openAgent.hostId} · <span className={PRESENCE_STYLE[presenceOf(openAgent)].text}>{PRESENCE_STYLE[presenceOf(openAgent)].label}</span>
+                          {selected?.label} › {selectedBuilding?.label} · {openAgent.hostName || openAgent.hostId} · <span className={PRESENCE_STYLE[presenceOf(openAgent)].text}>{PRESENCE_STYLE[presenceOf(openAgent)].label}</span>
                         </p>
                       </div>
                       <button onClick={() => setSelectedAgentId(null)} className="rounded p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-300" aria-label="Close the agent card">×</button>

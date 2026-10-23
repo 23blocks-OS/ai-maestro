@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.97.0] - 2026-10-23 - World view: islands have buildings, buildings have agents; nobody lies down (beta)
+
+Reworked after trying the World view on the real fleet: the map now has three levels that match what you click, and offline agents no longer lie on the floor.
+
+### Changed
+- **Three levels.** An **island** (an org, or a host in "By location") has **buildings**, and a **building** has **agents**. The overview shows each island with its real skyline (an island with two buildings shows two buildings). **Click an island** and the camera goes there: you see just that island's buildings, with their names and agent counts. **Click a building** and you are inside it: a room open to the front, with its agents at desks, standing, waving or away. Before, the buildings were decoration that vanished when you clicked and the agents appeared on the bare island.
+- **What a building is:** on an org island, one building per host that organization's agents run on; on a host island (By location), one building per organization running there. Every agent is in exactly one building, and the counts add up.
+- **A skyline, not a ring.** Buildings stand in a row across the back of the island, the biggest in the middle and the smaller ones stepping down to the sides, facing you; a crowd of buildings wraps onto a second row. None stands near the rim (before, they sat around the edge and looked about to fall off) and none overlaps another (tested for 1 to 8 buildings). A building's height and width follow its agent count; its front carries bands in the status colours (needs you, working, ready, offline) in proportion, so its state reads from across the island, and an orange beacon sits over a building where someone needs you.
+- **Offline agents stand.** They are greyed out, with their head slightly bowed and a small "zz" over them, instead of lying down (which took a lot of room and looked like the agents were dead). The staging still puts them at the back of the room.
+- **Navigation.** The panel follows the level (islands, then an island's buildings, then a building's agents), with a back arrow, **Escape** goes up one level, searching for an agent and clicking it takes you straight to its building, and in VR the floating button reads "← back to the island" or "← all islands". The agent card shows "island › building".
+- Long names (an org called "23blocks R&D Org (Local AI Maestro Instances)") are shrunk to fit instead of filling the view; the island's name goes small and above the skyline once you are on it.
+
+### Tests
+- Buildings in the grouping (a building per host on an org island, per org on a host island, status counts, offline hosts, every agent in exactly one building in every mode) and the skyline layout (inside the island, never at the rim, no overlaps, biggest in the middle, sizes bounded).
+
 ## [0.96.0] - 2026-10-22 - World view: walk into it with a VR headset (beta)
 
 On the World view (beta, Settings → Experiments), browsers that can start an immersive VR session (a Meta Quest's browser, a PC with a headset) now show an **Enter VR** button in the corner of the map.

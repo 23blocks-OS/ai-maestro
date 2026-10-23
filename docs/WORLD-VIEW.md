@@ -6,16 +6,17 @@ It is an **experiment**, off by default. Turn it on in **Settings → Experiment
 
 ## Reading the map
 
-- **Island** size follows its agent count; the buildings are decoration that grows with it.
-- **Orange diamond over an island**: at least one agent there needs you.
-- **Dark island**: every host it covers is offline (a host that is disabled, as everywhere else in the UI).
-- **Click an island** to select it: the camera flies in and its agents appear as small people laid out like an office, back to front: **sleeping** (offline) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the plaza on the island's doorstep, waving, with an orange beacon over their heads. The panel lists them, needs-you first. **Click an agent** (in the scene or the list) for a ring, its name over its head, and a card with its status, host, task and buttons: Open (dashboard), Zoom and Companion. The **minimap** in the corner shows every island, orange where someone needs you; click one to fly there. Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
-- **Test agents** (tagged `org:sandbox`) are not drawn; the header says how many are hidden.
-- **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
+The map has three levels:
+
+1. **The overview**: islands. Each island shows its **skyline**, one building for each of its parts (an org island has a building per host its agents run on; a host island has a building per organization running there), standing in a row across the back, biggest in the middle. A building's height follows how many agents it holds, its front carries bands in the status colours in proportion, and an orange diamond over it means someone there needs you. Dark means its host is offline.
+2. **An island** (click it): the camera goes there and you see just its buildings, with their names and agent counts. The other islands dim.
+3. **A building** (click it): you are inside, in a room open to the front. The agents are small people laid out back to front: the **away** (offline: standing, greyed, a small zz) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the front, waving, with an orange beacon over their heads. Click one for a ring, its name over its head and a card with its status, host and task, and buttons: Open (dashboard), Zoom and Companion. Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
+
+**Back** with the arrow in the panel or **Escape** (one level up). The **minimap** in the corner shows every island, orange where someone needs you; click one to fly there. Searching for an agent and clicking it takes you straight into its building. Test agents (tagged `org:sandbox`) are not drawn; the header says how many are hidden. **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
 
 ## VR
 
-Browsers that can start an immersive VR session (a Meta Quest's browser, a PC with a headset) show an **Enter VR** button in the corner of the map. In the headset the overview is a **table-top model** of the archipelago in front of you; select an island and you **stand at its doorstep, life-size**, with its agents around you at human scale (the ones who need you wave at you from the plaza). Point a controller and pull the trigger to select an island or an agent; the agent's name and status float over its head; **"← all islands"** floats at the front of the island. Exit VR ends the session.
+Browsers that can start an immersive VR session (a Meta Quest's browser, a PC with a headset) show an **Enter VR** button in the corner of the map. In the headset the overview is a **table-top model** of the archipelago in front of you; select an island and you **stand at its doorstep, life-size**, looking at its skyline, and select a building and you **stand at the front of its room** with its agents around you at human scale (the ones who need you wave at you). Point a controller and pull the trigger to select an island, a building or an agent; the agent's name and status float over its head; a floating button ("← back to the island", "← all islands") goes up a level. Exit VR ends the session.
 
 No headset? Open `/world?emulate-vr` for an emulated Meta Quest 3. It has been checked only in that emulator, not on a real headset: comfort and performance on a standalone Quest still need a real device. iOS Safari has no WebXR, so on iPhone and iPad the map stays a normal 3D view.
 
@@ -36,7 +37,7 @@ Select an island and the others dim; the camera flies to it. The search box and 
 
 ## How it works
 
-- `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `lib/world/stage.ts` stands the agents on an island; `components/world/WorldScene.tsx` and `Character.tsx` draw them (React Three Fiber, client-only, loaded on demand); `app/world/page.tsx` is the page.
+- `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `lib/world/stage.ts` stands the agents on an island; `lib/world/layout.ts` also lays out each island's skyline; `components/world/WorldScene.tsx` and `Character.tsx` draw them (React Three Fiber, client-only, loaded on demand); `app/world/page.tsx` is the page.
 - The data is the same as the Zoom and Org views: `useAgents` (every host), `useHosts`, `useOrgs`, and the one status source, `presenceOf`. No backend change.
 - The canvas renders on demand, so an idle map costs no GPU. The scene needs WebGL; without it the list beside the map still works.
 - The flag lives in `lib/experiments.ts` (`EXPERIMENT_KEYS`) and is read with `hooks/useExperiment.ts`.

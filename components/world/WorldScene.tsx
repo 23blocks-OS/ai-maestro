@@ -1,11 +1,13 @@
 'use client'
 
 /**
- * The world itself: one low-poly island per group, buildings sized by the
- * group's agent count, and agent figures only on the selected island.
+ * The world, in three levels. The overview is the archipelago: one island per group, each with its
+ * skyline of buildings (an org island has a building per host its agents run on). Select an island and
+ * you see just its buildings, close up. Select a building and you are inside it: a room with its agents
+ * at desks, standing, waving, or away.
  *
- * LOD rule: the overview renders islands + counts only — it never draws 160+
- * figures at once; full figures appear for the selected group alone.
+ * LOD rule: figures are drawn only inside the selected building, so the overview never draws 160+
+ * people at once.
  */
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -13,8 +15,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { XR, createXRStore } from '@react-three/xr'
 import type { Group } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { WorldGroup } from '@/lib/world/grouping'
-import { islandRadius, layoutIslands } from '@/lib/world/layout'
+import type { WorldBuilding, WorldGroup } from '@/lib/world/grouping'
+import { buildingSize, islandRadius, layoutIslands, layoutSkyline } from '@/lib/world/layout'
 import { stageFigures } from '@/lib/world/stage'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Character from '@/components/world/Character'
@@ -27,7 +29,10 @@ import type { AgentPresence } from '@/lib/agent-presence'
  * and an idle map costs no GPU. `extent` is the layout's half-width: the camera is
  * placed to see all of it whenever the set of islands changes.
  */
-function Controls({ extent, focus, enabled }: { extent: number; focus: { x: number; z: number; radius: number } | null; enabled: boolean }) {
+/** Where the camera goes: a point on the map, how wide a view to give it, and how tall the thing there is */
+interface Focus { x: number; z: number; radius: number; height: number }
+
+function Controls({ extent, focus, enabled }: { extent: number; focus: Focus | null; enabled: boolean }) {
   const camera = useThree(s => s.camera)
   const gl = useThree(s => s.gl)
   const get = useThree(s => s.get)
@@ -72,18 +77,19 @@ function Controls({ extent, focus, enabled }: { extent: number; focus: { x: numb
   }, [controls, camera, overview, invalidate])
 
   // Fly to the selected island (close enough to see its people), or back out to the whole map.
-  const fx = focus?.x, fz = focus?.z, fr = focus?.radius
+  const fx = focus?.x, fz = focus?.z, fr = focus?.radius, fh = focus?.height
   useEffect(() => {
     const k = Math.max(1, 1.7 / aspect())
-    if (fx === undefined || fz === undefined || fr === undefined) {
+    if (fx === undefined || fz === undefined || fr === undefined || fh === undefined) {
       flight.current = { target: [0, 0, 0], cam: [0, overview.y * k, overview.z * k] }
     } else {
       const kk = Math.max(1, 1.2 / aspect())
-      flight.current = { target: [fx, 0, fz], cam: [fx, (fr * 0.9 + 2.6) * kk, fz + (fr * 1.05 + 3.8) * kk] }
+      // Look at the middle of what is there (a tall skyline is looked at, not from above) and stand back far enough to see it all
+      flight.current = { target: [fx, fh * 0.4, fz], cam: [fx, (fr * 0.8 + 2 + fh * 0.5) * kk, fz + (fr * 1.2 + 3.5 + fh * 0.5) * kk] }
     }
     invalidate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fx, fz, fr, overview, invalidate])
+  }, [fx, fz, fr, fh, overview, invalidate])
 
   // In a headset the headset is the camera: the orbit controls step aside
   useEffect(() => { controls.enabled = enabled; if (!enabled) flight.current = null }, [controls, enabled])
@@ -135,9 +141,12 @@ export interface WorldFigure {
 
 interface WorldSceneProps {
   groups: WorldGroup[]
+  /** The island you are at, and the building you are inside (both null in the overview) */
   selectedKey: string | null
+  selectedBuildingKey?: string | null
   onSelect: (key: string) => void
-  /** Agents of the selected group, drawn as figures on its island */
+  onSelectBuilding?: (key: string) => void
+  /** Agents of the selected building, drawn as people inside it */
   figures: WorldFigure[]
   /** Leave the selected island (the in-headset "all islands" button) */
   onBack?: () => void
@@ -152,23 +161,149 @@ interface WorldSceneProps {
   dimmed?: Set<string>
 }
 
-function Island({ group, position, selected, dim, figures, animate, onSelect, selectedAgentId, onSelectAgent, names }: {
+/** Half the width of the room inside a building: big enough for its agents, small enough to sit well inside the island */
+export function roomHalf(agentCount: number, islandR: number): number {
+  return Math.min(islandRadius(agentCount) * 0.9, islandR * 0.68)
+}
+
+/** The status mix of a building as stacked bands on its front, so its state reads from across the island */
+function StatusBands({ b, w, h, d }: { b: WorldBuilding; w: number; h: number; d: number }) {
+  const total = Math.max(1, b.counts.total)
+  const bands: Array<[number, string]> = [
+    [b.counts.needsYou, PRESENCE_HEX['needs-you']],
+    [b.counts.working, PRESENCE_HEX.working],
+    [b.counts.ready, PRESENCE_HEX.ready],
+    [b.counts.offline, PRESENCE_HEX.offline],
+  ]
+  const usable = h * 0.8
+  let y = h * 0.1
+  return (
+    <>
+      {bands.map(([n, color], i) => {
+        if (n === 0) return null
+        const bh = (n / total) * usable
+        const el = (
+          <mesh key={i} position={[0, y + bh / 2, d / 2 + 0.02]}>
+            <boxGeometry args={[w * 0.7, bh, 0.04]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} />
+          </mesh>
+        )
+        y += bh
+        return el
+      })}
+    </>
+  )
+}
+
+function Building({ b, box, dim, islandSelected, onClick }: {
+  b: WorldBuilding
+  box: { x: number; z: number; w: number; d: number; h: number }
+  dim: boolean
+  islandSelected: boolean
+  onClick: () => void
+}) {
+  const off = b.offline || dim
+  return (
+    <group
+      position={[box.x, 0, box.z]}
+      onClick={e => {
+        e.stopPropagation()
+        // A drag that ends over a building is an orbit, not a selection
+        if (e.delta > 4) return
+        onClick()
+      }}
+      onPointerOver={e => { if (islandSelected) { e.stopPropagation(); document.body.style.cursor = 'pointer' } }}
+      onPointerOut={() => { document.body.style.cursor = '' }}
+    >
+      <mesh position={[0, box.h / 2, 0]}>
+        <boxGeometry args={[box.w, box.h, box.d]} />
+        <meshStandardMaterial color={off ? '#374151' : '#99f6e4'} emissive={off ? '#000000' : '#115e59'} emissiveIntensity={0.4} />
+      </mesh>
+      {!off && <StatusBands b={b} w={box.w} h={box.h} d={box.d} />}
+      {/* A flat roof slab so the skyline reads as buildings, not boxes */}
+      <mesh position={[0, box.h + 0.04, 0]}>
+        <boxGeometry args={[box.w + 0.12, 0.08, box.d + 0.12]} />
+        <meshStandardMaterial color={off ? '#1f2937' : '#0f766e'} />
+      </mesh>
+      {b.counts.needsYou > 0 && !dim && (
+        <mesh position={[0, box.h + 0.7, 0]}>
+          <octahedronGeometry args={[0.24]} />
+          <meshStandardMaterial color={PRESENCE_HEX['needs-you']} emissive={PRESENCE_HEX['needs-you']} emissiveIntensity={1} />
+        </mesh>
+      )}
+      {islandSelected && <Label text={`${b.label} · ${b.counts.total}`} y={box.h + (b.counts.needsYou > 0 ? 1.45 : 0.9)} scale={0.5} dim={dim} />}
+    </group>
+  )
+}
+
+/** Inside a building: a room open to the front, its agents at desks, standing, waving or away */
+function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names }: {
+  building: WorldBuilding
+  half: number
+  figures: WorldFigure[]
+  animate: boolean
+  selectedAgentId: string | null
+  onSelectAgent?: (id: string) => void
+  names?: Map<string, string>
+}) {
+  const staged = useMemo(() => stageFigures(figures, half / 0.86).figures, [figures, half])
+  const wall = '#134e4a'
+  return (
+    <group>
+      <mesh position={[0, 0.03, 0]}>
+        <boxGeometry args={[half * 2, 0.06, half * 2]} />
+        <meshStandardMaterial color="#1e3a3a" />
+      </mesh>
+      <mesh position={[0, 0.8, -half]}>
+        <boxGeometry args={[half * 2, 1.6, 0.14]} />
+        <meshStandardMaterial color={wall} />
+      </mesh>
+      <mesh position={[-half, 0.8, 0]}>
+        <boxGeometry args={[0.14, 1.6, half * 2]} />
+        <meshStandardMaterial color={wall} />
+      </mesh>
+      <mesh position={[half, 0.8, 0]}>
+        <boxGeometry args={[0.14, 1.6, half * 2]} />
+        <meshStandardMaterial color={wall} />
+      </mesh>
+      <Label text={`${building.label} · ${building.counts.total}`} y={2.3} scale={0.55} position={[0, 0, -half + 0.2]} />
+      {staged.map(f => (
+        <Character
+          key={f.id}
+          id={f.id}
+          pose={f.pose}
+          color={PRESENCE_HEX[f.presence]}
+          position={[f.x, f.z]}
+          desk={f.desk}
+          animate={animate}
+          selected={f.id === selectedAgentId}
+          name={names?.get(f.id)}
+          onSelect={() => onSelectAgent?.(f.id)}
+        />
+      ))}
+    </group>
+  )
+}
+
+function Island({ group, position, selected, buildingKey, dim, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
+  buildingKey: string | null
   dim: boolean
   figures: WorldFigure[]
   animate: boolean
   onSelect: () => void
+  onSelectBuilding?: (key: string) => void
   selectedAgentId: string | null
   onSelectAgent?: (id: string) => void
   names?: Map<string, string>
 }) {
   const [x, z] = position
-  const count = group.counts.total
-  const radius = islandRadius(count)
-  const buildings = Math.min(5, Math.max(1, Math.ceil(count / 8)))
-  const staged = useMemo(() => (selected ? stageFigures(figures, radius).figures : []), [selected, figures, radius])
+  const radius = islandRadius(group.counts.total)
+  const skyline = useMemo(() => layoutSkyline(group.buildings.map(b => b.agents.length), radius), [group.buildings, radius])
+  const tallest = skyline.reduce((m, b) => Math.max(m, b.h), 0)
+  const inside = selected && buildingKey !== null ? group.buildings.find(b => b.key === buildingKey) ?? null : null
   const base = group.offline || dim ? '#1f2937' : selected ? '#0f766e' : '#134e4a'
 
   return (
@@ -183,42 +318,31 @@ function Island({ group, position, selected, dim, figures, animate, onSelect, se
         <cylinderGeometry args={[radius, radius * 0.8, 0.6, 24]} />
         <meshStandardMaterial color={base} emissive={selected ? '#0d9488' : '#000000'} emissiveIntensity={selected ? 0.35 : 0} />
       </mesh>
-      {/* Buildings: boxes whose height grows with the group's fleet share */}
-      {!selected && Array.from({ length: buildings }, (_, i) => {
-        const angle = (i / buildings) * Math.PI * 2
-        const bx = Math.cos(angle) * radius * 0.72
-        const bz = Math.sin(angle) * radius * 0.72
-        const h = 0.8 + ((count + i * 3) % 5) * 0.35
-        return (
-          <mesh key={i} position={[bx, h / 2, bz]}>
-            <boxGeometry args={[0.9, h, 0.9]} />
-            <meshStandardMaterial color={group.offline || dim ? '#374151' : '#99f6e4'} emissive={group.offline || dim ? '#000000' : '#115e59'} emissiveIntensity={0.4} />
-          </mesh>
-        )
-      })}
-      <Label text={group.label} y={Math.max(3.9, radius * 0.5 + 3)} dim={dim} />
-      {/* Needs-you beacon over the island */}
-      {group.counts.needsYou > 0 && (
-        <mesh position={[0, 3.2, 0]}>
-          <octahedronGeometry args={[0.35]} />
-          <meshStandardMaterial color={PRESENCE_HEX['needs-you']} emissive={PRESENCE_HEX['needs-you']} emissiveIntensity={0.8} />
-        </mesh>
-      )}
-      {/* Agents as people, on the selected island only (see the LOD rule above) */}
-      {selected && staged.map(f => (
-        <Character
-          key={f.id}
-          id={f.id}
-          pose={f.pose}
-          color={PRESENCE_HEX[f.presence]}
-          position={[f.x, f.z]}
-          desk={f.desk}
-          animate={animate}
-          selected={f.id === selectedAgentId}
-          name={names?.get(f.id)}
-          onSelect={() => onSelectAgent?.(f.id)}
+      {/* The island's name: big for the overview, small and above the skyline once you are on it */}
+      {!inside && <Label text={group.label} y={selected ? tallest + 2.4 : Math.max(3.9, radius * 0.5 + 3)} scale={selected ? 0.6 : 1.1} dim={dim} />}
+      {/* The skyline: the island's buildings, in a row across the back (hidden while you are inside one) */}
+      {!inside && skyline.map(box => (
+        <Building
+          key={group.buildings[box.index].key}
+          b={group.buildings[box.index]}
+          box={box}
+          dim={dim}
+          islandSelected={selected}
+          onClick={() => (selected ? onSelectBuilding?.(group.buildings[box.index].key) : onSelect())}
         />
       ))}
+      {/* Inside the selected building: its room and its people (the only place people are drawn) */}
+      {inside && (
+        <Room
+          building={inside}
+          half={roomHalf(inside.agents.length, radius)}
+          figures={figures}
+          animate={animate}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={onSelectAgent}
+          names={names}
+        />
+      )}
     </group>
   )
 }
@@ -255,7 +379,7 @@ function useVRSupported(emulated: boolean): boolean {
 function VRRig({ presenting, extent, focus, children }: {
   presenting: boolean
   extent: number
-  focus: { x: number; z: number; radius: number } | null
+  focus: Focus | null
   children: React.ReactNode
 }) {
   if (!presenting) return <>{children}</>
@@ -263,7 +387,7 @@ function VRRig({ presenting, extent, focus, children }: {
     const scale = 1.5 / (2 * Math.max(extent, 6))
     return <group position={[0, 0.9, -1.4]} scale={scale}>{children}</group>
   }
-  return <group position={[-focus.x, 0, 1.4 - focus.z - focus.radius]}>{children}</group>
+  return <group position={[-focus.x, 0, 2.4 - focus.z - focus.radius]}>{children}</group>
 }
 
 /** One gold orb arcing from island to island (or rising over one island for a message within it) */
@@ -294,17 +418,22 @@ function Pulse({ pulse, from, to }: { pulse: WorldPulse; from: [number, number];
   )
 }
 
-export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
-  const focus = useMemo(
-    () => (selectedIndex >= 0 ? { x: positions[selectedIndex][0], z: positions[selectedIndex][1], radius: islandRadius(groups[selectedIndex].counts.total) } : null),
-    [selectedIndex, positions, groups],
-  )
+  // Where the camera goes: the whole island, or (inside a building) its room
+  const focus = useMemo(() => {
+    if (selectedIndex < 0) return null
+    const g = groups[selectedIndex]
+    const r = islandRadius(g.counts.total)
+    const b = selectedBuildingKey ? g.buildings.find(x => x.key === selectedBuildingKey) : null
+    const tallest = Math.max(...g.buildings.map(x => buildingSize(x.agents.length).h))
+    return { x: positions[selectedIndex][0], z: positions[selectedIndex][1], radius: b ? roomHalf(b.agents.length, r) * 1.25 : r, height: b ? 2 : tallest }
+  }, [selectedIndex, selectedBuildingKey, positions, groups])
   const reduced = usePrefersReducedMotion()
   // Characters move, so the canvas draws continuously while a populated island is selected;
   // otherwise (the overview, or reduced motion) it draws on demand and an idle map costs no GPU.
-  const animate = !reduced && selectedIndex >= 0 && figures.length > 0
+  const animate = !reduced && selectedIndex >= 0 && selectedBuildingKey !== null && figures.length > 0
   // Pulses are motion too, so they ask for continuous frames while any is in flight
   const store = useMemo(() => createXRStore({ emulate: false }), [])
   const presenting = useSyncExternalStore(store.subscribe, () => store.getState().session != null, () => false)
@@ -325,10 +454,12 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
           group={g}
           position={positions[i]}
           selected={g.key === selectedKey}
+          buildingKey={g.key === selectedKey ? selectedBuildingKey : null}
           dim={dimmed?.has(g.key) ?? false}
           figures={g.key === selectedKey ? figures : []}
           animate={animate}
           onSelect={() => onSelect(g.key)}
+          onSelectBuilding={onSelectBuilding}
           selectedAgentId={selectedAgentId}
           onSelectAgent={onSelectAgent}
           names={names}
@@ -341,7 +472,7 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
         return <Pulse key={p.id} pulse={p} from={positions[a]} to={positions[b]} />
       })}
       {presenting && focus && onBack && (
-        <Label text="← all islands" y={2.2} scale={0.3} onClick={onBack} position={[focus.x, 0, focus.z + focus.radius * 0.95]} />
+        <Label text={selectedBuildingKey ? "← back to the island" : "← all islands"} y={2.2} scale={0.3} onClick={onBack} position={[focus.x, 0, focus.z + focus.radius * 0.95]} />
       )}
       </VRRig>
       </XR>

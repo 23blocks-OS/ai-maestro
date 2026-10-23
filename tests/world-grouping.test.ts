@@ -154,3 +154,37 @@ describe('sandbox agents', () => {
     expect(isSandboxAgent({})).toBe(false)
   })
 })
+
+describe('buildings', () => {
+  it('an org island has a building per host its agents run on, and every agent is in exactly one', () => {
+    const org = groupAgents(AGENTS, 'org', { hosts: HOSTS, presenceOf }).find(g => g.key === '23blocks')!
+    expect(org.buildings.map(b => [b.key, b.label, b.agents.length])).toEqual([
+      ['mac-mini', 'Mac Mini', 2], ['boulder-lab', 'Boulder Lab', 1], ['dead-host', 'Dead Host', 1],
+    ])
+    expect(org.buildings.flatMap(b => b.agents.map(a => a.id)).sort()).toEqual(org.agents.map(a => a.id).sort())
+    expect(org.buildings.reduce((n, b) => n + b.counts.total, 0)).toBe(org.counts.total)
+  })
+
+  it('a host island has a building per organization running on it', () => {
+    const host = groupAgents(AGENTS, 'host', { hosts: HOSTS, presenceOf }).find(g => g.key === 'mac-mini')!
+    expect(host.buildings.map(b => [b.key, b.agents.length]).sort()).toEqual([['23blocks', 2], ['3metas', 1], ['personal', 1]])
+    expect(host.buildings.find(b => b.key === 'personal')!.label).toBe('Personal')
+  })
+
+  it('counts each building by status, and marks a building offline when its host is', () => {
+    const org = groupAgents(AGENTS, 'org', { hosts: HOSTS, presenceOf }).find(g => g.key === '23blocks')!
+    const mini = org.buildings.find(b => b.key === 'mac-mini')!
+    expect([mini.counts.working, mini.counts.needsYou]).toEqual([1, 1])
+    expect(mini.offline).toBe(false)
+    expect(org.buildings.find(b => b.key === 'dead-host')!.offline).toBe(true)
+  })
+
+  it('is the same for every mode in what matters: no agent lost or doubled', () => {
+    for (const mode of ['host', 'org', 'org-host'] as const) {
+      for (const g of groupAgents(AGENTS, mode, { hosts: HOSTS, presenceOf })) {
+        expect(g.buildings.flatMap(b => b.agents.map(a => a.id)).sort()).toEqual(g.agents.map(a => a.id).sort())
+        expect(g.buildings.length).toBeGreaterThan(0)
+      }
+    }
+  })
+})

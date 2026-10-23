@@ -3,7 +3,7 @@
  * rules (nobody off the island, nobody on top of anybody) are tested without a canvas.
  *
  * The island is read like a small office, back to front, so the status is a place as well as a colour:
- *   back   sleeping  (offline)
+ *   back   resting   (offline: standing, greyed, a small zz; never lying down)
  *          working   at a desk (typing)
  *          ready     standing, idle
  *   front  needs you at the plaza on the doorstep, waving at you (the camera looks from the front)
@@ -13,7 +13,7 @@
 
 import type { AgentPresence } from '@/lib/agent-presence'
 
-export type Pose = 'typing' | 'standing' | 'waving' | 'sleeping'
+export type Pose = 'typing' | 'standing' | 'waving' | 'resting'
 
 export interface StageInput {
   id: string
@@ -32,7 +32,7 @@ export interface StagedFigure {
 }
 
 const POSE: Record<AgentPresence, Pose> = {
-  offline: 'sleeping',
+  offline: 'resting',
   working: 'typing',
   ready: 'standing',
   'needs-you': 'waving',

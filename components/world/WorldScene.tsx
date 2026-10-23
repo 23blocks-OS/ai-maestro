@@ -9,24 +9,44 @@
  */
 
 import { useEffect, useMemo } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldGroup } from '@/lib/world/grouping'
+import { islandRadius, layoutIslands } from '@/lib/world/layout'
 import type { AgentPresence } from '@/lib/agent-presence'
 
-/** Orbit controls from three's own examples (no extra dep): orbit/pan/zoom, no roll */
-function Controls() {
+/**
+ * Orbit controls from three's own examples (no extra dep): orbit/pan/zoom, no roll.
+ * The canvas renders on demand, so the controls ask for a frame only when they move
+ * and an idle map costs no GPU. `extent` is the layout's half-width: the camera is
+ * placed to see all of it whenever the set of islands changes.
+ */
+function Controls({ extent }: { extent: number }) {
   const camera = useThree(s => s.camera)
   const gl = useThree(s => s.gl)
+  const invalidate = useThree(s => s.invalidate)
+  const get = useThree(s => s.get)
   const controls = useMemo(() => {
     const c = new OrbitControlsImpl(camera, gl.domElement)
     c.maxPolarAngle = Math.PI / 2.2
     c.minDistance = 5
-    c.maxDistance = 45
     return c
   }, [camera, gl])
-  useEffect(() => () => controls.dispose(), [controls])
-  useFrame(() => controls.update())
+  useEffect(() => {
+    const onChange = () => invalidate()
+    controls.addEventListener('change', onChange)
+    return () => { controls.removeEventListener('change', onChange); controls.dispose() }
+  }, [controls, invalidate])
+  useEffect(() => {
+    // A narrow canvas (a phone) sees less sideways, so back the camera off to keep every island in view
+    const { width, height } = get().size
+    const reach = Math.max(extent, 8) * Math.max(1, 1.7 / (width / Math.max(height, 1)))
+    controls.maxDistance = Math.max(45, reach * 4)
+    camera.position.set(0, reach * 0.9 + 4, reach * 1.1 + 6)
+    controls.target.set(0, 0, 0)
+    controls.update()
+    invalidate()
+  }, [controls, camera, extent, invalidate, get])
   return null
 }
 
@@ -51,30 +71,26 @@ interface WorldSceneProps {
   figures: WorldFigure[]
 }
 
-function islandPosition(index: number, total: number): [number, number] {
-  const cols = Math.max(1, Math.ceil(Math.sqrt(total)))
-  const spacing = 8
-  const x = (index % cols - (cols - 1) / 2) * spacing
-  const z = (Math.floor(index / cols) - (Math.ceil(total / cols) - 1) / 2) * spacing
-  return [x, z]
-}
-
-function Island({ group, index, total, selected, figures, onSelect }: {
+function Island({ group, position, selected, figures, onSelect }: {
   group: WorldGroup
-  index: number
-  total: number
+  position: [number, number]
   selected: boolean
   figures: WorldFigure[]
   onSelect: () => void
 }) {
-  const [x, z] = islandPosition(index, total)
+  const [x, z] = position
   const count = group.counts.total
-  const radius = 2 + Math.sqrt(count) * 0.45
+  const radius = islandRadius(count)
   const buildings = Math.min(5, Math.max(1, Math.ceil(count / 8)))
   const base = group.offline ? '#1f2937' : selected ? '#0f766e' : '#134e4a'
 
   return (
-    <group position={[x, 0, z]} onClick={e => { e.stopPropagation(); onSelect() }}>
+    <group position={[x, 0, z]} onClick={e => {
+      e.stopPropagation()
+      // A drag that ends over an island is an orbit, not a selection
+      if (e.delta > 4) return
+      onSelect()
+    }}>
       {/* Island */}
       <mesh position={[0, -0.3, 0]}>
         <cylinderGeometry args={[radius, radius * 0.8, 0.6, 24]} />
@@ -83,8 +99,8 @@ function Island({ group, index, total, selected, figures, onSelect }: {
       {/* Buildings: boxes whose height grows with the group's fleet share */}
       {Array.from({ length: buildings }, (_, i) => {
         const angle = (i / buildings) * Math.PI * 2
-        const bx = Math.cos(angle) * radius * 0.45
-        const bz = Math.sin(angle) * radius * 0.45
+        const bx = Math.cos(angle) * radius * 0.72
+        const bz = Math.sin(angle) * radius * 0.72
         const h = 0.8 + ((count + i * 3) % 5) * 0.35
         return (
           <mesh key={i} position={[bx, h / 2, bz]}>
@@ -103,8 +119,10 @@ function Island({ group, index, total, selected, figures, onSelect }: {
       {/* Agent figures — selected island only (see LOD rule above) */}
       {selected && figures.map((f, i) => {
         const cols = Math.max(1, Math.ceil(Math.sqrt(figures.length)))
-        const fx = (i % cols - (cols - 1) / 2) * 0.85
-        const fz = (Math.floor(i / cols) - (Math.ceil(figures.length / cols) - 1) / 2) * 0.85
+        // Fit the grid inside the ring of buildings, however many agents stand here
+        const step = Math.min(0.85, (radius * 1.0) / cols)
+        const fx = (i % cols - (cols - 1) / 2) * step
+        const fz = (Math.floor(i / cols) - (Math.ceil(figures.length / cols) - 1) / 2) * step
         return (
           <group key={f.id} position={[fx, 0, fz]}>
             <mesh position={[0, 0.55, 0]}>
@@ -125,22 +143,22 @@ function Island({ group, index, total, selected, figures, onSelect }: {
 }
 
 export default function WorldScene({ groups, selectedKey, onSelect, figures }: WorldSceneProps) {
+  const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   return (
-    <Canvas camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
+    <Canvas frameloop="demand" camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
       <ambientLight intensity={0.7} />
       <directionalLight position={[8, 14, 6]} intensity={1.4} />
       {groups.map((g, i) => (
         <Island
           key={g.key}
           group={g}
-          index={i}
-          total={groups.length}
+          position={positions[i]}
           selected={g.key === selectedKey}
           figures={g.key === selectedKey ? figures : []}
           onSelect={() => onSelect(g.key)}
         />
       ))}
-      <Controls />
+      <Controls extent={extent} />
     </Canvas>
   )
 }

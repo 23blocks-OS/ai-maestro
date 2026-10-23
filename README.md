@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.93.7-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.94.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -192,6 +192,8 @@ Agents use a credential without seeing it. `aim-secret` keeps values in a local 
 Assemble agents into teams, run meetings in split-pane war rooms, and track tasks on a full Kanban board with drag-and-drop, dependencies, and 5 status columns. Cross-machine teams work seamlessly. This is project management for your AI workforce.
 
 Every agent also keeps its own board, and any agent, in any framework, can feed it with the `agent-tasks` skill. A card can carry a **due date**, **several owners** (it shows on each owner's board), a **kind** (task, idea, bug, research) and **where it came from**. Three extra pages, reached from the header and never replacing the main view, read the same cards: the **Matrix** (Eisenhower squares across all agents and hosts), the **Org** view, and **Attention** (agents that need you, cards waiting on you, overdue cards). [Tasks, Matrix and Attention →](docs/TASKS.md)
+
+**World view (beta)** is an experiment: switch it on in Settings → Experiments and the header gets a World button that draws your hosts and organizations as 3D islands with their agents on them, in the live status colours. [World view →](docs/WORLD-VIEW.md)
 
 ### Claude Code Mods
 

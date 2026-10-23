@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
 import { useAgents } from '@/hooks/useAgents'
 import { useOrgs } from '@/hooks/useOrgs'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { useExperiment } from '@/hooks/useExperiment'
 import { VersionChecker } from '@/components/VersionChecker'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { agentDisplay } from '@/lib/organization'
@@ -37,7 +38,7 @@ const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 
  * Same data as Zoom and Org (useAgents across hosts, org records, the shared
  * presenceOf) — this page only groups it (lib/world/grouping.ts) and draws it.
  */
-export default function WorldPage() {
+function WorldContent() {
   const { hosts } = useHosts()
   const { agents, loading, error, refreshAgents } = useAgents()
   const { orgs: records } = useOrgs(hosts)
@@ -92,7 +93,7 @@ export default function WorldPage() {
         <h1 className="text-sm font-medium">World</h1>
         <span className="hidden text-xs text-gray-500 sm:inline">hosts and orgs as islands, agents as figures</span>
         <div className="flex-1" />
-        <span className="text-xs text-gray-400">{agents.length} agents · {groups.length} islands</span>
+        <span className="hidden whitespace-nowrap text-xs text-gray-400 sm:inline">{agents.length} agents · {groups.length} islands</span>
         <div className="flex gap-1" role="group" aria-label="Group islands by">
           {MODES.map(m => (
             <button
@@ -203,4 +204,36 @@ export default function WorldPage() {
       <VersionChecker />
     </div>
   )
+}
+
+/**
+ * World is a beta: the page opens only where Settings → Experiments turned it on.
+ * The gate sits above WorldContent so a browser without the flag fetches nothing.
+ */
+export default function WorldPage() {
+  const { enabled, ready } = useExperiment('world-view')
+
+  if (!ready) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-950">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+  if (!enabled) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-gray-950 px-6 text-center text-gray-300">
+        <FlaskConical className="h-10 w-10 text-purple-400" />
+        <h1 className="text-lg font-medium text-gray-100">World view is a beta</h1>
+        <p className="max-w-md text-sm text-gray-400">
+          Turn it on in Settings → Experiments to see your hosts and organizations as islands, with their agents on them.
+        </p>
+        <div className="flex gap-2">
+          <Link href="/settings" className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white transition-colors hover:bg-purple-700">Open Settings</Link>
+          <Link href="/" className="rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-200 transition-colors hover:bg-gray-700">Back to the dashboard</Link>
+        </div>
+      </div>
+    )
+  }
+  return <WorldContent />
 }

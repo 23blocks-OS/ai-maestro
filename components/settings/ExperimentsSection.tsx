@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FlaskConical, Users, Layers, ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react'
+import { FlaskConical, Globe, ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react'
+import { EXPERIMENT_EVENT, EXPERIMENT_KEYS, type ExperimentId } from '@/lib/experiments'
 
 interface FeatureFlag {
-  id: string
+  id: ExperimentId
   name: string
   description: string
   storageKey: string
@@ -15,6 +16,20 @@ interface FeatureFlag {
 const FEATURE_FLAGS: FeatureFlag[] = [
   // Agent-Centric Sidebar has been promoted to production (v0.17.0+)
   // Add new experiments here as needed
+  {
+    id: 'world-view',
+    name: 'World view (beta)',
+    description:
+      'Your fleet as a 3D map: every host and organization is an island, its agents stand on it in their live status colour, ' +
+      'and an island with agents waiting for you carries a beacon. Group by host, by org, or by org and host; click an island ' +
+      'to see its agents and open one. Adds a World button to the header and the /world page. Uses the same data and status as ' +
+      'the Zoom and Org views.',
+    storageKey: EXPERIMENT_KEYS['world-view'],
+    icon: Globe,
+    warning:
+      'Beta: the first slice. Islands carry no text labels yet (the list beside the map has the names), and the map needs a ' +
+      'browser with WebGL.',
+  },
 ]
 
 export default function ExperimentsSection() {
@@ -33,6 +48,8 @@ export default function ExperimentsSection() {
     const newValue = !flags[flag.id]
     setFlags((prev) => ({ ...prev, [flag.id]: newValue }))
     localStorage.setItem(flag.storageKey, String(newValue))
+    // Tell the rest of this tab (the header's World button) without a reload
+    window.dispatchEvent(new Event(EXPERIMENT_EVENT))
   }
 
   return (
@@ -115,7 +132,7 @@ export default function ExperimentsSection() {
                     {isEnabled && (
                       <div className="mt-3 text-xs text-purple-400 flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                        Feature enabled - reload the page to see changes
+                        Feature enabled
                       </div>
                     )}
                   </div>

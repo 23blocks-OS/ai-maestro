@@ -168,6 +168,11 @@ function WorldContent() {
     return out
   }, [events, groupOfName, groupOfAgent, tick])
   const nameOfAgent = useMemo(() => new Map(agents.map(a => [a.id, agentDisplay(a)])), [agents])
+  // What floats over a selected agent (in a headset there is no side panel to read)
+  const labelOfAgent = useMemo(
+    () => new Map(agents.map(a => [a.id, `${agentDisplay(a)} · ${PRESENCE_STYLE[presenceOf(a)].label}`])),
+    [agents, presenceOf],
+  )
   const recent = useMemo(() => [...events].reverse().slice(0, 6), [events])
 
   const needsYouKeys = useMemo(() => groups.filter(g => g.counts.needsYou > 0).map(g => g.key), [groups])
@@ -238,7 +243,8 @@ function WorldContent() {
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative min-h-[320px] flex-1" data-pulses={pulses.length}>
             <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} pulses={pulses}
-              selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={nameOfAgent} />
+              selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
+              onBack={() => setSelectedKey(null)} />
             <Minimap groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} />
           </div>
 

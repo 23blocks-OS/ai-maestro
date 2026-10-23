@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { CanvasTexture, LinearFilter } from 'three'
 
 /** A name floating in the world, drawn once into a texture (no font or text dependency) */
-export default function Label({ text, y, dim = false, scale = 1.1 }: { text: string; y: number; dim?: boolean; scale?: number }) {
+export default function Label({ text, y, dim = false, scale = 1.1, onClick, position }: { text: string; y: number; dim?: boolean; scale?: number; onClick?: () => void; position?: [number, number, number] }) {
   const { texture, aspect } = useMemo(() => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')!
@@ -26,8 +26,20 @@ export default function Label({ text, y, dim = false, scale = 1.1 }: { text: str
     return { texture: t, aspect: w / 80 }
   }, [text])
   useEffect(() => () => texture.dispose(), [texture])
+  const at: [number, number, number] = position ? [position[0], y + position[1], position[2]] : [0, y, 0]
+  // A button (the in-headset "all islands") is a plane that faces the person standing in front of it, so a
+  // controller's ray can hit it; a plain name is a camera-facing sprite that rays pass through (a sprite
+  // cannot be raycast without the camera, which the headset's pointer does not supply).
+  if (onClick) {
+    return (
+      <mesh position={at} onClick={e => { e.stopPropagation(); onClick() }}>
+        <planeGeometry args={[scale * aspect, scale]} />
+        <meshBasicMaterial map={texture} transparent depthTest={false} opacity={dim ? 0.35 : 1} />
+      </mesh>
+    )
+  }
   return (
-    <sprite position={[0, y, 0]} scale={[scale * aspect, scale, 1]}>
+    <sprite position={at} scale={[scale * aspect, scale, 1]} raycast={() => null}>
       <spriteMaterial map={texture} transparent depthTest={false} opacity={dim ? 0.35 : 1} />
     </sprite>
   )

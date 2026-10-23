@@ -8,8 +8,9 @@
  * figures at once; full figures appear for the selected group alone.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { XR, createXRStore } from '@react-three/xr'
 import type { Group } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldGroup } from '@/lib/world/grouping'
@@ -26,7 +27,7 @@ import type { AgentPresence } from '@/lib/agent-presence'
  * and an idle map costs no GPU. `extent` is the layout's half-width: the camera is
  * placed to see all of it whenever the set of islands changes.
  */
-function Controls({ extent, focus }: { extent: number; focus: { x: number; z: number; radius: number } | null }) {
+function Controls({ extent, focus, enabled }: { extent: number; focus: { x: number; z: number; radius: number } | null; enabled: boolean }) {
   const camera = useThree(s => s.camera)
   const gl = useThree(s => s.gl)
   const get = useThree(s => s.get)
@@ -84,9 +85,12 @@ function Controls({ extent, focus }: { extent: number; focus: { x: number; z: nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fx, fz, fr, overview, invalidate])
 
+  // In a headset the headset is the camera: the orbit controls step aside
+  useEffect(() => { controls.enabled = enabled; if (!enabled) flight.current = null }, [controls, enabled])
+
   useFrame(() => {
     const f = flight.current
-    if (!f) return
+    if (!f || !enabled) return
     const k = 0.12
     let moving = false
     const t = controls.target
@@ -135,6 +139,8 @@ interface WorldSceneProps {
   onSelect: (key: string) => void
   /** Agents of the selected group, drawn as figures on its island */
   figures: WorldFigure[]
+  /** Leave the selected island (the in-headset "all islands" button) */
+  onBack?: () => void
   /** The agent whose card is open (ringed and named), and how to open one */
   selectedAgentId?: string | null
   onSelectAgent?: (id: string) => void
@@ -217,6 +223,49 @@ function Island({ group, position, selected, dim, figures, animate, onSelect, se
   )
 }
 
+const XR_EMULATE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('emulate-vr')
+
+/** Whether this browser can start an immersive VR session (a Quest browser, a PC with a headset) */
+function useVRSupported(emulated: boolean): boolean {
+  const [supported, setSupported] = useState(false)
+  useEffect(() => {
+    let live = true
+    if (emulated) {
+      // `?emulate-vr`: a Quest 3 in software (Meta's IWER), for trying the VR view without a headset.
+      // It replaces the browser's own WebXR, so it is loaded only on request.
+      import('iwer')
+        .then(({ XRDevice, metaQuest3 }) => {
+          new XRDevice(metaQuest3).installRuntime({ forceInstall: true })
+          if (live) setSupported(true)
+        })
+        .catch(() => {})
+      return () => { live = false }
+    }
+    navigator.xr?.isSessionSupported('immersive-vr').then(ok => { if (live) setSupported(ok) }).catch(() => {})
+    return () => { live = false }
+  }, [emulated])
+  return supported
+}
+
+/**
+ * In a headset the map becomes a place. Overview: the archipelago as a table-top model in front of you
+ * (about a metre and a half across, at table height). Island selected: life-size, with you standing at
+ * its doorstep facing in, so the people stand at human scale and the ones who need you wave at you.
+ */
+function VRRig({ presenting, extent, focus, children }: {
+  presenting: boolean
+  extent: number
+  focus: { x: number; z: number; radius: number } | null
+  children: React.ReactNode
+}) {
+  if (!presenting) return <>{children}</>
+  if (!focus) {
+    const scale = 1.5 / (2 * Math.max(extent, 6))
+    return <group position={[0, 0.9, -1.4]} scale={scale}>{children}</group>
+  }
+  return <group position={[-focus.x, 0, 1.4 - focus.z - focus.radius]}>{children}</group>
+}
+
 /** One gold orb arcing from island to island (or rising over one island for a message within it) */
 function Pulse({ pulse, from, to }: { pulse: WorldPulse; from: [number, number]; to: [number, number] }) {
   const orb = useRef<Group>(null)
@@ -245,7 +294,7 @@ function Pulse({ pulse, from, to }: { pulse: WorldPulse; from: [number, number];
   )
 }
 
-export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed, pulses = [], selectedAgentId = null, onSelectAgent, names }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
   const focus = useMemo(
@@ -257,12 +306,19 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
   // otherwise (the overview, or reduced motion) it draws on demand and an idle map costs no GPU.
   const animate = !reduced && selectedIndex >= 0 && figures.length > 0
   // Pulses are motion too, so they ask for continuous frames while any is in flight
-  const drawing = animate || pulses.length > 0
+  const store = useMemo(() => createXRStore({ emulate: false }), [])
+  const presenting = useSyncExternalStore(store.subscribe, () => store.getState().session != null, () => false)
+  const vrSupported = useVRSupported(XR_EMULATE)
+  // A headset draws every frame itself; pulses and characters are motion too
+  const drawing = animate || pulses.length > 0 || presenting
   const indexByKey = useMemo(() => new Map(groups.map((g, i) => [g.key, i])), [groups])
   return (
+    <>
     <Canvas frameloop={drawing ? 'always' : 'demand'} camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
+      <XR store={store}>
       <ambientLight intensity={0.7} />
       <directionalLight position={[8, 14, 6]} intensity={1.4} />
+      <VRRig presenting={presenting} extent={extent} focus={focus}>
       {groups.map((g, i) => (
         <Island
           key={g.key}
@@ -284,7 +340,22 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
         if (a === undefined || b === undefined) return null
         return <Pulse key={p.id} pulse={p} from={positions[a]} to={positions[b]} />
       })}
-      <Controls extent={extent} focus={focus} />
+      {presenting && focus && onBack && (
+        <Label text="← all islands" y={2.2} scale={0.3} onClick={onBack} position={[focus.x, 0, focus.z + focus.radius * 0.95]} />
+      )}
+      </VRRig>
+      </XR>
+      <Controls extent={extent} focus={focus} enabled={!presenting} />
     </Canvas>
+    {vrSupported && (
+      <button
+        onClick={() => (presenting ? store.getState().session?.end() : store.enterVR())}
+        className="absolute bottom-3 right-3 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-colors hover:bg-violet-700"
+        title={XR_EMULATE ? 'Emulated headset (no real device needed)' : 'Walk into the map with a VR headset'}
+      >
+        {presenting ? 'Exit VR' : XR_EMULATE ? 'Enter VR (emulated)' : 'Enter VR'}
+      </button>
+    )}
+    </>
   )
 }

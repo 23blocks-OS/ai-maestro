@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.96.0] - 2026-10-22 - World view: walk into it with a VR headset (beta)
+
+On the World view (beta, Settings → Experiments), browsers that can start an immersive VR session (a Meta Quest's browser, a PC with a headset) now show an **Enter VR** button in the corner of the map.
+
+### Added
+- **VR with WebXR** (`@react-three/xr` 6.6.12): in the headset the **overview is a table-top model** of the archipelago in front of you (about a metre and a half across, at table height), and when you **select an island you stand at its doorstep, life-size**, with the agents around you at human scale: the ones working at their desks, the ready ones standing, those who need you waving at you from the plaza. Point a controller at an island or an agent and pull the trigger (the same clicks as the mouse), and a **"← all islands"** button floats at the front of the island to go back. The selected agent's name and status float over its head (there is no side panel in a headset). **Exit VR** ends the session.
+- **Try it without a headset:** add `?emulate-vr` to the address (`/world?emulate-vr`) for an emulated Meta Quest 3 (Meta's IWER, loaded only on request, `iwer` 2.7.0), controllers and all.
+- Names over agents are not hit by a VR controller's ray (a sprite cannot be raycast without the camera, which a headset pointer does not supply); the one VR button is a plane instead.
+
+### Checked, and not
+- Checked in an **emulated Quest 3** in a browser: the button appears only where an immersive session is supported, starts and ends the session, shows the table-top model, goes life-size on an island, and shows the agent's name; no console errors.
+- **Not checked on a real headset**: comfort (scale, standing height, distance to the front row), controller ray feel and performance (the map draws 150 or so characters on one island, which a standalone headset may find heavy) need a real Quest or Vision Pro. iOS Safari has no WebXR, so on iPhone and iPad the map stays a normal 3D view.
+
 ## [0.95.2] - 2026-10-22 - World view: click an agent, open its card, and a minimap (beta)
 
 ### Added

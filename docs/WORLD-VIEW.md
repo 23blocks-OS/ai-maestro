@@ -13,6 +13,12 @@ It is an **experiment**, off by default. Turn it on in **Settings → Experiment
 - **Test agents** (tagged `org:sandbox`) are not drawn; the header says how many are hidden.
 - **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
 
+## VR
+
+Browsers that can start an immersive VR session (a Meta Quest's browser, a PC with a headset) show an **Enter VR** button in the corner of the map. In the headset the overview is a **table-top model** of the archipelago in front of you; select an island and you **stand at its doorstep, life-size**, with its agents around you at human scale (the ones who need you wave at you from the plaza). Point a controller and pull the trigger to select an island or an agent; the agent's name and status float over its head; **"← all islands"** floats at the front of the island. Exit VR ends the session.
+
+No headset? Open `/world?emulate-vr` for an emulated Meta Quest 3. It has been checked only in that emulator, not on a real headset: comfort and performance on a standalone Quest still need a real device. iOS Safari has no WebXR, so on iPhone and iPad the map stays a normal 3D view.
+
 ## Live messages
 
 Every AMP message delivered shows as a gold orb that arcs from the sender's island to the recipient's, and the island list shows the last few as "Live messages". The feed is `GET /api/world/events` (sender name, recipient id, time; never the message), read from the AMP inbox folders and joined across hosts.
@@ -37,4 +43,4 @@ Select an island and the others dim; the camera flies to it. The search box and 
 
 ## Not in this first slice
 
-Characters walking between places, pulses drawn agent to agent, the grouping in the URL.
+Characters walking between places, pulses drawn agent to agent, hand tracking and walking around in VR, the grouping in the URL.

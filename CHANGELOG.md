@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.99.1] - 2026-10-24 - World view: a crowded room folds its away agents into a lounge (beta)
+
+In our biggest building, 33 of 54 agents are offline, and they filled the room with people who were not doing anything. They now fold into one corner.
+
+### Changed
+- **The lounge.** A room with 8 or more offline agents shows only the working, waiting and ready ones, and a couch in the corner reading **Away · 33 · show**. Press it (a click, or Tab and Enter in the 2D office) to bring them back. Fewer than 8 sleepers stay where they were. Both the 3D map and the 2D office do it.
+- It unfolds by itself when you filter by **Offline** or open an away agent from the list, and folds again when you leave the building. The list in the panel always shows every agent; the lounge only changes the picture.
+- The room keeps its size when folded (so the camera does not jump), and the remaining people get more room.
+
+### Tests
+- The fold rule: enough sleepers fold, a handful do not, expanding puts everyone back, an all-away building is an empty room with a lounge.
+
 ## [0.99.0] - 2026-10-23 - World view: a 2D office, chosen with a toggle (beta)
 
 The World view can now be drawn as a simple animated 2D office as well as the 3D map, and the header has a toggle between them. Same world, same data, same lenses; a different picture.

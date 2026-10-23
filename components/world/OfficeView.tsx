@@ -22,7 +22,7 @@ import { boxToViewBox, easeOut, fitBox, mixBox, spriteScale, type Box } from '@/
 import type { AgentTie, GroupArc, TieKind, WorkSummary } from '@/lib/world/relations'
 import type { AgentPresence } from '@/lib/agent-presence'
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
-import type { WorldFigure, WorldLens, WorldTies } from '@/components/world/WorldScene'
+import type { WorldAway, WorldFigure, WorldLens, WorldTies } from '@/components/world/WorldScene'
 
 // The status colours, as in the 3D map and PRESENCE_STYLE (lib/agent-presence.ts)
 const HEX: Record<AgentPresence, string> = { working: '#10b981', 'needs-you': '#f97316', ready: '#facc15', offline: '#6b7280' }
@@ -234,10 +234,11 @@ interface RoomProps {
   lens: WorldLens
   work?: Map<string, WorkSummary>
   tieList: AgentTie[]
+  away?: WorldAway
 }
 
 /** Inside a building: its floor, back wall, and people */
-function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, lens, work, tieList }: RoomProps) {
+function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, lens, work, tieList, away }: RoomProps) {
   const { figures: staged, step } = useMemo(() => stageFigures(figures, half / 0.86), [figures, half])
   const s = spriteScale(step)
   const dimById = useMemo(() => new Set(figures.filter(f => f.dim).map(f => f.id)), [figures])
@@ -249,6 +250,22 @@ function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, 
       <rect x={-half - 0.1} y={-half - 1.0} width={half * 2 + 0.2} height={1.1} rx={0.2} fill="#134e4a" />
       <rect x={-half} y={-half} width={half * 2} height={half * 2} rx={0.15} fill="#0f2f2e" stroke="#134e4a" strokeWidth={0.1} />
       <text x={0} y={-half - 0.55} fontSize={0.34} textAnchor="middle" fill="#99f6e4" fontFamily="system-ui, sans-serif" fontWeight={600}>{building.label} · {building.counts.total}</text>
+      {away && (
+        <g
+          transform={`translate(${half - 1.25} ${half - 0.62})`}
+          className="of-btn"
+          role="button"
+          tabIndex={0}
+          aria-label={`${away.count} agents away. ${away.expanded ? 'Hide' : 'Show'} them`}
+          onClick={e => { e.stopPropagation(); away.onToggle() }}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); away.onToggle() } }}
+        >
+          {/* a couch in the corner, with a plate to show or hide who is away */}
+          <rect className="of-focus" x={-1.1} y={-0.3} width={2.2} height={0.62} rx={0.16} fill="#374151" stroke="#4b5563" strokeWidth={0.04} />
+          <rect x={-1.1} y={-0.3} width={2.2} height={0.2} rx={0.1} fill="#4b5563" />
+          <text x={0} y={0.2} fontSize={0.18} textAnchor="middle" fill="#e5e7eb" fontFamily="system-ui, sans-serif" fontWeight={600}>{`Away · ${away.count} · ${away.expanded ? 'hide' : 'show'}`}</text>
+        </g>
+      )}
       <g>
         {ordered.map(f => {
           const look = lookOf(f.id)
@@ -381,11 +398,12 @@ export interface OfficeViewProps {
   lens?: WorldLens
   work?: Map<string, WorkSummary>
   ties?: WorldTies
+  away?: WorldAway
 }
 
 export default function OfficeView({
   groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, onBack,
-  selectedAgentId = null, onSelectAgent, names, pulses = [], dimmed, dimmedBuildings, lens = 'status', work, ties,
+  selectedAgentId = null, onSelectAgent, names, pulses = [], dimmed, dimmedBuildings, lens = 'status', work, ties, away,
 }: OfficeViewProps) {
   const wrap = useRef<HTMLDivElement>(null)
   const size = useElementSize(wrap)
@@ -505,6 +523,7 @@ export default function OfficeView({
                   lens={lens}
                   work={work}
                   tieList={ties?.agentTies ?? []}
+                  away={away}
                 />
               )}
               {isSel && !inside && lens === 'relations' && ties && ties.buildingArcs.map(a => {

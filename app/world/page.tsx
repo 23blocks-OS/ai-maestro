@@ -17,7 +17,8 @@ import { VersionChecker } from '@/components/VersionChecker'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { agentDisplay } from '@/lib/organization'
 import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/grouping'
-import type { WorldFigure, WorldLens } from '@/components/world/WorldScene'
+import type { WorldAway, WorldFigure, WorldLens } from '@/components/world/WorldScene'
+import { splitAway } from '@/lib/world/stage'
 import {
   eventsBetween, eventsWithin, idByName, liftTies, outsideTies, talkTies, taskTies, tiesAmong, waitingOnYou, workByAgent,
   type AgentTie,
@@ -239,12 +240,22 @@ function WorldContent() {
     return new Set(selected.buildings.filter(b => !b.agents.some(a => spotlight.has(a.id))).map(b => b.key))
   }, [spotlight, selected])
 
-  const figures: WorldFigure[] = useMemo(
+  // A crowded room folds its offline agents into a lounge (33 of 54 are away in our biggest one); the toggle,
+  // a "Offline" filter, or opening an away agent from the list puts them back
+  const [awayOpen, setAwayOpen] = useState(false)
+  useEffect(() => { setAwayOpen(false) }, [selectedBuildingKey, mode])
+  const allFigures: WorldFigure[] = useMemo(
     () => (selectedBuilding
       ? selectedBuilding.agents.map(a => ({ id: a.id, presence: presenceOf(agentById.get(a.id) ?? a), dim: spotlight ? !spotlight.has(a.id) : false }))
       : []),
     [selectedBuilding, agentById, presenceOf, spotlight],
   )
+  const openIsAway = !!selectedAgentId && allFigures.some(f => f.id === selectedAgentId && f.presence === 'offline')
+  const split = useMemo(() => splitAway(allFigures, awayOpen || filter === 'offline' || openIsAway), [allFigures, awayOpen, filter, openIsAway])
+  const figures = split.shown
+  const away: WorldAway | undefined = split.away.length >= 1 && (split.folded || awayOpen)
+    ? { count: split.away.length, expanded: !split.folded, onToggle: () => setAwayOpen(o => !o) }
+    : undefined
 
   // Live messages: each delivery plays as a pulse between the two agents' islands, and the last few
   // are listed. Keys come from the agents' own island, so it follows whatever grouping is on.
@@ -506,13 +517,13 @@ function WorldContent() {
               <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
             ) : renderer === '2d' ? (
               <OfficeView groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-                lens={lens} work={work} ties={sceneTies}
+                lens={lens} work={work} ties={sceneTies} away={away}
                 selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
                 onBack={goBack} />
             ) : (
               <>
               <WorldScene groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-                lens={lens} work={work} ties={sceneTies}
+                lens={lens} work={work} ties={sceneTies} away={away}
                 selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
                 onBack={goBack} />
               <Minimap groups={groups} selectedKey={selectedKey} onSelect={selectIsland} />

@@ -87,3 +87,18 @@ export function stageFigures(figures: StageInput[], radius: number): { figures: 
     }),
   }
 }
+
+/** A room folds its away (offline) agents into a lounge once it has at least this many */
+export const AWAY_FOLD_MIN = 8
+
+/**
+ * Who stands in the room and who is in the lounge. A crowded room is mostly people who are not doing
+ * anything (33 of 54 offline, on our own fleet), so past AWAY_FOLD_MIN the offline ones fold into one
+ * corner with a count; `expanded` puts them back. Fewer than AWAY_FOLD_MIN offline are never folded:
+ * a handful of sleepers is not clutter.
+ */
+export function splitAway<T extends { id: string; presence: AgentPresence }>(figures: T[], expanded: boolean): { shown: T[]; away: T[]; folded: boolean } {
+  const away = figures.filter(f => f.presence === 'offline')
+  if (expanded || away.length < AWAY_FOLD_MIN) return { shown: figures, away, folded: false }
+  return { shown: figures.filter(f => f.presence !== 'offline'), away, folded: true }
+}

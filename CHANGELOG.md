@@ -16,6 +16,7 @@ The World view now answers more than "who is up": it shows what is on every agen
 - **Replay.** Plays the last 1, 6 or 24 hours of messages back as pulses (1 h, 6 h or 24 h per minute), with a time slider; the relations lens follows the replay clock.
 - **A way into every agent**, on its card: **Chat**, **Terminal** (the dashboard now opens on `?agent=<id>&tab=chat|terminal`), **Full screen**, **Talk** (Companion, voice), and **Meet** for each of its teams.
 - **A spotlight.** A search, a status filter and a team all dim what is outside them, at every level: islands, buildings and people.
+- **Website:** a new page, [Experiments](https://ai-maestro.23blocks.com/experiments.html) (`docs/experiments.html`): what an experiment is in AI Maestro, how the Experiments switch works, what we are trying in human and agent interaction (the World view, and the ideas shipped in the same spirit), what we learned from ten agent-office projects and the research on virtual workplaces and gamification, and where we are not going (no streaks, XP or leaderboards). Linked from the site footer, the sitemap and `ai-index.html`.
 - `GET /api/world/events` takes `history=1` for up to a day of deliveries (the default is still the last few minutes); a host that predates it answers with the short window.
 
 ### Changed

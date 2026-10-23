@@ -1,64 +1,97 @@
 import { describe, it, expect } from 'vitest'
-import { folderClusters, zoneAgents, OTHER_KEY, MIN_FOLDER_CLUSTER } from '@/lib/world/zones'
+import { bestZoneMode, togetherGroups, zoneAgents, OTHER_KEY, MAX_SHARE } from '@/lib/world/zones'
 import { layoutZones, stageRoom, ZONE_LABEL } from '@/lib/world/rooms'
 import { stageFigures } from '@/lib/world/stage'
 
-const ag = (id: string, workingDirectory?: string, tags?: string[]) => ({ id, workingDirectory, tags })
-const blocks = ['gateway', 'crm', 'forms', 'jarvis', 'sales', 'files'].map((b, i) => ag(`b${i}`, `/Users/juan/23blocks/blocks/${b}/api`))
+const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+const ag = (id: string, extra: Record<string, unknown> = {}) => ({ id, ...extra })
+const talk = (a: string, b: string, weight = 5) => ({ a: a < b ? a : b, b: a < b ? b : a, kind: 'talk' as const, weight })
 
-describe('folderClusters', () => {
-  it('puts sibling service folders in the room of their shared parent', () => {
-    const c = folderClusters(blocks)
-    expect([...new Set(c.values())]).toEqual(['/Users/juan/23blocks/blocks'])
+describe('zoneAgents by manager', () => {
+  const lola = U(1)
+  const agents = [
+    ag('a', { managerAgentId: lola }), ag('b', { managerAgentId: lola }), ag('c', { managerAgentId: lola }),
+    ag('d', { humanManager: 'Ana' }), ag('e', { humanManager: 'ana' }),
+    ag('f', { humanManager: 'Raul' }), ag('g'), ag('h'),
+  ]
+  const nameOf = (id: string) => (id === lola ? 'Lola' : id)
+  it('puts an agent manager\'s reports in one room, and a person\'s in another (ignoring case)', () => {
+    const z = zoneAgents(agents, 'manager', { nameOf })
+    expect(z.map(r => r.label)).toEqual(["Lola's team", "Ana's team", 'Other'])
+    expect(z[0].ids).toEqual(['a', 'b', 'c'])
   })
-  it('puts agents in one repo in that repo, deeper than a shared parent', () => {
-    const agents = [...blocks, ...[1, 2, 3].map(i => ag(`w${i}`, '/Users/juan/23blocks/webApps/agents-web'))]
-    const c = folderClusters(agents)
-    expect(c.get('w1')).toBe('/Users/juan/23blocks/webApps/agents-web')
-    expect(c.get('b0')).toBe('/Users/juan/23blocks/blocks')
+  it('lets the agent manager win when an agent has both', () => {
+    const both = [...agents, ag('i', { managerAgentId: lola, humanManager: 'Ana' })]
+    const z = zoneAgents(both, 'manager', { nameOf })
+    expect(z[0].ids).toContain('i')
   })
-  it('needs enough agents to name a room, ignores home folders and temp folders, and skips agents with no folder', () => {
-    const few = [ag('x1', '/Users/juan/a/b'), ag('x2', '/Users/juan/a/c')]
-    expect(MIN_FOLDER_CLUSTER).toBe(3)
-    expect(folderClusters(few).size).toBe(0)
-    const home = [1, 2, 3, 4].map(i => ag(`h${i}`, '/Users/juan'))
-    expect(folderClusters(home).size).toBe(0)
-    const tmp = [1, 2, 3].map(i => ag(`t${i}`, '/private/tmp/scratch'))
-    expect(folderClusters(tmp).size).toBe(0)
-    expect(folderClusters([ag('n1'), ag('n2'), ag('n3')]).size).toBe(0)
+  it('folds a lone report and the unmanaged into Other', () => {
+    const z = zoneAgents(agents, 'manager', { nameOf })
+    expect(z[z.length - 1].key).toBe(OTHER_KEY)
+    expect(z[z.length - 1].ids.sort()).toEqual(['f', 'g', 'h'])
+  })
+  it('gives nothing when one person manages almost everyone (a split that says nothing)', () => {
+    const all = Array.from({ length: 10 }, (_, i) => ag(`x${i}`, { humanManager: i < 9 ? 'Juan' : 'Zoe' }))
+    expect(zoneAgents(all, 'manager')).toEqual([])
+    expect(MAX_SHARE).toBeLessThan(0.9)
   })
 })
 
-describe('zoneAgents', () => {
-  it('splits by folder, biggest first, with the strays in "Other" last', () => {
-    const agents = [...blocks, ...[1, 2, 3].map(i => ag(`w${i}`, '/Users/juan/23blocks/webApps/agents-web')), ag('lone', '/Users/juan/3Metas/x/y'), ag('nodir')]
-    const z = zoneAgents(agents, 'folder')
-    expect(z.map(r => r.label)).toEqual(['blocks', 'agents-web', 'Other'])
-    expect(z[0].ids).toHaveLength(6)
+describe('togetherGroups and zoneAgents by who works together', () => {
+  // two chatty groups {a,b,c} and {d,e,f}, one weak link between them, and a loner
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+  const ties = [talk('a', 'b', 9), talk('b', 'c', 8), talk('a', 'c', 7), talk('d', 'e', 9), talk('e', 'f', 8), talk('d', 'f', 7), talk('c', 'd', 1)]
+  it('finds the two groups the messages make', () => {
+    const g = togetherGroups(ids, ties)
+    expect(g.get('a')).toBe(g.get('b'))
+    expect(g.get('b')).toBe(g.get('c'))
+    expect(g.get('d')).toBe(g.get('e'))
+    expect(g.get('e')).toBe(g.get('f'))
+    expect(g.get('a')).not.toBe(g.get('d'))
+  })
+  it('is the same every time', () => {
+    expect([...togetherGroups(ids, ties)]).toEqual([...togetherGroups([...ids].reverse(), ties)].sort((x, y) => x[0].localeCompare(y[0])))
+  })
+  it('names each room for its centre and puts the loner in Other', () => {
+    const z = zoneAgents(ids.map(id => ag(id)), 'together', { talk: ties, nameOf: id => id.toUpperCase() })
+    expect(z.map(r => r.ids.slice().sort().join(''))).toEqual(['abc', 'def', 'g'])
+    expect(z[0].label).toMatch(/'s circle$/)
     expect(z[2].key).toBe(OTHER_KEY)
-    expect(z[2].ids.sort()).toEqual(['lone', 'nodir'])
   })
-  it('names two rooms with the same last folder by their parent too', () => {
-    const a = [1, 2, 3].map(i => ag(`a${i}`, '/Users/juan/x/api'))
-    const b = [1, 2, 3].map(i => ag(`b${i}`, '/Users/juan/y/api'))
-    expect(zoneAgents([...a, ...b], 'folder').map(r => r.label).sort()).toEqual(['x/api', 'y/api'])
+  it('ignores ties to agents outside the building and ties that are not messages', () => {
+    const g = togetherGroups(['a', 'b'], [talk('a', 'z', 9), { a: 'a', b: 'b', kind: 'task' as const, weight: 9 }])
+    expect(g.get('a')).not.toBe(g.get('b'))
   })
+})
+
+describe('zoneAgents by role and team', () => {
   it('splits by role tag', () => {
-    const agents = [ag('a', undefined, ['role:gm']), ag('b', undefined, ['role:gm']), ag('c', undefined, ['role:cmo']), ag('d', undefined, ['role:cmo']), ag('e')]
-    const z = zoneAgents(agents, 'role')
-    expect(z.map(r => r.label)).toEqual(['cmo', 'gm', 'Other'])
+    const agents = [ag('a', { tags: ['role:gm'] }), ag('b', { tags: ['role:gm'] }), ag('c', { tags: ['role:cmo'] }), ag('d', { tags: ['role:cmo'] }), ag('e')]
+    expect(zoneAgents(agents, 'role').map(r => r.label)).toEqual(['cmo', 'gm', 'Other'])
   })
   it('splits by the biggest team an agent is on', () => {
     const agents = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => ag(id))
     const teams = [{ id: 't1', name: 'Big', agentIds: ['a', 'b', 'c', 'd'] }, { id: 't2', name: 'Small', agentIds: ['c', 'd', 'e', 'f'] }, { id: 't3', name: 'Tiny', agentIds: ['a'] }]
-    const z = zoneAgents(agents, 'team', teams)
+    const z = zoneAgents(agents, 'team', { teams })
     expect(z.find(r => r.label === 'Big')!.ids.sort()).toEqual(['a', 'b', 'c', 'd'])
     expect(z.find(r => r.label === 'Small')!.ids.sort()).toEqual(['e', 'f'])
   })
-  it('gives nothing when the mode is none, the crowd is tiny, or it would be one room', () => {
-    expect(zoneAgents(blocks, 'none')).toEqual([])
-    expect(zoneAgents([ag('a'), ag('b'), ag('c')], 'folder')).toEqual([])
-    expect(zoneAgents(blocks, 'folder')).toEqual([])
+  it('gives nothing for none, a tiny crowd, or nothing to split by', () => {
+    expect(zoneAgents([ag('a'), ag('b'), ag('c'), ag('d')], 'none')).toEqual([])
+    expect(zoneAgents([ag('a'), ag('b'), ag('c')], 'role')).toEqual([])
+    expect(zoneAgents(Array.from({ length: 8 }, (_, i) => ag(`x${i}`)), 'role')).toEqual([])
+  })
+})
+
+describe('bestZoneMode', () => {
+  it('picks the first mode that puts most of the building in real rooms, else none', () => {
+    const agents = Array.from({ length: 10 }, (_, i) => ag(`x${i}`, { managerAgentId: i < 5 ? U(1) : U(2) }))
+    expect(bestZoneMode(agents)).toBe('manager')
+    expect(bestZoneMode(Array.from({ length: 10 }, (_, i) => ag(`y${i}`)))).toBe('none')
+  })
+  it('skips a mode whose rooms cover too little of the building', () => {
+    const agents = Array.from({ length: 10 }, (_, i) => ag(`z${i}`, i < 4 ? { managerAgentId: i < 2 ? U(1) : U(2) } : {}))
+    expect(bestZoneMode(agents)).toBe('none')
   })
 })
 

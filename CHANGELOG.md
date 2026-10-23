@@ -3,21 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.101.0] - 2026-10-24 - World view: rooms inside a crowded building, by folder, role or team (beta)
+## [0.101.0] - 2026-10-24 - World view: rooms inside a crowded building, by manager, who works together, role or team (beta)
 
-A building with 54 agents is one crowd. It can now be split into rooms inside the room, each with its name and count.
+A building with 54 agents is one crowd. It can now be split into rooms inside the room, each with its name and count. Grouping by folder was tried and dropped: where files live says nothing about the work.
 
 ### Added
-- **Rooms by** (in the building's side panel, for a building of 8 or more agents): **None**, **Folder**, **Role** or **Team**. Until you choose, a room of 24 or more people is split by folder and a smaller one is left alone; your choice is remembered in this browser (`aim-world-zones`).
-  - **Folder:** agents that share a project folder share a room, and so do agents in sibling folders under a shared parent: the 19 agents under `.../23blocks/blocks/<service>/api` are one room, "blocks", and nine agents in one repo are a room named for the repo. The room is the deepest shared parent that at least 3 agents have; home folders, `/Volumes/x` and temp folders are never a room.
+- **Rooms by** (in the building's side panel, for a building of 8 or more agents): **Auto**, **None**, **Manager**, **Together**, **Role** or **Team**. A choice is remembered in this browser (`aim-world-zones`).
+  - **Manager:** an agent manager's reports share a room named for it ("Lola's team"); agents that report only to a person share that person's room.
+  - **Together:** who actually works together. Agents that message each other a lot (the last 24 hours) share a room; each agent joins the group most of its messages go to. It is inferred from behaviour, so a room is named for the agent at its centre ("Natalia's circle"), not for a purpose.
   - **Role:** the `role:` tag (gm, cmo, support, ...), the one `agentRoleLine` already shows.
-  - **Team:** the biggest team the agent is on (teams overlap, so one room each is the only way to draw it); teams of fewer than two visible agents are ignored.
-- A group of fewer than 2 agents folds into **Other** with those who have no folder, role or team; if the split would be one room, it is dropped and the crowd stays as it was.
+  - **Team:** the biggest team the agent is on (teams overlap, so one room each is the only way to draw it).
+  - **Auto** (the default): a building of 24 or more people takes the first of manager, together, team and role whose rooms hold at least 60% of it, and stays one crowd when none does.
+- A group of fewer than 2 agents folds into **Other** with those who fit no room. A split that leaves one room with more than 80% of the building is dropped (it says nothing the building did not).
 - Both renderers draw them: a patch of floor and a name for each room in the 3D map and in the 2D office; people stand inside their room, and relation and report lines follow them.
-- The rule is pure and tested (`lib/world/zones.ts`, `lib/world/rooms.ts`): the folder clustering, the rooms' rectangles (inside the building, none overlapping, bigger for bigger groups), and everyone standing in their own room exactly once.
+- The rules are pure and tested (`lib/world/zones.ts`, `lib/world/rooms.ts`): the grouping modes, the stable "together" clustering, the rooms' rectangles (inside the building, none overlapping, bigger for bigger groups) and everyone standing in their own room exactly once.
+
+### Changed
+- The away lounge's couch stands just outside the front of the room instead of in its corner, so it never sits on top of a room.
 
 ### Not done
-- Project rooms (a project has an owner agent and cards, but no list of members) and meeting rooms from active team meetings. A room's size is proportional to its people, but it does not grow the building: a room of 40 agents still shrinks them to fit.
+- Project rooms (there is no list of who is on a project: a project has an owner and cards, and today's fleet has one test project) and meeting rooms from active team meetings. A room does not grow the building: a 40-agent room still shrinks its people to fit.
 
 ## [0.100.0] - 2026-10-24 - Every agent has a manager: a person, an agent, or both (beta World view: Reports lens)
 

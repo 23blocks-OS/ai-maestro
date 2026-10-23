@@ -22,7 +22,7 @@ The **2D office** is a floor plan seen from above, in plain SVG: an island is a 
 
 ## Rooms inside a building
 
-A building with dozens of agents can be split into **rooms by folder, role or team** (the "Rooms by" buttons in its side panel, for a building of 8 or more). **Folder** puts agents that share a project folder, or sit in sibling folders under a shared parent, in one room (the deepest shared parent with at least 3 agents); **Role** uses the `role:` tag; **Team** uses the biggest team an agent is on. A group of fewer than 2 agents goes to **Other**, and if the split would give one room the building stays as one crowd. Until you choose, a building of 24 or more agents is split by folder. The crowd's offline agents are folded into the away lounge first, then the rest are split.
+A building with dozens of agents can be split into **rooms by manager, by who works together, by role or by team** (the "Rooms by" buttons in its side panel, for a building of 8 or more). **Manager** gives each agent manager its team (and each person who manages agents theirs); **Together** groups the agents that message each other most over the last day, named for the agent at the centre of each group (inferred from behaviour, so it is a circle, not a purpose); **Role** uses the `role:` tag; **Team** uses the biggest team an agent is on. **Auto** (the default) takes the first of those that puts at least 60% of a 24-or-more building in a named room, and leaves it as one crowd when none does. A group of fewer than 2 goes to **Other**, and a split where one room holds more than 80% of the building is dropped. The offline agents are folded into the away lounge first, then the rest are split.
 
 ## Lenses
 

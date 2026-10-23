@@ -19,7 +19,7 @@ import { agentDisplay } from '@/lib/organization'
 import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/grouping'
 import type { WorldAway, WorldFigure, WorldLens } from '@/components/world/WorldScene'
 import { splitAway } from '@/lib/world/stage'
-import { ZONE_MODES, zoneAgents, type ZoneMode } from '@/lib/world/zones'
+import { ZONE_MODES, bestZoneMode, zoneAgents, type ZoneMode } from '@/lib/world/zones'
 import {
   eventsBetween, eventsWithin, idByName, liftTies, outsideTies, reportTies, talkTies, taskTies, tiesAmong, waitingOnYou, workByAgent,
   type AgentTie,
@@ -257,26 +257,6 @@ function WorldContent() {
   const openIsAway = !!selectedAgentId && allFigures.some(f => f.id === selectedAgentId && f.presence === 'offline')
   const split = useMemo(() => splitAway(allFigures, awayOpen || filter === 'offline' || openIsAway), [allFigures, awayOpen, filter, openIsAway])
   const figures = split.shown
-  // Rooms inside a crowded room: by folder, role or team. Until a choice is made, a room of 24 or more people
-  // is split by folder and a smaller one is left as one crowd; a choice is remembered in this browser.
-  const [zoneChoice, setZoneChoice] = useState<ZoneMode | 'auto'>('auto')
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem('aim-world-zones')
-      if (v === 'none' || v === 'folder' || v === 'role' || v === 'team') setZoneChoice(v)
-    } catch { /* storage blocked: stay on auto */ }
-  }, [])
-  const pickZones = (m: ZoneMode) => {
-    setZoneChoice(m)
-    try { localStorage.setItem('aim-world-zones', m) } catch { /* the choice is just not remembered */ }
-  }
-  const zoneMode: ZoneMode = zoneChoice === 'auto' ? (figures.length >= 24 ? 'folder' : 'none') : zoneChoice
-  const zones = useMemo(
-    () => (!selectedBuilding || zoneMode === 'none'
-      ? []
-      : zoneAgents(figures.map(f => { const a = agentById.get(f.id); return { id: f.id, workingDirectory: a?.workingDirectory, tags: a?.tags } }), zoneMode, teams)),
-    [selectedBuilding, zoneMode, figures, agentById, teams],
-  )
   const away: WorldAway | undefined = split.away.length >= 1 && (split.folded || awayOpen)
     ? { count: split.away.length, expanded: !split.folded, onToggle: () => setAwayOpen(o => !o) }
     : undefined
@@ -336,6 +316,38 @@ function WorldContent() {
   // ---- Relations: who messages whom (the last day of deliveries) and who shares cards ----
   const history = useWorldHistory(true)
   const byName = useMemo(() => idByName(agents), [agents])
+
+  // Rooms inside a crowded room: by manager, who works together, role or team. Until a choice is made, a room of
+  // 24 or more people takes the first of those that puts most of them in a named room (none if none does); a
+  // choice is remembered in this browser.
+  const [zoneChoice, setZoneChoice] = useState<ZoneMode | 'auto'>('auto')
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('aim-world-zones')
+      if (v === 'none' || v === 'manager' || v === 'together' || v === 'role' || v === 'team') setZoneChoice(v)
+    } catch { /* storage blocked: stay on auto */ }
+  }, [])
+  const pickZones = (m: ZoneMode | 'auto') => {
+    setZoneChoice(m)
+    try { if (m === 'auto') localStorage.removeItem('aim-world-zones'); else localStorage.setItem('aim-world-zones', m) } catch { /* the choice is just not remembered */ }
+  }
+  // Messages between agents in the last day, for "together" (the history the relations lens reads)
+  const talk24 = useMemo(
+    () => talkTies(eventsWithin(history.events, Date.now(), 24 * 3_600_000), byName),
+    [history.events, byName],
+  )
+  const zoneAgentsIn = useMemo(
+    () => figures.map(f => { const a = agentById.get(f.id); return { id: f.id, tags: a?.tags, humanManager: a?.humanManager, managerAgentId: a?.managerAgentId } }),
+    [figures, agentById],
+  )
+  const zoneCtx = useMemo(() => ({ teams, talk: talk24, nameOf: (id: string) => nameOfAgent.get(id) ?? id.slice(0, 8) }), [teams, talk24, nameOfAgent])
+  const zoneMode: ZoneMode = zoneChoice !== 'auto'
+    ? zoneChoice
+    : (selectedBuilding && figures.length >= 24 ? bestZoneMode(zoneAgentsIn, zoneCtx) : 'none')
+  const zones = useMemo(
+    () => (!selectedBuilding || zoneMode === 'none' ? [] : zoneAgents(zoneAgentsIn, zoneMode, zoneCtx)),
+    [selectedBuilding, zoneMode, zoneAgentsIn, zoneCtx],
+  )
   // Minute resolution: during a replay the clock moves every tick, the ties only need to follow it by the minute
   const untilMinute = replay ? Math.floor(replay.cursor / 60_000) : null
   const allTies: AgentTie[] = useMemo(() => {
@@ -786,11 +798,15 @@ function WorldContent() {
                 {selectedBuilding.agents.length >= 8 && (
                   <div className="flex flex-wrap items-center gap-1 border-b border-gray-800 px-4 py-2" role="group" aria-label="Rooms inside this building">
                     <span className="mr-1 text-[11px] uppercase tracking-wide text-gray-500">Rooms by</span>
+                    <button onClick={() => pickZones('auto')} title="Pick the grouping that fits this building best" aria-pressed={zoneChoice === 'auto'}
+                      className={`rounded-full px-2.5 py-0.5 text-xs ${zoneChoice === 'auto' ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>Auto</button>
                     {ZONE_MODES.map(m => (
-                      <button key={m.id} onClick={() => pickZones(m.id)} title={m.title} aria-pressed={zoneMode === m.id}
-                        className={`rounded-full px-2.5 py-0.5 text-xs ${zoneMode === m.id ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>{m.label}</button>
+                      <button key={m.id} onClick={() => pickZones(m.id)} title={m.title} aria-pressed={zoneChoice === m.id}
+                        className={`rounded-full px-2.5 py-0.5 text-xs ${zoneChoice === m.id ? 'bg-teal-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>{m.label}</button>
                     ))}
-                    <span className="ml-1 text-[11px] text-gray-600">{zones.length > 0 ? `${zones.length} rooms` : zoneMode === 'none' ? '' : 'nothing to split by'}</span>
+                    <span className="ml-1 text-[11px] text-gray-600">
+                      {zones.length > 0 ? `${zones.length} rooms${zoneChoice === 'auto' ? ` by ${zoneMode}` : ''}` : zoneChoice === 'auto' ? (figures.length >= 24 ? 'nothing splits it yet' : '') : zoneMode === 'none' ? '' : 'nothing to split by'}
+                    </span>
                   </div>
                 )}
                 {openAgent && (

@@ -130,6 +130,13 @@ export interface WorldFigure {
   dim?: boolean
 }
 
+/** A room's lounge: where the away (offline) agents are folded, with a count and a way to unfold them */
+export interface WorldAway {
+  count: number
+  expanded: boolean
+  onToggle: () => void
+}
+
 /** What the world is showing: the status of everyone, what is on their plate, or who works with whom */
 export type WorldLens = 'status' | 'work' | 'relations'
 
@@ -169,6 +176,8 @@ interface WorldSceneProps {
   /** What each agent has on its plate; an agent with a card waiting on you gets a speech bubble in every lens */
   work?: Map<string, WorkSummary>
   ties?: WorldTies
+  /** The away agents of the building you are in, folded into its lounge */
+  away?: WorldAway
 }
 
 /** Half the width of the room inside a building: big enough for its agents, small enough to sit well inside the island */
@@ -266,7 +275,7 @@ function Building({ b, box, dim, islandSelected, onClick, asks, open }: {
 /** Inside a building: a room open to the front, its agents at desks, standing, waving or away */
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
 
-function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names, lens, work }: {
+function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names, lens, work, away }: {
   building: WorldBuilding
   half: number
   figures: WorldFigure[]
@@ -276,6 +285,7 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
   names?: Map<string, string>
   lens: WorldLens
   work?: Map<string, WorkSummary>
+  away?: WorldAway
 }) {
   const staged = useMemo(() => stageFigures(figures, half / 0.86).figures, [figures, half])
   const dimById = useMemo(() => new Set(figures.filter(f => f.dim).map(f => f.id)), [figures])
@@ -299,6 +309,14 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
         <meshStandardMaterial color={wall} />
       </mesh>
       <Label text={`${building.label} · ${building.counts.total}`} y={2.3} scale={0.55} position={[0, 0, -half + 0.2]} />
+      {away && (
+        <group position={[half - 1.0, 0, half - 0.7]}>
+          {/* a couch in the corner, and a plate you can press to show or hide who is away */}
+          <mesh position={[0, 0.18, 0]}><boxGeometry args={[1.3, 0.36, 0.55]} /><meshStandardMaterial color="#374151" /></mesh>
+          <mesh position={[0, 0.5, 0.2]}><boxGeometry args={[1.3, 0.34, 0.14]} /><meshStandardMaterial color="#4b5563" /></mesh>
+          <Label text={away.expanded ? `Away · ${away.count} · hide` : `Away · ${away.count} · show`} y={1.2} scale={0.36} onClick={away.onToggle} />
+        </group>
+      )}
       {staged.map(f => {
         const w = work?.get(f.id)
         const say = w?.ask ? clip(w.ask.subject, 34) : f.presence === 'needs-you' ? 'needs you' : undefined
@@ -325,7 +343,7 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
   )
 }
 
-function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names, lens, work }: {
+function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names, lens, work, away }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
@@ -334,6 +352,7 @@ function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, 
   dimmedBuildings?: Set<string>
   lens: WorldLens
   work?: Map<string, WorkSummary>
+  away?: WorldAway
   figures: WorldFigure[]
   animate: boolean
   onSelect: () => void
@@ -388,6 +407,7 @@ function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, 
           names={names}
           lens={lens}
           work={work}
+          away={away}
         />
       )}
     </group>
@@ -535,7 +555,7 @@ function Ties({ ties, groups, positions, selectedIndex, selectedBuildingKey, fig
   return <>{items.map(item => <Arc key={item.key} item={item} />)}</>
 }
 
-export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, dimmedBuildings, lens = 'status', work, ties, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, dimmedBuildings, lens = 'status', work, ties, away, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
   // Where the camera goes: the whole island, or (inside a building) its room
@@ -576,6 +596,7 @@ export default function WorldScene({ groups, selectedKey, selectedBuildingKey = 
           dimmedBuildings={g.key === selectedKey ? dimmedBuildings : undefined}
           lens={lens}
           work={work}
+          away={g.key === selectedKey ? away : undefined}
           figures={g.key === selectedKey ? figures : []}
           animate={animate}
           onSelect={() => onSelect(g.key)}

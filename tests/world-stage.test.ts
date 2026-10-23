@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stageFigures } from '@/lib/world/stage'
+import { AWAY_FOLD_MIN, splitAway, stageFigures } from '@/lib/world/stage'
 import { islandRadius } from '@/lib/world/layout'
 import type { AgentPresence } from '@/lib/agent-presence'
 
@@ -56,5 +56,34 @@ describe('stageFigures', () => {
     const input = mk({ working: 6, ready: 6 })
     expect(stageFigures(input, 4)).toEqual(stageFigures([...input].reverse(), 4))
     expect(stageFigures([], 4).figures).toEqual([])
+  })
+})
+
+describe('splitAway', () => {
+  it('folds the offline agents into the lounge once there are enough of them', () => {
+    const figs = mk({ working: 3, ready: 5, offline: AWAY_FOLD_MIN })
+    const r = splitAway(figs, false)
+    expect(r.folded).toBe(true)
+    expect(r.shown).toHaveLength(8)
+    expect(r.shown.every(f => f.presence !== 'offline')).toBe(true)
+    expect(r.away).toHaveLength(AWAY_FOLD_MIN)
+  })
+  it('leaves a handful of sleepers where they are', () => {
+    const figs = mk({ working: 3, offline: AWAY_FOLD_MIN - 1 })
+    const r = splitAway(figs, false)
+    expect(r.folded).toBe(false)
+    expect(r.shown).toHaveLength(figs.length)
+  })
+  it('puts everyone back when expanded, and keeps the away list either way', () => {
+    const figs = mk({ ready: 2, offline: 20 })
+    const r = splitAway(figs, true)
+    expect(r.folded).toBe(false)
+    expect(r.shown).toHaveLength(22)
+    expect(r.away).toHaveLength(20)
+  })
+  it('can fold everyone: a building that is all away is an empty room with a lounge', () => {
+    const r = splitAway(mk({ offline: 12 }), false)
+    expect(r.shown).toHaveLength(0)
+    expect(r.folded).toBe(true)
   })
 })

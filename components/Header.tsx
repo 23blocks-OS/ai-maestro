@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing, Globe } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -104,6 +104,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <Grid3X3 className="w-3.5 h-3.5" />
             Zoom
+          </a>
+          <a
+            href="/world"
+            className="text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="World: hosts and orgs as islands, agents as figures"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            World
           </a>
           <a
             href={companionUrl}

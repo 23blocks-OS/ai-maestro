@@ -16,6 +16,7 @@ import { agentDisplay } from '@/lib/organization'
 import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/grouping'
 import type { WorldFigure } from '@/components/world/WorldScene'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
+import Minimap from '@/components/world/Minimap'
 
 // The 3D scene is client-only and code-split, like Zoom's heavy views
 const WorldScene = dynamic(() => import('@/components/world/WorldScene'), {
@@ -59,6 +60,7 @@ function WorldContent() {
   const [mode, setMode] = useState<WorldGroupMode>('org')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   const orgNames = useMemo(() => {
@@ -86,6 +88,9 @@ function WorldContent() {
   )
 
   const selected = groups.find(g => g.key === selectedKey) || null
+  // The open card belongs to the selected island: leave the island (or regroup) and it closes
+  const openAgentId = selected?.agents.some(a => a.id === selectedAgentId) ? selectedAgentId : null
+  const openAgent = openAgentId ? agentById.get(openAgentId) ?? null : null
 
   const figures: WorldFigure[] = useMemo(
     () => (selected ? selected.agents.map(a => ({ id: a.id, presence: presenceOf(agentById.get(a.id) ?? a) })) : []),
@@ -163,6 +168,11 @@ function WorldContent() {
     return out
   }, [events, groupOfName, groupOfAgent, tick])
   const nameOfAgent = useMemo(() => new Map(agents.map(a => [a.id, agentDisplay(a)])), [agents])
+  // What floats over a selected agent (in a headset there is no side panel to read)
+  const labelOfAgent = useMemo(
+    () => new Map(agents.map(a => [a.id, `${agentDisplay(a)} · ${PRESENCE_STYLE[presenceOf(a)].label}`])),
+    [agents, presenceOf],
+  )
   const recent = useMemo(() => [...events].reverse().slice(0, 6), [events])
 
   const needsYouKeys = useMemo(() => groups.filter(g => g.counts.needsYou > 0).map(g => g.key), [groups])
@@ -232,7 +242,10 @@ function WorldContent() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative min-h-[320px] flex-1" data-pulses={pulses.length}>
-            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} pulses={pulses} />
+            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} pulses={pulses}
+              selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
+              onBack={() => setSelectedKey(null)} />
+            <Minimap groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} />
           </div>
 
           <aside className="w-full flex-shrink-0 overflow-y-auto border-t border-gray-800 lg:w-96 lg:border-l lg:border-t-0">
@@ -325,14 +338,37 @@ function WorldContent() {
                     </p>
                   </div>
                 </div>
+                {openAgent && (
+                  <div className="space-y-3 border-b border-gray-800 bg-gray-900/60 px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full ${PRESENCE_STYLE[presenceOf(openAgent)].dot}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-100">{agentDisplay(openAgent)}</p>
+                        <p className="truncate text-xs text-gray-500">
+                          {selected?.label} · {openAgent.hostName || openAgent.hostId} · <span className={PRESENCE_STYLE[presenceOf(openAgent)].text}>{PRESENCE_STYLE[presenceOf(openAgent)].label}</span>
+                        </p>
+                      </div>
+                      <button onClick={() => setSelectedAgentId(null)} className="rounded p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-300" aria-label="Close the agent card">×</button>
+                    </div>
+                    {openAgent.taskDescription && <p className="line-clamp-3 text-xs text-gray-400">{openAgent.taskDescription}</p>}
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { href: `/?agent=${encodeURIComponent(openAgent.id)}`, label: 'Open', title: 'The agent in the dashboard: terminal, chat, tasks' },
+                        { href: `/zoom/agent?id=${encodeURIComponent(openAgent.id)}`, label: 'Zoom', title: 'The agent full screen with its terminal' },
+                        { href: `/companion?agent=${encodeURIComponent(openAgent.id)}`, label: 'Companion', title: 'Talk to the agent in Companion mode' },
+                      ].map(l => (
+                        <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" title={l.title}
+                          className="rounded-lg bg-teal-600 px-3 py-1 text-xs text-white transition-colors hover:bg-teal-700">{l.label}</a>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <ul className="divide-y divide-gray-800/60">
                   {panelAgents.map(({ agent, presence }) => (
                     <li key={agent.id}>
-                      <a
-                        href={`/zoom/agent?id=${encodeURIComponent(agent.id)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2.5 px-4 py-2 hover:bg-gray-900"
+                      <button
+                        onClick={() => setSelectedAgentId(agent.id)}
+                        className={`flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-gray-900 ${agent.id === openAgentId ? 'bg-gray-900' : ''}`}
                       >
                         <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${PRESENCE_STYLE[presence].dot}`} />
                         <span className="min-w-0 flex-1">
@@ -342,7 +378,7 @@ function WorldContent() {
                           </span>
                         </span>
                         <span className={`text-xs ${PRESENCE_STYLE[presence].text}`}>{PRESENCE_STYLE[presence].label}</span>
-                      </a>
+                      </button>
                     </li>
                   ))}
                 </ul>

@@ -9,9 +9,15 @@ It is an **experiment**, off by default. Turn it on in **Settings → Experiment
 - **Island** size follows its agent count; the buildings are decoration that grows with it.
 - **Orange diamond over an island**: at least one agent there needs you.
 - **Dark island**: every host it covers is offline (a host that is disabled, as everywhere else in the UI).
-- **Click an island** to select it: the camera flies in and its agents appear as small people laid out like an office, back to front: **sleeping** (offline) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the plaza on the island's doorstep, waving, with an orange beacon over their heads. The panel lists them, needs-you first; click one to open its Zoom view. Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
+- **Click an island** to select it: the camera flies in and its agents appear as small people laid out like an office, back to front: **sleeping** (offline) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the plaza on the island's doorstep, waving, with an orange beacon over their heads. The panel lists them, needs-you first. **Click an agent** (in the scene or the list) for a ring, its name over its head, and a card with its status, host, task and buttons: Open (dashboard), Zoom and Companion. The **minimap** in the corner shows every island, orange where someone needs you; click one to fly there. Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
 - **Test agents** (tagged `org:sandbox`) are not drawn; the header says how many are hidden.
 - **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
+
+## VR
+
+Browsers that can start an immersive VR session (a Meta Quest's browser, a PC with a headset) show an **Enter VR** button in the corner of the map. In the headset the overview is a **table-top model** of the archipelago in front of you; select an island and you **stand at its doorstep, life-size**, with its agents around you at human scale (the ones who need you wave at you from the plaza). Point a controller and pull the trigger to select an island or an agent; the agent's name and status float over its head; **"← all islands"** floats at the front of the island. Exit VR ends the session.
+
+No headset? Open `/world?emulate-vr` for an emulated Meta Quest 3. It has been checked only in that emulator, not on a real headset: comfort and performance on a standalone Quest still need a real device. iOS Safari has no WebXR, so on iPhone and iPad the map stays a normal 3D view.
 
 ## Live messages
 
@@ -37,4 +43,4 @@ Select an island and the others dim; the camera flies to it. The search box and 
 
 ## Not in this first slice
 
-Characters walking between places, pulses drawn agent to agent, the grouping in the URL.
+Characters walking between places, pulses drawn agent to agent, hand tracking and walking around in VR, the grouping in the URL.

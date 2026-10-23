@@ -3,6 +3,32 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.94.0] - 2026-10-22 - World view (beta): your hosts and organizations as 3D islands, in Settings → Experiments
+
+A new way to see the whole fleet at a glance: every host or organization is an island, its agents stand on it in their live status colour, and an island with agents waiting for you carries an orange beacon. It is a **beta, off by default**: turn it on in **Settings → Experiments → World view (beta)** and a **World** button appears in the header (the `/world` page). The flag is per browser. Without it nothing changes anywhere and `/world` shows a note pointing to the setting.
+
+### Added
+- **`/world`** (React Three Fiber, client-only and code-split, 4 kB of page code): low-poly islands, buildings that grow with an island's agent count, agent figures on the **selected** island only (the overview never draws 160 figures at once), orbit / pan / zoom. The list beside the map names every island with its working / ready / offline counts and "N need you", and an island's agents are listed needs-you first, each opening its Zoom view.
+- **Three groupings**, switchable on the page: **Host** (one island per host), **Org** (one per organization, hosts pooled; dark only when every pooled host is down) and **Org + Host** (one per organization and host, the default). Every agent is on exactly one island, so the counts add up to the fleet (`lib/world/grouping.ts`; an agent's org is its first `org:<id>` tag, no tag means `unassigned`).
+- **No new data and no new status.** It uses the same hooks as the Zoom and Org views (`useAgents` across every host, `useHosts`, `useOrgs`) and the shared `presenceOf`, so "Working / Needs you / Ready / Offline" is the one every other view shows, and a disabled host reads as offline the way it does elsewhere. No backend change.
+- **Experiments flag** (`lib/experiments.ts`, `hooks/useExperiment.ts`): a reusable per-browser opt-in. The header button and the page follow a toggle at once, in the same tab and in other tabs, and treat blocked storage as off.
+
+### Changed (review of the first version, before it shipped)
+- The World button was always in the header; it now shows only when the experiment is on.
+- **Islands no longer overlap.** On a real fleet (66, 48, 26, 12, 10 and 3 agents) the big islands covered their neighbours and hid buildings; the grid is now sized from the largest island, and the camera fits the whole map whenever the set of islands changes (a test checks that no two islands overlap for any sizes).
+- **Dragging to rotate no longer selects the island under the cursor** when you let go.
+- **An idle map costs no GPU.** The canvas draws on demand (when you move the camera or the fleet changes) instead of 60 times a second.
+- Agent figures stand inside the ring of buildings however many there are (they stood among them before).
+
+### Limits
+- First slice: islands carry no text labels yet (the list has the names), no message pulses, no animation, and the grouping is not in the URL. A browser without WebGL shows an empty map; the list beside it still works.
+- A host with no agents has no island, even when it is listed as offline in the banner.
+- Credit: the feature was built by another team and reviewed and hardened here.
+
+### Tests
+- 12 grouping tests from the contributor (partition, no duplicates, counts sum, offline hosts, determinism) plus layout (no overlap, inside the extent, empty) and the experiment flag (default off, exact `"true"`, blocked storage).
+- `yarn install --frozen-lockfile` from scratch accepts the hand-transcribed `yarn.lock` entries for `three` and `@react-three/fiber`; production build passes; run in a browser against a real fleet of 165 agents on 6 islands: overview, select an island, figures, grouping switch, flag off and on.
+
 ## [0.93.7] - 2026-10-21 - "Needs you" shows the moment Claude Code asks, from the PermissionRequest hook (observe-only)
 
 Until now a Claude Code agent showed "Needs you" in the sidebar, on the Attention page and on the phone about **6 seconds after** it asked for a permission, because the only signal was the `permission_prompt` notification, which Claude Code sends after six seconds and defers on every keystroke. The chat card was already fast (it is read from the terminal); the status was not. Claude Code's `PermissionRequest` hook fires at the moment the dialog is drawn.

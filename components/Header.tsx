@@ -1,6 +1,7 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing } from 'lucide-react'
+import { useExperiment } from '@/hooks/useExperiment'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing, Globe } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -14,6 +15,8 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
   const immersiveUrl = activeAgentId ? `/immersive?agent=${encodeURIComponent(activeAgentId)}` : '/immersive'
   const companionUrl = activeAgentId ? `/companion?agent=${encodeURIComponent(activeAgentId)}` : '/companion'
   const zoomUrl = '/zoom'
+  // World view is a beta: its button shows only where Settings → Experiments turned it on
+  const { enabled: worldEnabled } = useExperiment('world-view')
 
   return (
     <header className="border-b border-gray-800 bg-gray-950 px-4 py-2">
@@ -105,6 +108,16 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
             <Grid3X3 className="w-3.5 h-3.5" />
             Zoom
           </a>
+          {worldEnabled && (
+            <a
+              href="/world"
+              className="text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1.5"
+              title="World (beta): hosts and orgs as islands, agents as figures"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              World
+            </a>
+          )}
           <a
             href={companionUrl}
             className="text-sm px-3 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded transition-colors flex items-center gap-1.5"

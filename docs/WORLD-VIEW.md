@@ -10,9 +10,25 @@ The map has three levels:
 
 1. **The overview**: islands. Each island shows its **skyline**, one building for each of its parts (an org island has a building per host its agents run on; a host island has a building per organization running there), standing in a row across the back, biggest in the middle. A building's height follows how many agents it holds, its front carries bands in the status colours in proportion, and an orange diamond over it means someone there needs you. Dark means its host is offline.
 2. **An island** (click it): the camera goes there and you see just its buildings, with their names and agent counts. The other islands dim.
-3. **A building** (click it): you are inside, in a room open to the front. The agents are small people laid out back to front: the **away** (offline: standing, greyed, a small zz) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the front, waving, with an orange beacon over their heads. Click one for a ring, its name over its head and a card with its status, host and task, and buttons: Open (dashboard), Zoom and Companion. Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
+3. **A building** (click it): you are inside, in a room open to the front. The agents are small people laid out back to front: the **away** (offline: standing, greyed, a small zz) at the back, **working** at desks with their screens lit, **ready** standing, and **needs you** at the front, waving, with an orange beacon over their heads. Click one for a ring, its name over its head and a card with its status, host and task, and the ways to reach it: Chat, Terminal, Zoom, Companion (the two call-style views) and, for each team it is in, Meet (a team meeting). Shirts wear the status colours (green working, orange needs you, yellow ready, grey offline). With "reduce motion" on in your system settings they hold their poses.
 
 **Back** with the arrow in the panel or **Escape** (one level up). The **minimap** in the corner shows every island, orange where someone needs you; click one to fly there. Searching for an agent and clicking it takes you straight into its building. Test agents (tagged `org:sandbox`) are not drawn; the header says how many are hidden. **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
+
+## Lenses
+
+The header has three lenses over the same map. They change what is drawn, never where anything stands.
+
+- **Status** (default): who is working, ready, waiting for you or offline.
+- **Work**: the open cards on every host. Each agent gets a small tag with its open (and late) cards, each building says how many it holds, and each island's row in the list shows its total. The **Waiting on you** list gathers the cards waiting on you across every host, most urgent first; click one to fly to its agent.
+- **Relations**: arcs for who messages whom (amber), who shares cards (blue) or both (violet), thicker for more. Overview: between islands; on an island: between its buildings; inside a building: between its people. The panel lists the busiest pairs and the busiest links between islands, over the last hour, 6 hours or 24 hours, and the **teams** from every host: click one to light it up (everyone else dims and only its relations remain), or press **Meet** to open a team meeting.
+
+In every lens an agent with a card waiting on you has a **speech bubble** with the card's subject over its head and a blue gem on its building. An agent that needs you without a card says "needs you": the status feed does not carry the question, and the view does not guess it.
+
+A search, a status filter and a lit-up team all act as a **spotlight**: islands, buildings and people outside it dim.
+
+## Replay
+
+**Replay** (header) plays the last 1, 6 or 24 hours of messages back as pulses, at 1, 6 or 24 hours per minute, with a time slider; the relations lens follows the replay clock. Without it the pulses are live. The history is `GET /api/world/events?history=1` (up to a day; the default is still a few minutes), re-read every two minutes.
 
 ## VR
 
@@ -37,11 +53,12 @@ Select an island and the others dim; the camera flies to it. The search box and 
 
 ## How it works
 
+- `lib/world/relations.ts` (pure, tested) turns deliveries and cards into ties, lifts them to islands and buildings, and summarises each agent's work; `components/world/WorldPanels.tsx` holds the side panels and the replay bar.
 - `lib/world/grouping.ts` partitions the agents (pure, tested); `lib/world/layout.ts` places the islands so none overlaps another; `lib/world/stage.ts` stands the agents on an island; `lib/world/layout.ts` also lays out each island's skyline; `components/world/WorldScene.tsx` and `Character.tsx` draw them (React Three Fiber, client-only, loaded on demand); `app/world/page.tsx` is the page.
-- The data is the same as the Zoom and Org views: `useAgents` (every host), `useHosts`, `useOrgs`, and the one status source, `presenceOf`. No backend change.
+- The data is the same as the Zoom and Org views: `useAgents` (every host), `useHosts`, `useOrgs`, and the one status source, `presenceOf`; plus `useOpenTasks` (cards), `useWorldTeams` and `useWorldHistory`. The only backend change is the `history` option on `/api/world/events`.
 - The canvas renders on demand, so an idle map costs no GPU. The scene needs WebGL; without it the list beside the map still works.
 - The flag lives in `lib/experiments.ts` (`EXPERIMENT_KEYS`) and is read with `hooks/useExperiment.ts`.
 
 ## Not in this first slice
 
-Characters walking between places, pulses drawn agent to agent, hand tracking and walking around in VR, the grouping in the URL.
+Characters walking between places, subagents as small helpers (the hook does not report them), answering a permission in the scene, pulses drawn agent to agent, hand tracking and walking around in VR, the grouping in the URL.

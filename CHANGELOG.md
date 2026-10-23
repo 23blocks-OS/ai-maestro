@@ -3,6 +3,28 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.98.0] - 2026-10-23 - World view: work, relations, a replay, and a way into every agent (beta)
+
+The World view now answers more than "who is up": it shows what is on every agent's plate, who works with whom, and what is waiting on you, and every agent is one click from its chat, its terminal, a voice talk, or its team's meeting. Designed from a read of ten agent-office projects and the evidence on virtual workplaces and gamification (see docs/WORLD-VIEW.md).
+
+### Added
+- **Three lenses** in the header: **Status** (as before), **Work** and **Relations**.
+- **Work.** Open cards from every host, per agent: a small tag beside each person with its open (and late) cards, a count on each building and each island's row, and the cards in the agent's card.
+- **Waiting on you.** One list, across every host, of the cards waiting on you, most urgent first; click one to fly to the agent that holds it. A card waiting on you also puts a **speech bubble** with its subject over the agent, and a blue gem on its building, in every lens. An agent that needs you without a card says "needs you" (the status feed does not carry the question itself, and nothing is invented).
+- **Relations.** Arcs for who messages whom (amber), who shares cards (blue: a card's creator, the agent it waits on, its co-owners) or both (violet): between islands in the overview, between buildings on an island, between people inside a building; thicker for more. Lists of the busiest pairs and the busiest links between islands, with a window of 1 h, 6 h or 24 h. Only the sender, recipient and time of an AMP delivery are read; never the message.
+- **Teams.** Every team on every host, click one to light it up (everyone else dims, and the relations shown are the ones that touch it), with a **Meet** button that opens a team meeting. Teams with fewer than two visible agents are left out.
+- **Replay.** Plays the last 1, 6 or 24 hours of messages back as pulses (1 h, 6 h or 24 h per minute), with a time slider; the relations lens follows the replay clock.
+- **A way into every agent**, on its card: **Chat**, **Terminal** (the dashboard now opens on `?agent=<id>&tab=chat|terminal`), **Zoom** and **Companion** (the app's two call-style views: the agent in a Zoom call, or a call with its face and voice), and **Meet** (a team meeting) for each of its teams.
+- **A spotlight.** A search, a status filter and a team all dim what is outside them, at every level: islands, buildings and people.
+- **Website:** a new page, [Experiments](https://ai-maestro.23blocks.com/experiments.html) (`docs/experiments.html`): what an experiment is in AI Maestro, how the Experiments switch works, what we are trying in human and agent interaction (the World view, and the ideas shipped in the same spirit), what we learned from ten agent-office projects and the research on virtual workplaces and gamification, and where we are not going (no streaks, XP or leaderboards). Linked from the site footer, the sitemap and `ai-index.html`.
+- `GET /api/world/events` takes `history=1` for up to a day of deliveries (the default is still the last few minutes); a host that predates it answers with the short window.
+
+### Changed
+- Long island names are cut with an ellipsis instead of shrinking to nothing; the island view leaves room for the building labels.
+
+### Tests
+- Relations (message and card ties, lifting ties to islands and buildings, outside links, the work summary and its most urgent ask, waiting-on-you order, event windows) and the one-day history read.
+
 ## [0.97.0] - 2026-10-23 - World view: islands have buildings, buildings have agents; nobody lies down (beta)
 
 Reworked after trying the World view on the real fleet: the map now has three levels that match what you click, and offline agents no longer lie on the floor.

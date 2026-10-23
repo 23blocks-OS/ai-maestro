@@ -6,9 +6,10 @@ import { getSelfHostId } from '@/lib/hosts-config'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/world/events?since=<epoch ms>[&local=1]
+ * GET /api/world/events?since=<epoch ms>[&local=1][&history=1]
  * Recent AMP deliveries (sender name, recipient agent id, time; never the message) across hosts,
- * for the World view's pulses. `local=1` answers for this host only.
+ * for the World view's pulses. `local=1` answers for this host only; `history=1` reaches up to a day back
+ * (the relations lens and the replay).
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   const result = await getWorldEvents({
     since: Number.isFinite(since) && since > 0 ? since : Date.now() - 30_000,
     localOnly: searchParams.get('local') === '1',
+    history: searchParams.get('history') === '1',
     selfHostId: getSelfHostId(),
   })
   return NextResponse.json(result.data, { status: result.status })

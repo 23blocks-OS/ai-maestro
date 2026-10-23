@@ -67,9 +67,15 @@ interface CharacterProps {
   selected?: boolean
   name?: string
   onSelect?: () => void
+  /** Out of the spotlight (a search, a filter or a team is on and this agent is not in it): greyed, nothing over it */
+  dim?: boolean
+  /** A speech bubble over the head: what it is waiting on you for */
+  say?: string
+  /** A small tag beside it (its open cards in the work lens) */
+  badge?: { text: string; late: boolean }
 }
 
-export default function Character({ id, pose, color, position, desk, animate, selected = false, name, onSelect }: CharacterProps) {
+export default function Character({ id, pose, color, position, desk, animate, selected = false, name, onSelect, dim = false, say, badge }: CharacterProps) {
   const h = useMemo(() => hash(id), [id])
   const skin = SKIN[h % SKIN.length]
   const hair = HAIR[(h >> 3) % HAIR.length]
@@ -82,7 +88,8 @@ export default function Character({ id, pose, color, position, desk, animate, se
 
   const resting = pose === 'resting'
   const typing = pose === 'typing'
-  const waving = pose === 'waving'
+  const waving = pose === 'waving' && !dim
+  const shirt = dim ? '#374151' : color
 
   useFrame(({ clock }) => {
     const t = animate ? clock.elapsedTime : 0
@@ -122,6 +129,8 @@ export default function Character({ id, pose, color, position, desk, animate, se
         </mesh>
       )}
       {selected && name && <Label text={name} y={1.75} scale={0.42} />}
+      {say && !dim && !selected && <Label text={say} y={2.0} scale={0.3} maxWidth={2.4} bg="rgba(194, 65, 12, 0.94)" fg="#ffffff" />}
+      {badge && !dim && <Label text={badge.text} y={1.1} position={[0.42, 0, 0]} scale={0.2} maxWidth={0.9} bg={badge.late ? 'rgba(153, 27, 27, 0.94)' : 'rgba(30, 64, 175, 0.94)'} fg="#ffffff" />}
       {desk && (
         <group position={[0, 0, 0.36]}>
           <mesh position={[0, 0.36, 0]}>
@@ -161,7 +170,7 @@ export default function Character({ id, pose, color, position, desk, animate, se
         {/* Torso in the status colour */}
         <mesh position={[0, 0.52, 0]}>
           <capsuleGeometry args={[0.13, 0.22, 4, 8]} />
-          <meshStandardMaterial color={color} emissive={waving ? color : '#000000'} emissiveIntensity={waving ? 0.25 : 0} />
+          <meshStandardMaterial color={shirt} emissive={waving ? color : '#000000'} emissiveIntensity={waving ? 0.25 : 0} />
         </mesh>
         {/* Head and hair */}
         <mesh position={[0, resting ? 0.85 : 0.88, resting ? 0.03 : 0]}>

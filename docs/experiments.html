@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Experiments: How We Try Ideas on Human and AI Agent Work</title>
+    <meta name="description" content="What an experiment is in AI Maestro, how the Experiments switch works, and what we are trying in human and AI agent interaction: a map of your fleet, work and relations lenses, a replay, and a way into every agent.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="author" content="23blocks">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/experiments.html">
+    <meta property="og:title" content="Experiments - AI Maestro">
+    <meta property="og:description" content="What an experiment is, how it works, and what we are trying in human and AI agent interaction.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro - Orchestrate your AI coding agents">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Experiments - AI Maestro">
+    <meta name="twitter:description" content="What an experiment is, how it works, and what we are trying in human and AI agent interaction.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="AI agent experiments, human agent interaction, AI agent dashboard, 3D world view agents, agent fleet visualisation, beta features, AI Maestro experiments">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/experiments.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#6366f1">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#6366f1">
+    <meta name="msapplication-TileColor" content="#6366f1">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Experiments: how we try ideas on human and AI agent work",
+      "datePublished": "2026-10-23",
+      "author": { "@type": "Person", "name": "Juan Peláez" },
+      "publisher": { "@type": "Organization", "name": "23blocks" },
+      "url": "https://ai-maestro.23blocks.com/experiments.html",
+      "isPartOf": { "@type": "SoftwareApplication", "name": "AI Maestro", "url": "https://ai-maestro.23blocks.com" }
+    }
+    </script>
+
+    
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    
+    <style>
+        .prose-x p { margin-bottom: 1rem; }
+        .prose-x a { color: #22d3ee; }
+        .prose-x a:hover { color: #67e8f9; }
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Horizontal rule accent */
+        .hr-accent {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+        }
+
+        /* Typing cursor */
+        .typing-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1em;
+            background-color: #00d4ff;
+            margin-left: 4px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+    </style>
+
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+
+    <!-- Navigation (same as index.html) -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="/#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="/#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="/ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
+                    <a href="/skills.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">SKILLS</a>
+                    <a href="/protocols.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">PROTOCOLS</a>
+                    <a href="/#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="/#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="/#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="/ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
+                <a href="/skills.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Skills</a>
+                <a href="/protocols.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Protocols</a>
+                <a href="/#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+
+    <!-- Hero -->
+    <header class="py-12 md:py-24 text-center px-4 md:px-0">
+        <div class="max-w-[900px] mx-auto">
+            <p class="font-mono text-sm tracking-widest text-cyan-400 mb-4">EXPERIMENTS</p>
+            <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6">How we try ideas on human and agent work</h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[720px] mx-auto">Nobody knows yet what working with a fleet of AI agents should feel like. So we build small, real prototypes, put them behind a switch, and see what lands.</p>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 md:px-8 pb-16 prose-x text-slate-300 leading-relaxed">
+
+        <section class="mb-14">
+            <h2 class="font-display text-3xl font-bold text-white mb-4">What an experiment is here</h2>
+            <p>An experiment is a feature we are not sure about. It might become part of the product, change shape, or disappear. It is <strong>off by default</strong>, labelled beta, and lives in one place: <strong>Settings &rarr; Experiments</strong>. Turn one on and it appears in your dashboard; leave it off and a default install never shows it and never loads its code.</p>
+            <p>An experiment is not a promise. We say so in the changelog when one graduates, changes, or is removed.</p>
+        </section>
+
+        <section class="mb-14">
+            <h2 class="font-display text-3xl font-bold text-white mb-4">How they work</h2>
+            <ul class="space-y-3 list-disc pl-6 marker:text-cyan-400">
+                <li><strong>A switch in your browser.</strong> Each experiment is a flag stored in this browser only. Turning it on changes nothing on the server, on other browsers, or for other people on your machines.</li>
+                <li><strong>The same data as everything else.</strong> An experiment reads what the rest of AI Maestro already knows: your agents on every host, their organizations, their cards, their messages. It never keeps a second copy of the truth. Agent status, for example, comes from one source for every view, so an experiment cannot disagree with the sidebar.</li>
+                <li><strong>It only claims what the data says.</strong> If the status feed does not carry what an agent is waiting for, the view says &ldquo;needs you&rdquo; and does not guess the question.</li>
+                <li><strong>It works across machines.</strong> Your fleet is rarely on one computer, so an experiment that only works on one host is not finished.</li>
+                <li><strong>It comes with a question.</strong> Each one states what we are asking, what we are betting, and how we would know. If we cannot say how we would know, we do not ship it.</li>
+            </ul>
+            <p class="mt-4">Today there is one experiment on the switch. More will join it.</p>
+        </section>
+
+        <section class="mb-14">
+            <h2 class="font-display text-3xl font-bold text-white mb-4">Our experiments in human and agent interaction</h2>
+            <p class="mb-6">The pattern we keep returning to: a person who runs many agents needs to know <em>where to look</em>, <em>what is waiting on them</em>, and <em>how to reach the right agent or team in one step</em>.</p>
+            <div class="bg-slate-900/80 border border-slate-700 rounded-xl p-6 mb-6">
+                <h3 class="font-display text-xl font-bold text-white mb-2">World view <span class="ml-2 align-middle text-xs font-mono px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">BETA</span></h3>
+                <dl><div class="py-3 border-t border-slate-800 first:border-t-0"><dt class="font-mono text-xs tracking-widest text-slate-500 mb-1">THE QUESTION</dt><dd class="text-slate-300">When you run dozens of agents across several machines and several companies, can a map show you where to look faster than a list can?</dd></div><div class="py-3 border-t border-slate-800 first:border-t-0"><dt class="font-mono text-xs tracking-widest text-slate-500 mb-1">THE BET</dt><dd class="text-slate-300">Place carries meaning people already have. An organization is an island, a machine is a building, an agent is a person in a room. Status becomes a pose and a place, not only a colour: working at a desk, ready standing, waiting for you at the front, waving.</dd></div><div class="py-3 border-t border-slate-800 first:border-t-0"><dt class="font-mono text-xs tracking-widest text-slate-500 mb-1">WHAT IS IN IT</dt><dd class="text-slate-300">Three levels (island, building, room). Three lenses: <strong>Status</strong>, <strong>Work</strong> (open cards on every host, and a list of what is waiting on you) and <strong>Relations</strong> (arcs for who messages whom and who shares cards, teams you can light up). A <strong>replay</strong> of the last hours of messages. A way into every agent: its chat, its terminal, a Zoom call, a Companion call, or its team&rsquo;s meeting. Optional VR in a headset or an emulator.</dd></div><div class="py-3 border-t border-slate-800 first:border-t-0"><dt class="font-mono text-xs tracking-widest text-slate-500 mb-1">HOW WE WILL KNOW</dt><dd class="text-slate-300">Whether people open it more than once, whether they use it to find the agent that needs them faster than the list does, and whether the relations view shows them something they did not know. We have not measured any of this yet; today it is a bet with a working prototype.</dd></div><div class="py-3 border-t border-slate-800 first:border-t-0"><dt class="font-mono text-xs tracking-widest text-slate-500 mb-1">NOT YET CHECKED</dt><dd class="text-slate-300">A real headset: comfort and performance on a standalone Quest. Whether a 3D map beats a plain table for live monitoring at all; we found no study that shows it does.</dd></div></dl>
+            </div>
+            <h3 class="font-display text-xl font-bold text-white mt-8 mb-3">Ideas we have shipped in the same spirit</h3>
+            <p class="mb-3">Already in the product, not behind the switch. They are the same kind of bet, about how a person and an agent should meet:</p>
+            <ul class="space-y-2 list-disc pl-6 marker:text-cyan-400">
+                <li><strong>Working, Needs you, Ready, Offline.</strong> Four states with one meaning everywhere. &ldquo;Needs you&rdquo; is only an agent that asked for approval or has an open question, never one that is merely idle.</li>
+                <li><strong>The Attention page and the Matrix.</strong> A place where what needs you is gathered, and your cards in four Eisenhower squares.</li>
+                <li><strong>Zoom.</strong> A call-style wall where every agent is a card you can join, with its terminal one click away.</li>
+                <li><strong>Companion.</strong> A call with one agent: its face and its voice instead of typing.</li>
+                <li><strong>Team meetings.</strong> A room where several agents and you work one problem together.</li>
+                <li><strong>Agent-to-agent messaging.</strong> Agents write to each other with signed messages; the World view now draws who talks to whom.</li>
+            </ul>
+        </section>
+
+        <section class="mb-14">
+            <h2 class="font-display text-3xl font-bold text-white mb-4">What we learned before building</h2>
+            <p>Before the second round of the World view we read ten open-source &ldquo;agent office&rdquo; projects and the research on virtual workplaces and gamification. What changed our plan:</p>
+            <ul class="space-y-3 list-disc pl-6 marker:text-cyan-400">
+                <li><strong>Everyone builds the &ldquo;waiting on you&rdquo; signal.</strong> Pixel Agents, Hermes Pixel Office and codemap give the blocked agent a speech bubble, a bounce or a counter, and Claude-Office lets you answer the permission prompt in the scene. We made it the centre of the view.</li>
+                <li><strong>Almost nobody does many machines, many companies, or people beside agents.</strong> Nearly every project we read shows one office on one computer, and none grouped agents by company or by team. That is the open ground.</li>
+                <li><strong>Virtual offices keep closing.</strong> Meta shut down Horizon Workrooms in February 2026, and Spatial closed its Creator platform citing the cost of hosting multi-user 3D worlds. The ones that last are lightweight: 2D, browser, mobile. So the map is a lens, never the only door, and everything in it is also reachable from the flat dashboard.</li>
+                <li><strong>A week of full-time VR work was measurably worse than a desktop.</strong> In a 2022 Microsoft Research study, participants reported higher workload, frustration and eye strain in VR, and two dropped out on the first day. VR stays optional.</li>
+                <li><strong>Points and streaks change behaviour in ways nobody wanted.</strong> When GitHub removed its streak counter, long streaks got shorter, and the data suggests some streak days had been padded with trivial commits. Rewards can also crowd out intrinsic motivation. So no streaks, no XP and no leaderboards for people or agents.</li>
+            </ul>
+        </section>
+
+        <section class="mb-14">
+            <h2 class="font-display text-3xl font-bold text-white mb-4">Where this could go</h2>
+            <p>If people and agents will one day share virtual workplaces, the pieces that matter are the ones that outlive any one world: a stable identity for each agent (ours is signed), memory and skills that belong to the agent, and a view that is derived from real state instead of storing its own. The World view is built that way on purpose: it keeps nothing of its own, so it can be rebuilt in another surface, a headset or a phone, from the same feeds.</p>
+            <p>We will also keep agents visibly agents. A person should never have to wonder whether the one waving at them is a colleague or a process.</p>
+        </section>
+
+        <section class="mb-14">
+            <h2 class="font-display text-3xl font-bold text-white mb-4">Try it, and tell us</h2>
+            <ol class="space-y-2 list-decimal pl-6 marker:text-cyan-400">
+                <li>Open <strong>Settings &rarr; Experiments</strong> in AI Maestro and turn on <strong>World view (beta)</strong>.</li>
+                <li>Click the new <strong>World</strong> button in the header.</li>
+                <li>Try the three lenses, light up a team, press Replay, and open an agent from its card.</li>
+            </ol>
+            <p class="mt-4">What would make it earn a place in your day, or what is just in the way? Tell us in <a href="https://github.com/23blocks-OS/ai-maestro/issues">the issues</a>. The full guide is <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WORLD-VIEW.md">docs/WORLD-VIEW.md</a>.</p>
+        </section>
+
+        <section class="mb-6">
+            <h2 class="font-display text-2xl font-bold text-white mb-4">Sources</h2>
+            <ul class="space-y-2 text-sm list-disc pl-6 marker:text-slate-600">
+                <li><a href="https://github.com/pablodelucca/pixel-agents">Pixel Agents</a>, <a href="https://github.com/W17ant/Claude-Office">Claude-Office</a>, <a href="https://github.com/teknium1/hermes-pixel-office">Hermes Pixel Office</a>, <a href="https://github.com/JamsusMaximus/codemap">codemap</a>, <a href="https://github.com/Pardesco/hypernovum">Hypernovum</a>: open-source agent visualisers we read (READMEs, not code).</li>
+                <li><a href="https://www.roadtovr.com/meta-horizon-workrooms-discontinued-2026">Meta discontinues Horizon Workrooms</a> and <a href="https://www.roadtovr.com/spatial-social-xr-enterprise-pivot/">Spatial closes its Creator platform</a> (Road to VR).</li>
+                <li><a href="https://pokristensson.com/pubs/BienerEtAlTVCGISMAR2022.pdf">Biener et al., a week of full-time VR work (IEEE TVCG, 2022)</a>.</li>
+                <li><a href="https://ar5iv.labs.arxiv.org/html/2006.02371">Moldon, Strohmaier and Wachs, how GitHub&rsquo;s streak counter changed behaviour (ICSE 2021)</a>.</li>
+                <li><a href="https://depts.washington.edu/techdocs/papers/deciExtrinsicRewardsAndIntrinsicMotivation99.pdf">Deci, Koestner and Ryan, extrinsic rewards and intrinsic motivation (1999)</a>.</li>
+                <li><a href="https://arxiv.org/abs/2304.03442">Generative Agents (Park et al., 2023)</a>: why agents in shared worlds need memory, provenance and visible limits.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
+                </div>
+                <div>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h3>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
+                </div>
+                <div>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h3>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">♥</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">© 2025-2026 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Copy for AI functionality -->
+    <script src="copy-for-ai.js"></script>
+</body>
+</html>

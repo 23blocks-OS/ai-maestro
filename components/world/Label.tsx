@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { CanvasTexture, LinearFilter } from 'three'
 
 /** A name floating in the world, drawn once into a texture (no font or text dependency) */
-export default function Label({ text, y, dim = false, scale = 1.1, maxWidth = 6, onClick, position }: { text: string; y: number; dim?: boolean; scale?: number; maxWidth?: number; onClick?: () => void; position?: [number, number, number] }) {
+export default function Label({ text, y, dim = false, scale = 1.1, maxWidth = 6, onClick, position, bg = 'rgba(3, 7, 18, 0.72)', fg = '#e5e7eb' }: { text: string; y: number; dim?: boolean; scale?: number; maxWidth?: number; onClick?: () => void; position?: [number, number, number]; bg?: string; fg?: string }) {
   const { texture, aspect } = useMemo(() => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')!
@@ -14,17 +14,17 @@ export default function Label({ text, y, dim = false, scale = 1.1, maxWidth = 6,
     canvas.width = w
     canvas.height = 80
     ctx.font = font
-    ctx.fillStyle = 'rgba(3, 7, 18, 0.72)'
+    ctx.fillStyle = bg
     ctx.beginPath()
     ctx.roundRect(0, 8, w, 64, 32)
     ctx.fill()
-    ctx.fillStyle = '#e5e7eb'
+    ctx.fillStyle = fg
     ctx.textBaseline = 'middle'
     ctx.fillText(text, 20, 41)
     const t = new CanvasTexture(canvas)
     t.minFilter = LinearFilter
     return { texture: t, aspect: w / 80 }
-  }, [text])
+  }, [text, bg, fg])
   useEffect(() => () => texture.dispose(), [texture])
   // A long name is made smaller, not wider than the island it labels
   const sc = Math.min(scale, maxWidth / aspect)

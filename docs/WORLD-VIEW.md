@@ -13,6 +13,10 @@ It is an **experiment**, off by default. Turn it on in **Settings → Experiment
 - **Test agents** (tagged `org:sandbox`) are not drawn; the header says how many are hidden.
 - **Drag** to orbit, **right-drag** to pan, **scroll** to zoom.
 
+## Live messages
+
+Every AMP message delivered shows as a gold orb that arcs from the sender's island to the recipient's, and the island list shows the last few as "Live messages". The feed is `GET /api/world/events` (sender name, recipient id, time; never the message), read from the AMP inbox folders and joined across hosts.
+
 ## Grouping
 
 | Mode | One island per | Good for |
@@ -33,4 +37,4 @@ Select an island and the others dim; the camera flies to it. The search box and 
 
 ## Not in this first slice
 
-Message pulses between agents, characters walking between places, the grouping in the URL.
+Characters walking between places, pulses drawn agent to agent, the grouping in the URL.

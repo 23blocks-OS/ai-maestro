@@ -10,11 +10,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { CanvasTexture, LinearFilter } from 'three'
+import { CanvasTexture, LinearFilter, type Group } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldGroup } from '@/lib/world/grouping'
 import { islandRadius, layoutIslands } from '@/lib/world/layout'
 import { stageFigures } from '@/lib/world/stage'
+import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Character from '@/components/world/Character'
 import type { AgentPresence } from '@/lib/agent-presence'
 
@@ -163,6 +164,8 @@ interface WorldSceneProps {
   onSelect: (key: string) => void
   /** Agents of the selected group, drawn as figures on its island */
   figures: WorldFigure[]
+  /** Messages in flight: a gold orb arcs from the sender's island to the recipient's */
+  pulses?: WorldPulse[]
   /** Islands drawn dim: every island but the selected one, or those with no agent matching the search or filter */
   dimmed?: Set<string>
 }
@@ -232,7 +235,35 @@ function Island({ group, position, selected, dim, figures, animate, onSelect }: 
   )
 }
 
-export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed }: WorldSceneProps) {
+/** One gold orb arcing from island to island (or rising over one island for a message within it) */
+function Pulse({ pulse, from, to }: { pulse: WorldPulse; from: [number, number]; to: [number, number] }) {
+  const orb = useRef<Group>(null)
+  useFrame(() => {
+    const g = orb.current
+    if (!g) return
+    const p = Math.min(1, Math.max(0, (Date.now() - pulse.t0) / PULSE_MS))
+    const same = from[0] === to[0] && from[1] === to[1]
+    const dist = Math.hypot(to[0] - from[0], to[1] - from[1])
+    g.position.set(
+      from[0] + (to[0] - from[0]) * p,
+      same ? 0.5 + Math.sin(Math.PI * p) * 3.2 : 0.8 + Math.sin(Math.PI * p) * (1.5 + dist * 0.25),
+      from[1] + (to[1] - from[1]) * p,
+    )
+    g.scale.setScalar(0.7 + Math.sin(Math.PI * p) * 0.5)
+    g.visible = p < 1
+  })
+  return (
+    <group ref={orb}>
+      <mesh>
+        <sphereGeometry args={[0.28, 12, 10]} />
+        <meshStandardMaterial color="#fbbf24" emissive="#f59e0b" emissiveIntensity={1.6} />
+      </mesh>
+      <pointLight color="#fbbf24" intensity={6} distance={6} />
+    </group>
+  )
+}
+
+export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed, pulses = [] }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
   const focus = useMemo(
@@ -243,8 +274,11 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
   // Characters move, so the canvas draws continuously while a populated island is selected;
   // otherwise (the overview, or reduced motion) it draws on demand and an idle map costs no GPU.
   const animate = !reduced && selectedIndex >= 0 && figures.length > 0
+  // Pulses are motion too, so they ask for continuous frames while any is in flight
+  const drawing = animate || pulses.length > 0
+  const indexByKey = useMemo(() => new Map(groups.map((g, i) => [g.key, i])), [groups])
   return (
-    <Canvas frameloop={animate ? 'always' : 'demand'} camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
+    <Canvas frameloop={drawing ? 'always' : 'demand'} camera={{ position: [0, 15, 17], fov: 45 }} style={{ background: '#030712' }}>
       <ambientLight intensity={0.7} />
       <directionalLight position={[8, 14, 6]} intensity={1.4} />
       {groups.map((g, i) => (
@@ -259,6 +293,12 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
           onSelect={() => onSelect(g.key)}
         />
       ))}
+      {pulses.map(p => {
+        const a = indexByKey.get(p.from)
+        const b = indexByKey.get(p.to)
+        if (a === undefined || b === undefined) return null
+        return <Pulse key={p.id} pulse={p} from={positions[a]} to={positions[b]} />
+      })}
       <Controls extent={extent} focus={focus} />
     </Canvas>
   )

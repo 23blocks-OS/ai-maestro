@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight } from 'lucide-react'
@@ -9,11 +9,13 @@ import { useAgents } from '@/hooks/useAgents'
 import { useOrgs } from '@/hooks/useOrgs'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { useExperiment } from '@/hooks/useExperiment'
+import { useWorldEvents } from '@/hooks/useWorldEvents'
 import { VersionChecker } from '@/components/VersionChecker'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { agentDisplay } from '@/lib/organization'
 import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/grouping'
 import type { WorldFigure } from '@/components/world/WorldScene'
+import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 
 // The 3D scene is client-only and code-split, like Zoom's heavy views
 const WorldScene = dynamic(() => import('@/components/world/WorldScene'), {
@@ -124,6 +126,45 @@ function WorldContent() {
     return undefined
   }, [selectedKey, filtering, groups, matchedKeys])
 
+  // Live messages: each delivery plays as a pulse between the two agents' islands, and the last few
+  // are listed. Keys come from the agents' own island, so it follows whatever grouping is on.
+  const events = useWorldEvents(true)
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (events.length === 0) return
+    const timer = setInterval(() => setTick(t => t + 1), 400)
+    const stop = setTimeout(() => clearInterval(timer), PULSE_MS + 600)
+    return () => { clearInterval(timer); clearTimeout(stop) }
+  }, [events])
+  const groupOfAgent = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const g of groups) for (const a of g.agents) m.set(a.id, g.key)
+    return m
+  }, [groups])
+  const groupOfName = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const a of agents) {
+      const key = groupOfAgent.get(a.id)
+      if (!key) continue
+      for (const n of [a.name, a.alias]) if (n) m.set(n.toLowerCase(), key)
+    }
+    return m
+  }, [agents, groupOfAgent])
+  const pulses: WorldPulse[] = useMemo(() => {
+    void tick
+    const now = Date.now()
+    const out: WorldPulse[] = []
+    for (const e of events) {
+      if (now - e.seenAt > PULSE_MS) continue
+      const from = groupOfName.get(e.from.toLowerCase())
+      const to = groupOfAgent.get(e.toAgentId)
+      if (from && to) out.push({ id: e.id, from, to, t0: e.seenAt })
+    }
+    return out
+  }, [events, groupOfName, groupOfAgent, tick])
+  const nameOfAgent = useMemo(() => new Map(agents.map(a => [a.id, agentDisplay(a)])), [agents])
+  const recent = useMemo(() => [...events].reverse().slice(0, 6), [events])
+
   const needsYouKeys = useMemo(() => groups.filter(g => g.counts.needsYou > 0).map(g => g.key), [groups])
   const jumpToNeedsYou = () => {
     if (needsYouKeys.length === 0) return
@@ -190,8 +231,8 @@ function WorldContent() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="relative min-h-[320px] flex-1">
-            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} />
+          <div className="relative min-h-[320px] flex-1" data-pulses={pulses.length}>
+            <WorldScene groups={groups} selectedKey={selectedKey} onSelect={setSelectedKey} figures={figures} dimmed={dimmed} pulses={pulses} />
           </div>
 
           <aside className="w-full flex-shrink-0 overflow-y-auto border-t border-gray-800 lg:w-96 lg:border-l lg:border-t-0">
@@ -235,6 +276,20 @@ function WorldContent() {
                 ))}
               </ul>
             ) : !selected ? (
+              <>
+              {recent.length > 0 && (
+                <div className="border-b border-gray-800 px-4 py-2.5">
+                  <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-gray-500">Live messages</p>
+                  <ul className="space-y-0.5">
+                    {recent.map(e => (
+                      <li key={e.id} className="truncate text-xs text-gray-400">
+                        <span className="text-amber-400">●</span> {e.from} → {nameOfAgent.get(e.toAgentId) ?? e.toAgentId.slice(0, 8)}
+                        <span className="text-gray-600"> · {Math.max(0, Math.round((Date.now() - e.ts) / 1000))}s ago</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <ul className="divide-y divide-gray-800/60">
                 {groups.map(g => (
                   <li key={g.key}>
@@ -255,6 +310,7 @@ function WorldContent() {
                   </li>
                 ))}
               </ul>
+              </>
             ) : (
               <div>
                 <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-3">

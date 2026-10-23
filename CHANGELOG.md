@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.95.1] - 2026-10-22 - World view: live message pulses and a feed of who is talking to whom (beta)
+
+On the World view (beta), every AMP message delivered now shows as a **gold orb arcing from the sender's island to the recipient's** (rising over the island when it stays inside one), and the island list gets a **Live messages** block: "pas-lola → Natalia · 4s ago".
+
+### Added
+- **`GET /api/world/events?since=<ms>[&local=1]`** (and the same route in headless mode): recent deliveries as sender name, recipient agent id, time and delivering host. It reads the AMP inbox folders that already hold every delivery, skips folders that have not changed, and **never reads the subject or body into its answer** (a test checks that). On this Mac's real mailboxes (250 agent folders) a call takes about 20 ms. Each host answers for its own agents and the route asks every other enabled host (2 s limit, a host that fails is just left out), so a message to an agent on mini-lola shows too once that host runs this version. Only the last 10 minutes are ever returned.
+- **Pulses and the feed** follow the grouping that is on (by org or by location): the orb goes between whatever islands the two agents stand on. The page polls every 4 s; the canvas draws continuously only while an orb is in flight.
+
+### Notes
+- Pulses are drawn island to island, not agent to agent, so they read at the overview; with an island open the orb leaves the island and returns.
+- Until the other hosts run this version, only deliveries on the host serving the page appear.
+
 ## [0.95.0] - 2026-10-22 - World view: agents as people (a desk, a plaza, a place to sleep), test agents hidden (beta)
 
 On the World view (beta, Settings → Experiments), select an island and its agents are now **small low-poly people** staged like an office, so the status is a place and a pose as well as a colour. The camera flies in close.

@@ -144,6 +144,8 @@ import {
   listProjects, createProject, getProjectById, updateProject, deleteProject, listProjectTasks, createProjectTask,
   updateProjectTask, deleteProjectTask, addProjectTaskComment, retryProjectTaskComment,
 } from '@/services/projects-service'
+import { getWorldEvents } from '@/services/world-events-service'
+import { getSelfHostId } from '@/lib/hosts-config'
 import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
 import {
@@ -638,6 +640,14 @@ const routes: Route[] = [
   // =========================================================================
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
+  { method: 'GET', pattern: /^\/api\/world\/events$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const since = Number(query.since)
+    sendServiceResult(res, await getWorldEvents({
+      since: Number.isFinite(since) && since > 0 ? since : Date.now() - 30_000,
+      localOnly: query.local === '1',
+      selfHostId: getSelfHostId(),
+    }))
+  }},
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,

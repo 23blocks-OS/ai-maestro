@@ -26,6 +26,7 @@
  */
 
 import fs from 'fs'
+import { parseManagerPatch, wouldLoop } from '@/lib/agent-manager'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
@@ -955,6 +956,11 @@ export function searchAgentsByQuery(query: string): ServiceResult<{ agents: Agen
 
 export function createNewAgent(body: CreateAgentRequest): ServiceResult<{ agent: Agent }> {
   try {
+    if (body.humanManager !== undefined || body.managerAgentId !== undefined) {
+      const parsed = parseManagerPatch({}, { humanManager: body.humanManager, managerAgentId: body.managerAgentId })
+      if (!parsed.ok) return invalidRequest(parsed.message)
+      body = { ...body, humanManager: parsed.value.humanManager, managerAgentId: parsed.value.managerAgentId }
+    }
     const agent = createAgent(body)
     return { data: { agent }, status: 201 }
   } catch (error) {
@@ -993,6 +999,21 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
     }
     if (existing.deletedAt) {
       return gone('Agent')
+    }
+
+    // A change to the manager is checked: a person and/or an agent, never itself, never a loop among the
+    // agents this host knows, and never none at all. Any other update leaves the manager fields alone.
+    if (body.humanManager !== undefined || body.managerAgentId !== undefined) {
+      const parsed = parseManagerPatch(existing, body, id)
+      if (!parsed.ok) return invalidRequest(parsed.message)
+      if (parsed.value.managerAgentId && parsed.value.managerAgentId !== existing.managerAgentId) {
+        const byId = new Map(loadAgents().map(a => [a.id.toLowerCase(), a]))
+        if (wouldLoop(id.toLowerCase(), parsed.value.managerAgentId, i => byId.get(i)?.managerAgentId?.toLowerCase())) {
+          return invalidRequest('That would make a loop of managers')
+        }
+      }
+      // undefined (not null) clears a field: the registry drops it from the JSON
+      body = { ...body, humanManager: parsed.value.humanManager, managerAgentId: parsed.value.managerAgentId }
     }
 
     const agent = updateAgent(id, body)

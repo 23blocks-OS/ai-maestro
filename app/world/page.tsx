@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight, Activity, ListChecks, Share2, History, Box, LayoutGrid } from 'lucide-react'
+import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight, Activity, ListChecks, Share2, History, Box, LayoutGrid, Network } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
 import { useAgents } from '@/hooks/useAgents'
 import { useOrgs } from '@/hooks/useOrgs'
@@ -20,10 +20,12 @@ import { groupAgents, isSandboxAgent, type WorldGroupMode } from '@/lib/world/gr
 import type { WorldAway, WorldFigure, WorldLens } from '@/components/world/WorldScene'
 import { splitAway } from '@/lib/world/stage'
 import {
-  eventsBetween, eventsWithin, idByName, liftTies, outsideTies, talkTies, taskTies, tiesAmong, waitingOnYou, workByAgent,
+  eventsBetween, eventsWithin, idByName, liftTies, outsideTies, reportTies, talkTies, taskTies, tiesAmong, waitingOnYou, workByAgent,
   type AgentTie,
 } from '@/lib/world/relations'
-import { AgentPanel, ReplayBar, TeamsList, TiesList, WaitingList, type PairRow, type Partner, type ReplayState } from '@/components/world/WorldPanels'
+import { AgentPanel, ManagersPanel, ReplayBar, TeamsList, TiesList, WaitingList, type ManagerRow, type NoManagerRow, type PairRow, type Partner, type ReplayState } from '@/components/world/WorldPanels'
+import { suggestManager, wouldLoop } from '@/lib/agent-manager'
+import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Minimap from '@/components/world/Minimap'
 import OfficeView from '@/components/world/OfficeView'
@@ -59,6 +61,7 @@ const LENSES: Array<{ id: WorldLens; label: string; title: string; icon: typeof 
   { id: 'status', label: 'Status', title: 'Who is working, ready, waiting for you or offline', icon: Activity },
   { id: 'work', label: 'Work', title: 'What is on each agent\'s plate, and what is waiting on you', icon: ListChecks },
   { id: 'relations', label: 'Relations', title: 'Who works with whom: messages and shared cards', icon: Share2 },
+  { id: 'reports', label: 'Reports', title: 'Who reports to whom: each agent\'s manager, person or agent', icon: Network },
 ]
 
 const localDate = () => {
@@ -318,10 +321,10 @@ function WorldContent() {
     const until = untilMinute !== null ? (untilMinute + 1) * 60_000 : Date.now()
     const talk = talkTies(eventsWithin(history.events, until, spanH * 3_600_000), byName)
     const resolve = (ref: string) => (agentById.has(ref) ? ref : byName.get(ref.toLowerCase()))
-    const all = [...talk, ...taskTies(visibleCards, resolve)]
+    const all = lens === 'reports' ? reportTies(agents, id => agentById.has(id)) : [...talk, ...taskTies(visibleCards, resolve)]
     // With a team (or a search) lit up, the relations are the ones that touch it
     return spotlight ? all.filter(t => spotlight.has(t.a) || spotlight.has(t.b)) : all
-  }, [history.events, spanH, untilMinute, byName, visibleCards, agentById, spotlight])
+  }, [history.events, spanH, untilMinute, byName, visibleCards, agentById, spotlight, lens, agents])
   const islandLift = useMemo(() => liftTies(allTies, groupOfAgent), [allTies, groupOfAgent])
   const buildingLift = useMemo(() => {
     if (!selected) return { arcs: [], within: new Map<string, number>() }
@@ -353,6 +356,69 @@ function WorldContent() {
     }
     return [...m.values()].sort((x, y) => (y.talk + y.task) - (x.talk + x.task)).slice(0, 8)
   }, [allTies, nameOfAgent, placeOfAgent])
+  // ---- Managers: who each agent reports to (a person, an agent, or both) ----
+  const managerOf = useCallback((id: string) => agentById.get(id)?.managerAgentId?.toLowerCase(), [agentById])
+  const manages = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of agents) {
+      const mid = a.managerAgentId?.toLowerCase()
+      if (mid && agentById.has(mid)) m.set(mid, (m.get(mid) || 0) + 1)
+    }
+    return m
+  }, [agents, agentById])
+  const noManagerAgents = useMemo(() => agents.filter(a => !a.humanManager && !a.managerAgentId), [agents])
+  const suggestionOf = useCallback((a: (typeof agents)[number]) => suggestManager(a, agents), [agents])
+  const suggestionLabel = useCallback((a: (typeof agents)[number]) => {
+    const sg = suggestionOf(a)
+    if (!sg) return null
+    return sg.managerAgentId ? `${nameOfAgent.get(sg.managerAgentId) ?? 'an agent'} (agent)` : `${sg.humanManager} (person)`
+  }, [suggestionOf, nameOfAgent])
+  const agentManagerRows: ManagerRow[] = useMemo(
+    () => [...manages].map(([id, count]) => ({ key: id, id, label: nameOfAgent.get(id) ?? id.slice(0, 8), count })).sort((a, b) => b.count - a.count),
+    [manages, nameOfAgent],
+  )
+  const humanManagerRows: ManagerRow[] = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of agents) if (a.humanManager) m.set(a.humanManager, (m.get(a.humanManager) || 0) + 1)
+    return [...m].map(([label, count]) => ({ key: label, label, count })).sort((a, b) => b.count - a.count)
+  }, [agents])
+  const noManagerRows: NoManagerRow[] = useMemo(
+    () => noManagerAgents.map(a => ({ id: a.id, name: nameOfAgent.get(a.id) ?? a.id.slice(0, 8), place: placeOfAgent(a.id), suggestion: suggestionLabel(a) })),
+    [noManagerAgents, nameOfAgent, placeOfAgent, suggestionLabel],
+  )
+  // Saving goes to the agent's own host (it may not be this one); the agent list refreshes after
+  const saveManager = async (agentId: string, patch: { humanManager?: string | null; managerAgentId?: string | null }): Promise<string | null> => {
+    const a = agentById.get(agentId)
+    if (!a) return 'That agent is not in the list any more'
+    if (patch.managerAgentId && wouldLoop(agentId, patch.managerAgentId.toLowerCase(), managerOf)) return 'That would make a loop of managers'
+    try {
+      const res = await fetch(`${getAgentBaseUrl(a)}/api/agents/${agentId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        return data?.error || `Could not save (${res.status})`
+      }
+      await refreshAgents()
+      return null
+    } catch {
+      return 'Could not reach that agent\'s host'
+    }
+  }
+  const [applying, setApplying] = useState(false)
+  const [applyNote, setApplyNote] = useState<string | null>(null)
+  const applyAllSuggestions = async () => {
+    setApplying(true)
+    let ok = 0, failed = 0
+    for (const a of noManagerAgents) {
+      const sg = suggestionOf(a)
+      if (!sg) continue
+      const err = await saveManager(a.id, { ...(sg.humanManager ? { humanManager: sg.humanManager } : {}), ...(sg.managerAgentId ? { managerAgentId: sg.managerAgentId } : {}) })
+      if (err) failed++
+      else ok++
+    }
+    setApplying(false)
+    setApplyNote(`${ok} set${failed ? `, ${failed} could not be saved` : ''}.`)
+  }
+
   const groupLabel = useMemo(() => new Map(groups.map(g => [g.key, g.label])), [groups])
   const arcRows = useMemo(
     () => islandLift.arcs.slice(0, 5).map(a => ({ key: `${a.from}|${a.to}`, label: `${groupLabel.get(a.from) ?? a.from} ↔ ${groupLabel.get(a.to) ?? a.to}`, weight: a.weight })),
@@ -517,13 +583,13 @@ function WorldContent() {
               <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
             ) : renderer === '2d' ? (
               <OfficeView groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-                lens={lens} work={work} ties={sceneTies} away={away}
+                lens={lens} work={work} ties={sceneTies} away={away} manages={manages}
                 selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
                 onBack={goBack} />
             ) : (
               <>
               <WorldScene groups={groups} selectedKey={selectedKey} selectedBuildingKey={selectedBuilding?.key ?? null} onSelect={selectIsland} onSelectBuilding={selectBuilding} figures={figures} dimmed={dimmed} dimmedBuildings={dimmedBuildings} pulses={pulses}
-                lens={lens} work={work} ties={sceneTies} away={away}
+                lens={lens} work={work} ties={sceneTies} away={away} manages={manages}
                 selectedAgentId={openAgentId} onSelectAgent={setSelectedAgentId} names={labelOfAgent}
                 onBack={goBack} />
               <Minimap groups={groups} selectedKey={selectedKey} onSelect={selectIsland} />
@@ -599,6 +665,10 @@ function WorldContent() {
             ) : !selected ? (
               <>
               <WaitingList cards={waiting} nameOf={id => nameOfAgent.get(id) ?? id.slice(0, 8)} placeOf={placeOfAgent} today={today} onGo={goToAgent} limit={lens === 'work' ? undefined : 4} />
+              {lens === 'reports' && (
+                <ManagersPanel agentManagers={agentManagerRows} humanManagers={humanManagerRows} noManager={noManagerRows} total={agents.length}
+                  onGo={goToAgent} onApplyAll={applyAllSuggestions} applying={applying} note={applyNote} />
+              )}
               {lens === 'relations' && (
                 <>
                   <TeamsList teams={teams} activeId={teamId} onPick={setTeamId} />
@@ -706,6 +776,16 @@ function WorldContent() {
                     onClose={() => setSelectedAgentId(null)}
                     onGo={goToAgent}
                     onSpotlightTeam={setTeamId}
+                    manager={{
+                      view: {
+                        humanManager: openAgent.humanManager,
+                        manager: openAgent.managerAgentId ? { id: openAgent.managerAgentId, name: nameOfAgent.get(openAgent.managerAgentId.toLowerCase()) ?? 'an agent on another host' } : null,
+                        reports: agents.filter(a => a.managerAgentId?.toLowerCase() === openAgent.id.toLowerCase()).map(a => ({ id: a.id, name: nameOfAgent.get(a.id) ?? a.id.slice(0, 8) })),
+                        suggestion: (() => { const sg = suggestionOf(openAgent); return sg ? { ...sg, label: suggestionLabel(openAgent) ?? 'the suggestion' } : null })(),
+                        choices: agents.filter(a => a.id !== openAgent.id).map(a => ({ id: a.id, name: `${nameOfAgent.get(a.id) ?? a.id.slice(0, 8)} · ${a.hostName || a.hostId}` })).sort((x, y) => x.name.localeCompare(y.name)),
+                      },
+                      onSave: patch => saveManager(openAgent.id, patch),
+                    }}
                   />
                 )}
                 <ul className="divide-y divide-gray-800/60">

@@ -253,6 +253,12 @@ export interface Agent {
   // Ownership, Role & Team
   owner?: string                // Owner name or email
   role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'member' (default: 'member')
+  /**
+   * Who the agent reports to. A person (the name or email they go by) and/or another agent (its id, on any host).
+   * An agent should have at least one. Validated by lib/agent-manager.ts; `owner` is older, free text, and can name either.
+   */
+  humanManager?: string
+  managerAgentId?: string
   team?: string                 // Team name (e.g., "Backend Team", "23blocks")
 
   // Documentation
@@ -543,6 +549,8 @@ export interface CreateAgentRequest {
   hostId?: string               // Target host for agent creation (defaults to 'local')
   owner?: string
   role?: AgentRole              // Messaging role (default: 'member')
+  humanManager?: string         // A person this agent reports to (defaults to the owner)
+  managerAgentId?: string       // An agent this agent reports to
   team?: string
   documentation?: AgentDocumentation
   metadata?: Record<string, any>
@@ -568,6 +576,8 @@ export interface UpdateAgentRequest {
   tags?: string[]
   owner?: string
   role?: AgentRole              // Update messaging role
+  humanManager?: string | null  // null or '' clears it; an agent must keep at least one manager
+  managerAgentId?: string | null
   team?: string
   workingDirectory?: string     // Update default working directory
   documentation?: Partial<AgentDocumentation>

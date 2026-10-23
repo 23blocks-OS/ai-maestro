@@ -37,7 +37,7 @@ export interface CardLike {
   updatedAt?: string
 }
 
-export type TieKind = 'talk' | 'task'
+export type TieKind = 'talk' | 'task' | 'report'
 
 export interface AgentTie {
   /** Agent ids, a < b */
@@ -190,4 +190,14 @@ export function eventsBetween<T extends { ts: number }>(events: T[], from: numbe
 /** Deliveries in the span ending at `until` (the relations lens shows what happened lately) */
 export function eventsWithin<T extends { ts: number }>(events: T[], until: number, spanMs: number): T[] {
   return events.filter(e => e.ts <= until && e.ts > until - spanMs)
+}
+
+/** Reporting lines: one tie from each agent to its manager agent (a person as manager is not an agent, so it has no line) */
+export function reportTies(agents: Array<{ id: string; managerAgentId?: string }>, known: (id: string) => boolean): AgentTie[] {
+  const out = new Map<string, AgentTie>()
+  for (const a of agents) {
+    const m = a.managerAgentId?.toLowerCase()
+    if (m && known(m)) add(out, a.id, m, 'report')
+  }
+  return [...out.values()]
 }

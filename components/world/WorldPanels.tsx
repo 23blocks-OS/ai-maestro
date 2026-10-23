@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { Pause, Play, X } from 'lucide-react'
+import { Pause, Pencil, Play, X } from 'lucide-react'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import type { MeshCard } from '@/hooks/useOpenTasks'
 import type { WorldTeam } from '@/hooks/useWorldTeams'
@@ -43,7 +43,7 @@ function LinkButton({ href, label, title, tone = 'teal' }: { href: string; label
 }
 
 /** The agent you clicked: where it stands, what is on its plate, who it works with, and the ways to reach it */
-export function AgentPanel({ agent, name, presence, place, work, cards, partners, teams, today, onClose, onGo, onSpotlightTeam }: {
+export function AgentPanel({ agent, name, presence, place, work, cards, partners, teams, today, onClose, onGo, onSpotlightTeam, manager }: {
   agent: { id: string; hostName?: string; hostId: string; taskDescription?: string }
   name: string
   presence: AgentPresence
@@ -56,6 +56,8 @@ export function AgentPanel({ agent, name, presence, place, work, cards, partners
   onClose: () => void
   onGo: (id: string) => void
   onSpotlightTeam: (id: string) => void
+  /** Who it reports to, with a way to change it */
+  manager?: { view: ManagerView; onSave: (patch: { humanManager?: string | null; managerAgentId?: string | null }) => Promise<string | null> }
 }) {
   const id = encodeURIComponent(agent.id)
   const style = PRESENCE_STYLE[presence]
@@ -100,6 +102,8 @@ export function AgentPanel({ agent, name, presence, place, work, cards, partners
           </ul>
         </div>
       )}
+
+      {manager && <ManagerSection view={manager.view} onGo={onGo} onSave={manager.onSave} />}
 
       {partners.length > 0 && (
         <div>
@@ -316,6 +320,176 @@ export function ReplayBar({ replay, rangeH, count, loaded, onRange, onToggle, on
       <p className="mt-1 text-[11px] text-gray-500">
         {!loaded ? 'Reading the last day of messages…' : count === 0 ? 'No messages in this range.' : `${plural(count, 'message')} in the last ${rangeH} h, played back as pulses.`}
       </p>
+    </div>
+  )
+}
+
+export interface ManagerView {
+  humanManager?: string
+  manager: { id: string; name: string } | null
+  reports: Array<{ id: string; name: string }>
+  /** From the agent's owner; offered, never applied on its own */
+  suggestion: { humanManager?: string; managerAgentId?: string; label: string } | null
+  /** Every agent that could be its manager (not itself) */
+  choices: Array<{ id: string; name: string }>
+}
+
+/** Who this agent reports to, who reports to it, and a way to change it. An agent needs a person, an agent, or both. */
+export function ManagerSection({ view, onGo, onSave }: {
+  view: ManagerView
+  onGo: (id: string) => void
+  onSave: (patch: { humanManager?: string | null; managerAgentId?: string | null }) => Promise<string | null>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [human, setHuman] = useState('')
+  const [agentId, setAgentId] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const none = !view.humanManager && !view.manager
+
+  const open = () => { setHuman(view.humanManager ?? ''); setAgentId(view.manager?.id ?? ''); setError(null); setEditing(true) }
+  const save = async () => {
+    setBusy(true)
+    const err = await onSave({ humanManager: human.trim() || null, managerAgentId: agentId || null })
+    setBusy(false)
+    if (err) setError(err)
+    else setEditing(false)
+  }
+  const useSuggestion = async () => {
+    if (!view.suggestion) return
+    setBusy(true)
+    const err = await onSave({
+      ...(view.suggestion.humanManager ? { humanManager: view.suggestion.humanManager } : {}),
+      ...(view.suggestion.managerAgentId ? { managerAgentId: view.suggestion.managerAgentId } : {}),
+    })
+    setBusy(false)
+    if (err) setError(err)
+  }
+
+  return (
+    <div data-testid="manager-section">
+      <div className="mb-1 flex items-center gap-2">
+        <p className="flex-1 text-[11px] font-medium uppercase tracking-wide text-gray-500">Reports to</p>
+        {!editing && (
+          <button onClick={open} className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300" aria-label="Change who this agent reports to" title="Change who this agent reports to">
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="space-y-1.5">
+          <label className="block text-[11px] text-gray-500">Person (name or email)
+            <input value={human} onChange={e => setHuman(e.target.value)} maxLength={100} placeholder="no one"
+              className="mt-0.5 w-full rounded border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-100 focus:border-teal-600 focus:outline-none" />
+          </label>
+          <label className="block text-[11px] text-gray-500">Agent
+            <select value={agentId} onChange={e => setAgentId(e.target.value)}
+              className="mt-0.5 w-full rounded border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-100 focus:border-teal-600 focus:outline-none">
+              <option value="">no agent</option>
+              {view.choices.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <p className="text-[11px] text-gray-600">An agent needs a person, an agent, or both.</p>
+          {error && <p className="text-[11px] text-red-400" role="alert">{error}</p>}
+          <div className="flex gap-1.5">
+            <button onClick={save} disabled={busy} className="rounded bg-teal-600 px-2.5 py-1 text-xs text-white hover:bg-teal-700 disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => setEditing(false)} className="rounded bg-gray-800 px-2.5 py-1 text-xs text-gray-300 hover:bg-gray-700">Cancel</button>
+          </div>
+        </div>
+      ) : none ? (
+        <div className="space-y-1">
+          <p className="text-xs text-amber-400">No manager yet.</p>
+          {view.suggestion && (
+            <button onClick={useSuggestion} disabled={busy} className="rounded bg-gray-800 px-2 py-1 text-left text-xs text-gray-200 hover:bg-gray-700 disabled:opacity-50" title="Suggested from the agent's owner">
+              Use {view.suggestion.label}
+            </button>
+          )}
+          {error && <p className="text-[11px] text-red-400" role="alert">{error}</p>}
+        </div>
+      ) : (
+        <ul className="space-y-0.5 text-xs text-gray-300">
+          {view.humanManager && <li><span className="text-gray-500">Person · </span>{view.humanManager}</li>}
+          {view.manager && (
+            <li><span className="text-gray-500">Agent · </span>
+              <button onClick={() => onGo(view.manager!.id)} className="hover:text-teal-300" title="Go to this agent">{view.manager.name}</button>
+            </li>
+          )}
+        </ul>
+      )}
+      {view.reports.length > 0 && (
+        <p className="mt-1.5 text-xs text-gray-400">
+          <span className="text-gray-500">Manages {view.reports.length} · </span>
+          {view.reports.slice(0, 4).map((r, i) => (
+            <span key={r.id}>{i > 0 ? ', ' : ''}<button onClick={() => onGo(r.id)} className="hover:text-teal-300">{r.name}</button></span>
+          ))}
+          {view.reports.length > 4 ? ` and ${view.reports.length - 4} more` : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
+export interface ManagerRow { key: string; label: string; count: number; id?: string }
+export interface NoManagerRow { id: string; name: string; place: string; suggestion: string | null }
+
+/** The Reports lens in the side panel: who manages how many, and who has no manager yet */
+export function ManagersPanel({ agentManagers, humanManagers, noManager, total, onGo, onApplyAll, applying, note }: {
+  agentManagers: ManagerRow[]
+  humanManagers: ManagerRow[]
+  noManager: NoManagerRow[]
+  total: number
+  onGo: (id: string) => void
+  onApplyAll: () => void
+  applying: boolean
+  note: string | null
+}) {
+  const [all, setAll] = useState(false)
+  const suggested = noManager.filter(r => r.suggestion).length
+  const shown = all ? noManager : noManager.slice(0, 6)
+  return (
+    <div className="border-b border-gray-800 px-4 py-2.5" data-testid="managers-panel">
+      <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-gray-500">Who manages whom</p>
+      <p className="mb-1.5 text-[11px] text-gray-600"><span className="text-teal-400">━</span> a line from each agent to its manager agent</p>
+      {humanManagers.length > 0 && (
+        <ul className="mb-1.5 space-y-0.5">
+          {humanManagers.slice(0, 6).map(m => <li key={m.key} className="truncate text-xs text-gray-300">{m.label} <span className="text-gray-600">· person · {m.count} agent{m.count === 1 ? '' : 's'}</span></li>)}
+        </ul>
+      )}
+      {agentManagers.length > 0 ? (
+        <ul className="mb-1.5 space-y-0.5">
+          {agentManagers.slice(0, 8).map(m => (
+            <li key={m.key} className="truncate text-xs text-gray-300">
+              <button onClick={() => m.id && onGo(m.id)} className="hover:text-teal-300">{m.label}</button>
+              <span className="text-gray-600"> · agent · manages {m.count}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-1.5 text-xs text-gray-600">No agent manages another yet.</p>
+      )}
+      <p className={`mt-2 text-[11px] font-medium uppercase tracking-wide ${noManager.length > 0 ? 'text-amber-400' : 'text-gray-500'}`}>
+        No manager · {noManager.length} of {total}
+      </p>
+      {noManager.length > 0 && (
+        <>
+          <ul className="mt-1 space-y-0.5">
+            {shown.map(r => (
+              <li key={r.id} className="truncate text-xs text-gray-300">
+                <button onClick={() => onGo(r.id)} className="hover:text-teal-300" title={r.place}>{r.name}</button>
+                {r.suggestion && <span className="text-gray-600"> · suggest {r.suggestion}</span>}
+              </li>
+            ))}
+          </ul>
+          {noManager.length > 6 && <button onClick={() => setAll(!all)} className="mt-1 text-[11px] text-gray-500 hover:text-gray-300">{all ? 'Show fewer' : `Show all ${noManager.length}`}</button>}
+          {suggested > 0 && (
+            <button onClick={onApplyAll} disabled={applying} className="mt-2 block rounded bg-teal-600 px-2.5 py-1 text-xs text-white hover:bg-teal-700 disabled:opacity-50"
+              title="Sets each agent's manager to the one suggested from its owner">
+              {applying ? 'Applying…' : `Apply ${suggested} suggested`}
+            </button>
+          )}
+          {note && <p className="mt-1 text-[11px] text-gray-500">{note}</p>}
+        </>
+      )}
     </div>
   )
 }

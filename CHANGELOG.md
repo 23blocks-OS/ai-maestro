@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.100.0] - 2026-10-24 - Every agent has a manager: a person, an agent, or both (beta World view: Reports lens)
+
+An agent should always know who it reports to. Until now the model had placeholders (`role: manager`, `chiefOfStaffId`, a free-text `owner`) that nothing read or checked; `owner` held "juanpelaez" for 44 agents and "pas-lola" (an agent) for 9, so a person and an agent could not be told apart.
+
+### Added
+- **Two manager fields on every agent:** `humanManager` (a person, as a name or email; there is no user model by design) and `managerAgentId` (another agent's id, on any host). An agent needs at least one, and can have both. Set them on create (`POST /api/agents`) or change them with `PATCH /api/agents/<id>` (`null` or an empty string clears one).
+- **The rules** (`lib/agent-manager.ts`, tested): an agent cannot manage itself; `managerAgentId` must be an agent id; a person's name is 1 to 100 characters; a change that would make a loop of managers among the agents the host knows is refused; a change that would leave an agent with no manager at all is refused. An update that does not touch the manager never fails on these rules, so an agent created before them (no manager) can still be renamed or retagged.
+- **New agents start with a manager:** the one they are given, else their owner as a person.
+- **World, Reports lens.** A line from each agent to its manager agent (teal), at the overview, on an island and inside a room; a manager shows a "manages N" tag. The panel lists who manages how many (agents and people) and the **agents with no manager**, each with a suggestion drawn from its `owner` (an owner that names an agent suggests that agent; anything else suggests a person) and an **Apply N suggested** button. Nothing is applied on its own.
+- **On the agent card:** "Reports to" (the person and the agent, who it manages) with a pencil to change it, or "No manager yet" with the suggestion as a button. It saves to the agent's own host.
+
+### Not done
+- The `aimaestro-agent.sh` CLI does not set the manager yet (it ships through the plugin). `role: manager` and `chiefOfStaffId` are still unused placeholders. A person as a manager is not drawn in the world (there is no person figure yet), only listed.
+
+### Tests
+- The manager rules: patches, clearing, refusals, chains and loops, who reports to whom, and the suggestions.
+
 ## [0.99.1] - 2026-10-24 - World view: a crowded room folds its away agents into a lounge (beta)
 
 In our biggest building, 33 of 54 agents are offline, and they filled the room with people who were not doing anything. They now fold into one corner.

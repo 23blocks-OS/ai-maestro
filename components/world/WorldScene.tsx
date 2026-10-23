@@ -138,7 +138,7 @@ export interface WorldAway {
 }
 
 /** What the world is showing: the status of everyone, what is on their plate, or who works with whom */
-export type WorldLens = 'status' | 'work' | 'relations'
+export type WorldLens = 'status' | 'work' | 'relations' | 'reports'
 
 /** The ties to draw in the relations lens, at the level you are looking at */
 export interface WorldTies {
@@ -178,6 +178,8 @@ interface WorldSceneProps {
   ties?: WorldTies
   /** The away agents of the building you are in, folded into its lounge */
   away?: WorldAway
+  /** Reports lens: how many agents each manager agent has */
+  manages?: Map<string, number>
 }
 
 /** Half the width of the room inside a building: big enough for its agents, small enough to sit well inside the island */
@@ -275,7 +277,7 @@ function Building({ b, box, dim, islandSelected, onClick, asks, open }: {
 /** Inside a building: a room open to the front, its agents at desks, standing, waving or away */
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
 
-function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names, lens, work, away }: {
+function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names, lens, work, away, manages }: {
   building: WorldBuilding
   half: number
   figures: WorldFigure[]
@@ -286,6 +288,7 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
   lens: WorldLens
   work?: Map<string, WorkSummary>
   away?: WorldAway
+  manages?: Map<string, number>
 }) {
   const staged = useMemo(() => stageFigures(figures, half / 0.86).figures, [figures, half])
   const dimById = useMemo(() => new Set(figures.filter(f => f.dim).map(f => f.id)), [figures])
@@ -321,6 +324,8 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
         const w = work?.get(f.id)
         const say = w?.ask ? clip(w.ask.subject, 34) : f.presence === 'needs-you' ? 'needs you' : undefined
         const badge = lens === 'work' && w && w.open > 0 ? { text: `${w.open}${w.overdue > 0 ? ` · ${w.overdue} late` : ''}`, late: w.overdue > 0 } : undefined
+        const mg = lens === 'reports' ? manages?.get(f.id) : undefined
+        const badgeOrManager = mg ? { text: `manages ${mg}`, late: false } : badge
         return (
         <Character
           key={f.id}
@@ -335,7 +340,7 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
           onSelect={() => onSelectAgent?.(f.id)}
           dim={dimById.has(f.id)}
           say={say}
-          badge={badge}
+          badge={badgeOrManager}
         />
         )
       })}
@@ -343,7 +348,7 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
   )
 }
 
-function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names, lens, work, away }: {
+function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names, lens, work, away, manages }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
@@ -353,6 +358,7 @@ function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, 
   lens: WorldLens
   work?: Map<string, WorkSummary>
   away?: WorldAway
+  manages?: Map<string, number>
   figures: WorldFigure[]
   animate: boolean
   onSelect: () => void
@@ -408,6 +414,7 @@ function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, 
           lens={lens}
           work={work}
           away={away}
+          manages={manages}
         />
       )}
     </group>
@@ -485,7 +492,7 @@ function Pulse({ pulse, from, to }: { pulse: WorldPulse; from: [number, number];
   )
 }
 
-const TIE_HEX = { talk: '#fbbf24', task: '#38bdf8', both: '#c084fc' }
+const TIE_HEX = { talk: '#fbbf24', task: '#38bdf8', report: '#2dd4bf', both: '#c084fc' }
 const tieColor = (kinds: TieKind[]) => (kinds.length > 1 ? TIE_HEX.both : TIE_HEX[kinds[0]])
 
 interface ArcItem { key: string; from: [number, number, number]; to: [number, number, number]; color: string; weight: number; scale: number }
@@ -555,7 +562,7 @@ function Ties({ ties, groups, positions, selectedIndex, selectedBuildingKey, fig
   return <>{items.map(item => <Arc key={item.key} item={item} />)}</>
 }
 
-export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, dimmedBuildings, lens = 'status', work, ties, away, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, dimmedBuildings, lens = 'status', work, ties, away, manages, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
   // Where the camera goes: the whole island, or (inside a building) its room
@@ -597,6 +604,7 @@ export default function WorldScene({ groups, selectedKey, selectedBuildingKey = 
           lens={lens}
           work={work}
           away={g.key === selectedKey ? away : undefined}
+          manages={manages}
           figures={g.key === selectedKey ? figures : []}
           animate={animate}
           onSelect={() => onSelect(g.key)}
@@ -606,7 +614,7 @@ export default function WorldScene({ groups, selectedKey, selectedBuildingKey = 
           names={names}
         />
       ))}
-      {lens === 'relations' && ties && (
+      {(lens === 'relations' || lens === 'reports') && ties && (
         <Ties ties={ties} groups={groups} positions={positions} selectedIndex={selectedIndex} selectedBuildingKey={selectedBuildingKey} figures={figures} />
       )}
       {pulses.map(p => {

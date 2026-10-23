@@ -560,6 +560,9 @@ export function createAgent(request: CreateAgentRequest): Agent {
     tags: normalizeTags(request.tags),
     capabilities: [],
     owner: request.owner,
+    // Every agent starts with a manager: the one it was given, else its owner (a person, as `owner` is set at creation)
+    humanManager: request.humanManager?.trim() || (request.managerAgentId ? undefined : request.owner),
+    managerAgentId: request.managerAgentId?.trim().toLowerCase() || undefined,
     role: request.role || 'member',
     team: request.team,
     documentation: request.documentation,
@@ -655,7 +658,10 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
     // Map deprecated fields to new fields
     ...(newName && { name: newName }),
     ...(updates.label || updates.displayName ? { label: updates.label || updates.displayName } : {}),
-  }
+  } as Partial<Agent>
+  // null clears a manager field (undefined drops it from the JSON)
+  if (updates.humanManager === null) updateData.humanManager = undefined
+  if (updates.managerAgentId === null) updateData.managerAgentId = undefined
 
   // Remove deprecated fields from update
   delete (updateData as any).alias

@@ -26,7 +26,7 @@ import type { WorldAway, WorldFigure, WorldLens, WorldTies } from '@/components/
 
 // The status colours, as in the 3D map and PRESENCE_STYLE (lib/agent-presence.ts)
 const HEX: Record<AgentPresence, string> = { working: '#10b981', 'needs-you': '#f97316', ready: '#facc15', offline: '#6b7280' }
-const TIE_HEX = { talk: '#fbbf24', task: '#38bdf8', both: '#c084fc' }
+const TIE_HEX = { talk: '#fbbf24', task: '#38bdf8', report: '#2dd4bf', both: '#c084fc' }
 const tieColor = (kinds: TieKind[]) => (kinds.length > 1 ? TIE_HEX.both : TIE_HEX[kinds[0]])
 
 /** Half the width of a room, as in the 3D map */
@@ -235,10 +235,11 @@ interface RoomProps {
   work?: Map<string, WorkSummary>
   tieList: AgentTie[]
   away?: WorldAway
+  manages?: Map<string, number>
 }
 
 /** Inside a building: its floor, back wall, and people */
-function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, lens, work, tieList, away }: RoomProps) {
+function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, lens, work, tieList, away, manages }: RoomProps) {
   const { figures: staged, step } = useMemo(() => stageFigures(figures, half / 0.86), [figures, half])
   const s = spriteScale(step)
   const dimById = useMemo(() => new Set(figures.filter(f => f.dim).map(f => f.id)), [figures])
@@ -289,7 +290,7 @@ function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, 
         })}
       </g>
       {/* the top layer: ties, then bubbles and tags, drawn unscaled so they stay readable in a crowd */}
-      {lens === 'relations' && tieList.map(t => {
+      {(lens === 'relations' || lens === 'reports') && tieList.map(t => {
         const p = at.get(t.a), q = at.get(t.b)
         if (!p || !q) return null
         const [cx, cy] = bulge(p.x, p.z - 0.5 * s, q.x, q.z - 0.5 * s, 0.3)
@@ -300,12 +301,14 @@ function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, 
         const w = work?.get(f.id)
         const say = w?.ask ? clip(w.ask.subject, 30) : f.presence === 'needs-you' ? 'needs you' : null
         const badge = lens === 'work' && w && w.open > 0 ? `${w.open}${w.overdue > 0 ? ` · ${w.overdue} late` : ''}` : null
+        const mg = lens === 'reports' ? manages?.get(f.id) : undefined
         return (
           <g key={`t-${f.id}`}>
             {say && f.id !== selectedAgentId && (
               <g className="of-pop of-anim"><Pill x={f.x} y={f.z - 1.2 * s - 0.05} text={say} size={0.17} bg="rgba(194,65,12,0.95)" /></g>
             )}
             {badge && <Pill x={f.x + 0.38 * s} y={f.z - 0.3 * s} text={badge} size={0.13} bg={w && w.overdue > 0 ? 'rgba(153,27,27,0.95)' : 'rgba(30,64,175,0.95)'} />}
+            {mg ? <Pill x={f.x + 0.4 * s} y={f.z - 0.3 * s} text={`manages ${mg}`} size={0.13} bg="rgba(13,148,136,0.95)" /> : null}
             {f.id === selectedAgentId && names?.get(f.id) && <Pill x={f.x} y={f.z - 1.25 * s} text={names.get(f.id)!} size={0.2} bg="rgba(3,7,18,0.85)" fg="#e5e7eb" />}
           </g>
         )
@@ -399,11 +402,12 @@ export interface OfficeViewProps {
   work?: Map<string, WorkSummary>
   ties?: WorldTies
   away?: WorldAway
+  manages?: Map<string, number>
 }
 
 export default function OfficeView({
   groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, onBack,
-  selectedAgentId = null, onSelectAgent, names, pulses = [], dimmed, dimmedBuildings, lens = 'status', work, ties, away,
+  selectedAgentId = null, onSelectAgent, names, pulses = [], dimmed, dimmedBuildings, lens = 'status', work, ties, away, manages,
 }: OfficeViewProps) {
   const wrap = useRef<HTMLDivElement>(null)
   const size = useElementSize(wrap)
@@ -524,9 +528,10 @@ export default function OfficeView({
                   work={work}
                   tieList={ties?.agentTies ?? []}
                   away={away}
+                  manages={manages}
                 />
               )}
-              {isSel && !inside && lens === 'relations' && ties && ties.buildingArcs.map(a => {
+              {isSel && !inside && (lens === 'relations' || lens === 'reports') && ties && ties.buildingArcs.map(a => {
                 const sky = skylineOf(g)
                 const p = sky.find(s => g.buildings[s.index].key === a.from)
                 const q = sky.find(s => g.buildings[s.index].key === a.to)
@@ -536,7 +541,7 @@ export default function OfficeView({
             </g>
           )
         })}
-        {!selected && lens === 'relations' && ties?.islandArcs.map((a: GroupArc) => {
+        {!selected && (lens === 'relations' || lens === 'reports') && ties?.islandArcs.map((a: GroupArc) => {
           const p = centres.get(a.from), q = centres.get(a.to)
           if (!p || !q) return null
           return <Arc key={`${a.from}|${a.to}`} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} color={tieColor(a.kinds)} weight={a.weight} k={1} />

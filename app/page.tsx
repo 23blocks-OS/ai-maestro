@@ -202,6 +202,9 @@ export default function DashboardPage() {
 
     if (agentParam) {
       setActiveAgentId(decodeURIComponent(agentParam))
+      // ?tab=chat|terminal lands on that view (the World view's "Chat" and "Terminal" buttons)
+      const tabParam = params.get('tab')
+      if (tabParam === 'chat' || tabParam === 'terminal') setActiveTab(tabParam)
       window.history.replaceState({}, '', window.location.pathname)
       urlParamProcessedRef.current = true
     } else if (sessionParam) {

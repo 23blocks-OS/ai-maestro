@@ -32,6 +32,14 @@ const MAX_FILE = 2 * 1024 * 1024
 const MAX_EVENTS = 200
 /** Never look back further than this, however old `since` is: the pulses are about now */
 export const MAX_LOOKBACK_MS = 10 * 60 * 1000
+/** What `history` allows instead: a day of deliveries, for the relations lens and the replay */
+export const HISTORY_LOOKBACK_MS = 24 * 60 * 60 * 1000
+const HISTORY_MAX_EVENTS = 2000
+
+export interface WorldEventsRange {
+  /** Ask for up to a day back (and more events) instead of the last few minutes */
+  history?: boolean
+}
 
 const defaultRoot = () => path.join(os.homedir(), '.agent-messaging', 'agents')
 
@@ -40,8 +48,9 @@ async function readdirSafe(dir: string): Promise<string[]> {
 }
 
 /** Deliveries on THIS host after `since` (epoch ms), oldest first. `root` is for tests. */
-export async function listLocalWorldEvents(since: number, hostId: string, root = defaultRoot()): Promise<WorldEvent[]> {
-  const floor = Math.max(since, Date.now() - MAX_LOOKBACK_MS)
+export async function listLocalWorldEvents(since: number, hostId: string, root = defaultRoot(), range: WorldEventsRange = {}): Promise<WorldEvent[]> {
+  const floor = Math.max(since, Date.now() - (range.history ? HISTORY_LOOKBACK_MS : MAX_LOOKBACK_MS))
+  const cap = range.history ? HISTORY_MAX_EVENTS : MAX_EVENTS
   const agents = (await readdirSafe(root)).filter(n => UUID.test(n))
   const perAgent = await Promise.all(agents.map(async (agentId): Promise<WorldEvent[]> => {
     const inbox = path.join(root, agentId, 'messages', 'inbox')
@@ -66,7 +75,7 @@ export async function listLocalWorldEvents(since: number, hostId: string, root =
     }
     return out
   }))
-  return perAgent.flat().sort((a, b) => a.ts - b.ts).slice(-MAX_EVENTS)
+  return perAgent.flat().sort((a, b) => a.ts - b.ts).slice(-cap)
 }
 
 export interface WorldEventsParams {
@@ -75,18 +84,23 @@ export interface WorldEventsParams {
   localOnly: boolean
   selfHostId: string
   timeoutMs?: number
+  /** Up to a day of deliveries (a peer that predates this answers with the last few minutes) */
+  history?: boolean
 }
 
 /** This host's deliveries, plus every other enabled host's unless `localOnly` */
 export async function getWorldEvents(params: WorldEventsParams): Promise<ServiceResult<{ events: WorldEvent[]; now: number; hosts: number }>> {
-  const { since, localOnly, selfHostId, timeoutMs = 2000 } = params
-  const batches: WorldEvent[][] = [await listLocalWorldEvents(since, selfHostId)]
+  const { since, localOnly, selfHostId, history = false } = params
+  // A day of files takes longer to read than a few minutes of them
+  const timeoutMs = params.timeoutMs ?? (history ? 6000 : 2000)
+  const cap = history ? HISTORY_MAX_EVENTS : MAX_EVENTS
+  const batches: WorldEvent[][] = [await listLocalWorldEvents(since, selfHostId, defaultRoot(), { history })]
   let hosts = 1
   if (!localOnly) {
     const peers = getHosts().filter(h => !isSelf(h.id) && h.enabled !== false)
     const answers = await Promise.all(peers.map(async host => {
       try {
-        const res = await fetch(`${host.url}/api/world/events?since=${since}&local=1`, {
+        const res = await fetch(`${host.url}/api/world/events?since=${since}&local=1${history ? '&history=1' : ''}`, {
           signal: AbortSignal.timeout(timeoutMs), headers: { Accept: 'application/json' },
         })
         if (!res.ok) return null
@@ -97,6 +111,6 @@ export async function getWorldEvents(params: WorldEventsParams): Promise<Service
     for (const a of answers) if (a) { batches.push(a); hosts++ }
   }
   const seen = new Set<string>()
-  const events = batches.flat().filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true))).sort((a, b) => a.ts - b.ts).slice(-MAX_EVENTS)
+  const events = batches.flat().filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true))).sort((a, b) => a.ts - b.ts).slice(-cap)
   return { data: { events, now: Date.now(), hosts }, status: 200 }
 }

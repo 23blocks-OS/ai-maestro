@@ -54,3 +54,18 @@ describe('listLocalWorldEvents', () => {
     expect(await listLocalWorldEvents(0, 'h1', path.join(root, 'nope'))).toEqual([])
   })
 })
+
+describe('listLocalWorldEvents history', () => {
+  it('reaches back a day only when asked, and keeps the short window otherwise', async () => {
+    const now = Date.now()
+    put(A, 'old_x', 'msg_hours', now - 5 * 3_600_000)
+    put(A, 'new_x', 'msg_new', now - 1000)
+    expect((await listLocalWorldEvents(0, 'h1', root)).map(e => e.id)).toEqual(['msg_new'])
+    expect((await listLocalWorldEvents(0, 'h1', root, { history: true })).map(e => e.id)).toEqual(['msg_hours', 'msg_new'])
+  })
+
+  it('still stops at a day', async () => {
+    put(A, 'old_x', 'msg_ancient', Date.now() - 30 * 3_600_000)
+    expect(await listLocalWorldEvents(0, 'h1', root, { history: true })).toEqual([])
+  })
+})

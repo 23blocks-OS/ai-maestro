@@ -645,6 +645,7 @@ const routes: Route[] = [
     sendServiceResult(res, await getWorldEvents({
       since: Number.isFinite(since) && since > 0 ? since : Date.now() - 30_000,
       localOnly: query.local === '1',
+      history: query.history === '1',
       selfHostId: getSelfHostId(),
     }))
   }},

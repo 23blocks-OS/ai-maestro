@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.98.1] - 2026-10-23 - Website: a blog, and the first post on human and agent interaction
+
+Docs only; nothing to deploy to the hosts.
+
+### Added
+- **A blog section on the website** (`docs/blog/`, at `/blog/`): an index and the first post, [Where should you look? What building a world for AI agents taught us](https://ai-maestro.23blocks.com/blog/human-agent-interaction.html). It covers what ten agent-office projects do, the World view's design and the mistakes made along the way (offline agents lying down, the island-to-building-to-room hierarchy, org versus machine), what the research says about persistent virtual offices, a week of VR work, GitHub's streak counter, reward-contingent incentives and agent societies, why we are not adding points, how we will know if the World view works (four questions written so they can come out against us), and what a shared human and agent workplace would need. Its sources say how sure we are of each.
+- The [Experiments](https://ai-maestro.23blocks.com/experiments.html) page links to the post; the site footer, `sitemap.xml` and `ai-index.html` list the blog.
+
 ## [0.98.0] - 2026-10-23 - World view: work, relations, a replay, and a way into every agent (beta)
 
 The World view now answers more than "who is up": it shows what is on every agent's plate, who works with whom, and what is waiting on you, and every agent is one click from its chat, its terminal, a voice talk, or its team's meeting. Designed from a read of ten agent-office projects and the evidence on virtual workplaces and gamification (see docs/WORLD-VIEW.md).

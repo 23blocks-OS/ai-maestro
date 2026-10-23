@@ -15,16 +15,7 @@ import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, LinearFilter, type Group } from 'three'
 import type { Pose } from '@/lib/world/stage'
 import Label from '@/components/world/Label'
-
-const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#d9a066']
-const HAIR = ['#1f1a17', '#3b2f2f', '#6b4423', '#a0522d', '#d2b48c', '#444444']
-
-/** A small stable number from an id, so an agent keeps its look and its animation phase */
-function hash(id: string): number {
-  let h = 2166136261
-  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619) }
-  return h >>> 0
-}
+import { lookOf } from '@/lib/world/look'
 
 let zzTexture: CanvasTexture | null = null
 /** One small "zz" texture shared by every resting agent (a texture each would be hundreds of canvases) */
@@ -76,10 +67,7 @@ interface CharacterProps {
 }
 
 export default function Character({ id, pose, color, position, desk, animate, selected = false, name, onSelect, dim = false, say, badge }: CharacterProps) {
-  const h = useMemo(() => hash(id), [id])
-  const skin = SKIN[h % SKIN.length]
-  const hair = HAIR[(h >> 3) % HAIR.length]
-  const phase = (h % 628) / 100
+  const { skin, hair, phase } = useMemo(() => lookOf(id), [id])
 
   const root = useRef<Group>(null)
   const armL = useRef<Group>(null)

@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.95.2] - 2026-10-22 - World view: click an agent, open its card, and a minimap (beta)
+
+### Added
+- **Click an agent** in the 3D scene (or in the list): it gets a ring and its name floats over it, and a **card** opens at the top of the panel with its status, org, host, task description and three buttons that open it where you can work with it: **Open** (the dashboard, with its terminal, chat and tasks), **Zoom** (full screen with its terminal) and **Companion**. Clicking an agent no longer navigates away; a drag that ends over an agent is an orbit, not a click.
+- **Minimap** in the corner of the map: every island as a disc sized like the island, orange when someone there needs you, grey when its hosts are down, outlined when selected. Click a disc to fly there. Plain SVG over the canvas (no cost to the 3D scene); shown when there are two or more islands.
+
+### Changed
+- The island name label is its own small component (`components/world/Label.tsx`), reused for the selected agent's name.
+
 ## [0.95.1] - 2026-10-22 - World view: live message pulses and a feed of who is talking to whom (beta)
 
 On the World view (beta), every AMP message delivered now shows as a **gold orb arcing from the sender's island to the recipient's** (rising over the island when it stays inside one), and the island list gets a **Live messages** block: "pas-lola → Natalia · 4s ago".

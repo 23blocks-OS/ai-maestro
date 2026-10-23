@@ -10,13 +10,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { CanvasTexture, LinearFilter, type Group } from 'three'
+import type { Group } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldGroup } from '@/lib/world/grouping'
 import { islandRadius, layoutIslands } from '@/lib/world/layout'
 import { stageFigures } from '@/lib/world/stage'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Character from '@/components/world/Character'
+import Label from '@/components/world/Label'
 import type { AgentPresence } from '@/lib/agent-presence'
 
 /**
@@ -115,36 +116,6 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-/** A name floating over an island, drawn once into a texture (no font or text dependency) */
-function IslandLabel({ text, y, dim }: { text: string; y: number; dim: boolean }) {
-  const { texture, aspect } = useMemo(() => {
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')!
-    const font = '600 44px system-ui, -apple-system, sans-serif'
-    ctx.font = font
-    const w = Math.ceil(ctx.measureText(text).width) + 40
-    canvas.width = w
-    canvas.height = 80
-    ctx.font = font
-    ctx.fillStyle = 'rgba(3, 7, 18, 0.72)'
-    ctx.beginPath()
-    ctx.roundRect(0, 8, w, 64, 32)
-    ctx.fill()
-    ctx.fillStyle = '#e5e7eb'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(text, 20, 41)
-    const t = new CanvasTexture(canvas)
-    t.minFilter = LinearFilter
-    return { texture: t, aspect: w / 80 }
-  }, [text])
-  useEffect(() => () => texture.dispose(), [texture])
-  return (
-    <sprite position={[0, y, 0]} scale={[1.1 * aspect, 1.1, 1]}>
-      <spriteMaterial map={texture} transparent depthTest={false} opacity={dim ? 0.35 : 1} />
-    </sprite>
-  )
-}
-
 // Mirrors PRESENCE_STYLE (lib/agent-presence.ts) as hex for the canvas
 const PRESENCE_HEX: Record<AgentPresence, string> = {
   working: '#10b981',
@@ -164,13 +135,18 @@ interface WorldSceneProps {
   onSelect: (key: string) => void
   /** Agents of the selected group, drawn as figures on its island */
   figures: WorldFigure[]
+  /** The agent whose card is open (ringed and named), and how to open one */
+  selectedAgentId?: string | null
+  onSelectAgent?: (id: string) => void
+  /** Names to show over the selected agent */
+  names?: Map<string, string>
   /** Messages in flight: a gold orb arcs from the sender's island to the recipient's */
   pulses?: WorldPulse[]
   /** Islands drawn dim: every island but the selected one, or those with no agent matching the search or filter */
   dimmed?: Set<string>
 }
 
-function Island({ group, position, selected, dim, figures, animate, onSelect }: {
+function Island({ group, position, selected, dim, figures, animate, onSelect, selectedAgentId, onSelectAgent, names }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
@@ -178,6 +154,9 @@ function Island({ group, position, selected, dim, figures, animate, onSelect }: 
   figures: WorldFigure[]
   animate: boolean
   onSelect: () => void
+  selectedAgentId: string | null
+  onSelectAgent?: (id: string) => void
+  names?: Map<string, string>
 }) {
   const [x, z] = position
   const count = group.counts.total
@@ -211,7 +190,7 @@ function Island({ group, position, selected, dim, figures, animate, onSelect }: 
           </mesh>
         )
       })}
-      <IslandLabel text={group.label} y={Math.max(3.9, radius * 0.5 + 3)} dim={dim} />
+      <Label text={group.label} y={Math.max(3.9, radius * 0.5 + 3)} dim={dim} />
       {/* Needs-you beacon over the island */}
       {group.counts.needsYou > 0 && (
         <mesh position={[0, 3.2, 0]}>
@@ -229,6 +208,9 @@ function Island({ group, position, selected, dim, figures, animate, onSelect }: 
           position={[f.x, f.z]}
           desk={f.desk}
           animate={animate}
+          selected={f.id === selectedAgentId}
+          name={names?.get(f.id)}
+          onSelect={() => onSelectAgent?.(f.id)}
         />
       ))}
     </group>
@@ -263,7 +245,7 @@ function Pulse({ pulse, from, to }: { pulse: WorldPulse; from: [number, number];
   )
 }
 
-export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed, pulses = [] }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, onSelect, figures, dimmed, pulses = [], selectedAgentId = null, onSelectAgent, names }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
   const focus = useMemo(
@@ -291,6 +273,9 @@ export default function WorldScene({ groups, selectedKey, onSelect, figures, dim
           figures={g.key === selectedKey ? figures : []}
           animate={animate}
           onSelect={() => onSelect(g.key)}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={onSelectAgent}
+          names={names}
         />
       ))}
       {pulses.map(p => {

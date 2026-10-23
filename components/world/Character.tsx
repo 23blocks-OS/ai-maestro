@@ -13,6 +13,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { Pose } from '@/lib/world/stage'
+import Label from '@/components/world/Label'
 
 const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#d9a066']
 const HAIR = ['#1f1a17', '#3b2f2f', '#6b4423', '#a0522d', '#d2b48c', '#444444']
@@ -32,9 +33,13 @@ interface CharacterProps {
   position: [number, number]
   desk: boolean
   animate: boolean
+  /** The agent whose card is open: ringed and named */
+  selected?: boolean
+  name?: string
+  onSelect?: () => void
 }
 
-export default function Character({ id, pose, color, position, desk, animate }: CharacterProps) {
+export default function Character({ id, pose, color, position, desk, animate, selected = false, name, onSelect }: CharacterProps) {
   const h = useMemo(() => hash(id), [id])
   const skin = SKIN[h % SKIN.length]
   const hair = HAIR[(h >> 3) % HAIR.length]
@@ -74,7 +79,19 @@ export default function Character({ id, pose, color, position, desk, animate }: 
   })
 
   return (
-    <group position={[position[0], 0, position[1]]}>
+    <group
+      position={[position[0], 0, position[1]]}
+      onClick={e => { e.stopPropagation(); if (e.delta > 4) return; onSelect?.() }}
+      onPointerOver={e => { e.stopPropagation(); document.body.style.cursor = 'pointer' }}
+      onPointerOut={() => { document.body.style.cursor = '' }}
+    >
+      {selected && (
+        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.3, 0.38, 24]} />
+          <meshBasicMaterial color="#5eead4" />
+        </mesh>
+      )}
+      {selected && name && <Label text={name} y={1.75} scale={0.42} />}
       {desk && (
         <group position={[0, 0, 0.36]}>
           <mesh position={[0, 0.36, 0]}>

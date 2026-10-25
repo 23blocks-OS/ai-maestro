@@ -14,7 +14,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { WorldBuilding, WorldGroup } from '@/lib/world/grouping'
 import { buildingSize, islandRadius, layoutIslands, layoutSkyline } from '@/lib/world/layout'
-import { stageFigures } from '@/lib/world/stage'
+import { stageRoom } from '@/lib/world/rooms'
+import type { Zone } from '@/lib/world/zones'
 import type { Pose } from '@/lib/world/stage'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import { lookOf } from '@/lib/world/look'
@@ -236,11 +237,12 @@ interface RoomProps {
   tieList: AgentTie[]
   away?: WorldAway
   manages?: Map<string, number>
+  zones?: Zone[]
 }
 
 /** Inside a building: its floor, back wall, and people */
-function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, lens, work, tieList, away, manages }: RoomProps) {
-  const { figures: staged, step } = useMemo(() => stageFigures(figures, half / 0.86), [figures, half])
+function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, lens, work, tieList, away, manages, zones }: RoomProps) {
+  const { figures: staged, step, zones: zoneRects } = useMemo(() => stageRoom(figures, half, zones), [figures, half, zones])
   const s = spriteScale(step)
   const dimById = useMemo(() => new Set(figures.filter(f => f.dim).map(f => f.id)), [figures])
   const ordered = useMemo(() => [...staged].sort((a, b) => a.z - b.z), [staged])
@@ -251,9 +253,16 @@ function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, 
       <rect x={-half - 0.1} y={-half - 1.0} width={half * 2 + 0.2} height={1.1} rx={0.2} fill="#134e4a" />
       <rect x={-half} y={-half} width={half * 2} height={half * 2} rx={0.15} fill="#0f2f2e" stroke="#134e4a" strokeWidth={0.1} />
       <text x={0} y={-half - 0.55} fontSize={0.34} textAnchor="middle" fill="#99f6e4" fontFamily="system-ui, sans-serif" fontWeight={600}>{building.label} · {building.counts.total}</text>
+      {/* rooms inside the room: a patch of floor and a name for each */}
+      {zoneRects.map((z, i) => (
+        <g key={z.key} pointerEvents="none">
+          <rect x={z.x} y={z.z} width={z.w} height={z.d} rx={0.12} fill={i % 2 === 0 ? '#14504d' : '#10403f'} stroke="#1f6f68" strokeWidth={0.03} strokeDasharray="0.12 0.08" opacity={0.9} />
+          <text x={z.x + 0.14} y={z.z + 0.36} fontSize={0.22} fill="#99f6e4" fontFamily="system-ui, sans-serif" fontWeight={600}>{clip(z.label, Math.max(6, Math.floor(z.w / 0.14)))} · {z.count}</text>
+        </g>
+      ))}
       {away && (
         <g
-          transform={`translate(${half - 1.25} ${half - 0.62})`}
+          transform={`translate(${half - 1.25} ${half + 0.5})`}
           className="of-btn"
           role="button"
           tabIndex={0}
@@ -261,7 +270,7 @@ function Room({ building, half, figures, selectedAgentId, onSelectAgent, names, 
           onClick={e => { e.stopPropagation(); away.onToggle() }}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); away.onToggle() } }}
         >
-          {/* a couch in the corner, with a plate to show or hide who is away */}
+          {/* a couch just below the room (not in it, where rooms inside the room stand), with a plate to show or hide who is away */}
           <rect className="of-focus" x={-1.1} y={-0.3} width={2.2} height={0.62} rx={0.16} fill="#374151" stroke="#4b5563" strokeWidth={0.04} />
           <rect x={-1.1} y={-0.3} width={2.2} height={0.2} rx={0.1} fill="#4b5563" />
           <text x={0} y={0.2} fontSize={0.18} textAnchor="middle" fill="#e5e7eb" fontFamily="system-ui, sans-serif" fontWeight={600}>{`Away · ${away.count} · ${away.expanded ? 'hide' : 'show'}`}</text>
@@ -403,11 +412,12 @@ export interface OfficeViewProps {
   ties?: WorldTies
   away?: WorldAway
   manages?: Map<string, number>
+  zones?: Zone[]
 }
 
 export default function OfficeView({
   groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, onBack,
-  selectedAgentId = null, onSelectAgent, names, pulses = [], dimmed, dimmedBuildings, lens = 'status', work, ties, away, manages,
+  selectedAgentId = null, onSelectAgent, names, pulses = [], dimmed, dimmedBuildings, lens = 'status', work, ties, away, manages, zones,
 }: OfficeViewProps) {
   const wrap = useRef<HTMLDivElement>(null)
   const size = useElementSize(wrap)
@@ -529,6 +539,7 @@ export default function OfficeView({
                   tieList={ties?.agentTies ?? []}
                   away={away}
                   manages={manages}
+                  zones={zones}
                 />
               )}
               {isSel && !inside && (lens === 'relations' || lens === 'reports') && ties && ties.buildingArcs.map(a => {

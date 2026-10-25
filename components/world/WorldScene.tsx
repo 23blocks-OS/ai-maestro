@@ -17,7 +17,8 @@ import { QuadraticBezierCurve3, TubeGeometry, Vector3, type Group } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { WorldBuilding, WorldGroup } from '@/lib/world/grouping'
 import { buildingSize, islandRadius, layoutIslands, layoutSkyline } from '@/lib/world/layout'
-import { stageFigures } from '@/lib/world/stage'
+import { stageRoom } from '@/lib/world/rooms'
+import type { Zone } from '@/lib/world/zones'
 import type { AgentTie, GroupArc, TieKind, WorkSummary } from '@/lib/world/relations'
 import { PULSE_MS, type WorldPulse } from '@/lib/world/pulse'
 import Character from '@/components/world/Character'
@@ -180,6 +181,8 @@ interface WorldSceneProps {
   away?: WorldAway
   /** Reports lens: how many agents each manager agent has */
   manages?: Map<string, number>
+  /** Rooms inside the building you are in (by folder, role or team); none = one crowd */
+  zones?: Zone[]
 }
 
 /** Half the width of the room inside a building: big enough for its agents, small enough to sit well inside the island */
@@ -277,7 +280,7 @@ function Building({ b, box, dim, islandSelected, onClick, asks, open }: {
 /** Inside a building: a room open to the front, its agents at desks, standing, waving or away */
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
 
-function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names, lens, work, away, manages }: {
+function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent, names, lens, work, away, manages, zones }: {
   building: WorldBuilding
   half: number
   figures: WorldFigure[]
@@ -289,8 +292,10 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
   work?: Map<string, WorkSummary>
   away?: WorldAway
   manages?: Map<string, number>
+  zones?: Zone[]
 }) {
-  const staged = useMemo(() => stageFigures(figures, half / 0.86).figures, [figures, half])
+  const room = useMemo(() => stageRoom(figures, half, zones), [figures, half, zones])
+  const staged = room.figures
   const dimById = useMemo(() => new Set(figures.filter(f => f.dim).map(f => f.id)), [figures])
   const wall = '#134e4a'
   return (
@@ -312,9 +317,19 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
         <meshStandardMaterial color={wall} />
       </mesh>
       <Label text={`${building.label} · ${building.counts.total}`} y={2.3} scale={0.55} position={[0, 0, -half + 0.2]} />
+      {/* rooms inside the room: a floor patch and a name for each */}
+      {room.zones.map((z, i) => (
+        <group key={z.key}>
+          <mesh position={[z.x + z.w / 2, 0.075, z.z + z.d / 2]}>
+            <boxGeometry args={[z.w, 0.02, z.d]} />
+            <meshStandardMaterial color={i % 2 === 0 ? '#14504d' : '#10403f'} />
+          </mesh>
+          <Label text={`${z.label} · ${z.count}`} y={0.55} scale={0.3} maxWidth={Math.max(0.8, z.w - 0.2)} position={[z.x + z.w / 2, 0, z.z + 0.32]} />
+        </group>
+      ))}
       {away && (
-        <group position={[half - 1.0, 0, half - 0.7]}>
-          {/* a couch in the corner, and a plate you can press to show or hide who is away */}
+        <group position={[half - 1.0, 0, half + 0.6]}>
+          {/* a couch just outside the front of the room (not in it, where rooms inside the room stand), and a plate to show or hide who is away */}
           <mesh position={[0, 0.18, 0]}><boxGeometry args={[1.3, 0.36, 0.55]} /><meshStandardMaterial color="#374151" /></mesh>
           <mesh position={[0, 0.5, 0.2]}><boxGeometry args={[1.3, 0.34, 0.14]} /><meshStandardMaterial color="#4b5563" /></mesh>
           <Label text={away.expanded ? `Away · ${away.count} · hide` : `Away · ${away.count} · show`} y={1.2} scale={0.36} onClick={away.onToggle} />
@@ -348,7 +363,7 @@ function Room({ building, half, figures, animate, selectedAgentId, onSelectAgent
   )
 }
 
-function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names, lens, work, away, manages }: {
+function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, figures, animate, onSelect, onSelectBuilding, selectedAgentId, onSelectAgent, names, lens, work, away, manages, zones }: {
   group: WorldGroup
   position: [number, number]
   selected: boolean
@@ -359,6 +374,7 @@ function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, 
   work?: Map<string, WorkSummary>
   away?: WorldAway
   manages?: Map<string, number>
+  zones?: Zone[]
   figures: WorldFigure[]
   animate: boolean
   onSelect: () => void
@@ -415,6 +431,7 @@ function Island({ group, position, selected, buildingKey, dim, dimmedBuildings, 
           work={work}
           away={away}
           manages={manages}
+          zones={zones}
         />
       )}
     </group>
@@ -520,13 +537,14 @@ function Arc({ item }: { item: ArcItem }) {
  * island joins its buildings, and inside a building the people who message each other or share cards
  * are joined. Amber = messages, blue = cards, violet = both.
  */
-function Ties({ ties, groups, positions, selectedIndex, selectedBuildingKey, figures }: {
+function Ties({ ties, groups, positions, selectedIndex, selectedBuildingKey, figures, zones }: {
   ties: WorldTies
   groups: WorldGroup[]
   positions: Array<[number, number]>
   selectedIndex: number
   selectedBuildingKey: string | null
   figures: WorldFigure[]
+  zones?: Zone[]
 }) {
   const items = useMemo(() => {
     const out: ArcItem[] = []
@@ -552,17 +570,17 @@ function Ties({ ties, groups, positions, selectedIndex, selectedBuildingKey, fig
     }
     const b = g.buildings.find(x => x.key === selectedBuildingKey)
     if (!b) return out
-    const spot = new Map(stageFigures(figures, roomHalf(b.agents.length, radius) / 0.86).figures.map(f => [f.id, f]))
+    const spot = new Map(stageRoom(figures, roomHalf(b.agents.length, radius), zones).figures.map(f => [f.id, f]))
     for (const t of ties.agentTies) {
       const p = spot.get(t.a), q = spot.get(t.b)
       if (p && q) out.push({ key: `${t.a}|${t.b}|${t.kind}`, from: [px + p.x, 1, pz + p.z], to: [px + q.x, 1, pz + q.z], color: TIE_HEX[t.kind], weight: t.weight, scale: 0.3 })
     }
     return out
-  }, [ties, groups, positions, selectedIndex, selectedBuildingKey, figures])
+  }, [ties, groups, positions, selectedIndex, selectedBuildingKey, figures, zones])
   return <>{items.map(item => <Arc key={item.key} item={item} />)}</>
 }
 
-export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, dimmedBuildings, lens = 'status', work, ties, away, manages, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
+export default function WorldScene({ groups, selectedKey, selectedBuildingKey = null, onSelect, onSelectBuilding, figures, dimmed, dimmedBuildings, lens = 'status', work, ties, away, manages, zones, pulses = [], selectedAgentId = null, onSelectAgent, names, onBack }: WorldSceneProps) {
   const { positions, extent } = useMemo(() => layoutIslands(groups), [groups])
   const selectedIndex = groups.findIndex(g => g.key === selectedKey)
   // Where the camera goes: the whole island, or (inside a building) its room
@@ -605,6 +623,7 @@ export default function WorldScene({ groups, selectedKey, selectedBuildingKey = 
           work={work}
           away={g.key === selectedKey ? away : undefined}
           manages={manages}
+          zones={g.key === selectedKey ? zones : undefined}
           figures={g.key === selectedKey ? figures : []}
           animate={animate}
           onSelect={() => onSelect(g.key)}
@@ -615,7 +634,7 @@ export default function WorldScene({ groups, selectedKey, selectedBuildingKey = 
         />
       ))}
       {(lens === 'relations' || lens === 'reports') && ties && (
-        <Ties ties={ties} groups={groups} positions={positions} selectedIndex={selectedIndex} selectedBuildingKey={selectedBuildingKey} figures={figures} />
+        <Ties ties={ties} groups={groups} positions={positions} selectedIndex={selectedIndex} selectedBuildingKey={selectedBuildingKey} figures={figures} zones={zones} />
       )}
       {pulses.map(p => {
         const a = indexByKey.get(p.from)

@@ -9,12 +9,13 @@
  * Covers:
  *   GET    /api/agents/directory                   -> getDirectory
  *   GET    /api/agents/directory/lookup/[name]      -> lookupAgentByDirectoryName
+ *   GET    /api/agents/resolve?q=                   -> resolveAgentReference
  *   POST   /api/agents/directory/sync               -> syncDirectory
  *   GET    /api/agents/normalize-hosts              -> diagnoseHosts
  *   POST   /api/agents/normalize-hosts              -> normalizeHosts
  */
 
-import { type ServiceResult, operationFailed } from '@/services/service-errors'
+import { type ServiceResult, operationFailed, missingField } from '@/services/service-errors'
 import {
   rebuildLocalDirectory,
   getLocalEntriesForSync,
@@ -22,7 +23,9 @@ import {
   lookupAgent,
   syncWithPeers,
 } from '@/lib/agent-directory'
+import { resolveAgentRef } from '@/lib/agent-resolve'
 import {
+  loadAgents,
   diagnoseHostIds,
   normalizeAllAgentHostIds,
 } from '@/lib/agent-registry'
@@ -47,6 +50,32 @@ export function getDirectory(): ServiceResult<any> {
 // GET /api/agents/directory/lookup/[name]
 // ---------------------------------------------------------------------------
 
+function dirAgent(entry: NonNullable<ReturnType<typeof lookupAgent>>) {
+  return {
+    name: entry.name,
+    hostId: entry.hostId,
+    hostUrl: entry.hostUrl,
+    ampAddress: entry.ampAddress,
+    ampRegistered: entry.ampRegistered,
+    source: entry.source,
+    lastSeen: entry.lastSeen,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/agents/resolve?q=
+// ---------------------------------------------------------------------------
+
+export function resolveAgentReference(q: string): ServiceResult<any> {
+  try {
+    if (!q || !q.trim()) return missingField('q')
+    return { data: resolveAgentRef(q, loadAgents()), status: 200 }
+  } catch (error) {
+    console.error('[Agent Directory Service] resolveAgentReference error:', error)
+    return operationFailed('resolve agent', error instanceof Error ? error.message : 'Internal server error')
+  }
+}
+
 export function lookupAgentByDirectoryName(name: string): ServiceResult<any> {
   try {
     const decodedName = decodeURIComponent(name).toLowerCase()
@@ -54,21 +83,20 @@ export function lookupAgentByDirectoryName(name: string): ServiceResult<any> {
     const entry = lookupAgent(decodedName)
 
     if (!entry) {
-      return { data: { found: false }, status: 200 }
+      // Not an address. People say the label ("Titania") or alias ("IaC"); resolve those to the real name.
+      const r = resolveAgentRef(decodedName, loadAgents())
+      if (r.status === 'found') {
+        const byName = lookupAgent(r.agent.name.toLowerCase())
+        if (byName) return { data: { found: true, matchedBy: r.via, agent: dirAgent(byName) }, status: 200 }
+      }
+      if (r.status === 'ambiguous') return { data: { found: false, ambiguous: true, matchedBy: r.via, candidates: r.candidates }, status: 200 }
+      return { data: { found: false, suggestions: r.status === 'none' ? r.suggestions : [] }, status: 200 }
     }
 
     return {
       data: {
         found: true,
-        agent: {
-          name: entry.name,
-          hostId: entry.hostId,
-          hostUrl: entry.hostUrl,
-          ampAddress: entry.ampAddress,
-          ampRegistered: entry.ampRegistered,
-          source: entry.source,
-          lastSeen: entry.lastSeen,
-        },
+        agent: dirAgent(entry),
       },
       status: 200,
     }

@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.103.0] - 2026-10-26 - Chat: a multi-line message to a Claude Code agent is no longer delivered twice
+
+Reported by a user in #663. A multi-line or large message was submitted, but Claude Code showed it as `[Pasted text #1 +N lines]` (or the echo scrolled out of the visible pane), so the whole message never matched. It counted as neither submitted nor staged, and the retry sent it again.
+
+### Fixed
+- **No resend when the input box is empty.** After a delivery that is neither echoed nor staged, an empty input box means the Enter went through. The retry now happens only on positive evidence that the text is still staged. A dialog holding the keyboard (`❯ 1. Yes`) or a pane with no prompt line is not treated as an empty box.
+- **The first line is accepted as proof.** If the first line (at least 12 characters) appears above the input box, the message counts as submitted.
+- Result carries `inferred: true` when submission was concluded from the empty box.
+
+### Not verified
+- Not reproduced against a live Claude Code agent here; covered by tests on pane fixtures only. #663 asks for a report if it still happens.
+
 ## [0.102.0] - 2026-10-25 - Agents can be found by the name people use: label, alias or name
 
 An agent could not message "Titania". Titania is the label the dashboard shows for the agent named `23blocks-iac`, and only the name was addressable, so lookups returned `found: false` and the sender guessed.

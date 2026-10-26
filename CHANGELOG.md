@@ -3,6 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.104.0] - 2026-10-26 - Copilot CLI: a question from `ask_user` shows in the chat; agents with their own COPILOT_HOME or a launcher script get memory
+
+Two Copilot CLI reports from a user (#664, #627).
+
+### Fixed
+- **`ask_user` reaches the chat (#664).** Copilot's `ask_user` is an ordinary tool call, so an agent blocked on it read as "Working" and showed no card. An `ask_user` with no completion after it now reads as waiting for the person, and the chat shows the question and the names of its fields as a card ("Needs you"). It is read from the event log, not the pane, so it works for forms that have no menu. A menu on the pane, if one is up, still replaces it. The card ends with "Answer it in the Terminal tab": answering inside the chat is not built.
+- **Memory for Copilot agents with their own `COPILOT_HOME` (#627).** New registry field `copilotHome` (absolute path or `~/...`): the chat reader and the memory indexer look for that agent's sessions there, not only in the server's `COPILOT_HOME`.
+- **Memory for Copilot agents started through a launcher script (#627).** New registry field `programKind: "copilot"` says what a script like `.../start.sh` runs. An agent with `copilotHome` set counts as a Copilot agent too. The chat's approval cards and the activity feed use it as well.
+
+Set both with `PATCH /api/agents/<id>` (`null` clears). `programKind` can only be `copilot`; `copilotHome` must be absolute or start with `~/`.
+
+### Not verified
+- No live Copilot session here. The ask_user event shape is taken from the report (a request named `ask_user` with `message` and `requestedSchema` arguments) and from the existing Copilot fixtures; covered by tests on constructed events. Please confirm on a real `ask_user`.
+- Answering an `ask_user` from the chat, and the sidebar "Needs you" for Copilot agents, are not changed.
+
 ## [0.103.0] - 2026-10-26 - Chat: a multi-line message to a Claude Code agent is no longer delivered twice
 
 Reported by a user in #663. A multi-line or large message was submitted, but Claude Code showed it as `[Pasted text #1 +N lines]` (or the echo scrolled out of the visible pane), so the whole message never matched. It counted as neither submitted nor staged, and the retry sent it again.

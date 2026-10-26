@@ -21,7 +21,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { shouldLogChange } from './log-on-change'
-import { listCopilotSessions, realDir, isCopilotProgram, isCopilotLine } from '@/lib/transcript-copilot.mjs'
+import { listCopilotSessions, realDir, isCopilotAgent, copilotHomeOf, isCopilotLine } from '@/lib/transcript-copilot.mjs'
 import { summarizeJsonl } from './jsonl'
 
 // ============================================================================
@@ -203,29 +203,42 @@ function getCachedProjectFiles(): CachedJsonlFile[] {
 
 interface CopilotSession { path: string; sessionId: string; cwd: string; mtimeMs: number }
 
-let copilotSessionCache: { sessions: CopilotSession[]; timestamp: number } | null = null
+// One cache entry per Copilot home: an agent with its own COPILOT_HOME keeps its sessions there.
+const copilotSessionCache = new Map<string, { sessions: CopilotSession[]; timestamp: number }>()
 const COPILOT_CACHE_TTL = 2 * 60 * 1000 // a new session shows up within two minutes
 
-function getCopilotSessions(): CopilotSession[] {
+function getCopilotSessions(home?: string | null): CopilotSession[] {
   const now = Date.now()
-  if (copilotSessionCache && now - copilotSessionCache.timestamp < COPILOT_CACHE_TTL) return copilotSessionCache.sessions
-  const sessions = listCopilotSessions() as CopilotSession[]
-  copilotSessionCache = { sessions, timestamp: now }
+  const key = home || ''
+  const hit = copilotSessionCache.get(key)
+  if (hit && now - hit.timestamp < COPILOT_CACHE_TTL) return hit.sessions
+  const sessions = listCopilotSessions(home || undefined) as CopilotSession[]
+  copilotSessionCache.set(key, { sessions, timestamp: now })
   return sessions
 }
 
 /** For tests: forget the cached session list. */
 export function resetCopilotSessionCache(): void {
-  copilotSessionCache = null
+  copilotSessionCache.clear()
 }
 
 /** Is this agent a GitHub Copilot CLI agent? */
 function agentIsCopilot(agentId: string): boolean {
   try {
     const a = getRegistryAgent(agentId) || getAgentBySession(agentId)
-    return !!a && isCopilotProgram((a as { program?: string }).program)
+    return !!a && isCopilotAgent(a)
   } catch {
     return false
+  }
+}
+
+/** The agent's own COPILOT_HOME, or null for the shared default. */
+function agentCopilotHome(agentId: string): string | null {
+  try {
+    const a = getRegistryAgent(agentId) || getAgentBySession(agentId)
+    return a ? copilotHomeOf(a) : null
+  } catch {
+    return null
   }
 }
 
@@ -238,7 +251,7 @@ function copilotCwdBelongsTo(cwd: string, agentWd: string, otherWds: string[]): 
 /** The Copilot sessions that belong to an agent working in any of `wds` (all of them). */
 function copilotSessionsFor(agentId: string, wds: string[]): CopilotSession[] {
   const otherWds = otherAgentWorkingDirs(agentId)
-  return getCopilotSessions().filter((s) => wds.some((wd) => copilotCwdBelongsTo(s.cwd, wd, otherWds)))
+  return getCopilotSessions(agentCopilotHome(agentId)).filter((s) => wds.some((wd) => copilotCwdBelongsTo(s.cwd, wd, otherWds)))
 }
 
 // ============================================================================

@@ -339,3 +339,45 @@ describe('copilotLiveStatusFromFile — tail read', () => {
     expect(copilotLiveStatusFromFile(path.join(dir, 'nope.jsonl'))).toBeNull()
   })
 })
+
+// #664: an ask_user elicitation is an ordinary tool call; the chat showed "Working" and no card.
+describe('open ask_user (#664)', () => {
+  const L = (...events: any[]) => events.map(e => JSON.stringify(e))
+  const askReq = (id: string) => ev('assistant.message', {
+    content: '', toolRequests: [{ toolCallId: id, name: 'ask_user', arguments: {
+      message: 'Which environment should I deploy to?',
+      requestedSchema: { type: 'object', properties: { env: { title: 'Environment', type: 'string' }, note: { type: 'string' } } },
+    } }],
+  })
+  const start = (id: string) => ev('tool.execution_start', { toolCallId: id, toolName: 'ask_user', arguments: {} })
+  const done = (id: string) => ev('tool.execution_complete', { toolCallId: id, success: true })
+  const turn0 = ev('assistant.turn_start', { turnId: '0' })
+
+  it('an unanswered ask_user is waiting, not working, and carries the question and the field names', async () => {
+    const { copilotPendingAskUser, askUserCard } = await import('@/lib/transcript-copilot.mjs')
+    const lines = L(turn0, askReq('c1'), start('c1'))
+    expect(copilotLiveStatus(lines)).toBe('waiting')
+    const ask = copilotPendingAskUser(lines)
+    expect(ask).toMatchObject({ toolCallId: 'c1', message: 'Which environment should I deploy to?', fields: ['Environment', 'note'] })
+    expect(askUserCard(ask)).toMatchObject({ status: 'permission_request', source: 'copilot-ask', toolName: 'ask_user' })
+  })
+  it('answered, it is working again', async () => {
+    const { copilotPendingAskUser } = await import('@/lib/transcript-copilot.mjs')
+    const lines = L(turn0, askReq('c1'), start('c1'), done('c1'))
+    expect(copilotPendingAskUser(lines)).toBeNull()
+    expect(copilotLiveStatus(lines)).toBe('working')
+  })
+  it('a different tool finishing does not answer it', async () => {
+    const { copilotPendingAskUser } = await import('@/lib/transcript-copilot.mjs')
+    expect(copilotPendingAskUser(L(turn0, askReq('c1'), start('c1'), done('c9')))).not.toBeNull()
+  })
+  it('a later user message or abort ends the wait', async () => {
+    const { copilotPendingAskUser } = await import('@/lib/transcript-copilot.mjs')
+    expect(copilotPendingAskUser(L(turn0, askReq('c1'), start('c1'), ev('user.message', { content: 'never mind' })))).toBeNull()
+    expect(copilotPendingAskUser(L(turn0, askReq('c1'), start('c1'), ev('abort', {})))).toBeNull()
+  })
+  it('a session with no ask_user is untouched', async () => {
+    const { copilotPendingAskUser } = await import('@/lib/transcript-copilot.mjs')
+    expect(copilotPendingAskUser(permissions)).toBeNull()
+  })
+})

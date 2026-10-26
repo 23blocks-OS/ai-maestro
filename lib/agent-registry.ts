@@ -553,6 +553,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
     model: request.model,
     taskDescription: request.taskDescription,
     programArgs: request.programArgs || '',
+    ...(request.programKind ? { programKind: request.programKind } : {}),
+    ...(request.copilotHome ? { copilotHome: request.copilotHome } : {}),
     ...(request.launchOptions && Object.keys(request.launchOptions).length > 0 ? { launchOptions: request.launchOptions } : {}),
     permissionMode: request.permissionMode || 'supervised',
     runtime: request.runtime || 'tmux',
@@ -662,6 +664,9 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   // null clears a manager field (undefined drops it from the JSON)
   if (updates.humanManager === null) updateData.humanManager = undefined
   if (updates.managerAgentId === null) updateData.managerAgentId = undefined
+  // null clears the Copilot launch fields
+  if ((updates as any).programKind === null) updateData.programKind = undefined
+  if ((updates as any).copilotHome === null) updateData.copilotHome = undefined
 
   // Remove deprecated fields from update
   delete (updateData as any).alias

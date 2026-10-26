@@ -37,6 +37,7 @@ import {
 import {
   getDirectory,
   lookupAgentByDirectoryName,
+  resolveAgentReference,
   syncDirectory,
   diagnoseHosts,
   normalizeHosts,
@@ -722,6 +723,9 @@ const routes: Route[] = [
   // Agent directory
   { method: 'GET', pattern: /^\/api\/agents\/directory$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getDirectory())
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/resolve$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, resolveAgentReference(qp(query, 'q') || ''))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/directory\/lookup\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
     sendServiceResult(res, lookupAgentByDirectoryName(params.name))

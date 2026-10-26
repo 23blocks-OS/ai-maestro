@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.102.0] - 2026-10-25 - Agents can be found by the name people use: label, alias or name
+
+An agent could not message "Titania". Titania is the label the dashboard shows for the agent named `23blocks-iac`, and only the name was addressable, so lookups returned `found: false` and the sender guessed.
+
+### Added
+- **`GET /api/agents/resolve?q=`** resolves an id, name, alias or label (case-insensitive, in that order) to one agent. It returns `found`, `ambiguous` (two agents share the label: both are listed, none is picked) or `none` with close matches. Also served in headless mode.
+- **Directory lookup follows labels and aliases.** `GET /api/agents/directory/lookup/<name>` now answers `found: true` with `matchedBy` for a label or alias, and `suggestions` (or `candidates`) when it cannot.
+
+### Not yet
+- `amp-send` still looks up the name only in the local index and its "not found" message blames the sender's setup. That script comes from `agentmessaging/claude-plugin`; the change goes there first.
+
 ## [0.101.0] - 2026-10-24 - World view: rooms inside a crowded building, by manager, who works together, role or team (beta)
 
 A building with 54 agents is one crowd. It can now be split into rooms inside the room, each with its name and count. Grouping by folder was tried and dropped: where files live says nothing about the work.
@@ -23,7 +34,6 @@ A building with 54 agents is one crowd. It can now be split into rooms inside th
 
 ### Not done
 - Project rooms (there is no list of who is on a project: a project has an owner and cards, and today's fleet has one test project) and meeting rooms from active team meetings. A room does not grow the building: a 40-agent room still shrinks its people to fit.
-
 ## [0.100.0] - 2026-10-24 - Every agent has a manager: a person, an agent, or both (beta World view: Reports lens)
 
 An agent should always know who it reports to. Until now the model had placeholders (`role: manager`, `chiefOfStaffId`, a free-text `owner`) that nothing read or checked; `owner` held "juanpelaez" for 44 agents and "pas-lola" (an agent) for 9, so a person and an agent could not be told apart.

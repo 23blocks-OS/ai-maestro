@@ -13,7 +13,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 
 const B = path.join(os.homedir(), '.agent-messaging', 'agents')
 const SERVER = path.join(os.homedir(), '.aimaestro', 'agents')   // server-side verify-key store
@@ -23,11 +23,12 @@ const addrOf = (c) => (c && (c.agent?.address || c.address)) || null
 const fpOf = (f) => {
   if (!fs.existsSync(f)) return null
   try {
-    const der = execFileSync('openssl', ['pkey', '-pubin', '-in', f, '-outform', 'DER'])
-    // Hash the RAW 32-byte Ed25519 key (not the DER) to match lib/amp-keys
-    // calculateFingerprint and the registry's canonical fingerprint format.
-    const bin = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: der.subarray(-32) })
-    return 'SHA256:' + Buffer.from(bin).toString('base64')
+    // Node's own crypto, not the openssl binary: macOS ships LibreSSL 3.3, which
+    // cannot read Ed25519 keys, so every fingerprint came back null and the audit
+    // reported 0 mismatches. Hash the RAW 32-byte Ed25519 key (not the DER) to
+    // match lib/amp-keys calculateFingerprint and the registry's format.
+    const der = crypto.createPublicKey(fs.readFileSync(f)).export({ format: 'der', type: 'spki' })
+    return 'SHA256:' + crypto.createHash('sha256').update(der.subarray(-32)).digest('base64')
   } catch { return null }
 }
 const diskFp = (dir) => fpOf(path.join(dir, 'keys', 'public.pem'))

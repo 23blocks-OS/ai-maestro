@@ -3,9 +3,21 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.105.0] - 2026-10-26 - A wake no longer starts in the home folder; the identity audit works on macOS again
+
+Found while spawning two new agents on mac-mini (tct-gm, tct-hr).
+
+### Fixed
+- **Wake refuses a missing working directory.** tmux starts a session in the home folder when the folder it was given does not exist, so a new agent woke in `~` and wrote its `CLAUDE.md` there, where every agent on the host loads it. The wake now stops with `Working directory <path> does not exist. Create it, then wake the agent again`. Nothing is created for you: a typo in the path would otherwise leave stray folders.
+- **`amp-identity-audit.mjs` and `amp-identity-repair.mjs` work on macOS.** They called the `openssl` binary, and the one macOS ships (LibreSSL 3.3) cannot read Ed25519 keys, so every fingerprint came back empty and the audit reported "0 problems" on mac-mini while it had 2 keys shared by two folders. They now use Node's crypto. Same fingerprints as before.
+
+### Found, not changed
+- A new agent that runs `amp-init` gets a config fingerprint that is the hash of the whole DER key, while the server's registry fingerprint is the hash of the raw 32-byte key. It is the same key (checked on mac-mini for both new agents); only the label differs. Messages still verify, because the key is what is checked. Which format is canonical is a protocol question, and the shell side is `agentmessaging/claude-plugin`; not touched here.
+- Two old folders on mac-mini (3m-support, 3m-hr) share a key with an August folder that is not in the registry, and mini-lola has one duplicate address. The live agents are fine; the repair's dry run would give both a new key, which changes live identities for no gain, so it was not applied.
+
 ## [0.104.0] - 2026-10-26 - Copilot CLI: a question from `ask_user` shows in the chat; agents with their own COPILOT_HOME or a launcher script get memory
 
-Two Copilot CLI reports from a user (#664, #627).
+Two Copilot CLI reports from a user (#664, #627). Both apply to Copilot agents only; nothing here changes how other programs are read.
 
 ### Fixed
 - **`ask_user` reaches the chat (#664).** Copilot's `ask_user` is an ordinary tool call, so an agent blocked on it read as "Working" and showed no card. An `ask_user` with no completion after it now reads as waiting for the person, and the chat shows the question and the names of its fields as a card ("Needs you"). It is read from the event log, not the pane, so it works for forms that have no menu. A menu on the pane, if one is up, still replaces it. The card ends with "Answer it in the Terminal tab": answering inside the chat is not built.
@@ -18,9 +30,9 @@ Set both with `PATCH /api/agents/<id>` (`null` clears). `programKind` can only b
 - No live Copilot session here. The ask_user event shape is taken from the report (a request named `ask_user` with `message` and `requestedSchema` arguments) and from the existing Copilot fixtures; covered by tests on constructed events. Please confirm on a real `ask_user`.
 - Answering an `ask_user` from the chat, and the sidebar "Needs you" for Copilot agents, are not changed.
 
-## [0.103.0] - 2026-10-26 - Chat: a multi-line message to a Claude Code agent is no longer delivered twice
+## [0.103.0] - 2026-10-26 - Chat: a multi-line message to an agent is no longer delivered twice
 
-Reported by a user in #663. A multi-line or large message was submitted, but Claude Code showed it as `[Pasted text #1 +N lines]` (or the echo scrolled out of the visible pane), so the whole message never matched. It counted as neither submitted nor staged, and the retry sent it again.
+Reported by a user in #663 on a Claude Code agent. The check is shared by every agent the chat sends to, so the fix applies to all of them. A multi-line or large message was submitted, but Claude Code showed it as `[Pasted text #1 +N lines]` (or the echo scrolled out of the visible pane), so the whole message never matched. It counted as neither submitted nor staged, and the retry sent it again.
 
 ### Fixed
 - **No resend when the input box is empty.** After a delivery that is neither echoed nor staged, an empty input box means the Enter went through. The retry now happens only on positive evidence that the text is still staged. A dialog holding the keyboard (`❯ 1. Yes`) or a pane with no prompt line is not treated as an empty box.

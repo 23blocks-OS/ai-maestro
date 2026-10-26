@@ -30,7 +30,7 @@ import { askUserQuestionIn } from './lib/question-state.mjs'
 // F004 Phase 2: a codex agent has no AI Maestro hook, so its live "working"
 // indicator is derived from the turn-lifecycle events in its own transcript.
 import { codexLiveStatus, codexLiveStatusFromFile } from './lib/transcript-codex.mjs'
-import { copilotLiveStatus, copilotLiveStatusFromFile, isCopilotProgram } from './lib/transcript-copilot.mjs'
+import { copilotLiveStatus, copilotLiveStatusFromFile, copilotPendingAskUser, copilotPendingAskUserFromFile, askUserCard, isCopilotAgent } from './lib/transcript-copilot.mjs'
 const isCodexProgram = (agent) => (agent?.program || '').toLowerCase().includes('codex')
 import {
   getOrCreateStreamSession,
@@ -218,7 +218,7 @@ async function getChatHistory(sessionName, agentId) {
 
   const workingDir = getAgentWorkingDir(agent)
   let hookState = readHookState(workingDir)
-  const program = agent.program
+  const program = isCopilotAgent(agent) ? 'copilot' : agent.program
   const approvalKind = approvalKindForProgram(program)
   {
     const st = terminalSessions.get(sessionName)
@@ -234,10 +234,14 @@ async function getChatHistory(sessionName, agentId) {
   }
   // F038: Copilot has no AI Maestro hook either; its events.jsonl says whether a turn is open.
   // The approval card (below) still comes from the pane, which replaces this when a menu is up.
-  if (isCopilotProgram(agent.program)) {
+  if (isCopilotAgent(agent)) {
     hookState = copilotLiveStatus(lines, { ageMs: Date.now() - file.mtime.getTime() }) === 'working'
       ? { status: 'working', source: 'copilot' }
       : null
+    // #664: an open ask_user is a wait for the person, not work. The pane has no menu for it, so the card
+    // comes from the event log (a pane menu, if one is up, still replaces this below).
+    const ask = copilotPendingAskUser(lines)
+    if (ask) hookState = askUserCard(ask)
   }
 
   // If the file no longer has permission_request but the server remembers one,
@@ -355,8 +359,9 @@ function startJsonlWatcher(sessionName, sessionState, agentId) {
 
     sessionState.jsonlWatcher = true
     sessionState._codexAgent = isCodexProgram(agent)
-    sessionState._copilotAgent = isCopilotProgram(agent.program)
-    sessionState._program = agent.program
+    sessionState._copilotAgent = isCopilotAgent(agent)
+    // A Copilot agent launched through a script has a program the pane parser cannot name: say 'copilot'.
+    sessionState._program = sessionState._copilotAgent ? 'copilot' : agent.program
 
     // Watch hook state file for real-time permission/status updates
     const workingDir = getAgentWorkingDir(agent)
@@ -452,6 +457,10 @@ function broadcastHookState(sessionName, sessionState) {
   if (!state && sessionState._copilotAgent && sessionState.jsonlFilePath &&
       copilotLiveStatusFromFile(sessionState.jsonlFilePath) === 'working') {
     state = { status: 'working', source: 'copilot' }
+  }
+  if (!state && sessionState._copilotAgent && sessionState.jsonlFilePath) {
+    const ask = copilotPendingAskUserFromFile(sessionState.jsonlFilePath)
+    if (ask) state = askUserCard(ask)
   }
   // Fallback: if the hook didn't surface a permission prompt but the pane is
   // clearly showing one, build a card from the pane so it ALWAYS shows in chat.

@@ -244,6 +244,8 @@ export interface Agent {
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
   taskDescription: string       // What this agent is working on
   programArgs?: string          // CLI arguments passed to the program on launch (e.g., "--continue --chrome")
+  programKind?: 'copilot'       // Says what the program is when `program` is a launcher script (a wrapper that runs copilot)
+  copilotHome?: string          // The agent's own COPILOT_HOME (absolute, or ~/...), when it runs Copilot with a private one
   launchOptions?: Record<string, string | boolean>  // The tool's declared launch choices (lib/launch-options): model, effort, resume...
   permissionMode?: AgentPermissionMode  // Trust level for agent autonomy (default: 'supervised')
   launchCount?: number          // Number of times agent has been woken/launched (0 = never launched)
@@ -538,6 +540,8 @@ export interface CreateAgentRequest {
   model?: string
   taskDescription: string
   programArgs?: string          // CLI arguments passed to the program on launch
+  programKind?: 'copilot'       // What `program` is when it is a launcher script
+  copilotHome?: string          // The agent's own COPILOT_HOME (absolute, or ~/...)
   launchOptions?: Record<string, string | boolean>  // The tool's declared launch choices (lib/launch-options)
   permissionMode?: AgentPermissionMode  // Trust level (default: 'supervised')
   tags?: string[]
@@ -571,6 +575,8 @@ export interface UpdateAgentRequest {
   taskDescription?: string
   program?: string              // Set by wake-and-remember (F040); validated by resolveProgramCommand at launch
   programArgs?: string          // CLI arguments passed to the program on launch
+  programKind?: 'copilot' | null  // null clears
+  copilotHome?: string | null   // null clears
   launchOptions?: Record<string, string | boolean>  // Set by wake-and-remember (F040); validated by lib/launch-options
   permissionMode?: AgentPermissionMode  // Update trust level
   tags?: string[]

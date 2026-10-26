@@ -25,6 +25,7 @@
  *   POST   /api/agents/health             -> proxyHealthCheck
  */
 
+import { checkCopilotFields } from '@/lib/transcript-copilot.mjs'
 import fs from 'fs'
 import { parseManagerPatch, wouldLoop } from '@/lib/agent-manager'
 import path from 'path'
@@ -956,6 +957,8 @@ export function searchAgentsByQuery(query: string): ServiceResult<{ agents: Agen
 
 export function createNewAgent(body: CreateAgentRequest): ServiceResult<{ agent: Agent }> {
   try {
+    const copilotProblem = checkCopilotFields(body)
+    if (copilotProblem) return invalidRequest(copilotProblem)
     if (body.humanManager !== undefined || body.managerAgentId !== undefined) {
       const parsed = parseManagerPatch({}, { humanManager: body.humanManager, managerAgentId: body.managerAgentId })
       if (!parsed.ok) return invalidRequest(parsed.message)
@@ -1000,6 +1003,9 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
     if (existing.deletedAt) {
       return gone('Agent')
     }
+
+    const copilotProblem = checkCopilotFields(body)
+    if (copilotProblem) return invalidRequest(copilotProblem)
 
     // A change to the manager is checked: a person and/or an agent, never itself, never a loop among the
     // agents this host knows, and never none at all. Any other update leaves the manager fields alone.

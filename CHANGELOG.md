@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.1] - 2026-10-27 - A subject with a backslash, tab or newline no longer reads BAD SIGNATURE
+
+Reported by pas-lola. Plugin 1.18.2 (agentmessaging/claude-plugin v0.5.1).
+
+### Fixed
+- **The AMP client signs the subject exactly as the envelope stores it.** `amp-send.sh` built the signed text with a jq filter that escapes a backslash, tab and newline, while the envelope kept the plain subject, so `amp-read` and `amp-inbox` showed BAD SIGNATURE on a good message (the server, which signs the plain subject, said VERIFIED). A newline in the subject also broke the line parsing.
+- **Local delivery no longer marks every message `trust=verified` without checking.** The script now verifies the signature it just made and records that result.
+
+### Not changed
+- Messages already sent with those characters keep showing BAD SIGNATURE: their signature covers the escaped text. They are not forgeable, only mislabeled. Hosts get the fix with the next host update.
+
 ## [0.106.0] - 2026-10-27 - Host load over the API; a woken agent's folder is no longer rewritten to the home folder
 
 Two requests from the tct spawn on mac-mini.

@@ -81,7 +81,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B012** — [Headless routes behave differently from the Next.js routes](./backlog/B012-headless-routes-differ-from-next-routes.md) — `Done` (0.62.0)
 - **B013** — [Logs that grow without a limit (hook debug log 373 MB, pm2 log 3.4 GB); cap at 50 MB](./backlog/B013-unbounded-logs-need-rotation.md) — `Done` (0.60.5)
 - **B014** — [Logs and files that grow without limit across the AI Maestro ecosystem (epic, ranked, one fix per repo)](./backlog/B014-ecosystem-log-and-disk-hygiene.md) — `In Progress` (0.61.0; database retention open)
-- **B015** — [Clearing a staged notice with backspaces also deletes what a person was typing](./backlog/B015-staged-text-clear-deletes-human-typing.md) — `Todo`
+- **B015** — [Clearing a staged notice with backspaces also deletes what a person was typing](./backlog/B015-staged-text-clear-deletes-human-typing.md) — `Done` (0.106.3)
 
 ## Unfiled
 

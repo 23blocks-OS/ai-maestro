@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.3] - 2026-10-27 - Retrying a notice no longer deletes what a person was typing
+
+Found while comparing our delivery with another project's (backlog B015).
+
+### Fixed
+- **The clear-and-retype after a notice got stuck in the input box now removes only our text.** The retry pressed backspace the length of the notice plus 16 times. With a person's own text already in the box and the notice appended after it, that also deleted up to 16 of their characters. The box is now read first: if only our text is in it, nothing changes; if a person's text is also there, exactly our characters are deleted (counted as the terminal counts them). A multi-line message the terminal may have folded into one paste token is not cleared at all when a person's text is also there, and the delivery reports it as not submitted. Applies to the message notice, the chat send, and the inbox-poll nudge.
+
 ## [0.106.2] - 2026-10-27 - A woken agent no longer stops at "trust this folder"; moving an agent's folder moves its default folder too
 
 Reported by pas-lola after the tct-hr move.

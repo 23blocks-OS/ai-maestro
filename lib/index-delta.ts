@@ -390,6 +390,18 @@ async function autoDiscoverProjects(
 // ============================================================================
 // GET LIVE TMUX WORKING DIRECTORY
 // ============================================================================
+/**
+ * Whether the stored working directory should follow the live tmux directory.
+ * Never when the live directory is the home folder: that is where tmux puts a
+ * session whose folder was missing at wake, not where the agent works. Copying
+ * it into the record sent the next wake to the home folder again.
+ */
+export function shouldSyncWorkingDirectory(stored: string | undefined, live: string | null, home: string = os.homedir()): boolean {
+  if (!live || !stored || live === stored) return false
+  if (path.resolve(live) === path.resolve(home)) return false
+  return true
+}
+
 async function getLiveTmuxWorkingDirectory(sessionName: string): Promise<string | null> {
   try {
     const { getRuntime } = await import('@/lib/agent-runtime')
@@ -629,7 +641,7 @@ async function runIndexDeltaPinned(
                        registryAgent.sessions?.[0]?.workingDirectory
       if (sessionName) {
         liveTmuxWd = await getLiveTmuxWorkingDirectory(sessionName)
-        if (liveTmuxWd && storedWd && liveTmuxWd !== storedWd) {
+        if (liveTmuxWd && shouldSyncWorkingDirectory(storedWd, liveTmuxWd)) {
           console.log(`[Delta Index] Syncing workingDirectory: ${storedWd} -> ${liveTmuxWd}`)
           updateAgentWorkingDirectory(agentId, liveTmuxWd)
           registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)

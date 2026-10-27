@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.0] - 2026-10-27 - Host load over the API; a woken agent's folder is no longer rewritten to the home folder
+
+Two requests from the tct spawn on mac-mini.
+
+### Added
+- **`GET /api/hosts/load`** (also in headless mode): this host's RAM (`total` and `available`, the amount a new process gets without swapping), swap used and total, the three load averages, core count and the number of agents with a running session, measured when asked. To read another host, call the route on that host. A spawn can now check RAM, load and swap before a wave.
+
+### Fixed
+- **The memory indexer no longer copies the home folder into the agent's record.** On every run it set the agent's working directory to the live tmux directory. An agent whose session had started in the home folder (a missing folder at wake, now refused by 0.105.0) got `~` written into its record, and the next wake started in `~` again. A live directory equal to the home folder is now ignored. An agent that really works in another folder is still followed.
+
+### Not changed
+- A session already running in the wrong folder stays there: the process keeps its directory. Move it with `PATCH /api/agents/<id>` to set the folder, then hibernate and wake the agent. Its keys and identity are untouched.
+
 ## [0.105.0] - 2026-10-26 - A wake no longer starts in the home folder; the identity audit works on macOS again
 
 Found while spawning two new agents on mac-mini (tct-gm, tct-hr).

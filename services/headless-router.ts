@@ -216,6 +216,7 @@ import {
   updateExistingHost,
   deleteExistingHost,
   getHostIdentity,
+  getHostLoad,
   checkRemoteHealth,
   triggerMeshSync,
   getMeshStatus,
@@ -1390,6 +1391,9 @@ const routes: Route[] = [
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/hosts\/identity$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getHostIdentity())
+  }},
+  { method: 'GET', pattern: /^\/api\/hosts\/load$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getHostLoad())
   }},
   { method: 'GET', pattern: /^\/api\/hosts\/health$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await checkRemoteHealth(query.url || ''))

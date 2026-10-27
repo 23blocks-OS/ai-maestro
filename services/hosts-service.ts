@@ -51,6 +51,8 @@ import type {
   HostIdentity,
   HostIdentityResponse,
 } from '@/types/host-sync'
+import { loadAgents } from '@/lib/agent-registry'
+import { readHostLoad, type HostLoad } from '@/lib/host-load'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed, invalidRequest } from '@/services/service-errors'
 import { resetCircuitBreaker, isCircuitOpen } from '@/services/agents-core-service'
 
@@ -513,6 +515,15 @@ export async function deleteExistingHost(id: string): Promise<ServiceResult<{ su
 // ---------------------------------------------------------------------------
 // GET /api/hosts/identity — self host identity with org info
 // ---------------------------------------------------------------------------
+
+/** GET /api/hosts/load: this host's RAM, swap, load average and online agents, measured now. */
+export function getHostLoad(): ServiceResult<HostLoad> {
+  let online = 0
+  try {
+    online = loadAgents().filter(a => !a.deletedAt && a.sessions?.some(s => s.status === 'online')).length
+  } catch { /* an unreadable registry reads as 0 agents, the machine numbers are still true */ }
+  return { data: readHostLoad(online), status: 200 }
+}
 
 export function getHostIdentity(): ServiceResult<HostIdentityResponse> {
   const selfHost = getSelfHost()

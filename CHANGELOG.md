@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.2] - 2026-10-27 - A woken agent no longer stops at "trust this folder"; moving an agent's folder moves its default folder too
+
+Reported by pas-lola after the tct-hr move.
+
+### Fixed
+- **Wake pre-accepts Claude Code's "Do you trust this folder?" prompt.** An agent woken into a folder Claude Code had never opened sat at the prompt, with the wake answering `programStarted: true`. The wake now marks the folder trusted (`~/.claude.json`, as agent creation already did) before it starts the session. The home folder and `/` are still never trusted.
+- **`PATCH /api/agents/<id>` with a new `workingDirectory` also sets `preferences.defaultWorkingDirectory` and the first session's folder.** Before, the default stayed on the old folder, and the wake's second fallback read it. A default folder sent in the same request wins.
+
+### Not changed
+- `hooksExecuted` is still reported when the hooks run, not when the prompt is gone. With the folder trusted up front the prompt no longer appears; a program that asks something else is not covered.
+
 ## [0.106.1] - 2026-10-27 - A subject with a backslash, tab or newline no longer reads BAD SIGNATURE
 
 Reported by pas-lola. Plugin 1.18.2 (agentmessaging/claude-plugin v0.5.1).

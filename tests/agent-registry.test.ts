@@ -430,6 +430,27 @@ describe('updateAgent', () => {
     expect(updated!.workingDirectory).toBe('/original')
   })
 
+  it('a new workingDirectory also moves the default folder and the first session', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'move-me', workingDirectory: '/home/user' }))
+    updateAgent(agent.id, { sessions: [{ index: 0, status: 'offline', workingDirectory: '/home/user', createdAt: '2026-01-01T00:00:00Z' }] } as any)
+
+    const updated = updateAgent(agent.id, { workingDirectory: '/home/user/agents/move-me' })
+    expect(updated!.workingDirectory).toBe('/home/user/agents/move-me')
+    expect(updated!.preferences?.defaultWorkingDirectory).toBe('/home/user/agents/move-me')
+    expect(updated!.sessions?.find(s => s.index === 0)?.workingDirectory).toBe('/home/user/agents/move-me')
+  })
+
+  it('keeps a default folder the caller sets together with the new workingDirectory', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'keep-pref', workingDirectory: '/a' }))
+
+    const updated = updateAgent(agent.id, {
+      workingDirectory: '/b',
+      preferences: { defaultWorkingDirectory: '/c' },
+    })
+    expect(updated!.workingDirectory).toBe('/b')
+    expect(updated!.preferences?.defaultWorkingDirectory).toBe('/c')
+  })
+
   it('returns null for non-existent agent', () => {
     const result = updateAgent('nonexistent-id', { taskDescription: 'update' })
     expect(result).toBeNull()

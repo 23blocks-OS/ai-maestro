@@ -672,6 +672,20 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   delete (updateData as any).alias
   delete (updateData as any).displayName
 
+  // A new working directory is also the folder a wake falls back to: keep the
+  // preference and the first session in step, unless the caller set them.
+  if (updates.workingDirectory && updates.workingDirectory !== agents[index].workingDirectory) {
+    updates.preferences = {
+      ...updates.preferences,
+      defaultWorkingDirectory: updates.preferences?.defaultWorkingDirectory ?? updates.workingDirectory,
+    }
+    if (agents[index].sessions) {
+      agents[index].sessions = agents[index].sessions!.map(sess =>
+        sess.index === 0 ? { ...sess, workingDirectory: updates.workingDirectory } : sess
+      )
+    }
+  }
+
   // Update agent
   agents[index] = {
     ...agents[index],

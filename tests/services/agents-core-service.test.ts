@@ -54,6 +54,7 @@ const {
       searchAgents: vi.fn().mockReturnValue([]),
       linkSession: vi.fn(),
       unlinkSession: vi.fn(),
+      trustProjectDirectory: vi.fn().mockReturnValue(true),
     },
     mockHostsConfig: {
       getHosts: vi.fn().mockReturnValue([{ id: 'test-host', name: 'Test Host', url: 'http://localhost:23000' }]),
@@ -612,6 +613,8 @@ describe('wakeAgent', () => {
     expect((result.data as any)?.woken).toBe(true)
     expect((result.data as any)?.sessionName).toBe('my-agent')
     expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', '/home')
+    // Claude Code must not stop at "trust this folder" after the wake
+    expect(mockAgentRegistry.trustProjectDirectory).toHaveBeenCalledWith('/home')
   })
 
   it('refuses to wake into a folder that does not exist, instead of starting in home', async () => {

@@ -57,6 +57,7 @@ import {
   searchAgents,
   linkSession,
   unlinkSession,
+  trustProjectDirectory,
 } from '@/lib/agent-registry'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/lib/hosts-config'
@@ -1848,6 +1849,10 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
       console.warn(`[Wake] ${agentName} (${agentId}) — ${missingDir}`)
       return invalidField('workingDirectory', missingDir)
     }
+
+    // Claude Code asks "Do you trust this folder?" the first time it opens one, and
+    // the woken agent sits at that prompt. Accept it up front, as createAgent does.
+    trustProjectDirectory(workingDirectory)
 
     // Create new tmux session
     try {

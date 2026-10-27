@@ -60,6 +60,10 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F039** — [A way back in: an `ai-maestro` command, a desktop launcher and a PWA](./backlog/F039-desktop-launcher-and-pwa.md) — `Done` (0.77.0)
 - **F040** — [Waking and creating agents: launch options declared per tool, one-click wake](./backlog/F040-wake-and-create-ux-launch-options.md) — `In Progress` (step 1 shipped in 0.69.0; steps 2 to 4 open)
 - **F041** — [Windows without WSL: can psmux stand in for tmux?](./backlog/F041-windows-native-with-psmux.md) — `Todo` (documentation research only; probe script next)
+- **F042** — [Who may message whom: a policy on every send, with a reason on every denial](./backlog/F042-send-path-policy-with-reasons.md) — `Todo` (idea from lolad)
+- **F043** — [Pairing with another person's AI Maestro: invite codes, held senders, visible delivery state](./backlog/F043-federation-between-people.md) — `Todo` (idea from lolad; builds on F035)
+- **F044** — [Agent lifecycle and isolation: ideas from lolad to check against what we have](./backlog/F044-agent-lifecycle-and-isolation-ideas.md) — `Todo` (checklist)
+- **F045** — [A tmux self-check: run our exact tmux calls against any tmux binary](./backlog/F045-tmux-self-check-and-conformance-suite.md) — `Todo` (the F041 probe)
 
 ## Bugs
 
@@ -77,6 +81,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B012** — [Headless routes behave differently from the Next.js routes](./backlog/B012-headless-routes-differ-from-next-routes.md) — `Done` (0.62.0)
 - **B013** — [Logs that grow without a limit (hook debug log 373 MB, pm2 log 3.4 GB); cap at 50 MB](./backlog/B013-unbounded-logs-need-rotation.md) — `Done` (0.60.5)
 - **B014** — [Logs and files that grow without limit across the AI Maestro ecosystem (epic, ranked, one fix per repo)](./backlog/B014-ecosystem-log-and-disk-hygiene.md) — `In Progress` (0.61.0; database retention open)
+- **B015** — [Clearing a staged notice with backspaces also deletes what a person was typing](./backlog/B015-staged-text-clear-deletes-human-typing.md) — `Todo`
 
 ## Unfiled
 

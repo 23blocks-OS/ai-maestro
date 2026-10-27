@@ -1,6 +1,6 @@
 # F041 - Windows without WSL: can psmux stand in for tmux?
 
-**Status:** Todo (research done from documentation only; nothing run on Windows)
+**Status:** Todo (research from documentation and from lolad's repo; nothing run on Windows by us)
 **Type:** Feature / platform support
 **Created:** 2026-10-27
 **Requested by:** a user comment on GitHub: "I used psmux and that way I can run native in windows without using WSL." Juan asked whether it is real and what it would take.
@@ -42,10 +42,34 @@ Sources: `docs/compatibility.md` and `docs/tmux_args_reference.md` in the psmux 
 
 The `.sh` plugin scripts (`amp-send.sh`, `amp-read.sh`, the rest), `update-aimaestro.sh` and the installers assume a POSIX shell. `server.mjs` and path handling (`\` vs `/`, `os.homedir()`, the `~/.aimaestro` and `~/.agent-messaging` layouts) need a Windows run. `node-pty` supports Windows, but our terminal paths have not been tried with it. Agent CLIs (Claude Code and others) each have their own Windows story.
 
+## What lolad learned (read 2026-10-27)
+
+`CamiloCaceres/lolad` (https://github.com/CamiloCaceres/lolad, MIT, public, created 2026-10-27, 21 commits over three days, one author) is a Go daemon for lolabot agents built "after AI Maestro". It runs on native Windows through psmux and is the closest working reference we have. Read by two reviewers from the clone; nothing was built or run. Files: `internal/tmux/*`, `internal/harness/*`, `docs/windows.md`, `.github/workflows/ci.yml`.
+
+**Verified against the real psmux 3.4.0 in their Windows CI** (their claim; CI run 40410142033 not checked by us): start with directory, size and environment, exact-name targets, PID and list, literal Unicode, quotes and semicolon, Enter/Escape/BSpace/C-c, ANSI capture, resize, kill, and an exit code of 7 read back.
+
+**Not verified by them** (their own "Bob's PC" checklist): Claude Code's real interface inside psmux (their idle-prompt check was built on fixtures captured under tmux on a Mac), the trust dialog on Windows, adopting a surviving session after a daemon restart, arm64.
+
+Flags they use with psmux 3.4 (so they exist there): `new-session -d -s -c -x -y -- argv`, `has-session -t =name`, `list-sessions -F`, `display-message -p`, `capture-pane -p -J -e -S`, `send-keys -l`, `-H`, `resize-window`, `set-option -w`, `show-option -wqv`, `kill-session`, `-L <socket>`, `-f <conf>`. They never call `rename-session` or `set-environment`.
+
+Workarounds they needed (the list we would meet):
+- **Environment** goes through a private file read by a small helper (`exec-env`), never `-e` or the command line.
+- **Exit code:** psmux 3.4 reports `pane_dead_status` 0 for every process, so the helper writes the real code to a file; missing file means unknown (-1).
+- **Targets:** session `=name`, window `=name:0`, pane `=name:0.0`; psmux rejects a pane suffix on window commands.
+- **Trailing semicolon** in typed text goes as hex (`send-keys -H`), because the command-list parser eats it (also true for plain tmux).
+- **Terminal in the browser:** no PTY attach on Windows, so a poll of `capture-pane -e` every 150 ms repaints the view; mouse and unusual escapes untested.
+- **Trust prompt:** they write `hasTrustDialogAccepted` into `~/.claude.json` first (as we do since 0.106.2) and keep a fallback that answers the dialog.
+- **Git Bash** is required for Claude Code's shell hooks and lolabot's `setup.sh`.
+- A private `-L` socket and a generated tmux config (zero-based panes, `remain-on-exit`), user config excluded.
+
+Their `lolad doctor` and `TestConformance` are a ready model for our probe (step 2 below): the same operations, run against a private namespace, one named failure per operation. See F045.
+
+Cautions from their repo: a test binary that did not call their helper once started about 1,800 tmux servers (guarded now), so any probe of ours must use `-L` and never `kill-server` without it.
+
 ## Plan
 
 1. **Ask the commenting user** what they ran: the psmux version, the AI Maestro version, whether agents woke, whether the chat sent and read, and what broke.
-2. **A probe script** that runs our exact tmux calls (the table above) against a given `tmux` binary and prints pass or fail with the output. Read-only apart from its own throw-away session; uses `-L` so it can never touch another server. Someone with a Windows machine runs it under psmux and posts the output. No app changes.
+2. **A probe script** (F045 is the same idea for every platform) that runs our exact tmux calls (the table above) against a given `tmux` binary and prints pass or fail with the output. Read-only apart from its own throw-away session; uses `-L` so it can never touch another server. Someone with a Windows machine runs it under psmux and posts the output. No app changes.
 3. **Decide from the output.** If the gaps are only `rename-session` and `set-environment`, adapt the calls (positional rename; set the environment through `new-session -e`) behind `lib/tmux-safe.mjs`, which already is the single choke point. If larger, report upstream to psmux or stay on WSL2.
 4. **Then the rest of the stack** (scripts, installer, paths) on a Windows machine, as its own item once step 3 says go.
 

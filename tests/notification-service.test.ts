@@ -383,6 +383,18 @@ describe('notifyAgent — text staged in the input box', () => {
     expect(times).toBeGreaterThanOrEqual(typed.length)
   })
 
+  it('B015: with a person\'s text already in the box, deletes only what it typed', async () => {
+    let typed = ''
+    mockRuntime.sendKeys.mockImplementation(async (_t: string, k: string) => {
+      if (k.includes('[MESSAGE]')) typed = k
+    })
+    mockRuntime.capturePane.mockImplementation(async () =>
+      `Previous output.\n\n╭────────────────╮\n│ > half a sentence I was typing ${typed}\n╰────────────────╯\n`)
+    await notifyAgent(BASE)
+    const [, , times] = mockRuntime.repeatKey.mock.calls[0]
+    expect(times).toBe([...typed].length)
+  })
+
   it('does not clear on the FIRST attempt — nothing is staged yet', async () => {
     mockRuntime.capturePane.mockResolvedValue(paneWith(BASE.messageId))
     await notifyAgent(BASE)

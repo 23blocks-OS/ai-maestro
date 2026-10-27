@@ -189,6 +189,7 @@ import {
   paneStaged,
   stripDimPlaceholder,
   clearInputKeys,
+  clearInputPlan,
 } from '@/lib/pane-readback.mjs'
 
 export {
@@ -198,6 +199,7 @@ export {
   paneStaged,
   stripDimPlaceholder,
   clearInputKeys,
+  clearInputPlan,
 } from '@/lib/pane-readback.mjs'
 
 /**
@@ -239,6 +241,7 @@ async function sendTmuxNotification(
   const payload = isTui ? message : `echo '${message.replace(/'/g, "'\\''")}'`
   let sawPane = false
   let staged = false
+  let stagedPane = ''
 
   for (let send = 1; send <= NOTIFICATION_MAX_SENDS; send++) {
     // A resend after staged text must CLEAR the input box first. Typing again
@@ -246,7 +249,12 @@ async function sendTmuxNotification(
     // garbage, and re-sending Enter alone does not rescue it — both measured in
     // the field. Clear, retype, then Enter.
     if (staged) {
-      const { key: clearKey, repeat: clearRepeat } = clearInputKeys(payload.length)
+      // Only our own text: a person may have typed in the box before it (B015).
+      const { key: clearKey, repeat: clearRepeat } = clearInputPlan(stagedPane, payload)
+      if (clearRepeat === 0) {
+        // Their text and ours share the box and ours cannot be counted: leave it.
+        return { sent: true, verified: false, unverifiable: false, staged: true }
+      }
       await runtime.repeatKey(target, clearKey, clearRepeat)
       await new Promise(resolve => setTimeout(resolve, NOTIFICATION_CLEAR_SETTLE_MS))
     }
@@ -271,6 +279,7 @@ async function sendTmuxNotification(
       // will not submit it, and the next send needs to clear first.
       if (paneStaged(pane, needle)) {
         staged = true
+        stagedPane = pane
         break
       }
     }

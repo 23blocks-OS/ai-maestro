@@ -671,6 +671,20 @@ async function setupAMPForSession(
   return ampDir
 }
 
+
+/**
+ * Why a wake cannot start in `dir`, or null when it can. A folder that is
+ * missing (or a file) would make tmux fall back to the home folder.
+ */
+export function missingWorkingDirectory(dir: string): string | null {
+  try {
+    if (fs.statSync(dir).isDirectory()) return null
+    return `Working directory ${dir} is not a folder. Create it, then wake the agent again.`
+  } catch {
+    return `Working directory ${dir} does not exist. Create it, then wake the agent again (otherwise the session would start in the home folder).`
+  }
+}
+
 /**
  * Update agent session status in the registry after wake/hibernate.
  */
@@ -1824,6 +1838,15 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         },
         status: 200,
       }
+    }
+
+    // tmux starts a session in the home folder when -c names a folder that does
+    // not exist, and then the agent works (and writes its CLAUDE.md) there, where
+    // every other agent on the host loads it. Refuse instead, and say why.
+    const missingDir = missingWorkingDirectory(workingDirectory)
+    if (missingDir) {
+      console.warn(`[Wake] ${agentName} (${agentId}) — ${missingDir}`)
+      return invalidField('workingDirectory', missingDir)
     }
 
     // Create new tmux session

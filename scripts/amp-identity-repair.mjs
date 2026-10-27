@@ -22,7 +22,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 
 const APPLY = process.argv.includes('--apply')
 const ONLY = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7) // optional single agent id, for piloting
@@ -33,16 +33,10 @@ const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/.test(s)
 const addrOf = (c) => (c && (c.agent?.address || c.address)) || null
 
 // SHA256:base64 fingerprint of a PEM public key — matches the registry format.
-const fpOfPub = (pubPem) => {
-  const der = execFileSync('openssl', ['pkey', '-pubin', '-outform', 'DER'], { input: pubPem })
-  // Hash the RAW 32-byte Ed25519 public key (last 32 bytes of the DER SPKI), NOT the
-  // full DER — this is what lib/amp-keys.ts calculateFingerprint does. Hashing the DER
-  // produces a different fingerprint the server never computes, which breaks conflict
-  // detection and the registration duplicate-key check.
-  const raw = der.subarray(-32)
-  const b64 = execFileSync('openssl', ['dgst', '-sha256', '-binary'], { input: raw })
-  return 'SHA256:' + Buffer.from(b64).toString('base64')
-}
+const rawPub = (pubPem) => crypto.createPublicKey(pubPem).export({ format: 'der', type: 'spki' }).subarray(-32)
+// Node's crypto, not the openssl binary: macOS LibreSSL 3.3 cannot read Ed25519 keys.
+// Hash the RAW 32-byte key, as lib/amp-keys calculateFingerprint does.
+const fpOfPub = (pubPem) => 'SHA256:' + crypto.createHash('sha256').update(rawPub(pubPem)).digest('base64')
 // did:key derivation (mirrors lib/amp-did.ts) — the canonical self-certifying id.
 const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 const base58btc = (bytes) => {
@@ -58,8 +52,7 @@ const base58btc = (bytes) => {
   return out
 }
 const didOfPub = (pubPem) => {
-  const der = execFileSync('openssl', ['pkey', '-pubin', '-outform', 'DER'], { input: pubPem })
-  return 'did:key:z' + base58btc(Buffer.concat([Buffer.from([0xed, 0x01]), der.subarray(-32)]))
+  return 'did:key:z' + base58btc(Buffer.concat([Buffer.from([0xed, 0x01]), rawPub(pubPem)]))
 }
 const diskFp = (dir) => {
   const f = path.join(dir, 'keys', 'public.pem')
@@ -178,8 +171,9 @@ for (const p of remintList) {
     fs.mkdirSync(keysDir, { recursive: true })
     const priv = path.join(keysDir, 'private.pem')
     const pub = path.join(keysDir, 'public.pem')
-    execFileSync('openssl', ['genpkey', '-algorithm', 'ed25519', '-out', priv])   // fresh unique keypair
-    execFileSync('openssl', ['pkey', '-in', priv, '-pubout', '-out', pub])
+    const kp = crypto.generateKeyPairSync('ed25519')   // fresh unique keypair
+    fs.writeFileSync(priv, kp.privateKey.export({ format: 'pem', type: 'pkcs8' }))
+    fs.writeFileSync(pub, kp.publicKey.export({ format: 'pem', type: 'spki' }))
     fs.chmodSync(priv, 0o600)
     const pubPem = fs.readFileSync(pub)
     writeIdentity(p, fpOfPub(pubPem), pubPem)

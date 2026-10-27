@@ -84,6 +84,8 @@ const {
       default: {
         readFileSync: vi.fn().mockReturnValue('{}'),
         existsSync: vi.fn().mockReturnValue(false),
+        // the wake checks that the working directory is a folder
+        statSync: vi.fn().mockReturnValue({ isDirectory: () => true }),
         readdirSync: vi.fn().mockReturnValue([]),
         mkdirSync: vi.fn(),
         writeFileSync: vi.fn(),
@@ -610,6 +612,20 @@ describe('wakeAgent', () => {
     expect((result.data as any)?.woken).toBe(true)
     expect((result.data as any)?.sessionName).toBe('my-agent')
     expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', '/home')
+  })
+
+  it('refuses to wake into a folder that does not exist, instead of starting in home', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/no/such/folder' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    mockFs.default.statSync.mockImplementationOnce(() => { throw new Error('ENOENT') })
+
+    const result = await wakeAgent('agent-1', { startProgram: false })
+
+    expect(result.status).toBe(400)
+    expect(JSON.stringify(result.error ?? result.data)).toContain('/no/such/folder')
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 
   it('returns already running when session exists', async () => {

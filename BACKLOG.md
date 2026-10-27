@@ -59,6 +59,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F038** — [GitHub Copilot CLI: from "runs in the terminal" to real support](./backlog/F038-github-copilot-cli-support.md) — `In Progress` (launch 0.68.1; trust-question card, status, chat reader open; issue #572)
 - **F039** — [A way back in: an `ai-maestro` command, a desktop launcher and a PWA](./backlog/F039-desktop-launcher-and-pwa.md) — `Done` (0.77.0)
 - **F040** — [Waking and creating agents: launch options declared per tool, one-click wake](./backlog/F040-wake-and-create-ux-launch-options.md) — `In Progress` (step 1 shipped in 0.69.0; steps 2 to 4 open)
+- **F041** — [Windows without WSL: can psmux stand in for tmux?](./backlog/F041-windows-native-with-psmux.md) — `Todo` (documentation research only; probe script next)
 
 ## Bugs
 

@@ -72,7 +72,7 @@ import { buildLaunchCommand } from '@/lib/launch-command'
 import { sanitizeLaunchOptions } from '@/lib/launch-options'
 import { permissionModesFor } from '@/lib/program-choices'
 import type { AgentPermissionMode } from '@/types/agent'
-import { paneSubmitted, paneStaged, clearInputKeys } from '@/lib/notification-service'
+import { paneSubmitted, paneStaged, clearInputPlan } from '@/lib/notification-service'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
@@ -1244,6 +1244,7 @@ export async function sendCommand(
   if (options.verify && addNewline) {
     let submitted = false
     let staged = false
+    let stagedPane = ''
 
     for (let attempt = 1; attempt <= COMMAND_MAX_SENDS; attempt++) {
       // A resend after staged text must CLEAR the input box first. This is the
@@ -1259,7 +1260,9 @@ export async function sendCommand(
       // Measured by them: Enter once fails, Enter twice fails,
       // clear-and-retype then Enter succeeds 7 of 7.
       if (attempt > 1) {
-        const { key: clearKey, repeat: clearRepeat } = clearInputKeys(command.length)
+        // Only our own text: a person may have typed in the box before it (B015).
+        const { key: clearKey, repeat: clearRepeat } = clearInputPlan(stagedPane, command)
+        if (clearRepeat === 0) break
         await runtime.repeatKey(sessionName, clearKey, clearRepeat)
         await new Promise(resolve => setTimeout(resolve, COMMAND_CLEAR_SETTLE_MS))
         await runtime.sendKeys(sessionName, command, { literal: true, enter: true })
@@ -1273,7 +1276,7 @@ export async function sendCommand(
         if (paneSubmitted(pane, command)) { submitted = true; break }
         // In the box = the Enter did not take. Stop polling; more waiting will
         // not submit it, and the next attempt needs to clear first.
-        if (paneStaged(pane, command)) { staged = true; break }
+        if (paneStaged(pane, command)) { staged = true; stagedPane = pane; break }
       }
       if (submitted || !staged) break
     }

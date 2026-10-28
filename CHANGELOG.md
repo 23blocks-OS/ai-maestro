@@ -3,7 +3,7 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.106.4] - 2026-10-28 - Pi: a real model turn works, with an install helper and a working/idle status
+## [0.106.5] - 2026-10-28 - Pi: a real model turn works, with an install helper and a working/idle status
 
 Backlog F036. Checked with Pi 1.4.0 on a cloud Linux VM, Gemini on Google Vertex AI.
 
@@ -15,6 +15,22 @@ Backlog F036. Checked with Pi 1.4.0 on a cloud Linux VM, Gemini on Google Vertex
 ### Docs
 - `docs/AGENT-PROGRAMS.md`: what was checked (agent start, a message delivered and confirmed through the chat API, a tool call, the chat reader, three Gemini models fixing a bug), and what was not. Gemini 3 needs Pi's native `google-vertex` provider: through an OpenAI-compatible endpoint every tool call fails because the thought signature is dropped.
 - F036 updated; `aimaestro-agent.sh create --program pi` is still rejected by the plugin's allowed list (tracked there).
+## [0.106.4] - 2026-10-28 - Dependency security updates (everything except Next.js)
+
+`yarn audit --groups dependencies` went from 170 findings (6 critical, 90 high) to 33 (3 critical, 15 high), all in `next`. Next.js 14 stays; the move to 15 is separate work. React is unchanged.
+
+### Security
+- **Direct dependencies raised:** `@modelcontextprotocol/sdk` ^1.32.2, `sharp` ^0.35.5 (fixes an RCE in the bundled SVG renderer; Next's image optimiser uses it), `form-data` ^4.0.6, `@anthropic-ai/sdk` ^0.91.1, `uuid` ^13.0.1, `yauzl` ^3.2.1.
+- **`resolutions` added, because the parent will not bump the transitive package.** Each is scoped to its parent, so no other package is affected:
+  - `@huggingface/transformers`: `sharp` ^0.35.5, `protobufjs` ^7.6.5, `@protobufjs/utf8` ^1.1.1 (the parent's latest line is a major version ahead and was left alone).
+  - `@modelcontextprotocol/sdk`: `hono`, `qs`, `fast-uri`, `ip-address`, `proxy-addr`, `body-parser`, `zod` at their patched releases (pulled in through express and ajv).
+  - `archiver`: `minimatch` ^9.0.7, `brace-expansion` ^2.1.7, `lodash` ^4.18.1.
+  - `cozo-node`: `tar` ^7.5.22 and `minimatch` ^3.1.4 (install-time only, through node-pre-gyp). The 1.x `brace-expansion` is patched in `yarn.lock` (1.1.21).
+  - `gray-matter`: `js-yaml` ^3.15.2. Front matter is still parsed through `lib/safe-matter.ts`, which keeps the JavaScript engine switched off.
+  - `ts-morph`: `minimatch` ^10.2.3, `@isaacs/brace-expansion` ^5.0.1, `picomatch` ^4.0.4.
+
+### Not changed
+- The 33 remaining findings are all in `next` 14 and need the Next.js 15 migration.
 
 ## [0.106.3] - 2026-10-27 - Retrying a notice no longer deletes what a person was typing
 

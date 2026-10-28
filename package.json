@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.106.4",
+  "version": "0.106.5",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -46,9 +46,9 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.205",
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "@huggingface/transformers": "^3.8.1",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@react-three/fiber": "^8.17.10",
     "@react-three/xr": "6.6.12",
     "@wterm/core": "^0.3.0",
@@ -63,11 +63,12 @@
     "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
     "archiver": "^7.0.1",
+    "brace-expansion": "^1.1.7",
     "cozo-node": "^0.7.6",
     "cron-parser": "^5.5.0",
     "cytoscape": "^3.33.1",
     "cytoscape-dagre": "^2.5.0",
-    "form-data": "^4.0.5",
+    "form-data": "^4.0.6",
     "framer-motion": "^12.23.25",
     "gray-matter": "^4.0.3",
     "iwer": "2.7.0",
@@ -84,9 +85,9 @@
     "three": "^0.169.0",
     "ts-morph": "^27.0.2",
     "tsx": "~4.21.0",
-    "uuid": "^13.0.0",
+    "uuid": "^13.0.1",
     "ws": "^8.21.0",
-    "yauzl": "^3.2.0"
+    "yauzl": "^3.2.1"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
@@ -102,13 +103,32 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.0",
     "postcss": "^8.4.0",
-    "sharp": "^0.34.4",
+    "sharp": "^0.35.5",
     "tailwindcss": "^3.4.0",
     "to-ico": "^1.1.5",
     "typescript": "^5.4.0",
     "vitest": "^4.0.18"
   },
   "resolutions": {
-    "onnxruntime-node": "1.17.0"
+    "onnxruntime-node": "1.17.0",
+    "@huggingface/transformers/**/sharp": "^0.35.5",
+    "@huggingface/transformers/**/protobufjs": "^7.6.5",
+    "@huggingface/transformers/**/@protobufjs/utf8": "^1.1.1",
+    "archiver/**/minimatch": "^9.0.7",
+    "archiver/**/brace-expansion": "^2.1.7",
+    "archiver/**/lodash": "^4.18.1",
+    "cozo-node/**/tar": "^7.5.22",
+    "cozo-node/**/minimatch": "^3.1.4",
+    "gray-matter/**/js-yaml": "^3.15.2",
+    "ts-morph/**/minimatch": "^10.2.3",
+    "ts-morph/**/@isaacs/brace-expansion": "^5.0.1",
+    "ts-morph/**/picomatch": "^4.0.4",
+    "@modelcontextprotocol/sdk/**/hono": "^4.13.14",
+    "@modelcontextprotocol/sdk/**/qs": "^6.16.1",
+    "@modelcontextprotocol/sdk/**/fast-uri": "^3.1.9",
+    "@modelcontextprotocol/sdk/**/ip-address": "^10.7.4",
+    "@modelcontextprotocol/sdk/**/proxy-addr": "^2.0.8",
+    "@modelcontextprotocol/sdk/**/body-parser": "^2.4.0",
+    "@modelcontextprotocol/sdk/**/zod": "^4.6.6"
   }
 }

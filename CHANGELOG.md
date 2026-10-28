@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.11] - 2026-10-28 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced)
+
+### Added
+- Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced). They are in `docs/blog/` with cards, feed entries, sitemap URLs and `ai-index` lines. They mention features that need releases first (plugin 1.18.5, `scripts/install-claude-vertex.sh`).
+
 ## [0.106.10] - 2026-10-28 - Setup script for Claude Code on Google Vertex AI
 
 ### Added

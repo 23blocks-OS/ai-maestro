@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useAgents } from '@/hooks/useAgents'
 import { debounce } from '@/lib/utils'
@@ -248,12 +249,12 @@ export default function ImmersivePage() {
       {/* Minimal Header */}
       <header className="bg-gray-950 border-b border-gray-800 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
-          <a
+          <Link
             href="/"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             ← Back to Dashboard
-          </a>
+          </Link>
           <span className="text-sm text-gray-500">|</span>
           <span className="text-sm text-white">
             {activeAgent ? `Agent: ${getAgentDisplayName(activeAgent)}` : 'No Agent'}

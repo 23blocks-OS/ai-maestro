@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import Image from 'next/image'
 
 export default function LogoPreview() {
@@ -60,12 +61,12 @@ export default function LogoPreview() {
         </div>
 
         <div className="mt-8 text-center">
-          <a
+          <Link
             href="/"
             className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             ← Back to Dashboard
-          </a>
+          </Link>
         </div>
       </div>
     </div>

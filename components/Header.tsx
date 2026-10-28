@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useExperiment } from '@/hooks/useExperiment'
 import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing, Globe } from 'lucide-react'
 
@@ -45,14 +46,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
               Help
             </button>
           )}
-          <a
+          <Link
             href="/teams"
             className="text-sm px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors flex items-center gap-1.5"
             title="Manage Teams"
           >
             <FolderKanban className="w-3.5 h-3.5" />
             Teams
-          </a>
+          </Link>
           <a
             href="/projects"
             className="text-sm px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center gap-1.5"

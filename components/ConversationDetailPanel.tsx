@@ -798,7 +798,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
               console.log('[Chat View] Messages array:', messages.map(m => ({ type: m.type, hasThinking: !!m.thinking })))
               const thinkingMessages = messages.filter(m => m.type === 'thinking')
               console.log('[Chat View] Found', thinkingMessages.length, 'thinking messages:', thinkingMessages)
-              const chatBubbles: JSX.Element[] = []
+              const chatBubbles: React.JSX.Element[] = []
               let skipUntilIndex = -1
 
               messages.forEach((message, index) => {

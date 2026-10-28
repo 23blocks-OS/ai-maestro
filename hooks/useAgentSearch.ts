@@ -35,7 +35,7 @@ export function useAgentSearch(agentId: string) {
   const [debouncedQuery, setDebouncedQuery] = useState<string>('')
 
   // Ref to track debounce timer
-  const debounceTimerRef = useRef<NodeJS.Timeout>()
+  const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Ref to track if component is mounted (for async operations)
   const isMountedRef = useRef(true)

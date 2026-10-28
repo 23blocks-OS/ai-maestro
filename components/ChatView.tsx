@@ -227,7 +227,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const reconnectAttemptsRef = useRef(0)
   // Latest connect() from the WS effect, callable from the visibility handler
   // (which previously reset the attempt counter but never actually reconnected

@@ -44,7 +44,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.106.5"
+VERSION="0.106.6"
 # AIMAESTRO_REPO_URL / AIMAESTRO_BRANCH: install a fork or a branch (testing, or a pinned release)
 REPO_URL="${AIMAESTRO_REPO_URL:-https://github.com/23blocks-OS/ai-maestro.git}"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"

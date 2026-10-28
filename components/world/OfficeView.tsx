@@ -100,7 +100,7 @@ const CSS = `
 
 // ---------------------------------------------------------------- small hooks
 
-function useElementSize(ref: React.RefObject<HTMLElement>): { w: number; h: number } {
+function useElementSize(ref: React.RefObject<HTMLElement | null>): { w: number; h: number } {
   const [size, setSize] = useState({ w: 0, h: 0 })
   useLayoutEffect(() => {
     const el = ref.current

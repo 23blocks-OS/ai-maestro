@@ -59,8 +59,8 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   )
 }
 
-function renderInline(text: string): (string | JSX.Element)[] {
-  const parts: (string | JSX.Element)[] = []
+function renderInline(text: string): (string | React.JSX.Element)[] {
+  const parts: (string | React.JSX.Element)[] = []
   const regex = /(\*\*(.+?)\*\*)|(`([^`]+?)`)/g
   let lastIndex = 0
   let match
@@ -87,9 +87,9 @@ function renderInline(text: string): (string | JSX.Element)[] {
   return parts
 }
 
-function renderMarkdown(text: string): JSX.Element {
+function renderMarkdown(text: string): React.JSX.Element {
   const lines = text.split('\n')
-  const elements: JSX.Element[] = []
+  const elements: React.JSX.Element[] = []
   let inCodeBlock = false
   let codeLines: string[] = []
   let codeLang: string | undefined

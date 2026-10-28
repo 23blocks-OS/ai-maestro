@@ -105,9 +105,9 @@ function CodeBlock({ code }: { code: string }) {
 }
 
 // Lightweight markdown renderer
-function renderMarkdown(text: string): JSX.Element {
+function renderMarkdown(text: string): React.JSX.Element {
   const lines = text.split('\n')
-  const elements: JSX.Element[] = []
+  const elements: React.JSX.Element[] = []
   let inCodeBlock = false
   let codeLines: string[] = []
   let codeKey = 0
@@ -164,8 +164,8 @@ function renderMarkdown(text: string): JSX.Element {
   return <>{elements}</>
 }
 
-function renderInline(text: string): (string | JSX.Element)[] {
-  const parts: (string | JSX.Element)[] = []
+function renderInline(text: string): (string | React.JSX.Element)[] {
+  const parts: (string | React.JSX.Element)[] = []
   // Match bold, inline code, or plain text
   const regex = /(\*\*(.+?)\*\*)|(`([^`]+?)`)/g
   let lastIndex = 0
@@ -292,7 +292,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const prevLastMsgIdRef = useRef<string | null>(null)
   const lastPongRef = useRef<number>(Date.now())
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const reconnectAttemptsRef = useRef(0)
 
   // The session name to use for the WebSocket URL

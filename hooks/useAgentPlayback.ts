@@ -38,7 +38,7 @@ export function useAgentPlayback(
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
 
   // Refs for timers and tracking
-  const autoSaveTimerRef = useRef<NodeJS.Timeout>()
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const isMountedRef = useRef(true)
 
   /**

@@ -46,9 +46,9 @@ export function useWebSocket({
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout>()
-  const pongTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const pongTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastDataRef = useRef<number>(Date.now())
 
   // CRITICAL: Store callbacks in refs so WebSocket handlers always call the latest version.

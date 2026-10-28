@@ -14,10 +14,10 @@ import { isServiceError } from '@/services/service-errors'
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await exportAgentZip(params.id)
+    const result = await exportAgentZip((await params).id)
 
     if (!result.data || isServiceError(result.data)) {
       return toResponse(result)
@@ -47,11 +47,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
-    const result = createTranscriptExportJob(params.id, body)
+    const result = createTranscriptExportJob((await params).id, body)
     return toResponse(result)
   } catch (error) {
     console.error('Failed to create transcript export job:', error)

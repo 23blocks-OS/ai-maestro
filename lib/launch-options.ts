@@ -26,10 +26,21 @@ export interface LaunchOptionDecl {
   /** The CLI flag. A toggle adds just the flag; text and choice add the flag and the value. */
   flag: string
   choices?: string[]
+  /**
+   * For a choice whose values are not "flag value": the exact command-line pieces each value adds (a value
+   * missing from the map adds nothing). Used by Pi's tool profile, where one choice means several flags.
+   */
+  argsByChoice?: Record<string, string[]>
   placeholder?: string
   /** What a text value may look like. */
   pattern?: 'model' | 'path'
 }
+
+/** Pi's flags for the "messaging" tool profile. Static text: nothing from a request is ever added to it. */
+export const PI_MESSAGING_ARGS = [
+  '--tools', 'read,grep,find,ls,amp_inbox,amp_read,amp_reply,amp_send',
+  '--exclude-tools', "'mcp__*'",
+]
 
 const MODEL: LaunchOptionDecl = {
   id: 'model', label: 'Model', help: 'Leave empty for the tool’s own default.', type: 'text', flag: '--model',
@@ -63,6 +74,12 @@ const DECLARATIONS: Partial<Record<ProgramKind, LaunchOptionDecl[]>> = {
       choices: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] },
     CONTINUE,
     { id: 'noSession', label: 'Do not save the session', help: 'A throwaway run: nothing is kept afterwards.', type: 'toggle', flag: '--no-session' },
+    // F036. "messaging" = read-only files plus the AI Maestro message tools (scripts/pi/ai-maestro-amp): no shell,
+    // no write, no edit, no MCP tools. Pi's --tools is an allowlist (docs/cli.md#tools). This lowers accidents; it
+    // is NOT a sandbox (Pi has none, and extensions run with the user's permissions).
+    { id: 'tools', label: 'Tools', help: 'Full: everything Pi has. Messaging: read files and answer messages only, no shell or editing. Not a security boundary.',
+      type: 'choice', flag: '--tools', choices: ['full', 'messaging'],
+      argsByChoice: { messaging: PI_MESSAGING_ARGS } },
   ],
 }
 
@@ -112,7 +129,8 @@ export function launchOptionArgs(kind: ProgramKind | null | undefined, raw: unkn
     if (decl.id === 'model') continue
     const v = options[decl.id]
     if (v === undefined) continue
-    if (decl.type === 'toggle') args.push(decl.flag)
+    if (decl.argsByChoice) args.push(...(decl.argsByChoice[String(v)] || []))
+    else if (decl.type === 'toggle') args.push(decl.flag)
     else args.push(decl.flag, String(v))
   }
   return args

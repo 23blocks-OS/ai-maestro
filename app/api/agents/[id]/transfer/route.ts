@@ -12,11 +12,11 @@ import { toResponse } from '@/app/api/_helpers'
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
-    const result = await transferAgent(params.id, body)
+    const result = await transferAgent((await params).id, body)
     return toResponse(result)
   } catch (error) {
     console.error('Transfer error:', error)

@@ -13,13 +13,13 @@ import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
 
-    const result = getPlaybackState(params.id, sessionId)
+    const result = getPlaybackState((await params).id, sessionId)
     return toResponse(result)
   } catch (error) {
     console.error('[Playback API] Failed to get playback state:', error)
@@ -32,11 +32,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
-    const result = controlPlayback(params.id, body)
+    const result = controlPlayback((await params).id, body)
     return toResponse(result)
   } catch (error) {
     console.error('[Playback API] Failed to control playback:', error)

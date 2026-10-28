@@ -2,8 +2,8 @@
 
 AI Maestro is a dashboard and orchestrator for fleets of AI coding agents
 (Claude Code, Codex, Grok Build, others) running in tmux, on one machine or across hosts.
-Next.js 14 (App Router) + a custom `server.mjs` (HTTP and WebSockets on one
-port), React 18, xterm.js, node-pty, Tailwind, CozoDB per agent. Port **23000**.
+Next.js 15 (App Router) + a custom `server.mjs` (HTTP and WebSockets on one
+port), React 19, xterm.js, node-pty, Tailwind, CozoDB per agent. Port **23000**.
 
 How the subsystems work is in `docs/ARCHITECTURE.md`; read the section you need.
 
@@ -142,7 +142,7 @@ through argv, never shell strings.
 - Services in `services/` are pure functions returning `ServiceResult<T>`; API
   routes are thin wrappers. Headless mode serves the same functions through
   `services/headless-router.ts`, so new routes need both.
-- Next.js 14 route params are a Promise: `{ params: Promise<{ id: string }> }`.
+- Next.js 15 route params are a Promise: `{ params: Promise<{ id: string }> }`.
 - No nested buttons (hydration errors); use a `div` with `onClick`.
 - Category colours are hash-based (`AgentList.tsx`), never hardcoded.
 - Marketing content goes in `marketing/` (gitignored).

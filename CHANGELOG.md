@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.5] - 2026-10-28 - Security: Next.js 15 and React 19
+
+`yarn audit --groups dependencies` went from 33 findings (3 critical, 15 high, 13 moderate, 2 low), all in `next` 14, to 0. There is no patched 14.x release, so the app moves to Next.js 15.5.28 (the 15.5 maintenance line) and React 19. Next.js 16 is not part of this change.
+
+### Security
+- **Next.js 14.2.35 to 15.5.28.** Fixes 25 advisories: GHSA-2xp9-vwfh-vxw4, GHSA-2464-fhr4-w9xw (Image Optimization API RCE), GHSA-p293-qw3h-jr36 (RCE on Windows-hosted servers), GHSA-q4gf-8mx6-v5v3, GHSA-h25m-26qc-wcjf, GHSA-8h8q-6873-q5fj (DoS with Server Components), GHSA-m99w-x7hq-7vfj, GHSA-p3m5-59mp-jv5r, GHSA-4c39-4ccg-62r3 (Server Actions DoS and unbounded payload), GHSA-c4j6-fc7j-m34r (SSRF with WebSocket upgrades), GHSA-89xv-2m56-2m9x (SSRF in Server Actions on custom servers), GHSA-p9j2-gv94-2wf4, GHSA-ggv3-7p47-pfv8 (rewrites), GHSA-36qx-fr4f-26g5, GHSA-3g8h-86w9-wvmq (middleware), GHSA-vfv6-92ff-j949, GHSA-wfc6-r584-vfw7, GHSA-68g3-v927-f742, GHSA-4633-3j49-mh5q (cache poisoning and confusion), GHSA-h64f-5h5j-jqjh, GHSA-9g9p-9gw9-jx7f, GHSA-3x4c-7xq6-9pq8 (image optimiser), GHSA-gx5p-jg67-6x7h, GHSA-ffhc-5mcf-pf4q (XSS), GHSA-955p-x3mx-jcvp (server function endpoint disclosure).
+- **`postcss` ^8.5.32, also forced under `next`, and `nanoid` ^3.3.12 under `postcss`.** Next 15 bundles its own postcss 8.4.31. Fixes GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849 (postcss), GHSA-28wg-ghj8-5hjv, GHSA-2v37-7h3g-55p8, GHSA-xwg4-73v4-xw9w (nanoid) and GHSA-68fv-2mgg-jv7q (source-map-js).
+
+### Changed
+- **React 18 to 19** (`react`, `react-dom`, `@types/react`, `@types/react-dom`), `eslint-config-next` 15, and `@react-three/fiber` 8 to 9 (v8 allows React 18 only; `@react-three/xr` 6.6.12 accepts v9). Other React libraries (`framer-motion`, `lucide-react`, `react-cytoscapejs`) already allow 19.
+- Four routes under `app/api/agents/[id]/` (`repos`, `transfer`, `playback`, `export`) still typed `params` as a plain object. They now take a `Promise` like every other route, as Next 15 requires.
+- Type fixes for React 19: `useRef` needs an initial value, `JSX` is `React.JSX`, and `useElementSize` accepts a ref that may be null.
+- `server.mjs`: in dev only, upgrade requests for `/_next/*` are left to Next's own HMR handler instead of being destroyed. Production upgrade handling (`/term`, `/status`, `/companion-ws`, `/v1/ws`, `/stream-chat`, `/meeting-chat`) is unchanged and checked against the built app.
+
 ## [0.106.4] - 2026-10-28 - Dependency security updates (everything except Next.js)
 
 `yarn audit --groups dependencies` went from 170 findings (6 critical, 90 high) to 33 (3 critical, 15 high), all in `next`. Next.js 14 stays; the move to 15 is separate work. React is unchanged.

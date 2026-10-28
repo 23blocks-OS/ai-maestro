@@ -1041,7 +1041,7 @@ function MemoryGraph({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | undefined>(undefined)
 
   // Initialize nodes with positions
   useEffect(() => {

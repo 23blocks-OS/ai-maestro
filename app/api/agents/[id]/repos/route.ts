@@ -14,10 +14,10 @@ import { toResponse } from '@/app/api/_helpers'
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = listRepos(params.id)
+    const result = listRepos((await params).id)
     return toResponse(result)
   } catch (error) {
     console.error('Error getting agent repos:', error)
@@ -30,11 +30,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
-    const result = updateRepos(params.id, body)
+    const result = updateRepos((await params).id, body)
     return toResponse(result)
   } catch (error) {
     console.error('Error updating agent repos:', error)
@@ -47,7 +47,7 @@ export async function POST(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url)
@@ -57,7 +57,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'url parameter required' }, { status: 400 })
     }
 
-    const result = removeRepo(params.id, remoteUrl)
+    const result = removeRepo((await params).id, remoteUrl)
     return toResponse(result)
   } catch (error) {
     console.error('Error removing repo:', error)

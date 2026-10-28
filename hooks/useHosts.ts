@@ -23,7 +23,7 @@ export function useHosts() {
   const [error, setError] = useState<Error | null>(null)
   const lastFetchTimeRef = useRef(0)
   const retryAttemptsRef = useRef(0)
-  const retryTimeoutRef = useRef<NodeJS.Timeout>()
+  const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   const fetchHosts = useCallback(async () => {
     try {

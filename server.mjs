@@ -1886,6 +1886,9 @@ async function startServer(handleRequest) {
       companionWss.handleUpgrade(request, socket, head, (ws) => {
         companionWss.emit('connection', ws, query)
       })
+    } else if (dev && pathname && pathname.startsWith('/_next/')) {
+      // Dev only: Next.js attaches its own upgrade listener for HMR
+      // (/_next/webpack-hmr). Leave that socket alone instead of destroying it.
     } else {
       socket.destroy()
     }

@@ -64,6 +64,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F043** — [Pairing with another person's AI Maestro: invite codes, held senders, visible delivery state](./backlog/F043-federation-between-people.md) — `Todo` (idea from lolad; builds on F035)
 - **F044** — [Agent lifecycle and isolation: ideas from lolad to check against what we have](./backlog/F044-agent-lifecycle-and-isolation-ideas.md) — `Todo` (checklist)
 - **F045** — [A tmux self-check: run our exact tmux calls against any tmux binary](./backlog/F045-tmux-self-check-and-conformance-suite.md) — `Todo` (the F041 probe)
+- **F046** — [Plugin build: lock the upstream commits and show what changed](./backlog/F046-plugin-build-lock-file-and-upstream-diff.md) — `Todo`
+- **F047** — [Dependency hygiene: Node end of life, scheduled audit, npm supply chain](./backlog/F047-node-eol-and-dependency-hygiene.md) — `Todo`
+- **F048** — [A security status view per host](./backlog/F048-host-security-status-view.md) — `Todo`
 
 ## Bugs
 
@@ -82,6 +85,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B013** — [Logs that grow without a limit (hook debug log 373 MB, pm2 log 3.4 GB); cap at 50 MB](./backlog/B013-unbounded-logs-need-rotation.md) — `Done` (0.60.5)
 - **B014** — [Logs and files that grow without limit across the AI Maestro ecosystem (epic, ranked, one fix per repo)](./backlog/B014-ecosystem-log-and-disk-hygiene.md) — `In Progress` (0.61.0; database retention open)
 - **B015** — [Clearing a staged notice with backspaces also deletes what a person was typing](./backlog/B015-staged-text-clear-deletes-human-typing.md) — `Done` (0.106.3)
+- **B016** — [AMP: a sender on the local provider domain is trusted without a signature check](./backlog/B016-amp-local-domain-sender-unverified.md) — `Todo`
+- **B017** — [Gateways: /api is open when ADMIN_TOKEN is unset](./backlog/B017-gateway-open-api-without-token.md) — `Todo`
+- **B018** — [Installers for agent-identity and agent-files run from main with no checksum](./backlog/B018-installers-unpinned-curl-bash.md) — `Todo`
 
 ## Unfiled
 

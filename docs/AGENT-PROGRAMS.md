@@ -16,6 +16,35 @@ An AI Maestro agent runs a coding CLI in a tmux session. This page says what wor
 
 "From the pane" means AI Maestro reads the approval prompt off the terminal screen and shows it as a card. Clicking an option sends the same key you would press in the terminal.
 
+## Claude Code on Google Vertex AI
+
+Use this on a cloud host that already has a Google identity (a VM service account, or `gcloud auth application-default login`) when you want Claude Code to answer through Vertex AI instead of an Anthropic API key. It can also lock an agent that talks to outside people down to reading and answering messages.
+
+**Steps.**
+
+1. Install Claude Code on the host. The script does not: `npm install -g @anthropic-ai/claude-code`.
+2. Ask the cloud admin to grant the host's service account one role on the project: `roles/aiplatform.user`. The script does not grant it.
+3. Run the script on the host:
+
+```bash
+scripts/install-claude-vertex.sh --project <gcp-project-id> --dry-run   # preview
+scripts/install-claude-vertex.sh --project <gcp-project-id> --yes       # env only
+scripts/install-claude-vertex.sh --project <gcp-project-id> --profile messaging --yes
+scripts/install-claude-vertex.sh --check                                 # change nothing, show state
+```
+
+`--model` defaults to `claude-haiku-5-5` and `--region` to `global`. All model aliases (Haiku, Sonnet, Opus, small-fast, subagent) are set to the one model, which is right when only one model is enabled for the project. It also turns off telemetry, the auto-updater and non-essential traffic, and sets `hasCompletedOnboarding` in `~/.claude.json` so a tmux pane is not stopped at first-run onboarding.
+
+**What it changes.** `~/.claude/settings.json` (`env`, and with `--profile messaging` the `permissions`), `~/.claude.json`, and with the messaging profile `~/.claude/CLAUDE.md` (a managed block; your own text stays). Existing keys such as hooks are kept, allow lists are merged, your extra deny rules stay, and each changed file is first copied to `<file>.aimaestro-backup-<timestamp>`. A file that is not valid JSON is left alone and the run stops. Running it again changes nothing.
+
+**The messaging profile** allows `Read` and the `amp-inbox`, `amp-read`, `amp-reply`, `amp-send` and `amp-status` scripts (with and without `.sh`, because the model sometimes types the short name), denies `Write`, `Edit`, `NotebookEdit`, `WebFetch` and `WebSearch`, and sets `dontAsk`. The first interactive start asks "Make auto mode your default permission mode?"; answer "No, keep don't ask".
+
+**Per-agent files.** The agent CLI creates `<agent dir>/.claude/settings.local.json` with blanket `Bash(*)`, `Write(*)`, `Edit(*)` and `WebFetch(*)` permissions, which override a locked-down user file. `--agent-dir <path>` writes the messaging rules there (plus `Task` in deny), removes those blanket entries, and merges the Vertex `env`. Run it for each agent that should be locked down, after the agent is created.
+
+**What was observed.** On one Linux VM on Google Cloud (Claude Code 2.1.312), `claude-haiku-5-5` and `claude-haiku-4-5` answered through Vertex on the `global` location with the VM's service account. For that project, regional endpoints returned quota errors and Sonnet was not enabled. That is one project, not a rule: pass `--region` and `--model` for yours.
+
+**Limits.** Permission rules limit what the agent is allowed to do; Claude Code is not an operating-system sandbox. Anything that must be impossible should also be enforced by the host (user account, file permissions, network). The script was tested against a temporary home folder, not yet against a real Claude Code (backlog F049).
+
 ## Grok Build
 
 Grok Build is xAI's terminal coding agent (`grok`, open source, Apache 2.0). It needs a SuperGrok or X Premium+ subscription.

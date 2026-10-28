@@ -67,6 +67,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F046** — [Plugin build: lock the upstream commits and show what changed](./backlog/F046-plugin-build-lock-file-and-upstream-diff.md) — `Todo`
 - **F047** — [Dependency hygiene: Node end of life, scheduled audit, npm supply chain](./backlog/F047-node-eol-and-dependency-hygiene.md) — `Todo`
 - **F048** — [A security status view per host](./backlog/F048-host-security-status-view.md) — `Todo`
+- **F049** — [Claude Code on Google Vertex AI, with the host's own login](./backlog/F049-claude-code-on-vertex-setup.md) — `In Progress` (script shipped 0.106.10; not yet run on a real host)
 
 ## Bugs
 

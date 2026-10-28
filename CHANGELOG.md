@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.10] - 2026-10-28 - Setup script for Claude Code on Google Vertex AI
+
+### Added
+- `scripts/install-claude-vertex.sh`: points Claude Code at Google Vertex AI using the host's own Google login (no API key). Options `--project`, `--model` (default `claude-haiku-5-5`), `--region` (default `global`), `--profile full|messaging`, `--agent-dir`, `--check`, `--dry-run`, `--yes`. It merges into `~/.claude/settings.json` and `~/.claude.json`, keeps every other key (hooks included), backs up each changed file as `<file>.aimaestro-backup-<timestamp>`, refuses a file that is not valid JSON, and can be run again safely.
+- The `messaging` profile adds a permission set for agents that talk to outside people (read files and run the `amp-*` message scripts; no write, edit, web or notebook tools; `dontAsk`) and a managed block in `~/.claude/CLAUDE.md` (between `<!-- ai-maestro-messaging:begin -->` and `end`) on how to answer messages. `--agent-dir` writes the same rules into `<dir>/.claude/settings.local.json`, replacing the blanket permissions the agent CLI puts there.
+- Docs: "Claude Code on Google Vertex AI" in `docs/AGENT-PROGRAMS.md`. Backlog F049.
+
+### Not yet checked
+- The script was tested only against a temporary home folder. It was not run against a real home folder or a real Claude Code, and `--check` was not run against a real Google login. Permission rules limit the agent; Claude Code is not an operating-system sandbox.
+
 ## [0.106.9] - 2026-10-28 - Pi agents can answer messages, and can run with a messaging-only tool set
 
 ### Added

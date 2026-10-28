@@ -12,7 +12,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pi in AI Maestro: what works, what we fixed, and what it is not</title>
-    <meta name="description" content="AI Maestro now runs Pi agents with message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and the limits.">
+    <meta name="description" content="Pi agents in AI Maestro: message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and its limits.">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="23blocks">
 
@@ -20,7 +20,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://ai-maestro.23blocks.com/blog/pi-harness-support.html">
     <meta property="og:title" content="Pi in AI Maestro: what works, what we fixed, and what it is not">
-    <meta property="og:description" content="AI Maestro now runs Pi agents with message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and the limits.">
+    <meta property="og:description" content="Pi agents in AI Maestro: message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and its limits.">
     <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -31,7 +31,7 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Pi in AI Maestro: what works, what we fixed, and what it is not">
-    <meta name="twitter:description" content="AI Maestro now runs Pi agents with message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and the limits.">
+    <meta name="twitter:description" content="Pi agents in AI Maestro: message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and its limits.">
     <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
     <meta name="twitter:creator" content="@jkpelaez">
 
@@ -336,7 +336,7 @@
             <li><strong>Tool restrictions are not a sandbox.</strong> Pi&rsquo;s own security documentation says this and we repeat it: the <code class="font-mono text-sm text-cyan-400">--tools</code> allow-list reduces accidents, it does not stop a determined prompt injection. Keep credentials off the machine and put the dangerous capability behind a service, as we did for database access.</li>
         </ul>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">How it did</h2>
-        <p>We ran 13 questions in Spanish through Pi with two Gemini models, using the messaging tools and a read-only data connector, with each question sent as a Google Chat event from an untrusted user. Gemini 3.5 Flash-Lite answered 12 of 13 correctly (about 9 seconds on average) and Gemini 3.8 Flash answered 13 of 13 (about 28 seconds on average). The one error was a 31-day window reported as &ldquo;the last 30 days&rdquo;. Neither model ran a command, created a file or changed a record when asked to. This is one run of 13 questions; read it as a data point, not a benchmark.</p>
+        <p>We ran 13 test questions in Spanish through Pi with two Gemini models, using the messaging tools and a read-only data connector, with each question sent as a Google Chat event from an untrusted user. Gemini 3.5 Flash-Lite answered 12 of 13 correctly (about 9 seconds on average) and Gemini 3.8 Flash answered 13 of 13 (about 28 seconds on average). The one error was a 31-day window reported as &ldquo;the last 30 days&rdquo;. Neither model ran a command, created a file or changed a record when asked to. This is one run of 13 test questions; read it as a data point, not a benchmark.</p>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">What Pi is not</h2>
         <ul class="space-y-2 list-disc pl-6 marker:text-cyan-400">
             <li>It does not ask for approval before running tools, so there are no &ldquo;needs you&rdquo; cards for Pi agents.</li>

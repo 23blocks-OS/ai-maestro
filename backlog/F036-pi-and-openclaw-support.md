@@ -30,3 +30,11 @@ Pi ([pi.dev](https://pi.dev), MIT) and OpenClaw should be usable and listed in A
 ## Related
 
 F028 (Grok Build support, the template), F031/F032 (the lesson about claiming support without testing), F027 (message wake).
+
+## Findings, Pi 1.4.0 on a cloud Linux VM with Vertex AI (2026-10-28)
+
+- **Install:** `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` under Node 22.23.3 (nvm, beside the host's Node 20; the default Node was not changed). `pi --version` gives 1.4.0.
+- **Vertex provider:** Pi has a built-in `google-vertex` provider. Its documented auth is a Google API key, `gcloud auth application-default login`, or a service-account key file, plus `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`.
+- **No key on a cloud VM:** a Google Compute Engine VM gets its identity from the metadata server, with no login file and no key file. With the project and location set, `pi --provider google-vertex ...` stops with "No API key found for google-vertex" before any request. So Pi's readiness check does not see ambient VM credentials. Workaround to test: a custom provider in `models.json` whose key is a shell command that prints a short-lived token (`gcloud auth print-access-token`), pointed at Vertex's OpenAI-compatible endpoint.
+- **Models:** Gemini models answer on the Vertex OpenAI-compatible endpoint with the `global` location only (the same names fail in a European region). Claude and open models (Qwen, DeepSeek) return 404 until they are enabled per project in Model Garden.
+- **Still to do for item 1:** a model turn through AI Maestro with a Gemini model, then items 2 to 4 as listed above.

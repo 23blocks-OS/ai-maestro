@@ -70,6 +70,13 @@ const SHELL_FAILURE_PATTERNS: Array<{ re: RegExp; hint: string }> = [
   },
 ]
 
+/** What Pi prints when the Node it runs on is too old (seen on Node 23.5 and on Node 20 builds). */
+const PI_NODE_FAILURE = /createZstdDecompress|requires node|unsupported engine|engine "node"/i
+const PI_NODE_HINT =
+  'Pi needs a newer Node than the one in this session (zlib zstd support: Node 22.15+, 23.8+ or 24+). ' +
+  'Run scripts/install-pi.sh on this host: it installs Pi with its own Node and puts a wrapper at ' +
+  '~/.local/bin/pi, so the host\'s default Node does not change.'
+
 export interface LaunchVerdict {
   /** The program is running in the pane. */
   started: boolean
@@ -93,6 +100,13 @@ export function findLaunchError(pane: string, startCommand: string): { line: str
   const program = startCommand.trim().split(/\s+/)[0]
   const base = program.split('/').pop() || program
   const lines = pane.split('\n').slice(-25)
+
+  // Pi is a Node program that needs zlib's zstd support (Node 22.15+, 23.8+, 24+). On an older Node it
+  // dies with a Node error, not a shell error, so the shell patterns below never match. Name the cause.
+  if (base === 'pi') {
+    const nodeLine = lines.find(l => PI_NODE_FAILURE.test(l))
+    if (nodeLine) return { line: nodeLine.trim(), hint: PI_NODE_HINT }
+  }
 
   for (const line of lines) {
     for (const { re, hint } of SHELL_FAILURE_PATTERNS) {

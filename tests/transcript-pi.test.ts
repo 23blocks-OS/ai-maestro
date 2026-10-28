@@ -16,7 +16,7 @@ import os from 'os'
 import path from 'path'
 import {
   isPiLine, piLineToMessages, piGroupDirName, resolvePiTranscriptForDir,
-  piLiveStatus, piLiveStatusFromFile,
+  piLiveStatus, piLiveStatusFromFile, piSessionStatus, PI_WORKING_MAX_AGE_MS,
 } from '@/lib/transcript-pi.mjs'
 import { parseJsonlLines, resolveJsonlPath } from '@/lib/chat-transcript.mjs'
 
@@ -233,5 +233,42 @@ describe('resolvePiTranscriptForDir', () => {
       expect(resolveJsonlPath({ program, workingDirectory: cwd })?.path).toBe(f)
     }
     expect(resolveJsonlPath({ program: 'api-tool', workingDirectory: cwd })).toBeNull()
+  })
+})
+
+
+describe('piSessionStatus (what the activity feed uses)', () => {
+  let dir: string
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-status-')) })
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }) })
+
+  const write = (name: string, entries: object[], ageMs: number) => {
+    const f = path.join(dir, name)
+    fs.writeFileSync(f, entries.map(e => JSON.stringify(e)).join('\n') + '\n')
+    const t = (Date.now() - ageMs) / 1000
+    fs.utimesSync(f, t, t)
+    return f
+  }
+  const user = { type: 'message', id: 'a1', message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }
+  const done = { type: 'message', id: 'a2', message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: 'ok' }] } }
+
+  it('says working while a recent turn is open', () => {
+    expect(piSessionStatus(write('open.jsonl', [user], 5_000))).toBe('working')
+  })
+
+  it('says idle when the last assistant message finished', () => {
+    expect(piSessionStatus(write('done.jsonl', [user, done], 5_000))).toBe('idle')
+  })
+
+  it('stops believing a working turn nobody has written to for a long time', () => {
+    expect(piSessionStatus(write('stale.jsonl', [user], PI_WORKING_MAX_AGE_MS + 60_000))).toBeNull()
+  })
+
+  it('keeps idle however old the file is', () => {
+    expect(piSessionStatus(write('old-idle.jsonl', [user, done], PI_WORKING_MAX_AGE_MS * 20))).toBe('idle')
+  })
+
+  it('is unknown for a missing file', () => {
+    expect(piSessionStatus(path.join(dir, 'nope.jsonl'))).toBeNull()
   })
 })

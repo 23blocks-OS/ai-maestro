@@ -33,9 +33,10 @@ import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBy
 import { loadAgents } from '@/lib/agent-registry'
 // F004 Phase 2b: a codex agent has no AI Maestro hook, so its status is not in
 // the hook-fed sessionActivity map — derive it from its own transcript instead.
-import { resolveJsonlPath } from '@/lib/chat-transcript.mjs'
+import { resolveJsonlPath, isPiAgent } from '@/lib/chat-transcript.mjs'
 import { codexLiveStatusFromFile } from '@/lib/transcript-codex.mjs'
 import { copilotLiveStatusFromFile, isCopilotAgent } from '@/lib/transcript-copilot.mjs'
+import { piSessionStatus } from '@/lib/transcript-pi.mjs'
 const isCodexProgram = (a: any) => (a?.program || '').toLowerCase().includes('codex')
 
 /**
@@ -47,11 +48,14 @@ const isCodexProgram = (a: any) => (a?.program || '').toLowerCase().includes('co
 function codexSessionStatus(agent: any): 'active' | 'idle' | null {
   // F038: Copilot is the same case (no hook, events.jsonl carries the turn lifecycle).
   const copilot = isCopilotAgent(agent)
-  if (!isCodexProgram(agent) && !copilot) return null
+  // F036: Pi has no hook either; its session file carries the turn (with an age limit, see piSessionStatus).
+  const pi = isPiAgent(agent)
+  if (!isCodexProgram(agent) && !copilot && !pi) return null
   try {
     const file = resolveJsonlPath(agent)
     if (!file) return null
-    const s = copilot ? copilotLiveStatusFromFile(file.path) : codexLiveStatusFromFile(file.path)
+    const s = pi ? piSessionStatus(file.path)
+      : copilot ? copilotLiveStatusFromFile(file.path) : codexLiveStatusFromFile(file.path)
     return s === 'working' ? 'active' : s === 'idle' ? 'idle' : null
   } catch {
     return null

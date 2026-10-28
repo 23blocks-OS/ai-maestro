@@ -18,6 +18,20 @@
 import { describe, it, expect, vi } from 'vitest'
 import { findLaunchError, verifyProgramStarted } from '@/lib/program-launch'
 
+describe('findLaunchError, Pi on an old Node', () => {
+  it('names the Node version as the cause when Pi dies on zstd', () => {
+    const pane = '$ pi\nTypeError: zlib.createZstdDecompress is not a function\n    at file:///x/pi.js:1:1\n$ '
+    const found = findLaunchError(pane, 'pi')
+    expect(found?.line).toContain('createZstdDecompress')
+    expect(found?.hint).toContain('scripts/install-pi.sh')
+  })
+
+  it('does not blame Node for another program, or for an unrelated Pi line', () => {
+    expect(findLaunchError('TypeError: zlib.createZstdDecompress is not a function', 'claude')).toBeNull()
+    expect(findLaunchError('$ pi\nPi 1.4.0 ready', 'pi')).toBeNull()
+  })
+})
+
 describe('findLaunchError', () => {
   it('recognises bash/zsh', () => {
     expect(findLaunchError('david@box:~$ claude\nclaude: command not found', 'claude')?.hint)

@@ -3,7 +3,7 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.106.5] - 2026-10-28 - Security: Next.js 15 and React 19
+## [0.106.6] - 2026-10-28 - Security: Next.js 15 and React 19
 
 `yarn audit --groups dependencies` went from 33 findings (3 critical, 15 high, 13 moderate, 2 low), all in `next` 14, to 0. There is no patched 14.x release, so the app moves to Next.js 15.5.28 (the 15.5 maintenance line) and React 19. Next.js 16 is not part of this change.
 
@@ -17,6 +17,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Type fixes for React 19: `useRef` needs an initial value, `JSX` is `React.JSX`, and `useElementSize` accepts a ref that may be null.
 - `server.mjs`: in dev only, upgrade requests for `/_next/*` are left to Next's own HMR handler instead of being destroyed. Production upgrade handling (`/term`, `/status`, `/companion-ws`, `/v1/ws`, `/stream-chat`, `/meeting-chat`) is unchanged and checked against the built app.
 
+## [0.106.5] - 2026-10-28 - Pi: a real model turn works, with an install helper and a working/idle status
+
+Backlog F036. Checked with Pi 1.4.0 on a cloud Linux VM, Gemini on Google Vertex AI.
+
+### Added
+- **`scripts/install-pi.sh`.** Installs Pi with its own Node (22.15+, 23.8+ or 24+, found or installed with nvm) and writes a wrapper at `~/.local/bin/pi` that pins it, so a tmux pane finds a working `pi` and the host's default Node does not change. `--vertex <project> [location]` also sets Pi up for Gemini on Google Vertex AI with the VM's own Google login, no API key (Pi's readiness check only knows login and key files, so the script adds Pi's documented `gcp-vertex-credentials` placeholder to `models.json`).
+- **Pi working/idle status in the activity feed** (`piSessionStatus`). A "working" Pi file nobody has written to for 10 minutes reads as unknown, so a Pi that died mid-turn does not stay "working" forever. Idle never goes stale.
+- **A clear launch error when Pi dies on an old Node.** The pane's `createZstdDecompress` error is now named as the cause, with a pointer to the install script.
+
+### Docs
+- `docs/AGENT-PROGRAMS.md`: what was checked (agent start, a message delivered and confirmed through the chat API, a tool call, the chat reader, three Gemini models fixing a bug), and what was not. Gemini 3 needs Pi's native `google-vertex` provider: through an OpenAI-compatible endpoint every tool call fails because the thought signature is dropped.
+- F036 updated; `aimaestro-agent.sh create --program pi` is still rejected by the plugin's allowed list (tracked there).
 ## [0.106.4] - 2026-10-28 - Dependency security updates (everything except Next.js)
 
 `yarn audit --groups dependencies` went from 170 findings (6 critical, 90 high) to 33 (3 critical, 15 high), all in `next`. Next.js 14 stays; the move to 15 is separate work. React is unchanged.

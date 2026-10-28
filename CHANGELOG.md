@@ -3,10 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.106.11] - 2026-10-28 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced)
+## [0.106.12] - 2026-10-28 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced)
 
 ### Added
 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced). They are in `docs/blog/` with cards, feed entries, sitemap URLs and `ai-index` lines. They mention features that need releases first (plugin 1.18.5, `scripts/install-claude-vertex.sh`).
+## [0.106.11] - 2026-10-28 - Bundled plugin 1.18.5 (agent permission profiles)
+
+### Changed
+- The bundled plugin moves from 1.18.4 to 1.18.5: `aimaestro-agent.sh create --permissions full|messaging` (the `messaging` profile gives an agent read-only files plus the AMP commands, with no shell and no writes) and the invalid `mcp__*` allow rule that stopped new agents at a settings dialog is removed. Update a host with `./update-aimaestro.sh -y`.
 
 ## [0.106.10] - 2026-10-28 - Setup script for Claude Code on Google Vertex AI
 

@@ -55,6 +55,9 @@ describe('buildLaunchCommand: the other tools', () => {
   it('Pi: no permission flags, only its options', () => {
     expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', permissionMode: 'fullAutonomy' })).toBe('pi')
     expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', launchOptions: { thinking: 'low', noSession: true } })).toBe('pi --thinking low --no-session')
+    expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', launchOptions: { tools: 'messaging' } })).toBe("pi --tools read,grep,find,ls,amp_inbox,amp_read,amp_reply,amp_send --exclude-tools 'mcp__*'")
+    expect(buildLaunchCommand({ ...base, command: 'pi', kind: 'pi', launchOptions: { tools: 'full' } })).toBe('pi')
+    expect(buildLaunchCommand({ ...base, command: 'codex', kind: 'codex', launchOptions: { tools: 'messaging' } })).not.toContain('--tools')
   })
 
   it('a tool with no declaration adds only the agent\'s own arguments and model', () => {

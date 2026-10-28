@@ -12,11 +12,25 @@
 #                                              own Google login (no API key). LOCATION defaults to "global";
 #                                              Gemini 3 models are only served there.
 #   scripts/install-pi.sh --check              report what is installed, change nothing
+#   scripts/install-pi.sh --no-amp             skip the message tools and rules (below)
+#   scripts/install-pi.sh --amp-only           only the message tools and rules, no Pi install
+#
+# By default it also (--amp) lets Pi agents answer AMP messages: it copies the extension
+# scripts/pi/ai-maestro-amp into <pi agent dir>/extensions/ (tools amp_inbox, amp_read, amp_reply, amp_send)
+# and keeps a managed block in <pi agent dir>/AGENTS.md between <!-- ai-maestro:begin --> and
+# <!-- ai-maestro:end -->. Running it again replaces only that block; your own text stays.
+# The agent dir is $PI_CODING_AGENT_DIR, else ~/.pi/agent. The AMP scripts come from the AI Maestro plugin.
 set -euo pipefail
 
 VERTEX_PROJECT=""
 VERTEX_LOCATION="global"
 CHECK_ONLY=false
+DO_AMP=true
+AMP_ONLY=false
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+BLOCK_BEGIN='<!-- ai-maestro:begin -->'
+BLOCK_END='<!-- ai-maestro:end -->'
 PI_PKG="@earendil-works/pi-coding-agent"
 WRAPPER_DIR="$HOME/.local/bin"
 
@@ -29,10 +43,55 @@ while [ $# -gt 0 ]; do
       if [ $# -gt 0 ] && [[ "$1" != --* ]]; then VERTEX_LOCATION="$1"; shift; fi
       ;;
     --check) CHECK_ONLY=true; shift ;;
-    -h|--help) sed -n 2,16p "$0"; exit 0 ;;
+    --amp) DO_AMP=true; shift ;;
+    --no-amp) DO_AMP=false; shift ;;
+    --amp-only) AMP_ONLY=true; DO_AMP=true; shift ;;
+    -h|--help) sed -n 2,24p "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+# Install the AI Maestro message tools for Pi: the extension and the managed block in AGENTS.md.
+# Replaces only what it owns: the ai-maestro-amp extension directory and the text between the markers.
+install_amp() {
+  local ext_src="$SRC_DIR/pi/ai-maestro-amp" block_src="$SRC_DIR/pi/agents-block.md"
+  local ext_dst="$PI_AGENT_DIR/extensions/ai-maestro-amp" agents="$PI_AGENT_DIR/AGENTS.md"
+  [ -f "$ext_src/index.js" ] && [ -f "$block_src" ] || { echo "Missing $ext_src or $block_src" >&2; return 1; }
+
+  mkdir -p "$PI_AGENT_DIR/extensions"
+  rm -rf "$ext_dst"
+  mkdir -p "$ext_dst"
+  cp "$ext_src/index.js" "$ext_src/core.mjs" "$ext_dst/"
+
+  if [ ! -e "$agents" ]; then
+    cp "$block_src" "$agents"
+  else
+    local nb ne
+    nb="$(grep -cxF "$BLOCK_BEGIN" "$agents" || true)"
+    ne="$(grep -cxF "$BLOCK_END" "$agents" || true)"
+    if [ "$nb" = 0 ] && [ "$ne" = 0 ]; then
+      # No block yet: append one, with a blank line between your text and ours.
+      { cat "$agents"; [ -z "$(tail -c1 "$agents")" ] || echo; echo; cat "$block_src"; } > "$agents.tmp.$$"
+      mv "$agents.tmp.$$" "$agents"
+    elif [ "$nb" = 1 ] && [ "$ne" = 1 ]; then
+      awk -v b="$BLOCK_BEGIN" -v e="$BLOCK_END" -v f="$block_src" '
+        $0 == b { while ((getline l < f) > 0) print l; skip = 1; next }
+        $0 == e { skip = 0; next }
+        !skip { print }
+      ' "$agents" > "$agents.tmp.$$"
+      mv "$agents.tmp.$$" "$agents"
+    else
+      echo "Not touching $agents: it has $nb begin and $ne end marker lines (expected one of each). Fix it by hand." >&2
+      return 1
+    fi
+  fi
+  echo "Pi message tools: extension in $ext_dst, rules in $agents"
+  if ! command -v amp-reply.sh >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/amp-reply.sh" ]; then
+    echo "Note: amp-reply.sh is not installed on this host; the tools need the AI Maestro plugin (scripts/install-plugin.sh)." >&2
+  fi
+}
+
+if $AMP_ONLY; then install_amp; exit $?; fi
 
 # True when the given node binary has zstd support.
 node_ok() {
@@ -57,6 +116,8 @@ NODE_BIN="$(find_node || true)"
 if $CHECK_ONLY; then
   if [ -n "$NODE_BIN" ]; then echo "Node with zstd: $NODE_BIN ($("$NODE_BIN" -v))"; else echo "Node with zstd: none found"; fi
   if [ -x "$WRAPPER_DIR/pi" ]; then echo "pi wrapper: $WRAPPER_DIR/pi"; "$WRAPPER_DIR/pi" --version 2>&1 | head -1 || true; else echo "pi wrapper: not installed"; fi
+  if [ -f "$PI_AGENT_DIR/extensions/ai-maestro-amp/index.js" ]; then echo "AMP extension: installed"; else echo "AMP extension: not installed"; fi
+  if grep -qxF "$BLOCK_BEGIN" "$PI_AGENT_DIR/AGENTS.md" 2>/dev/null; then echo "AGENTS.md block: present"; else echo "AGENTS.md block: absent"; fi
   exit 0
 fi
 
@@ -113,6 +174,8 @@ EOF
     chmod 600 "$MODELS"
   fi
 fi
+
+if $DO_AMP; then install_amp; fi
 
 case ":$PATH:" in
   *":$WRAPPER_DIR:"*) ;;

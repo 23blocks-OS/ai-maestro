@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.9] - 2026-10-28 - Pi agents can answer messages, and can run with a messaging-only tool set
+
+### Added
+- A Pi extension (`scripts/pi/ai-maestro-amp/`) with the tools `amp_inbox`, `amp_read`, `amp_reply` and `amp_send`. Pi does not load the agent-messaging skill, so a message from a chat gateway used to be answered only in Pi's own terminal, where nothing is delivered. The tools run the AMP scripts with an argument list (no shell), a timeout, an output cap and checked arguments; reply text goes in on standard input.
+- `scripts/install-pi.sh` installs the extension and a managed block in `~/.pi/agent/AGENTS.md` (between `<!-- ai-maestro:begin -->` and `<!-- ai-maestro:end -->`) with the messaging rules. It is part of the default run; `--no-amp` skips it and `--amp-only` runs just that step. Running it again replaces only the managed block.
+- A **Tools** option for Pi agents in the Wake dialog: `full` (as before) or `messaging` (read-only files plus the message tools: `--tools read,grep,find,ls,amp_*`, no shell, write, edit or MCP tools). This lowers accidents; it is not a security boundary, because Pi has no sandbox.
+
+### Not yet checked
+- Not run against a live Pi session; see backlog F036.
+
 ## [0.106.8] - 2026-10-28 - Plugin updated to 1.18.4 (security hardening and the agent CLI accepts Pi)
 
 ### Changed

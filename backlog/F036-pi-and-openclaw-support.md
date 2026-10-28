@@ -1,6 +1,6 @@
 # F036 - Pi and OpenClaw: from "runs in the terminal" to real support
 
-**Status:** Todo (Pi launch shipped in 0.67.4; findings from a live check on mac-mini, 2026-10-12)
+**Status:** In progress (messaging tools for Pi shipped 0.106.9; Pi launch shipped in 0.67.4; findings from a live check on mac-mini, 2026-10-12)
 **Type:** Feature
 **Created:** 2026-10-12
 **Requested by:** Juan, 2026-10-12
@@ -38,6 +38,13 @@ F028 (Grok Build support, the template), F031/F032 (the lesson about claiming su
 - **No key on a cloud VM:** a Google Compute Engine VM gets its identity from the metadata server, with no login file and no key file. With the project and location set, `pi --provider google-vertex ...` stops with "No API key found for google-vertex" before any request. So Pi's readiness check does not see ambient VM credentials. Workaround to test: a custom provider in `models.json` whose key is a shell command that prints a short-lived token (`gcloud auth print-access-token`), pointed at Vertex's OpenAI-compatible endpoint.
 - **Models:** Gemini models answer on the Vertex OpenAI-compatible endpoint with the `global` location only (the same names fail in a European region). Claude and open models (Qwen, DeepSeek) return 404 until they are enabled per project in Model Garden.
 - **Still to do for item 1:** a model turn through AI Maestro with a Gemini model, then items 2 to 4 as listed above.
+
+## Messaging for Pi agents (0.106.9)
+- **[x] Finding:** Pi does not load the agent-messaging skill, so a message from a gateway was answered only in Pi's terminal and never delivered. Rules in `~/.pi/agent/AGENTS.md` fixed it by hand.
+- **[x] Extension** `scripts/pi/ai-maestro-amp/` (tools `amp_inbox`, `amp_read`, `amp_reply`, `amp_send`; execFile, timeout, output cap, validation; tests in `tests/pi-amp-tools.test.ts`).
+- **[x] Installer:** `scripts/install-pi.sh` installs the extension and a managed AGENTS.md block by default (`--no-amp`, `--amp-only`); idempotent; tests in `tests/install-pi-amp.test.ts` with a temporary HOME.
+- **[x] Launch option** "Tools: full | messaging" for Pi (`lib/launch-options.ts`), shown in the Wake dialog, validated on the server. Not a sandbox, said so in `docs/AGENT-PROGRAMS.md`.
+- **[ ] Not done:** a run against a real Pi session (the extension's registration code, the `--tools` flag with these names, and a reply through a gateway have not been exercised); `ctx.cwd` in Pi's tool context is assumed (falls back to the process directory, which is the agent's directory in a tmux session).
 
 ## Still open after 2026-10-28
 - `aimaestro-agent.sh create --program` rejects `pi` (also `grok`, `openclaw`, `copilot`): the allowed list is in the plugin (`plugin/src/scripts/agent-commands.sh`), fixed through the plugin pipeline.

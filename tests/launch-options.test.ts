@@ -8,7 +8,7 @@ describe('launchOptionsFor: what each tool declares', () => {
     expect(launchOptionsFor('claude').map((o) => o.id)).toEqual(['model'])
     expect(launchOptionsFor('grok').map((o) => o.id)).toEqual(['model', 'continue'])
     expect(launchOptionsFor('copilot').map((o) => o.id)).toEqual(['model', 'effort', 'continue', 'addDir'])
-    expect(launchOptionsFor('pi').map((o) => o.id)).toEqual(['model', 'thinking', 'continue', 'noSession'])
+    expect(launchOptionsFor('pi').map((o) => o.id)).toEqual(['model', 'thinking', 'continue', 'noSession', 'tools'])
     expect(launchOptionsFor('codex').map((o) => o.id)).toEqual(['model', 'search', 'addDir'])
     for (const k of ['gemini', 'opencode', 'openclaw', 'cursor', 'aider', null, undefined] as const) {
       expect(launchOptionsFor(k as never)).toEqual([])
@@ -18,7 +18,7 @@ describe('launchOptionsFor: what each tool declares', () => {
   it('every option carries the flag the tool really has', () => {
     const flags = (k: 'copilot' | 'pi' | 'grok') => Object.fromEntries(launchOptionsFor(k).map((o) => [o.id, o.flag]))
     expect(flags('copilot')).toEqual({ model: '--model', effort: '--reasoning-effort', continue: '--continue', addDir: '--add-dir' })
-    expect(flags('pi')).toEqual({ model: '--model', thinking: '--thinking', continue: '--continue', noSession: '--no-session' })
+    expect(flags('pi')).toEqual({ model: '--model', thinking: '--thinking', continue: '--continue', noSession: '--no-session', tools: '--tools' })
     expect(flags('grok')).toEqual({ model: '--model', continue: '--continue' })
   })
 })
@@ -108,5 +108,27 @@ describe('permissionFlagsFor', () => {
     expect(permissionFlagsFor('copilot', 'trustEdits')).toBe('')
     expect(permissionFlagsFor('pi', 'fullAutonomy')).toBe('')
     expect(permissionFlagsFor(null, 'fullAutonomy')).toBe('')
+  })
+})
+
+describe('Pi tools profile (F036)', () => {
+  it('full adds nothing, messaging adds an allowlist without shell, write or edit', () => {
+    expect(launchOptionArgs('pi', { tools: 'full' })).toEqual([])
+    const args = launchOptionArgs('pi', { tools: 'messaging' })
+    expect(args).toEqual(['--tools', 'read,grep,find,ls,amp_inbox,amp_read,amp_reply,amp_send', '--exclude-tools', "'mcp__*'"])
+    const list = args[1].split(',')
+    for (const t of ['bash', 'write', 'edit']) expect(list).not.toContain(t)
+    expect(list).toEqual(expect.arrayContaining(['amp_reply', 'read']))
+  })
+  it('drops any other value and any other program', () => {
+    expect(sanitizeLaunchOptions('pi', { tools: 'bash,write' })).toEqual({})
+    expect(sanitizeLaunchOptions('pi', { tools: 'read,bash;id' })).toEqual({})
+    expect(sanitizeLaunchOptions('claude', { tools: 'messaging' })).toEqual({})
+    expect(sanitizeLaunchOptions('codex', { tools: 'messaging' })).toEqual({})
+    expect(launchOptionArgs('grok', { tools: 'messaging' })).toEqual([])
+  })
+  it('shows in the preview command, after the other options', () => {
+    expect(previewCommand({ command: 'pi', kind: 'pi', options: { thinking: 'low', tools: 'messaging' } }))
+      .toBe("pi --thinking low --tools read,grep,find,ls,amp_inbox,amp_read,amp_reply,amp_send --exclude-tools 'mcp__*'")
   })
 })

@@ -3,6 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.7] - 2026-10-28 - Backlog items only
+
+Docs only, no code change. Six open findings from the security round, filed in `backlog/`: B016 (AMP local-domain sender not verified), B017 (gateway `/api` open without a token), B018 (installers run from `main` with no checksum), F046 (plugin build lock file), F047 (Node end of life and dependency hygiene), F048 (host security status view).
+
 ## [0.106.6] - 2026-10-28 - Security: Next.js 15 and React 19
 
 `yarn audit --groups dependencies` went from 33 findings (3 critical, 15 high, 13 moderate, 2 low), all in `next` 14, to 0. There is no patched 14.x release, so the app moves to Next.js 15.5.28 (the 15.5 maintenance line) and React 19. Next.js 16 is not part of this change.

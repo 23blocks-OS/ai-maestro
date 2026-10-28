@@ -3,6 +3,19 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.4] - 2026-10-28 - Pi: a real model turn works, with an install helper and a working/idle status
+
+Backlog F036. Checked with Pi 1.4.0 on a cloud Linux VM, Gemini on Google Vertex AI.
+
+### Added
+- **`scripts/install-pi.sh`.** Installs Pi with its own Node (22.15+, 23.8+ or 24+, found or installed with nvm) and writes a wrapper at `~/.local/bin/pi` that pins it, so a tmux pane finds a working `pi` and the host's default Node does not change. `--vertex <project> [location]` also sets Pi up for Gemini on Google Vertex AI with the VM's own Google login, no API key (Pi's readiness check only knows login and key files, so the script adds Pi's documented `gcp-vertex-credentials` placeholder to `models.json`).
+- **Pi working/idle status in the activity feed** (`piSessionStatus`). A "working" Pi file nobody has written to for 10 minutes reads as unknown, so a Pi that died mid-turn does not stay "working" forever. Idle never goes stale.
+- **A clear launch error when Pi dies on an old Node.** The pane's `createZstdDecompress` error is now named as the cause, with a pointer to the install script.
+
+### Docs
+- `docs/AGENT-PROGRAMS.md`: what was checked (agent start, a message delivered and confirmed through the chat API, a tool call, the chat reader, three Gemini models fixing a bug), and what was not. Gemini 3 needs Pi's native `google-vertex` provider: through an OpenAI-compatible endpoint every tool call fails because the thought signature is dropped.
+- F036 updated; `aimaestro-agent.sh create --program pi` is still rejected by the plugin's allowed list (tracked there).
+
 ## [0.106.3] - 2026-10-27 - Retrying a notice no longer deletes what a person was typing
 
 Found while comparing our delivery with another project's (backlog B015).

@@ -8,6 +8,8 @@
 
 Another team opened a workstream, "AMP-RTC", so an agent can place a voice call to a person's phone (the stated first goal: "Lola calls an iPhone without PSTN"), a person can call an agent from Companion, and later several people and agents can share a voice room. It is four issues (#697-#700) and seven draft PRs (#701, #702, #703, #705, #707, #709, #710), plus a draft protocol spec (agentmessaging/protocol#26). This item holds the review of all of it. Each part has its own item: F051 (call lifecycle), F052 (media and browser audio), F053 (iPhone incoming call), F054 (voice rooms), F055 (interoperability tests), F056 (the matching protocol drafts in agentmessaging/protocol), and B019 (the fake "connected" timer that exists today).
 
+The combined specification is in `docs/SPEC-PEOPLE-CALLS-MEETINGS.md`.
+
 ## Why It's Needed
 
 The idea that matters: **an agent that needs a person today can only write to an inbox, a chat, or a tmux pane, and the person may not look for hours.** (See the AMP notification work: three paths, none of which rings a person.) A call that rings a locked phone is the strongest "needs you" signal an agent could have. That is the product reason, and it is a good one. It is also the reason to be careful: it is the most expensive way to solve it.

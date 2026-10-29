@@ -7,7 +7,26 @@
 # old system node (no built-in fetch), so a bare `node` in the launcher is not reliable. If the
 # recorded node has disappeared, the launcher falls back to the first `node` on the PATH.
 set -e
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve the checkout the installed file will point at. Run from a linked git worktree (a scratch
+# copy under /tmp, an agent's worktree), the script's own folder disappears with the worktree and
+# leaves a dead pointer. Use the main checkout instead, and refuse a temp folder.
+stable_repo() {
+    local dir="$1" common main
+    common="$(git -C "$dir" rev-parse --git-common-dir 2>/dev/null || true)"
+    if [ -n "$common" ]; then
+        main="$(cd "$dir" && cd "$common/.." 2>/dev/null && pwd || true)"
+        [ -n "$main" ] && [ -d "$main/scripts" ] && dir="$main"
+    fi
+    case "$dir" in
+        /tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*)
+            if [ "${AIM_ALLOW_TEMP_REPO:-}" != "1" ]; then
+                echo "error: $dir is a temporary folder; run this from the main checkout (or set AIM_ALLOW_TEMP_REPO=1 for a test)" >&2
+                exit 1
+            fi ;;
+    esac
+    echo "$dir"
+}
+REPO="$(stable_repo "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)")"
 BIN="${AIM_BIN_DIR:-$HOME/.local/bin}"
 NODE_BIN="$(command -v node || true)"
 mkdir -p "$BIN"

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.14] - 2026-10-29 - Installers no longer leave a pointer to a scratch folder
+
+### Fixed
+- `scripts/install-aim-secret.sh` and `scripts/claude-hooks/install-hooks.sh` took the path of the folder they were run from. Run from a temporary git worktree (for example under `/tmp`), they wrote that path into `~/.local/bin/aim-secret` and into `~/.claude/settings.json`; when the folder was cleaned up, `aim-secret` failed for every agent on the host and the Claude Code hooks pointed at nothing. They now resolve the main checkout of the repository and refuse a temporary folder (`AIM_ALLOW_TEMP_REPO=1` overrides it for tests). Tests in `tests/install-aim-secret-stable-path.test.ts`.
+
 ## [0.106.12] - 2026-10-28 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced)
 
 ### Added

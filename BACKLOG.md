@@ -68,6 +68,12 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F047** — [Dependency hygiene: Node end of life, scheduled audit, npm supply chain](./backlog/F047-node-eol-and-dependency-hygiene.md) — `Todo`
 - **F048** — [A security status view per host](./backlog/F048-host-security-status-view.md) — `Todo`
 - **F049** — [Claude Code on Google Vertex AI, with the host's own login](./backlog/F049-claude-code-on-vertex-setup.md) — `In Progress` (script shipped 0.106.10; not yet run on a real host)
+- **F050** — [Agents that can call a person: the decision and the staging](./backlog/F050-agent-initiated-voice-calls-umbrella.md) — `Todo` (decision needed before more RTC code merges)
+- **F051** — [Call lifecycle and coordinator (#697, #701, #709)](./backlog/F051-amp-rtc-call-lifecycle-and-coordinator.md) — `Todo`
+- **F052** — [Real-time audio: media adapter and browser microphone (#698, #705, #710)](./backlog/F052-voice-media-adapter-and-browser-audio.md) — `Todo` (deferred)
+- **F053** — [An agent's call rings a locked iPhone (#699, #707)](./backlog/F053-incoming-agent-call-on-iphone.md) — `Todo`
+- **F054** — [Shared voice rooms for people and agents (#703)](./backlog/F054-voice-rooms-in-zoom-view.md) — `Todo` (deferred)
+- **F055** — [Call interoperability and failure tests (#700)](./backlog/F055-amp-rtc-interoperability-tests.md) — `Todo`
 
 ## Bugs
 
@@ -89,6 +95,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B016** — [AMP: a sender on the local provider domain is trusted without a signature check](./backlog/B016-amp-local-domain-sender-unverified.md) — `Todo`
 - **B017** — [Gateways: /api is open when ADMIN_TOKEN is unset](./backlog/B017-gateway-open-api-without-token.md) — `Todo`
 - **B018** — [Installers for agent-identity and agent-files run from main with no checksum](./backlog/B018-installers-unpinned-curl-bash.md) — `Todo`
+- **B019** — [The call screen says "connected" after 2.5 seconds, whatever happens](./backlog/B019-call-overlay-fakes-connection.md) — `Todo`
 
 ## Unfiled
 

@@ -74,6 +74,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F053** — [An agent's call rings a locked iPhone (#699, #707)](./backlog/F053-incoming-agent-call-on-iphone.md) — `Todo`
 - **F054** — [Shared voice rooms for people and agents (#703)](./backlog/F054-voice-rooms-in-zoom-view.md) — `Todo` (deferred)
 - **F055** — [Call interoperability and failure tests (#700)](./backlog/F055-amp-rtc-interoperability-tests.md) — `Todo`
+- **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Todo`
 
 ## Bugs
 

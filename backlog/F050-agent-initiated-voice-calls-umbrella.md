@@ -6,7 +6,7 @@
 
 ## Description
 
-Another team opened a workstream, "AMP-RTC", so an agent can place a voice call to a person's phone (the stated first goal: "Lola calls an iPhone without PSTN"), a person can call an agent from Companion, and later several people and agents can share a voice room. It is four issues (#697-#700) and seven draft PRs (#701, #702, #703, #705, #707, #709, #710), plus a draft protocol spec (agentmessaging/protocol#26). This item holds the review of all of it. Each part has its own item: F051 (call lifecycle), F052 (media and browser audio), F053 (iPhone incoming call), F054 (voice rooms), F055 (interoperability tests), and B019 (the fake "connected" timer that exists today).
+Another team opened a workstream, "AMP-RTC", so an agent can place a voice call to a person's phone (the stated first goal: "Lola calls an iPhone without PSTN"), a person can call an agent from Companion, and later several people and agents can share a voice room. It is four issues (#697-#700) and seven draft PRs (#701, #702, #703, #705, #707, #709, #710), plus a draft protocol spec (agentmessaging/protocol#26). This item holds the review of all of it. Each part has its own item: F051 (call lifecycle), F052 (media and browser audio), F053 (iPhone incoming call), F054 (voice rooms), F055 (interoperability tests), F056 (the matching protocol drafts in agentmessaging/protocol), and B019 (the fake "connected" timer that exists today).
 
 ## Why It's Needed
 
@@ -35,6 +35,8 @@ Verdict per item (details in F051-F055):
 | #700 interop tests | Keep as acceptance criteria | Not a task yet |
 | #702 integration design | Merge as a doc after edits | Its claims about current code check out |
 | #703 rooms design | Defer | Premature; keep as notes |
+
+**Protocol side (F056):** the AMP protocol repo has six matching draft PRs and three issues. Same verdict: nothing there is a standard yet; it lacks a wire format and a human-identity answer, and it should follow a working prototype, not lead it.
 
 Decisions Juan needs to make: (1) go or no-go on the idea at the cheap-slice scope; (2) the identity question (below); (3) where native iOS code lives (the mobile app is a separate repo, `ai-maestro-app`); (4) whether we accept Apple's VoIP push policy risk.
 

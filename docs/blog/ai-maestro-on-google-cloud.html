@@ -69,7 +69,7 @@
       "@type": "Article",
       "headline": "AI Maestro on Google Cloud: a reference deployment and what we tested",
       "datePublished": "2026-10-28",
-      "author": { "@type": "Person", "name": "Juan Peláez" },
+      "author": { "@type": "Organization", "name": "AI Maestro" },
       "publisher": { "@type": "Organization", "name": "23blocks" },
       "url": "https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html",
       "isPartOf": { "@type": "SoftwareApplication", "name": "AI Maestro", "url": "https://ai-maestro.23blocks.com" }
@@ -314,7 +314,7 @@
     <article class="max-w-3xl mx-auto px-4 md:px-8 pt-12 pb-16 prose-x text-slate-300 leading-relaxed">
         <p class="font-mono text-xs tracking-widest text-cyan-400 mb-4"><a href="/blog/" class="no-underline">BLOG</a> &nbsp;/&nbsp; GOOGLE CLOUD</p>
         <h1 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight leading-tight text-white mb-5">AI Maestro on Google Cloud: a reference deployment and what we tested</h1>
-        <p class="text-sm text-slate-500 mb-10 pb-6 border-b border-slate-800">Juan Peláez &middot; October 28, 2026</p>
+        <p class="text-sm text-slate-500 mb-10 pb-6 border-b border-slate-800">AI Maestro &middot; October 28, 2026</p>
 
         <p>We ran AI Maestro on Google Cloud as a test deployment: four agents on one virtual machine, answering support questions about business data, reachable from Google Chat. This post is the reference setup that came out of it. It is written for someone who has to do the same and wants to know what to build, in which order, and where the surprises are.</p>
         <p><strong>How sure we are.</strong> Everything described was built and run on a real project. Two parts are not fully proven, and we say which: the Google Chat gateway was tested with Chat events published to its Pub/Sub topic, not yet with a person typing in the Chat app of a live Workspace; and we only tested a single VM.</p>
@@ -323,7 +323,7 @@
             <li><strong>One Compute Engine VM</strong> (Ubuntu 24.04, e2-standard-4, 100 GB disk) in a private subnet of an existing VPC. It has no public IP. Outbound traffic goes through the project&rsquo;s Cloud NAT.</li>
             <li><strong>The dashboard through Identity-Aware Proxy.</strong> AI Maestro has no login of its own, on purpose: the network is the boundary. So we did not expose it. People who need the dashboard open an IAP tunnel (<code class="font-mono text-sm text-cyan-400">gcloud compute start-iap-tunnel</code>), which checks their Google identity first.</li>
             <li><strong>Models from Vertex AI, with no API keys.</strong> The VM&rsquo;s service account has the <code class="font-mono text-sm text-cyan-400">aiplatform.user</code> role and nothing else for models. Claude Code reaches Claude Haiku 5.5 through Vertex AI; Pi reaches Gemini. In our project, Claude on Vertex needed an administrator to enable it in Model Garden and answered only on the <code class="font-mono text-sm text-cyan-400">global</code> endpoint (regional endpoints returned quota errors); your project may differ.</li>
-            <li><strong>Google Chat through Pub/Sub, with no public URL.</strong> A Chat app publishes events to a Pub/Sub topic; a gateway on the VM pulls them and replies through the Chat API. Nothing listens on the internet.</li>
+            <li><strong>Google Chat through Pub/Sub, with no public URL.</strong> A Chat app publishes events to a Pub/Sub topic; a gateway on the VM pulls them and replies through the Chat API. The VM has no public listener in our test.</li>
             <li><strong>Business data through a small read-only service, not through the agents.</strong> The agents have no database credentials and no general shell (only the messaging commands). They call a Cloud Run service (internal ingress, its own service account) that accepts only one <code class="font-mono text-sm text-cyan-400">SELECT</code> against an allowed dataset, or a fixed lookup of one record. A connector on the VM exposes it to the agent as two or four tools.</li>
         </ul>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">The pieces that were not obvious</h2>
@@ -333,20 +333,21 @@
             <li><strong>Agents created before the organization is set get no usable messaging identity.</strong> Initialize them with <code class="font-mono text-sm text-cyan-400">amp-init --tenant &lt;org&gt;</code> after setting the organization, or create them afterwards.</li>
             <li><strong>Cloud Run reserves <code class="font-mono text-sm text-cyan-400">/healthz</code>.</strong> Our health endpoint answered 404 until we noticed.</li>
             <li><strong>Internal ingress works from a VM</strong> in the same VPC when the subnet has Private Google Access; the same URL from outside returns 404.</li>
-            <li><strong>Permission design for data.</strong> The view the agent needs reads five other tables, and none was readable by the service account. We granted read on those tables only, not whole datasets, and kept the columns the agent can see in the service&rsquo;s fixed query, so a prompt-injected agent cannot ask for names or phone numbers.</li>
+            <li><strong>Permission design for data.</strong> The view the agent needs reads five other tables, and none was readable by the service account. We granted read on those tables only, not whole datasets, and kept the columns the agent can see in the service&rsquo;s fixed query, so the service does not return those columns.</li>
             <li><strong>Re-authentication.</strong> The administrator account we used was forced to sign in again every few hours, which stops automation that runs as a person. A dedicated service identity is the cleaner answer for long jobs.</li>
         </ol>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">What it did</h2>
-        <p>We asked the four agents 13 test questions in Spanish, sent as Google Chat events from an untrusted outside user: seven about single business records, three aggregate questions, and three safety tests (asking for a phone number, for a shell command and a file, and for a change to a record). With Claude Code and Haiku 5.5, all 13 answers were correct, checked against direct queries, in 3 to 16 seconds each, at an estimated cost of about $0.003 per question. The agents did not hand out personal data, did not run the command, and did not change anything. One answer was wrong in the first run (a tracking code taken for another kind of id); one instruction fixed it, and we ran the whole set again. This is one small run, not a benchmark.</p>
+        <p>We asked the four agents 13 test questions in Spanish, sent as Google Chat events from an untrusted outside user: seven about single business records, three aggregate questions, and three safety tests (asking for a phone number, for a shell command and a file, and for a change to a record). We checked every answer against a direct query. In this run the agents did not hand out personal data, did not run the command, and did not change anything. One answer was wrong in the first run (a tracking code taken for another kind of id); one instruction fixed it, and we ran the whole set again. We do not publish timings, accuracy percentages or costs: it was one small run, not a benchmark.</p>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">What we did not test</h2>
         <ul class="space-y-2 list-disc pl-6 marker:text-cyan-400">
             <li>A person typing in a live Google Chat app. The Chat side was exercised through Pub/Sub; the live-Workspace test is next.</li>
             <li>AI Maestro on GKE or Cloud Run. AI Maestro keeps terminals and agent folders alive between requests, which is why we chose a VM. We did not try to containerize it.</li>
             <li>More than one VM, or agents moving between hosts, on Google Cloud.</li>
-            <li>Anything about cost at volume. Our figures are tool estimates for a small test, not an invoice.</li>
+            <li>Anything about cost at volume; we publish no cost figures.</li>
         </ul>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">Reproduce it</h2>
         <p>The pieces are in the open: the Chat gateway (<code class="font-mono text-sm text-cyan-400">aimaestro-gateways</code>, <code class="font-mono text-sm text-cyan-400">google-chat-gateway</code>), <code class="font-mono text-sm text-cyan-400">scripts/install-claude-vertex.sh</code> and <code class="font-mono text-sm text-cyan-400">scripts/install-pi.sh --vertex</code> in AI Maestro, and the plugin&rsquo;s <code class="font-mono text-sm text-cyan-400">--permissions messaging</code> profile (plugin 1.18.5) for agents that talk to outside people. The read-only query service is specific to one organization&rsquo;s data and is not part of the release.</p>
+        <p class="text-slate-500 text-sm mt-10">Claude is a trademark of Anthropic. Gemini, Google Cloud, Vertex AI, Google Chat and Pub/Sub are trademarks of Google LLC. Pi is published by earendil-works under the MIT license. AI Maestro is not affiliated with or endorsed by them.</p>
     </article>
     <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
         <div class="max-w-7xl mx-auto">

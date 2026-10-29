@@ -33,7 +33,6 @@
     <meta name="twitter:title" content="Pi in AI Maestro: what works, what we fixed, and what it is not">
     <meta name="twitter:description" content="Pi agents in AI Maestro: message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and its limits.">
     <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
-    <meta name="twitter:creator" content="@jkpelaez">
 
     <!-- Additional SEO -->
     <meta name="keywords" content="Pi coding agent, AI Maestro, Gemini, Vertex AI, agent harness, MCP, AMP">
@@ -336,7 +335,7 @@
             <li><strong>Tool restrictions are not a sandbox.</strong> Pi&rsquo;s security documentation says that Pi does not ask for approval before every tool call, that prompt injection can steer the model, and that safety comes from limiting what Pi can reach; it has no built-in sandbox. A <code class="font-mono text-sm text-cyan-400">--tools</code> allow-list limits what the model can call, and we treat it as a way to reduce accidents, not as a boundary. Keep credentials off the machine and put the dangerous capability behind a service, as we did for database access.</li>
         </ul>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">How it did</h2>
-        <p>We ran 13 test questions in Spanish through Pi with two Gemini models, using the messaging tools and a read-only data connector, with each question sent as a Google Chat event from an untrusted user, and checked the answers against direct queries. Both models answered as we asked, and in this run neither ran a command, created a file or changed a record when asked to. We do not publish speed, accuracy or cost figures for these models: it was one small run of 13 test questions, not a benchmark.</p>
+        <p>We ran a set of support questions in Spanish through Pi with two Gemini models, using the messaging tools and a read-only data connector, with each question arriving as a Google Chat event from an untrusted user. The agents answered through the messaging layer, and when we asked them to run a command or change a record, they did not. This was a small functional test, not a benchmark, and we publish no performance figures.</p>
         <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">What Pi is not</h2>
         <ul class="space-y-2 list-disc pl-6 marker:text-cyan-400">
             <li>It does not ask for approval before every tool call, so there are no &ldquo;needs you&rdquo; cards for Pi agents.</li>

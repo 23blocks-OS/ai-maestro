@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.15] - 2026-10-29 - People: a directory of the humans who work with your agents (F057, step 1)
+
+### Added
+- A humans directory. `/api/people` (GET, POST) and `/api/people/:id` (GET, PATCH, DELETE) store a person on the host where you add them: name, title, role, email and an optional phone number in international (E.164) form, kept for a later phone integration and not used by calls today. DELETE deactivates (the record stays, phone and email are dropped); `?purge=1` removes it; `PATCH {"active": true}` brings someone back. Headless mode serves the same routes.
+- A People page (`/people`, button in the header). Like agents, people are not copied between hosts: the page asks every host and shows where each person is stored, and it names a host that could not be reached.
+- No login, by design: you add people, and per-person permissions will be policy in a trusted network, not a security boundary. Tests in `tests/people-service.test.ts`, including several hosts with one down and one not yet updated.
+
 ## [0.106.14] - 2026-10-29 - Installers no longer leave a pointer to a scratch folder
 
 ### Fixed

@@ -1,6 +1,6 @@
 # F057 - A directory of humans, owned by hosts the way agents are
 
-**Status:** Todo (design agreed in conversation with Juan on 2026-10-29; nothing built)
+**Status:** In Progress (design agreed with Juan on 2026-10-29; step 1 built in 0.106.15: directory, API, People page; steps 2-4 open)
 **Type:** Feature
 **Created:** 2026-10-29
 

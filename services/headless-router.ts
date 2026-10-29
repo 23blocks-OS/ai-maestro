@@ -147,6 +147,7 @@ import {
 } from '@/services/projects-service'
 import { getWorldEvents } from '@/services/world-events-service'
 import { getSelfHostId } from '@/lib/hosts-config'
+import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
 import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
 import {
@@ -1738,6 +1739,23 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/orgs\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, deleteOrg(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/people$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, listPeople({ includeInactive: qp(query, 'includeInactive') === '1' }))
+  }},
+  { method: 'POST', pattern: /^\/api\/people$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, createPerson(body))
+  }},
+  { method: 'GET', pattern: /^\/api\/people\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getPersonById(params.id))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/people\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updatePerson(params.id, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/people\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, deletePerson(params.id, { purge: qp(query, 'purge') === '1' }))
   }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())

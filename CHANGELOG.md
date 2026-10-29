@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - `scripts/install-aim-secret.sh` and `scripts/claude-hooks/install-hooks.sh` took the path of the folder they were run from. Run from a temporary git worktree (for example under `/tmp`), they wrote that path into `~/.local/bin/aim-secret` and into `~/.claude/settings.json`; when the folder was cleaned up, `aim-secret` failed for every agent on the host and the Claude Code hooks pointed at nothing. They now resolve the main checkout of the repository and refuse a temporary folder (`AIM_ALLOW_TEMP_REPO=1` overrides it for tests). Tests in `tests/install-aim-secret-stable-path.test.ts`.
+## [0.106.13] - 2026-10-29 - Backlog: review of the voice-call (AMP-RTC) proposals
+
+### Added
+- Backlog items F050-F057 and B019: a review of the voice-call workstream (issues #697-#700, draft PRs #701, #702, #703, #705, #707, #709, #710) and of the matching AMP protocol drafts (agentmessaging/protocol issues #22-#24, PRs #26-#31, item F056). F050 holds the decision and a verdict per issue and PR; F051-F055 cover the call state machine, real-time audio, the iPhone incoming call, voice rooms and interoperability tests; B019 records that the call screen always shows "connected" after 2.5 seconds. The combined draft specification for the humans directory, calls and meetings is `docs/SPEC-PEOPLE-CALLS-MEETINGS.md`. Documentation only, no code changes.
 
 ## [0.106.12] - 2026-10-28 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced)
 

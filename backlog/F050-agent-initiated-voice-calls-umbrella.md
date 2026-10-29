@@ -38,7 +38,7 @@ Verdict per item (details in F051-F055):
 
 **Protocol side (F056):** the AMP protocol repo has six matching draft PRs and three issues. Same verdict: nothing there is a standard yet; it lacks a wire format and a human-identity answer, and it should follow a working prototype, not lead it.
 
-Decisions Juan needs to make: (1) go or no-go on the idea at the cheap-slice scope; (2) the open question left in F057 (how directory entries are edited across hosts); (3) where native iOS code lives (the mobile app is a separate repo, `ai-maestro-app`); (4) whether we accept Apple's VoIP push policy risk.
+Decisions Juan needs to make: (1) go or no-go on the idea at the cheap-slice scope; (2) the shape of the directory (F057); (3) where native iOS code lives (the mobile app is a separate repo, `ai-maestro-app`); (4) whether we accept Apple's VoIP push policy risk.
 
 **The identity problem, answered (Juan, 29 Oct).** Humans are people the operator adds to a directory (F057); each runs their own AI Maestro app, which pairs with the instance. No authentication: the network is the trust boundary, and syncing the directory from AD or corporate directories is a later paid feature. Humans are not on a host: a directory entry is visible from every host (other hosts ask peers, as for agents), and a person is reachable through whichever hosts their app is connected to. Calls are therefore app to app inside the system, not an agent ringing an outside phone. Real phone numbers come later as one more media adapter, with a phone number field kept in the directory now; calling arbitrary people from agent numbers brings consent, AI-caller disclosure and robocall rules that differ by country, to settle before launch.
 

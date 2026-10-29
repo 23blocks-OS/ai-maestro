@@ -26,11 +26,10 @@ Today an agent can only write to "the user". There is no model of who the users 
 - Directory source is a provider behind an interface: `manual` now; `directory-sync` (AD, LDAP, SCIM) later, in the paid version, writing the same records.
 - Say plainly in the docs that, without authentication, an app states who it is and nobody checks; per-person permissions are policy in a trusted network, not a security boundary.
 
-**Across hosts.** A person is not on a host: they are in the real world, and their app is a client that connects to the hosts they use. So the model differs from agents in one way and matches in another.
-- Matches agents: nothing is copied wholesale. A host lists the people it knows, and a dashboard asks its peer hosts for theirs (the same fan-out the agent list uses, `lib/owning-host.ts` and `useAgentBoard`), so the same person is visible from every host in the network.
-- Differs from agents: there is no owning host and no "move a person". A directory entry (name, role, phone number, per-agent permissions) is data that any host in the network can show. Where a person is reachable is not stored in the entry; it is whatever hosts their app is connected to right now (live presence reported by the app).
-- Calls and approvals for a person go to the hosts their app is connected to. If the app is connected to several, the call rings the app once and the first host to hear the answer wins; if it is connected to none, the person is offline, as an agent on an offline host is.
-- Editing: to avoid two hosts holding conflicting versions of an entry, keep a single place that is the source for edits (the host where the operator added it) and let the others show it read-only. Open question for Juan: is that enough, or should entries replicate to every host and merge by last edit?
+**Across hosts: no sync, the same as agents.** Agents are not replicated. Each host's registry holds its own agents, and the dashboard asks the peer hosts for theirs; only the list of hosts is exchanged between peers (`lib/host-sync.ts`). Humans work the same way, so there is nothing to merge and no conflicts.
+- Each host has its own directory. The operator adds a person on the host they are working on, and edits them there, like an agent.
+- Other hosts show the person by asking their peers (the same fan-out the agent list uses).
+- A person is not on a host: they are in the real world, with an app that connects to the hosts they use. Where they can be reached is whichever hosts their app is connected to now (live presence from the app). A call rings the app; the first answer wins; no connected host means offline.
 
 **Rules from the repo to follow.** Service in `services/` returning `ServiceResult<T>`, thin API routes, headless router entries, the single status feed for "online", multi-host tests from the start. Reuse the registry pattern (`loadX/saveX/getX/createX/updateX/deleteX`).
 

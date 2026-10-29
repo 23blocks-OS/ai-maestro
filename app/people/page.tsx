@@ -18,7 +18,7 @@ const EMPTY: Form = { person: null, displayName: '', title: '', role: '', email:
 export default function PeoplePage() {
   const { hosts } = useHosts()
   const [showInactive, setShowInactive] = useState(false)
-  const { people, unreachable, loading, refresh } = usePeople(hosts, showInactive)
+  const { people, online, unreachable, loading, refresh } = usePeople(hosts, showInactive)
   const [form, setForm] = useState<Form | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -99,7 +99,7 @@ export default function PeoplePage() {
         ) : (
           <table className="w-full text-xs">
             <thead className="text-left text-gray-500">
-              <tr><th className="py-1 pr-3">Name</th><th className="pr-3">Title / role</th><th className="pr-3">Phone</th><th className="pr-3">Stored on</th><th /></tr>
+              <tr><th className="py-1 pr-3">Name</th><th className="pr-3">Title / role</th><th className="pr-3">Phone</th><th className="pr-3">Stored on</th><th className="pr-3">App</th><th /></tr>
             </thead>
             <tbody>
               {people.map(p => (
@@ -108,6 +108,9 @@ export default function PeoplePage() {
                   <td className="pr-3 text-gray-400">{[p.title, p.role].filter(Boolean).join(' · ') || '-'}</td>
                   <td className="pr-3 text-gray-400">{p.phone || '-'}</td>
                   <td className="pr-3 text-gray-500">{p.hostName}</td>
+                  <td className="pr-3">{online.get(p.id)
+                    ? <span className="text-emerald-400" title="Seen in the last 90 seconds">online via {online.get(p.id)!.join(', ')}</span>
+                    : <span className="text-gray-600">not connected</span>}</td>
                   <td className="text-right whitespace-nowrap">
                     {p.active ? (
                       <>

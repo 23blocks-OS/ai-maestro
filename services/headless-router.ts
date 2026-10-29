@@ -147,6 +147,7 @@ import {
 } from '@/services/projects-service'
 import { getWorldEvents } from '@/services/world-events-service'
 import { getSelfHostId } from '@/lib/hosts-config'
+import { listDevices, pairDevice, unpairDevice } from '@/services/person-devices-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
 import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
@@ -1756,6 +1757,16 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/people\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, deletePerson(params.id, { purge: qp(query, 'purge') === '1' }))
+  }},
+  { method: 'GET', pattern: /^\/api\/people-devices$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, listDevices({ personId: qp(query, 'personId') }))
+  }},
+  { method: 'PUT', pattern: /^\/api\/people-devices\/([^/]+)$/, paramNames: ['deviceId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, pairDevice(params.deviceId, body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/people-devices\/([^/]+)$/, paramNames: ['deviceId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, unpairDevice(params.deviceId))
   }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())

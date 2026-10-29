@@ -36,6 +36,8 @@ AMP is our differentiator and an open standard other providers may implement; a 
 9. **Overlap and bloat.** #29 (matrix) and #31 (fixtures) describe the same tests twice; #30 (rooms) specifies federation for rooms before one-to-one calls work. Spec sections 13 to 18 would be six of the 18 numbered sections.
 10. **Process.** One author, one day, no independent implementation, stacked PRs aimed at a branch. The draft itself states the right rule ("keep this document draft until an independent implementation validates interoperability") but that rule is not yet met by anything.
 
+**Update (2026-10-29, Juan).** Humans are members of an AI Maestro, added by the operator, with no authentication (F057). So point 3 resolves on the product side: human identity and device pairing are an AI Maestro feature, not part of AMP, and drafts #27 and #30 can shrink to what two providers must exchange (call signaling between agents and between instances). The spec should not require providers to authenticate humans.
+
 **Recommendation.**
 - Do not merge any of them into numbered spec sections yet. If the protocol repo wants them visible, keep one folder `proposals/` with #26 and #27 merged into a single short document, status "experimental", and no section numbers.
 - Close or park #28 (media), #30 (rooms) and merge #29 and #31 into one test plan until a prototype exists.

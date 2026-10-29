@@ -38,8 +38,10 @@ Verdict per item (details in F051-F055):
 
 **Protocol side (F056):** the AMP protocol repo has six matching draft PRs and three issues. Same verdict: nothing there is a standard yet; it lacks a wire format and a human-identity answer, and it should follow a working prototype, not lead it.
 
-Decisions Juan needs to make: (1) go or no-go on the idea at the cheap-slice scope; (2) the identity question (below); (3) where native iOS code lives (the mobile app is a separate repo, `ai-maestro-app`); (4) whether we accept Apple's VoIP push policy risk.
+Decisions Juan needs to make: (1) go or no-go on the idea at the cheap-slice scope; (2) the open question left in F057 (one owning host per person?); (3) where native iOS code lives (the mobile app is a separate repo, `ai-maestro-app`); (4) whether we accept Apple's VoIP push policy risk.
 
-**The identity problem.** Every part assumes "authenticated principals" and "an authenticated route". AI Maestro has no app-level login by design (the network is the boundary). A call needs to know *which person's phone* may be rung and *which device* may answer. That is device pairing (enrol a phone once, over the trusted network), not user login. Do not propose auth; design pairing. The AMP spec lists human and device identity as an open question for the same reason.
+**The identity problem, answered (Juan, 29 Oct).** Humans are people the operator adds to a directory (F057); each runs their own AI Maestro app, which pairs with the instance. No authentication: the network is the trust boundary, and syncing the directory from AD or corporate directories is a later paid feature. Humans belong to a host the way agents do (each host holds its own; other hosts ask peers and forward). Calls are therefore app to app inside the system, not an agent ringing an outside phone. Real phone numbers come later as one more media adapter, with a phone number field kept in the directory now; calling arbitrary people from agent numbers brings consent, AI-caller disclosure and robocall rules that differ by country, to settle before launch.
+
+Order of work: **F057 (directory) first**, then one-to-one calls (F051, F052; start in the browser, which needs HTTPS for the microphone), then rooms (F054), then iPhone native (F053). The hard part of a natural call is the agent's reply time, not the audio: design a fast voice layer that talks with the person and hands work to the working agent.
 
 Effort for the cheap slice: M. For everything: several L cycles and a decision on infrastructure.

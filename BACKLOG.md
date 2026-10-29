@@ -75,6 +75,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F054** — [Shared voice rooms for people and agents (#703)](./backlog/F054-voice-rooms-in-zoom-view.md) — `Todo` (deferred)
 - **F055** — [Call interoperability and failure tests (#700)](./backlog/F055-amp-rtc-interoperability-tests.md) — `Todo`
 - **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Todo`
+- **F057** — [A directory of humans, owned by hosts the way agents are](./backlog/F057-humans-directory.md) — `Todo`
 
 ## Bugs
 

@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.106.13] - 2026-10-29 - Backlog: review of the voice-call (AMP-RTC) proposals
 
 ### Added
-- Backlog items F050-F056 and B019: a review of the voice-call workstream (issues #697-#700, draft PRs #701, #702, #703, #705, #707, #709, #710) and of the matching AMP protocol drafts (agentmessaging/protocol issues #22-#24, PRs #26-#31, item F056). F050 holds the decision and a verdict per issue and PR; F051-F055 cover the call state machine, real-time audio, the iPhone incoming call, voice rooms and interoperability tests; B019 records that the call screen always shows "connected" after 2.5 seconds. Documentation only, no code changes.
+- Backlog items F050-F057 and B019: a review of the voice-call workstream (issues #697-#700, draft PRs #701, #702, #703, #705, #707, #709, #710) and of the matching AMP protocol drafts (agentmessaging/protocol issues #22-#24, PRs #26-#31, item F056). F050 holds the decision and a verdict per issue and PR; F051-F055 cover the call state machine, real-time audio, the iPhone incoming call, voice rooms and interoperability tests; B019 records that the call screen always shows "connected" after 2.5 seconds. Documentation only, no code changes.
 
 ## [0.106.12] - 2026-10-28 - Blog: two posts, Pi support and AI Maestro on Google Cloud (drafts, not announced)
 

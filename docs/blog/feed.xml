@@ -5,8 +5,22 @@
   <link href="https://ai-maestro.23blocks.com/blog/feed.xml" rel="self"/>
   <link href="https://ai-maestro.23blocks.com/blog/"/>
   <id>https://ai-maestro.23blocks.com/blog/</id>
-  <updated>2026-10-23T00:00:00Z</updated>
+  <updated>2026-10-28T00:00:00Z</updated>
   <author><name>Juan Peláez</name></author>
+  <entry>
+    <title>AI Maestro on Google Cloud: a reference deployment and what we tested</title>
+    <link href="https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html"/>
+    <id>https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html</id>
+    <updated>2026-10-28T00:00:00Z</updated>
+    <summary>AI agents on one Google Cloud VM: Vertex AI models with no API keys, Google Chat and read-only data access. What we built, what broke, and what we did not test.</summary>
+  </entry>
+  <entry>
+    <title>Pi in AI Maestro: what works, what we fixed, and what it is not</title>
+    <link href="https://ai-maestro.23blocks.com/blog/pi-harness-support.html"/>
+    <id>https://ai-maestro.23blocks.com/blog/pi-harness-support.html</id>
+    <updated>2026-10-28T00:00:00Z</updated>
+    <summary>Pi agents in AI Maestro: message delivery, chat history, status and messaging tools. What we tested with Gemini on Vertex AI, what we fixed, and its limits.</summary>
+  </entry>
   <entry>
     <title>Where should you look? What building a world for AI agents taught us</title>
     <link href="https://ai-maestro.23blocks.com/blog/human-agent-interaction.html"/>

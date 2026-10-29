@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Maestro on Google Cloud: a reference deployment and what we tested</title>
+    <meta name="description" content="AI agents on one Google Cloud VM: Vertex AI models with no API keys, Google Chat and read-only data access. What we built, what broke, and what we did not test.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="author" content="23blocks">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html">
+    <meta property="og:title" content="AI Maestro on Google Cloud: a reference deployment and what we tested">
+    <meta property="og:description" content="AI agents on one Google Cloud VM: Vertex AI models with no API keys, Google Chat and read-only data access. What we built, what broke, and what we did not test.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro - Orchestrate your AI coding agents">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AI Maestro on Google Cloud: a reference deployment and what we tested">
+    <meta name="twitter:description" content="AI agents on one Google Cloud VM: Vertex AI models with no API keys, Google Chat and read-only data access. What we built, what broke, and what we did not test.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="AI Maestro, Google Cloud, Vertex AI, Claude Code, Gemini, Google Chat, Pub/Sub, Compute Engine, IAP, Cloud Run, AI agents">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#6366f1">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#6366f1">
+    <meta name="msapplication-TileColor" content="#6366f1">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "AI Maestro on Google Cloud: a reference deployment and what we tested",
+      "datePublished": "2026-10-28",
+      "author": { "@type": "Organization", "name": "AI Maestro" },
+      "publisher": { "@type": "Organization", "name": "23blocks" },
+      "url": "https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html",
+      "isPartOf": { "@type": "SoftwareApplication", "name": "AI Maestro", "url": "https://ai-maestro.23blocks.com" }
+    }
+    </script>
+
+    
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    
+    <style>
+        .prose-x p { margin-bottom: 1rem; }
+        .prose-x a { color: #22d3ee; }
+        .prose-x a:hover { color: #67e8f9; }
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Horizontal rule accent */
+        .hr-accent {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+        }
+
+        /* Typing cursor */
+        .typing-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1em;
+            background-color: #00d4ff;
+            margin-left: 4px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+    </style>
+
+    <link rel="alternate" type="application/atom+xml" title="AI Maestro Blog" href="https://ai-maestro.23blocks.com/blog/feed.xml">
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+
+    <!-- Navigation (same as index.html) -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="/logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="/#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="/#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="/ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
+                    <a href="/skills.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">SKILLS</a>
+                    <a href="/protocols.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">PROTOCOLS</a>
+                    <a href="/blog/" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">BLOG</a>
+                    <a href="/#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="/#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="/#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="/ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
+                <a href="/skills.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Skills</a>
+                <a href="/protocols.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Protocols</a>
+                <a href="/blog/" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Blog</a>
+                <a href="/#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+
+
+    <article class="max-w-3xl mx-auto px-4 md:px-8 pt-12 pb-16 prose-x text-slate-300 leading-relaxed">
+        <p class="font-mono text-xs tracking-widest text-cyan-400 mb-4"><a href="/blog/" class="no-underline">BLOG</a> &nbsp;/&nbsp; GOOGLE CLOUD</p>
+        <h1 class="font-display text-3xl md:text-5xl font-extrabold tracking-tight leading-tight text-white mb-5">AI Maestro on Google Cloud: a reference deployment and what we tested</h1>
+        <p class="text-sm text-slate-500 mb-10 pb-6 border-b border-slate-800">AI Maestro &middot; October 28, 2026</p>
+
+        <p>We ran AI Maestro on Google Cloud as a test deployment: four agents on one virtual machine, answering support questions about business data, reachable from Google Chat. This post is the reference setup that came out of it. It is written for someone who has to do the same and wants to know what to build, in which order, and where the surprises are.</p>
+        <p><strong>How sure we are.</strong> Everything described was built and run on a real project. Two parts are not fully proven, and we say which: the Google Chat gateway was tested with Chat events published to its Pub/Sub topic, not yet with a person typing in the Chat app of a live Workspace; and we only tested a single VM.</p>
+        <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">The shape of it</h2>
+        <ul class="space-y-2 list-disc pl-6 marker:text-cyan-400">
+            <li><strong>One Compute Engine VM</strong> (Ubuntu 24.04, e2-standard-4, 100 GB disk) in a private subnet of an existing VPC. It has no public IP. Outbound traffic goes through the project&rsquo;s Cloud NAT.</li>
+            <li><strong>The dashboard through Identity-Aware Proxy.</strong> AI Maestro has no login of its own, on purpose: the network is the boundary. So we did not expose it. People who need the dashboard open an IAP tunnel (<code class="font-mono text-sm text-cyan-400">gcloud compute start-iap-tunnel</code>), which checks their Google identity first.</li>
+            <li><strong>Models from Vertex AI, with no API keys.</strong> The VM&rsquo;s service account has the <code class="font-mono text-sm text-cyan-400">aiplatform.user</code> role and nothing else for models. Claude Code reaches Claude Haiku 5.5 through Vertex AI; Pi reaches Gemini. In our project, Claude on Vertex needed an administrator to enable it in Model Garden and answered only on the <code class="font-mono text-sm text-cyan-400">global</code> endpoint (regional endpoints returned quota errors); your project may differ.</li>
+            <li><strong>Google Chat through Pub/Sub, with no public URL.</strong> A Chat app publishes events to a Pub/Sub topic; a gateway on the VM pulls them and replies through the Chat API. The VM has no public listener in our test.</li>
+            <li><strong>Business data through a small read-only service, not through the agents.</strong> The agents have no database credentials and no general shell (only the messaging commands). They call a Cloud Run service (internal ingress, its own service account) that accepts only one <code class="font-mono text-sm text-cyan-400">SELECT</code> against an allowed dataset, or a fixed lookup of one record. A connector on the VM exposes it to the agent as two or four tools.</li>
+        </ul>
+        <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">The pieces that were not obvious</h2>
+        <ol class="space-y-2 list-decimal pl-6 marker:text-cyan-400">
+            <li><strong>Keyless Chat tokens on a VM.</strong> A VM token carries only the broad <code class="font-mono text-sm text-cyan-400">cloud-platform</code> scope, and the Chat API refuses it (&ldquo;insufficient authentication scopes&rdquo;). The gateway now supports <code class="font-mono text-sm text-cyan-400">GCHAT_IMPERSONATE_SA</code>: the VM account asks the IAM Credentials API for short-lived <code class="font-mono text-sm text-cyan-400">chat.bot</code> tokens for a service account. No key file exists anywhere.</li>
+            <li><strong>A domain policy that blocks Google&rsquo;s own publisher account.</strong> The organization&rsquo;s &ldquo;domain restricted sharing&rdquo; policy refused to let <code class="font-mono text-sm text-cyan-400">chat-api-push@system.gserviceaccount.com</code> publish to our topic. The Workspace add-on format of the Chat app avoids it: its service agent belongs to the project, and it exists only after the app is saved.</li>
+            <li><strong>Agents created before the organization is set get no usable messaging identity.</strong> Initialize them with <code class="font-mono text-sm text-cyan-400">amp-init --tenant &lt;org&gt;</code> after setting the organization, or create them afterwards.</li>
+            <li><strong>Cloud Run reserves <code class="font-mono text-sm text-cyan-400">/healthz</code>.</strong> Our health endpoint answered 404 until we noticed.</li>
+            <li><strong>Internal ingress works from a VM</strong> in the same VPC when the subnet has Private Google Access; the same URL from outside returns 404.</li>
+            <li><strong>Permission design for data.</strong> The view the agent needs reads five other tables, and none was readable by the service account. We granted read on those tables only, not whole datasets, and kept the columns the agent can see in the service&rsquo;s fixed query, so the service does not return those columns.</li>
+            <li><strong>Re-authentication.</strong> The administrator account we used was forced to sign in again every few hours, which stops automation that runs as a person. A dedicated service identity is the cleaner answer for long jobs.</li>
+        </ol>
+        <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">What it did</h2>
+        <p>We asked the four agents support questions in Spanish, sent as Google Chat events from an untrusted outside user: questions about single business records, summary questions, and safety checks such as asking for personal data, for a shell command, or for a change to a record. The agents answered the business questions and declined the unsafe requests. This was a small functional test, not a benchmark, and we publish no performance or cost figures.</p>
+        <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">What we did not test</h2>
+        <ul class="space-y-2 list-disc pl-6 marker:text-cyan-400">
+            <li>A person typing in a live Google Chat app. The Chat side was exercised through Pub/Sub; the live-Workspace test is next.</li>
+            <li>AI Maestro on GKE or Cloud Run. AI Maestro keeps terminals and agent folders alive between requests, which is why we chose a VM. We did not try to containerize it.</li>
+            <li>More than one VM, or agents moving between hosts, on Google Cloud.</li>
+            <li>Anything about cost at volume; we publish no cost figures.</li>
+        </ul>
+        <h2 class="font-display text-2xl md:text-3xl font-bold text-white mt-10 mb-4">Reproduce it</h2>
+        <p>The pieces are in the open: the Chat gateway (<code class="font-mono text-sm text-cyan-400">aimaestro-gateways</code>, <code class="font-mono text-sm text-cyan-400">google-chat-gateway</code>), <code class="font-mono text-sm text-cyan-400">scripts/install-claude-vertex.sh</code> and <code class="font-mono text-sm text-cyan-400">scripts/install-pi.sh --vertex</code> in AI Maestro, and the plugin&rsquo;s <code class="font-mono text-sm text-cyan-400">--permissions messaging</code> profile (plugin 1.18.5) for agents that talk to outside people. The read-only query service is specific to one organization&rsquo;s data and is not part of the release.</p>
+        <p class="text-slate-500 text-sm mt-10">Claude is a trademark of Anthropic. Gemini, Google Cloud, Vertex AI, Google Chat and Pub/Sub are trademarks of Google LLC. Pi is published by earendil-works under the MIT license. AI Maestro is not affiliated with or endorsed by them.</p>
+    </article>
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="/logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
+                </div>
+                <div>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h3>
+                    <a href="/blog/" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Blog</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
+                </div>
+                <div>
+                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h3>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">♥</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">© 2025-2026 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Copy for AI functionality -->
+    <script src="/copy-for-ai.js"></script>
+</body>
+</html>

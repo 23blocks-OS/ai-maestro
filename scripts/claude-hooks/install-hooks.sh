@@ -23,8 +23,27 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Resolve the checkout the installed file will point at. Run from a linked git worktree (a scratch
+# copy under /tmp, an agent's worktree), the script's own folder disappears with the worktree and
+# leaves a dead pointer. Use the main checkout instead, and refuse a temp folder.
+stable_repo() {
+    local dir="$1" common main
+    common="$(git -C "$dir" rev-parse --git-common-dir 2>/dev/null || true)"
+    if [ -n "$common" ]; then
+        main="$(cd "$dir" && cd "$common/.." 2>/dev/null && pwd || true)"
+        [ -n "$main" ] && [ -d "$main/scripts" ] && dir="$main"
+    fi
+    case "$dir" in
+        /tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*)
+            if [ "${AIM_ALLOW_TEMP_REPO:-}" != "1" ]; then
+                echo "error: $dir is a temporary folder; run this from the main checkout (or set AIM_ALLOW_TEMP_REPO=1 for a test)" >&2
+                exit 1
+            fi ;;
+    esac
+    echo "$dir"
+}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK_SCRIPT="$SCRIPT_DIR/ai-maestro-hook.cjs"
+HOOK_SCRIPT="$(stable_repo "$(cd "$SCRIPT_DIR/../.." && pwd)")/scripts/claude-hooks/ai-maestro-hook.cjs"
 STATE_DIR="$HOME/.aimaestro/chat-state"
 INSTALLED_COUNT=0
 

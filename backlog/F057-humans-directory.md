@@ -26,11 +26,11 @@ Today an agent can only write to "the user". There is no model of who the users 
 - Directory source is a provider behind an interface: `manual` now; `directory-sync` (AD, LDAP, SCIM) later, in the paid version, writing the same records.
 - Say plainly in the docs that, without authentication, an app states who it is and nobody checks; per-person permissions are policy in a trusted network, not a security boundary.
 
-**Across hosts: the same way agents work today.** Agents are not copied between hosts. Each host's registry holds only its own agents; the dashboard fans out to peer hosts to show the rest; requests about a remote agent are forwarded to the host that owns it (`lib/owning-host.ts`, found by asking the peers, cached for a minute). Humans follow the same rules:
-- A person is owned by one host, where the operator added them (their home host). Their app pairs with that host.
-- Other hosts list people by asking peers, and route calls and approvals for a person to the owning host.
-- If the home host is offline the person is unreachable, as an agent on an offline host is.
-- Open question: can the same person exist on two hosts? Agents have one owner; start with one owner for people too, and add "move a person to another host" like agent transfer.
+**Across hosts.** A person is not on a host: they are in the real world, and their app is a client that connects to the hosts they use. So the model differs from agents in one way and matches in another.
+- Matches agents: nothing is copied wholesale. A host lists the people it knows, and a dashboard asks its peer hosts for theirs (the same fan-out the agent list uses, `lib/owning-host.ts` and `useAgentBoard`), so the same person is visible from every host in the network.
+- Differs from agents: there is no owning host and no "move a person". A directory entry (name, role, phone number, per-agent permissions) is data that any host in the network can show. Where a person is reachable is not stored in the entry; it is whatever hosts their app is connected to right now (live presence reported by the app).
+- Calls and approvals for a person go to the hosts their app is connected to. If the app is connected to several, the call rings the app once and the first host to hear the answer wins; if it is connected to none, the person is offline, as an agent on an offline host is.
+- Editing: to avoid two hosts holding conflicting versions of an entry, keep a single place that is the source for edits (the host where the operator added it) and let the others show it read-only. Open question for Juan: is that enough, or should entries replicate to every host and merge by last edit?
 
 **Rules from the repo to follow.** Service in `services/` returning `ServiceResult<T>`, thin API routes, headless router entries, the single status feed for "online", multi-host tests from the start. Reuse the registry pattern (`loadX/saveX/getX/createX/updateX/deleteX`).
 

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.31] - 2026-10-30 - The call command does not fail on a host that is down
+
+### Fixed
+- Bundled plugin 1.19.1: `aimaestro-call.sh` skipped a peer that did not answer but still exited with curl's code (28 on a timeout), so `people` looked like a failure on a host whose list includes one that is down. A peer that does not answer is now skipped, never the exit code. Test: an unreachable peer in `tests/aimaestro-call-cli.test.ts` (fails on 1.19.0).
+
 ## [0.106.30] - 2026-10-30 - Agents can ring a person
 
 ### Added

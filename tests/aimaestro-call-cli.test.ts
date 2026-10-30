@@ -15,6 +15,7 @@ let server: http.Server
 let base = ''
 let pushEnabled = true
 let callState = 'ringing'
+let deadPeer = false
 
 const people = [
   { id: 'p-juan', displayName: 'Juan Pelaez', email: 'juan@acme.test', hostId: 'h1', active: true },
@@ -31,7 +32,7 @@ beforeAll(async () => {
       seen.push({ method: req.method || '', url: req.url || '', body: raw ? JSON.parse(raw) : undefined })
       const send = (code: number, obj: unknown) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)) }
       const url = req.url || ''
-      if (url === '/api/hosts') return send(200, { hosts: [{ id: 'h1', url: base, isSelf: true, enabled: true }] })
+      if (url === '/api/hosts') return send(200, { hosts: [{ id: 'h1', url: base, isSelf: true, enabled: true }, ...(deadPeer ? [{ id: 'down', url: 'http://127.0.0.1:1', enabled: true }] : [])] })
       if (url === '/api/people') return send(200, { people })
       if (url.startsWith('/api/people-devices')) return send(200, { devices: [{ personId: 'p-juan', pushEnabled, pushTypes: pushEnabled ? ['needs_you', 'call'] : [] }] })
       if (url === '/api/calls' && req.method === 'POST') return send(201, { call: { callId: 'call-0001', state: 'inviting' } })
@@ -45,7 +46,7 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 })
 afterAll(() => new Promise<void>(r => server.close(() => r())))
-beforeEach(() => { seen.length = 0; pushEnabled = true; callState = 'ringing' })
+beforeEach(() => { seen.length = 0; pushEnabled = true; callState = 'ringing'; deadPeer = false })
 
 function run(args: string[], env: Record<string, string> = {}): Promise<{ code: number; out: string; err: string }> {
   return new Promise(resolve => {
@@ -110,6 +111,17 @@ describe.skipIf(!haveTools)('aimaestro-call.sh', () => {
     const events = seen.filter(s => s.url === '/api/calls/call-0001/events').map(s => s.body)
     expect(events.map(e => [e.type, e.actor])).toEqual([['rtc:cancel', 'agent:agent-1'], ['rtc:end', 'agent:agent-1']])
     expect(events[0].eventId).not.toBe(events[1].eventId)
+  })
+
+  // A peer that is down (Leonidas, 2026-10-30) made "people" exit with curl's code although it worked
+  it('a peer that does not answer is skipped, not an error', async () => {
+    deadPeer = true
+    const list = await run(['people'])
+    expect(list.code).toBe(0)
+    expect(list.out).toContain('Juan Pelaez')
+    const ring = await run(['person', 'Juan Pelaez'])
+    expect(ring.code).toBe(0)
+    expect(ring.out.trim()).toBe('call-0001')
   })
 
   it('shows the server\'s message on an error', async () => {

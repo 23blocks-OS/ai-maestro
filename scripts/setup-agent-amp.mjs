@@ -18,7 +18,7 @@
  *   node scripts/setup-agent-amp.mjs --dry-run
  */
 
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
@@ -518,7 +518,7 @@ async function main() {
 
   let tmuxCount = 0
   try {
-    const res = await fetch('http://localhost:23000/api/sessions')
+    const res = await fetch('http://localhost:23000/api/sessions?local=true') // tmux set-environment below is local
     const data = await res.json()
     const sessions = data.sessions || []
 
@@ -535,7 +535,8 @@ async function main() {
 
       if (!DRY_RUN) {
         try {
-          execSync(`tmux set-environment -t "${tmuxSession}" AMP_DIR "${agentHome}" 2>/dev/null`)
+          // argv, not a shell string: a session name must never reach a shell
+          execFileSync('tmux', ['set-environment', '-t', tmuxSession, 'AMP_DIR', agentHome], { stdio: 'ignore', timeout: 10000 })
           console.log(`  ${agentName} (${agentUUID}): AMP_DIR set`)
           tmuxCount++
         } catch {

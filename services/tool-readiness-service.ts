@@ -103,6 +103,7 @@ async function cachedLoginShellPath(): Promise<string> {
 }
 
 let reportCache: { at: number; report: ReadinessReport } | null = null
+let reportInFlight: Promise<ReadinessReport> | null = null
 
 /** Test hook: forget the cached results. */
 export function resetReadinessCache(): void {
@@ -114,9 +115,12 @@ export async function checkToolReadiness(deps: ReadinessDeps = realDeps): Promis
   if (deps === realDeps && reportCache && Date.now() - reportCache.at < REPORT_TTL_MS) {
     return { data: reportCache.report, status: 200 }
   }
-  const report = await buildReadinessReport(deps)
-  if (deps === realDeps) reportCache = { at: Date.now(), report }
-  return { data: report, status: 200 }
+  if (deps !== realDeps) return { data: await buildReadinessReport(deps), status: 200 }
+  // Concurrent callers share one build (a login shell plus a --version per tool) instead of each spawning their own.
+  reportInFlight ??= buildReadinessReport(deps)
+    .then((report) => { reportCache = { at: Date.now(), report }; return report })
+    .finally(() => { reportInFlight = null })
+  return { data: await reportInFlight, status: 200 }
 }
 
 /**

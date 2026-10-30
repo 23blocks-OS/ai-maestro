@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { listRestorableSessions, restoreSessions, deletePersistedSession } from '@/services/sessions-service'
 import { toResponse } from '@/app/api/_helpers'
 
+// Reads live state (tmux, registry) on every GET; never statically cached.
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/sessions/restore
  * Returns list of persisted sessions that can be restored

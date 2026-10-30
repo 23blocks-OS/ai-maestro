@@ -13,6 +13,9 @@
 import { diagnoseHosts, normalizeHosts } from '@/services/agents-directory-service'
 import { toResponse } from '@/app/api/_helpers'
 
+// Reads the agent registry on every GET; never statically cached.
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const result = diagnoseHosts()
   return toResponse(result)

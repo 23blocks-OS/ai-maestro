@@ -13,6 +13,9 @@ import {
 } from '@/services/help-service'
 import { toResponse } from '@/app/api/_helpers'
 
+// Reads live state (tmux, registry) on every GET; never statically cached.
+export const dynamic = 'force-dynamic'
+
 /**
  * POST - Create or return existing assistant agent
  */

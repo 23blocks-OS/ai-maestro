@@ -267,17 +267,19 @@ function withObservedExpiry<T extends { status: string; at: number; observed?: b
 }
 
 const OBSERVED_RECHECK_MS = 1500
+const OBSERVED_MAX_CAPTURES_PER_SWEEP = 3
 const observedCheckedAt = new Map<string, number>()
 
 /**
  * Look at the terminal of every agent whose Claude Code hook reported a pending decision and expire the
  * ones that are over. Cheap by construction: it only visits sessions the hook reported as
  * permission_request, no younger than OBSERVED_GRACE_MS, at most one pane capture per session per
- * OBSERVED_RECHECK_MS, and a request is expired once. Called every second by server.mjs. Returns the
+ * OBSERVED_RECHECK_MS and OBSERVED_MAX_CAPTURES_PER_SWEEP per call, and a request is expired once. Called every second by server.mjs. Returns the
  * number of requests expired.
  */
 export function sweepObservedPermissions(now: number = Date.now()): number {
   let expired = 0
+  const due: Array<{ sessionName: string; agentId: string; at: number }> = []
   hookStatusMap.forEach((reported, sessionName) => {
     if (reported.status !== 'permission_request' || now - reported.at < OBSERVED_GRACE_MS) return
     if (now - (observedCheckedAt.get(sessionName) || 0) < OBSERVED_RECHECK_MS) return
@@ -287,23 +289,29 @@ export function sweepObservedPermissions(now: number = Date.now()): number {
     const hookState = getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS)
     if (!hookState || hookState.status !== 'permission_request' || !hookState.observed) return
     if (observedExpired.get(sessionName)?.at === hookState.at) return
+    due.push({ sessionName, agentId: agent.id, at: hookState.at })
+  })
 
+  // The capture is synchronous (up to 2 s on a slow tmux), so one tick captures at most a few panes,
+  // least recently checked first so every pending session still gets its turn.
+  due.sort((a, b) => (observedCheckedAt.get(a.sessionName) || 0) - (observedCheckedAt.get(b.sessionName) || 0))
+  for (const { sessionName, agentId, at } of due.slice(0, OBSERVED_MAX_CAPTURES_PER_SWEEP)) {
     observedCheckedAt.set(sessionName, now)
     let pane = ''
     try {
       pane = capturePaneSync(sessionName, 200, { timeout: 2000 })
     } catch {
-      return // no pane to look at (another host's agent, session gone): nothing proves it is over
+      continue // no pane to look at (another host's agent, session gone): nothing proves it is over
     }
-    const verdict = observedPermissionVerdict({ ageMs: now - hookState.at, paneText: pane })
-    if (verdict === 'keep') return
+    const verdict = observedPermissionVerdict({ ageMs: now - at, paneText: pane })
+    if (verdict === 'keep') continue
 
-    observedExpired.set(sessionName, { at: hookState.at, status: verdict })
+    observedExpired.set(sessionName, { at, status: verdict })
     // The same path the hook uses: updates the hook status map (wake logic) and pushes to /status clients
-    broadcastActivityUpdate(sessionName, verdict, verdict, undefined, agent.id)
+    broadcastActivityUpdate(sessionName, verdict, verdict, undefined, agentId)
     console.log(`[Hook] ${sessionName}: pending permission over (pane shows no decision), now ${verdict}`)
     expired++
-  })
+  }
   // Forget sessions that no longer report a pending request
   observedCheckedAt.forEach((_, name) => { if (hookStatusMap.get(name)?.status !== 'permission_request') observedCheckedAt.delete(name) })
   return expired

@@ -18,7 +18,7 @@
  *   ./scripts/register-agent-from-session.mjs --all -y --program claude
  */
 
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import * as readline from 'readline'
 
 const API_BASE = 'http://localhost:23000'
@@ -91,7 +91,8 @@ async function linkSessionAPI(agentId, sessionName, workingDirectory) {
 function renameSessionToStructured(oldName, agentId, hostId = 'local') {
   const newName = `${agentId}@${hostId}`
   try {
-    execSync(`tmux rename-session -t "${oldName}" "${newName}"`, { encoding: 'utf-8' })
+    // argv, not a shell string: a session name must never reach a shell
+    execFileSync('tmux', ['rename-session', '-t', oldName, newName], { encoding: 'utf-8', timeout: 10000 })
     return newName
   } catch (error) {
     console.warn(`⚠️  Could not rename session: ${error.message}`)
@@ -104,7 +105,7 @@ function renameSessionToStructured(oldName, agentId, hostId = 'local') {
  */
 function getCurrentSession() {
   try {
-    return execSync('tmux display-message -p "#S"', { encoding: 'utf-8' }).trim()
+    return execFileSync('tmux', ['display-message', '-p', '#S'], { encoding: 'utf-8', timeout: 10000 }).trim()
   } catch (error) {
     return null
   }
@@ -115,7 +116,7 @@ function getCurrentSession() {
  */
 function getAllSessions() {
   try {
-    const output = execSync('tmux list-sessions -F "#{session_name}"', { encoding: 'utf-8' })
+    const output = execFileSync('tmux', ['list-sessions', '-F', '#{session_name}'], { encoding: 'utf-8', timeout: 10000 })
     return output.trim().split('\n').filter(Boolean)
   } catch (error) {
     return []
@@ -127,8 +128,9 @@ function getAllSessions() {
  */
 function getSessionWorkingDir(sessionName) {
   try {
-    return execSync(`tmux display-message -p -t "${sessionName}" -F "#{pane_current_path}"`, {
-      encoding: 'utf-8'
+    return execFileSync('tmux', ['display-message', '-p', '-t', sessionName, '-F', '#{pane_current_path}'], {
+      encoding: 'utf-8',
+      timeout: 10000
     }).trim()
   } catch (error) {
     return process.cwd()

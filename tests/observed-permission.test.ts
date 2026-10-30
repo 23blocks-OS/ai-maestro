@@ -174,6 +174,27 @@ describe('the activity feed after an observed permission request', () => {
     expect(capturePaneSync).toHaveBeenCalledTimes(1)
   })
 
+  it('captures at most a few panes per sweep, least recently checked first', () => {
+    const extra = [3, 4, 5, 6, 7].map(i => ({ id: `a${i}`, name: `agent-${i}`, workingDirectory: `/repos/r${i}` }))
+    agents.push(...extra)
+    try {
+      for (const a of extra) request(a.name, a.workingDirectory, 10_000)
+      capturePaneSync.mockReturnValue(pane.dialog)
+      const now = Date.now() + (clock += 60_000)
+      sweepObservedPermissions(now)
+      const first = capturePaneSync.mock.calls.map(c => c[0])
+      expect(first.length).toBe(3)
+      capturePaneSync.mockClear()
+      sweepObservedPermissions(now + 2000) // all five are due again; the two not yet seen go first
+      const second = capturePaneSync.mock.calls.map(c => c[0])
+      expect(second.length).toBe(3)
+      expect(new Set([...first, ...second]).size).toBe(5)
+    } finally {
+      agents.splice(2)
+      for (const a of extra) hookStatus.delete(a.name)
+    }
+  })
+
   it('keeps the request when there is no pane to look at', async () => {
     request('claude-agent', '/repos/claude', 10_000)
     capturePaneSync.mockImplementation(() => { throw new Error('no such session') })

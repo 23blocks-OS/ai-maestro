@@ -30,8 +30,10 @@ interface ExpoMessage {
   to: string
   title: string
   body: string
-  data: { type: PushType; agentId?: string; hostId: string }
+  data: { type: PushType; agentId?: string; callId?: string; hostId: string }
   channelId: string
+  /** Seconds Expo keeps trying to deliver; a call that has stopped ringing is not worth delivering */
+  ttl?: number
   priority: 'high'
   sound: 'default'
   interruptionLevel?: 'time-sensitive'
@@ -103,5 +105,31 @@ export async function pushNeedsYou(agentId?: string, sessionName?: string): Prom
     priority: 'high',
     sound: 'default',
     interruptionLevel: 'time-sensitive',
+  }))
+}
+
+/** "person:<id>" → the person id; anything else (an agent, an address) is not a paired phone */
+const personOf = (party: string) => party.startsWith('person:') ? party.slice('person:'.length) : null
+
+/** A call started: ring the callee's paired phones that opted in to `call`. Only people have phones. */
+export async function pushCall(call: { callId: string; caller: string; callee: string; expiresAt: string }): Promise<void> {
+  const personId = personOf(call.callee)
+  if (!personId) return
+  const targets = loadDevices().filter(d => d.personId === personId && d.pushToken && d.pushTypes?.includes('call'))
+  if (!targets.length) return
+  const ttl = Math.floor((Date.parse(call.expiresAt) - Date.now()) / 1000)
+  if (ttl < 1) return
+  const callerName = call.caller.startsWith('agent:') ? (getAgent(call.caller.slice(6))?.name || call.caller.slice(6)) : call.caller.replace(/^person:/, '')
+  const hostId = getSelfHostId()
+  await deliver(targets, to => ({
+    to,
+    title: `${callerName} is calling`,
+    body: 'Open AI Maestro to answer.',
+    data: { type: 'call', callId: call.callId, hostId },
+    channelId: 'call',
+    priority: 'high',
+    sound: 'default',
+    interruptionLevel: 'time-sensitive',
+    ttl,
   }))
 }

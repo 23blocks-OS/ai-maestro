@@ -1769,8 +1769,8 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/people-devices\/([^/]+)$/, paramNames: ['deviceId'], handler: async (_req, res, params) => {
     sendServiceResult(res, unpairDevice(params.deviceId))
   }},
-  { method: 'GET', pattern: /^\/api\/calls$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getCalls())
+  { method: 'GET', pattern: /^\/api\/calls$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, getCalls({ caller: qp(query, 'caller'), callee: qp(query, 'callee'), active: qp(query, 'active') === '1' }))
   }},
   { method: 'POST', pattern: /^\/api\/calls$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req).catch(() => ({}))

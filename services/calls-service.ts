@@ -9,6 +9,7 @@
  */
 
 import { createCall, getCall, listCalls, applyCallEvent, isCallId } from '@/lib/call-store'
+import { pushCall } from '@/lib/push-expo'
 import { RTC_EVENT_TYPES, type RTCCall, type RTCEvent } from '@/lib/amp-rtc'
 import { type ServiceResult, missingField, invalidField, notFound, serviceError, operationFailed } from '@/services/service-errors'
 
@@ -18,8 +19,15 @@ const MAX_TTL_S = 120
 
 const party = (v: unknown) => typeof v === 'string' && PARTY.test(v)
 
-export function getCalls(): ServiceResult<{ calls: RTCCall[] }> {
-  return { data: { calls: listCalls() }, status: 200 }
+const LIVE = new Set(['inviting', 'ringing', 'accepted', 'connected'])
+
+/** The app polls this for its own calls: ?callee=person:<id>&active=1 */
+export function getCalls(opts: { caller?: string | null; callee?: string | null; active?: boolean } = {}): ServiceResult<{ calls: RTCCall[] }> {
+  const calls = listCalls()
+    .filter(c => !opts.caller || c.caller === opts.caller)
+    .filter(c => !opts.callee || c.callee === opts.callee)
+    .filter(c => !opts.active || LIVE.has(c.state))
+  return { data: { calls }, status: 200 }
 }
 
 export function getCallById(id: string): ServiceResult<{ call: RTCCall }> {
@@ -36,7 +44,10 @@ export function startCall(params: Record<string, unknown>): ServiceResult<{ call
   const ttl = params.ttlSeconds ?? DEFAULT_TTL_S
   if (typeof ttl !== 'number' || !Number.isFinite(ttl) || ttl < 1 || ttl > MAX_TTL_S) return invalidField('ttlSeconds', `ttlSeconds must be 1 to ${MAX_TTL_S}`)
   try {
-    return { data: { call: createCall(params.caller as string, params.callee as string, ttl * 1000) }, status: 201 }
+    const call = createCall(params.caller as string, params.callee as string, ttl * 1000)
+    // Ring the callee's phone. Fire-and-forget: a push must never delay or fail starting the call.
+    pushCall(call).catch(err => console.warn('[Push] call push failed:', err))
+    return { data: { call }, status: 201 }
   } catch (error) {
     return operationFailed('start call', (error as Error).message)
   }

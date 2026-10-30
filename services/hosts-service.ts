@@ -18,7 +18,7 @@
  *   POST   /api/hosts/exchange-peers   -> exchangePeers
  */
 
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
@@ -56,7 +56,7 @@ import { readHostLoad, type HostLoad } from '@/lib/host-load'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed, invalidRequest } from '@/services/service-errors'
 import { resetCircuitBreaker, isCircuitOpen } from '@/services/agents-core-service'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -71,18 +71,23 @@ const MAX_PROPAGATION_DEPTH = 3
 
 let dockerCache: { available: boolean; version?: string; checkedAt: number } | null = null
 const DOCKER_CACHE_TTL = 60000 // 60 seconds
+// Concurrent callers share one probe instead of each spawning docker.
+let dockerProbe: Promise<{ available: boolean; version?: string; checkedAt: number }> | null = null
 
 async function getDockerStatus(): Promise<{ available: boolean; version?: string; checkedAt: number }> {
   if (dockerCache && Date.now() - dockerCache.checkedAt < DOCKER_CACHE_TTL) {
     return dockerCache
   }
-  try {
-    const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 3000 })
-    dockerCache = { available: true, version: stdout.trim().replace(/'/g, ''), checkedAt: Date.now() }
-  } catch {
-    dockerCache = { available: false, checkedAt: Date.now() }
-  }
-  return dockerCache!
+  dockerProbe ??= (async () => {
+    try {
+      const { stdout } = await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}'], { timeout: 3000 })
+      dockerCache = { available: true, version: stdout.trim(), checkedAt: Date.now() }
+    } catch {
+      dockerCache = { available: false, checkedAt: Date.now() }
+    }
+    return dockerCache
+  })().finally(() => { dockerProbe = null })
+  return dockerProbe
 }
 
 // ---------------------------------------------------------------------------
@@ -91,15 +96,20 @@ async function getDockerStatus(): Promise<{ available: boolean; version?: string
 
 let cloudCache: { terraform: boolean; aws: boolean; awsRegion: string; checkedAt: number } | null = null
 const CLOUD_CACHE_TTL = 60000 // 60 seconds
+let cloudProbe: Promise<{ terraform: boolean; aws: boolean; awsRegion: string; checkedAt: number }> | null = null
 
 async function getCloudStatus(): Promise<{ terraform: boolean; aws: boolean; awsRegion: string }> {
   if (cloudCache && Date.now() - cloudCache.checkedAt < CLOUD_CACHE_TTL) {
     return cloudCache
   }
+  cloudProbe ??= probeCloud().finally(() => { cloudProbe = null })
+  return cloudProbe
+}
 
+async function probeCloud(): Promise<{ terraform: boolean; aws: boolean; awsRegion: string; checkedAt: number }> {
   let terraformAvailable = false
   try {
-    await execAsync('terraform version', { timeout: 3000 })
+    await execFileAsync('terraform', ['version'], { timeout: 3000 })
     terraformAvailable = true
   } catch {}
 
@@ -107,10 +117,10 @@ async function getCloudStatus(): Promise<{ terraform: boolean; aws: boolean; aws
   let awsRegion = 'us-east-1'
   if (terraformAvailable) {
     try {
-      await execAsync('aws sts get-caller-identity', { timeout: 5000 })
+      await execFileAsync('aws', ['sts', 'get-caller-identity'], { timeout: 5000 })
       awsAvailable = true
       try {
-        const { stdout } = await execAsync('aws configure get region', { timeout: 3000 })
+        const { stdout } = await execFileAsync('aws', ['configure', 'get', 'region'], { timeout: 3000 })
         if (stdout.trim()) awsRegion = stdout.trim()
       } catch {}
     } catch {}

@@ -38,4 +38,19 @@ describe('findPeerHostUrl', () => {
     const f = vi.fn(async (url: string) => { if (url.includes('100.80.12.6')) throw new Error('timeout'); return { ok: false } as any })
     expect(await findPeerHostUrl('a1', f as any)).toBeUndefined()
   })
+
+  it('remembers a miss for a while, so an agent no host knows is not probed on every poll', async () => {
+    const f = vi.fn(async () => ({ ok: false }) as any)
+    await findPeerHostUrl('a1', f as any)
+    const calls = f.mock.calls.length
+    expect(await findPeerHostUrl('a1', f as any)).toBeUndefined()
+    expect(f.mock.calls.length).toBe(calls)
+  })
+
+  it('shares one probe between concurrent callers for the same agent', async () => {
+    const f = vi.fn(async () => { await new Promise(r => setTimeout(r, 5)); return { ok: true } as any })
+    const [a, b] = await Promise.all([findPeerHostUrl('a1', f as any), findPeerHostUrl('a1', f as any)])
+    expect(a).toBe(b)
+    expect(f.mock.calls.length).toBe(2) // two peers, probed once
+  })
 })

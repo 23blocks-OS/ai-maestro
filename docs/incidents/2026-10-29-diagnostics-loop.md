@@ -1,6 +1,6 @@
 # Incident 2026-10-29: hosts looped diagnostics requests and buried themselves in child processes
 
-**Status:** Resolved in code (0.106.21, #719). Rollout to all hosts in progress at the time of writing.
+**Status:** Resolved. Loop fixed in 0.106.21 (#719); the audit's findings fixed in 0.106.23 to 0.106.26; all of our hosts updated.
 **Severity:** P0 (outage). AI Maestro was unusable for the whole organization: the dashboard stopped loading, the hosts were saturated, and work stopped. Agents kept running in tmux; no data was lost.
 **Issue:** #720
 **Affected versions:** 0.106.4 to 0.106.20 for multi-host setups; 0.24.17 to 0.106.20 for multi-host headless setups.
@@ -128,15 +128,16 @@ The review of the changes merged the same day (#714 to #719) found, among others
 | # | Action | Status |
 |---|---|---|
 | 1 | Break the loop, share and cache runs, `df` without a shell (0.106.21) | Done, #719 |
-| 2 | Roll 0.106.21 to every host | Done 21:05 (C 21:00, B 21:03, A 21:05) |
+| 2 | Roll 0.106.21 to every host | Done 21:05 (C 21:00, B 21:03, A 21:05); 0.106.24 rolled out 21:30–21:43 |
 | 3 | Issue with symptoms, exposure and workaround for users | Done, #720 |
 | 4 | Audit every server-side call to peers and every spawn reachable from routes and timers for the same class of failure | Done (above) |
 | 5 | Review the changes merged on 2026-10-29 (#714 to #719) | Done (above) |
-| 6 | Default timeout in `tmux()`; timeout on `docker ps`; short cache and single-flight on local discovery (audit 1) | To do, first |
-| 6a | Hibernate checks `hostUrl` like wake (audit 2); docker create uses `isSelfHost` (audit 3); hosts health uses a local endpoint (audit 4) | To do, first |
-| 6b | Fixes from the review of #714 to #719 | To do |
-| 6c | Bound concurrent child processes in the server (one place) | To do |
-| 7 | Index one agent at a time after boot, and start a few minutes after boot | To do |
+| 6 | Default timeout in `tmux()`; timeout on `docker ps`; short cache and single-flight on local discovery (audit 1) | Done, #722 (0.106.23) |
+| 6a | Hibernate checks `hostUrl` like wake (audit 2); docker create uses `isSelfHost` (audit 3); hosts health uses a local endpoint (audit 4) | Done, #722 |
+| 6b | Fixes from the review of #714 to #719 | Done, #724 (0.106.24) |
+| 6c | Audit 5 to 10: message poll guard and timeouts, owning-host miss cache, capped permission sweep, shared probes, argv instead of shell strings | Done, 0.106.26 |
+| 6d | Bound concurrent child processes in the server in one place | Open: the per-call bounds above cover the known paths; a global limit is not built |
+| 7 | Delta-index backlog: one waiting run per agent, slot before pin, one throttle per process, 3-minute boot grace | Done, #725 (0.106.25) |
 | 8 | A rule and a test: any server-side call to a peer must reach a local-only endpoint or pass a local flag | To do |
 | 9 | For framework upgrades, list the routes whose caching changes and check what they do | To do |
 | 10 | Release notes for 0.106.21 telling multi-host users to update every host | To do |

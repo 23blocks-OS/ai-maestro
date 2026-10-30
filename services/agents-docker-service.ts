@@ -8,7 +8,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { exec, execFile } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { v4 as uuidv4 } from 'uuid'
 import { createAgent, deleteAgent, getAgent, loadAgents, saveAgents, updateAgent } from '@/lib/agent-registry'
@@ -25,7 +25,6 @@ import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
 import { containerProgram } from '@/lib/program-choices'
 import { codexPermissionFlags } from '@/lib/launch-options'
 
-const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
 
 export interface DockerCreateRequest {
@@ -1224,7 +1223,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
 
   // Verify Docker is available
   try {
-    await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 5000 })
+    await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}'], { timeout: 5000 })
   } catch {
     return invalidRequest('Docker is not available on this host')
   }
@@ -1232,9 +1231,8 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   // Find an available port in 23001-23100 range
   let port: number | null = null
   try {
-    const { stdout: portsOutput } = await execAsync(
-      "docker ps --format '{{.Ports}}' 2>/dev/null || echo ''"
-    )
+    const { stdout: portsOutput } = await execFileAsync('docker', ['ps', '--format', '{{.Ports}}'], { timeout: 10000 })
+      .catch(() => ({ stdout: '' })) // was `|| echo ''`
     const usedPorts = new Set<number>()
     const portRegex = /(\d+)->23000/g
     let match
@@ -1569,12 +1567,12 @@ export async function recreateDockerAgent(
   if (oldContainerName) {
     const safeContainerName = oldContainerName.replace(/[^a-zA-Z0-9_-]/g, '')
     try {
-      await execAsync(`docker stop ${safeContainerName}`, { timeout: 60000 })
+      await execFileAsync('docker', ['stop', safeContainerName], { timeout: 60000 })
     } catch (err) {
       console.log(`[Recreate] stop ${oldContainerName} (non-fatal):`, err instanceof Error ? err.message : err)
     }
     try {
-      await execAsync(`docker rm ${safeContainerName}`, { timeout: 60000 })
+      await execFileAsync('docker', ['rm', safeContainerName], { timeout: 60000 })
     } catch (err) {
       console.log(`[Recreate] rm ${oldContainerName} (non-fatal):`, err instanceof Error ? err.message : err)
     }
@@ -1584,7 +1582,7 @@ export async function recreateDockerAgent(
     // the verification on inspect failure (means the container is gone, the
     // expected case).
     try {
-      await execAsync(`docker inspect ${safeContainerName}`, { timeout: 5000 })
+      await execFileAsync('docker', ['inspect', safeContainerName], { timeout: 5000 })
       // inspect succeeded → container still exists → name conflict will block create
       return operationFailed(
         'remove old container',
@@ -1661,10 +1659,19 @@ export interface ContainerStats {
   pids: number
 }
 
-export async function getDockerStats(): Promise<ServiceResult<{ containers: ContainerStats[] }>> {
+// `docker stats --no-stream` takes seconds; concurrent callers share one run instead of each spawning one.
+let dockerStatsInFlight: Promise<ServiceResult<{ containers: ContainerStats[] }>> | null = null
+
+export function getDockerStats(): Promise<ServiceResult<{ containers: ContainerStats[] }>> {
+  dockerStatsInFlight ??= readDockerStats().finally(() => { dockerStatsInFlight = null })
+  return dockerStatsInFlight
+}
+
+async function readDockerStats(): Promise<ServiceResult<{ containers: ContainerStats[] }>> {
   try {
-    const { stdout } = await execAsync(
-      'docker stats --no-stream --format \'{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","memUsage":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","netIO":"{{.NetIO}}","pids":"{{.PIDs}}"}\'',
+    const { stdout } = await execFileAsync(
+      'docker',
+      ['stats', '--no-stream', '--format', '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","memUsage":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","netIO":"{{.NetIO}}","pids":"{{.PIDs}}"}'],
       { timeout: 10000 }
     )
 

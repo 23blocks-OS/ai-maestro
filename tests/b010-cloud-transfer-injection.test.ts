@@ -24,7 +24,7 @@ vi.mock('child_process', () => {
       ? JSON.stringify({ repositories: [{ repositoryUri: '1.dkr.ecr.us-east-1.amazonaws.com/r' }] })
       : ''
     const child: any = { stdin: { end: () => {} } }
-    const fail = file === 'aws' && args[0] === 'sts'
+    const fail = (file === 'aws' && args[0] === 'sts') || (file === 'docker' && args[0] === 'version') // no docker daemon
     queueMicrotask(() => cb && (fail ? cb(new Error('no credentials')) : cb(null, { stdout, stderr: '' })))
     return child
   }

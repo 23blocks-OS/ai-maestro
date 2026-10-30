@@ -21,8 +21,7 @@
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { execSync } from 'child_process'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { discoverAgentDatabases } from '@/lib/agent-startup'
 import { agentRegistry } from '@/lib/agent'
@@ -38,7 +37,7 @@ import type {
 import { type ServiceResult, missingField, notFound, operationFailed } from '@/services/service-errors'
 import { unknownAgentResult } from '@/services/agent-guard'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // -- Config types --
 
@@ -501,31 +500,28 @@ export async function getPtyDebugInfo(): Promise<ServiceResult<PtyDebugInfo>> {
     let ptyLimit = 511 // Default macOS limit
     let ptyProcesses: { command: string; count: number }[] = []
 
+    // argv, no shell. Each step falls back on its own, as `|| echo 511` and `2>/dev/null` did.
+    const sysctl = await execFileAsync('sysctl', ['-n', 'kern.tty.ptmx_max'], { timeout: 3000 }).catch(() => ({ stdout: '' }))
+    ptyLimit = parseInt(sysctl.stdout.trim()) || 511
+
+    let ttys: string[] = []
     try {
-      const limitOutput = execSync('sysctl -n kern.tty.ptmx_max 2>/dev/null || echo 511', { encoding: 'utf8' })
-      ptyLimit = parseInt(limitOutput.trim()) || 511
-
-      const ptyCountOutput = execSync('ls /dev/ttys* 2>/dev/null | wc -l', { encoding: 'utf8' })
-      systemPtyCount = parseInt(ptyCountOutput.trim()) || 0
-
-      const lsofOutput = execSync(
-        "lsof /dev/ttys* 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn | head -10",
-        { encoding: 'utf8' }
-      )
-      ptyProcesses = lsofOutput
-        .trim()
-        .split('\n')
-        .filter(line => line.trim())
-        .map(line => {
-          const match = line.trim().match(/^(\d+)\s+(.+)$/)
-          if (match) {
-            return { count: parseInt(match[1]), command: match[2] }
-          }
-          return null
-        })
-        .filter(Boolean) as { command: string; count: number }[]
+      ttys = fs.readdirSync('/dev').filter(name => name.startsWith('ttys')).map(name => `/dev/${name}`)
     } catch {
-      // Commands may fail on non-macOS systems
+      // No /dev listing: not a macOS-style host
+    }
+    systemPtyCount = ttys.length
+
+    if (ttys.length > 0) {
+      // lsof exits 1 when some of the ttys are not open; its stdout is still the answer.
+      const lsofOutput = await execFileAsync('lsof', ttys, { timeout: 5000, maxBuffer: 8 * 1024 * 1024 })
+        .then(r => r.stdout, (err: { stdout?: string }) => err?.stdout || '')
+      const counts = new Map<string, number>()
+      for (const line of lsofOutput.split('\n').slice(1)) { // slice(1): the COMMAND header row
+        const command = line.trim().split(/\s+/)[0]
+        if (command) counts.set(command, (counts.get(command) || 0) + 1)
+      }
+      ptyProcesses = [...counts].map(([command, count]) => ({ command, count })).sort((a, b) => b.count - a.count).slice(0, 10)
     }
 
     const usagePercent = (systemPtyCount / ptyLimit) * 100
@@ -557,15 +553,28 @@ export async function getPtyDebugInfo(): Promise<ServiceResult<PtyDebugInfo>> {
 // GET /api/docker/info
 // ---------------------------------------------------------------------------
 
+const DOCKER_INFO_TTL_MS = 5000
+let dockerInfoCache: { at: number; result: ServiceResult<DockerInfo> } | null = null
+let dockerInfoProbe: Promise<ServiceResult<DockerInfo>> | null = null
+
 /**
  * Check if Docker is available on this host.
  */
 export async function getDockerInfo(): Promise<ServiceResult<DockerInfo>> {
+  if (dockerInfoCache && Date.now() - dockerInfoCache.at < DOCKER_INFO_TTL_MS) return dockerInfoCache.result
+  // Concurrent callers share one `docker version` instead of each spawning one.
+  dockerInfoProbe ??= probeDockerInfo()
+    .then((result) => { dockerInfoCache = { at: Date.now(), result }; return result })
+    .finally(() => { dockerInfoProbe = null })
+  return dockerInfoProbe
+}
+
+async function probeDockerInfo(): Promise<ServiceResult<DockerInfo>> {
   try {
-    const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", {
+    const { stdout } = await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}'], {
       timeout: 5000,
     })
-    const version = stdout.trim().replace(/'/g, '')
+    const version = stdout.trim()
     return {
       data: { available: true, version },
       status: 200,

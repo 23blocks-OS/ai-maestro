@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.26] - 2026-10-29 - The rest of the audit: no overlapping polls, shared probes, argv everywhere
+
+### Fixed
+- An agent's message check skips a tick while the previous one is still running, its calls to this host have timeouts (10 s, 30 s for sending a notice), and it finds its own session with `/api/sessions?local=true` instead of asking every host. The memory service's session lookup does the same.
+- The owning-host lookup caches misses for 30 seconds and shares one probe per agent, so cards polling for an agent no host knows no longer pile up probes.
+- The observed-permission sweep captures at most 3 panes per second, least recently checked first; what it detects is unchanged.
+- Tool readiness, Docker and cloud status, `GET /api/docker/info` (also cached 5 seconds) and `docker stats` share one run between concurrent callers.
+- Shell strings replaced by argument lists in the services (`config-service`, `hosts-service`, `agents-docker-service`) and in `scripts/setup-agent-amp.mjs` and `scripts/register-agent-from-session.mjs`, the pattern behind a past command-injection advisory. The PTY debug view now counts `lsof` lines without its header row.
+- `help/agent`, `sessions/restore` and `agents/normalize-hosts` declare `dynamic`; none does costly work.
+- Tests: `tests/agent-message-poll-guard.test.ts`, `tests/probe-single-flight.test.ts`, `tests/no-shell-strings.test.ts`, new cases in `tests/owning-host.test.ts` and `tests/observed-permission.test.ts`; all fail on the old code.
+- `docs/incidents/2026-10-29-diagnostics-loop.md`: the action list now shows what shipped.
+
 ## [0.106.25] - 2026-10-29 - The indexing backlog after a restart drains
 
 ### Fixed

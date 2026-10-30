@@ -313,7 +313,8 @@ export async function initializeMemory(
       console.log('[Memory Service] Populating from tmux sessions and historical conversations...')
 
       const selfHost = getSelfHost()
-      const sessionsResponse = await fetch(`${selfHost.url}/api/sessions`)
+      // Local only: this host's tmux sessions, without the cross-host fan-out.
+      const sessionsResponse = await fetch(`${selfHost.url}/api/sessions?local=true`, { signal: AbortSignal.timeout(10_000) })
       const sessionsData = await sessionsResponse.json()
 
       const agentSessionIds = new Set<string>()

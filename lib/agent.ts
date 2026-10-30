@@ -45,6 +45,9 @@ function getSelfApiBase(): string {
   return `http://${hostname}:23000`
 }
 
+const SELF_FETCH_TIMEOUT_MS = 10_000
+const COMMAND_FETCH_TIMEOUT_MS = 30_000
+
 interface AgentConfig {
   agentId: string
   workingDirectory?: string
@@ -140,7 +143,7 @@ interface SubconsciousStatus {
 // Static counter for staggering initial runs across all agents
 let subconsciousInstanceCount = 0
 
-class AgentSubconscious {
+export class AgentSubconscious {
   private agentId: string
   private agent: Agent
   private memoryTimer: NodeJS.Timeout | null = null
@@ -148,6 +151,8 @@ class AgentSubconscious {
   private consolidationTimer: NodeJS.Timeout | null = null
   private initialDelayTimer: NodeJS.Timeout | null = null
   private isRunning = false
+  // A slow check must not overlap the next tick (the Oct 29 pile-up pattern).
+  private messageCheckInFlight = false
   private memoryCheckInterval: number
   private messageCheckInterval: number
   private instanceNumber: number
@@ -512,13 +517,24 @@ class AgentSubconscious {
    * Agent-first: Always query by agent ID, not session name
    */
   private async checkMessages() {
+    if (this.messageCheckInFlight) return
+    this.messageCheckInFlight = true
+    try {
+      await this.runMessageCheck()
+    } finally {
+      this.messageCheckInFlight = false
+    }
+  }
+
+  private async runMessageCheck() {
     this.totalMessageRuns++
     this.lastMessageRun = Date.now()
 
     try {
       // Query messages directly by agent ID (agent-first architecture)
       const messagesResponse = await fetch(
-        `${getSelfApiBase()}/api/messages?agent=${encodeURIComponent(this.agentId)}&box=inbox&status=unread`
+        `${getSelfApiBase()}/api/messages?agent=${encodeURIComponent(this.agentId)}&box=inbox&status=unread`,
+        { signal: AbortSignal.timeout(SELF_FETCH_TIMEOUT_MS) }
       )
 
       if (messagesResponse.ok) {
@@ -564,8 +580,11 @@ class AgentSubconscious {
         return null
       }
 
-      // Get list of active tmux sessions
-      const sessionsResponse = await fetch(`${getSelfApiBase()}/api/sessions`)
+      // Local sessions only: this agent's session is on this host, so the
+      // cross-host fan-out of plain /api/sessions is pure cost here.
+      const sessionsResponse = await fetch(`${getSelfApiBase()}/api/sessions?local=true`, {
+        signal: AbortSignal.timeout(SELF_FETCH_TIMEOUT_MS),
+      })
       if (!sessionsResponse.ok) return null
 
       const data = await sessionsResponse.json()
@@ -666,6 +685,8 @@ class AgentSubconscious {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // Longer than the GETs: verify reads the pane back, up to two sends.
+          signal: AbortSignal.timeout(COMMAND_FETCH_TIMEOUT_MS),
           body: JSON.stringify({
             command: prompt.trim(),
             requireIdle: true,

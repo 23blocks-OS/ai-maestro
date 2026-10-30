@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.30] - 2026-10-30 - Agents can ring a person
+
+### Added
+- Bundled plugin 1.19.0: `aimaestro-call.sh` and the `call-a-person` skill. An agent lists the people it can call (`people`, every reachable host), rings one by name, email or id (`person`, as `agent:<its id>`; an ambiguous name is refused with the ids), waits for the answer (`wait`: 0 answered, 2 not answered, 3 still ringing), and can `cancel` or `end`. It warns when the person's phone has no push for calls yet, so it will not ring. The skill says when to call (a person must act now) and to send a message too: a call is signalling only, there is no audio yet.
+- Tests: `tests/aimaestro-call-cli.test.ts` (7, the real script against a fake host).
+
 ## [0.106.29] - 2026-10-30 - People in organizations, and an org chart
 
 ### Added

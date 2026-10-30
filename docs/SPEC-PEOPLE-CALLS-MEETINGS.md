@@ -8,7 +8,7 @@
 - The "call" in Companion is a simulation: `components/MobileCallOverlay.tsx` switches to "connected" after a fixed 2.5 seconds (B019). Companion has no audio connection.
 - What works is a voice loop: the phone turns speech into text (`voice:transcript` over `/companion-ws`), the agent answers in text, the phone speaks it. Useful, but not a call: no ringing, no interruption, several seconds of delay.
 - The Zoom View is a grid of agent cards and terminals, not an audio room.
-- People are free text. Agents have `owner` and `humanManager` strings (`types/agent.ts`). There is no directory of humans.
+- People were free text: agents have `owner` and `humanManager` strings (`types/agent.ts`). Since 0.106.28 `humanManager` holds a person id from the directory (chosen in the agent profile's Reports to, or linked from old text with `/api/agents/manager-links`); older text still works and is shown as is.
 - Other work in flight: seven draft PRs and four issues (#697-#700, #701-#710) and six AMP protocol drafts (agentmessaging/protocol #22-#24, #26-#31). Reviewed in F050-F056. None runs a call.
 
 ## 2. Principles

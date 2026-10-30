@@ -129,7 +129,7 @@ export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMa
                       {[p.title, p.role].filter(Boolean).join(' · ') || 'no title'} · {p.hostName}
                     </div>
                     <div className="text-[11px] text-gray-500 mt-1">
-                      {MEMBERSHIP_TEXT[p.membership]}{p.reports.length ? ` · ${p.reports.length} agent${p.reports.length === 1 ? '' : 's'} report to them` : ''}
+                      {MEMBERSHIP_TEXT[p.membership]}{p.reports.length ? ` · ${p.reports.length === 1 ? '1 agent reports' : `${p.reports.length} agents report`} to them` : ''}
                     </div>
                   </div>
                 ))}

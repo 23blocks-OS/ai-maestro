@@ -92,7 +92,7 @@ function Branch({ nodeKey, tree, presenceOf, seen }: {
         return (
           <li key={k.key} className="relative py-1 before:absolute before:-left-4 before:top-4 before:h-px before:w-3 before:bg-gray-800">
             <NodeCard node={k} presenceOf={presenceOf} />
-            <Branch nodeKey={k.key} tree={children} presenceOf={presenceOf} seen={next} />
+            <Branch nodeKey={k.key} tree={tree} presenceOf={presenceOf} seen={next} />
           </li>
         )
       })}

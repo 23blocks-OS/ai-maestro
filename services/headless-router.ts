@@ -148,6 +148,7 @@ import {
 import { getWorldEvents } from '@/services/world-events-service'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { listDevices, pairDevice, unpairDevice } from '@/services/person-devices-service'
+import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
 import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
@@ -1767,6 +1768,20 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/people-devices\/([^/]+)$/, paramNames: ['deviceId'], handler: async (_req, res, params) => {
     sendServiceResult(res, unpairDevice(params.deviceId))
+  }},
+  { method: 'GET', pattern: /^\/api\/calls$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getCalls())
+  }},
+  { method: 'POST', pattern: /^\/api\/calls$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, startCall(body))
+  }},
+  { method: 'GET', pattern: /^\/api\/calls\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getCallById(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/calls\/([^/]+)\/events$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, sendCallEvent(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())

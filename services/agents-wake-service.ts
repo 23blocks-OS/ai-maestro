@@ -84,9 +84,11 @@ export async function hibernateAgentRequest(agentId: string, rawBody: unknown): 
   const sessionIndex = typeof body.sessionIndex === 'number' ? body.sessionIndex : 0
   const hostUrl = typeof body.hostUrl === 'string' ? body.hostUrl : undefined
 
+  // Same test as wake: a stale hostId after a hostname change, with hostUrl still pointing here,
+  // made hibernate proxy to itself without end
   const agent = getAgent(agentId)
-  const remoteHostId = agent?.hostId && !isSelf(agent.hostId) ? agent.hostId : null
-  const remoteHostUrl = remoteHostId ? agent?.hostUrl : hostUrl
+  const isLocalAgent = !agent?.hostId || isSelf(agent.hostId) || (agent?.hostUrl ? isSelf(agent.hostUrl) : false)
+  const remoteHostUrl = !isLocalAgent ? agent?.hostUrl : hostUrl
 
   if (remoteHostUrl) {
     return proxyPost(remoteHostUrl, agentId, 'hibernate', { sessionIndex }, 'Hibernate')

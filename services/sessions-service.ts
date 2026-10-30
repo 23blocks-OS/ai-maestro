@@ -21,7 +21,7 @@
 
 import { hookNeedsYou, normalizeActivityStatus, claimsActivity } from '@/lib/agent-presence'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
-import { exec, execFile } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import http from 'http'
 import https from 'https'
@@ -82,7 +82,6 @@ import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
 import { shouldLogChange } from '@/lib/log-on-change'
 
-const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
 
 export type SessionActivityStatus = 'active' | 'idle' | 'waiting'
@@ -454,9 +453,7 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
 
     // Discover Docker container agents (fallback for containers without a fresh heartbeat)
     try {
-      const { stdout: dockerOutput } = await execAsync(
-        "docker ps --filter 'name=aim-' --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || echo ''"
-      )
+      const dockerOutput = await listAimContainers()
       if (dockerOutput.trim()) {
         for (const line of dockerOutput.trim().split('\n')) {
           if (!line.trim()) continue
@@ -638,6 +635,24 @@ export async function listSessions(): Promise<{ sessions: Session[]; fromCache: 
   } finally {
     pendingRequest = null
   }
+}
+
+const DOCKER_TIMEOUT_MS = 5_000
+const DOCKER_CACHE_MS = 1_000
+const dockerList = globalThis as unknown as { _aimDockerPs?: { at: number; run: Promise<string> } }
+
+/**
+ * `docker ps` for agent containers, as argv with a timeout, shared by everyone who asks within a
+ * second. A hung Docker daemon used to leave one shell and one docker process per request.
+ * No Docker, or an error: '' (no containers), as before.
+ */
+export function listAimContainers(now = Date.now()): Promise<string> {
+  const cached = dockerList._aimDockerPs
+  if (cached && now - cached.at < DOCKER_CACHE_MS) return cached.run
+  const run = execFileAsync('docker', ['ps', '--filter', 'name=aim-', '--format', '{{.Names}}\t{{.Status}}\t{{.Ports}}'], { timeout: DOCKER_TIMEOUT_MS })
+    .then(r => r.stdout, () => '')
+  dockerList._aimDockerPs = { at: now, run }
+  return run
 }
 
 /**

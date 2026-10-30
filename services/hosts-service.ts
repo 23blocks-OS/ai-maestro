@@ -187,7 +187,8 @@ async function makeHealthCheckRequest(
   timeout: number
 ): Promise<{ success: boolean; error?: string; sessionCount?: number }> {
   try {
-    const sessionsUrl = `${url.protocol}//${url.host}/api/sessions`
+    // local=true: the peer's own sessions only; without it every health check made the peer ask all of its peers
+    const sessionsUrl = `${url.protocol}//${url.host}/api/sessions?local=true`
 
     const response = await fetch(sessionsUrl, {
       method: 'GET',

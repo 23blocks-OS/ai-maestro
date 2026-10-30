@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.22] - 2026-10-29 - Incident report for the diagnostics loop
+
+### Added
+- `docs/incidents/2026-10-29-diagnostics-loop.md`: root cause analysis of the 2026-10-29 outage (hosts looped diagnostics requests; fixed in 0.106.21), with timeline, who else is affected, an audit of every cross-host call and route-reachable spawn for the same class of failure, and the follow-up actions. Issue #720.
+- `support/` is gitignored: support cases (the agentic-support skill) hold customer and incident data and never go in this public repo.
+
 ## [0.106.21] - 2026-10-29 - Diagnostics no longer calls itself across hosts
 
 ### Fixed

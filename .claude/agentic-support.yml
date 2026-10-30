@@ -1,0 +1,9 @@
+# agentic-support skill settings for this repo
+SUPPORT_DIR: support/            # gitignored: the repo is public
+INDEX_PATH: support/INDEX.md
+CUSTOMERS_DIR: support/customers/
+INBOUND_DIR: support/inbound/
+RUNBOOKS_DIR: support/runbooks/
+NEXT_CASE_NUMBER: S002
+RESPONSE_TARGETS: "P0: 1 hour, P1: 4 hours, P2: 2 days, P3: 1 week"
+RETENTION_PERIOD: "2 years"

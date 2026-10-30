@@ -17,6 +17,9 @@ import type { Person, PersonRecord } from '@/types/person'
 const MAX_TEXT = 120
 const E164 = /^\+[1-9]\d{6,14}$/
 const TEXT_FIELDS = ['givenName', 'familyName', 'title', 'role', 'externalId'] as const
+/** An organization id, as in agents' `org:` tags */
+const ORG_ID = /^[a-z0-9][a-z0-9_.-]{0,63}$/
+const MAX_ORGS = 20
 
 export type PersonParams = Record<string, unknown>
 
@@ -43,6 +46,19 @@ function parse(params: PersonParams, creating: boolean): ServiceResult<never> | 
   if (params.email !== undefined) {
     if (typeof params.email !== 'string' || (params.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.email.trim()))) return invalidField('email', 'email must look like name@example.com')
     out.email = params.email.trim()
+  }
+  if (params.orgs !== undefined) {
+    if (!Array.isArray(params.orgs) || params.orgs.length > MAX_ORGS) return invalidField('orgs', `orgs must be a list of at most ${MAX_ORGS} organization ids`)
+    const orgs = [...new Set(params.orgs.map(o => (typeof o === 'string' ? o.trim().toLowerCase() : '')))]
+    if (!orgs.every(o => ORG_ID.test(o))) return invalidField('orgs', 'each organization must be an id such as acme or acme-labs (letters, digits, . _ -)')
+    out.orgs = orgs
+  }
+  if (params.managerPersonId !== undefined) {
+    // null or '' clears. The manager can be stored on another host, so only its shape is checked here;
+    // the People page, which sees every host, refuses a loop before saving.
+    if (params.managerPersonId === null || params.managerPersonId === '') out.managerPersonId = ''
+    else if (!isPersonId(params.managerPersonId)) return invalidField('managerPersonId', 'managerPersonId must be a person id from GET /api/people')
+    else out.managerPersonId = params.managerPersonId
   }
   if (params.phone !== undefined) {
     if (typeof params.phone !== 'string') return invalidField('phone', 'phone must be text')
@@ -84,6 +100,7 @@ export function updatePerson(id: string, params: PersonParams): ServiceResult<{ 
   if (!isPersonId(id) || !getPerson(id)) return notFound('Person', id)
   const f = parse(params, false)
   if (isErr(f)) return f
+  if (f.managerPersonId && f.managerPersonId === id) return invalidField('managerPersonId', 'A person cannot report to themselves')
   try {
     // { active: true } brings back a deactivated person
     if (params.active === true) reactivateRecord(id)

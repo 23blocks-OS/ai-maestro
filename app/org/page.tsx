@@ -9,9 +9,10 @@ import { useProjects } from '@/hooks/useProjects'
 import { useOrgs, type MeshOrg } from '@/hooks/useOrgs'
 import { useOpenTasks } from '@/hooks/useOpenTasks'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
+import { usePeople } from '@/hooks/usePeople'
 import OrganizationView from '@/components/org/OrganizationView'
 import { VersionChecker } from '@/components/VersionChecker'
-import { agentDisplay, buildOrganizations, type OrgAgentInput } from '@/lib/organization'
+import { agentDisplay, buildOrganizations, type OrgAgentInput, type OrgPersonInput } from '@/lib/organization'
 
 /**
  * Organization: every agent, card and project of one company across every host, grouped by the
@@ -23,6 +24,7 @@ export default function OrganizationPage() {
   const { cards, unreachable: cardsDown, loading } = useOpenTasks(hosts)
   const { projects, unreachable: projectsDown } = useProjects(hosts)
   const { orgs: records, defaultOrg, unreachable: orgsDown, refresh: refreshOrgs } = useOrgs(hosts)
+  const { people: directory, unreachable: peopleDown } = usePeople(hosts)
   const { presenceOf } = useSessionActivity()
   const [selected, setSelected] = useState<string | null>(null)
   // null = closed; { id: null } = new organization; { id } = edit that record
@@ -32,8 +34,12 @@ export default function OrganizationPage() {
   const hostName = useCallback((id: string) => hosts.find(h => h.id === id)?.name || id, [hosts])
 
   const agentInputs = useMemo<OrgAgentInput[]>(
-    () => agents.map(a => ({ id: a.id, name: a.name, label: a.label, alias: a.alias, hostId: a.hostId, hostName: hostName(a.hostId), tags: a.tags })),
+    () => agents.map(a => ({ id: a.id, name: a.name, label: a.label, alias: a.alias, hostId: a.hostId, hostName: hostName(a.hostId), tags: a.tags, humanManager: a.humanManager, managerAgentId: a.managerAgentId })),
     [agents, hostName],
+  )
+  const personInputs = useMemo<OrgPersonInput[]>(
+    () => directory.map(p => ({ id: p.id, displayName: p.displayName, title: p.title, role: p.role, hostId: p.hostId, hostName: p.hostName, orgs: p.orgs, managerPersonId: p.managerPersonId })),
+    [directory],
   )
   const orgs = useMemo(() => buildOrganizations(
     agentInputs,
@@ -41,7 +47,8 @@ export default function OrganizationPage() {
     projects.map(p => ({ id: p.id, name: p.name, status: p.status, ownerAgentId: p.ownerAgentId, hostId: p.hostId, counts: p.counts })),
     records,
     defaultOrg,
-  ), [agentInputs, cards, projects, records, defaultOrg])
+    personInputs,
+  ), [agentInputs, cards, projects, records, defaultOrg, personInputs])
 
   const names = useMemo(() => new Map(agentInputs.map(a => [a.id, agentDisplay(a)])), [agentInputs])
   const nameOf = useCallback((id: string) => names.get(id) || cards.find(c => c.agentId === id)?.agentName || id.slice(0, 8), [names, cards])
@@ -61,7 +68,7 @@ export default function OrganizationPage() {
       setFormError('Could not save the default organization')
     }
   }
-  const down = [...new Set([...cardsDown, ...projectsDown, ...orgsDown])]
+  const down = [...new Set([...cardsDown, ...projectsDown, ...orgsDown, ...peopleDown])]
 
   // A new record is stored on this host; an existing one is changed on the host that holds it
   const save = async () => {

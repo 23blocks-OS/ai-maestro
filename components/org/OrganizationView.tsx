@@ -1,11 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Hourglass, Link2, Lock, Pencil } from 'lucide-react'
+import { Hourglass, Link2, List, Lock, Network, Pencil, UserRound } from 'lucide-react'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { type Organization, type OrgAgent, type OrgCardInput, type OrgRelation, type RelationKind } from '@/lib/organization'
+import OrgChart from './OrgChart'
 
-type Tab = 'agents' | 'work' | 'projects' | 'relations'
+type Tab = 'members' | 'work' | 'projects' | 'relations'
+
+const MEMBERSHIP_TEXT = { member: 'member', manages: 'manages agents here', both: 'member · manages agents here' } as const
 
 const RELATION_TEXT: Record<RelationKind, string> = {
   'hands-work-to': 'hands work to',
@@ -38,7 +41,8 @@ interface Props {
 
 /** One organization: its agents, the work they hold, the projects it takes part in, and how the agents relate. */
 export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMakeDefault }: Props) {
-  const [tab, setTab] = useState<Tab>('agents')
+  const [tab, setTab] = useState<Tab>('members')
+  const [layout, setLayout] = useState<'list' | 'chart'>('list')
   const s = org.stats
 
   const byKind = useMemo(() => {
@@ -54,7 +58,7 @@ export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMa
   }, [org.cards, nameOf])
 
   const tabs: Array<[Tab, string]> = [
-    ['agents', `Agents (${s.agents})`], ['work', `Work (${s.open})`], ['projects', `Projects (${s.projects})`], ['relations', `Relations (${org.relations.length})`],
+    ['members', `Members (${s.people + s.agents})`], ['work', `Work (${s.open})`], ['projects', `Projects (${s.projects})`], ['relations', `Relations (${org.relations.length})`],
   ]
 
   return (
@@ -80,6 +84,7 @@ export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMa
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Stat label="People" value={s.people} />
         <Stat label="Agents" value={s.agents} />
         <Stat label="Open cards" value={s.open} />
         <Stat label="Waiting" value={s.waiting} tone={s.waiting ? 'text-amber-300' : undefined} />
@@ -95,8 +100,44 @@ export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMa
         ))}
       </div>
 
-      {tab === 'agents' && (
+      {tab === 'members' && (
+        <div className="flex gap-1" role="group" aria-label="How to show the members">
+          {([['list', 'List', List], ['chart', 'Org chart', Network]] as const).map(([k, label, Icon]) => (
+            <button key={k} onClick={() => setLayout(k)} aria-pressed={layout === k}
+              className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${layout === k ? 'bg-gray-700 text-gray-100' : 'bg-gray-900 text-gray-400 hover:text-gray-200'}`}>
+              <Icon className="w-3 h-3" /> {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'members' && layout === 'chart' && <OrgChart org={org} presenceOf={presenceOf} />}
+
+      {tab === 'members' && layout === 'list' && (
         <div className="space-y-4">
+          <section>
+            <h3 className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5">People</h3>
+            {org.people.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {org.people.map(p => (
+                  <div key={p.id} className="rounded-lg border border-violet-500/20 bg-gray-900/60 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <UserRound className="w-3.5 h-3.5 flex-shrink-0 text-violet-300" />
+                      <span className="text-sm text-gray-100 truncate">{p.display}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                      {[p.title, p.role].filter(Boolean).join(' · ') || 'no title'} · {p.hostName}
+                    </div>
+                    <div className="text-[11px] text-gray-500 mt-1">
+                      {MEMBERSHIP_TEXT[p.membership]}{p.reports.length ? ` · ${p.reports.length === 1 ? '1 agent reports' : `${p.reports.length} agents report`} to them` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No people yet. Add people to this organization on the People page, or set who its agents report to.</p>
+            )}
+          </section>
           {byKind.map(([kind, list]) => (
             <section key={kind}>
               <h3 className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5">{kind}</h3>
@@ -181,7 +222,7 @@ export default function OrganizationView({ org, nameOf, presenceOf, onEdit, onMa
 
       <p className="flex items-center gap-1.5 text-[11px] text-gray-600 pt-2">
         <Lock className="w-3 h-3" />
-        Built from each agent’s org:, kind: and role: tags; an agent with no org: tag is shown under the default. An organization is shown, not enforced: it does not limit who can read what.
+        Built from each agent’s org:, kind: and role: tags (an agent with no org: tag is shown under the default) and from the People directory: a person is here when added to this organization or when one of its agents reports to them. An organization is shown, not enforced: it does not limit who can read what.
       </p>
     </div>
   )

@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.21] - 2026-10-29 - Diagnostics no longer calls itself across hosts
+
+### Fixed
+- `GET /api/diagnostics` asked every peer for its `/api/diagnostics`, which asked its peers, including the host that asked first, without end. Each run spawns `tmux -V` and `df`. The loop has existed since 0.24.17 but stayed dormant while Next 14 cached the route; Next 15 (0.106.4, deployed to the hosts on 2026-10-29) runs it on every request, and three hosts listing each other piled up more than 1,000 child processes on this Mac and pinned macOS `syspolicyd`. The peer check now asks only `/api/v1/health`.
+- A run in progress is shared by everyone who asks meanwhile, and a finished report is reused for a minute, so a burst of requests costs one `tmux` call and one `df`.
+- `df` runs with arguments instead of a shell pipeline. Tests in `tests/diagnostics-no-recursion.test.ts`; they fail on the old code.
+
 ## [0.106.20] - 2026-10-29 - A call to a person rings their phone (F053)
 
 ### Added

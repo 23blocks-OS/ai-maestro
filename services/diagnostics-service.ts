@@ -17,7 +17,7 @@
  *   - Disk space on ~/.aimaestro/ partition
  */
 
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
@@ -30,7 +30,10 @@ import { loadKeyPair } from '@/lib/amp-keys'
 import { deriveDidKey } from '@/lib/amp-did'
 import { type ServiceResult } from '@/services/service-errors'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+/** A finished report is reused this long; a run in progress is shared by everyone who asks meanwhile */
+export const REPORT_CACHE_MS = 60_000
 
 // ---------------------------------------------------------------------------
 // Types
@@ -283,11 +286,9 @@ function checkNodeVersion(): DiagnosticCheck {
 async function checkDiskSpace(): Promise<DiagnosticCheck> {
   const targetDir = path.join(os.homedir(), '.aimaestro')
   try {
-    const { stdout } = await execAsync(
-      `df -k "${targetDir}" | tail -1 | awk '{print $4}'`,
-      { timeout: 5000 }
-    )
-    const availableKB = parseInt(stdout.trim(), 10)
+    // argv, no shell: df's last line, 4th column is the free space in KB
+    const { stdout } = await execFileAsync('df', ['-k', targetDir], { timeout: 5000 })
+    const availableKB = parseInt(stdout.trim().split('\n').pop()?.trim().split(/\s+/)[3] ?? '', 10)
     if (isNaN(availableKB)) {
       return {
         name: 'disk-space',
@@ -335,17 +336,10 @@ async function checkDiskSpace(): Promise<DiagnosticCheck> {
 async function checkRemoteHost(host: { id: string; name: string; url: string }): Promise<DiagnosticCheck> {
   const checkName = `host:${host.name}`
   try {
-    // Try /api/diagnostics first for full details, fall back to /api/v1/health
-    let url = `${host.url}/api/diagnostics`
-    let response: Response
-
-    try {
-      response = await fetch(url, { signal: AbortSignal.timeout(5000) })
-    } catch {
-      // Diagnostics endpoint might not exist yet, try health
-      url = `${host.url}/api/v1/health`
-      response = await fetch(url, { signal: AbortSignal.timeout(5000) })
-    }
+    // Only the peer's health, never its /api/diagnostics: that runs the peer's own remote checks,
+    // which call back here, and every host calls every other one. Next 14 cached the GET, so the loop
+    // stayed dormant; Next 15 runs it live, and on 2026-10-29 three hosts spawned tmux and df without end.
+    const response = await fetch(`${host.url}/api/v1/health`, { signal: AbortSignal.timeout(5000) })
 
     if (!response.ok) {
       return {
@@ -356,28 +350,7 @@ async function checkRemoteHost(host: { id: string; name: string; url: string }):
       }
     }
 
-    const data = await response.json()
-
-    // If we got a diagnostics report, check if tmux is available there
-    if (data.checks) {
-      const tmuxCheck = data.checks.find((c: DiagnosticCheck) => c.name === 'tmux')
-      if (tmuxCheck && tmuxCheck.status === 'fail') {
-        return {
-          name: checkName,
-          status: 'warn',
-          message: `${host.url} — reachable but tmux unavailable`,
-          details: { hostId: host.id, url: host.url, remoteReport: data.summary },
-        }
-      }
-      return {
-        name: checkName,
-        status: 'pass',
-        message: `${host.url} — healthy (${data.summary?.passed}/${data.summary?.total} checks passed)`,
-        details: { hostId: host.id, url: host.url, remoteReport: data.summary },
-      }
-    }
-
-    // Health endpoint response — just check reachability
+    // Reachability only; the peer's own diagnostics are its own business
     return {
       name: checkName,
       status: 'pass',
@@ -398,7 +371,23 @@ async function checkRemoteHost(host: { id: string; name: string; url: string }):
 // Main diagnostics runner
 // ---------------------------------------------------------------------------
 
-export async function runDiagnostics(): Promise<ServiceResult<DiagnosticReport>> {
+const g = globalThis as unknown as { _diagRun?: Promise<ServiceResult<DiagnosticReport>>; _diagAt?: number }
+
+/**
+ * The report, at most once a minute. Callers that arrive while a run is in progress get that run,
+ * so a burst of requests costs one tmux call and one df, not one each.
+ */
+export function runDiagnostics(now = Date.now()): Promise<ServiceResult<DiagnosticReport>> {
+  if (g._diagRun && (g._diagAt === undefined || now - g._diagAt < REPORT_CACHE_MS)) return g._diagRun
+  g._diagAt = undefined
+  const run = buildReport()
+  g._diagRun = run
+  // The cache window starts when the run ends; a failed run is not kept
+  run.then(() => { if (g._diagRun === run) g._diagAt = Date.now() }, () => { if (g._diagRun === run) g._diagRun = undefined })
+  return run
+}
+
+async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
   const checks: DiagnosticCheck[] = []
 
   // Run local checks in parallel

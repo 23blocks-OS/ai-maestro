@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.20] - 2026-10-29 - A call to a person rings their phone (F053)
+
+### Added
+- Starting a call to `person:<id>` sends a push through Expo to that person's paired devices that opted in to `call`: "<caller> is calling", with the call id, time-sensitive, and a delivery time limit equal to the ringing time left. An agent callee gets no push. A failed push never fails the call.
+- `GET /api/calls` takes `?caller=`, `?callee=` and `?active=1`, so the app can find its own live calls after the push. Tests in `tests/calls-service.test.ts` and `tests/push-expo.test.ts`.
+
 ## [0.106.19] - 2026-10-29 - Call API: start a call, send it events, first answer wins (F051)
 
 ### Added

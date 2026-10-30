@@ -17,7 +17,7 @@ vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'agen
 
 import { pairDevice, listDevices } from '@/services/person-devices-service'
 import { getDevice } from '@/lib/person-devices-registry'
-import { pushNeedsYou, COOLDOWN_MS } from '@/lib/push-expo'
+import { pushNeedsYou, pushCall, COOLDOWN_MS } from '@/lib/push-expo'
 
 const TOKEN = 'ExponentPushToken[abcdefghijklmnop]'
 const P1 = 'f3b1c2d4-0000-4000-8000-000000000001'
@@ -138,5 +138,30 @@ describe('pushNeedsYou', () => {
     expect(log.mock.calls.filter(c => String(c[0]).includes('[Push]'))).toHaveLength(1)
     expect(getDevice('device-ana-1')!.pushToken).toBe(TOKEN)
     log.mockRestore()
+  })
+})
+
+describe('pushCall', () => {
+  const ring = (over: Record<string, unknown> = {}) => ({ callId: 'call-12345678', caller: 'agent:agent-1', callee: `person:${P1}`, expiresAt: '2026-10-29T20:00:30.000Z', ...over })
+
+  it('rings only the callee\'s phones that opted in to call, with a ttl matching the ringing time', async () => {
+    pair('device-ana-1', { pushToken: TOKEN, pushTypes: ['call'] })
+    pair('device-ana-2', { pushToken: 'ExponentPushToken[zzzzzzzzzzzzzzzz]', pushTypes: ['needs_you'] })
+    pairDevice('device-bob-1', { personId: 'f3b1c2d4-0000-4000-8000-000000000002', pushToken: 'ExponentPushToken[bbbbbbbbbbbbbbbb]', pushTypes: ['call'] })
+    const fetchMock = vi.fn().mockResolvedValue(ok())
+    vi.stubGlobal('fetch', fetchMock)
+    await pushCall(ring())
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ to: TOKEN, title: 'titania is calling', channelId: 'call', ttl: 30, data: { type: 'call', callId: 'call-12345678', hostId: 'self-host' } })
+  })
+
+  it('does nothing for an agent callee or a call that has already lapsed', async () => {
+    pair('device-ana-1', { pushToken: TOKEN, pushTypes: ['call'] })
+    const fetchMock = vi.fn().mockResolvedValue(ok())
+    vi.stubGlobal('fetch', fetchMock)
+    await pushCall(ring({ callee: 'agent:lola' }))
+    await pushCall(ring({ expiresAt: '2026-10-29T19:59:59.000Z' }))
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

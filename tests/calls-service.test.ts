@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { fsStore } = vi.hoisted(() => ({ fsStore: {} as Record<string, string> }))
 
+const pushCall = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('@/lib/push-expo', () => ({ pushCall }))
+
 vi.mock('fs', () => ({
   default: {
     existsSync: vi.fn((p: string) => p in fsStore || Object.keys(fsStore).some(k => k.startsWith(p + '/'))),
@@ -107,5 +110,32 @@ describe('time running out', () => {
     vi.advanceTimersByTime(15_000)
     expect(call(getCallById(callId)).state).toBe('timed_out')
     expect(send(callId, 'rtc:connected', JUAN, 'iphone').status).toBe(410)
+  })
+})
+
+describe('ringing the phone and finding your calls', () => {
+  it('starting a call pushes it, and a failed push does not fail the call', async () => {
+    const r = startCall({ caller: LOLA, callee: JUAN })
+    await vi.advanceTimersByTimeAsync(10)
+    expect(r.status).toBe(201)
+    expect(pushCall).toHaveBeenCalledWith(expect.objectContaining({ callId: call(r).callId, callee: JUAN }))
+    pushCall.mockRejectedValueOnce(new Error('boom'))
+    expect(startCall({ caller: LOLA, callee: JUAN }).status).toBe(201)
+  })
+
+  it('does not push a refused call', () => {
+    pushCall.mockClear()
+    startCall({ caller: LOLA, callee: LOLA })
+    expect(pushCall).not.toHaveBeenCalled()
+  })
+
+  it('filters by callee and by live calls', () => {
+    const live = begin()
+    const over = begin()
+    send(over.callId, 'rtc:reject', JUAN)
+    call(startCall({ caller: JUAN, callee: LOLA }))
+    expect((getCalls({ callee: JUAN }).data as any).calls).toHaveLength(2)
+    expect((getCalls({ callee: JUAN, active: true }).data as any).calls.map((c: any) => c.callId)).toEqual([live.callId])
+    expect((getCalls({ caller: JUAN }).data as any).calls).toHaveLength(1)
   })
 })

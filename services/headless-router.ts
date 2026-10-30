@@ -149,6 +149,7 @@ import { getWorldEvents } from '@/services/world-events-service'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { listDevices, pairDevice, unpairDevice } from '@/services/person-devices-service'
 import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
+import { linkAgentManagers } from '@/services/agents-manager-links-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
 import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
@@ -738,6 +739,13 @@ const routes: Route[] = [
     sendServiceResult(res, await syncDirectory())
   }},
   // Normalize hosts
+  { method: 'GET', pattern: /^\/api\/agents\/manager-links$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await linkAgentManagers())
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/manager-links$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await linkAgentManagers({ apply: body?.apply === true }))
+  }},
   { method: 'GET', pattern: /^\/api\/agents\/normalize-hosts$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, diagnoseHosts())
   }},

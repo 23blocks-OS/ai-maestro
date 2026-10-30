@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ArrowLeft, Globe, Loader2, AlertCircle, RefreshCw, FlaskConical, Search, ChevronRight, Activity, ListChecks, Share2, History, Box, LayoutGrid, Network } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
+import { usePeople } from '@/hooks/usePeople'
+import { managerName } from '@/lib/manager-links'
 import { useAgents } from '@/hooks/useAgents'
 import { useOrgs } from '@/hooks/useOrgs'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
@@ -101,6 +103,9 @@ const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 
  */
 function WorldContent() {
   const { hosts } = useHosts()
+  // The People directory of every host: managers are stored as person ids
+  const { people: directory } = usePeople(hosts)
+  const people = useMemo(() => directory.map(p => ({ id: p.id, displayName: p.displayName, email: p.email })), [directory])
   const { agents: allAgents, loading, error, refreshAgents } = useAgents()
   const { orgs: records } = useOrgs(hosts)
   const { presenceOf } = useSessionActivity()
@@ -400,12 +405,12 @@ function WorldContent() {
     return m
   }, [agents, agentById])
   const noManagerAgents = useMemo(() => agents.filter(a => !a.humanManager && !a.managerAgentId), [agents])
-  const suggestionOf = useCallback((a: (typeof agents)[number]) => suggestManager(a, agents), [agents])
+  const suggestionOf = useCallback((a: (typeof agents)[number]) => suggestManager(a, agents, people), [agents, people])
   const suggestionLabel = useCallback((a: (typeof agents)[number]) => {
     const sg = suggestionOf(a)
     if (!sg) return null
-    return sg.managerAgentId ? `${nameOfAgent.get(sg.managerAgentId) ?? 'an agent'} (agent)` : `${sg.humanManager} (person)`
-  }, [suggestionOf, nameOfAgent])
+    return sg.managerAgentId ? `${nameOfAgent.get(sg.managerAgentId) ?? 'an agent'} (agent)` : `${managerName(sg.humanManager, people)} (person)`
+  }, [suggestionOf, nameOfAgent, people])
   const agentManagerRows: ManagerRow[] = useMemo(
     () => [...manages].map(([id, count]) => ({ key: id, id, label: nameOfAgent.get(id) ?? id.slice(0, 8), count })).sort((a, b) => b.count - a.count),
     [manages, nameOfAgent],
@@ -413,8 +418,8 @@ function WorldContent() {
   const humanManagerRows: ManagerRow[] = useMemo(() => {
     const m = new Map<string, number>()
     for (const a of agents) if (a.humanManager) m.set(a.humanManager, (m.get(a.humanManager) || 0) + 1)
-    return [...m].map(([label, count]) => ({ key: label, label, count })).sort((a, b) => b.count - a.count)
-  }, [agents])
+    return [...m].map(([value, count]) => ({ key: value, label: managerName(value, people) ?? value, count })).sort((a, b) => b.count - a.count)
+  }, [agents, people])
   const noManagerRows: NoManagerRow[] = useMemo(
     () => noManagerAgents.map(a => ({ id: a.id, name: nameOfAgent.get(a.id) ?? a.id.slice(0, 8), place: placeOfAgent(a.id), suggestion: suggestionLabel(a) })),
     [noManagerAgents, nameOfAgent, placeOfAgent, suggestionLabel],
@@ -826,6 +831,8 @@ function WorldContent() {
                     manager={{
                       view: {
                         humanManager: openAgent.humanManager,
+                        humanManagerName: managerName(openAgent.humanManager, people),
+                        people: people.map(p => ({ id: p.id, name: p.email ? `${p.displayName} · ${p.email}` : p.displayName })).sort((x, y) => x.name.localeCompare(y.name)),
                         manager: openAgent.managerAgentId ? { id: openAgent.managerAgentId, name: nameOfAgent.get(openAgent.managerAgentId.toLowerCase()) ?? 'an agent on another host' } : null,
                         reports: agents.filter(a => a.managerAgentId?.toLowerCase() === openAgent.id.toLowerCase()).map(a => ({ id: a.id, name: nameOfAgent.get(a.id) ?? a.id.slice(0, 8) })),
                         suggestion: (() => { const sg = suggestionOf(openAgent); return sg ? { ...sg, label: suggestionLabel(openAgent) ?? 'the suggestion' } : null })(),

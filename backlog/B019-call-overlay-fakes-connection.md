@@ -1,6 +1,6 @@
 # B019 - The call screen says "connected" after 2.5 seconds, whatever happens
 
-**Status:** Todo
+**Status:** Done in 0.106.18 (the overlay follows the real voice socket; it will follow the call state machine once calls exist, F051)
 **Type:** Bug
 **Created:** 2026-10-29
 

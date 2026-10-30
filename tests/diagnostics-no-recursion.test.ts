@@ -27,6 +27,7 @@ vi.mock('@/lib/amp-keys', () => ({ loadKeyPair: () => null }))
 vi.mock('@/lib/amp-did', () => ({ deriveDidKey: () => '' }))
 
 const { runDiagnostics, REPORT_CACHE_MS } = await import('@/services/diagnostics-service')
+type Report = import('@/services/diagnostics-service').DiagnosticReport
 
 const DF = 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk3s5 971350180 700000000 171966464 81% /System/Volumes/Data\n'
 
@@ -40,7 +41,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-const report = async () => (await runDiagnostics()).data!
+const report = async () => (await runDiagnostics()).data as Report
 
 describe('diagnostics never calls a peer\'s diagnostics', () => {
   it('asks each enabled peer for its health only', async () => {

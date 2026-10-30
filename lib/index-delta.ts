@@ -28,17 +28,17 @@ import { summarizeJsonl } from './jsonl'
 // THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
 // ============================================================================
 const MAX_CONCURRENT_INDEX = 1
-let activeIndexCount = 0
-const indexQueue: Array<{
-  resolve: () => void
-  agentId: string
-  timestamp: number
-}> = []
+// One throttle for the whole process: Next can bundle this module more than once, and a counter per
+// bundle let several indexes run at once
+type IndexQueueEntry = { resolve: () => void; agentId: string; timestamp: number }
+const throttle: { active: number; queue: IndexQueueEntry[]; waiting: Map<string, Promise<IndexDeltaResult>> } =
+  ((globalThis as any)._aimDeltaThrottle ??= { active: 0, queue: [], waiting: new Map() })
+const indexQueue = throttle.queue
 
 async function acquireIndexSlot(agentId: string): Promise<() => void> {
-  if (activeIndexCount < MAX_CONCURRENT_INDEX) {
-    activeIndexCount++
-    console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
+  if (throttle.active < MAX_CONCURRENT_INDEX) {
+    throttle.active++
+    console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} (${throttle.active}/${MAX_CONCURRENT_INDEX} active)`)
     return () => releaseIndexSlot(agentId)
   }
 
@@ -47,8 +47,8 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
   return new Promise((resolve) => {
     indexQueue.push({
       resolve: () => {
-        activeIndexCount++
-        console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} from queue (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
+        throttle.active++
+        console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} from queue (${throttle.active}/${MAX_CONCURRENT_INDEX} active)`)
         resolve(() => releaseIndexSlot(agentId))
       },
       agentId,
@@ -58,8 +58,8 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
 }
 
 function releaseIndexSlot(agentId: string) {
-  activeIndexCount--
-  console.log(`[Delta Index Throttle] Released slot for ${agentId.substring(0, 8)} (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active, ${indexQueue.length} queued)`)
+  throttle.active--
+  console.log(`[Delta Index Throttle] Released slot for ${agentId.substring(0, 8)} (${throttle.active}/${MAX_CONCURRENT_INDEX} active, ${indexQueue.length} queued)`)
 
   if (indexQueue.length > 0) {
     const next = indexQueue.shift()!
@@ -608,13 +608,40 @@ export interface IndexDeltaResult {
   error?: string
 }
 
-export async function runIndexDelta(
+export function runIndexDelta(
   agentId: string,
   options: { dryRun?: boolean; batchSize?: number } = {}
 ): Promise<IndexDeltaResult> {
-  // Pinned for the whole run: a large index (1,700+ batches) outlives many
-  // LRU evictions, and eviction closes the agent's database mid-write.
-  return agentRegistry.withAgent(agentId, () => runIndexDeltaPinned(agentId, options))
+  if (options.dryRun) return runInSlot(agentId, options)
+  // Every trigger (the agent's timer, idle transitions, host hints, the API, the night sweep) that
+  // arrives while a run for this agent is still waiting for the slot joins that run. Without this
+  // each trigger queued another full run and, after a boot, the queue grew faster than it drained
+  // (incident 2026-10-29: 20 waiting, then 56, four hours later).
+  const waiting = throttle.waiting.get(agentId)
+  if (waiting) return waiting
+  const run = runInSlot(agentId, options, () => throttle.waiting.delete(agentId))
+  throttle.waiting.set(agentId, run)
+  return run
+}
+
+/**
+ * Wait for the slot, then pin the agent and index. The slot comes first: pinning loads the agent and
+ * opens its database, and a queue of pinned agents kept every waiting database open.
+ */
+async function runInSlot(
+  agentId: string,
+  options: { dryRun?: boolean; batchSize?: number },
+  onStart?: () => void,
+): Promise<IndexDeltaResult> {
+  const releaseSlot = await acquireIndexSlot(agentId)
+  onStart?.() // started: a trigger from now on may queue one follow-up run
+  try {
+    // Pinned for the whole run: a large index (1,700+ batches) outlives many
+    // LRU evictions, and eviction closes the agent's database mid-write.
+    return await agentRegistry.withAgent(agentId, () => runIndexDeltaPinned(agentId, options))
+  } finally {
+    releaseSlot()
+  }
 }
 
 async function runIndexDeltaPinned(
@@ -622,8 +649,6 @@ async function runIndexDeltaPinned(
   options: { dryRun?: boolean; batchSize?: number }
 ): Promise<IndexDeltaResult> {
   const { dryRun = false, batchSize = 2 } = options
-
-  const releaseSlot = await acquireIndexSlot(agentId)
 
   try {
     console.log(`[Delta Index] Processing agent ${agentId.substring(0, 8)} (dryRun: ${dryRun})`)
@@ -656,7 +681,6 @@ async function runIndexDeltaPinned(
     } catch (error: any) {
       if (error.code === 'query::relation_not_found' || error.message?.includes('relation_not_found')) {
         console.log(`[Delta Index] Schema not initialized for agent ${agentId.substring(0, 8)} - skipping`)
-        releaseSlot()
         return {
           success: true,
           agent_id: agentId,
@@ -729,7 +753,6 @@ async function runIndexDeltaPinned(
       if (autoDiscoveredCount > 0) {
         projectsResult = await getProjects(agentDb)
       } else {
-        releaseSlot()
         return {
           success: true,
           agent_id: agentId,
@@ -956,7 +979,6 @@ async function runIndexDeltaPinned(
         delta_to_index: conv.currentLineCount - conv.last_indexed_message_count,
       }))
 
-      releaseSlot()
       return {
         success: true,
         dry_run: true,
@@ -1016,7 +1038,6 @@ async function runIndexDeltaPinned(
 
     console.log(`\n[Delta Index] Complete: ${totalProcessed} messages in ${totalDuration}ms`)
 
-    releaseSlot()
     return {
       success: true,
       agent_id: agentId,
@@ -1027,7 +1048,6 @@ async function runIndexDeltaPinned(
       results,
     }
   } catch (error) {
-    releaseSlot()
     console.error('[Delta Index] Error:', error)
     return {
       success: false,

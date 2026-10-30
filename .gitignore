@@ -162,3 +162,6 @@ incoming/
 
 # AI team operator-private instructions
 ai-team/
+
+# Support cases (agentic-support skill): customer and incident data, never committed
+support/

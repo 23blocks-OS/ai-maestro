@@ -9,6 +9,7 @@
  */
 
 import { createCall, getCall, listCalls, applyCallEvent, isCallId } from '@/lib/call-store'
+import { pushCall } from '@/lib/push-expo'
 import { RTC_EVENT_TYPES, type RTCCall, type RTCEvent } from '@/lib/amp-rtc'
 import { type ServiceResult, missingField, invalidField, notFound, serviceError, operationFailed } from '@/services/service-errors'
 
@@ -45,7 +46,7 @@ export function startCall(params: Record<string, unknown>): ServiceResult<{ call
   try {
     const call = createCall(params.caller as string, params.callee as string, ttl * 1000)
     // Ring the callee's phone. Fire-and-forget: a push must never delay or fail starting the call.
-    import('@/lib/push-expo').then(({ pushCall }) => pushCall(call)).catch(err => console.warn('[Push] call push failed:', err))
+    pushCall(call).catch(err => console.warn('[Push] call push failed:', err))
     return { data: { call }, status: 201 }
   } catch (error) {
     return operationFailed('start call', (error as Error).message)

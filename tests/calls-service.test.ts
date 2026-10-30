@@ -116,9 +116,7 @@ describe('time running out', () => {
 
 describe('ringing the phone and finding your calls', () => {
   it('starting a call pushes it, and a failed push does not fail the call', async () => {
-    vi.useRealTimers() // the push is loaded with a dynamic import, which fake timers hold back
     const r = startCall({ caller: LOLA, callee: JUAN })
-    await new Promise(res => setTimeout(res, 100))
     expect(r.status).toBe(201)
     expect(pushCall).toHaveBeenCalledWith(expect.objectContaining({ callId: call(r).callId, callee: JUAN }))
     pushCall.mockRejectedValueOnce(new Error('boom'))
@@ -126,7 +124,6 @@ describe('ringing the phone and finding your calls', () => {
   })
 
   it('does not push a refused call', () => {
-    pushCall.mockClear()
     startCall({ caller: LOLA, callee: LOLA })
     expect(pushCall).not.toHaveBeenCalled()
   })

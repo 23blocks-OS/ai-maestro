@@ -24,6 +24,37 @@ export interface OrgAgentInput {
   hostId: string
   hostName?: string
   tags?: string[]
+  /** A person id (or older free text) this agent reports to */
+  humanManager?: string
+  /** An agent this agent reports to */
+  managerAgentId?: string
+}
+
+/** A person from the People directory, as the hosts return them */
+export interface OrgPersonInput {
+  id: string
+  displayName: string
+  title?: string
+  role?: string
+  hostId: string
+  hostName?: string
+  /** Organizations the person was added to by hand */
+  orgs?: string[]
+  managerPersonId?: string
+}
+
+/** A person in one organization */
+export interface OrgPerson {
+  id: string
+  display: string
+  title: string | null
+  role: string | null
+  hostName: string
+  managerPersonId?: string
+  /** Added by hand, through the agents that report to them, or both */
+  membership: 'member' | 'manages' | 'both'
+  /** This organization's agents that report to this person */
+  reports: string[]
 }
 
 export interface OrgCardInput {
@@ -64,6 +95,8 @@ export interface OrgAgent {
   open: number
   waiting: number
   blocked: number
+  humanManager?: string
+  managerAgentId?: string
 }
 
 export type RelationKind = 'hands-work-to' | 'waits-on' | 'blocked-by'
@@ -89,10 +122,12 @@ export interface Organization {
   /** The organization agents and cards with no org of their own are shown under */
   isDefault: boolean
   agents: OrgAgent[]
+  /** People in this organization: added by hand, or managing one of its agents */
+  people: OrgPerson[]
   cards: OrgCardInput[]
   projects: OrgProjectInput[]
   relations: OrgRelation[]
-  stats: { agents: number; open: number; waiting: number; blocked: number; projects: number; waitingOnOperator: number }
+  stats: { agents: number; people: number; open: number; waiting: number; blocked: number; projects: number; waitingOnOperator: number }
 }
 
 /** Every value of a `prefix:value` tag, lowercase and trimmed, in order, without repeats */
@@ -117,6 +152,7 @@ export function buildOrganizations(
   projects: OrgProjectInput[],
   records: OrganizationRecord[] = [],
   defaultOrg: string = DEFAULT_ORG,
+  people: OrgPersonInput[] = [],
 ): Organization[] {
   const byId = new Map<string, OrgAgentInput>()
   for (const a of agents) if (!byId.has(a.id)) byId.set(a.id, a)
@@ -142,7 +178,7 @@ export function buildOrganizations(
   const get = (id: string): Organization => {
     let o = orgs.get(id)
     if (!o) {
-      o = { id, name: id, hasRecord: false, isDefault: id === defaultOrg, agents: [], cards: [], projects: [], relations: [], stats: { agents: 0, open: 0, waiting: 0, blocked: 0, projects: 0, waitingOnOperator: 0 } }
+      o = { id, name: id, hasRecord: false, isDefault: id === defaultOrg, agents: [], people: [], cards: [], projects: [], relations: [], stats: { agents: 0, people: 0, open: 0, waiting: 0, blocked: 0, projects: 0, waitingOnOperator: 0 } }
       orgs.set(id, o)
     }
     return o
@@ -164,6 +200,8 @@ export function buildOrganizations(
       id: a.id, hostId: a.hostId, hostName: a.hostName || a.hostId, display: agentDisplay(a),
       role: tagValues(a.tags, 'role')[0] || null, kind: tagValues(a.tags, 'kind')[0] || null,
       orgs: orgsOfAgent(a.id), ...n,
+      ...(a.humanManager ? { humanManager: a.humanManager } : {}),
+      ...(a.managerAgentId ? { managerAgentId: a.managerAgentId.toLowerCase() } : {}),
     }
     for (const o of view.orgs) get(o).agents.push(view)
   }
@@ -217,10 +255,35 @@ export function buildOrganizations(
     for (const o of placed) get(o).relations.push(e)
   }
 
+  // People: in an organization by hand (their `orgs`), or because an agent there reports to them.
+  // The same person can be returned by two hosts; the first one wins, as for agents.
+  const seenPeople = new Set<string>()
+  for (const p of people) {
+    if (seenPeople.has(p.id)) continue
+    seenPeople.add(p.id)
+    const byHand = new Set((p.orgs || []).map(o => o.trim().toLowerCase()).filter(Boolean))
+    const reportsByOrg = new Map<string, string[]>()
+    for (const a of agents) {
+      if (byId.get(a.id) !== a || a.humanManager !== p.id) continue
+      for (const o of orgsOfAgent(a.id)) reportsByOrg.set(o, [...(reportsByOrg.get(o) || []), a.id])
+    }
+    for (const o of new Set([...byHand, ...reportsByOrg.keys()])) {
+      const reports = reportsByOrg.get(o) || []
+      get(o).people.push({
+        id: p.id, display: p.displayName, title: p.title || null, role: p.role || null, hostName: p.hostName || p.hostId,
+        ...(p.managerPersonId ? { managerPersonId: p.managerPersonId } : {}),
+        membership: byHand.has(o) ? (reports.length ? 'both' : 'member') : 'manages',
+        reports,
+      })
+    }
+  }
+
   for (const o of orgs.values()) {
     o.agents.sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || a.display.localeCompare(b.display))
+    o.people.sort((a, b) => a.display.localeCompare(b.display))
     o.stats = {
       agents: o.agents.length,
+      people: o.people.length,
       open: o.cards.length,
       waiting: o.cards.filter(c => c.status === 'waiting').length,
       blocked: o.cards.filter(c => c.isBlocked).length,

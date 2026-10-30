@@ -90,9 +90,10 @@ export function updatePerson(id: string, updates: PersonFields): Person | null {
   const existing = getPerson(id)
   if (!existing) return null
   const next: Person = { ...existing, ...Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined)), id, updatedAt: new Date().toISOString() }
-  for (const k of ['externalId', 'givenName', 'familyName', 'email', 'phone', 'title', 'role'] as const) {
+  for (const k of ['externalId', 'givenName', 'familyName', 'email', 'phone', 'title', 'role', 'managerPersonId'] as const) {
     if (next[k] === '') delete next[k]
   }
+  if (Array.isArray(next.orgs) && next.orgs.length === 0) delete next.orgs
   if (!write(next)) throw new Error('Could not save the person')
   return next
 }

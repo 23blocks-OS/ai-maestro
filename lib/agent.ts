@@ -65,6 +65,10 @@ interface SubconsciousConfig {
 }
 
 // Activity-based interval configuration
+/** First memory run after a start: wait this long, then spread agents over the next window */
+export const MEMORY_BOOT_GRACE_MS = 3 * 60 * 1000
+export const MEMORY_FIRST_RUN_SPREAD_MS = 10 * 60 * 1000
+
 const ACTIVITY_INTERVALS = {
   active: 5 * 60 * 1000,        // 5 min when actively used
   idle: 30 * 60 * 1000,         // 30 min when idle
@@ -198,9 +202,9 @@ class AgentSubconscious {
    */
   private calculateStaggerOffset(): number {
     const hash = computeHash(this.agentId)
-    // Spread across 5 minutes (300 seconds) to avoid clustering
-    const maxOffset = 5 * 60 * 1000 // 5 minutes
-    return Math.abs(hash) % maxOffset
+    // Nothing indexes in the first minutes after a start (the host is busiest then), and the first
+    // runs are spread over 10 minutes: a reboot used to queue every agent within 5 minutes
+    return MEMORY_BOOT_GRACE_MS + Math.abs(hash) % MEMORY_FIRST_RUN_SPREAD_MS
   }
 
   /**

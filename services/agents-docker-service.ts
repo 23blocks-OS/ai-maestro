@@ -12,7 +12,7 @@ import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { v4 as uuidv4 } from 'uuid'
 import { createAgent, deleteAgent, getAgent, loadAgents, saveAgents, updateAgent } from '@/lib/agent-registry'
-import { getHosts, isSelf, getOrganization } from '@/lib/hosts-config'
+import { getHosts, isSelfHost, getOrganization } from '@/lib/hosts-config'
 import { generateKeyPair, saveKeyPair } from '@/lib/amp-keys'
 import { registerAgent } from '@/services/amp-service'
 import { type ServiceResult, missingField, operationFailed, invalidRequest, invalidField, invalidState, notFound, gone, serviceError } from '@/services/service-errors'
@@ -1203,12 +1203,15 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   if (body.hostId) {
     const hosts = getHosts()
     const targetHost = hosts.find(h => h.id === body.hostId)
-    if (targetHost && !isSelf(targetHost.id)) {
+    // isSelfHost also checks the URL: this machine listed under a DNS name used to forward to itself.
+    // The peer gets no hostId, so it creates locally: one hop at most.
+    if (targetHost && !isSelfHost(targetHost)) {
+      const { hostId: _forwardedTo, ...forward } = body
       try {
         const resp = await fetch(`${targetHost.url}/api/agents/docker/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify(forward),
           signal: AbortSignal.timeout(30000),
         })
         const data = await resp.json()

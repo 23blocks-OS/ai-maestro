@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.23] - 2026-10-29 - Discovery cannot pile up processes; no request forwards to itself
+
+### Fixed
+- Every `tmux` call now ends within 10 seconds unless the caller asks for longer (`lib/tmux-safe.mjs`). Before, a stalled tmux left one child process per request.
+- Session discovery (every agent list, session list and sweeper) shares a run in progress and reuses the result for one second, cleared when AI Maestro creates, kills or renames a session. A timed-out tmux answers with the last list instead of falling back to one `tmux display-message` per session, which multiplied processes under load.
+- `docker ps` for agent containers runs with arguments, a 5-second timeout, and one shared result per second.
+- Hibernate no longer proxies to itself when an agent's host id is stale after a hostname change (wake already had this check).
+- The hosts health check asks the peer for its own sessions only (`?local=true`), so it no longer makes the peer ask all of its peers.
+- Creating a Docker agent on a host entry that is really this machine (a DNS name) no longer forwards to itself; a forwarded request carries no host id, so it goes one hop at most.
+- Found by the audit after the 2026-10-29 incident (`docs/incidents/2026-10-29-diagnostics-loop.md`). Tests: `tests/tmux-discovery-bounds.test.ts`, `tests/self-proxy-and-fanout.test.ts`, `tests/hosts-health-local.test.ts`; 7 of their 10 fail on the old code.
+
 ## [0.106.22] - 2026-10-29 - Incident report for the diagnostics loop
 
 ### Added

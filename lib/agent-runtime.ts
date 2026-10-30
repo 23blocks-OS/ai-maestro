@@ -94,12 +94,39 @@ export interface RuntimeTargetOpts {
 // TmuxRuntime
 // ---------------------------------------------------------------------------
 
+/** Discovery results are reused this long; sessions this runtime creates, kills or renames clear it */
+export const LIST_CACHE_MS = 1_000
+
 export class TmuxRuntime implements AgentRuntime {
   readonly type = 'tmux' as const
+
+  // Every agent list, session list and sweeper discovers sessions; a burst of them, or a slow
+  // tmux, must cost one tmux call, not one each (incident 2026-10-29).
+  private listing: Promise<DiscoveredSession[]> | null = null
+  private listed: { at: number; sessions: DiscoveredSession[] } | null = null
 
   // -- Discovery -----------------------------------------------------------
 
   async listSessions(): Promise<DiscoveredSession[]> {
+    const copy = (list: DiscoveredSession[]) => list.map(s => ({ ...s }))
+    if (this.listed && Date.now() - this.listed.at < LIST_CACHE_MS) return copy(this.listed.sessions)
+    if (!this.listing) {
+      const run = this.discoverSessions()
+      this.listing = run
+      run.then(
+        sessions => { if (this.listing === run) this.listed = { at: Date.now(), sessions } },
+        () => {},
+      ).finally(() => { if (this.listing === run) this.listing = null })
+    }
+    return copy(await this.listing)
+  }
+
+  private forgetListing() {
+    this.listed = null
+    this.listing = null
+  }
+
+  private async discoverSessions(): Promise<DiscoveredSession[]> {
     // One tmux call for every session's name, windows, creation time and cwd.
     // The per-session `display-message` below ran once per session, in series:
     // 36 sessions ≈ 1.8 s, which was most of GET /api/agents; under load it
@@ -116,8 +143,11 @@ export class TmuxRuntime implements AgentRuntime {
         }))
       }
       if (!stdout.trim()) return []
-    } catch {
-      // no tmux server, or a tmux without -F formats: fall through
+    } catch (error) {
+      // A slow tmux is not an old tmux: answer with the last list rather than one more call per
+      // session, which is what multiplied the processes under load
+      if ((error as { killed?: boolean }).killed) return this.listed?.sessions ?? []
+      // otherwise: no tmux server, or a tmux without -F formats: fall through
     }
     return this.listSessionsOneByOne()
   }
@@ -284,15 +314,27 @@ export class TmuxRuntime implements AgentRuntime {
   async createSession(name: string, cwd: string): Promise<void> {
     // Unset TMUX so tmux doesn't try to use a stale parent socket
     const env = { ...process.env, TMUX: undefined }
-    await tmux(['new-session', '-d', '-s', assertSessionName(name), '-c', cwd], { env })
+    try {
+      await tmux(['new-session', '-d', '-s', assertSessionName(name), '-c', cwd], { env })
+    } finally {
+      this.forgetListing()
+    }
   }
 
   async killSession(name: string): Promise<void> {
-    await tmux(['kill-session', '-t', assertSessionName(name)])
+    try {
+      await tmux(['kill-session', '-t', assertSessionName(name)])
+    } finally {
+      this.forgetListing()
+    }
   }
 
   async renameSession(oldName: string, newName: string): Promise<void> {
-    await tmux(['rename-session', '-t', assertSessionName(oldName), assertSessionName(newName)])
+    try {
+      await tmux(['rename-session', '-t', assertSessionName(oldName), assertSessionName(newName)])
+    } finally {
+      this.forgetListing()
+    }
   }
 
   // -- I/O -----------------------------------------------------------------

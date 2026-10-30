@@ -13,6 +13,9 @@ const DIR = path.join(os.homedir(), '.aimaestro', 'people-devices')
 export const DEVICE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/
 /** A device counts as online when it was seen this recently; the app re-sends the pairing as a heartbeat */
 export const ONLINE_WINDOW_MS = 90_000
+/** A device not seen this long is forgotten; and at most this many are kept (newest first) */
+export const DEVICE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+export const MAX_DEVICES = 500
 
 export function isDeviceId(id: unknown): id is string {
   return typeof id === 'string' && DEVICE_ID.test(id)
@@ -36,16 +39,20 @@ function read(id: string): PersonDevice | null {
   }
 }
 
-export function loadDevices(): PersonDevice[] {
+export function loadDevices(now = Date.now()): PersonDevice[] {
   try {
     if (!fs.existsSync(DIR)) return []
-    return fs.readdirSync(DIR)
+    const all = fs.readdirSync(DIR)
       .filter(f => f.endsWith('.json'))
       .map(f => f.slice(0, -5))
       .filter(isDeviceId)
       .map(read)
       .filter((d): d is PersonDevice => d !== null)
       .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+    // Any PUT with a new id adds a file and every needs-you transition reads them all: keep it bounded
+    const keep = all.filter((d, i) => i < MAX_DEVICES && now - Date.parse(d.lastSeenAt) < DEVICE_MAX_AGE_MS)
+    for (const d of all) if (!keep.includes(d)) fs.rmSync(file(d.deviceId), { force: true })
+    return keep
   } catch (error) {
     console.error('Failed to list devices:', error)
     return []
@@ -75,10 +82,13 @@ export function upsertDevice(id: string, data: DeviceFields, now = new Date()): 
   return d
 }
 
-/** Drop a dead push token without touching lastSeenAt (that would make the device look online) */
-export function clearPushToken(id: string): void {
+/**
+ * Drop a dead push token without touching lastSeenAt (that would make the device look online).
+ * Only when it is still the token that failed: the app may have sent a new one since.
+ */
+export function clearPushToken(id: string, token: string): void {
   const d = getDevice(id)
-  if (!d?.pushToken) return
+  if (!d?.pushToken || d.pushToken !== token) return
   delete d.pushToken
   delete d.pushTypes
   fs.writeFileSync(file(id), JSON.stringify(d, null, 2), 'utf-8')

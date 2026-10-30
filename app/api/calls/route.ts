@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}))
+  // A JSON null or number is not a body: treat it as empty rather than failing with a 500
+  const parsed = await request.json().catch(() => ({}))
+  const body = parsed && typeof parsed === 'object' ? parsed : {}
   return toResponse(startCall(body))
 }

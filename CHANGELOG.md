@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.24] - 2026-10-29 - Fixes from the review of the push and call changes
+
+### Fixed
+- A late "device not registered" answer from Expo for an old push token no longer clears the newer token the app sent since (a reinstall or a new phone).
+- Call pushes: at most one ring per callee per 15 seconds, so a loop of call starts cannot ring the phone non-stop. The title names the caller only when this host knows them; anything else reads "Someone is calling".
+- Delivery receipts from all pushes go in one queue, checked in one batched request 15 minutes later, instead of one timer and one request per send.
+- The needs-you push checks its cooldown before reading any device file; old cooldown entries are dropped. After Expo is reachable again, the next outage is logged again.
+- Paired devices not seen for 30 days are forgotten (at most 500 kept); finished calls are deleted a day after they end (at most 1,000 kept). Both used to grow without limit and were read on every request.
+- A connected call that nobody ends times out after 4 hours. An answered call whose time ran out can still be ended or failed by its parties.
+- `POST /api/calls`, `POST /api/calls/:id/events`, `PUT /api/people-devices/:deviceId` and `POST /api/people` answer a JSON `null` body with 400, not 500.
+- Tests: `tests/push-call-review-fixes.test.ts` (11, all fail on the old code).
+
 ## [0.106.23] - 2026-10-29 - Discovery cannot pile up processes; no request forwards to itself
 
 ### Fixed

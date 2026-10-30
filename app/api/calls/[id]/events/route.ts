@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await request.json().catch(() => ({}))
+  // A JSON null or number is not a body: treat it as empty rather than failing with a 500
+  const parsed = await request.json().catch(() => ({}))
+  const body = parsed && typeof parsed === 'object' ? parsed : {}
   return toResponse(sendCallEvent(id, body))
 }

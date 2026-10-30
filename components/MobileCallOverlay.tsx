@@ -55,16 +55,15 @@ export default function MobileCallOverlay({ agent, onClose }: MobileCallOverlayP
     tts.speak(text)
   }, [tts.speak])
 
-  useCompanionWebSocket({
-    agentId: phase === 'connected' ? agent.id : null,
+  // The call is connected when the voice socket to the host is really open, not after a timer
+  const { status: wsStatus } = useCompanionWebSocket({
+    agentId: agent.id,
     onSpeech: handleSpeech,
   })
 
-  // Auto-transition from ringing → connected
   useEffect(() => {
-    const timer = setTimeout(() => setPhase('connected'), 2500)
-    return () => clearTimeout(timer)
-  }, [])
+    if (wsStatus === 'open') setPhase('connected')
+  }, [wsStatus])
 
   // Call duration timer
   useEffect(() => {
@@ -163,7 +162,9 @@ export default function MobileCallOverlay({ agent, onClose }: MobileCallOverlayP
         </div>
 
         <h2 className="text-white text-xl font-semibold mb-1">{displayName}</h2>
-        <p className="text-white/50 text-sm mb-12">Calling...</p>
+        <p className="text-white/50 text-sm mb-12">
+          {wsStatus === 'failed' ? "Couldn't reach the host" : 'Connecting...'}
+        </p>
 
         {/* Cancel button */}
         <button

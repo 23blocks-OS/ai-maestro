@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 
 interface UseCompanionWebSocketOptions {
   agentId: string | null
@@ -13,6 +13,8 @@ interface UseCompanionWebSocketOptions {
  * Connects to /companion-ws?agent={agentId}, receives speech events,
  * and can send user messages back to the voice subsystem.
  */
+export type CompanionWsStatus = 'connecting' | 'open' | 'failed'
+
 export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCompanionWebSocketOptions) {
   const onSpeechRef = useRef(onSpeech)
   onSpeechRef.current = onSpeech
@@ -20,6 +22,8 @@ export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCom
   onInterruptRef.current = onInterrupt
 
   const wsRef = useRef<WebSocket | null>(null)
+  // 'failed' once the retries are used up; 'connecting' covers the first attempt and reconnects
+  const [status, setStatus] = useState<CompanionWsStatus>('connecting')
 
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -33,6 +37,7 @@ export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCom
 
   useEffect(() => {
     if (!agentId) return
+    setStatus('connecting')
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/companion-ws?agent=${encodeURIComponent(agentId)}`
@@ -56,6 +61,7 @@ export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCom
 
       ws.onopen = () => {
         retryCount = 0
+        setStatus('open')
         console.log('[CompanionWS] Connected for agent', agentId?.substring(0, 8))
       }
 
@@ -76,10 +82,14 @@ export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCom
         // Guard against stale closures from orphaned sockets
         if (wsRef.current !== ws) return
         wsRef.current = null
-        if (mounted && retryCount < maxRetries) {
+        if (!mounted) return
+        if (retryCount < maxRetries) {
           const delay = retryDelays[retryCount] || retryDelays[retryDelays.length - 1]
           retryCount++
+          setStatus('connecting')
           setTimeout(connect, delay)
+        } else {
+          setStatus('failed')
         }
       }
 
@@ -100,5 +110,5 @@ export function useCompanionWebSocket({ agentId, onSpeech, onInterrupt }: UseCom
     }
   }, [agentId])
 
-  return { send }
+  return { send, status }
 }

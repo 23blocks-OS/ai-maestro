@@ -1,6 +1,6 @@
 # F051 - Call lifecycle and coordinator (issue #697, PRs #701 and #709)
 
-**Status:** Todo
+**Status:** In Progress (state machine with both review fixes in 0.106.18, `lib/amp-rtc.ts`; the store, signalling and simulated call are open)
 **Type:** Feature
 **Created:** 2026-10-29
 

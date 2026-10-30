@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.18] - 2026-10-29 - The call screen tells the truth; the call state machine (B019, F051)
+
+### Fixed
+- The call overlay no longer says "connected" after a fixed 2.5 seconds. It shows "Connecting..." until the voice socket to the host is really open, and "Couldn't reach the host" once the retries are used up. `useCompanionWebSocket` now returns its `status`.
+
+### Added
+- `lib/amp-rtc.ts`: the pure state machine for one call (inviting, ringing, accepted, connected, ended and the failure states), from draft PR #701 with the two fixes found in review: `rtc:connected` must carry the device that accepted, and an answered call whose media never comes up times out after 15 seconds. The list of seen event ids is bounded. Nothing uses it yet; the store, the signalling and the simulated call come next (F051). Tests in `tests/amp-rtc.test.ts`.
+
 ## [0.106.17] - 2026-10-29 - Push to the phone for "needs you" (F053, via Expo)
 
 ### Added

@@ -5,6 +5,7 @@
  */
 
 import type { PersonRecord } from '@/types/person'
+import type { PersonDeviceRecord } from '@/types/person-device'
 
 export interface PeopleTarget {
   /** How the browser reaches the host: '' for this one, else the base URL */
@@ -37,4 +38,41 @@ export async function collectPeople(
   // The same id on two hosts (a person added on both) is shown once per host record, labelled by host
   const people = results.flatMap(r => r.mine).sort((a, b) => a.displayName.localeCompare(b.displayName))
   return { people, unreachable: results.filter(r => !r.ok).map(r => r.t.hostName) }
+}
+
+export type MeshDevice = PersonDeviceRecord & { hostName: string }
+
+/**
+ * Ask every host which apps are paired to it. A person is online when ANY host has a recently seen
+ * device for them (their app may be connected to several hosts). Same rules as collectPeople: a host
+ * that is down is named, an old host with no such route holds none.
+ */
+export async function collectDevices(
+  targets: PeopleTarget[],
+  fetcher: Fetcher,
+): Promise<{ devices: MeshDevice[]; unreachable: string[] }> {
+  const results = await Promise.all(targets.map(async t => {
+    try {
+      const res = await fetcher(`${t.base}/api/people-devices`)
+      if (res.status === 404) return { ok: true as const, t, mine: [] as MeshDevice[] }
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
+      return { ok: true as const, t, mine: (data.devices || []).map((d: PersonDeviceRecord) => ({ ...d, hostName: t.hostName })) as MeshDevice[] }
+    } catch {
+      return { ok: false as const, t, mine: [] as MeshDevice[] }
+    }
+  }))
+  return { devices: results.flatMap(r => r.mine), unreachable: results.filter(r => !r.ok).map(r => r.t.hostName) }
+}
+
+/** personId -> the hosts where one of their devices was seen recently */
+export function onlineHostsByPerson(devices: MeshDevice[]): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  for (const d of devices) {
+    if (!d.online) continue
+    const hosts = out.get(d.personId) || []
+    if (!hosts.includes(d.hostName)) hosts.push(d.hostName)
+    out.set(d.personId, hosts)
+  }
+  return out
 }

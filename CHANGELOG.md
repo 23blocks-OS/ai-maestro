@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.16] - 2026-10-29 - People: pair the mobile app to a person (F057, step 2)
+
+### Added
+- `PUT /api/people-devices/:deviceId` ("this app is person X", sent again every ~30 seconds as a heartbeat), `GET /api/people-devices` (with an `online` flag, seen in the last 90 seconds) and `DELETE /api/people-devices/:deviceId`. Devices are stored on each host the app connects to, apart from the person record, because the record lives on one host while the app can be connected to several; a host without the record still accepts the pairing. Headless mode serves the same routes.
+- The People page shows whether a person's app is online and through which hosts. A person is online when any host sees their app; a host that is down is named. Tests in `tests/person-devices.test.ts`, including several hosts.
+- No login, by design: a device states who it is and nobody checks. Section 3.6 of `docs/SPEC-PEOPLE-CALLS-MEETINGS.md` has the contract for the app.
+
 ## [0.106.15] - 2026-10-29 - People: a directory of the humans who work with your agents (F057, step 1)
 
 ### Added

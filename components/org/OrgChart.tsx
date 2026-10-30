@@ -77,13 +77,13 @@ function NodeCard({ node, presenceOf }: { node: Node; presenceOf: (id: string) =
   )
 }
 
-function Branch({ nodeKey, children, presenceOf, seen }: {
+function Branch({ nodeKey, tree, presenceOf, seen }: {
   nodeKey: string
-  children: Map<string, Node[]>
+  tree: Map<string, Node[]>
   presenceOf: (id: string) => AgentPresence
   seen: Set<string>
 }) {
-  const kids = (children.get(nodeKey) || []).filter(k => !seen.has(k.key))
+  const kids = (tree.get(nodeKey) || []).filter(k => !seen.has(k.key))
   if (kids.length === 0) return null
   return (
     <ul className="ml-3 border-l border-gray-800 pl-4">
@@ -92,7 +92,7 @@ function Branch({ nodeKey, children, presenceOf, seen }: {
         return (
           <li key={k.key} className="relative py-1 before:absolute before:-left-4 before:top-4 before:h-px before:w-3 before:bg-gray-800">
             <NodeCard node={k} presenceOf={presenceOf} />
-            <Branch nodeKey={k.key} children={children} presenceOf={presenceOf} seen={next} />
+            <Branch nodeKey={k.key} tree={children} presenceOf={presenceOf} seen={next} />
           </li>
         )
       })}
@@ -110,7 +110,7 @@ export default function OrgChart({ org, presenceOf }: { org: Organization; prese
           {tops.map(t => (
             <li key={t.key}>
               <NodeCard node={t} presenceOf={presenceOf} />
-              <Branch nodeKey={t.key} children={children} presenceOf={presenceOf} seen={new Set([t.key])} />
+              <Branch nodeKey={t.key} tree={children} presenceOf={presenceOf} seen={new Set([t.key])} />
             </li>
           ))}
         </ul>
@@ -130,7 +130,7 @@ export default function OrgChart({ org, presenceOf }: { org: Organization; prese
             {unplaced.map(u => (
               <li key={u.key}>
                 <NodeCard node={u} presenceOf={presenceOf} />
-                <Branch nodeKey={u.key} children={children} presenceOf={presenceOf} seen={new Set([u.key])} />
+                <Branch nodeKey={u.key} tree={children} presenceOf={presenceOf} seen={new Set([u.key])} />
               </li>
             ))}
           </ul>

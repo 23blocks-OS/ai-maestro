@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.25] - 2026-10-29 - The indexing backlog after a restart drains
+
+### Fixed
+- Delta indexing runs one agent at a time, but every trigger (the agent's timer, idle transitions, host hints, the API, the night sweep) queued another full run for the same agent, so after a reboot the queue grew faster than it drained (20 waiting, then 56, four hours later). A trigger for an agent that is already waiting now joins that run; an agent that is running can have one follow-up queued, no more. The queue is at most one entry per agent.
+- A waiting agent is no longer loaded and its database opened before its turn: the slot is taken first, then the agent is pinned. Before, every agent in the queue kept its CozoDB open while it waited.
+- The throttle is one for the whole process (on `globalThis`); Next.js can bundle the module more than once, which allowed several indexes at once.
+- After a start, the first memory run waits 3 minutes and agents are spread over the next 10, instead of all starting within 5 minutes.
+- Tests: `tests/index-delta-backlog.test.ts` (5, all fail on the old code).
+
 ## [0.106.24] - 2026-10-29 - Fixes from the review of the push and call changes
 
 ### Fixed

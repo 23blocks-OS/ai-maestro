@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.19] - 2026-10-29 - Call API: start a call, send it events, first answer wins (F051)
+
+### Added
+- `POST /api/calls`, `GET /api/calls`, `GET /api/calls/:id` and `POST /api/calls/:id/events`, in the Next routes and the headless router. A call moves through the states in `lib/amp-rtc.ts`; the store (`lib/call-store.ts`, one file per call in `~/.aimaestro/calls/`) applies events one after another, so when two phones answer at once the first wins and the second gets 409. Events can be repeated safely by `eventId`. A late answer is 410 and the call is recorded as timed out. Signalling only: no audio yet (F052). Tests in `tests/calls-service.test.ts`; the contract is in section 4 of `docs/SPEC-PEOPLE-CALLS-MEETINGS.md`.
+
 ## [0.106.18] - 2026-10-29 - The call screen tells the truth; the call state machine (B019, F051)
 
 ### Fixed

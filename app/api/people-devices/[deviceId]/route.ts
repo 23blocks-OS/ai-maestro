@@ -14,7 +14,9 @@ type Ctx = { params: Promise<{ deviceId: string }> }
 
 export async function PUT(request: NextRequest, { params }: Ctx) {
   const { deviceId } = await params
-  const body = await request.json().catch(() => ({}))
+  // A JSON null or number is not a body: treat it as empty rather than failing with a 500
+  const parsed = await request.json().catch(() => ({}))
+  const body = parsed && typeof parsed === 'object' ? parsed : {}
   return toResponse(pairDevice(deviceId, body))
 }
 

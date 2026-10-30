@@ -28,6 +28,8 @@ beforeEach(() => {
   for (const k of Object.keys(fsStore)) delete fsStore[k]
   ;(globalThis as any)._pushLastSent?.clear()
   ;(globalThis as any)._pushOfflineLogged = false
+  const q = (globalThis as any)._pushReceipts
+  if (q) { clearTimeout(q.timer); q.timer = null; q.pending.length = 0 }
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-10-29T20:00:00Z'))
 })

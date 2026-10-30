@@ -12,6 +12,7 @@ vi.mock('fs', () => ({
     readFileSync: vi.fn((p: string) => { if (p in fsStore) return fsStore[p]; throw new Error('ENOENT') }),
     writeFileSync: vi.fn((p: string, d: string) => { fsStore[p] = d }),
     readdirSync: vi.fn((p: string) => Object.keys(fsStore).filter(k => k.startsWith(p + '/')).map(k => k.slice(p.length + 1))),
+    rmSync: vi.fn((p: string) => { delete fsStore[p] }),
   },
 }))
 

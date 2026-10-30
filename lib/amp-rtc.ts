@@ -21,6 +21,8 @@ export type RTCCallState =
 
 /** How long an answered call may wait for its media before it counts as lost */
 export const ACCEPT_TO_CONNECT_MS = 15_000
+/** A connected call nobody ended (the phone died, the tab closed) is over after this */
+export const MAX_CONNECTED_MS = 4 * 60 * 60 * 1000
 /** Event ids remembered per call for duplicate detection */
 export const MAX_SEEN_EVENTS = 64
 
@@ -33,6 +35,7 @@ export interface RTCCall {
   expiresAt: string
   acceptedBy?: string
   acceptedAt?: string
+  connectedAt?: string
   seenEventIds: readonly string[]
 }
 
@@ -58,7 +61,7 @@ const NEXT: Record<RTCCallState, Partial<Record<RTCEventType, RTCCallState>>> = 
   rejected: {}, canceled: {}, ended: {}, failed: {}, timed_out: {},
 }
 
-/** Has this call's waiting time run out? Only inviting, ringing and accepted can lapse. */
+/** Has this call's time run out? Inviting and ringing wait for an answer, accepted for media, connected for an end. */
 function lapsed(call: RTCCall, nowMs: number): boolean {
   if (call.state === 'inviting' || call.state === 'ringing') {
     const expires = Date.parse(call.expiresAt)
@@ -67,6 +70,10 @@ function lapsed(call: RTCCall, nowMs: number): boolean {
   if (call.state === 'accepted') {
     const accepted = Date.parse(call.acceptedAt || '')
     return Number.isFinite(accepted) && nowMs - accepted >= ACCEPT_TO_CONNECT_MS
+  }
+  if (call.state === 'connected') {
+    const connected = Date.parse(call.connectedAt || '')
+    return Number.isFinite(connected) && nowMs - connected >= MAX_CONNECTED_MS
   }
   return false
 }
@@ -106,6 +113,7 @@ export function transitionRTCCall(call: RTCCall, event: RTCEvent, nowMs: number)
       state,
       acceptedBy: accepting ? event.deviceId : call.acceptedBy,
       acceptedAt: accepting ? new Date(nowMs).toISOString() : call.acceptedAt,
+      connectedAt: event.type === 'rtc:connected' ? new Date(nowMs).toISOString() : call.connectedAt,
       seenEventIds: [...call.seenEventIds, event.eventId].slice(-MAX_SEEN_EVENTS),
     },
   }

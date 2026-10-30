@@ -37,6 +37,8 @@
 
 Each field is marked **synced** or **local**. Synced fields come from the directory and are overwritten by the next sync (edits in the UI are blocked and shown as such).
 
+**Organizations and managers (0.106.29).** A person has `orgs` (organization ids, added by hand) and `managerPersonId` (the person they report to; possibly stored on another host, so only the People page, which sees every host, refuses loops). A person is in an organization by hand or because one of its agents reports to them (agent `humanManager` = person id). The organization view lists people with the agents and draws an org chart from these links.
+
 ### 3.2 Where it lives, and how hosts see each other
 
 Each host has a directory. The operator adds or edits a person on the host they work on. Other hosts list people by asking their peers. There is no copying, so no merge or conflict. A person is reachable through whichever hosts their app is connected to now (live presence from the app); with none, they are offline.

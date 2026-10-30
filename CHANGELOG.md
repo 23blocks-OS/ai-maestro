@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.29] - 2026-10-30 - People in organizations, and an org chart
+
+### Added
+- A person can be added to organizations by hand (`orgs` on the person, edited on the People page) and can report to another person (`managerPersonId`). A person also belongs to every organization of the agents that report to them; that part is computed, not stored.
+- The organization view's Agents tab is now **Members**, with two views: **List** (people, then agents) and **Org chart** (people over people, each person's agents under them, agents under the agents they report to; agents with no manager in the organization are listed apart, and a loop of managers across hosts is shown, not lost).
+- The People page shows each person's manager and organizations, and refuses a manager that would make a loop (it sees every host; a single host cannot).
+- Validation: organization ids follow the `org:` tag rules, at most 20; a person cannot report to themselves; empty values clear.
+- Tests: `tests/people-in-orgs.test.ts` (7), `tests/org-chart.test.ts` (3). Checked in a browser against a build on a test server with its own data: list, chart, People form, loop refused.
+
 ## [0.106.28] - 2026-10-30 - Reports to: a person from the directory, in the agent profile
 
 ### Added

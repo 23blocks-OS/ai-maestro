@@ -112,6 +112,8 @@ export interface ManagerSuggestion extends ManagerFields {
 export function suggestManager(
   agent: { id: string; name?: string; alias?: string; label?: string; owner?: string; humanManager?: string; managerAgentId?: string },
   agents: Array<{ id: string; name?: string; alias?: string; label?: string }>,
+  /** The People directory: an owner that names exactly one person (name or email) suggests that person's id */
+  people: Array<{ id: string; displayName: string; email?: string }> = [],
 ): ManagerSuggestion | null {
   if (agent.humanManager || agent.managerAgentId) return null
   const owner = agent.owner?.trim()
@@ -121,5 +123,7 @@ export function suggestManager(
   if ([agent.name, agent.alias, agent.label].some(n => n && n.toLowerCase() === key)) return null
   const hit = agents.find(a => a.id !== agent.id && [a.name, a.alias, a.label].some(n => n && n.toLowerCase() === key))
   if (hit) return { managerAgentId: hit.id, from: 'owner' }
+  const persons = people.filter(p => p.displayName.trim().toLowerCase() === key || (!!p.email && p.email.trim().toLowerCase() === key))
+  if (persons.length === 1) return { humanManager: persons[0].id, from: 'owner' }
   return cleanHuman(owner) ? { humanManager: owner, from: 'owner' } : null
 }

@@ -22,6 +22,8 @@ import SkillsSection from './SkillsSection'
 import { AgentSkillEditor } from './marketplace'
 import AvatarPicker from './AvatarPicker'
 import EmailAddressesSection from './EmailAddressesSection'
+import { ManagerSection } from './ReportsTo'
+import { useReportsTo } from '@/hooks/useReportsTo'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -38,6 +40,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
   const [agent, setAgent] = useState<Agent | null>(null)
+  // Who the agent reports to: saved on its own, like the World view, not with the Save button below
+  const reportsTo = useReportsTo(agent, baseUrl, patch => setAgent(prev => (prev ? { ...prev, ...patch } : prev)))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
@@ -481,6 +485,13 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         placeholder="Team name"
                       />
                     </div>
+                    {reportsTo.view && (
+                      <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3">
+                        {/* The profile cannot open another agent, so names are labels here */}
+                        <ManagerSection view={reportsTo.view} onGo={() => {}} onSave={reportsTo.save} />
+                        {!reportsTo.loaded && <p className="mt-1 text-[11px] text-gray-600">Loading people and agents…</p>}
+                      </div>
+                    )}
                   </div>
                 )}
               </section>

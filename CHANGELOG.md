@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.28] - 2026-10-30 - Reports to: a person from the directory, in the agent profile
+
+### Added
+- The agent profile has a "Reports to" section: pick a person from the People directory (every host) and/or another agent. The person is stored as their id, which is what the mobile app compares with "me" for "agents that report to you". The World view uses the same editor (`components/ReportsTo.tsx`). Names are shown, never ids; an older free-text manager stays shown and selectable as "not in the directory".
+- People and agents for the picker load once when the profile opens; the profile adds no polling.
+- `GET /api/agents/manager-links` shows, for this host's agents, which free-text managers (or owners of agents with no manager) name exactly one person or one agent; `POST` with `{ "apply": true }` links them through the normal agent update. No guesses: no match or several matches are listed, unreachable peers are named, and a link that would make a loop of managers is refused. Run it on each host. Headless mode serves it too.
+- The owner suggestion offers the person's id when the owner names exactly one person.
+- Tests: `tests/manager-links.test.ts` (12). Checked in a browser against a build on a test server with its own data: pick a person, save, the stored value is the person id; clearing both managers is refused.
+
 ## [0.106.27] - 2026-10-30 - Release: fix for hosts looping diagnostics requests; people, push and calls
 
 Release covering 0.106.11 to 0.106.26 (the entries below). The main reason for this release is a bug fix that everyone running more than one host needs.

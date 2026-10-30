@@ -1,5 +1,5 @@
 /**
- * PUT    /api/people-devices/:deviceId  — { personId, personName?, deviceName?, platform?, appVersion? }
+ * PUT    /api/people-devices/:deviceId  — { personId, personName?, deviceName?, platform?, appVersion?, pushToken?, pushTypes? }
  *                                         "this app is person X". Send again every ~30 s as a heartbeat.
  * DELETE /api/people-devices/:deviceId  — unpair
  */

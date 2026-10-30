@@ -10,12 +10,16 @@ import { loadDevices, getDevice, upsertDevice, removeDevice, isDeviceId, ONLINE_
 import { isPersonId } from '@/lib/people-registry'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { type ServiceResult, notFound, invalidField, missingField, operationFailed } from '@/services/service-errors'
-import type { PersonDevice, PersonDeviceRecord } from '@/types/person-device'
+import { PUSH_TYPES, type PersonDevice, type PersonDeviceRecord, type PushType } from '@/types/person-device'
 
 const MAX_TEXT = 80
 
+/** What Expo issues: ExponentPushToken[...] or ExpoPushToken[...] */
+const EXPO_TOKEN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/
+
 const record = (d: PersonDevice, now = Date.now()): PersonDeviceRecord => ({
-  ...d,
+  ...(({ pushToken: _t, ...rest }) => rest)(d),
+  pushEnabled: !!d.pushToken && !!d.pushTypes?.length,
   hostId: getSelfHostId(),
   online: now - new Date(d.lastSeenAt).getTime() <= ONLINE_WINDOW_MS,
 })
@@ -35,8 +39,19 @@ export function pairDevice(deviceId: string, params: Record<string, unknown>): S
     if (typeof params[k] !== 'string' || (params[k] as string).length > MAX_TEXT) return invalidField(k, `${k} must be text of at most ${MAX_TEXT} characters`)
     text[k] = (params[k] as string).trim()
   }
+  // pushToken null (or pushTypes []) clears; absent leaves what is stored, so a heartbeat without them changes nothing
+  const push: { pushToken?: string | null; pushTypes?: PushType[] } = {}
+  if (params.pushToken !== undefined) {
+    if (params.pushToken !== null && (typeof params.pushToken !== 'string' || !EXPO_TOKEN.test(params.pushToken))) return invalidField('pushToken', 'pushToken must be an Expo push token or null')
+    push.pushToken = params.pushToken as string | null
+  }
+  if (params.pushTypes !== undefined) {
+    if (!Array.isArray(params.pushTypes) || !params.pushTypes.every(t => (PUSH_TYPES as readonly unknown[]).includes(t))) return invalidField('pushTypes', `pushTypes must list only: ${PUSH_TYPES.join(', ')}`)
+    push.pushTypes = [...new Set(params.pushTypes as PushType[])]
+  }
+  if (push.pushTypes && !push.pushTypes.length) push.pushToken = null
   try {
-    return { data: { device: record(upsertDevice(deviceId, { personId: params.personId, ...text })) }, status: 200 }
+    return { data: { device: record(upsertDevice(deviceId, { personId: params.personId, ...text, ...push })) }, status: 200 }
   } catch (error) {
     return operationFailed('pair device', (error as Error).message)
   }

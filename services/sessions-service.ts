@@ -805,6 +805,8 @@ export function broadcastActivityUpdate(
   // terminal is attached. The wake path reads this via lib/session-idle.
   const reported = hookStatus || status
   const wasIdle = sessionName ? hookStatusMap.get(sessionName)?.status === 'idle' : false
+  const before = sessionName ? hookStatusMap.get(sessionName) : undefined
+  const wasWaiting = !!before && normalizeActivityStatus(before.status, before.notificationType) === 'waiting'
   if (sessionName && reported) {
     if (!claimsActivity(reported)) {
       // SessionEnd: the session is gone, so its last report must not linger.
@@ -838,6 +840,14 @@ export function broadcastActivityUpdate(
         }
       })
       .catch((err) => console.warn('[Schedule] idle-triggered run failed:', err))
+  }
+
+  // The agent just started waiting on a person: the one place that sees the transition. Fire-and-forget,
+  // like the schedule above; a push must never delay or fail the hook that reported the status.
+  if (reported && normalizeActivityStatus(reported, notificationType) === 'waiting' && !wasWaiting) {
+    import('@/lib/push-expo')
+      .then(({ pushNeedsYou }) => pushNeedsYou(agentId, sessionName))
+      .catch((err) => console.warn('[Push] needs-you push failed:', err))
   }
 
   // The sidebar vocabulary, never the raw hook word (lib/agent-presence.ts)

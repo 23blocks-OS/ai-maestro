@@ -6,7 +6,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import type { PersonDevice } from '@/types/person-device'
+import type { PersonDevice, PushType } from '@/types/person-device'
 
 const DIR = path.join(os.homedir(), '.aimaestro', 'people-devices')
 
@@ -56,7 +56,12 @@ export function getDevice(id: string): PersonDevice | null {
   return isDeviceId(id) ? read(id) : null
 }
 
-export type DeviceFields = Partial<Pick<PersonDevice, 'personName' | 'deviceName' | 'platform' | 'appVersion'>> & { personId: string }
+export type DeviceFields = Partial<Pick<PersonDevice, 'personName' | 'deviceName' | 'platform' | 'appVersion'>> & {
+  personId: string
+  /** null clears the token */
+  pushToken?: string | null
+  pushTypes?: PushType[]
+}
 
 /** Pair or re-pair a device (also the heartbeat): keeps firstSeenAt, moves the device to the new person if it changed */
 export function upsertDevice(id: string, data: DeviceFields, now = new Date()): PersonDevice {
@@ -64,9 +69,19 @@ export function upsertDevice(id: string, data: DeviceFields, now = new Date()): 
   const iso = now.toISOString()
   const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== ''))
   const d: PersonDevice = { ...(existing || {}), ...clean, deviceId: id, personId: data.personId, firstSeenAt: existing?.firstSeenAt || iso, lastSeenAt: iso } as PersonDevice
+  if (data.pushToken === null) { delete d.pushToken; delete d.pushTypes }
   fs.mkdirSync(DIR, { recursive: true })
   fs.writeFileSync(file(id), JSON.stringify(d, null, 2), 'utf-8')
   return d
+}
+
+/** Drop a dead push token without touching lastSeenAt (that would make the device look online) */
+export function clearPushToken(id: string): void {
+  const d = getDevice(id)
+  if (!d?.pushToken) return
+  delete d.pushToken
+  delete d.pushTypes
+  fs.writeFileSync(file(id), JSON.stringify(d, null, 2), 'utf-8')
 }
 
 export function removeDevice(id: string): boolean {

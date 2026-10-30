@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.17] - 2026-10-29 - Push to the phone for "needs you" (F053, via Expo)
+
+### Added
+- The paired-device record takes `pushToken` and `pushTypes` (`needs_you`, `card_waiting`, `call`) on the same `PUT /api/people-devices/:deviceId`. `null` clears the token, leaving them out keeps it, unpairing removes it. `GET` never returns the token, only `pushEnabled`.
+- When an agent starts waiting on a person, the host sends one push through Expo's service to every device that opted in: the agent's name and a fixed sentence, never command text, paths or message bodies. One push per agent per minute. Tokens Expo reports as `DeviceNotRegistered` (in the ticket, or in the receipt checked 15 minutes later) are removed. A host without internet logs one line and sends nothing. No credentials sit on the host. Tests in `tests/push-expo.test.ts` and `tests/push-needs-you-transition.test.ts`; contract in section 3.6 of `docs/SPEC-PEOPLE-CALLS-MEETINGS.md`.
+
 ## [0.106.16] - 2026-10-29 - People: pair the mobile app to a person (F057, step 2)
 
 ### Added

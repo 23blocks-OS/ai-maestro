@@ -3,6 +3,23 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.27] - 2026-10-30 - Release: fix for hosts looping diagnostics requests; people, push and calls
+
+Release covering 0.106.11 to 0.106.26 (the entries below). The main reason for this release is a bug fix that everyone running more than one host needs.
+
+### Update every host
+
+If you run AI Maestro on two or more hosts, update **all** of them with `./update-aimaestro.sh -y`. On 0.106.4 to 0.106.20, hosts that know each other could send diagnostics requests back and forth without end: the server near 100% CPU, the dashboard slow or not loading, and with three hosts thousands of `tmux` and `df` processes. The code dated from 0.24.17; Next.js 14 cached the route, so it never ran; Next.js 15 (in 0.106.4) does not. A fixed host breaks the loop on its side, but two hosts that are both still old keep looping. Multi-host setups in headless mode were affected since 0.24.17. Symptoms, a workaround for a host that will not stop, and who is affected: issue #720. Full report: `docs/incidents/2026-10-29-diagnostics-loop.md`.
+
+### What is in it
+
+- **The fix and the hardening after it** (0.106.21 to 0.106.26): peers are checked with `/api/v1/health` only; every `tmux` call has a timeout; session discovery and `docker ps` share one run between callers; nothing forwards a request to itself; the delta-index backlog after a restart drains (one waiting run per agent, a boot grace); message polls, probes and the permission sweep cannot pile up; shell strings replaced by argument lists.
+- **People** (0.106.15, 0.106.16): a directory of the humans who work with your agents, and pairing the AI Maestro app to a person, with online presence across hosts.
+- **Push to the phone** (0.106.17, 0.106.20): "needs you" and incoming calls through Expo's push service, once the app's Expo project and push key exist. No credentials on the host; the message is the agent's name and a fixed sentence.
+- **Calls, signalling only** (0.106.18, 0.106.19): the call state machine and a call API where the first answer wins. No audio yet. The call screen no longer claims "connected" after a timer.
+- **Fixes from the review of the push and call changes** (0.106.24).
+- Also: installers no longer point at a scratch folder (0.106.14); bundled plugin 1.18.5 (0.106.11).
+
 ## [0.106.26] - 2026-10-29 - The rest of the audit: no overlapping polls, shared probes, argv everywhere
 
 ### Fixed

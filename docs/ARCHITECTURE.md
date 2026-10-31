@@ -751,10 +751,6 @@ These scripts test end-to-end behavior against a live AI Maestro instance with t
 ./scripts/test-amp-cross-host.sh --local-only  # Only test local→remote
 ./scripts/test-amp-cross-host.sh --skip-inbox  # Skip inbox verification
 
-# Companion call session fork tests
-# Tests: __call session spawn, sidebar/agent hiding, transcript routing, disconnect cleanup, multi-client
-./scripts/test-call-session.sh               # Auto-picks first online agent
-./scripts/test-call-session.sh <agent-id>    # Specific agent
 ```
 
 **Prerequisites:** AI Maestro running on localhost:23000, jq installed, tmux installed. AMP tests also require AMP scripts (`./install-plugin.sh -y`).

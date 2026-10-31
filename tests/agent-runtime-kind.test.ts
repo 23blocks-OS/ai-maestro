@@ -3,7 +3,10 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { hookStateFilePath } from '@/lib/chat-transcript.mjs'
-import { runtimeOf, OUTSIDE_LIVE_MS } from '@/lib/agent-runtime-kind.mjs'
+import { runtimeOf, OUTSIDE_LIVE_MS, resumableSessionId, RESUME_QUIET_MS } from '@/lib/agent-runtime-kind.mjs'
+import { buildEnv } from '@/lib/streaming-runtime.mjs'
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
 
 // An agent running outside tmux or as a stream must not look asleep, or restore starts a second copy
 let home: string
@@ -54,5 +57,41 @@ describe('runtimeOf', () => {
   it('is streaming when a live stream session exists under its id or name', () => {
     ;(globalThis as { _streamSessions?: Map<string, unknown> })._streamSessions = new Map([['dahlia', { closed: false }]])
     expect(runtimeOf(agent)).toBe('streaming')
+  })
+})
+
+describe('resumableSessionId', () => {
+  const convDir = () => path.join(home, '.claude', 'projects', dir.replace(/[^a-zA-Z0-9]/g, '-'))
+  function conversation(id: string, ageMs: number) {
+    fs.mkdirSync(convDir(), { recursive: true })
+    const f = path.join(convDir(), `${id}.jsonl`)
+    fs.writeFileSync(f, '{}\n')
+    const t = (Date.now() - ageMs) / 1000
+    fs.utimesSync(f, t, t)
+  }
+
+  it('resumes the agent\'s own conversation, not the newest one in the shared folder', () => {
+    conversation('sess-1', RESUME_QUIET_MS + 60_000)
+    conversation('someone-else', 1000 + RESUME_QUIET_MS)
+    expect(resumableSessionId(agent)).toBe('sess-1')
+  })
+
+  it('does not resume a conversation written to recently, live outside tmux, missing, or unknown', () => {
+    conversation('sess-1', 1000)
+    expect(resumableSessionId(agent)).toBeNull()
+    conversation('sess-1', RESUME_QUIET_MS + 60_000)
+    hookState({ sessionId: 'sess-1', status: 'active', updatedAt: new Date().toISOString() })
+    expect(resumableSessionId(agent)).toBeNull()
+    expect(resumableSessionId({ ...agent, claudeSessionId: 'gone' })).toBeNull()
+    expect(resumableSessionId({ ...agent, claudeSessionId: undefined })).toBeNull()
+  })
+})
+
+describe('streaming session identity', () => {
+  it('sets the variables the hook and AMP read, so it never takes the folder\'s identity', () => {
+    const env = buildEnv('a1', 'dahlia')
+    expect(env).toMatchObject({ AIM_AGENT_ID: 'a1', AIM_AGENT_NAME: 'dahlia', AIMAESTRO_AGENT_ID: 'a1' })
+    expect(env.AMP_DIR).toBe(path.join(home, '.agent-messaging', 'agents', 'a1'))
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined()
   })
 })

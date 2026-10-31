@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.39] - 2026-10-31 - No terminal beside an agent running outside tmux
+
+### Fixed
+- A manual wake started a tmux copy of an agent that was already running outside AI Maestro, in its own terminal or app: two copies under one identity. The wake now returns 409 `runtime_conflict` and asks to close that session first, as the mode switch already did. Automatic wakes already skipped these agents.
+
+### Added
+- Backlog F058: an optional access token, off by default, for instances exposed to the internet (an experiment).
+
 ## [0.106.38] - 2026-10-31 - The mode switch works on a running terminal
 
 ### Fixed

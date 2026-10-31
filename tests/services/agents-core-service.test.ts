@@ -1219,6 +1219,19 @@ describe('one mode at a time', () => {
     expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 
+  it('a wake is refused while the agent runs outside tmux (its own terminal or app)', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home', claudeSessionId: 'sess-1' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockFs.default.readFileSync.mockImplementation((f: string) => String(f).includes('chat-state')
+      ? JSON.stringify({ sessionId: 'sess-1', status: 'active', pid: process.pid, updatedAt: new Date().toISOString() })
+      : '{}')
+    const result = await wakeAgent('agent-1', { startProgram: false })
+    mockFs.default.readFileSync.mockReturnValue('{}')
+    expect(result.status).toBe(409)
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
+  })
+
   it('restore does not start a terminal for an agent set to run streaming', async () => {
     const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home', runtimeMode: 'streaming' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)

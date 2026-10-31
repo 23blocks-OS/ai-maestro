@@ -1893,6 +1893,10 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
     if (elsewhere === 'streaming' && !params.automatic) {
       return runtimeConflict(`"${agentName}" is running as a streaming session. Switch it to terminal mode instead, which stops the stream first.`)
     }
+    // Nor beside its own session outside tmux: a second copy under the same identity
+    if (elsewhere === 'outside' && !params.automatic) {
+      return runtimeConflict(`"${agentName}" is running outside AI Maestro (its own terminal or app). Close that session first.`)
+    }
     // An automatic wake must not start a second copy of an agent that runs elsewhere: outside tmux
     // (its own terminal or app) or as a streaming session (restore cloned Dahlia this way, 2026-10-30).
     // Nor a terminal for an agent set to run streaming: it starts when its streaming tab opens.

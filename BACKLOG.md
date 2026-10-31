@@ -76,6 +76,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F055** — [Call interoperability and failure tests (#700)](./backlog/F055-amp-rtc-interoperability-tests.md) — `Todo`
 - **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Todo`
 - **F057** — [A directory of humans, owned by hosts the way agents are](./backlog/F057-humans-directory.md) — `In Progress`
+- **F058** — [Optional access token for instances exposed to the internet (experiment)](./backlog/F058-optional-access-token-internet.md) — `Todo`
 
 ## Bugs
 

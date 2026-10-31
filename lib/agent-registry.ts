@@ -663,6 +663,7 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   } as Partial<Agent>
   // null clears a manager field (undefined drops it from the JSON)
   if (updates.humanManager === null) updateData.humanManager = undefined
+  if (updates.title === null || updates.title === '') updateData.title = undefined
   if (updates.managerAgentId === null) updateData.managerAgentId = undefined
   // null clears the Copilot launch fields
   if ((updates as any).programKind === null) updateData.programKind = undefined

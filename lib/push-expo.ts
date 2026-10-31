@@ -122,7 +122,7 @@ export async function pushNeedsYou(agentId?: string, sessionName?: string): Prom
   if (!claimSlot(`needs_you:${agentId || sessionName}`, COOLDOWN_MS)) return
   const targets = loadDevices().filter(d => d.pushToken && d.pushTypes?.includes('needs_you'))
   if (!targets.length) return
-  const name = (agentId && getAgent(agentId)?.name) || sessionName || 'An agent'
+  const name = (agentId && agentHeading(getAgent(agentId))) || sessionName || 'An agent'
   const hostId = getSelfHostId()
   await deliver(targets, to => ({
     to,
@@ -134,6 +134,14 @@ export async function pushNeedsYou(agentId?: string, sessionName?: string): Prom
     sound: 'default',
     interruptionLevel: 'time-sensitive',
   }))
+}
+
+/** "George (AI Maestro product owner)": the name people know the agent by (its label), then its title */
+export function agentHeading(agent: { label?: string; name?: string; title?: string } | null | undefined): string | null {
+  const name = agent?.label?.trim() || agent?.name?.trim()
+  if (!name) return null
+  const title = agent?.title?.trim()
+  return title ? `${name} (${title})` : name
 }
 
 /** "person:<id>" → the person id; anything else (an agent, an address) is not a paired phone */
@@ -149,7 +157,7 @@ export async function pushCall(call: { callId: string; caller: string; callee: s
   const ttl = Math.floor((Date.parse(call.expiresAt) - Date.now()) / 1000)
   if (ttl < 1) return
   // Only names this host knows: the caller string is chosen by whoever starts the call
-  const callerName = (call.caller.startsWith('agent:') && getAgent(call.caller.slice(6))?.name) ||
+  const callerName = (call.caller.startsWith('agent:') && agentHeading(getAgent(call.caller.slice(6)))) ||
     (call.caller.startsWith('person:') && getPerson(call.caller.slice(7))?.displayName) || 'Someone'
   const hostId = getSelfHostId()
   await deliver(targets, to => ({

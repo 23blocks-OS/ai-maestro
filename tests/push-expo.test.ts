@@ -13,11 +13,11 @@ vi.mock('fs', () => ({
   },
 }))
 vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
-vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'agent-1' ? { id, name: 'titania' } : null) }))
+vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'agent-1' ? { id, name: 'titania' } : id === 'agent-g' ? { id, name: 'ai-maestro', label: 'George', title: 'AI Maestro product owner' } : null) }))
 
 import { pairDevice, listDevices } from '@/services/person-devices-service'
 import { getDevice } from '@/lib/person-devices-registry'
-import { pushNeedsYou, pushCall, COOLDOWN_MS } from '@/lib/push-expo'
+import { pushNeedsYou, pushCall, COOLDOWN_MS, agentHeading } from '@/lib/push-expo'
 
 const TOKEN = 'ExponentPushToken[abcdefghijklmnop]'
 const P1 = 'f3b1c2d4-0000-4000-8000-000000000001'
@@ -165,5 +165,23 @@ describe('pushCall', () => {
     await pushCall(ring({ callee: 'agent:lola' }))
     await pushCall(ring({ expiresAt: '2026-10-29T19:59:59.000Z' }))
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('how an agent is named in a push', () => {
+  it('label, then title in parentheses; the name when there is no label', () => {
+    expect(agentHeading({ name: 'ai-maestro', label: 'George', title: 'AI Maestro product owner' })).toBe('George (AI Maestro product owner)')
+    expect(agentHeading({ name: 'ai-maestro', label: 'George' })).toBe('George')
+    expect(agentHeading({ name: 'titania' })).toBe('titania')
+    expect(agentHeading(null)).toBeNull()
+  })
+
+  it('a needs-you push reads "George (AI Maestro product owner) needs you"', async () => {
+    pair('device-ana-1', { pushToken: TOKEN, pushTypes: ['needs_you'] })
+    const fetchMock = vi.fn().mockResolvedValue(ok())
+    vi.stubGlobal('fetch', fetchMock)
+    await pushNeedsYou('agent-g', 'ai-maestro')
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(sent[0]).toMatchObject({ title: 'George (AI Maestro product owner) needs you', body: 'Open AI Maestro to respond.' })
   })
 })

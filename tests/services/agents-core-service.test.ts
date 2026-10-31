@@ -405,6 +405,18 @@ describe('updateAgentById', () => {
     expect((result.data as any)?.agent.taskDescription).toBe('Updated task')
   })
 
+  // The title is shown on a phone ("George (AI Maestro product owner) needs you"): one short line
+  it('accepts a title, trimmed, and refuses one that is too long or spans lines', () => {
+    const agent = makeAgent({ id: 'agent-1' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.updateAgent.mockReturnValue({ ...agent, title: 'AI Maestro product owner' })
+    expect(updateAgentById('agent-1', { title: '  AI Maestro product owner ' }).status).toBe(200)
+    expect(mockAgentRegistry.updateAgent).toHaveBeenLastCalledWith('agent-1', expect.objectContaining({ title: 'AI Maestro product owner' }))
+    expect(updateAgentById('agent-1', { title: 'x'.repeat(81) }).status).toBe(400)
+    expect(updateAgentById('agent-1', { title: 'two\nlines' }).status).toBe(400)
+    expect(updateAgentById('agent-1', { title: null }).status).toBe(200)
+  })
+
   it('returns 404 when agent not found', () => {
     mockAgentRegistry.getAgent.mockReturnValue(null)
 

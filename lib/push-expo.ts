@@ -118,11 +118,11 @@ async function deliver(targets: PersonDevice[], make: (to: string) => ExpoMessag
 
 /** An agent started waiting on a person. Notifies every paired device that opted in to `needs_you`. */
 export async function pushNeedsYou(agentId?: string, sessionName?: string): Promise<void> {
+  // The cooldown first: it is in memory, the registry and device list are files
+  if (!claimSlot(`needs_you:${agentId || sessionName}`, COOLDOWN_MS)) return
   // The app opens exactly data.agentId, so a push with no agent behind it is not sent
   const agent = agentId ? getAgent(agentId) : sessionName ? getAgentBySession(sessionName) : null
   if (!agent) return
-  // The cooldown first: it is in memory, the device list is files
-  if (!claimSlot(`needs_you:${agent.id}`, COOLDOWN_MS)) return
   const targets = loadDevices().filter(d => d.pushToken && d.pushTypes?.includes('needs_you'))
   if (!targets.length) return
   const name = agentHeading(agent) || sessionName || 'An agent'

@@ -65,7 +65,8 @@ import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
-import { runtimeOf } from '@/lib/agent-runtime-kind.mjs'
+import { runtimeOf, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
+import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
 import { buildLaunchCommand } from '@/lib/launch-command'
@@ -82,7 +83,7 @@ import {
 } from '@/lib/container-utils'
 import type { Host } from '@/types/host'
 import { shouldLogChange } from '@/lib/log-on-change'
-import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout } from '@/services/service-errors'
+import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout, runtimeConflict } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
 // Circuit breaker — half-open pattern with exponential backoff
@@ -218,6 +219,8 @@ export interface WakeAgentParams {
    * running outside tmux or as a streaming session, which would make a second copy.
    */
   automatic?: boolean
+  /** Claude Code: resume this conversation (the mode switch passes the agent's own) */
+  resumeSessionId?: string
   /** The tool's declared launch choices for this wake (lib/launch-options). Validated on the server; unknown or invalid ones are dropped. */
   launchOptions?: Record<string, string | boolean>
 }
@@ -1060,7 +1063,9 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
       body = { ...body, humanManager: parsed.value.humanManager, managerAgentId: parsed.value.managerAgentId }
     }
 
-    const agent = updateAgent(id, body)
+    // The mode and its switch time decide what may resume a conversation: only the mode switch sets them
+    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, ...patch } = body as UpdateAgentRequest
+    const agent = updateAgent(id, patch)
     if (!agent) {
       return notFound('Agent', id)
     }
@@ -1698,7 +1703,25 @@ export async function unlinkOrDeleteAgentSession(
 // POST /api/agents/[id]/wake -- wake a hibernated agent
 // ---------------------------------------------------------------------------
 
-export async function wakeAgent(agentId: string, params: WakeAgentParams): Promise<ServiceResult<{
+type WakeResult = Awaited<ReturnType<typeof wakeAgentUnlocked>>
+
+/**
+ * Wake an agent in its terminal. Holds the agent's start lock (lib/agent-runtime-kind) so a streaming
+ * session cannot start in the same instant: terminal and streaming never run at the same time.
+ */
+export async function wakeAgent(agentId: string, params: WakeAgentParams): Promise<WakeResult> {
+  if (!claimStart(agentId)) return runtimeConflict('This agent is being started right now; try again in a moment')
+  try {
+    const result = await wakeAgentUnlocked(agentId, params)
+    const woke = result.status === 200 && (result.data as { woken?: boolean })?.woken
+    if (woke && getAgent(agentId)?.runtimeMode === 'streaming') updateAgent(agentId, { runtimeMode: 'terminal' })
+    return result
+  } finally {
+    releaseStart(agentId)
+  }
+}
+
+async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Promise<ServiceResult<{
   success: boolean
   agentId: string
   name: string
@@ -1864,12 +1887,18 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
       }
     }
 
+    // Never a terminal while the agent runs as a streaming session: two processes on one conversation
+    // corrupt it. Switching modes stops the stream first (switchRuntimeMode).
+    const elsewhere = runtimeOf(agent)
+    if (elsewhere === 'streaming' && !params.automatic) {
+      return runtimeConflict(`"${agentName}" is running as a streaming session. Switch it to terminal mode instead, which stops the stream first.`)
+    }
     // An automatic wake must not start a second copy of an agent that runs elsewhere: outside tmux
     // (its own terminal or app) or as a streaming session (restore cloned Dahlia this way, 2026-10-30).
+    // Nor a terminal for an agent set to run streaming: it starts when its streaming tab opens.
     if (params.automatic) {
-      const elsewhere = runtimeOf(agent)
-      if (elsewhere) {
-        const where = elsewhere === 'outside' ? 'outside tmux' : 'as a streaming session'
+      if (elsewhere || agent.runtimeMode === 'streaming') {
+        const where = elsewhere === 'outside' ? 'outside tmux' : elsewhere === 'streaming' ? 'as a streaming session' : 'in streaming mode'
         console.log(`[Wake] Agent ${agentName} (${agentId}) — already running ${where}; not starting a tmux copy`)
         return {
           data: {
@@ -1988,6 +2017,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
           model: agent.model,
           permissionMode: params.permissionMode || agent.permissionMode,
           launchOptions: params.launchOptions ?? agent.launchOptions,
+          resumeSessionId: params.resumeSessionId,
         })
 
         // Small delay to let the session initialize
@@ -2083,6 +2113,9 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
     if (!agentName) {
       return invalidField('name', 'Agent has no name configured')
     }
+
+    // Hibernating means nothing runs: a streaming session stops too
+    if (!(await stopStreamSessions(agent))) return operationFailed('stop the streaming session', 'it did not end in time')
 
     const runtime = getRuntime()
     const sessionName = computeSessionName(agentName, sessionIndex)
@@ -2222,6 +2255,63 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
 // ---------------------------------------------------------------------------
 // POST /api/agents/startup -- initialize all agents
 // ---------------------------------------------------------------------------
+
+
+/**
+ * Switch how the agent runs: its terminal (tmux) or a streaming (Agent SDK) session. Only one runs at a
+ * time: the running mode is stopped, and confirmed stopped, before the other may start, all under the
+ * agent's start lock. The next mode resumes the agent's own conversation. Switching to streaming records
+ * the mode; the stream itself starts when the streaming tab connects.
+ */
+export async function switchRuntimeMode(agentId: string, mode: unknown): Promise<ServiceResult<{
+  agentId: string
+  mode: 'terminal' | 'streaming'
+  resumed: boolean
+  message: string
+}>> {
+  if (mode !== 'terminal' && mode !== 'streaming') return invalidField('mode', "must be 'terminal' or 'streaming'")
+  const agent = getAgent(agentId)
+  if (!agent) return notFound('Agent', agentId)
+  const name = agent.name || agent.alias
+  if (!name) return invalidField('name', 'Agent has no name configured')
+  if (runtimeOf(agent) === 'outside') {
+    return runtimeConflict(`"${name}" is running outside AI Maestro (its own terminal or app). Close that session first.`)
+  }
+  if (!claimStart(agentId)) return runtimeConflict('This agent is being started right now; try again in a moment')
+  try {
+    if (mode === 'streaming') {
+      const runtime = getRuntime()
+      const sessionName = computeSessionName(name, 0)
+      if (await runtime.sessionExists(sessionName)) {
+        const stopped = await hibernateAgent(agentId, {})
+        if (stopped.status !== 200) return stopped as ServiceResult<never>
+        if (await runtime.sessionExists(sessionName)) return operationFailed('stop the terminal', `tmux session ${sessionName} is still running`)
+      }
+      updateAgent(agentId, { runtimeMode: 'streaming', runtimeSwitchedAt: new Date().toISOString() })
+      console.log(`[Mode] ${name} (${agentId}) switched to streaming`)
+      return { data: { agentId, mode, resumed: false, message: `"${name}" runs as a streaming session now. Open its Streaming tab.` }, status: 200 }
+    }
+
+    if (!(await stopStreamSessions(agent))) return operationFailed('stop the streaming session', 'it did not end in time')
+    const switchedAt = new Date().toISOString()
+    const updated = updateAgent(agentId, { runtimeMode: 'terminal', runtimeSwitchedAt: switchedAt }) || agent
+    const resumeSessionId = resumableSessionId(updated, { switchedAt }) || undefined
+    const woke = await wakeAgentUnlocked(agentId, { startProgram: true, resumeSessionId })
+    if (woke.status !== 200) return woke as ServiceResult<never>
+    console.log(`[Mode] ${name} (${agentId}) switched to terminal${resumeSessionId ? `, resuming ${resumeSessionId.slice(0, 8)}` : ''}`)
+    return {
+      data: {
+        agentId,
+        mode,
+        resumed: !!resumeSessionId,
+        message: `"${name}" runs in its terminal now${resumeSessionId ? ', in the same conversation' : ''}.`,
+      },
+      status: 200,
+    }
+  } finally {
+    releaseStart(agentId)
+  }
+}
 
 export async function initializeStartup(): Promise<ServiceResult<{
   success: boolean

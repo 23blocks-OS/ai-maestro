@@ -28,6 +28,8 @@ export interface LaunchCommandInput {
   permissionMode?: AgentPermissionMode | string | null
   /** The tool's declared launch choices (lib/launch-options); validated here. */
   launchOptions?: unknown
+  /** Claude Code: resume this conversation (the agent's own, checked by the caller) */
+  resumeSessionId?: string
   env?: NodeJS.ProcessEnv
 }
 
@@ -74,6 +76,8 @@ export function buildLaunchCommand(input: LaunchCommandInput): string {
       const cli = PERMISSION_MODE_TO_CLI[mode]
       if (cli) full = `${full} --permission-mode ${cli}`
     }
+
+    if (input.resumeSessionId && /^[A-Za-z0-9-]+$/.test(input.resumeSessionId)) full = `${full} --resume ${input.resumeSessionId}`
 
     // Claude Code's native session name (opt-in via AIMAESTRO_SESSION_NAME).
     full = `${full}${claudeSessionNameFlag(input.agentName, 'claude')}`

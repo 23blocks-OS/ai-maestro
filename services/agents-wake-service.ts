@@ -8,7 +8,7 @@
  * from it (B012). Both now call these two functions.
  */
 
-import { wakeAgent, hibernateAgent, type WakeAgentParams } from '@/services/agents-core-service'
+import { wakeAgent, hibernateAgent, switchRuntimeMode, type WakeAgentParams } from '@/services/agents-core-service'
 import { getAgent } from '@/lib/agent-registry'
 import { isSelf } from '@/lib/hosts-config'
 import type { ServiceResult } from '@/services/service-errors'
@@ -19,7 +19,7 @@ function asObject(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
 }
 
-async function proxyPost(remoteHostUrl: string, agentId: string, action: 'wake' | 'hibernate', payload: unknown, label: string): Promise<ServiceResult<any>> {
+async function proxyPost(remoteHostUrl: string, agentId: string, action: 'wake' | 'hibernate' | 'runtime-mode', payload: unknown, label: string): Promise<ServiceResult<any>> {
   console.log(`[${label}] Agent ${agentId} is on remote host (${remoteHostUrl}), proxying...`)
   try {
     const controller = new AbortController()
@@ -95,4 +95,15 @@ export async function hibernateAgentRequest(agentId: string, rawBody: unknown): 
   }
 
   return hibernateAgent(agentId, { sessionIndex })
+}
+
+/** Switch an agent between terminal and streaming ({ mode }); remote agents are switched on their host. */
+export async function runtimeModeRequest(agentId: string, rawBody: unknown): Promise<ServiceResult<any>> {
+  const body = asObject(rawBody)
+  const agent = getAgent(agentId)
+  const isLocalAgent = !agent?.hostId || isSelf(agent.hostId) || (agent?.hostUrl ? isSelf(agent.hostUrl) : false)
+  const hostUrl = typeof body.hostUrl === 'string' ? body.hostUrl : undefined
+  const remoteHostUrl = !isLocalAgent ? agent?.hostUrl : hostUrl
+  if (remoteHostUrl) return proxyPost(remoteHostUrl, agentId, 'runtime-mode', { mode: body.mode }, 'Mode')
+  return switchRuntimeMode(agentId, body.mode)
 }

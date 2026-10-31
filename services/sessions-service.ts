@@ -80,7 +80,8 @@ import type { AgentPermissionMode } from '@/types/agent'
 import { paneSubmitted, paneStaged, clearInputPlan } from '@/lib/notification-service'
 import { verifyProgramStarted, type LaunchVerdict } from '@/lib/program-launch'
 import crypto from 'crypto'
-import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError } from '@/services/service-errors'
+import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError, runtimeConflict } from '@/services/service-errors'
+import { runtimeOf } from '@/lib/agent-runtime-kind.mjs'
 import { shouldLogChange } from '@/lib/log-on-change'
 
 const execFileAsync = promisify(execFile)
@@ -1007,6 +1008,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const sessionExists = await runtime.sessionExists(actualSessionName)
   if (sessionExists) {
     return alreadyExists('Session', actualSessionName)
+  }
+  // Never a terminal beside the agent's streaming session (two processes on one conversation)
+  const known = getAgentByName(normalizedName)
+  if (known && runtimeOf(known) === 'streaming') {
+    return runtimeConflict(`"${normalizedName}" is running as a streaming session. Switch it to terminal mode instead.`)
   }
 
   // An empty folder is ~/agents/<name> (created), a Windows path is translated

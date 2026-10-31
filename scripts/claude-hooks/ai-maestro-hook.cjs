@@ -227,6 +227,21 @@ async function broadcastStatusUpdate(cwd, state) {
     }
 }
 
+// The process that ran this hook. A shell between them (`sh -c`, when the shell does not exec) is skipped;
+// /proc exists on Linux only, and macOS's sh execs the hook, so there the parent is Claude itself.
+function claudePid() {
+    const ppid = process.ppid;
+    try {
+        const comm = fs.readFileSync(`/proc/${ppid}/comm`, 'utf8').trim();
+        if (/^(sh|bash|dash|zsh)$/.test(comm)) {
+            const stat = fs.readFileSync(`/proc/${ppid}/stat`, 'utf8');
+            const parent = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+            if (parent > 1) return parent;
+        }
+    } catch (e) {}
+    return ppid;
+}
+
 // Write state to file. Returns the broadcast promise so callers can await if needed.
 function writeState(cwd, state) {
     const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');
@@ -239,6 +254,9 @@ function writeState(cwd, state) {
         ...state,
         cwd,
         cwdHash,
+        // The Claude process that ran this hook: the server checks it is still alive before treating the
+        // agent as running outside tmux (a crash or a reboot writes no SessionEnd)
+        pid: claudePid(),
         updatedAt: new Date().toISOString()
     };
 

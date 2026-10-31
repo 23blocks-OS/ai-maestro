@@ -1,27 +1,31 @@
 /**
  * Agent execution mode (terminal ⇄ streaming).
  *
- * An agent is ONE entity; "terminal" (tmux TUI) vs "streaming" (Agent SDK,
- * stream-json) is how it's currently being run, chosen at wake. Continuity
- * across modes comes from `--resume` on the agent's session_id (server-side).
- *
- * The MODE PREFERENCE is stored per-agent in localStorage (which tab is the
- * agent's home). The streaming SESSION itself is server-side and shared across
- * devices, so a phone opening the streaming tab attaches to the same session —
- * only the "default tab" preference is device-local (cross-device sync of the
- * preference is a later enhancement).
+ * An agent is ONE entity; "terminal" (tmux TUI) vs "streaming" (Agent SDK, stream-json) is how it runs.
+ * Only one runs at a time, and the server enforces it: the mode is stored on the agent, and switching
+ * (POST /api/agents/:id/runtime-mode) stops the running mode before the other starts, resuming the
+ * agent's own conversation.
  */
+
+import type { Agent } from '@/types/agent'
 
 export type RuntimeMode = 'terminal' | 'streaming'
 
-const key = (agentId: string) => `agent-runtime-mode-${agentId}`
-
-export function getRuntimeMode(agentId: string): RuntimeMode {
-  if (typeof window === 'undefined') return 'terminal'
-  return window.localStorage.getItem(key(agentId)) === 'streaming' ? 'streaming' : 'terminal'
+export function runtimeModeOf(agent: Pick<Agent, 'runtimeMode'> | null | undefined): RuntimeMode {
+  return agent?.runtimeMode === 'streaming' ? 'streaming' : 'terminal'
 }
 
-export function setRuntimeMode(agentId: string, mode: RuntimeMode): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(key(agentId), mode)
+/** Ask the server to switch the agent's mode. The local server proxies an agent on another host. */
+export async function requestRuntimeMode(agentId: string, mode: RuntimeMode): Promise<{ ok: boolean; message: string }> {
+  try {
+    const res = await fetch(`/api/agents/${agentId}/runtime-mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, message: data?.message || data?.error || (res.ok ? 'Switched' : `Could not switch (${res.status})`) }
+  } catch {
+    return { ok: false, message: 'Could not reach the server' }
+  }
 }

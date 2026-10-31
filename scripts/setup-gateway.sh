@@ -355,7 +355,7 @@ cmd_status() {
     fi
 
     # Check mailman
-    if tmux has-session -t mailman 2>/dev/null; then
+    if tmux has-session -t =mailman: 2>/dev/null; then
         _ok "Mailman agent is running (tmux session: mailman)"
     else
         _warn "Mailman agent is not running"

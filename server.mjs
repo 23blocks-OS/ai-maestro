@@ -877,6 +877,12 @@ function capturePaneRaw(sessionName, lines = 200) {
 }
 
 async function sendChatMessage(sessionName, message) {
+  // An agent that runs outside tmux (its own terminal or app) has no pane to type into. Say so:
+  // tmux used to read the name as a prefix and typed the reply into another agent (2026-10-30).
+  if (!tmuxRt.hasSessionSync(sessionName, { timeout: 2000 })) {
+    console.log(`[Chat] ${sessionName}: no terminal session on this host, message not delivered`)
+    return { ok: false, error: `${sessionName} has no terminal session on this host, so the message was not delivered. It may be running outside tmux: send it as a message (AMP) instead.` }
+  }
   const tmpFile2 = path.join(os.tmpdir(), `aimaestro-resend-${Date.now()}.txt`)
   // 0. Ensure the pane isn't in copy-mode (scrolling leaves it there) — else
   // the paste shows but Enter never submits.
@@ -1789,6 +1795,8 @@ async function startServer(handleRequest) {
   // Drives Claude via the Agent SDK in stream-json mode (NOT tmux). One
   // persistent per-agent SDK session (lib/streaming-runtime.mjs): resume-aware,
   // subscription auth, canUseTool permission cards. Isolated from /term.
+  // A conversation written to this recently may be live outside tmux: never resume it
+  const STREAM_RESUME_QUIET_MS = 10 * 60 * 1000
   const streamChatWss = new WebSocketServer({ noServer: true })
   streamChatWss.on('connection', async (ws, query) => {
     const agentKey = (query.agentId || query.name || '').toString()
@@ -1807,7 +1815,13 @@ async function startServer(handleRequest) {
       const terminalLive = tmuxRt.hasSessionSync(agentName || agentKey, { timeout: 2000 })
       if (!terminalLive) {
         const latest = resolveJsonlPath(agent)
-        if (latest && latest.name.endsWith('.jsonl')) resumeSessionId = latest.name.slice(0, -6)
+        // tmux is not the only place a conversation runs: an agent outside tmux (its own terminal or
+        // app) leaves no session to find. A conversation written to recently is probably still live
+        // there, and resuming it would put a second process on it, so start fresh instead.
+        let recentlyWritten = false
+        try { recentlyWritten = !!latest?.path && Date.now() - fs.statSync(latest.path).mtimeMs < STREAM_RESUME_QUIET_MS } catch { /* unreadable: resume */ }
+        if (latest && latest.name.endsWith('.jsonl') && !recentlyWritten) resumeSessionId = latest.name.slice(0, -6)
+        else if (recentlyWritten) console.log(`[Stream] ${agentName || agentKey}: latest conversation was written to in the last ${STREAM_RESUME_QUIET_MS / 60000} min, starting fresh instead of resuming it`)
       }
     } catch { /* fall through */ }
 

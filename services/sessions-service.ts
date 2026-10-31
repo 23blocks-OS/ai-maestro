@@ -22,6 +22,7 @@
 import { hookNeedsYou, normalizeActivityStatus, claimsActivity } from '@/lib/agent-presence'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { execFile } from 'child_process'
+import { exactTarget } from '@/lib/tmux-safe.mjs'
 import { promisify } from 'util'
 import http from 'http'
 import https from 'https'
@@ -531,7 +532,7 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                   // Query working directory only for new agents
                   try {
                     const { stdout: cwdOut } = await execFileAsync(
-                      'tmux', ['-S', socketPath, 'display-message', '-t', sessionName, '-p', '#{pane_current_path}'],
+                      'tmux', ['-S', socketPath, 'display-message', '-t', exactTarget(sessionName), '-p', '#{pane_current_path}'],
                       { timeout: 3000 }
                     )
                     resolvedWorkingDirectory = cwdOut.trim()
@@ -554,9 +555,9 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                   try {
                     await initAgentAMPHome(sessionName, agent.id)
                     const ampDir = getAgentAMPDir(sessionName, agent.id)
-                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', sessionName, 'AMP_DIR', ampDir], { timeout: 3000 })
-                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', sessionName, 'AIM_AGENT_NAME', sessionName], { timeout: 3000 })
-                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', sessionName, 'AIM_AGENT_ID', agent.id], { timeout: 3000 })
+                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', exactTarget(sessionName), 'AMP_DIR', ampDir], { timeout: 3000 })
+                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', exactTarget(sessionName), 'AIM_AGENT_NAME', sessionName], { timeout: 3000 })
+                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', exactTarget(sessionName), 'AIM_AGENT_ID', agent.id], { timeout: 3000 })
                   } catch (ampError) {
                     console.warn(`[Sessions] Could not set up AMP for OpenClaw agent ${sessionName}:`, ampError)
                   }

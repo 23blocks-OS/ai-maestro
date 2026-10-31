@@ -92,7 +92,7 @@ function renameSessionToStructured(oldName, agentId, hostId = 'local') {
   const newName = `${agentId}@${hostId}`
   try {
     // argv, not a shell string: a session name must never reach a shell
-    execFileSync('tmux', ['rename-session', '-t', oldName, newName], { encoding: 'utf-8', timeout: 10000 })
+    execFileSync('tmux', ['rename-session', '-t', `=${oldName}:`, newName], { encoding: 'utf-8', timeout: 10000 })
     return newName
   } catch (error) {
     console.warn(`⚠️  Could not rename session: ${error.message}`)
@@ -128,7 +128,7 @@ function getAllSessions() {
  */
 function getSessionWorkingDir(sessionName) {
   try {
-    return execFileSync('tmux', ['display-message', '-p', '-t', sessionName, '-F', '#{pane_current_path}'], {
+    return execFileSync('tmux', ['display-message', '-p', '-t', `=${sessionName}:`, '-F', '#{pane_current_path}'], {
       encoding: 'utf-8',
       timeout: 10000
     }).trim()

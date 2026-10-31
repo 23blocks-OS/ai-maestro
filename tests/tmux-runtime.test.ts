@@ -191,9 +191,9 @@ describe('async operations keep the argv of the execFile calls they replaced', (
 
 describe('attachCommand', () => {
   it('matches the old getAttachCommand output, and the call-session read-only observer', () => {
-    expect(rt.attachCommand(S)).toEqual({ command: 'tmux', args: ['attach-session', '-t', S] })
-    expect(rt.attachCommand(S, { socketPath: '/s' })).toEqual({ command: 'tmux', args: ['-S', '/s', 'attach-session', '-t', S] })
-    expect(rt.attachCommand(`${S}__call`, { readOnly: true })).toEqual({ command: 'tmux', args: ['attach-session', '-t', `${S}__call`, '-r'] })
+    expect(rt.attachCommand(S)).toEqual({ command: 'tmux', args: ['attach-session', '-t', `=${S}:`] })
+    expect(rt.attachCommand(S, { socketPath: '/s' })).toEqual({ command: 'tmux', args: ['-S', '/s', 'attach-session', '-t', `=${S}:`] })
+    expect(rt.attachCommand(`${S}__call`, { readOnly: true })).toEqual({ command: 'tmux', args: ['attach-session', '-t', `=${S}__call:`, '-r'] })
   })
 
   it('refuses a name that is not a session name', () => {

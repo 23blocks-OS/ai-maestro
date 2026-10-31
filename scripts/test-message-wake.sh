@@ -112,9 +112,9 @@ else
 fi
 
 # --- 5. did it actually reach the pane? ------------------------------------
-if command -v tmux >/dev/null && tmux has-session -t "$TARGET" 2>/dev/null; then
+if command -v tmux >/dev/null && tmux has-session -t "=$TARGET:" 2>/dev/null; then
   # Whitespace-stripped on both sides so a hard-wrapped line still matches.
-  if tmux capture-pane -t "$TARGET:0.0" -p -S -120 2>/dev/null \
+  if tmux capture-pane -t "=$TARGET:0.0" -p -S -120 2>/dev/null \
        | tr -d '[:space:]' | grep -qF "$(printf '%s' "$SUBJECT" | tr -d '[:space:]')"; then
     ok "message text found on the agent's pane"
   else

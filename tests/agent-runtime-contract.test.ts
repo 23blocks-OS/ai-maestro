@@ -261,7 +261,8 @@ function runtimeContract(label: string, make: () => AgentRuntime) {
       const { command, args } = r.getAttachCommand('alpha')
       expect(typeof command).toBe('string')
       expect(Array.isArray(args)).toBe(true)
-      expect(args).toContain('alpha')
+      // tmux's exact form (=alpha) or the plain name, never a prefix of another session
+      expect(args.some((a: string) => a === 'alpha' || a === '=alpha:')).toBe(true)
     })
 
     it('refuses session names outside ^[a-zA-Z0-9_-]+$', async () => {

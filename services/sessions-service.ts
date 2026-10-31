@@ -1407,6 +1407,7 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
       // offline. wakeAgent relaunches the program with the agent's own
       // settings, falling back to what was recorded at wake time.
       const wake = await wakeAgent(agent.id, {
+        automatic: true,
         startProgram: true,
         sessionIndex: session.sessionIndex ?? 0,
         program: session.program,
@@ -1414,6 +1415,14 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
         permissionMode: session.permissionMode as any,
       })
 
+      // Running elsewhere (outside tmux, or streaming): the tmux record is stale, so drop it rather
+      // than try again at every start
+      const wakeData = wake.data as { woken?: boolean; alreadyRunning?: boolean } | undefined
+      if (wake.status === 200 && wakeData?.alreadyRunning && !wakeData.woken) {
+        unpersistSession(session.id)
+        results.push({ sessionId: session.id, status: 'already_exists' })
+        continue
+      }
       results.push({
         sessionId: session.id,
         status: wake.status === 200 ? 'restored' : 'failed',

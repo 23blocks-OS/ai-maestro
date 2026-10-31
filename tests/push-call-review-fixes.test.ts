@@ -13,7 +13,7 @@ vi.mock('fs', () => ({
   },
 }))
 vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
-vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'lola' ? { id, name: 'lola' } : null) }))
+vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'ghost' ? null : { id, name: id }), getAgentBySession: () => null }))
 vi.mock('@/lib/people-registry', () => ({
   getPerson: (id: string) => (id === 'p-ana' ? { id, displayName: 'Ana' } : null),
   isPersonId: (id: unknown) => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(id),

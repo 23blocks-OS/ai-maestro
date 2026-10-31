@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.34] - 2026-10-30 - An agent running outside tmux is not started a second time
+
+### Fixed
+- After a restart, restore woke every agent it had a tmux record for. An agent that now runs outside tmux (its own terminal or app) or as a streaming session got a second copy in tmux, reading the same mail (Dahlia, `ai-maestro-app`, 2026-10-30). Restore now skips an agent that is running elsewhere and drops its stale record. "Running outside tmux" comes from the hook's state for the agent's folder: the session seen last there is the agent's own (`claudeSessionId`), it has not ended, and it was active in the last 12 hours.
+
+### Added
+- The agent list reports how each agent runs: `session.runtime` is `terminal` (its tmux session), `streaming` (an SDK session on the server), `outside` (its own terminal or app, reachable only by AMP) or `null`. Chat, voice and calls pick their transport from it: type into the pane only for `terminal`.
+- A "needs you" push always carries `data.agentId`, so a tap opens exactly that agent. When only the session name is known, the agent is looked up from it; if no agent matches, nothing is pushed. A call push from an agent carries `data.callerAgentId`.
+- Tests: `tests/agent-runtime-kind.test.ts`, `tests/push-expo.test.ts`.
+
 ## [0.106.33] - 2026-10-30 - A message for one agent can no longer reach another
 
 ### Fixed

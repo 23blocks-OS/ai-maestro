@@ -626,6 +626,12 @@ export interface AgentSessionStatus {
   hostId?: string                 // Host ID where session runs (e.g., 'local', 'mac-mini')
   hostName?: string               // Human-readable host name
   standalone?: boolean            // Agent registered via heartbeat, no tmux session
+  /**
+   * How the agent runs right now: 'terminal' (its tmux session), 'streaming' (an SDK session on the
+   * server), 'outside' (its own terminal or app, reachable only by AMP), or null when nothing runs.
+   * A feature picks its transport from this: type into the pane only for 'terminal'.
+   */
+  runtime?: 'terminal' | 'streaming' | 'outside' | null
 }
 
 /**

@@ -65,6 +65,7 @@ import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
+import { runtimeOf } from '@/lib/agent-runtime-kind.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
 import { buildLaunchCommand } from '@/lib/launch-command'
@@ -212,6 +213,11 @@ export interface WakeAgentParams {
   allowHostFallback?: boolean
   /** Save the program and permission mode on the agent after a successful choice (F040). */
   remember?: boolean
+  /**
+   * Set by wakes nobody asked for (restore after a restart): never start an agent that is already
+   * running outside tmux or as a streaming session, which would make a second copy.
+   */
+  automatic?: boolean
   /** The tool's declared launch choices for this wake (lib/launch-options). Validated on the server; unknown or invalid ones are dropped. */
   launchOptions?: Record<string, string | boolean>
 }
@@ -838,6 +844,9 @@ export async function listAgents(): Promise<ServiceResult<{
         ? agentSessions.find(s => parseSessionName(s.name).index === onlineSession.index)
         : undefined
 
+      // A recent heartbeat with no tmux session is a Claude session running elsewhere
+      const runtime = runtimeOf(agent, { tmuxLive: !!onlineSession }) ?? (hasRecentHeartbeat ? 'outside' : null)
+
       const sessionStatus: AgentSessionStatus = onlineSession
         ? {
             status: 'online',
@@ -846,6 +855,7 @@ export async function listAgents(): Promise<ServiceResult<{
             lastActivity: onlineSession.lastActive,
             hostId,
             hostName,
+            runtime,
           }
         : hasRecentHeartbeat
         ? {
@@ -855,6 +865,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostId,
             hostName,
             standalone: true,
+            runtime,
           }
         : {
             status: 'offline',
@@ -862,6 +873,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostId,
             hostName,
             ...(isStandalone && { standalone: true }),
+            runtime,
           }
 
       const updatedAgent: Agent = {
@@ -1849,6 +1861,29 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
           message: `Agent "${agentName}" session ${sessionIndex} was already running`,
         },
         status: 200,
+      }
+    }
+
+    // An automatic wake must not start a second copy of an agent that runs elsewhere: outside tmux
+    // (its own terminal or app) or as a streaming session (restore cloned Dahlia this way, 2026-10-30).
+    if (params.automatic) {
+      const elsewhere = runtimeOf(agent)
+      if (elsewhere) {
+        const where = elsewhere === 'outside' ? 'outside tmux' : 'as a streaming session'
+        console.log(`[Wake] Agent ${agentName} (${agentId}) — already running ${where}; not starting a tmux copy`)
+        return {
+          data: {
+            success: true,
+            agentId,
+            name: agentName,
+            sessionName,
+            sessionIndex,
+            woken: false,
+            alreadyRunning: true,
+            message: `Agent "${agentName}" is already running ${where}`,
+          },
+          status: 200,
+        }
       }
     }
 

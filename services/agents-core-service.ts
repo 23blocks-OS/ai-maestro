@@ -65,7 +65,7 @@ import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
-import { runtimeOf, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
+import { runtimeOf, runningOutsideTmux, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
 import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
@@ -2274,15 +2274,17 @@ export async function switchRuntimeMode(agentId: string, mode: unknown): Promise
   if (!agent) return notFound('Agent', agentId)
   const name = agent.name || agent.alias
   if (!name) return invalidField('name', 'Agent has no name configured')
-  if (runtimeOf(agent) === 'outside') {
+  const runtime = getRuntime()
+  const sessionName = computeSessionName(name, 0)
+  // Its own terminal's Claude is alive too: ask about tmux first, as listAgents does
+  const terminalLive = await runtime.sessionExists(sessionName)
+  if (runtimeOf(agent, { tmuxLive: terminalLive }) === 'outside') {
     return runtimeConflict(`"${name}" is running outside AI Maestro (its own terminal or app). Close that session first.`)
   }
   if (!claimStart(agentId)) return runtimeConflict('This agent is being started right now; try again in a moment')
   try {
     if (mode === 'streaming') {
-      const runtime = getRuntime()
-      const sessionName = computeSessionName(name, 0)
-      if (await runtime.sessionExists(sessionName)) {
+      if (terminalLive) {
         const stopped = await hibernateAgent(agentId, {})
         if (stopped.status !== 200) return stopped as ServiceResult<never>
         if (await runtime.sessionExists(sessionName)) return operationFailed('stop the terminal', `tmux session ${sessionName} is still running`)
@@ -2293,6 +2295,10 @@ export async function switchRuntimeMode(agentId: string, mode: unknown): Promise
     }
 
     if (!(await stopStreamSessions(agent))) return operationFailed('stop the streaming session', 'it did not end in time')
+    // The stream's Claude process can outlive the session object by a moment; until it exits, its
+    // conversation still looks live, and resuming it would put two processes on it
+    for (let i = 0; i < 50 && runningOutsideTmux(agent); i++) await new Promise(r => setTimeout(r, 100))
+    if (runningOutsideTmux(agent)) return operationFailed('stop the streaming session', 'its Claude process is still running')
     const switchedAt = new Date().toISOString()
     const updated = updateAgent(agentId, { runtimeMode: 'terminal', runtimeSwitchedAt: switchedAt }) || agent
     const resumeSessionId = resumableSessionId(updated, { switchedAt }) || undefined

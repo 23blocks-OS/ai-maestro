@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.38] - 2026-10-31 - The mode switch works on a running terminal
+
+### Fixed
+- Switching a running terminal agent to streaming was refused with "running outside AI Maestro". The new process check (0.106.37) found the terminal's own Claude alive, and the switch asked "outside?" before "terminal?". It now asks about tmux first, as the agent list does. Found by switching a real agent; covered by a test that fails on 0.106.37.
+- Switching from streaming to terminal now also waits for the stream's Claude process to exit. Otherwise the conversation still looked live, and the terminal would start fresh instead of resuming it.
+
 ## [0.106.37] - 2026-10-31 - Terminal and streaming never run at the same time
 
 ### Added

@@ -10,7 +10,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 - The agent list reports how each agent runs: `session.runtime` is `terminal` (its tmux session), `streaming` (an SDK session on the server), `outside` (its own terminal or app, reachable only by AMP) or `null`. Chat, voice and calls pick their transport from it: type into the pane only for `terminal`.
-- Tests: `tests/agent-runtime-kind.test.ts`.
+- A "needs you" push always carries `data.agentId`, so a tap opens exactly that agent. When only the session name is known, the agent is looked up from it; if no agent matches, nothing is pushed. A call push from an agent carries `data.callerAgentId`.
+- Tests: `tests/agent-runtime-kind.test.ts`, `tests/push-expo.test.ts`.
 
 ## [0.106.33] - 2026-10-30 - A message for one agent can no longer reach another
 

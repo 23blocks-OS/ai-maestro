@@ -13,7 +13,10 @@ vi.mock('fs', () => ({
   },
 }))
 vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
-vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'agent-1' ? { id, name: 'titania' } : id === 'agent-g' ? { id, name: 'ai-maestro', label: 'George', title: 'AI Maestro product owner' } : null) }))
+vi.mock('@/lib/agent-registry', () => ({
+  getAgent: (id: string) => (id === 'agent-1' ? { id, name: 'titania' } : id === 'agent-2' ? { id, name: 'oberon' } : id === 'agent-g' ? { id, name: 'ai-maestro', label: 'George', title: 'AI Maestro product owner' } : null),
+  getAgentBySession: (name: string) => (name === 'titania' ? { id: 'agent-1', name: 'titania' } : null),
+}))
 
 import { pairDevice, listDevices } from '@/services/person-devices-service'
 import { getDevice } from '@/lib/person-devices-registry'
@@ -69,6 +72,17 @@ describe('push fields on the paired device', () => {
 })
 
 describe('pushNeedsYou', () => {
+  it('always carries the agent id: found from the session name, or no push at all', async () => {
+    pair('device-ana-1', { pushToken: TOKEN, pushTypes: ['needs_you'] })
+    const fetchMock = vi.fn(async () => ok())
+    vi.stubGlobal('fetch', fetchMock)
+    await pushNeedsYou(undefined, 'unknown-session')
+    expect(fetchMock).not.toHaveBeenCalled()
+    await pushNeedsYou(undefined, 'titania')
+    const sent = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body)
+    expect(sent[0].data).toMatchObject({ type: 'needs_you', agentId: 'agent-1' })
+  })
+
   it('sends a thin message to opted-in devices only', async () => {
     pair('device-ana-1', { pushToken: TOKEN, pushTypes: ['needs_you'] })
     pair('device-ana-2', { pushToken: 'ExponentPushToken[zzzzzzzzzzzzzzzz]', pushTypes: ['call'] })
@@ -155,7 +169,7 @@ describe('pushCall', () => {
     await pushCall(ring())
     const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(sent).toHaveLength(1)
-    expect(sent[0]).toMatchObject({ to: TOKEN, title: 'titania is calling', channelId: 'call', ttl: 30, data: { type: 'call', callId: 'call-12345678', hostId: 'self-host' } })
+    expect(sent[0]).toMatchObject({ to: TOKEN, title: 'titania is calling', channelId: 'call', ttl: 30, data: { type: 'call', callId: 'call-12345678', hostId: 'self-host', callerAgentId: 'agent-1' } })
   })
 
   it('does nothing for an agent callee or a call that has already lapsed', async () => {

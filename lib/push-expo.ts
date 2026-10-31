@@ -11,7 +11,7 @@
  */
 
 import { loadDevices, clearPushToken } from '@/lib/person-devices-registry'
-import { getAgent } from '@/lib/agent-registry'
+import { getAgent, getAgentBySession } from '@/lib/agent-registry'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { getPerson } from '@/lib/people-registry'
 import type { PersonDevice, PushType } from '@/types/person-device'
@@ -118,17 +118,20 @@ async function deliver(targets: PersonDevice[], make: (to: string) => ExpoMessag
 
 /** An agent started waiting on a person. Notifies every paired device that opted in to `needs_you`. */
 export async function pushNeedsYou(agentId?: string, sessionName?: string): Promise<void> {
+  // The app opens exactly data.agentId, so a push with no agent behind it is not sent
+  const agent = agentId ? getAgent(agentId) : sessionName ? getAgentBySession(sessionName) : null
+  if (!agent) return
   // The cooldown first: it is in memory, the device list is files
-  if (!claimSlot(`needs_you:${agentId || sessionName}`, COOLDOWN_MS)) return
+  if (!claimSlot(`needs_you:${agent.id}`, COOLDOWN_MS)) return
   const targets = loadDevices().filter(d => d.pushToken && d.pushTypes?.includes('needs_you'))
   if (!targets.length) return
-  const name = (agentId && agentHeading(getAgent(agentId))) || sessionName || 'An agent'
+  const name = agentHeading(agent) || sessionName || 'An agent'
   const hostId = getSelfHostId()
   await deliver(targets, to => ({
     to,
     title: `${name} needs you`,
     body: 'Open AI Maestro to respond.',
-    data: { type: 'needs_you', agentId, hostId },
+    data: { type: 'needs_you', agentId: agent.id, hostId },
     channelId: 'needs_you',
     priority: 'high',
     sound: 'default',
@@ -157,14 +160,15 @@ export async function pushCall(call: { callId: string; caller: string; callee: s
   const ttl = Math.floor((Date.parse(call.expiresAt) - Date.now()) / 1000)
   if (ttl < 1) return
   // Only names this host knows: the caller string is chosen by whoever starts the call
-  const callerName = (call.caller.startsWith('agent:') && agentHeading(getAgent(call.caller.slice(6)))) ||
+  const callerAgent = call.caller.startsWith('agent:') ? getAgent(call.caller.slice(6)) : null
+  const callerName = agentHeading(callerAgent) ||
     (call.caller.startsWith('person:') && getPerson(call.caller.slice(7))?.displayName) || 'Someone'
   const hostId = getSelfHostId()
   await deliver(targets, to => ({
     to,
     title: `${callerName} is calling`,
     body: 'Open AI Maestro to answer.',
-    data: { type: 'call', callId: call.callId, hostId },
+    data: { type: 'call', callId: call.callId, hostId, ...(callerAgent && { callerAgentId: callerAgent.id }) },
     channelId: 'call',
     priority: 'high',
     sound: 'default',

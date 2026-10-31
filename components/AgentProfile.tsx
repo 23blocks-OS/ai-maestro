@@ -200,6 +200,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
         body: JSON.stringify({
           name: agent.name || agent.alias,
           label: agent.label,
+          title: agent.title ?? null,
           avatar: agent.avatar,
           owner: agent.owner,
           team: agent.team,
@@ -467,6 +468,19 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                           </p>
                         </div>
                       </div>
+                    </div>
+                    {/* Title: shown after the name, also in notifications on the phone */}
+                    <div>
+                      <EditableField
+                        label="Title"
+                        value={agent.title || ''}
+                        onChange={(value) => updateField('title', value)}
+                        icon={<Briefcase className="w-4 h-4" />}
+                        placeholder="What this agent is, e.g. AI Maestro product owner"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Shown after the name: notifications on the phone read &quot;{agent.label || agent.name} ({agent.title || 'title'}) needs you&quot;.
+                      </p>
                     </div>
                     {/* Owner and Team */}
                     <div className="grid grid-cols-2 gap-4">

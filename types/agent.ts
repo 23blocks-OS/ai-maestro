@@ -214,6 +214,7 @@ export interface Agent {
   id: string                    // Unique identifier (UUID)
   name: string                  // Agent identity (e.g., "23blocks-apps-website")
   label?: string                // Optional display override (rarely used)
+  title?: string                // What the agent is, as people say it ("AI Maestro product owner"); shown after the label
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
 
   // AMP Identity (cryptographic identity for messaging)
@@ -570,6 +571,7 @@ export interface CreateAgentRequest {
 export interface UpdateAgentRequest {
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
+  title?: string | null         // null or '' clears it
   avatar?: string
   model?: string
   taskDescription?: string

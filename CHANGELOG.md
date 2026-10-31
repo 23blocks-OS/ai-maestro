@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.32] - 2026-10-30 - Notifications name the agent the way people do
+
+### Changed
+- An agent has a **Title** (agent profile, `PATCH /api/agents/:id { title }`): what it is, as people say it, kept as written (at most 80 characters, one line; empty or null clears it).
+- Pushes to the phone name the agent by its label, then its title: "George (AI Maestro product owner) needs you" and "George (AI Maestro product owner) is calling", instead of its internal name ("ai-maestro needs you"). Without a label the name is used; without a title nothing is added.
+- Tests in `tests/push-expo.test.ts` and `tests/services/agents-core-service.test.ts`.
+
 ## [0.106.31] - 2026-10-30 - The call command does not fail on a host that is down
 
 ### Fixed

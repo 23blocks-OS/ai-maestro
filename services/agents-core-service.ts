@@ -1008,6 +1008,9 @@ export function getAgentById(id: string): ServiceResult<{ agent: Agent }> {
 // PATCH /api/agents/[id] -- update agent
 // ---------------------------------------------------------------------------
 
+/** An agent's title, as shown after its name: "George (AI Maestro product owner)" */
+export const AGENT_TITLE_MAX = 80
+
 export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceResult<{ agent: Agent }> {
   try {
     // Check if agent exists and is not soft-deleted
@@ -1021,6 +1024,14 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
 
     const copilotProblem = checkCopilotFields(body)
     if (copilotProblem) return invalidRequest(copilotProblem)
+
+    // A title is shown in notifications on a phone: plain text, one line, kept short
+    if (body.title !== undefined && body.title !== null) {
+      if (typeof body.title !== 'string' || body.title.trim().length > AGENT_TITLE_MAX || /[\u0000-\u001f\u007f]/.test(body.title)) {
+        return invalidRequest(`title must be text of at most ${AGENT_TITLE_MAX} characters, on one line`)
+      }
+      body = { ...body, title: body.title.trim() }
+    }
 
     // A change to the manager is checked: a person and/or an agent, never itself, never a loop among the
     // agents this host knows, and never none at all. Any other update leaves the manager fields alone.

@@ -140,6 +140,7 @@ import {
   lookupAgentByName,
   wakeAgent,
   hibernateAgent,
+  switchRuntimeMode,
   sendAgentSessionCommand,
   linkAgentSession,
   unlinkOrDeleteAgentSession,
@@ -165,7 +166,16 @@ beforeEach(() => {
   mockHostsConfig.getSelfHost.mockReturnValue({ id: 'test-host', name: 'Test Host', url: 'http://localhost:23000' })
   mockHostsConfig.getHosts.mockReturnValue([{ id: 'test-host', name: 'Test Host', url: 'http://localhost:23000' }])
   mockHostsConfig.isSelf.mockReturnValue(true)
+  delete (globalThis as { _streamSessions?: unknown })._streamSessions
 })
+
+/** A fake streaming session in the map /stream-chat uses; it ends shortly after close() */
+function liveStream(key: string) {
+  const s = { closed: false, exited: false, close() { s.closed = true; setTimeout(() => { s.exited = true }, 20) } }
+  const g = globalThis as { _streamSessions?: Map<string, unknown> }
+  ;(g._streamSessions ||= new Map()).set(key, s)
+  return s
+}
 
 // ============================================================================
 // listAgents
@@ -1187,5 +1197,89 @@ describe('proxyHealthCheck', () => {
     const result = await proxyHealthCheck(null as any)
 
     expect(result.status).toBe(400)
+  })
+})
+
+// ============================================================================
+// Terminal and streaming never run at the same time
+// ============================================================================
+
+describe('one mode at a time', () => {
+  beforeEach(() => {
+    mockAgentRegistry.updateAgent.mockReset()
+    mockRuntime.createSession.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('a wake is refused while the agent runs as a streaming session', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    liveStream('agent-1')
+    const result = await wakeAgent('agent-1', { startProgram: false })
+    expect(result.status).toBe(409)
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
+  })
+
+  it('restore does not start a terminal for an agent set to run streaming', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home', runtimeMode: 'streaming' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    const result = await wakeAgent('agent-1', { startProgram: false, automatic: true })
+    expect((result.data as any)?.woken).toBe(false)
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
+  })
+
+  it('hibernating stops a streaming session too', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    const s = liveStream('my-agent')
+    const result = await hibernateAgent('agent-1', {})
+    expect(result.status).toBe(200)
+    expect(s.closed && s.exited).toBe(true)
+  })
+
+  it('switching to streaming stops the terminal first, and confirms it stopped', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    mockRuntime.sessionExists.mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false)
+    const result = await switchRuntimeMode('agent-1', 'streaming')
+    expect(result.status).toBe(200)
+    expect(mockRuntime.killSession).toHaveBeenCalledWith('my-agent')
+    expect(mockAgentRegistry.updateAgent).toHaveBeenCalledWith('agent-1', expect.objectContaining({ runtimeMode: 'streaming' }))
+  })
+
+  it('switching to streaming fails, and records nothing, when the terminal will not stop', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(true)
+    const result = await switchRuntimeMode('agent-1', 'streaming')
+    expect(result.status).not.toBe(200)
+    expect(mockAgentRegistry.updateAgent).not.toHaveBeenCalledWith('agent-1', expect.objectContaining({ runtimeMode: 'streaming' }))
+  })
+
+  it('switching to terminal stops the stream before the terminal starts', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home', runtimeMode: 'streaming' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    mockAgentRegistry.updateAgent.mockReturnValue({ ...agent, runtimeMode: 'terminal' })
+    const s = liveStream('agent-1')
+    mockRuntime.createSession.mockImplementation(async () => { expect(s.exited).toBe(true) })
+    const result = await switchRuntimeMode('agent-1', 'terminal')
+    expect(result.status).toBe(200)
+    expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', '/home')
+  })
+
+  it('refuses a bad mode', async () => {
+    expect((await switchRuntimeMode('agent-1', 'both')).status).toBe(400)
+  })
+
+  it('agent PATCH cannot set the mode or its switch time', () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.updateAgent.mockReturnValue(agent)
+    updateAgentById('agent-1', { label: 'X', runtimeMode: 'streaming', runtimeSwitchedAt: '2030-01-01T00:00:00Z' } as any)
+    const patch = mockAgentRegistry.updateAgent.mock.calls.at(-1)![1]
+    expect(patch).toMatchObject({ label: 'X' })
+    expect(patch).not.toHaveProperty('runtimeMode')
+    expect(patch).not.toHaveProperty('runtimeSwitchedAt')
   })
 })

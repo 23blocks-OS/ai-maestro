@@ -228,6 +228,13 @@ export interface Agent {
   // `claude --resume <id>`, and OTLP/session telemetry correlation.
   claudeSessionId?: string
 
+  // How the agent is run when it runs: its terminal (tmux) or a streaming (Agent SDK) session. Only one
+  // runs at a time; the server refuses to start one while the other is live. Set by the mode switch.
+  runtimeMode?: 'terminal' | 'streaming'
+  // When the last mode switch stopped the previous mode (ISO). Its conversation was confirmed stopped then,
+  // so the next mode may resume it even though it was written to moments ago.
+  runtimeSwitchedAt?: string
+
   // Sessions (zero or more, Phase 1: max 1)
   sessions: AgentSession[]      // Active/historical sessions for this agent
 
@@ -572,6 +579,8 @@ export interface UpdateAgentRequest {
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
   title?: string | null         // null or '' clears it
+  runtimeMode?: 'terminal' | 'streaming'  // Set only by the mode switch and wake; PATCH drops it
+  runtimeSwitchedAt?: string               // Set only by the mode switch; PATCH drops it
   avatar?: string
   model?: string
   taskDescription?: string

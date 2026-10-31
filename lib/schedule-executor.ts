@@ -9,7 +9,7 @@ import {
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import type { Schedule } from '@/types/schedule'
-import { tmux, assertSessionName } from '@/lib/tmux-safe.mjs'
+import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
 
 const execAsync = promisify(exec)
 
@@ -114,26 +114,31 @@ async function runExecution(
   sessionExisted: boolean
 ): Promise<void> {
   const runtime = getRuntime()
+  const agent = getAgent(schedule.agentId)
+
+  // An agent running as a streaming session gets the prompt there: a terminal beside it would be a second
+  // process on its conversation
+  if (agent && (pushToStreamSession(agent.id, schedule.prompt) || (!!agent.name && pushToStreamSession(agent.name, schedule.prompt)))) {
+    console.log(`[Scheduler] Sent the prompt for "${schedule.name}" to ${agent.name}'s streaming session`)
+    completeExecution(executionId, 'success')
+    return
+  }
 
   if (!sessionExisted) {
-    // Need to wake the agent: create tmux session + launch claude
-    const agent = getAgent(schedule.agentId)
-    const cwd = agent?.workingDirectory || process.cwd()
+    if (agent?.runtimeMode === 'streaming') {
+      throw new Error(`${agent.name} runs in streaming mode and its streaming session is not open; open it, or switch the agent to terminal mode`)
+    }
+    // The agent's own wake: its identity (AIM_AGENT_ID, AMP_DIR), its program and permissions, and the
+    // guard that refuses a terminal while it runs elsewhere. This used to start a bare `claude`, which
+    // took its identity from the folder.
+    const { wakeAgent } = await import('@/services/agents-core-service')
+    const woke = await wakeAgent(schedule.agentId, { startProgram: true })
+    const data = woke.data as { woken?: boolean; message?: string; programStarted?: boolean; programError?: string } | undefined
+    if (woke.status !== 200 || !data?.woken) throw new Error(`could not wake ${sessionName}: ${data?.message || woke.status}`)
+    if (data.programStarted === false) throw new Error(`${sessionName} woke but its program did not start: ${data.programError || 'unknown'}`)
 
-    console.log(`[Scheduler] Creating tmux session "${sessionName}" in ${cwd}`)
-    const env = { ...process.env, TMUX: undefined }
-    // SECURITY (GHSA-2vm8-3q4q-wqv3): argv form, validated name, no shell.
-    await tmux(['new-session', '-d', '-s', assertSessionName(sessionName), '-c', cwd], { env })
-
-    // Wait for shell to be ready
-    await sleep(1_000)
-
-    // Launch Claude Code
-    console.log(`[Scheduler] Launching claude in "${sessionName}"`)
-    await runtime.sendKeys(sessionName, '"claude"', { enter: true })
-
-    // Wait for Claude to initialize — this is the fragile part
-    console.log(`[Scheduler] Waiting ${NEW_SESSION_LAUNCH_DELAY_MS / 1000}s for claude to start...`)
+    // Wait for the program to initialize — this is the fragile part
+    console.log(`[Scheduler] Waiting ${NEW_SESSION_LAUNCH_DELAY_MS / 1000}s for ${sessionName} to start...`)
     await sleep(NEW_SESSION_LAUNCH_DELAY_MS)
   } else {
     // Session exists — small delay to ensure we're not mid-keystroke

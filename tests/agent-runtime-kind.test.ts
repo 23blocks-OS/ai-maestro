@@ -3,7 +3,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { hookStateFilePath } from '@/lib/chat-transcript.mjs'
-import { runtimeOf, OUTSIDE_LIVE_MS, resumableSessionId, RESUME_QUIET_MS } from '@/lib/agent-runtime-kind.mjs'
+import { runtimeOf, OUTSIDE_LIVE_MS, resumableSessionId, RESUME_QUIET_MS, claimStart, releaseStart } from '@/lib/agent-runtime-kind.mjs'
+import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
+import { buildLaunchCommand } from '@/lib/launch-command'
 import { buildEnv } from '@/lib/streaming-runtime.mjs'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
@@ -35,7 +37,7 @@ describe('runtimeOf', () => {
   })
 
   it('is outside when the hook last saw the agent\'s own session recently', () => {
-    hookState({ sessionId: 'sess-1', status: 'active', lastEvent: 'Stop', updatedAt: new Date().toISOString() })
+    hookState({ sessionId: 'sess-1', status: 'active', lastEvent: 'Stop', pid: process.pid, updatedAt: new Date().toISOString() })
     expect(runtimeOf(agent)).toBe('outside')
   })
 
@@ -44,7 +46,14 @@ describe('runtimeOf', () => {
     expect(runtimeOf(agent)).toBeNull()
     hookState({ sessionId: 'sess-1', lastEvent: 'SessionEnd', updatedAt: new Date().toISOString() })
     expect(runtimeOf(agent)).toBeNull()
-    hookState({ sessionId: 'sess-1', status: 'active', updatedAt: new Date(Date.now() - OUTSIDE_LIVE_MS - 1000).toISOString() })
+    hookState({ sessionId: 'sess-1', status: 'active', pid: process.pid, updatedAt: new Date(Date.now() - OUTSIDE_LIVE_MS - 1000).toISOString() })
+    expect(runtimeOf(agent)).toBeNull()
+  })
+
+  it('is not outside when the Claude process is gone (a crash or a reboot writes no SessionEnd)', () => {
+    hookState({ sessionId: 'sess-1', status: 'active', pid: 2 ** 22 + 12345, updatedAt: new Date().toISOString() })
+    expect(runtimeOf(agent)).toBeNull()
+    hookState({ sessionId: 'sess-1', status: 'active', updatedAt: new Date().toISOString() })
     expect(runtimeOf(agent)).toBeNull()
   })
 
@@ -80,7 +89,7 @@ describe('resumableSessionId', () => {
     conversation('sess-1', 1000)
     expect(resumableSessionId(agent)).toBeNull()
     conversation('sess-1', RESUME_QUIET_MS + 60_000)
-    hookState({ sessionId: 'sess-1', status: 'active', updatedAt: new Date().toISOString() })
+    hookState({ sessionId: 'sess-1', status: 'active', pid: process.pid, updatedAt: new Date().toISOString() })
     expect(resumableSessionId(agent)).toBeNull()
     expect(resumableSessionId({ ...agent, claudeSessionId: 'gone' })).toBeNull()
     expect(resumableSessionId({ ...agent, claudeSessionId: undefined })).toBeNull()
@@ -93,5 +102,49 @@ describe('streaming session identity', () => {
     expect(env).toMatchObject({ AIM_AGENT_ID: 'a1', AIM_AGENT_NAME: 'dahlia', AIMAESTRO_AGENT_ID: 'a1' })
     expect(env.AMP_DIR).toBe(path.join(home, '.agent-messaging', 'agents', 'a1'))
     expect(env.ANTHROPIC_API_KEY).toBeUndefined()
+  })
+})
+
+describe('one mode at a time', () => {
+  it('a mode switch lets the next mode resume a conversation written just before it', () => {
+    fs.mkdirSync(path.join(home, '.claude', 'projects', '-work-app'), { recursive: true })
+    fs.writeFileSync(path.join(home, '.claude', 'projects', '-work-app', 'sess-1.jsonl'), '{}\n')
+    expect(resumableSessionId(agent)).toBeNull()
+    expect(resumableSessionId(agent, { switchedAt: new Date(Date.now() + 1000).toISOString() })).toBe('sess-1')
+    // Written after the switch: something else runs it, so no
+    expect(resumableSessionId(agent, { switchedAt: new Date(Date.now() - 60_000).toISOString() })).toBeNull()
+  })
+
+  it('one start at a time per agent', () => {
+    expect(claimStart('a1')).toBe(true)
+    expect(claimStart('a1')).toBe(false)
+    expect(claimStart('a2')).toBe(true)
+    releaseStart('a1')
+    expect(claimStart('a1')).toBe(true)
+    releaseStart('a1'); releaseStart('a2')
+  })
+
+  it('stopping a stream waits until it has ended, and drops it', async () => {
+    const s = { closed: false, exited: false, close() { this.closed = true; setTimeout(() => { s.exited = true }, 50) } }
+    const map = new Map<string, unknown>([['dahlia', s]])
+    ;(globalThis as { _streamSessions?: Map<string, unknown> })._streamSessions = map
+    expect(await stopStreamSessions(agent)).toBe(true)
+    expect(s.closed).toBe(true)
+    expect(map.has('dahlia')).toBe(false)
+  })
+
+  it('reports a stream that does not end in time, and keeps it', async () => {
+    const s = { exited: false, close() {} }
+    const map = new Map<string, unknown>([['a1', s]])
+    ;(globalThis as { _streamSessions?: Map<string, unknown> })._streamSessions = map
+    expect(await stopStreamSessions(agent, { timeoutMs: 150 })).toBe(false)
+    expect(map.has('a1')).toBe(true)
+  })
+
+  it('the terminal resumes with --resume, and only a safe id', () => {
+    const base = { command: 'claude', kind: 'claude' as const, agentName: 'dahlia', env: {} }
+    expect(buildLaunchCommand({ ...base, resumeSessionId: 'sess-1' })).toContain('--resume sess-1')
+    expect(buildLaunchCommand({ ...base, resumeSessionId: 'x; rm -rf ~' })).not.toContain('--resume')
+    expect(buildLaunchCommand({ ...base, kind: 'codex', command: 'codex', resumeSessionId: 'sess-1' })).not.toContain('--resume')
   })
 })

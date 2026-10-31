@@ -6,7 +6,7 @@ import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import ChatView from '@/components/ChatView'
 import StreamingChatView from '@/components/StreamingChatView'
-import { getRuntimeMode, setRuntimeMode } from '@/lib/runtime-mode'
+import { runtimeModeOf, requestRuntimeMode, type RuntimeMode } from '@/lib/runtime-mode'
 import MessageCenter from '@/components/MessageCenter'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
@@ -512,22 +512,31 @@ export default function DashboardPage() {
     await performWake(wakeDialogAgent, program, options)
   }
 
+  // Terminal and streaming never run at the same time: the server stops one before starting the other
+  const [switchingModeId, setSwitchingModeId] = useState<string | null>(null)
+  const switchMode = async (agent: Agent, mode: RuntimeMode) => {
+    setSwitchingModeId(agent.id)
+    const r = await requestRuntimeMode(agent.id, mode)
+    setSwitchingModeId(null)
+    addToast({ type: r.ok ? 'info' : 'error', title: r.ok ? `${agent.label || agent.name || agent.alias}: ${mode} mode` : 'Could not switch mode', message: r.message, duration: r.ok ? 4000 : 10000 })
+    refreshAgents()
+    if (r.ok) setActiveTab(mode === 'streaming' ? 'streaming' : 'terminal')
+    return r.ok
+  }
+
   // Performs the actual wake with selected program
   const performWake = async (agent: Agent, program: string, options?: WakeChoiceOptions) => {
 
     // Close dialog immediately so UI isn't blocked
     setWakeDialogAgent(null)
 
-    // Streaming mode: no tmux wake. The SDK session spawns when the Streaming
-    // tab connects and resumes the agent's latest conversation. Just record the
-    // mode and open the tab.
+    // Streaming mode: no tmux wake. The switch stops the terminal if it runs; the SDK session spawns when
+    // the Streaming tab connects and resumes the agent's own conversation.
     if (options?.execMode === 'streaming') {
-      setRuntimeMode(agent.id, 'streaming')
       setActiveAgentId(agent.id)
-      setActiveTab('streaming')
+      await switchMode(agent, 'streaming')
       return
     }
-    setRuntimeMode(agent.id, 'terminal')
 
     setWakingAgentId(agent.id)
 
@@ -793,7 +802,7 @@ export default function DashboardPage() {
               const isActive = true  // We only render the active agent
               const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
               const session = agentToSession(agent)
-              const agentMode = getRuntimeMode(agent.id)  // 'terminal' | 'streaming'
+              const agentMode = runtimeModeOf(agent)  // 'terminal' | 'streaming', from the server
 
               return (
                 <div
@@ -1009,13 +1018,22 @@ export default function DashboardPage() {
                             </div>
                             <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-2 text-gray-500">Terminal is disabled while this agent runs in streaming mode</p>
-                            <p className="text-xs text-gray-600 mb-4">Use the Streaming tab. To get the terminal back, hibernate and wake the agent in Terminal mode.</p>
-                            <button
-                              onClick={() => setActiveTab('streaming')}
-                              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-all flex items-center gap-2 mx-auto"
-                            >
-                              <Zap className="w-4 h-4" /> Go to Streaming
-                            </button>
+                            <p className="text-xs text-gray-600 mb-4">Only one mode runs at a time. Switching stops the streaming session and opens the same conversation in the terminal.</p>
+                            <div className="flex gap-2 justify-center">
+                              <button
+                                onClick={() => setActiveTab('streaming')}
+                                className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-all flex items-center gap-2"
+                              >
+                                <Zap className="w-4 h-4" /> Go to Streaming
+                              </button>
+                              <button
+                                onClick={() => switchMode(agent, 'terminal')}
+                                disabled={switchingModeId === agent.id}
+                                className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all disabled:opacity-50"
+                              >
+                                {switchingModeId === agent.id ? 'Switching…' : 'Switch to terminal'}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : isHibernated ? (
@@ -1124,10 +1142,25 @@ export default function DashboardPage() {
                           <ChatView agent={agent} isActive={true} />
                         </ErrorBoundary>
                       )
+                    ) : activeTab === 'streaming' && agentMode !== 'streaming' && agent.session?.status === 'online' && !agent.session?.standalone ? (
+                      // Its terminal is running: the server refuses a stream beside it, so offer the switch
+                      <div className="flex-1 flex items-center justify-center text-gray-400">
+                        <div className="text-center max-w-md">
+                          <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
+                          <p className="text-sm mb-2 text-gray-500">This agent is running in its terminal</p>
+                          <p className="text-xs text-gray-600 mb-4">Only one mode runs at a time. Switching stops the terminal and opens the same conversation here.</p>
+                          <button
+                            onClick={() => switchMode(agent, 'streaming')}
+                            disabled={switchingModeId === agent.id}
+                            className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-all flex items-center gap-2 mx-auto disabled:opacity-50"
+                          >
+                            <Zap className="w-4 h-4" /> {switchingModeId === agent.id ? 'Switching…' : 'Switch to streaming'}
+                          </button>
+                        </div>
+                      </div>
                     ) : activeTab === 'streaming' ? (
-                      // Streaming is self-sufficient: the SDK session spawns on
-                      // connect and resumes the agent's latest conversation —
-                      // no tmux/wake needed, works even when tmux-hibernated.
+                      // The SDK session spawns on connect and resumes the agent's own conversation; the
+                      // server refuses it while the terminal runs.
                       <ErrorBoundary fallbackLabel="Streaming">
                         <StreamingChatView agent={agent} isActive={true} />
                       </ErrorBoundary>

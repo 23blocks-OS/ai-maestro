@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.37] - 2026-10-31 - Terminal and streaming never run at the same time
+
+### Added
+- **Switch modes** (`POST /api/agents/:id/runtime-mode { mode: 'terminal' | 'streaming' }`, a Switch button on the Terminal and Streaming tabs). The running mode is stopped, and confirmed stopped, before the other starts, and the next mode resumes the agent's own conversation: the terminal starts with `claude --resume <id>`, and the stream resumes the same id. For an agent on another host, the request is sent to that host.
+- The mode is stored on the agent (`runtimeMode`), not in the browser, so every screen and device sees the same one. Agent PATCH cannot set it.
+
+### Fixed
+- Both modes could run at once, as two processes on one conversation: that corrupts the conversation file, and both answer. The server now refuses at every entry point:
+  - `/stream-chat` refuses while the agent's terminal runs, or while its own session runs outside AI Maestro.
+  - A wake refuses while a stream runs.
+  - Restore never starts a terminal for an agent set to streaming.
+  - Hibernate stops a stream too.
+  - A per-agent start lock covers the race where both start in the same instant.
+  - `POST /api/sessions/create` refuses a terminal for an agent running as a stream.
+- The schedule runner woke an agent by starting a bare `claude` in its folder: no `AIM_AGENT_ID` or `AMP_DIR` (so the agent took its folder's identity), no permission mode, and no check for a stream already running. It now wakes through the agent's own wake. For an agent running as a stream, it sends the prompt into the stream.
+- "Running outside tmux" (0.106.34) trusted the hook's last state for 12 hours. A crash or a reboot writes no SessionEnd, so restore skipped agents that were gone. The hook now records the Claude process id (bundled plugin 1.19.3), and the server requires that process to be alive.
+- Tests in `tests/agent-runtime-kind.test.ts` and `tests/services/agents-core-service.test.ts`.
+
 ## [0.106.36] - 2026-10-31 - A streaming session is the agent, with its own conversation
 
 ### Fixed

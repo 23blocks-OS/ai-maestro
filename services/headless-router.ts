@@ -169,7 +169,7 @@ import {
   controlPlayback,
 } from '@/services/agents-playback-service'
 
-import { wakeAgentRequest, hibernateAgentRequest } from '@/services/agents-wake-service'
+import { wakeAgentRequest, hibernateAgentRequest, runtimeModeRequest } from '@/services/agents-wake-service'
 import { getOwnSchedule, setOwnSchedule } from '@/services/agent-own-schedule-service'
 import { createSecretRequest, listSecretRequests, answerSecretRequest } from '@/services/agent-secret-requests-service'
 import { listSqlWriteRequests, answerSqlWriteRequest } from '@/services/agent-sql-write-requests-service'
@@ -797,6 +797,10 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/hibernate$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
     sendServiceResult(res, await hibernateAgentRequest(params.id, body))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/runtime-mode$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await runtimeModeRequest(params.id, body))
   }},
 
   // Chat

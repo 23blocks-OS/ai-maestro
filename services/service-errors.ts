@@ -54,6 +54,7 @@ export type ServiceErrorCode =
   | 'attachments_not_supported'
   | 'invalid_signature'
   | 'key_conflict'
+  | 'runtime_conflict'
   | 'key_revoked'
   | 'timestamp_expired'
   | 'timestamp_future'
@@ -174,6 +175,11 @@ export function gone(entity: string): ServiceResult<never> {
 /** 400 — Invalid state for the requested operation. */
 export function invalidState(message: string): ServiceResult<never> {
   return serviceError('invalid_state', message, 400)
+}
+
+/** 409 — The agent already runs in the other mode (terminal or streaming); only one runs at a time. */
+export function runtimeConflict(message: string): ServiceResult<never> {
+  return serviceError('runtime_conflict', message, 409)
 }
 
 /** 400 — Not initialized. */

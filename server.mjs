@@ -34,9 +34,10 @@ import { copilotLiveStatus, copilotLiveStatusFromFile, copilotPendingAskUser, co
 const isCodexProgram = (agent) => (agent?.program || '').toLowerCase().includes('codex')
 import {
   getOrCreateStreamSession,
+  getStreamSession,
   destroyAllStreamSessions,
 } from './lib/streaming-runtime.mjs'
-import { resumableSessionId } from './lib/agent-runtime-kind.mjs'
+import { resumableSessionId, runningOutsideTmux, claimStart, releaseStart } from './lib/agent-runtime-kind.mjs'
 import {
   sessionActivity,
   terminalSessions,
@@ -1684,19 +1685,35 @@ async function startServer(handleRequest) {
   const streamChatWss = new WebSocketServer({ noServer: true })
   streamChatWss.on('connection', async (ws, query) => {
     const agentKey = (query.agentId || query.name || '').toString()
-    let workingDir = null, agentName = null, agentId = null, resumeSessionId = null
+    let workingDir = null, agentName = null, agentId = null, resumeSessionId = null, refusal = null, agentRecord = null
     try {
       const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
       const agent = (query.agentId && getAgent(query.agentId)) || (query.name && getAgentByName(query.name))
       workingDir = getAgentWorkingDir(agent)
       agentName = agent?.name || agent?.alias || (query.name || null)
       agentId = agent?.id || null
-      // Resume the agent's own conversation, unless it is live in tmux or elsewhere
-      // (two processes on one session_id corrupt it). Never another agent's file in a shared folder.
+      agentRecord = agent
+      // Only one mode runs at a time: never a stream while the agent's terminal, or its own session
+      // outside AI Maestro, is running (two processes on one conversation corrupt it, and both answer).
       // A name that is not a valid session name cannot be live (hasSessionSync returns false for it).
-      const terminalLive = tmuxRt.hasSessionSync(agentName || agentKey, { timeout: 2000 })
-      if (!terminalLive) resumeSessionId = resumableSessionId(agent, { dir: workingDir })
+      const live = getStreamSession(agentKey)
+      if (!live || live.exited) {
+        if (tmuxRt.hasSessionSync(agentName || agentKey, { timeout: 2000 })) {
+          refusal = `${agentName} is running in its terminal. Switch it to streaming mode, which stops the terminal first.`
+        } else if (agent && runningOutsideTmux(agent)) {
+          refusal = `${agentName} is running outside AI Maestro (its own terminal or app). Close that session first.`
+        } else {
+          // The agent's own conversation, never another agent's file in a shared folder
+          resumeSessionId = resumableSessionId(agent, { dir: workingDir, switchedAt: agent?.runtimeSwitchedAt })
+        }
+      }
     } catch { /* fall through */ }
+
+    if (refusal) {
+      try { ws.send(JSON.stringify({ type: 'stream:error', code: 'runtime_conflict', error: refusal })) } catch {}
+      ws.close(1008, 'agent runs in the other mode')
+      return
+    }
 
     if (!workingDir || !agentKey) {
       try { ws.send(JSON.stringify({ type: 'stream:error', error: 'Agent has no working directory' })) } catch {}
@@ -1705,6 +1722,15 @@ async function startServer(handleRequest) {
     }
 
     let session
+    const lockId = agentId || agentKey
+    const existing = getStreamSession(agentKey)
+    const starting = !existing || existing.exited
+    // A terminal wake holds this lock while it checks and starts; never start beside it
+    if (starting && !claimStart(lockId)) {
+      try { ws.send(JSON.stringify({ type: 'stream:error', code: 'runtime_conflict', error: `${agentName || agentKey} is being started right now; try again in a moment` })) } catch {}
+      ws.close(1008, 'agent is starting')
+      return
+    }
     try {
       session = getOrCreateStreamSession(agentKey, {
         cwd: workingDir,
@@ -1712,10 +1738,15 @@ async function startServer(handleRequest) {
         agentName,
         resumeSessionId,
       })
+      if (starting && agentId && agentRecord?.runtimeMode !== 'streaming') {
+        import('./lib/agent-registry.ts').then(({ updateAgent }) => updateAgent(agentId, { runtimeMode: 'streaming' })).catch(() => {})
+      }
     } catch (err) {
       try { ws.send(JSON.stringify({ type: 'stream:error', error: 'Failed to start streaming session: ' + (err && err.message || err) })) } catch {}
       ws.close(1011, 'runtime error')
       return
+    } finally {
+      if (starting) releaseStart(lockId)
     }
 
     session.attach(ws)

@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.36] - 2026-10-31 - A streaming session is the agent, with its own conversation
+
+### Fixed
+- A streaming (Agent SDK) session set `AIMAESTRO_AGENT_ID`, but the hook and the AMP scripts read `AIM_AGENT_ID`, `AIM_AGENT_NAME` and `AMP_DIR`. So a stream session fell back to its folder for identity, and in a shared folder it could sign as another agent. It now sets all three. It also gets the agent's id when it was opened by name.
+- A streaming session resumed the newest conversation in the agent's folder, which in a shared folder can be another agent's. It now resumes only the agent's own conversation (`claudeSessionId`). It starts fresh when that conversation is live outside tmux or was written to in the last 10 minutes.
+- Tests in `tests/agent-runtime-kind.test.ts`.
+
 ## [0.106.35] - 2026-10-30 - The companion no longer starts an unrestricted copy of the agent
 
 ### Security

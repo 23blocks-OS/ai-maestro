@@ -1247,6 +1247,21 @@ describe('one mode at a time', () => {
     expect(mockAgentRegistry.updateAgent).toHaveBeenCalledWith('agent-1', expect.objectContaining({ runtimeMode: 'streaming' }))
   })
 
+  it('the agent\'s own terminal process is not "running outside" (found by switching a real agent)', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home', claudeSessionId: 'sess-1' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    // The hook state for its folder: its own conversation, run by a live process (the terminal's Claude)
+    mockFs.default.readFileSync.mockImplementation((f: string) => String(f).includes('chat-state')
+      ? JSON.stringify({ sessionId: 'sess-1', status: 'active', pid: process.pid, updatedAt: new Date().toISOString() })
+      : '{}')
+    mockRuntime.sessionExists.mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false)
+    const result = await switchRuntimeMode('agent-1', 'streaming')
+    mockFs.default.readFileSync.mockReturnValue('{}')
+    expect(result.status).toBe(200)
+    expect(mockRuntime.killSession).toHaveBeenCalledWith('my-agent')
+  })
+
   it('switching to streaming fails, and records nothing, when the terminal will not stop', async () => {
     const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: '/home' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)

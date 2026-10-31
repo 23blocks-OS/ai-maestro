@@ -41,7 +41,6 @@ import {
   terminalSessions,
   statusSubscribers,
   companionClients,
-  callSessions,
   broadcastStatusUpdate,
   broadcastChatEvent,
   observedExpired
@@ -1493,78 +1492,9 @@ async function startServer(handleRequest) {
     }
     clients.add(ws)
 
-    // --- Call Session Fork: spawn a temporary YOLO tmux session for voice ---
-    try {
-      const existingCall = callSessions.get(agentId)
-      if (existingCall) {
-        // Another companion client already created the call session — no-op
-        console.log(`[CALL-SESSION] Reusing call session ${existingCall.callSessionName} (companions: ${clients.size})`)
-      } else {
-        const { getAgent: getRegistryAgent } = await import('./lib/agent-registry.ts')
-        const registryAgent = getRegistryAgent(agentId)
-        if (registryAgent) {
-          const agentName = registryAgent.name || registryAgent.alias
-          // Validate agent name is safe for shell/tmux (should always pass, but defense-in-depth)
-          if (!agentName || !/^[a-zA-Z0-9_-]+$/.test(agentName)) {
-            console.error(`[CALL-SESSION] Refusing to create call session: invalid agent name "${agentName}"`)
-          } else {
-            const { computeCallSessionName } = await import('./types/agent.ts')
-            const callSessionName = computeCallSessionName(agentName)
-            const workdir = registryAgent.workingDirectory || registryAgent.sessions?.[0]?.workingDirectory || os.homedir()
-
-            // Kill stale call session if it exists (safe: callSessionName is validated)
-            tmuxRt.hasSessionSync(callSessionName, { timeout: 5000 })
-            try { tmuxRt.killSessionSync(callSessionName, { timeout: 5000 }) } catch { /* not found — expected */ }
-
-            // Create new detached tmux session
-            tmuxRt.newSessionSync(callSessionName, workdir, { timeout: 5000 })
-
-            // Build launch command with bypassPermissions
-            // Uses single string sent via send-keys -l (literal) to avoid shell interpretation
-            const envParts = [`export AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'`, 'unset CLAUDECODE']
-            const cmdParts = ['claude', '--permission-mode', 'bypassPermissions']
-            if (registryAgent.model) {
-              const safeModel = registryAgent.model.replace(/[^a-zA-Z0-9._-]/g, '')
-              if (safeModel) cmdParts.push('--model', safeModel)
-            }
-            if (registryAgent.programArgs) {
-              const sanitized = registryAgent.programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
-              if (sanitized) cmdParts.push(...sanitized.split(/\s+/))
-            }
-            const fullCmd = `${envParts.join('; ')} && ${cmdParts.join(' ')}`
-            tmuxRt.sendLiteralSync(callSessionName, fullCmd, { timeout: 5000 })
-            tmuxRt.sendKeySync(callSessionName, 'Enter', { timeout: 5000 })
-
-            // Spawn read-only PTY observer to feed cerebellum voice buffer
-            let ptyObserver = null
-            try {
-              const observe = tmuxRt.attachCommand(callSessionName, { readOnly: true })
-              ptyObserver = pty.spawn(observe.command, observe.args, {
-                name: 'xterm-256color',
-                cols: 120,
-                rows: 40,
-              })
-              const callBuffer = getOrCreateBuffer(callSessionName)
-              ptyObserver.onData((data) => { callBuffer.write(data) })
-            } catch (ptyErr) {
-              console.warn(`[CALL-SESSION] Could not spawn PTY observer for ${callSessionName}:`, ptyErr.message)
-            }
-
-            callSessions.set(agentId, {
-              agentId,
-              agentName,
-              callSessionName,
-              workingDirectory: workdir,
-              createdAt: Date.now(),
-              ptyObserver,
-            })
-            console.log(`[CALL-SESSION] Created call session ${callSessionName} for agent ${agentName}`)
-          }
-        }
-      }
-    } catch (callErr) {
-      console.error('[CALL-SESSION] Error creating call session:', callErr)
-    }
+    // Voice and typed text go to the agent itself. There used to be a "call session fork" here: every
+    // connection started `claude --permission-mode bypassPermissions` in the agent's folder and sent the
+    // person's words to that copy, with none of the agent's context or permission checks (2026-10-30).
 
     // Notify cerebellum that companion connected
     try {
@@ -1616,15 +1546,13 @@ async function startServer(handleRequest) {
           // PTY observer may not have written yet, but the buffer must exist.
           const voiceSub = cerebellum.getSubsystem('voice')
           if (voiceSub && voiceSub.attachBuffer) {
-            const activeCallState = callSessions.get(agentId)
             const { getAgent: getRegistryAgent } = await import('./lib/agent-registry.ts')
             const registryAgent = getRegistryAgent(agentId)
-            const primarySessionName = registryAgent?.name || registryAgent?.alias
-            const voiceSessionName = activeCallState ? activeCallState.callSessionName : primarySessionName
+            const voiceSessionName = registryAgent?.name || registryAgent?.alias
             if (voiceSessionName) {
               const buffer = getOrCreateBuffer(voiceSessionName)
               voiceSub.attachBuffer(buffer)
-              console.log(`[COMPANION-WS] Attached voice buffer for session ${voiceSessionName}${activeCallState ? ' (call fork)' : ''}`)
+              console.log(`[COMPANION-WS] Attached voice buffer for session ${voiceSessionName}`)
             }
           }
 
@@ -1636,21 +1564,14 @@ async function startServer(handleRequest) {
       console.error('[COMPANION-WS] Error setting up cerebellum connection:', err)
     }
 
-    // Helper: route text to call session via tmux send-keys (non-blocking)
-    function sendToCallSession(callSessionName, text) {
-      // async execFile (no shell) — does NOT block the event loop
-      tmuxRt.sendLiteralAsync(callSessionName, text, { timeout: 5000 }).then(() => {
-        tmuxRt.sendKeyAsync(callSessionName, 'Enter', { timeout: 5000 }).then(() => {
-          console.log(`[CALL-SESSION] Routed text to ${callSessionName}`)
-        }, (enterErr) => {
-          console.warn(`[CALL-SESSION] send-keys Enter failed for ${callSessionName}:`, enterErr.message)
+    // Deliver the person's words to the agent, through the same pipeline as /chat typed messages
+    function deliverToAgent(text, what) {
+      import('./services/agents-chat-service.ts').then(({ sendChatMessage }) => {
+        sendChatMessage(agentId, text).then((result) => {
+          if (result.error) console.error(`[COMPANION-WS] ${what} delivery failed:`, result.error)
         })
-      }, (err) => {
-        console.warn(`[CALL-SESSION] send-keys -l failed for ${callSessionName}:`, err.message)
-        // Fall back to primary session
-        import('./services/agents-chat-service.ts').then(({ sendChatMessage }) => {
-          sendChatMessage(agentId, text)
-        }).catch(() => {})
+      }).catch((err) => {
+        console.error(`[COMPANION-WS] ${what} error:`, err)
       })
     }
 
@@ -1662,11 +1583,7 @@ async function startServer(handleRequest) {
           const text = data.text.trim()
           if (!text) return
 
-          // Route typed text to call session if active, otherwise feed voice subsystem only
-          const activeCall = callSessions.get(agentId)
-          if (activeCall) {
-            sendToCallSession(activeCall.callSessionName, text)
-          }
+          deliverToAgent(text, 'user_message')
 
           // Also feed the voice subsystem's user message buffer for context
           import('./lib/agent.ts').then(({ agentRegistry }) => {
@@ -1685,22 +1602,7 @@ async function startServer(handleRequest) {
 
           console.log(`[COMPANION-WS] voice:transcript from ${agentId.substring(0, 8)}: "${text.substring(0, 60)}"`)
 
-          // Route to call session (YOLO fork) if active, otherwise fall back to primary
-          const activeCall = callSessions.get(agentId)
-          if (activeCall) {
-            sendToCallSession(activeCall.callSessionName, text)
-          } else {
-            // No call session — route through the same pipeline as /chat typed messages
-            import('./services/agents-chat-service.ts').then(({ sendChatMessage }) => {
-              sendChatMessage(agentId, text).then((result) => {
-                if (result.error) {
-                  console.error(`[COMPANION-WS] voice:transcript delivery failed:`, result.error)
-                }
-              })
-            }).catch((err) => {
-              console.error('[COMPANION-WS] voice:transcript error:', err)
-            })
-          }
+          deliverToAgent(text, 'voice:transcript')
 
           // Also feed the voice subsystem's user message buffer for context
           import('./lib/agent.ts').then(({ agentRegistry }) => {
@@ -1751,23 +1653,6 @@ async function startServer(handleRequest) {
         agentClients.delete(ws)
         if (agentClients.size === 0) {
           companionClients.delete(agentId)
-
-          // --- Kill call session fork when last companion disconnects ---
-          const callState = callSessions.get(agentId)
-          if (callState) {
-            console.log(`[CALL-SESSION] Last companion disconnected, killing ${callState.callSessionName}`)
-            // Kill PTY observer
-            try { callState.ptyObserver?.kill() } catch { /* ignore */ }
-            // Graceful shutdown: Ctrl-C then delayed kill (all non-blocking with execFile)
-            const callSessionName = callState.callSessionName
-            tmuxRt.sendKeyAsync(callSessionName, 'C-c', { timeout: 5000 }).catch(() => { /* ignore */ }).then(() => {
-              setTimeout(() => {
-                tmuxRt.killSessionAsync(callSessionName, { timeout: 5000 }).catch(() => { /* ignore */ })
-              }, 500)
-            })
-            removeBuffer(callState.callSessionName)
-            callSessions.delete(agentId)
-          }
 
           // Notify cerebellum no companion connected
           import('./lib/agent.ts').then(({ agentRegistry }) => {

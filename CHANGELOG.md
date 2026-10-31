@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.35] - 2026-10-30 - The companion no longer starts an unrestricted copy of the agent
+
+### Security
+- Every connection to `/companion-ws` (the voice companion, and the phone's voice) killed and recreated a tmux session `<agent>__call` and ran `claude --permission-mode bypassPermissions` in the agent's folder. While it was alive, the person's voice and typed words went to that copy: no context of the agent, no permission checks. Any client that could open `/companion-ws?agent=<id>` started one. The fork is removed: voice and typed text from the companion go to the agent itself, through the same path as chat. Reported by the app agent (Dahlia).
+- `scripts/test-call-session.sh`, which tested the fork, is removed. `tests/no-companion-fork.test.ts` fails if `server.mjs` launches a Claude with permissions bypassed again.
+
 ## [0.106.34] - 2026-10-30 - An agent running outside tmux is not started a second time
 
 ### Fixed

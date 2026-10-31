@@ -67,7 +67,7 @@ cleanup() {
     fi
     # Kill stale __call session if we left one
     if [ -n "$CALL_SESSION_NAME" ]; then
-        tmux kill-session -t "$CALL_SESSION_NAME" 2>/dev/null || true
+        tmux kill-session -t "=$CALL_SESSION_NAME:" 2>/dev/null || true
     fi
     rm -rf "$NODE_SCRIPT_DIR"
 }
@@ -130,7 +130,7 @@ log_info "Agent name: $AGENT_NAME"
 log_info "Expected call session: $CALL_SESSION_NAME"
 
 # Make sure no stale call session exists
-tmux kill-session -t "$CALL_SESSION_NAME" 2>/dev/null || true
+tmux kill-session -t "=$CALL_SESSION_NAME:" 2>/dev/null || true
 
 # Create temp dir for node scripts
 mkdir -p "$NODE_SCRIPT_DIR"
@@ -141,7 +141,7 @@ mkdir -p "$NODE_SCRIPT_DIR"
 
 log_section "Test 1: No __call session before companion connects"
 
-if tmux has-session -t "$CALL_SESSION_NAME" 2>/dev/null; then
+if tmux has-session -t "=$CALL_SESSION_NAME:" 2>/dev/null; then
     log_fail "Call session ${CALL_SESSION_NAME} already exists before test"
 else
     log_success "No pre-existing call session"
@@ -201,7 +201,7 @@ if ! kill -0 "$WS_PID" 2>/dev/null; then
 else
     # Check if __call tmux session was created
     sleep 2  # Give server time to spawn the session
-    if tmux has-session -t "$CALL_SESSION_NAME" 2>/dev/null; then
+    if tmux has-session -t "=$CALL_SESSION_NAME:" 2>/dev/null; then
         log_success "Call session ${CALL_SESSION_NAME} was spawned"
     else
         log_fail "Call session ${CALL_SESSION_NAME} was NOT spawned"
@@ -257,7 +257,7 @@ fi
 log_section "Test 5: Transcript routing to __call session"
 
 # Capture current __call pane content before sending
-BEFORE_CONTENT=$(tmux capture-pane -t "$CALL_SESSION_NAME" -p 2>/dev/null || echo "")
+BEFORE_CONTENT=$(tmux capture-pane -t "=$CALL_SESSION_NAME:" -p 2>/dev/null || echo "")
 
 # Send a unique marker via the companion WS
 MARKER="CALLTEST_$(date +%s)_$$"
@@ -279,7 +279,7 @@ node "$NODE_SCRIPT_DIR/send-transcript.mjs" 2>/dev/null
 sleep 3  # Give time for send-keys + Claude to receive
 
 # Check if the marker text appears in the __call pane
-AFTER_CONTENT=$(tmux capture-pane -t "$CALL_SESSION_NAME" -p -S -100 2>/dev/null || echo "")
+AFTER_CONTENT=$(tmux capture-pane -t "=$CALL_SESSION_NAME:" -p -S -100 2>/dev/null || echo "")
 
 if echo "$AFTER_CONTENT" | grep -q "$MARKER"; then
     log_success "Transcript '${MARKER}' routed to __call session"
@@ -290,7 +290,7 @@ else
 fi
 
 # Verify it did NOT go to the primary session
-PRIMARY_CONTENT=$(tmux capture-pane -t "$AGENT_NAME" -p -S -100 2>/dev/null || echo "")
+PRIMARY_CONTENT=$(tmux capture-pane -t "=$AGENT_NAME:" -p -S -100 2>/dev/null || echo "")
 if echo "$PRIMARY_CONTENT" | grep -q "$MARKER"; then
     log_fail "Transcript ALSO appeared in primary session (should only be in __call)"
 else
@@ -313,10 +313,10 @@ fi
 # Wait for server to process disconnect + 500ms kill delay
 sleep 3
 
-if tmux has-session -t "$CALL_SESSION_NAME" 2>/dev/null; then
+if tmux has-session -t "=$CALL_SESSION_NAME:" 2>/dev/null; then
     log_fail "Call session ${CALL_SESSION_NAME} still alive after disconnect"
     # Clean up
-    tmux kill-session -t "$CALL_SESSION_NAME" 2>/dev/null || true
+    tmux kill-session -t "=$CALL_SESSION_NAME:" 2>/dev/null || true
 else
     log_success "Call session ${CALL_SESSION_NAME} killed after disconnect"
 fi
@@ -333,7 +333,7 @@ CLIENT1_PID=$!
 sleep 2
 
 # Verify call session exists
-if ! tmux has-session -t "$CALL_SESSION_NAME" 2>/dev/null; then
+if ! tmux has-session -t "=$CALL_SESSION_NAME:" 2>/dev/null; then
     log_fail "Call session not created for first client"
     kill "$CLIENT1_PID" 2>/dev/null; wait "$CLIENT1_PID" 2>/dev/null
 else
@@ -354,7 +354,7 @@ else
     kill "$CLIENT1_PID" 2>/dev/null; wait "$CLIENT1_PID" 2>/dev/null
     sleep 2
 
-    if tmux has-session -t "$CALL_SESSION_NAME" 2>/dev/null; then
+    if tmux has-session -t "=$CALL_SESSION_NAME:" 2>/dev/null; then
         log_success "Call session survives after first client disconnects"
     else
         log_fail "Call session killed prematurely when first client disconnected"
@@ -364,9 +364,9 @@ else
     kill "$CLIENT2_PID" 2>/dev/null; wait "$CLIENT2_PID" 2>/dev/null
     sleep 3
 
-    if tmux has-session -t "$CALL_SESSION_NAME" 2>/dev/null; then
+    if tmux has-session -t "=$CALL_SESSION_NAME:" 2>/dev/null; then
         log_fail "Call session still alive after ALL clients disconnected"
-        tmux kill-session -t "$CALL_SESSION_NAME" 2>/dev/null || true
+        tmux kill-session -t "=$CALL_SESSION_NAME:" 2>/dev/null || true
     else
         log_success "Call session killed after last client disconnects"
     fi

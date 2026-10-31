@@ -536,7 +536,7 @@ async function main() {
       if (!DRY_RUN) {
         try {
           // argv, not a shell string: a session name must never reach a shell
-          execFileSync('tmux', ['set-environment', '-t', tmuxSession, 'AMP_DIR', agentHome], { stdio: 'ignore', timeout: 10000 })
+          execFileSync('tmux', ['set-environment', '-t', `=${tmuxSession}:`, 'AMP_DIR', agentHome], { stdio: 'ignore', timeout: 10000 })
           console.log(`  ${agentName} (${agentUUID}): AMP_DIR set`)
           tmuxCount++
         } catch {

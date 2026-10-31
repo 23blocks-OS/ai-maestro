@@ -44,7 +44,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.106.32"
+VERSION="0.106.33"
 # AIMAESTRO_REPO_URL / AIMAESTRO_BRANCH: install a fork or a branch (testing, or a pinned release)
 REPO_URL="${AIMAESTRO_REPO_URL:-https://github.com/23blocks-OS/ai-maestro.git}"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
@@ -396,8 +396,8 @@ uninstall() {
     fi
 
     # Stop mailman tmux session
-    if tmux has-session -t mailman 2>/dev/null; then
-        tmux kill-session -t mailman 2>/dev/null || true
+    if tmux has-session -t =mailman: 2>/dev/null; then
+        tmux kill-session -t =mailman: 2>/dev/null || true
         maestro_info "Stopped mailman tmux session"
     fi
 
@@ -1505,14 +1505,14 @@ act5_grand_finale() {
             maestro_info "Dashboard: http://localhost:${PORT}"
         else
             # Not in tmux — create session and attach (handle re-install collision)
-            if tmux has-session -t "my-first-agent" 2>/dev/null; then
+            if tmux has-session -t "=my-first-agent:" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
                     "$AI_TOOL \"$INITIAL_PROMPT\""
             fi
             sleep 2
-            tmux attach-session -t "my-first-agent"
+            tmux attach-session -t "=my-first-agent:"
             echo ""
             maestro_ok "Welcome back! Your agent session is still running in tmux."
             maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"

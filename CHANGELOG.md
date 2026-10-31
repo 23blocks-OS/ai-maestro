@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.33] - 2026-10-30 - A message for one agent can no longer reach another
+
+### Fixed
+- tmux reads a bare session name as a prefix, and an empty one as the session used last. A chat reply to George (`ai-maestro`, an agent that runs outside tmux) was typed into the session `ai-maestro-app`, another agent's; an empty name reached whichever session was used last. Every tmux target is now exact (`=name:`, which tmux resolves for both session and pane commands and refuses when the session is missing), in `lib/tmux-safe.mjs` for all code, in the few direct calls, in the terminal attach, and in the shell scripts (the installer's `kill-session -t mailman` could have killed `mailman-…`).
+- A chat message for an agent with no terminal on this host is reported as not delivered, with the reason, instead of being typed somewhere else.
+- A streaming (Agent SDK) session no longer resumes a conversation written to in the last 10 minutes: it may be live outside tmux, and resuming it would put a second process on it. Before, only tmux was checked, and the prefix match hid the problem.
+- Bundled plugin 1.19.2: the agent CLI (`agent-commands.sh`, `agent-session.sh`) names sessions exactly.
+- Tests: `tests/tmux-exact-targets.test.ts`; `tests/tmux-exact-target-guard.test.ts` scans scripts and direct tmux calls (fails on 0.106.32).
+
 ## [0.106.32] - 2026-10-30 - Notifications name the agent the way people do
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.40] - 2026-10-31 - The updater retries a failed restart
+
+### Fixed
+- `update-aimaestro.sh` failed the whole update when `pm2 restart` answered "Process 2 not found" for a process pm2 itself listed. The server had restarted anyway. The updater now retries the restart once, and its "running" check decides the outcome.
+- The tmux-kill safety test no longer scans `.claude/`: it found the copy of itself inside a local agent worktree there and failed on that machine only.
+
 ## [0.106.39] - 2026-10-31 - No terminal beside an agent running outside tmux
 
 ### Fixed

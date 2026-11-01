@@ -370,7 +370,8 @@ if command -v pm2 &> /dev/null; then
                 }
             else
                 print_step "$RESTART" "Restarting AI Maestro via PM2..."
-                pm2 restart ai-maestro
+                # pm2 has answered "Process N not found" for a process it lists (2026-10-31): retry once
+                pm2 restart ai-maestro || { sleep 3; pm2 restart ai-maestro; } || print_warning "pm2 restart reported an error"
             fi
             print_success "AI Maestro restarted"
 

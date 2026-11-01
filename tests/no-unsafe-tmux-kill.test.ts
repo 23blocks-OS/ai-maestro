@@ -7,7 +7,7 @@ import path from 'path'
 // kills the user's real tmux server (and every agent session) if the directory is gone by then.
 // 2026-10-09: headless-smoke did exactly that. Every kill-server must name its socket with -S.
 const root = path.resolve(__dirname, '..')
-const skip = new Set(['node_modules', '.next', '.git', 'plugin', 'coverage', 'docs', 'marketing', 'logs'])
+const skip = new Set(['node_modules', '.next', '.git', 'plugin', 'coverage', 'docs', 'marketing', 'logs', '.claude'])
 
 function* walk(dir: string): Generator<string> {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

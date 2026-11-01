@@ -6,7 +6,8 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import type { PersonDevice, PushType } from '@/types/person-device'
+import crypto from 'crypto'
+import type { PersonDevice, PushType, DeviceKeyRecord } from '@/types/person-device'
 
 const DIR = path.join(os.homedir(), '.aimaestro', 'people-devices')
 
@@ -68,15 +69,33 @@ export type DeviceFields = Partial<Pick<PersonDevice, 'personName' | 'deviceName
   /** null clears the token */
   pushToken?: string | null
   pushTypes?: PushType[]
+  /** Raw Ed25519 public key, base64 (already validated by the caller) */
+  publicKey?: string
+}
+
+/**
+ * The key a pairing leaves on the device. Pairing is also the heartbeat and is not authenticated, so a
+ * new key, or the device moving to another person, always starts pending until the operator approves
+ * it; resending the same key changes nothing; a revoked key stays revoked.
+ */
+export function keyAfterPairing(existing: PersonDevice | null, personId: string, publicKey: string | undefined, iso: string): DeviceKeyRecord | undefined {
+  const old = existing?.key
+  if (!publicKey) return existing?.personId === personId ? old : undefined
+  if (old && old.publicKey === publicKey && existing?.personId === personId) return old
+  return { keyId: `k_${crypto.randomBytes(6).toString('hex')}`, publicKey, status: 'pending', enrolledAt: iso }
 }
 
 /** Pair or re-pair a device (also the heartbeat): keeps firstSeenAt, moves the device to the new person if it changed */
 export function upsertDevice(id: string, data: DeviceFields, now = new Date()): PersonDevice {
   const existing = getDevice(id)
   const iso = now.toISOString()
-  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== ''))
+  const { publicKey, ...rest } = data
+  const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined && v !== ''))
   const d: PersonDevice = { ...(existing || {}), ...clean, deviceId: id, personId: data.personId, firstSeenAt: existing?.firstSeenAt || iso, lastSeenAt: iso } as PersonDevice
   if (data.pushToken === null) { delete d.pushToken; delete d.pushTypes }
+  const key = keyAfterPairing(existing, data.personId, publicKey, iso)
+  if (key) d.key = key
+  else delete d.key
   fs.mkdirSync(DIR, { recursive: true })
   fs.writeFileSync(file(id), JSON.stringify(d, null, 2), 'utf-8')
   return d
@@ -98,4 +117,22 @@ export function removeDevice(id: string): boolean {
   if (!getDevice(id)) return false
   fs.rmSync(file(id), { force: true })
   return true
+}
+
+/** Approve (pending → active) or revoke a device's key; only the key the caller names, so a key that changed meanwhile is not touched */
+export function setKeyStatus(id: string, keyId: string, status: 'active' | 'revoked', now = new Date()): DeviceKeyRecord | null {
+  const d = getDevice(id)
+  if (!d?.key || d.key.keyId !== keyId) return null
+  if (d.key.status === 'revoked') return status === 'revoked' ? d.key : null
+  d.key = status === 'active'
+    ? { ...d.key, status: 'active', approvedAt: now.toISOString() }
+    : { ...d.key, status: 'revoked', revokedAt: now.toISOString() }
+  fs.writeFileSync(file(id), JSON.stringify(d, null, 2), 'utf-8')
+  return d.key
+}
+
+/** The device key a message's key_id names, with its person, for lib/person-signing */
+export function findDeviceKey(keyId: string): { personId: string; deviceId: string; key: DeviceKeyRecord } | null {
+  for (const d of loadDevices()) if (d.key?.keyId === keyId) return { personId: d.personId, deviceId: d.deviceId, key: d.key }
+  return null
 }

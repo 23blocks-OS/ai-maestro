@@ -40,7 +40,7 @@ export async function collectPeople(
   return { people, unreachable: results.filter(r => !r.ok).map(r => r.t.hostName) }
 }
 
-export type MeshDevice = PersonDeviceRecord & { hostName: string }
+export type MeshDevice = PersonDeviceRecord & { hostName: string; hostBase: string }
 
 /**
  * Ask every host which apps are paired to it. A person is online when ANY host has a recently seen
@@ -57,7 +57,7 @@ export async function collectDevices(
       if (res.status === 404) return { ok: true as const, t, mine: [] as MeshDevice[] }
       if (!res.ok) throw new Error(String(res.status))
       const data = await res.json()
-      return { ok: true as const, t, mine: (data.devices || []).map((d: PersonDeviceRecord) => ({ ...d, hostName: t.hostName })) as MeshDevice[] }
+      return { ok: true as const, t, mine: (data.devices || []).map((d: PersonDeviceRecord) => ({ ...d, hostName: t.hostName, hostBase: t.base })) as MeshDevice[] }
     } catch {
       return { ok: false as const, t, mine: [] as MeshDevice[] }
     }

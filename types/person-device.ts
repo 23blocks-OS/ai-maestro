@@ -8,7 +8,7 @@
  * No authentication, by design: a device states who it is and nobody checks. This is a label in a
  * trusted network, not a login.
  */
-export const PUSH_TYPES = ['needs_you', 'card_waiting', 'call'] as const
+export const PUSH_TYPES = ['needs_you', 'card_waiting', 'call', 'message'] as const
 export type PushType = typeof PUSH_TYPES[number]
 
 export interface PersonDevice {
@@ -27,6 +27,19 @@ export interface PersonDevice {
   pushTypes?: PushType[]
   firstSeenAt: string
   lastSeenAt: string
+  /** The device's signing key for sending as the person (AMP spec 13); see docs/PERSON-SIGNING.md */
+  key?: DeviceKeyRecord
+}
+
+/** pending until the operator approves it on the dashboard; a revoked key never comes back */
+export interface DeviceKeyRecord {
+  keyId: string
+  /** Raw 32-byte Ed25519 public key, base64 */
+  publicKey: string
+  status: 'pending' | 'active' | 'revoked'
+  enrolledAt: string
+  approvedAt?: string
+  revokedAt?: string
 }
 
 /** A device as a host returns it */

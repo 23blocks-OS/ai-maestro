@@ -710,6 +710,10 @@ if [ -n "$INSTALL_DIR" ]; then
 
     echo ""
     print_step "Installing dependencies..."
+    # node-pty has no Linux prebuilds and runs `node-gyp rebuild` from yarn, which (unlike npm)
+    # does not put node-gyp on PATH. Borrow the copy bundled with npm (#740).
+    _npm_gyp_dir="$(dirname "$(readlink -f "$(command -v npm)" 2>/dev/null)" 2>/dev/null)/node-gyp-bin"
+    if ! command -v node-gyp >/dev/null 2>&1 && [ -x "$_npm_gyp_dir/node-gyp" ]; then export PATH="$_npm_gyp_dir:$PATH"; fi
     yarn install || print_warning "yarn install had errors — continuing"
     # A failed node-pty compile stops yarn before the postinstall runs (#740)
     if node scripts/postinstall-node-pty.js --strict; then

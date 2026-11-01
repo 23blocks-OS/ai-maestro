@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Contact, Plus } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
-import { usePeople, type MeshPerson } from '@/hooks/usePeople'
+import { usePeople, type MeshPerson, type MeshDevice } from '@/hooks/usePeople'
 import { VersionChecker } from '@/components/VersionChecker'
 import { wouldLoop } from '@/lib/agent-manager'
 
@@ -21,7 +21,7 @@ const orgList = (text: string) => [...new Set(text.split(',').map(o => o.trim().
 export default function PeoplePage() {
   const { hosts } = useHosts()
   const [showInactive, setShowInactive] = useState(false)
-  const { people, online, unreachable, loading, refresh } = usePeople(hosts, showInactive)
+  const { people, online, devices, unreachable, loading, refresh } = usePeople(hosts, showInactive)
   const [form, setForm] = useState<Form | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,6 +63,22 @@ export default function PeoplePage() {
       setError((e as Error).message)
     }
   }
+
+  // A phone's signing key lets the person send verified messages from it (AMP spec 13): you approve it here
+  const setKey = async (d: MeshDevice, action: 'approve' | 'revoke') => {
+    if (!d.key) return
+    try {
+      const res = await fetch(`${d.hostBase}/api/people-devices/${d.deviceId}/key/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyId: d.key.keyId }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `Could not ${action} the key (${res.status})`)
+      await refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const pendingKeys = devices.filter(d => d.key?.status === 'pending')
+  const phoneName = (d: MeshDevice) => d.deviceName || d.platform || d.deviceId.slice(0, 8)
 
   const input = 'block mt-0.5 w-44 text-xs bg-gray-800 text-gray-100 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-600'
 
@@ -112,6 +128,21 @@ export default function PeoplePage() {
       )}
       {error && <div className="px-4 py-2 text-xs text-red-300">{error}</div>}
 
+      {pendingKeys.length > 0 && (
+        <div className="px-4 py-2 border-b border-gray-800 bg-violet-500/10 text-xs space-y-1" data-testid="pending-keys">
+          <div className="text-violet-200">Phones waiting for approval: once approved, the person can send verified messages to agents from that phone.</div>
+          {pendingKeys.map(d => (
+            <div key={`${d.hostName}:${d.deviceId}`} className="flex items-center gap-2">
+              <span className="text-gray-100">{phoneName(d)}</span>
+              <span className="text-gray-400">for {people.find(p => p.id === d.personId)?.displayName ?? d.personName ?? d.personId}, via {d.hostName}</span>
+              <span className="text-gray-500 font-mono">{d.key!.keyId}</span>
+              <button onClick={() => setKey(d, 'approve')} className="px-2 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700">Approve</button>
+              <button onClick={() => setKey(d, 'revoke')} className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Reject</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4">
         {people.length === 0 ? (
           <div className="h-full flex items-center justify-center text-sm text-gray-500">
@@ -133,7 +164,13 @@ export default function PeoplePage() {
                   <td className="pr-3 text-gray-500">{p.hostName}</td>
                   <td className="pr-3">{online.get(p.id)
                     ? <span className="text-emerald-400" title="Seen in the last 90 seconds">online via {online.get(p.id)!.join(', ')}</span>
-                    : <span className="text-gray-600">not connected</span>}</td>
+                    : <span className="text-gray-600">not connected</span>}
+                    {devices.filter(d => d.personId === p.id && d.key?.status === 'active').map(d => (
+                      <div key={`${d.hostName}:${d.deviceId}`} className="text-[10px] text-gray-400">
+                        signs from {phoneName(d)}
+                        <button onClick={() => setKey(d, 'revoke')} className="ml-1 text-gray-500 hover:text-red-300" title="Revoke this phone's key, for a lost or retired phone">revoke</button>
+                      </div>
+                    ))}</td>
                   <td className="text-right whitespace-nowrap">
                     {p.active ? (
                       <>

@@ -14,7 +14,8 @@ vi.mock('fs', () => ({
 }))
 vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
 
-import { pairDevice, listDevices, unpairDevice } from '@/services/person-devices-service'
+import { pairDevice, listDevices, unpairDevice, setDeviceKey } from '@/services/person-devices-service'
+import { findDeviceKey } from '@/lib/person-devices-registry'
 import { collectDevices, onlineHostsByPerson } from '@/lib/people-fanout'
 
 const dev = (r: any) => r.data.device
@@ -98,5 +99,47 @@ describe('devices across hosts', () => {
       { ...d('d1', 'ana', true, 'a'), hostName: 'Alpha' }, { ...d('d1', 'ana', true, 'b'), hostName: 'Beta' }, { ...d('d1', 'ana', true, 'b'), hostName: 'Beta' },
     ] as any)
     expect(online.get('ana')).toEqual(['Alpha', 'Beta'])
+  })
+})
+
+describe('a device\'s signing key (person messaging)', () => {
+  const K1 = Buffer.alloc(32, 1).toString('base64')
+  const K2 = Buffer.alloc(32, 2).toString('base64')
+  const pair = (extra: Record<string, unknown> = {}) => dev(pairDevice('iphone-0001', { personId: 'juan', ...extra }))
+
+  it('starts pending; the heartbeat keeps it; approval makes it active and findable', () => {
+    const k = pair({ publicKey: K1 }).key
+    expect(k).toMatchObject({ publicKey: K1, status: 'pending' })
+    expect(pair().key).toEqual(k)
+    expect(pair({ publicKey: K1 }).key).toEqual(k)
+    expect(setDeviceKey('iphone-0001', { keyId: k.keyId }, 'active').status).toBe(200)
+    expect(findDeviceKey(k.keyId)).toMatchObject({ personId: 'juan', key: { status: 'active' } })
+  })
+
+  it('a new key, or the device moving to another person, starts pending again', () => {
+    const k = pair({ publicKey: K1 }).key
+    setDeviceKey('iphone-0001', { keyId: k.keyId }, 'active')
+    const swapped = pair({ publicKey: K2 }).key
+    expect(swapped).toMatchObject({ status: 'pending', publicKey: K2 })
+    expect(swapped.keyId).not.toBe(k.keyId)
+    setDeviceKey('iphone-0001', { keyId: swapped.keyId }, 'active')
+    const moved = dev(pairDevice('iphone-0001', { personId: 'ana', publicKey: K2 })).key
+    expect(moved).toMatchObject({ status: 'pending' })
+    expect(dev(pairDevice('iphone-0001', { personId: 'juan' })).key).toBeUndefined()
+  })
+
+  it('a revoked key stays revoked, even when the same key is sent again', () => {
+    const k = pair({ publicKey: K1 }).key
+    setDeviceKey('iphone-0001', { keyId: k.keyId }, 'revoked')
+    expect(pair({ publicKey: K1 }).key.status).toBe('revoked')
+    expect(setDeviceKey('iphone-0001', { keyId: k.keyId }, 'active').status).toBe(400)
+  })
+
+  it('approves only the key it names, and refuses keys that are not raw 32 bytes', () => {
+    pair({ publicKey: K1 })
+    expect(setDeviceKey('iphone-0001', { keyId: 'k_stale' }, 'active').status).toBe(400)
+    expect(setDeviceKey('no-such-device', { keyId: 'x' }, 'active').status).toBe(404)
+    expect(pairDevice('iphone-0001', { personId: 'juan', publicKey: Buffer.alloc(33).toString('base64') }).status).toBe(400)
+    expect(pairDevice('iphone-0001', { personId: 'juan', pushTypes: ['message'] }).status).toBe(200)
   })
 })

@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.52] - 2026-11-01 - Person messaging, step 2: phone keys you approve
+
+### Added
+- A paired phone can send its signing key (`publicKey`, raw Ed25519, base64) with its pairing. The key starts **pending**. Pairing is also the heartbeat and is not authenticated, so a new key, or the phone moving to another person, always starts pending again. Resending the same key changes nothing, and a revoked key stays revoked.
+- `POST /api/people-devices/:deviceId/key/approve` and `/key/revoke` with `{ keyId }`, in the routes and the headless router. They act only on the key named, so an approval never lands on a key swapped in after it was shown.
+- People page: "Phones waiting for approval" with Approve and Reject, and under each person the phones they can sign from, with revoke for a lost phone.
+- Push type `message` is accepted at pairing now, so the app can ask for it before the mailbox ships.
+
 ## [0.106.51] - 2026-11-01 - Person messaging, step 1: the signing core
 
 ### Added

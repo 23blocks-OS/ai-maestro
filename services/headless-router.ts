@@ -147,7 +147,7 @@ import {
 } from '@/services/projects-service'
 import { getWorldEvents } from '@/services/world-events-service'
 import { getSelfHostId } from '@/lib/hosts-config'
-import { listDevices, pairDevice, unpairDevice } from '@/services/person-devices-service'
+import { listDevices, pairDevice, unpairDevice, setDeviceKey } from '@/services/person-devices-service'
 import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
 import { linkAgentManagers } from '@/services/agents-manager-links-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
@@ -179,7 +179,7 @@ import { receiveClaudeLogs, receiveClaudeMetrics } from '@/services/telemetry-se
 import { getWellKnownDocument } from '@/services/amp-discovery-service'
 import { initUpload, receiveContent, confirmUpload, getAttachmentStatus, downloadContent, downloadHeaders } from '@/services/amp-attachments-service'
 import { MAX_ATTACHMENT_SIZE } from '@/lib/amp-attachments'
-import { isServiceError } from '@/services/service-errors'
+import { isServiceError, notFound } from '@/services/service-errors'
 import { createDockerAgent, recreateDockerAgent, getDockerStats } from '@/services/agents-docker-service'
 import { createCloudAgent, destroyCloudAgent, getCloudAgentStatus } from '@/services/agents-cloud-service'
 
@@ -1780,6 +1780,11 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/people-devices\/([^/]+)$/, paramNames: ['deviceId'], handler: async (_req, res, params) => {
     sendServiceResult(res, unpairDevice(params.deviceId))
+  }},
+  { method: 'POST', pattern: /^\/api\/people-devices\/([^/]+)\/key\/([^/]+)$/, paramNames: ['deviceId', 'action'], handler: async (req, res, params) => {
+    if (params.action !== 'approve' && params.action !== 'revoke') return sendServiceResult(res, notFound('Action', params.action))
+    const body = await readJsonBody(req)
+    sendServiceResult(res, setDeviceKey(params.deviceId, body, params.action === 'approve' ? 'active' : 'revoked'))
   }},
   { method: 'GET', pattern: /^\/api\/calls$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, getCalls({ caller: qp(query, 'caller'), callee: qp(query, 'callee'), active: qp(query, 'active') === '1' }))

@@ -190,7 +190,6 @@ export interface SendMessageParams {
   toAlias?: string
   fromLabel?: string
   toLabel?: string
-  fromVerified?: boolean
 }
 
 export async function sendMessage(params: SendMessageParams): Promise<ServiceResult<any>> {
@@ -220,7 +219,6 @@ export async function sendMessage(params: SendMessageParams): Promise<ServiceRes
       toAlias: params.toAlias,
       fromLabel: params.fromLabel,
       toLabel: params.toLabel,
-      fromVerified: params.fromVerified,
     })
 
     return {

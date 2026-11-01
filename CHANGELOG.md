@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.43] - 2026-11-01 - A client can no longer mark its own message verified
+
+### Security
+- `POST /api/messages` passed a client-supplied `fromVerified` straight into the message. Anyone on the network could send `"fromVerified": true`, and a verified message skips the prompt-injection wrapper and the "external sender" tag. The host now decides `fromVerified` from its own checks only. No code in the repo sent the field. Reported by the ai-maestro-app agent.
+
 ## [0.106.42] - 2026-11-01 - AGENTS.md for agents other than Claude
 
 ### Added

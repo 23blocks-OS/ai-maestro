@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.49] - 2026-11-01 - The README starts with the iPhone app
+
+### Changed
+- README Quick Start: Step 1 is the iPhone app ("Coming soon on the App Store", linking to getaimaestro.com/iphone.html until Apple releases 1.0.0, then Apple's official badge), with its price. Step 2 is the install, now `curl -fsSL aimaestro.sh/install | bash`.
+
 ## [0.106.47] - 2026-11-01 - A streaming agent that waits on you shows "Needs you"
 
 ### Fixed

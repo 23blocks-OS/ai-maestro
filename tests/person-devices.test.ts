@@ -12,7 +12,7 @@ vi.mock('fs', () => ({
     rmSync: vi.fn((p: string) => { delete fsStore[p] }),
   },
 }))
-vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
+vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host', getOrganization: () => 'acme' }))
 
 import { pairDevice, listDevices, unpairDevice, setDeviceKey } from '@/services/person-devices-service'
 import { findDeviceKey } from '@/lib/person-devices-registry'

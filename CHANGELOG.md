@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.53] - 2026-11-01 - Person messaging, step 3: a person sends, and has a mailbox
+
+### Added
+- A person has an AMP address, `p-<personId>@<tenant>`, returned as `address` on every person record. The `p-` prefix keeps it apart from agent names and agent ids.
+- `POST /api/people/:id/messages`: send as the person from a device (`docs/PERSON-SIGNING.md`). It goes through `routeMessage`, the path every AMP message takes, which delivers to the agent here or forwards to the agent's host.
+- `routeMessage` checks a person's message in full on every host: the device key (found here, or on the host that forwarded it), active status, the signature, `sent_at` and the host's own nonce store. A failure is refused with `person_<reason>`. A message that passes reaches the agent as verified. Forwarding carries `key_id`, so the next host checks again rather than trusting the one before it.
+- The person's mailbox on their host: `GET /api/people/:id/messages?box=inbox|sent`, `?with=<agent address>` for one conversation (both boxes, oldest first), `GET` and `PATCH {status}` for one message. Read state is per person. Sent messages are stored; agents' replies land in the inbox in step 4.
+
 ## [0.106.52] - 2026-11-01 - Person messaging, step 2: phone keys you approve
 
 ### Added

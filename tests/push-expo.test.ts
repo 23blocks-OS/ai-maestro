@@ -12,7 +12,7 @@ vi.mock('fs', () => ({
     rmSync: vi.fn((p: string) => { delete fsStore[p] }),
   },
 }))
-vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
+vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host', getOrganization: () => 'acme' }))
 vi.mock('@/lib/agent-registry', () => ({
   getAgent: (id: string) => (id === 'agent-1' ? { id, name: 'titania' } : id === 'agent-2' ? { id, name: 'oberon' } : id === 'agent-g' ? { id, name: 'ai-maestro', label: 'George', title: 'AI Maestro product owner' } : null),
   getAgentBySession: (name: string) => (name === 'titania' ? { id: 'agent-1', name: 'titania' } : null),

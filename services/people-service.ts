@@ -13,6 +13,7 @@ import {
 import { getSelfHostId } from '@/lib/hosts-config'
 import { type ServiceResult, missingField, notFound, invalidField, operationFailed } from '@/services/service-errors'
 import type { Person, PersonRecord } from '@/types/person'
+import { personAddress } from '@/lib/person-address'
 
 const MAX_TEXT = 120
 const E164 = /^\+[1-9]\d{6,14}$/
@@ -23,7 +24,7 @@ const MAX_ORGS = 20
 
 export type PersonParams = Record<string, unknown>
 
-const withHost = (p: Person): PersonRecord => ({ ...p, hostId: getSelfHostId() })
+const withHost = (p: Person): PersonRecord => ({ ...p, hostId: getSelfHostId(), address: personAddress(p.id) })
 
 /** "+34 600-111-222" -> "+34600111222"; null when it cannot be a phone number */
 export function normalizePhone(raw: string): string | null {

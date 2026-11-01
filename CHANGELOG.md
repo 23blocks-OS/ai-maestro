@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.42] - 2026-11-01 - AGENTS.md for agents other than Claude
+
+### Added
+- `AGENTS.md`, the file Codex, Grok and other coding agents read. It points them at `CLAUDE.md` and lists the pull-request rules (version bump, CHANGELOG entry, tests and build). The rules were only in `CLAUDE.md`, so #742, opened by a Grok agent, arrived without them.
+
 ## [0.106.41] - 2026-11-01 - yarn can compile node-pty on Linux
 
 ### Fixed

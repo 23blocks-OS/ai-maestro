@@ -60,7 +60,7 @@ All logos were automatically generated from the SVG source files using `scripts/
 ### Website/Metadata
 ```html
 <!-- Open Graph -->
-<meta property="og:image" content="https://ai-maestro.23blocks.com/logos/social/og-image.png" />
+<meta property="og:image" content="https://getaimaestro.com/logos/social/og-image.png" />
 
 <!-- Favicon -->
 <link rel="icon" type="image/png" sizes="32x32" href="/logos/social/favicon.png" />

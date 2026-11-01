@@ -708,7 +708,7 @@ IMPORT INSTRUCTIONS:
 3. Restart AI Maestro dashboard
 
 For full documentation, see:
-https://docs.ai-maestro.23blocks.com/agent-portability
+https://aimaestro.sh/agent-portability
 EOF
 
 # 10. Create archive

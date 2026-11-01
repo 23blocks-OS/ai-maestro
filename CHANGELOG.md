@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.46] - 2026-11-01 - The docs move to aimaestro.sh, the marketing site to getaimaestro.com
+
+### Changed
+- Website split in two. `docs/` now serves **aimaestro.sh**, the product site: install and documentation. Its new home page, `docs/index.html`, shows the install command `curl -fsSL aimaestro.sh/install | bash` (it runs `scripts/remote-install.sh` from GitHub) and links every docs page by group. The marketing pages (home, iPhone, vision, ecosystem, experiments and the blog) move to their own repo and serve **getaimaestro.com**; they are removed from `docs/`.
+- `docs/CNAME` is `aimaestro.sh`. Canonical URLs, Open Graph, JSON-LD, `sitemap.xml` and `robots.txt` use aimaestro.sh, and links from a docs page to a marketing page are absolute getaimaestro.com URLs. ai-maestro.23blocks.com becomes a redirect site that sends each old page to its new home.
+- README, `install-plugin.sh` and a few notes point at the new domains instead of ai-maestro.23blocks.com.
+- `bump-version.sh` no longer updates `docs/index.html`; the page that showed the version is now on getaimaestro.com.
+
 ## [0.106.45] - 2026-11-01 - AI Maestro for iPhone on the website
 
 ### Added

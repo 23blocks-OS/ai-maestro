@@ -191,25 +191,13 @@ update_file "$PROJECT_ROOT/README.md" \
     "version-$NEW_VERSION-" \
     "README.md (badge)"
 
-# 5. docs/index.html (softwareVersion in schema)
-update_file "$PROJECT_ROOT/docs/index.html" \
-    "\"softwareVersion\": \"$CURRENT_VERSION\"" \
-    "\"softwareVersion\": \"$NEW_VERSION\"" \
-    "docs/index.html (schema)"
-
-# 6. docs/index.html (display version)
-update_file "$PROJECT_ROOT/docs/index.html" \
-    "<span>v$CURRENT_VERSION</span>" \
-    "<span>v$NEW_VERSION</span>" \
-    "docs/index.html (display)"
-
-# 7. docs/ai-index.html
+# 5. docs/ai-index.html (the home page that showed the version moved to the getaimaestro.com repo)
 update_file "$PROJECT_ROOT/docs/ai-index.html" \
     "\"softwareVersion\": \"$CURRENT_VERSION\"" \
     "\"softwareVersion\": \"$NEW_VERSION\"" \
     "docs/ai-index.html"
 
-# 8. docs/BACKLOG.md (current version header)
+# 6. docs/BACKLOG.md (current version header)
 #
 # This ran sed unconditionally and printed a tick whether or not anything
 # changed — not a silent skip but an outright false claim, and the reason the

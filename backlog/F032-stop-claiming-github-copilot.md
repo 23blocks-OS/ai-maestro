@@ -20,7 +20,7 @@ Remove the claim wherever it says AI Maestro works with / manages Copilot. Do no
 1. Remove "GitHub Copilot" / "Copilot CLI" from `docs/index.html` (meta description, JSON-LD, hero strip, "Universal Support" card, FAQ), `docs/ai-index.html` (description, keywords, JSON-LD, supported list, use cases), `docs/skills.html` where it claims skill compatibility with Copilot (check the Agent Skills Standard adopters list before editing a claim about a third party), `docs/OPERATIONS-GUIDE.md`, `docs/WINDOWS-INSTALLATION.md`, README and any other hit of `grep -ril copilot docs README.md PRODUCT.md`.
 2. Add one accurate sentence where the supported list lives (`docs/AGENT-PROGRAMS.md`, README): "Any terminal-based agent works in the terminal tab and receives messages; Claude Code, Codex and Grok Build have first-class chat, status and approval cards."
 3. If Copilot CLI support is wanted later, make it its own feature: it would need a launch kind, transcript reader, hook or status source and approval-card parser, like Grok (F028).
-4. Check the website after the Pages build (`curl https://ai-maestro.23blocks.com/ | grep -ci copilot` should be 0) and the GitHub repo description and topics.
+4. Check the website after the Pages build (`curl https://getaimaestro.com/ | grep -ci copilot` should be 0) and the GitHub repo description and topics.
 
 ## Not in scope
 

@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.48-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.49-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -82,8 +82,14 @@ That's deliberate, and it follows from the one thing that defines this product: 
 
 ## Quick Start
 
+**Step 1. Get the iPhone app** to run your agents from your phone.
+
+**[Coming soon on the App Store](https://getaimaestro.com/iphone.html)**. Free for 30 days, then $19.99 once; it funds AI Maestro.
+
+**Step 2. Install AI Maestro** on the computer where your agents run:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+curl -fsSL aimaestro.sh/install | bash
 ```
 
 This installs everything you need:

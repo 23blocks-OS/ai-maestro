@@ -74,6 +74,9 @@ import type {
   AMPKeypairRotationRequest,
 } from '@/lib/types/amp'
 import { type ServiceResult } from '@/services/service-errors'
+import { personIdFromAddress } from '@/lib/person-address'
+import { personKeyFor } from '@/lib/person-keys'
+import { checkPersonSend, personNonces, rawKeyToHex } from '@/lib/person-signing'
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)
@@ -367,6 +370,8 @@ async function forwardToHost(
         priority: body.priority,
         in_reply_to: body.in_reply_to,
         signature: envelope.signature,
+        // A person's message carries the key id; the next host looks the key up and checks it itself
+        ...(body.key_id ? { key_id: body.key_id, sender_kind: 'person' } : {}),
         // The receiving host checks the signature with this key (protocol 07).
         ...(senderPublicPem ? { sender_public_key: senderPublicPem } : {}),
         _forwarded: {
@@ -1034,7 +1039,7 @@ export async function routeMessage(
     const meshKeyHex = isMeshForwarded && typeof (body as any).sender_public_key === 'string'
       ? extractPublicKeyHex((body as any).sender_public_key)
       : null
-    const checkKeyHex = senderKeyPair?.publicHex || meshKeyHex || null
+    let checkKeyHex = senderKeyPair?.publicHex || meshKeyHex || null
     const signedFields = {
       from: envelope.from,
       // A forwarding host names the recipient by bare name; the sender signed the full address.
@@ -1046,8 +1051,23 @@ export async function routeMessage(
     }
     let signatureCheck: SignatureCheck = body.signature ? 'no_key' : 'unsigned'
     let verifyReason: string | undefined
+    let personKeyHex: string | undefined
 
-    if (body.signature) {
+    // A person's message (AMP spec 13): signed by one of their device keys, never an agent key. Every
+    // host runs the whole check itself, with its own nonce store, whoever forwarded it.
+    const personSender = personIdFromAddress(envelope.from)
+    if (personSender || typeof body.key_id === 'string') {
+      const key = typeof body.key_id === 'string' ? await personKeyFor(body.key_id, forwardedFrom) : null
+      const check = checkPersonSend({ fields: signedFields, signature: body.signature, personId: personSender ?? '', key, now: Date.parse(now), nonces: personNonces() })
+      if (!check.ok) {
+        console.warn(`[AMP Route] REJECTED — person ${check.reason} from ${envelope.from}`)
+        return { data: { error: `person_${check.reason}`, message: check.message, details: { from: envelope.from } } as any, status: 403 }
+      }
+      signatureCheck = 'verified'
+      checkKeyHex = rawKeyToHex(key!.publicKey)
+      personKeyHex = checkKeyHex ?? undefined
+      envelope.signature = body.signature as string
+    } else if (body.signature) {
       if (checkKeyHex) {
         // Mesh keys get the same pinning as local ones, but a changed key there
         // downgrades the message to unverified instead of refusing it: the
@@ -1250,7 +1270,7 @@ export async function routeMessage(
     try {
       await deliverLocally({
         envelope, payload: body.payload, localAgent, recipientAgentName,
-        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex, body, verification
+        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex || personKeyHex, body, verification
       })
 
       return {

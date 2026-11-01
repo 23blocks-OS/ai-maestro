@@ -44,4 +44,6 @@ export interface Person {
 /** A record as a host returns it, with the host that stores it */
 export interface PersonRecord extends Person {
   hostId: string
+  /** The person's AMP address (spec 13): what a device signs as `from` when it sends as this person */
+  address: string
 }

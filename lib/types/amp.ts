@@ -352,6 +352,12 @@ export interface AMPRouteRequest {
    */
   signature?: string
 
+  /** Which of a person's device keys signed this (AMP spec 13); present only for a person sender */
+  key_id?: string
+
+  /** Display hint only, never trusted: the kind comes from the key check */
+  sender_kind?: 'agent' | 'person'
+
   /** Delivery options */
   options?: {
     /** Request delivery receipt */

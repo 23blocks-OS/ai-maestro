@@ -14,7 +14,7 @@ vi.mock('fs', () => ({
 }))
 let n = 0
 vi.mock('uuid', () => ({ v4: () => `id-${++n}` }))
-vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host' }))
+vi.mock('@/lib/hosts-config', () => ({ getSelfHostId: () => 'self-host', getOrganization: () => 'acme' }))
 
 import { createPerson, updatePerson } from '@/services/people-service'
 import { buildOrganizations, type OrgAgentInput, type OrgPersonInput } from '@/lib/organization'

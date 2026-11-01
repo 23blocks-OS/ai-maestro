@@ -148,6 +148,7 @@ import {
 import { getWorldEvents } from '@/services/world-events-service'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { listDevices, pairDevice, unpairDevice, setDeviceKey } from '@/services/person-devices-service'
+import { sendAsPerson, listPersonMessages, getPersonMessage, updatePersonMessage } from '@/services/person-messages-service'
 import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
 import { linkAgentManagers } from '@/services/agents-manager-links-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
@@ -1770,6 +1771,20 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/people\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, deletePerson(params.id, { purge: qp(query, 'purge') === '1' }))
+  }},
+  { method: 'GET', pattern: /^\/api\/people\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, listPersonMessages(params.id, { box: qp(query, 'box'), since: qp(query, 'since'), with: qp(query, 'with'), limit: qp(query, 'limit') }))
+  }},
+  { method: 'POST', pattern: /^\/api\/people\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await sendAsPerson(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/people\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, getPersonMessage(params.id, params.messageId))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/people\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, updatePersonMessage(params.id, params.messageId, body))
   }},
   { method: 'GET', pattern: /^\/api\/people-devices$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, listDevices({ personId: qp(query, 'personId') }))

@@ -184,6 +184,8 @@ update_file "$PROJECT_ROOT/scripts/remote-install.sh" \
     "VERSION=\"$CURRENT_VERSION\"" \
     "VERSION=\"$NEW_VERSION\"" \
     "scripts/remote-install.sh"
+# aimaestro.sh/install serves this copy; tests/site-install-copy.test.ts keeps it identical
+cp "$PROJECT_ROOT/scripts/remote-install.sh" "$PROJECT_ROOT/docs/install"
 
 # 4. README.md (version badge)
 update_file "$PROJECT_ROOT/README.md" \

@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.47] - 2026-11-01 - A streaming agent that waits on you shows "Needs you"
+
+### Fixed
+- A streaming agent blocked on a permission or a question showed as Working, and sent no push. In a stream these go through the Agent SDK's `canUseTool` callback, so the Claude hook's "needs you" notification never fires. The stream now reports it itself, through the same activity update the hook uses: "Needs you" while any request is open, Working again once the last one is answered. Status, the sidebar, the app and the "Needs you" push now treat streaming agents like terminal agents.
+- `bump-version.sh` now also refreshes `docs/install`, the copy served at aimaestro.sh/install. It writes the version into `scripts/remote-install.sh`, so every bump made the copy drift; the new sync test caught it on the first bump.
+
 ## [0.106.46] - 2026-11-01 - The docs move to aimaestro.sh, the marketing site to getaimaestro.com
 
 ### Changed

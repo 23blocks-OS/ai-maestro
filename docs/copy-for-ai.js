@@ -47,7 +47,7 @@ ${mainContent}
 AI Maestro is an open-source dashboard for orchestrating multiple AI coding agents (Claude Code, Codex, Grok Build, Cursor) from one unified interface. Version 0.15.0, MIT License.
 
 **GitHub:** https://github.com/23blocks-OS/ai-maestro
-**Website:** https://ai-maestro.23blocks.com
+**Website:** https://getaimaestro.com/
 
 **Question for AI:** Based on this documentation, please help me understand [YOUR QUESTION HERE]
 `;

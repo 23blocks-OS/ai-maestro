@@ -1,119 +1,87 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://ai-maestro.23blocks.com/</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/advanced-setup.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/agent-actions.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/agent-intelligence.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/agent-management.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/ai-index.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/cloud-aws.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/conversations.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/docker-hybrid.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/docker-local.html</loc>
-    <lastmod>2026-10-12</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/iphone.html</loc>
+    <loc>https://aimaestro.sh/</loc>
     <lastmod>2026-11-01</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/ecosystem.html</loc>
+    <loc>https://aimaestro.sh/advanced-setup.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/email-identity.html</loc>
+    <loc>https://aimaestro.sh/agent-actions.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/blog/</loc>
-    <lastmod>2026-10-28</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/blog/ai-maestro-on-google-cloud.html</loc>
-    <lastmod>2026-10-28</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/blog/pi-harness-support.html</loc>
-    <lastmod>2026-10-28</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/blog/human-agent-interaction.html</loc>
-    <lastmod>2026-10-23</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/experiments.html</loc>
-    <lastmod>2026-10-23</lastmod>
-  </url>
-  <url>
-    <loc>https://ai-maestro.23blocks.com/memory.html</loc>
+    <loc>https://aimaestro.sh/agent-intelligence.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/messaging.html</loc>
+    <loc>https://aimaestro.sh/agent-management.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/mobile.html</loc>
+    <loc>https://aimaestro.sh/ai-index.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/multi-computer.html</loc>
+    <loc>https://aimaestro.sh/cloud-aws.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/peers.html</loc>
+    <loc>https://aimaestro.sh/conversations.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/plugin-builder.html</loc>
+    <loc>https://aimaestro.sh/docker-hybrid.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/protocols.html</loc>
+    <loc>https://aimaestro.sh/docker-local.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/security.html</loc>
+    <loc>https://aimaestro.sh/email-identity.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/single-computer.html</loc>
+    <loc>https://aimaestro.sh/memory.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/skills.html</loc>
+    <loc>https://aimaestro.sh/messaging.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
   <url>
-    <loc>https://ai-maestro.23blocks.com/vision.html</loc>
+    <loc>https://aimaestro.sh/mobile.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/multi-computer.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/peers.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/plugin-builder.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/protocols.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/security.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/single-computer.html</loc>
+    <lastmod>2026-10-12</lastmod>
+  </url>
+  <url>
+    <loc>https://aimaestro.sh/skills.html</loc>
     <lastmod>2026-10-12</lastmod>
   </url>
 </urlset>

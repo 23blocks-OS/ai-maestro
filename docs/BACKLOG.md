@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2026-09-02
-**Current Version:** v0.106.45
+**Current Version:** v0.106.46
 
 ---
 
@@ -3502,7 +3502,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/abc123def456
 Current installation requires terminal commands (`curl | sh`), which is still technical for non-developer users. The goal is a "John Doe" experience where users download an app, double-click, and it just works - no terminal, no browser configuration.
 
 **Target Experience:**
-1. Visit ai-maestro.23blocks.com
+1. Visit getaimaestro.com
 2. Click "Download for Mac" button
 3. Drag AI Maestro.app to Applications
 4. Double-click to launch

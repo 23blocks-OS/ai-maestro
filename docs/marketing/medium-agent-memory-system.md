@@ -41,14 +41,14 @@ For a team running multiple agents across multiple projects? The waste compounds
 
 After months of iteration, we landed on a memory system that mirrors how human developers actually build and retain knowledge:
 
-![AI Maestro Dashboard with Memory System](https://ai-maestro.23blocks.com/images/aiteam-web.png)
+![AI Maestro Dashboard with Memory System](https://aimaestro.sh/images/aiteam-web.png)
 *AI Maestro managing multiple agents, each with persistent memory*
 
 ### Layer 1: Code Graph - Understanding Your Codebase Structure
 
 The first layer answers: *"What code exists and how is it connected?"*
 
-![Code Graph Visualization](https://ai-maestro.23blocks.com/images/code_graph01.png)
+![Code Graph Visualization](https://aimaestro.sh/images/code_graph01.png)
 *Visual representation of code relationships and dependencies*
 
 Traditional approaches dump your entire codebase into context. This is:
@@ -85,7 +85,7 @@ Semantic Index (Embeddings)
 
 The magic: agents get *precisely* the code they need, not your entire 500-file project.
 
-![Code Graph Detailed View](https://ai-maestro.23blocks.com/images/code_graph_02.png)
+![Code Graph Detailed View](https://aimaestro.sh/images/code_graph_02.png)
 *Drilling into specific code relationships*
 
 ---
@@ -94,7 +94,7 @@ The magic: agents get *precisely* the code they need, not your entire 500-file p
 
 The second layer answers: *"What have we discussed and decided?"*
 
-![Conversation Memory Panel](https://ai-maestro.23blocks.com/images/agent_conversation_memory.png)
+![Conversation Memory Panel](https://aimaestro.sh/images/agent_conversation_memory.png)
 *Searchable history of all agent conversations*
 
 Every conversation with your agent gets:
@@ -127,7 +127,7 @@ implement it consistently with that approach?"
 
 The third layer answers: *"What's documented about this project?"*
 
-![Documentation Search](https://ai-maestro.23blocks.com/images/code_docs.png)
+![Documentation Search](https://aimaestro.sh/images/code_docs.png)
 *Instant access to all project documentation*
 
 Your project has documentation:
@@ -223,7 +223,7 @@ existing patterns. Should I proceed?"
 
 ## The Subconscious: Memory That Maintains Itself
 
-![Agent Subconscious](https://ai-maestro.23blocks.com/images/agent_subconscius.png)
+![Agent Subconscious](https://aimaestro.sh/images/agent_subconscius.png)
 *Background memory maintenance*
 
 Here's the part that feels like magic: the **Agent Subconscious**.
@@ -288,7 +288,7 @@ Your AI agents aren't disposable assistants anymore. They're **team members that
 AI Maestro is free and open source.
 
 - **GitHub:** [github.com/23blocks-OS/ai-maestro](https://github.com/23blocks-OS/ai-maestro)
-- **Website:** [ai-maestro.23blocks.com](https://ai-maestro.23blocks.com)
+- **Website:** [getaimaestro.com](https://getaimaestro.com)
 - **Documentation:** Full setup guides, architecture docs, and skill references
 
 Stop re-teaching your AI agents every morning.

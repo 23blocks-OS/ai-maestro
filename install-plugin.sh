@@ -6,7 +6,7 @@
 # Users can customize their own plugin builds by forking the plugin builder:
 #
 #   Repo:    https://github.com/23blocks-OS/ai-maestro-plugins
-#   Website: https://ai-maestro.23blocks.com/plugin-builder.html
+#   Website: https://aimaestro.sh/plugin-builder.html
 #
 # The plugin builder lets you compose custom skill sets from any source
 # (GitHub repos, local files, private repos) into a single plugin.
@@ -78,7 +78,7 @@ echo "║                                                                ║"
 echo "║         AI Maestro Plugin Installer (23blocks default)        ║"
 echo "║                                                                ║"
 echo "║   Skills, scripts, and CLI tools for your AI agents           ║"
-echo "║   Customize: ai-maestro.23blocks.com/plugin-builder.html      ║"
+echo "║   Customize: aimaestro.sh/plugin-builder.html                 ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -1098,7 +1098,7 @@ fi
 
 echo "📖 Documentation:"
 echo ""
-echo "   AI Maestro:   https://ai-maestro.23blocks.com"
+echo "   AI Maestro:   https://getaimaestro.com"
 echo "   AMP Protocol: https://agentmessaging.org"
 echo "   AID Protocol: https://agentids.org"
 echo "   AAP Protocol: https://agentactions.org"

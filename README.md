@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.45-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.46-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -205,7 +205,7 @@ Mods are plugins that run inside Claude Code 2.1.287 or later. AI Maestro ships 
 
 *Sometimes the answer is a form, a chart or an approval, not a paragraph.*
 
-Agents draw interactive HTML pages in the dashboard, and what you click or submit comes back to them as a structured action ([AAP](#protocols)). [Agent actions →](https://ai-maestro.23blocks.com/agent-actions.html)
+Agents draw interactive HTML pages in the dashboard, and what you click or submit comes back to them as a structured action ([AAP](#protocols)). [Agent actions →](https://aimaestro.sh/agent-actions.html)
 
 ### Scheduled Work
 
@@ -315,7 +315,7 @@ The installer and updater set up the helpers the skills need (`aim-secret`, `saf
 /plugin install ai-maestro@ai-maestro-plugins
 ```
 
-Pick your own set with the [plugin builder](./plugin/README.md). More on the [skills page](https://ai-maestro.23blocks.com/skills.html); how we keep them good is in [SKILLS-QUALITY.md](./docs/SKILLS-QUALITY.md).
+Pick your own set with the [plugin builder](./plugin/README.md). More on the [skills page](https://aimaestro.sh/skills.html); how we keep them good is in [SKILLS-QUALITY.md](./docs/SKILLS-QUALITY.md).
 
 ---
 
@@ -330,7 +330,7 @@ AI Maestro implements four open protocols, all under [github.com/agentmessaging]
 | **AAP** — Agent Actions Protocol | Actions from agent-drawn pages back to the agent | [agentactions.org](https://agentactions.org) |
 | **AFP** — Agent Files Protocol | Files shared by reference through S3-compatible storage | [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files) |
 
-[Protocols page](https://ai-maestro.23blocks.com/protocols.html) · [AID, AMP and AAP mapped onto the Poppy draft](./docs/AID-POPPY-MAPPING.md) (a design note, nothing implemented) · [AMP outbox design](./docs/AMP-OUTBOX-DESIGN.md) (a proposal, not built)
+[Protocols page](https://aimaestro.sh/protocols.html) · [AID, AMP and AAP mapped onto the Poppy draft](./docs/AID-POPPY-MAPPING.md) (a design note, nothing implemented) · [AMP outbox design](./docs/AMP-OUTBOX-DESIGN.md) (a proposal, not built)
 
 ---
 

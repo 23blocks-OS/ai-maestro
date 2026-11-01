@@ -42,3 +42,24 @@ describe('a streaming agent waiting on a person', () => {
     for (const p of s.pending.values()) clearTimeout(p.timer)
   })
 })
+
+describe('a streaming agent\'s session cost', () => {
+  it('reports the cost each turn\'s result carries, under the agent', () => {
+    const { s } = makeSession()
+    const costs: unknown[][] = []
+    s._reportCost = (...a: unknown[]) => costs.push(a)
+    s._onSdkMessage({ type: 'assistant' })
+    s._onSdkMessage({ type: 'result', subtype: 'success', session_id: 'sess-1', total_cost_usd: 0.42 })
+    expect(costs).toEqual([['a1', 'sess-1', 0.42]])
+  })
+
+  it('reports nothing without an agent id or a cost', () => {
+    const { s } = makeSession()
+    const costs: unknown[] = []
+    s._reportCost = (...a: unknown[]) => costs.push(a)
+    s._onSdkMessage({ type: 'result', session_id: 'x' })
+    s.agentId = null
+    s._onSdkMessage({ type: 'result', session_id: 'x', total_cost_usd: 1 })
+    expect(costs).toEqual([])
+  })
+})

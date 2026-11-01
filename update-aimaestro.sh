@@ -220,13 +220,20 @@ print_success "Dependencies installed"
 
 # Issue 7.2: Track build failure so tool reinstallation still proceeds under set -e
 BUILD_FAILED=false
+# A failed node-pty compile stops yarn before the postinstall runs; restarting then crash-loops (#740)
+if ! node scripts/postinstall-node-pty.js --strict; then
+    print_error "node-pty (the terminal module) does not load; not restarting, the running version stays up"
+    BUILD_FAILED=true
+fi
 VERIFICATION_WARNINGS=false
 ECOSYSTEM_CHANGED=${ECOSYSTEM_CHANGED:-false}
 
 echo ""
 print_step "$BUILD" "Building application..."
 # Not enough RAM + swap kills the build with no word about memory: say so first, with the fix
-if [ -f scripts/check-build-memory.sh ] && ! bash scripts/check-build-memory.sh; then
+if [ "$BUILD_FAILED" = true ]; then
+    print_warning "Skipping the build: node-pty does not load (the running version stays as it is)"
+elif [ -f scripts/check-build-memory.sh ] && ! bash scripts/check-build-memory.sh; then
     print_warning "Skipping the build: not enough memory (the running version stays as it is)"
     BUILD_FAILED=true
 elif yarn build; then

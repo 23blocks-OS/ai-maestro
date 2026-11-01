@@ -1144,9 +1144,11 @@ act3_clone_and_build() {
                 maestro_step 1 5 "Pulling latest changes..." "done"
 
                 maestro_step 2 5 "Installing dependencies..." ""
-                if ! { yarn install --silent 2>/dev/null || yarn install; }; then
-                    maestro_fail "Dependency install failed — leaving the previous version running."
-                    echo "   Retry in $INSTALL_DIR with: yarn install && yarn build"
+                # yarn also fails when only node-pty's compile does (#740); the check below rebuilds it
+                { yarn install --silent 2>/dev/null || yarn install; } || maestro_warn "yarn install reported errors; checking the terminal module"
+                if ! node scripts/postinstall-node-pty.js --strict; then
+                    maestro_fail "Dependency install failed (the terminal module, node-pty, does not load) — leaving the previous version running."
+                    echo "   Retry in $INSTALL_DIR with: yarn install && npm rebuild node-pty && yarn build"
                     exit 1
                 fi
                 maestro_step 2 5 "Installing dependencies..." "done"
@@ -1208,9 +1210,11 @@ act3_clone_and_build() {
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
-    if ! { yarn install --silent 2>/dev/null || yarn install; }; then
-        maestro_fail "Dependency install failed. AI Maestro cannot start without it."
-        echo "   Try again in $INSTALL_DIR with: yarn install"
+    # yarn also fails when only node-pty's compile does (#740); the check below rebuilds it
+    { yarn install --silent 2>/dev/null || yarn install; } || maestro_warn "yarn install reported errors; checking the terminal module"
+    if ! node scripts/postinstall-node-pty.js --strict; then
+        maestro_fail "Dependency install failed (the terminal module, node-pty, does not load). AI Maestro cannot start without it."
+        echo "   Try again in $INSTALL_DIR with: yarn install && npm rebuild node-pty"
         exit 1
     fi
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"

@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - `update-aimaestro.sh` failed the whole update when `pm2 restart` answered "Process 2 not found" for a process pm2 itself listed. The server had restarted anyway. The updater now retries the restart once, and its "running" check decides the outcome.
+- Linux x64: install and update finished without a working node-pty (the terminal module), and the server then crash-looped (#740). node-pty has no Linux prebuild, and when its compile fails inside `yarn install`, yarn stops before the postinstall check that would rebuild it. `install.sh`, `update-aimaestro.sh` and `remote-install.sh` now run that check themselves. It rebuilds with `npm rebuild node-pty` (which works where yarn's compile fails) and fails loudly if node-pty still does not load. The update then skips the build and the restart, so the running version stays up.
 - The tmux-kill safety test no longer scans `.claude/`: it found the copy of itself inside a local agent worktree there and failed on that machine only.
 
 ## [0.106.39] - 2026-10-31 - No terminal beside an agent running outside tmux

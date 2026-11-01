@@ -84,6 +84,14 @@ echo "╚═══════════════════════�
 echo ""
 
 # Function to print colored messages
+# Write a new file and rename it over the old one. A plain cp onto a script that an agent is running
+# at that moment fails on Linux with "Text file busy" and stopped a whole update (mini-lola, 0.106.47).
+install_exec() {
+    local src="$1" dir="$2" tmp
+    tmp="$dir/.$(basename "$src").$$"
+    cp "$src" "$tmp" && chmod +x "$tmp" && mv -f "$tmp" "$dir/$(basename "$src")"
+}
+
 print_success() {
     echo -e "${GREEN}${CHECK} $1${NC}"
 }
@@ -592,8 +600,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     for script in "$PLUGIN_DIR"/scripts/amp-*.sh "$PLUGIN_DIR"/scripts/afp-*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
+            install_exec "$script" ~/.local/bin
 
             # Create symlink without .sh extension for convenience
             # e.g., amp-init -> amp-init.sh
@@ -661,8 +668,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
                [[ "$SCRIPT_NAME" == "send-tmux-message.sh" ]]; then
                 continue
             fi
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
+            install_exec "$script" ~/.local/bin
             print_success "Installed: $SCRIPT_NAME"
             TOOL_COUNT=$((TOOL_COUNT + 1))
         fi
@@ -676,8 +682,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Installing shell helpers..."
     mkdir -p ~/.local/share/aimaestro/shell-helpers
     if [ -f "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ]; then
-        cp "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers/
-        chmod +x ~/.local/share/aimaestro/shell-helpers/common.sh
+        install_exec "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers
         print_success "Installed: shell-helpers/common.sh"
     fi
 

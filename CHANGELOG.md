@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - README Quick Start: Step 1 is the iPhone app ("Coming soon on the App Store", linking to getaimaestro.com/iphone.html until Apple releases 1.0.0, then Apple's official badge), with its price. Step 2 is the install, now `curl -fsSL aimaestro.sh/install | bash`.
 
+## [0.106.48] - 2026-11-01 - An agent running an AMP script no longer stops an update
+
+### Fixed
+- `install-plugin.sh` copied scripts over the installed ones with `cp`. On mini-lola an agent was running `amp-inbox.sh` at that moment, `cp` failed with "Text file busy", and the update stopped after the build and before the restart, so the host kept serving the old code. Scripts are now written to a temporary file and renamed into place, which works while the old copy runs.
+
 ## [0.106.47] - 2026-11-01 - A streaming agent that waits on you shows "Needs you"
 
 ### Fixed

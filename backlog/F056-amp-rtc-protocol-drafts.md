@@ -46,3 +46,10 @@ AMP is our differentiator and an open standard other providers may implement; a 
 - Cross-check list when product and spec are reconciled: accepted timeout (F051, point 4), id format (F051, point 5), human identity as paired device (F050, identity problem).
 
 Related: F050, F051, F053, F055; closed PR #16 (`notify:v1`) in the protocol repo.
+
+## Before any of #26-#31 can merge (2026-11-01)
+
+Decided with Juan: they stay drafts while voice is deferred (F052, F054). Two fixes come first, about an hour:
+
+1. **Renumber.** #26 adds `spec/13-realtime-sessions.md`, but protocol #32 (merged 2026-11-01) made section 13 "Person Principals". The voice sections move up one, to 14-19, with their cross-links.
+2. **One definition of a person.** #27 (`14-rtc-human-endpoints.md`) defines its own "human principal" with enrolled device keys and calls the identifier format an open question. Spec 13 now answers it: a person address, one Ed25519 key per device, enrollment and revocation, and authority only over the agents a person manages. #27 should refer to spec 13 and keep only what calls add.

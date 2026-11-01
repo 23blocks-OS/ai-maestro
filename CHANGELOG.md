@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.51] - 2026-11-01 - Person messaging, step 1: the signing core
+
+### Added
+- `lib/person-signing.ts`: the checks AMP spec 13 asks before a host may mark a person's message verified. The device key must be enrolled, belong to that person and be active (not pending or revoked); the signature must verify over the same canonical string agents sign (`from|to|subject|priority|in_reply_to|payload_hash`); and the signed payload must carry `context.sent_at` within 5 minutes and a nonce of at least 128 bits not seen before. Device keys are raw 32-byte Ed25519 keys, base64.
+- `docs/PERSON-SIGNING.md`: how a device signs, with a test vector the app checks itself against; `tests/person-signing.test.ts` holds the server to the same values. The payload hash matches `amp-send.sh` (`jq -cS` + SHA-256) byte for byte.
+- Backlog F056: what the AMP-RTC voice drafts need before they can merge (renumbering after spec 13, and one definition of a person).
+
+No endpoint uses it yet; device keys and the person mailbox come next.
+
 ## [0.106.50] - 2026-11-01 - A streaming agent's profile shows its session cost
 
 ### Fixed

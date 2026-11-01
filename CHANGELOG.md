@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.44] - 2026-11-01 - The Agent Files Protocol has its site
+
+### Changed
+- Plugin 1.19.4: the agent-files skill's homepage is https://agentfiles.org, the new site of the Agent Files Protocol (AFP). AFP 0.1.0 also gained a CHANGELOG, CI and cross-links to the other protocols (agent-files #2).
+
 ## [0.106.43] - 2026-11-01 - A client can no longer mark its own message verified
 
 ### Security

@@ -711,7 +711,13 @@ if [ -n "$INSTALL_DIR" ]; then
     echo ""
     print_step "Installing dependencies..."
     yarn install || print_warning "yarn install had errors — continuing"
-    print_success "Dependencies installed"
+    # A failed node-pty compile stops yarn before the postinstall runs (#740)
+    if node scripts/postinstall-node-pty.js --strict; then
+        print_success "Dependencies installed"
+    else
+        print_error "node-pty (the terminal module) does not load, so AI Maestro will not start. Fix the toolchain, then run: npm rebuild node-pty"
+        exit 1
+    fi
 
     # Configure tmux
     echo ""

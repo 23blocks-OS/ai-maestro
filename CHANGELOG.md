@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.50] - 2026-11-01 - A streaming agent's profile shows its session cost
+
+### Fixed
+- A streaming agent's profile showed no session cost. The cost comes from Claude's status line, which a stream does not have. The stream now reports the cost that every turn's result carries, through the status line's own endpoint (`POST /api/agents/:id/status-snapshot`). Model, context and effort already came from the transcript the stream writes.
+
 ## [0.106.49] - 2026-11-01 - The README starts with the iPhone app
 
 ### Changed

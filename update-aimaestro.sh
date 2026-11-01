@@ -214,6 +214,10 @@ NEW_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([
 
 echo ""
 print_step "$BUILD" "Installing dependencies..."
+# node-pty has no Linux prebuilds and runs `node-gyp rebuild` from yarn, which (unlike npm)
+# does not put node-gyp on PATH. Borrow the copy bundled with npm (#740).
+_npm_gyp_dir="$(dirname "$(readlink -f "$(command -v npm)" 2>/dev/null)" 2>/dev/null)/node-gyp-bin"
+if ! command -v node-gyp >/dev/null 2>&1 && [ -x "$_npm_gyp_dir/node-gyp" ]; then export PATH="$_npm_gyp_dir:$PATH"; fi
 # Issue 7.1: Don't let yarn install failure abort the entire update under set -e
 yarn install --frozen-lockfile 2>/dev/null || yarn install || { print_warning "yarn install had warnings but continuing..."; }
 print_success "Dependencies installed"

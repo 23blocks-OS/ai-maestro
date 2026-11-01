@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.41] - 2026-11-01 - yarn can compile node-pty on Linux
+
+### Fixed
+- The root cause of #740. node-pty has no Linux prebuild, so its install script runs `node-gyp rebuild`, and yarn 1 does not put `node-gyp` on PATH (npm does, from its bundled copy). On a Node install from the official tarball, `yarn install` therefore failed with `node-gyp: not found` (exit 127). `install.sh`, `update-aimaestro.sh` and `remote-install.sh` now put npm's bundled `node-gyp` on PATH before `yarn install` when there is none, so yarn's own compile succeeds. The 0.106.40 rebuild check stays as a safety net. Found and verified on Debian 13 x86_64 by the reporter; reproduced and verified in the official `node:20` image (#742).
+
 ## [0.106.40] - 2026-10-31 - The updater retries a failed restart
 
 ### Fixed

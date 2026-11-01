@@ -44,7 +44,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.106.40"
+VERSION="0.106.41"
 # AIMAESTRO_REPO_URL / AIMAESTRO_BRANCH: install a fork or a branch (testing, or a pinned release)
 REPO_URL="${AIMAESTRO_REPO_URL:-https://github.com/23blocks-OS/ai-maestro.git}"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
@@ -1145,6 +1145,10 @@ act3_clone_and_build() {
 
                 maestro_step 2 5 "Installing dependencies..." ""
                 # yarn also fails when only node-pty's compile does (#740); the check below rebuilds it
+                # node-pty has no Linux prebuilds and runs `node-gyp rebuild` from yarn, which (unlike npm)
+                # does not put node-gyp on PATH. Borrow the copy bundled with npm (#740).
+                _npm_gyp_dir="$(dirname "$(readlink -f "$(command -v npm)" 2>/dev/null)" 2>/dev/null)/node-gyp-bin"
+                if ! command -v node-gyp >/dev/null 2>&1 && [ -x "$_npm_gyp_dir/node-gyp" ]; then export PATH="$_npm_gyp_dir:$PATH"; fi
                 { yarn install --silent 2>/dev/null || yarn install; } || maestro_warn "yarn install reported errors; checking the terminal module"
                 if ! node scripts/postinstall-node-pty.js --strict; then
                     maestro_fail "Dependency install failed (the terminal module, node-pty, does not load) — leaving the previous version running."
@@ -1211,6 +1215,10 @@ act3_clone_and_build() {
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
     # yarn also fails when only node-pty's compile does (#740); the check below rebuilds it
+    # node-pty has no Linux prebuilds and runs `node-gyp rebuild` from yarn, which (unlike npm)
+    # does not put node-gyp on PATH. Borrow the copy bundled with npm (#740).
+    _npm_gyp_dir="$(dirname "$(readlink -f "$(command -v npm)" 2>/dev/null)" 2>/dev/null)/node-gyp-bin"
+    if ! command -v node-gyp >/dev/null 2>&1 && [ -x "$_npm_gyp_dir/node-gyp" ]; then export PATH="$_npm_gyp_dir:$PATH"; fi
     { yarn install --silent 2>/dev/null || yarn install; } || maestro_warn "yarn install reported errors; checking the terminal module"
     if ! node scripts/postinstall-node-pty.js --strict; then
         maestro_fail "Dependency install failed (the terminal module, node-pty, does not load). AI Maestro cannot start without it."

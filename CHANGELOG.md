@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.45] - 2026-11-01 - AI Maestro for iPhone on the website
+
+### Added
+- Website: `iphone.html` announces the AI Maestro iPhone app, coming soon to the App Store (1.0.0 is in App Review): what it does, the price (30 days free, then $19.99 once, no subscription, no account, and the money funds the ecosystem), a FAQ, and screenshots of the built-in demo. The home page links to it from the nav and under the hero.
+
 ## [0.106.44] - 2026-11-01 - The Agent Files Protocol has its site
 
 ### Changed

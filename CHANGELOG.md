@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Security
 - `POST /api/messages` passed a client-supplied `fromVerified` straight into the message. Anyone on the network could send `"fromVerified": true`, and a verified message skips the prompt-injection wrapper and the "external sender" tag. The host now decides `fromVerified` from its own checks only. No code in the repo sent the field. Reported by the ai-maestro-app agent.
 
+## [0.106.42] - 2026-11-01 - AGENTS.md for agents other than Claude
+
+### Added
+- `AGENTS.md`, the file Codex, Grok and other coding agents read. It points them at `CLAUDE.md` and lists the pull-request rules (version bump, CHANGELOG entry, tests and build). The rules were only in `CLAUDE.md`, so #742, opened by a Grok agent, arrived without them.
+
 ## [0.106.41] - 2026-11-01 - yarn can compile node-pty on Linux
 
 ### Fixed

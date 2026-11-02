@@ -15,6 +15,9 @@ import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, 
 import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
+import LoadEarlierMessages from '@/components/chat/LoadEarlierMessages'
+import { mergeHistory, prependPage, type HistoryCursor } from '@/lib/chat-history-paging'
+import { useKeepScrollOnPrepend } from '@/hooks/useKeepScrollOnPrepend'
 import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
@@ -236,6 +239,15 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // Scroll-stick: only autoscroll when the user is already near the bottom
   const stickToBottomRef = useRef(true)
   const [hasUnseenMessages, setHasUnseenMessages] = useState(false)
+  // Older history, loaded page by page when the person scrolls up (lib/chat-history-paging)
+  const messagesRef = useRef<Message[]>([])
+  messagesRef.current = messages
+  const historyCursorRef = useRef<HistoryCursor | null>(null)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [olderLoading, setOlderLoading] = useState(false)
+  const [olderFailed, setOlderFailed] = useState(false)
+  const olderTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const keepScrollOnPrepend = useKeepScrollOnPrepend(messagesContainerRef, messages)
 
   // Track if we've done initial load
   const hasLoadedRef = useRef(false)
@@ -282,6 +294,20 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     sendChatMessage('chat:requestHistory', { agentId: agent.id })
   }, [sendChatMessage, agent.id])
 
+  // Ask for the page before the oldest loaded message. A host on an older version answers with the
+  // full history instead (no historyStart), which ends paging; no answer at all becomes "try again".
+  const loadOlder = useCallback(() => {
+    const cursor = historyCursorRef.current
+    if (!cursor || cursor.start <= 0 || olderLoading) return
+    if (!sendChatMessage('chat:requestHistory', { agentId: agent.id, before: cursor.start, conversationFile: cursor.file })) return
+    setOlderLoading(true)
+    setOlderFailed(false)
+    clearTimeout(olderTimeoutRef.current)
+    olderTimeoutRef.current = setTimeout(() => { setOlderLoading(false); setOlderFailed(true) }, 15000)
+  }, [sendChatMessage, agent.id, olderLoading])
+
+  useEffect(() => () => clearTimeout(olderTimeoutRef.current), [])
+
   // Connect/disconnect WebSocket based on isActive
   useEffect(() => {
     if (!isActive || !agent?.id) return
@@ -315,7 +341,11 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           switch (data.type) {
             case 'chat:history': {
               const history = data.data || {}
-              const newMessages = history.messages || []
+              const merged = mergeHistory(messagesRef.current, historyCursorRef.current, history, messageKey)
+              historyCursorRef.current = merged.cursor
+              setHistoryHasMore(merged.hasMore)
+              setOlderLoading(false)
+              const newMessages = merged.messages
               setMessages(newMessages)
               setHookState(history.hookState || null)
               setLastModified(history.lastModified || null)
@@ -334,6 +364,20 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               break
             }
 
+            case 'chat:historyPage': {
+              clearTimeout(olderTimeoutRef.current)
+              const res = prependPage(messagesRef.current, historyCursorRef.current, data.data || {}, messageKey)
+              historyCursorRef.current = res.cursor
+              setHistoryHasMore(res.hasMore)
+              setOlderFailed(res.failed)
+              setOlderLoading(false)
+              if (res.messages !== messagesRef.current) {
+                keepScrollOnPrepend()
+                setMessages(res.messages)
+              }
+              break
+            }
+
             case 'chat:messages': {
               // Incremental new messages from JSONL watcher (only fires on real file changes)
               const newMsgs = data.data || []
@@ -343,7 +387,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                   const existingKeys = new Set(prev.map(messageKey))
                   const uniqueNew = newMsgs.filter((m: Message) => !existingKeys.has(messageKey(m)))
                   if (uniqueNew.length === 0) return prev
-                  return [...prev, ...uniqueNew].slice(-200)
+                  // No cap: older pages the person loaded stay (the cursor counts from the front)
+                  return [...prev, ...uniqueNew]
                 })
                 // Clear a pending bubble ONLY when ITS OWN echo appears in the
                 // transcript (user message or queued enqueue with matching text).
@@ -954,6 +999,17 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             <p className="text-base text-gray-400">Talk to {agent.label || agent.name || agent.alias || 'this agent'}</p>
             <p className="text-xs mt-1">Send instructions, approve permissions, or ask questions</p>
           </div>
+        )}
+
+        {messages.length > 0 && (
+          <LoadEarlierMessages
+            hasMore={historyHasMore}
+            loading={olderLoading}
+            failed={olderFailed}
+            atStart={historyCursorRef.current?.start === 0}
+            onLoad={loadOlder}
+            rootRef={messagesContainerRef}
+          />
         )}
 
         {groupedItems.map((item, index) => {

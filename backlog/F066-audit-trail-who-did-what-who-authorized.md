@@ -1,6 +1,6 @@
 # F066 - Audit trail: what each agent did, who authorized it, and under which rules
 
-**Status:** Todo (foundation for F067)
+**Status:** Todo (spec drafted: `docs/SPEC-AUDIT-TRAIL.md`; slice 1 ships as an experiment; foundation for F067)
 **Type:** Feature
 **Created:** 2026-11-02
 
@@ -49,6 +49,9 @@ Jaime's helpdesk deployment had to build its own action log, transcript store an
 - It reduces support load, because "why did the agent do X" becomes a lookup.
 
 ## Implementation Plan
+
+The event format, sources, storage, API and slices are in `docs/SPEC-AUDIT-TRAIL.md`. Slice 1 is an experiment (Settings > Experiments > Audit trail, a server setting, off by default) built from what the hook and server already see. The steps below are the full plan.
+
 
 1. **Event format and store (S).**
    - One append-only JSONL file per agent per month, `~/.aimaestro/agents/<id>/audit/YYYY-MM.jsonl`, so it moves with the agent.

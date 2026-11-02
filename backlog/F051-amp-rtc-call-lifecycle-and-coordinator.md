@@ -1,8 +1,10 @@
 # F051 - Call lifecycle and coordinator (issue #697, PRs #701 and #709)
 
-**Status:** In Progress (state machine with both review fixes in 0.106.18, `lib/amp-rtc.ts`; the store, signalling and simulated call are open)
+**Status:** Wontfix (merged into F059, 2026-11-02; the state machine shipped in 0.106.18; PRs #701 and #709 closed; issue #697 still open)
 **Type:** Feature
 **Created:** 2026-10-29
+
+> Superseded by F059 (V1). The store and the simulated call are V1 work; PRs #701 and #709 were closed as superseded on 2026-11-01. Kept for history.
 
 ## Description
 

@@ -1,8 +1,10 @@
 # F054 - Shared voice rooms for several people and agents (PR #703, part of #702)
 
-**Status:** Todo (defer; keep the design notes)
+**Status:** Wontfix (split into F061 audio and F062 video, 2026-11-02; PR #703 closed)
 **Type:** Feature
 **Created:** 2026-10-29
+
+> Superseded by F061 (V3, audio conference) and F062 (V4, video meetings). The privacy question below moved to F061 step 5. Kept for history.
 
 ## Description
 

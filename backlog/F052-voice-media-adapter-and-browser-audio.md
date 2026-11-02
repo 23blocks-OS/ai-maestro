@@ -1,8 +1,10 @@
 # F052 - Real-time audio: media adapter and browser microphone (issue #698, PRs #705 and #710)
 
-**Status:** Todo (deferred until the F050 stage-1 result)
+**Status:** Wontfix (merged into F059, 2026-11-02; PRs #705 and #710 closed; issue #698 still open)
 **Type:** Feature
 **Created:** 2026-10-29
+
+> Superseded by F059 (V1), which has the media decision: the phone talks to the voice provider directly, no media server for one-to-one calls. The HTTPS and ICE notes below still apply to the browser client. Kept for history.
 
 ## Description
 

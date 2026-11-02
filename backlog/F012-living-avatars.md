@@ -4,6 +4,8 @@
 **Type:** Feature
 **Created:** 2026-09-23
 
+> The talking face in calls (lip-sync, visemes, photoreal avatars) moved to F060 (V2) on 2026-11-02. This item keeps the state loops.
+
 ## Description
 
 Each agent's avatar becomes a short seamless loop that matches its live state,

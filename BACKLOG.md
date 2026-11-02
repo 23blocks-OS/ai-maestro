@@ -68,15 +68,20 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F047** — [Dependency hygiene: Node end of life, scheduled audit, npm supply chain](./backlog/F047-node-eol-and-dependency-hygiene.md) — `Todo`
 - **F048** — [A security status view per host](./backlog/F048-host-security-status-view.md) — `Todo`
 - **F049** — [Claude Code on Google Vertex AI, with the host's own login](./backlog/F049-claude-code-on-vertex-setup.md) — `In Progress` (script shipped 0.106.10; not yet run on a real host)
-- **F050** — [Agents that can call a person: the decision and the staging](./backlog/F050-agent-initiated-voice-calls-umbrella.md) — `Todo` (decision needed before more RTC code merges)
-- **F051** — [Call lifecycle and coordinator (#697, #701, #709)](./backlog/F051-amp-rtc-call-lifecycle-and-coordinator.md) — `Todo`
-- **F052** — [Real-time audio: media adapter and browser microphone (#698, #705, #710)](./backlog/F052-voice-media-adapter-and-browser-audio.md) — `Todo` (deferred)
-- **F053** — [An agent's call rings a locked iPhone (#699, #707)](./backlog/F053-incoming-agent-call-on-iphone.md) — `Todo`
-- **F054** — [Shared voice rooms for people and agents (#703)](./backlog/F054-voice-rooms-in-zoom-view.md) — `Todo` (deferred)
-- **F055** — [Call interoperability and failure tests (#700)](./backlog/F055-amp-rtc-interoperability-tests.md) — `Todo`
-- **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Todo`
+- **F050** — [Voice and video with agents: the five stages, the pipeline and the providers (umbrella)](./backlog/F050-agent-initiated-voice-calls-umbrella.md) — `In Progress` (plan of record 2026-11-02)
+- **F051** — [Call lifecycle and coordinator (#697, #701, #709)](./backlog/F051-amp-rtc-call-lifecycle-and-coordinator.md) — `Wontfix` (merged into F059)
+- **F052** — [Real-time audio: media adapter and browser microphone (#698, #705, #710)](./backlog/F052-voice-media-adapter-and-browser-audio.md) — `Wontfix` (merged into F059)
+- **F053** — [An agent's call rings a locked iPhone (#699, #707)](./backlog/F053-incoming-agent-call-on-iphone.md) — `Wontfix` (merged into F059)
+- **F054** — [Shared voice rooms for people and agents (#703)](./backlog/F054-voice-rooms-in-zoom-view.md) — `Wontfix` (split into F061 and F062)
+- **F055** — [Call interoperability and failure tests (#700)](./backlog/F055-amp-rtc-interoperability-tests.md) — `Wontfix` (folded into each stage)
+- **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Blocked` (until V1 runs a real call)
 - **F057** — [A directory of humans, owned by hosts the way agents are](./backlog/F057-humans-directory.md) — `In Progress`
 - **F058** — [Optional access token for instances exposed to the internet (experiment)](./backlog/F058-optional-access-token-internet.md) — `Todo`
+- **F059** — [V1: A voice call with an agent](./backlog/F059-v1-voice-call-with-an-agent.md) — `In Progress` (signalling done; real-time pipeline next, spike first)
+- **F060** — [V2: The agent's face in a call (FaceTime with an agent)](./backlog/F060-v2-avatar-in-calls.md) — `Todo`
+- **F061** — [V3: An audio conference with people and agents](./backlog/F061-v3-audio-conference-people-and-agents.md) — `Todo`
+- **F062** — [V4: Video meetings in AI Maestro (our own Zoom)](./backlog/F062-v4-video-meetings-our-zoom.md) — `Todo`
+- **F063** — [V5: Agents join real Zoom, Google Meet and Teams meetings](./backlog/F063-v5-agents-in-zoom-meet-teams.md) — `Todo` (backlog)
 
 ## Bugs
 
@@ -98,7 +103,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B016** — [AMP: a sender on the local provider domain is trusted without a signature check](./backlog/B016-amp-local-domain-sender-unverified.md) — `Todo`
 - **B017** — [Gateways: /api is open when ADMIN_TOKEN is unset](./backlog/B017-gateway-open-api-without-token.md) — `Todo`
 - **B018** — [Installers for agent-identity and agent-files run from main with no checksum](./backlog/B018-installers-unpinned-curl-bash.md) — `Todo`
-- **B019** — [The call screen says "connected" after 2.5 seconds, whatever happens](./backlog/B019-call-overlay-fakes-connection.md) — `Todo`
+- **B019** — [The call screen says "connected" after 2.5 seconds, whatever happens](./backlog/B019-call-overlay-fakes-connection.md) — `Done` (0.106.18)
 
 ## Unfiled
 

@@ -1,6 +1,6 @@
 # Spec: People, calls and meetings
 
-**Status:** Draft for review (2026-10-29). Nothing here is built. Backlog: F050 (umbrella), F051-F057, B019.
+**Status:** Draft for review (2026-10-29). Nothing here is built. Backlog: F050 (umbrella) and the five stages F059-F063 (V1 call, V2 face, V3 conference, V4 video meetings, V5 Zoom/Meet/Teams); F057 directory. The voice pipeline and providers are in F050.
 **Goal:** several humans and several agents working together, with a real call experience (like FaceTime) and a real meeting experience (like Zoom).
 
 ## 1. Where we are

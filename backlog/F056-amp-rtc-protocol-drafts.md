@@ -1,6 +1,6 @@
 # F056 - The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)
 
-**Status:** Todo (review done; position needed before the protocol repo merges anything)
+**Status:** Blocked (drafts stay drafts until V1, F059, runs a real call; then the wire format is written from what ran)
 **Type:** Feature
 **Created:** 2026-10-29
 

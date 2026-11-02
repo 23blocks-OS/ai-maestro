@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.58] - 2026-11-02 - The chat loads earlier messages
+
+### Fixed
+- The chat showed only a few messages back. The server sent the last 200 transcript entries, and every tool call, tool result and thinking block is an entry, so a busy turn left a handful of messages; both chat views also cut the list to 200 entries on every new message. History now comes in pages of about 40 conversation messages (tool calls do not count). Scrolling to the top loads the previous page ("Loading earlier messages…", with a "Load earlier messages" button and "Beginning of this conversation" at the end), the reading position stays where it was, and a refresh keeps the pages already loaded. Works for agents on other hosts once those hosts run this version; an older host simply offers no earlier pages.
+
 ## [0.106.57] - 2026-11-02 - README points to the new sites
 
 ### Changed

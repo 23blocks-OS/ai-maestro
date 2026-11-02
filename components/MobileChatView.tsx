@@ -17,6 +17,9 @@ import {
   paneCardBelongsToTranscriptQuestion,
 } from '@/lib/question-state.mjs'
 import MobileToolBurstGroup from '@/components/chat/MobileToolBurstGroup'
+import LoadEarlierMessages from '@/components/chat/LoadEarlierMessages'
+import { mergeHistory, prependPage, type HistoryCursor } from '@/lib/chat-history-paging'
+import { useKeepScrollOnPrepend } from '@/hooks/useKeepScrollOnPrepend'
 import { groupMessages, getToolPreviewText, type ToolBurst } from '@/lib/chat-utils'
 
 interface MobileChatViewProps {
@@ -210,6 +213,11 @@ function extractText(msg: ChatMessage): string {
   return ''
 }
 
+/** One key per message: its uuid, else type, time and text (uuid-less batches overlap otherwise) */
+function chatMessageKey(m: ChatMessage): string {
+  return m.uuid || `${m.type}|${m.timestamp || ''}|${extractText(m).slice(0, 120)}`
+}
+
 // Extract tool use info from a message
 function extractToolUses(msg: ChatMessage): { name: string; preview: string }[] {
   const content = msg.message?.content
@@ -294,6 +302,15 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const reconnectAttemptsRef = useRef(0)
+  // Older history, loaded page by page when the person scrolls up (lib/chat-history-paging)
+  const messagesRef = useRef<ChatMessage[]>([])
+  messagesRef.current = messages
+  const historyCursorRef = useRef<HistoryCursor | null>(null)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [olderLoading, setOlderLoading] = useState(false)
+  const [olderFailed, setOlderFailed] = useState(false)
+  const olderTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const keepScrollOnPrepend = useKeepScrollOnPrepend(scrollContainerRef, messages)
 
   // The session name to use for the WebSocket URL
   const wsSessionName = sessionNameProp || agentName
@@ -316,6 +333,27 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     }
     return false
   }, [])
+
+  // Ask for the page before the oldest loaded message. A host on an older version answers with the
+  // full history instead (no historyStart), which ends paging; no answer at all becomes "try again".
+  const loadOlder = useCallback(() => {
+    const cursor = historyCursorRef.current
+    if (!cursor || cursor.start <= 0 || olderLoading) return
+    if (!sendChatWs('chat:requestHistory', { agentId, before: cursor.start, conversationFile: cursor.file })) return
+    setOlderLoading(true)
+    setOlderFailed(false)
+    clearTimeout(olderTimeoutRef.current)
+    olderTimeoutRef.current = setTimeout(() => { setOlderLoading(false); setOlderFailed(true) }, 15000)
+  }, [sendChatWs, agentId, olderLoading])
+
+  // Another agent in the same view: its history starts fresh
+  useEffect(() => {
+    historyCursorRef.current = null
+    setHistoryHasMore(false)
+    setOlderLoading(false)
+    setOlderFailed(false)
+    return () => clearTimeout(olderTimeoutRef.current)
+  }, [agentId])
 
   // Connect WebSocket on mount
   useEffect(() => {
@@ -346,8 +384,26 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           switch (data.type) {
             case 'chat:history': {
               const history = data.data || {}
-              setMessages(history.messages || [])
+              const merged = mergeHistory(messagesRef.current, historyCursorRef.current, history, chatMessageKey)
+              historyCursorRef.current = merged.cursor
+              setHistoryHasMore(merged.hasMore)
+              setOlderLoading(false)
+              setMessages(merged.messages)
               setHookState(history.hookState || null)
+              break
+            }
+
+            case 'chat:historyPage': {
+              clearTimeout(olderTimeoutRef.current)
+              const res = prependPage(messagesRef.current, historyCursorRef.current, data.data || {}, chatMessageKey)
+              historyCursorRef.current = res.cursor
+              setHistoryHasMore(res.hasMore)
+              setOlderFailed(res.failed)
+              setOlderLoading(false)
+              if (res.messages !== messagesRef.current) {
+                keepScrollOnPrepend()
+                setMessages(res.messages)
+              }
               break
             }
 
@@ -355,15 +411,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               const newMsgs = data.data || []
               if (newMsgs.length > 0) {
                 setMessages(prev => {
-                  // `!m.uuid ||` waved every uuid-less message through, so an
-                  // overlapping batch appended it again. Fall back to a content
-                  // key the way ChatView does.
-                  const key = (m: ChatMessage) =>
-                    m.uuid || `${m.type}|${m.timestamp || ''}|${extractText(m).slice(0, 120)}`
-                  const existingKeys = new Set(prev.map(key))
-                  const uniqueNew = newMsgs.filter((m: ChatMessage) => !existingKeys.has(key(m)))
+                  const existingKeys = new Set(prev.map(chatMessageKey))
+                  const uniqueNew = newMsgs.filter((m: ChatMessage) => !existingKeys.has(chatMessageKey(m)))
                   if (uniqueNew.length === 0) return prev
-                  return [...prev, ...uniqueNew].slice(-200)
+                  // No cap: older pages the person loaded stay (the cursor counts from the front)
+                  return [...prev, ...uniqueNew]
                 })
                 // Clear a bubble only when ITS OWN text is in the transcript.
                 // This used to clear ALL pending on any incoming batch, so
@@ -607,6 +659,17 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           <div className="mx-3 my-2 px-3 py-2 rounded-lg bg-red-900/20 border border-red-800/50">
             <p className="text-xs text-red-400">{error}</p>
           </div>
+        )}
+
+        {messages.length > 0 && (
+          <LoadEarlierMessages
+            hasMore={historyHasMore}
+            loading={olderLoading}
+            failed={olderFailed}
+            atStart={historyCursorRef.current?.start === 0}
+            onLoad={loadOlder}
+            rootRef={scrollContainerRef}
+          />
         )}
 
         {groupedItems.map((item, i) => {

@@ -228,6 +228,19 @@ no specific question; Claude reads it as *"The user responded: …"*.
 
 ---
 
+## History is paged
+
+`chat:history` (connect, refresh, a new conversation file) carries the newest page: about 40 conversation messages, counted by `isConversationMessage` in `lib/chat-transcript.mjs`, so tool calls, results and thinking come along without using up the page (at most 1500 entries). It also carries `historyStart`, the index where that page begins, and `hasMore`.
+
+Scrolling to the top sends `chat:requestHistory` with `before: historyStart` and the `conversationFile`; the server answers `chat:historyPage` with the page that ends there (`getChatHistoryPage`). Both views keep the list through `lib/chat-history-paging.ts`:
+
+- `prependPage` adds an older page and moves the cursor; a page for another file or an old cursor is ignored.
+- `mergeHistory` keeps the loaded older pages when the history is pushed again for the same conversation, and starts over on a new one.
+- Incremental `chat:messages` are appended with no cap, because the cursor counts from the front of the list.
+- `useKeepScrollOnPrepend` keeps the reading position (Safari has no CSS scroll anchoring).
+
+A host on an older version ignores `before` and answers with the full history without `historyStart`, which ends paging; no answer at all shows "try again" after 15 seconds. The chat socket to a remote host is forwarded as is, so paging works for agents on other hosts once they run this version.
+
 ## Optimistic state — the rules
 
 The chat shows your message before the agent has it. Everything below exists

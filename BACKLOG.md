@@ -82,6 +82,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F061** — [V3: An audio conference with people and agents](./backlog/F061-v3-audio-conference-people-and-agents.md) — `Todo`
 - **F062** — [V4: Video meetings in AI Maestro (our own Zoom)](./backlog/F062-v4-video-meetings-our-zoom.md) — `Todo`
 - **F063** — [V5: Agents join real Zoom, Google Meet and Teams meetings](./backlog/F063-v5-agents-in-zoom-meet-teams.md) — `Todo` (backlog)
+- **F064** — [V6: Real telephony, each agent has its own phone number](./backlog/F064-v6-real-telephony-agent-phone-numbers.md) — `Todo`
+- **F065** — [Secrets with a scope (agent, host, organization) and permissions](./backlog/F065-scoped-secrets-shared-across-org.md) — `Todo` (spec drafted; phase 1 needed by F059)
 
 ## Bugs
 
@@ -104,6 +106,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B017** — [Gateways: /api is open when ADMIN_TOKEN is unset](./backlog/B017-gateway-open-api-without-token.md) — `Todo`
 - **B018** — [Installers for agent-identity and agent-files run from main with no checksum](./backlog/B018-installers-unpinned-curl-bash.md) — `Todo`
 - **B019** — [The call screen says "connected" after 2.5 seconds, whatever happens](./backlog/B019-call-overlay-fakes-connection.md) — `Done` (0.106.18)
+- **B020** — [AI Maestro's own secrets are kept in plain files, outside the vault](./backlog/B020-service-secrets-outside-the-vault.md) — `Todo` (first step of F065 phase 1)
+- **B021** — [Agents on one host can read every secret and every agent key on it](./backlog/B021-agents-on-a-host-share-one-key-store.md) — `Todo` (accepted trade-off; docs only; containers isolate)
 
 ## Unfiled
 

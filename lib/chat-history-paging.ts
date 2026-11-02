@@ -27,9 +27,12 @@ interface HistoryPage<T> {
   failed?: boolean
 }
 
-function dedupe<T>(list: T[], key: (m: T) => string): T[] {
+// Only entries with a uuid can be duplicates. Meta entries (mode, ai-title, permission-mode…) have
+// none and share a fallback key, yet historyStart counts every one: dropping them shifts the cursor.
+function dedupe<T extends { uuid?: string }>(list: T[], key: (m: T) => string): T[] {
   const seen = new Set<string>()
   return list.filter(m => {
+    if (!m.uuid) return true
     const k = key(m)
     if (seen.has(k)) return false
     seen.add(k)
@@ -41,7 +44,7 @@ function dedupe<T>(list: T[], key: (m: T) => string): T[] {
  * A full history push (connect, refresh, reconnect). Keeps the older pages already loaded when it
  * is the same conversation, so a refresh does not throw away what the person scrolled back to.
  */
-export function mergeHistory<T>(prev: T[], cursor: HistoryCursor | null, history: HistoryPush<T>, key: (m: T) => string) {
+export function mergeHistory<T extends { uuid?: string }>(prev: T[], cursor: HistoryCursor | null, history: HistoryPush<T>, key: (m: T) => string) {
   const messages = history.messages || []
   // A server without paging sends no historyStart: show what it sent, offer nothing older
   if (typeof history.historyStart !== 'number') return { messages, cursor: null, hasMore: false }
@@ -54,7 +57,7 @@ export function mergeHistory<T>(prev: T[], cursor: HistoryCursor | null, history
 }
 
 /** An older page arrived. Ignored when it answers a cursor we no longer have. */
-export function prependPage<T>(prev: T[], cursor: HistoryCursor | null, page: HistoryPage<T>, key: (m: T) => string) {
+export function prependPage<T extends { uuid?: string }>(prev: T[], cursor: HistoryCursor | null, page: HistoryPage<T>, key: (m: T) => string) {
   if (!cursor) return { messages: prev, cursor, hasMore: false, failed: false }
   if (page.failed) return { messages: prev, cursor, hasMore: cursor.start > 0, failed: true }
   if (page.conversationFile !== cursor.file) return { messages: prev, cursor, hasMore: false, failed: false }

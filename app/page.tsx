@@ -192,6 +192,8 @@ export default function DashboardPage() {
   // The ?agent= param is only used for deep-linking (e.g., from immersive → dashboard).
   // After reading, we remove it so it doesn't interfere with future navigation.
   const urlParamProcessedRef = useState(() => ({ current: false }))[0]
+  // The phone layout keeps its own agent and view, so it gets the link as it was
+  const [phoneLink, setPhoneLink] = useState<{ agentId: string; view: 'chat' | 'terminal' | null } | null>(null)
 
   useEffect(() => {
     if (urlParamProcessedRef.current) return
@@ -205,6 +207,7 @@ export default function DashboardPage() {
       // ?tab=chat|terminal lands on that view (the World view's "Chat" and "Terminal" buttons)
       const tabParam = params.get('tab')
       if (tabParam === 'chat' || tabParam === 'terminal') setActiveTab(tabParam)
+      setPhoneLink({ agentId: decodeURIComponent(agentParam), view: tabParam === 'chat' || tabParam === 'terminal' ? tabParam : null })
       window.history.replaceState({}, '', window.location.pathname)
       urlParamProcessedRef.current = true
     } else if (sessionParam) {
@@ -648,6 +651,7 @@ export default function DashboardPage() {
           loading={agentsLoading}
           error={agentsError?.message || null}
           onRefresh={refreshAgents}
+          link={phoneLink}
         />
       </TerminalProvider>
     )

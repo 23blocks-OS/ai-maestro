@@ -22,13 +22,18 @@ interface MobileDashboardProps {
   loading: boolean
   error: string | null
   onRefresh: () => void
+  /** A ?agent=&tab= link: open that agent, in that view */
+  link?: { agentId: string; view: 'chat' | 'terminal' | null } | null
 }
+
+const LAST_AGENT_KEY = 'aimaestro-mobile-agent'
 
 export default function MobileDashboard({
   agents,
   loading,
   error,
-  onRefresh
+  onRefresh,
+  link
 }: MobileDashboardProps) {
   const { hosts } = useHosts()
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -47,12 +52,20 @@ export default function MobileDashboard({
     [agents]
   )
 
-  // Auto-select first agent when agents load
+  // Open the linked agent, else the one picked last on this phone. Never pick one at random:
+  // the first online agent could be anyone's, and its terminal would take this phone's size.
   useEffect(() => {
-    if (onlineAgents.length > 0 && !activeAgentId) {
-      setActiveAgentId(onlineAgents[0].id)
+    if (link) {
+      setActiveAgentId(link.agentId)
+      if (link.view) setViewMode(link.view)
+      setActiveTab('terminal')
+    } else {
+      setActiveAgentId(id => id ?? localStorage.getItem(LAST_AGENT_KEY))
     }
-  }, [onlineAgents, activeAgentId])
+  }, [link])
+  useEffect(() => {
+    if (activeAgentId) localStorage.setItem(LAST_AGENT_KEY, activeAgentId)
+  }, [activeAgentId])
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)
   // The Hosts tab lists every agent, so one that is asleep can be picked. It needs a way to be woken here.
@@ -111,11 +124,13 @@ export default function MobileDashboard({
           {/* Current Agent Display with Connection Status */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Connection indicator - green/red dot */}
-            <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                isActiveAgentConnected ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            />
+            {viewMode === 'terminal' && (
+              <div
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  isActiveAgentConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              />
+            )}
             <Terminal className="w-5 h-5 text-blue-400 flex-shrink-0" />
             <span className="text-sm font-medium text-white truncate">
               {getAgentHostDisplay()}
@@ -155,6 +170,20 @@ export default function MobileDashboard({
               onClick={() => setActiveTab('hosts')}
               className="min-h-[44px] px-5 py-2 rounded-lg bg-blue-600 text-white text-sm active:bg-blue-500"
               data-testid="mobile-open-hosts"
+            >
+              Open Hosts
+            </button>
+          </div>
+        )}
+
+        {/* Agents are online but none is picked yet */}
+        {(activeTab === 'terminal' || activeTab === 'messages') && onlineAgents.length > 0 && !activeAgent && (
+          <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
+            <Terminal className="w-16 h-16 text-gray-600 mb-4" />
+            <p className="text-lg font-medium text-gray-300 mb-5">Pick an agent</p>
+            <button
+              onClick={() => setActiveTab('hosts')}
+              className="min-h-[44px] px-5 py-2 rounded-lg bg-blue-600 text-white text-sm active:bg-blue-500"
             >
               Open Hosts
             </button>
@@ -226,21 +255,19 @@ export default function MobileDashboard({
                       </button>
                     </div>
 
-                    {/* Terminal - mounted only for active agent (lazy-mount for mobile RAM savings) */}
-                    <div
-                      className="absolute inset-0 flex flex-col"
-                      style={{
-                        visibility: viewMode === 'terminal' ? 'visible' : 'hidden',
-                        pointerEvents: viewMode === 'terminal' ? 'auto' : 'none'
-                      }}
-                    >
-                      <TerminalView
-                        session={session}
-                        hideFooter={true}
-                        hideHeader={true}
-                        onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
-                      />
-                    </div>
+                    {/* Terminal: mounted only in terminal mode. A mounted terminal is an attached tmux
+                        client, and tmux sizes the window to it, so a phone reading the chat would
+                        shrink the agent's terminal for everyone else (B001). */}
+                    {viewMode === 'terminal' && (
+                      <div className="absolute inset-0 flex flex-col">
+                        <TerminalView
+                          session={session}
+                          hideFooter={true}
+                          hideHeader={true}
+                          onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
+                        />
+                      </div>
+                    )}
 
                     {/* Chat view (mounted/unmounted) */}
                     {viewMode === 'chat' && (

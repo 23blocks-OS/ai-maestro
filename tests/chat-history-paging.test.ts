@@ -92,6 +92,20 @@ describe('mergeHistory and prependPage', () => {
     expect(r.cursor).toEqual({ file: 'b', start: 0 })
   })
 
+  it('keeps uuid-less meta entries, so a refresh after older pages lines up with the cursor', () => {
+    // Meta entries (mode, ai-title…) have no uuid and share a key, but historyStart counts them
+    type E = { uuid?: string; type: string }
+    const conv: E[] = Array.from({ length: 12 }, (_, i) => (i % 3 === 0 ? { type: 'mode' } : { uuid: `u${i}`, type: 'user' }))
+    const k = (m: E) => m.uuid || `${m.type}||`
+    let r = mergeHistory<E>([], null, { messages: conv.slice(8), conversationFile: 'a', historyStart: 8, hasMore: true }, k)
+    let p = prependPage<E>(r.messages, r.cursor, { messages: conv.slice(4, 8), conversationFile: 'a', start: 4, before: 8, hasMore: true }, k)
+    p = prependPage<E>(p.messages, p.cursor, { messages: conv.slice(0, 4), conversationFile: 'a', start: 0, before: 4, hasMore: false }, k)
+    expect(p.messages).toEqual(conv)
+    const grown = [...conv, { uuid: 'u12', type: 'user' }]
+    r = mergeHistory<E>(p.messages, p.cursor, { messages: grown.slice(9), conversationFile: 'a', historyStart: 9, hasMore: true }, k)
+    expect(r.messages).toEqual(grown)
+  })
+
   it('a failed page keeps the list and offers to try again', () => {
     const r = prependPage(all.slice(6), { file: 'a', start: 6 }, { failed: true }, key)
     expect(r.failed).toBe(true)

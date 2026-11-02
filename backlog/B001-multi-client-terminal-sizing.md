@@ -32,6 +32,14 @@ reclaim the size without typing.
 `server.mjs:2308` does apply any client's resize to its own PTY unconditionally,
 but that is one tmux client asking; tmux decides what the window becomes.
 
+## Update 2026-11-02 (0.106.60): the phone no longer attaches in chat mode
+
+The most common case was a phone reading the chat. MobileDashboard kept TerminalView mounted behind
+the chat, so the phone stayed an attached tmux client and shrank the window for everyone, and it
+ignored `?agent=`/`?tab=` and auto-opened `onlineAgents[0]` (reported by pas-lola and tct-gm).
+Now the terminal mounts only in terminal mode, links are honoured, and nothing is auto-selected.
+A phone in **terminal** mode still resizes the window: the general fix below is still open.
+
 ## Why It's Needed
 
 Two browsers on one agent is ordinary: a desktop and a phone, or a second tab.

@@ -8,12 +8,14 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.55-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.56-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
 
 ![AI Maestro Dashboard](./docs/images/aiteam-web.png)
+
+**[Website](https://getaimaestro.com)** · **[Docs](https://aimaestro.sh)** · [Blog](https://getaimaestro.com/blog/)
 
 [Quick Start](#quick-start) · [Features](#features) · [Skills](#skills) · [Protocols](#protocols) · [Documentation](#documentation) · [Contributing](./CONTRIBUTING.md)
 
@@ -374,6 +376,8 @@ AI Maestro implements four open protocols, all under [github.com/agentmessaging]
 
 ## Documentation
 
+The documentation site is **[aimaestro.sh](https://aimaestro.sh)** (install and guides). The project home, the iPhone app and the blog are at **[getaimaestro.com](https://getaimaestro.com)**. The Markdown files below are the same guides in this repository.
+
 **New here?**
 - [Quick Start Guide](./docs/QUICKSTART.md) — Get up and running
 - [Core Concepts](./docs/CONCEPTS.md) — Understand how it works
@@ -381,7 +385,7 @@ AI Maestro implements four open protocols, all under [github.com/agentmessaging]
 
 **Going deeper:**
 - [Multi-Machine Setup](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
-- [Cloud Deployment (AWS)](./docs/cloud-aws.html) · [Docker Agents](./docs/docker-local.html)
+- [Cloud Deployment (AWS)](https://aimaestro.sh/cloud-aws.html) · [Docker Agents](https://aimaestro.sh/docker-local.html)
 - [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
 - [Chat Architecture](./docs/CHAT-ARCHITECTURE.md) — how messages reach an agent, and how questions come back
 - [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png) · [Long-term memory](./docs/LONG-TERM-MEMORY.md)

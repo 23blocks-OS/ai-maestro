@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.56] - 2026-11-02 - README points to the new sites
+
+### Changed
+- README: links to the website (getaimaestro.com), the docs site (aimaestro.sh) and the blog at the top, a line naming both sites in Documentation, and the AWS and Docker guides linked on aimaestro.sh instead of as HTML source files. The GitHub repository's homepage is now getaimaestro.com.
+
+### Fixed
+- `docs/COPY-MOVE-CLONE-AGENTS.md` linked `aimaestro.sh/agent-portability`, which does not exist; it now links the agent management guide.
+
 ## [0.106.55] - 2026-11-02 - Voice and video plan: five stages, one pipeline (backlog only)
 
 ### Changed

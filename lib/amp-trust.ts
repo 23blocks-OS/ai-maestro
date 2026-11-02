@@ -32,6 +32,11 @@ export interface VerificationRecord {
   /** sha256 (base64) of the payload as signed, before any wrapping. */
   payload_sha256: string
   checked_at: string
+  /** AMP spec 13: the sender is a person, signing on one of their approved devices */
+  sender_kind?: 'person'
+  person_id?: string
+  /** The person is this agent's humanManager, so their message carries operator authority */
+  operator?: boolean
 }
 
 export interface SignedFields {

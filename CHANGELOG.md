@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.54] - 2026-11-01 - Person messaging, step 4: agents reply, and the phone is told
+
+### Added
+- A message to a person's address (`p-<personId>@…`) lands in their mailbox on the host that holds them, as unread, with `verified` set from the sender's signature. From any other host it is forwarded there; a forwarded message that reaches a host without the person stops with 404, so mail never loops. `amp-reply` needs no change: it writes straight to disk only for agents on the same machine, so a reply to a person always goes through the server.
+- Push type `message`: the person's phones paired to that host that opted in get "<agent> sent you a message", never the subject or text, with `data {personId, messageId, agentAddress, agentId?}` so the app opens the message. Android channel `message`. One push per agent per person per minute; every message still lands in the mailbox.
+- A person's message carries operator authority only for agents whose `humanManager` is that person. To any other agent it is delivered verified but wrapped as outside content. `local.verification` records `sender_kind: "person"`, `person_id` and `operator`, and `amp-read` says which on the signature line (agentmessaging/claude-plugin #53).
+
+### Fixed
+- A person could not reach an agent on another host: a send from the app enters `routeMessage` as this host's own mesh traffic, and mesh traffic only looked for the recipient here. It now gets the full mesh lookup.
+
 ## [0.106.53] - 2026-11-01 - Person messaging, step 3: a person sends, and has a mailbox
 
 ### Added

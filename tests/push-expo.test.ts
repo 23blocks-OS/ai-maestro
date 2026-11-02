@@ -20,7 +20,7 @@ vi.mock('@/lib/agent-registry', () => ({
 
 import { pairDevice, listDevices } from '@/services/person-devices-service'
 import { getDevice } from '@/lib/person-devices-registry'
-import { pushNeedsYou, pushCall, COOLDOWN_MS, agentHeading } from '@/lib/push-expo'
+import { pushNeedsYou, pushCall, pushMessage, COOLDOWN_MS, agentHeading } from '@/lib/push-expo'
 
 const TOKEN = 'ExponentPushToken[abcdefghijklmnop]'
 const P1 = 'f3b1c2d4-0000-4000-8000-000000000001'
@@ -179,6 +179,23 @@ describe('pushCall', () => {
     await pushCall(ring({ callee: 'agent:lola' }))
     await pushCall(ring({ expiresAt: '2026-10-29T19:59:59.000Z' }))
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('pushMessage', () => {
+  it('tells only this person\'s opted-in phones who wrote, with ids and never the text', async () => {
+    pair('device-ana-1', { pushToken: TOKEN, pushTypes: ['message'] })
+    pair('device-ana-2', { pushToken: 'ExponentPushToken[zzzzzzzzzzzzzzzz]', pushTypes: ['call'] })
+    const fetchMock = vi.fn().mockResolvedValue(ok())
+    vi.stubGlobal('fetch', fetchMock)
+    const m = { personId: P1, messageId: 'msg_1_a', agentAddress: 'ai-maestro@acme.aimaestro.local', agentId: 'agent-g', senderName: 'ai-maestro' }
+    await pushMessage(m)
+    await pushMessage({ ...m, messageId: 'msg_2_b' }) // same agent inside the window: no second buzz
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ to: TOKEN, title: 'George (AI Maestro product owner) sent you a message', body: 'Open AI Maestro to read it.', channelId: 'message',
+      data: { type: 'message', personId: P1, messageId: 'msg_1_a', agentAddress: 'ai-maestro@acme.aimaestro.local', agentId: 'agent-g', hostId: 'self-host' } })
   })
 })
 

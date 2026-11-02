@@ -48,7 +48,7 @@ interface ExpoMessage {
   to: string
   title: string
   body: string
-  data: { type: PushType; agentId?: string; callId?: string; hostId: string }
+  data: { type: PushType; agentId?: string; callId?: string; hostId: string; personId?: string; messageId?: string; agentAddress?: string }
   channelId: string
   /** Seconds Expo keeps trying to deliver; a call that has stopped ringing is not worth delivering */
   ttl?: number
@@ -136,6 +136,27 @@ export async function pushNeedsYou(agentId?: string, sessionName?: string): Prom
     priority: 'high',
     sound: 'default',
     interruptionLevel: 'time-sensitive',
+  }))
+}
+
+/**
+ * A message landed in a person's mailbox: notify their devices paired here that opted in to `message`.
+ * Never the subject or body; the app fetches the message by id.
+ */
+export async function pushMessage(m: { personId: string; messageId: string; agentAddress: string; agentId?: string; senderName: string }): Promise<void> {
+  if (!claimSlot(`message:${m.personId}:${m.agentAddress}`, COOLDOWN_MS)) return
+  const targets = loadDevices().filter(d => d.personId === m.personId && d.pushToken && d.pushTypes?.includes('message'))
+  if (!targets.length) return
+  const name = agentHeading(m.agentId ? getAgent(m.agentId) : null) || m.senderName
+  const hostId = getSelfHostId()
+  await deliver(targets, to => ({
+    to,
+    title: `${name} sent you a message`,
+    body: 'Open AI Maestro to read it.',
+    data: { type: 'message', personId: m.personId, messageId: m.messageId, agentAddress: m.agentAddress, hostId, ...(m.agentId && { agentId: m.agentId }) },
+    channelId: 'message',
+    priority: 'high',
+    sound: 'default',
   }))
 }
 

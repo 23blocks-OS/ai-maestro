@@ -5,7 +5,7 @@
  */
 
 import { findDeviceKey } from '@/lib/person-devices-registry'
-import { getHostById } from '@/lib/hosts-config'
+import { getHostById, getPeerHosts } from '@/lib/hosts-config'
 import type { DeviceKey } from '@/lib/person-signing'
 import type { PersonDeviceRecord } from '@/types/person-device'
 
@@ -26,4 +26,18 @@ export async function personKeyFor(keyId: string, viaHostId?: string | null): Pr
   } catch {
     return null
   }
+}
+
+/** The peer host that holds this person's record (and so their mailbox), or null. Asks all peers at once. */
+export async function personHostFor(personId: string): Promise<{ id: string; url: string } | null> {
+  const peers = getPeerHosts().filter(h => h.url && h.enabled !== false)
+  const found = await Promise.all(peers.map(async h => {
+    try {
+      const res = await fetch(`${h.url.replace(/\/$/, '')}/api/people/${encodeURIComponent(personId)}`, { signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS) })
+      return res.ok ? h : null
+    } catch {
+      return null
+    }
+  }))
+  return found.find(Boolean) ?? null
 }

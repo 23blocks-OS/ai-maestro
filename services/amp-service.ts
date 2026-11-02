@@ -75,7 +75,11 @@ import type {
 } from '@/lib/types/amp'
 import { type ServiceResult } from '@/services/service-errors'
 import { personIdFromAddress } from '@/lib/person-address'
-import { personKeyFor } from '@/lib/person-keys'
+import { personKeyFor, personHostFor } from '@/lib/person-keys'
+import { personAddress } from '@/lib/person-address'
+import { saveMessage as savePersonMessage } from '@/lib/person-mailbox'
+import { getPerson } from '@/lib/people-registry'
+import { pushMessage } from '@/lib/push-expo'
 import { checkPersonSend, personNonces, rawKeyToHex } from '@/lib/person-signing'
 
 // ---------------------------------------------------------------------------
@@ -926,6 +930,8 @@ export async function routeMessage(
 
     // ── Sender Resolution ──────────────────────────────────────────────
     const isMeshForwarded = !!forwardedFrom && auth.agentId?.startsWith('mesh-')
+    // This host's own traffic entering as mesh (a person sending from the app): it still needs the whole mesh lookup
+    const fromThisHost = isMeshForwarded && isSelf(forwardedFrom!)
     const senderAgent = isMeshForwarded ? null : getAgent(auth.agentId!)
 
     if (!senderAgent && !isMeshForwarded) {
@@ -1131,6 +1137,7 @@ export async function routeMessage(
       now,
     })
     if (verifyReason) verification.reason = verifyReason
+    if (personSender) Object.assign(verification, { sender_kind: 'person', person_id: personSender })
 
     // ── Provider Scope Check ───────────────────────────────────────────
     const organization = getOrganization() || undefined
@@ -1151,6 +1158,33 @@ export async function routeMessage(
       }
     }
 
+    // ── A person recipient (AMP spec 13.5): their mailbox, on the host that holds them ──
+    const personRecipient = personIdFromAddress(fwdMeta?.original_to ?? body.to)
+    if (personRecipient) {
+      const person = getPerson(personRecipient)
+      if (person && person.active !== false) {
+        savePersonMessage(personRecipient, {
+          id: messageId, box: 'inbox', from: envelope.from, to: personAddress(personRecipient),
+          subject: envelope.subject, priority: envelope.priority, ...(body.in_reply_to ? { in_reply_to: body.in_reply_to } : {}),
+          timestamp: now, payload: body.payload as any, ...(envelope.signature ? { signature: envelope.signature } : {}),
+          sender_kind: personSender ? 'person' : 'agent', verified: verification.state === 'verified', status: 'unread',
+        })
+        const agentId = senderAgent?.id || (personSender ? undefined : getAgentByNameAnyHost(senderName)?.id)
+        pushMessage({ personId: personRecipient, messageId, agentAddress: envelope.from, agentId, senderName }).catch(() => {})
+        return { data: { id: messageId, status: 'delivered', method: 'local', delivered_at: now } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
+      }
+      // A forwarded message stops here: the host that forwarded it already asked every peer
+      const home = isMeshForwarded && !fromThisHost ? null : await personHostFor(personRecipient)
+      if (!home) {
+        return { data: { error: 'not_found', message: `No host holds the person ${personRecipient}` }, status: 404 }
+      }
+      const fwd = await forwardToHost(home, `p-${personRecipient}`, envelope, body, getSelfHostId(), senderKeyPair?.publicPem)
+      if (!fwd.ok) {
+        return { data: { error: 'internal_error', message: `Delivery to ${home.id} failed: ${fwd.error}` }, status: 502 }
+      }
+      return { data: { id: (fwd.result?.id as string) || messageId, status: 'delivered', method: 'mesh', delivered_at: now, remote_host: home.id } as AMPRouteResponse, status: 200, headers: rateLimitHeaders }
+    }
+
     // ── Recipient Resolution ───────────────────────────────────────────
     // Normalize to lowercase — agent names are case-insensitive
     const recipientName = (recipientParsed?.name || body.to.split('@')[0]).toLowerCase()
@@ -1165,7 +1199,7 @@ export async function routeMessage(
     let resolvedHostId: string | undefined
     let resolvedAgentId: string | undefined
 
-    if (isMeshForwarded) {
+    if (isMeshForwarded && !fromThisHost) {
       const localAgent = getAgentByName(recipientName, selfHostIdValue)
       if (localAgent) {
         resolvedHostId = selfHostIdValue
@@ -1266,11 +1300,14 @@ export async function routeMessage(
     }
 
     const recipientAgentName = localAgent.name || localAgent.alias || recipientName
+    // A person's message carries operator authority only for agents they manage; to any other agent it is data
+    const operator = !!personSender && localAgent.humanManager === personSender
+    if (personSender) verification.operator = operator
 
     try {
       await deliverLocally({
         envelope, payload: body.payload, localAgent, recipientAgentName,
-        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex || personKeyHex, body, verification
+        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex || (operator ? personKeyHex : undefined), body, verification
       })
 
       return {

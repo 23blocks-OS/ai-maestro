@@ -84,6 +84,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F063** — [V5: Agents join real Zoom, Google Meet and Teams meetings](./backlog/F063-v5-agents-in-zoom-meet-teams.md) — `Todo` (backlog)
 - **F064** — [V6: Real telephony, each agent has its own phone number](./backlog/F064-v6-real-telephony-agent-phone-numbers.md) — `Todo`
 - **F065** — [Secrets with a scope (agent, host, organization) and permissions](./backlog/F065-scoped-secrets-shared-across-org.md) — `Todo` (spec drafted; phase 1 needed by F059)
+- **F066** — [Audit trail: what each agent did, who authorized it, and under which rules](./backlog/F066-audit-trail-who-did-what-who-authorized.md) — `Todo` (foundation for F067)
+- **F067** — [Agent governance: profiles, protected rules, escalation and a weekly check](./backlog/F067-agent-governance-profiles-and-checks.md) — `Todo` (from Jaime's helpdesk deployment)
 
 ## Bugs
 

@@ -23,6 +23,7 @@ import {
   resolveJsonlPath,
   getAgentWorkingDir,
   parseJsonlLines,
+  pageOfMessages,
   readHookState,
   hookStateFilePath,
 } from './lib/chat-transcript.mjs'
@@ -215,7 +216,10 @@ async function getChatHistory(sessionName, agentId) {
 
   const fileContent = fs.readFileSync(file.path, 'utf-8')
   const lines = fileContent.split('\n')
-  const messages = parseJsonlLines(lines, 200)
+  // The newest page, counted in conversation messages (tool calls do not use it up); older pages
+  // come from getChatHistoryPage. historyStart is where this page begins, the cursor for the next one.
+  const page = pageOfMessages(parseJsonlLines(lines, Number.MAX_SAFE_INTEGER))
+  const messages = page.messages
 
   const workingDir = getAgentWorkingDir(agent)
   let hookState = readHookState(workingDir)
@@ -281,8 +285,37 @@ async function getChatHistory(sessionName, agentId) {
     messages,
     hookState,
     conversationFile: file.path,
-    lastModified: file.mtime.toISOString()
+    lastModified: file.mtime.toISOString(),
+    historyStart: page.start,
+    hasMore: page.hasMore,
   }
+}
+
+/**
+ * An older page of the conversation, ending just before `before` (a historyStart the client got).
+ * An empty page when the conversation changed since (another file), so the client stops asking.
+ */
+async function getChatHistoryPage(sessionName, agentId, before, conversationFile) {
+  const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+  const agent = (agentId && getAgent(agentId)) || getAgentByName(sessionName)
+  const file = agent && resolveJsonlPath(agent)
+  const end = Number(before)
+  if (!file || file.path !== conversationFile || !Number.isInteger(end) || end <= 0) {
+    return { messages: [], start: 0, hasMore: false, before, conversationFile: file?.path || null }
+  }
+  const all = parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER)
+  return { ...pageOfMessages(all, { end }), before: end, conversationFile: file.path }
+}
+
+/** Answers chat:requestHistory that carries `before` (scrolling up). Both chat sockets use it. */
+async function sendChatHistoryPage(ws, sessionName, parsed) {
+  let data
+  try {
+    data = await getChatHistoryPage(sessionName, parsed.agentId, parsed.before, parsed.conversationFile)
+  } catch {
+    data = { messages: [], hasMore: true, failed: true, before: parsed.before }
+  }
+  if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'chat:historyPage', data }))
 }
 
 /**
@@ -1902,7 +1935,9 @@ async function startServer(handleRequest) {
             return
           }
 
-          if (parsed.type === 'chat:requestHistory') {
+          if (parsed.type === 'chat:requestHistory' && parsed.before != null) {
+            await sendChatHistoryPage(ws, sessionName, parsed)
+          } else if (parsed.type === 'chat:requestHistory') {
             try {
               const history = await getChatHistory(sessionName, parsed.agentId)
               if (ws.readyState === 1) {
@@ -2398,7 +2433,9 @@ async function startServer(handleRequest) {
             return
           }
 
-          if (parsed.type === 'chat:requestHistory') {
+          if (parsed.type === 'chat:requestHistory' && parsed.before != null) {
+            await sendChatHistoryPage(ws, sessionName, parsed)
+          } else if (parsed.type === 'chat:requestHistory') {
             try {
               const history = await getChatHistory(sessionName, parsed.agentId)
               if (ws.readyState === 1) {

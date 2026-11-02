@@ -31,6 +31,9 @@ Two targets:
 
 ## Non-goals
 
+(2026-11-02: scoping and sharing across hosts moved to F065, `docs/SPEC-SHARED-SECRETS.md`.)
+
+
 A password manager, team secret sharing, rotating or minting credentials, protecting against an agent that is already malicious.
 
 ## First slice

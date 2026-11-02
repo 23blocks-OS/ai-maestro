@@ -80,4 +80,4 @@ The mod in `mods/ai-maestro-secrets` lets an agent request a secret by name; you
 
 ## Not done yet
 
-Binding a secret to one agent or command. See `backlog/F033-secret-vault-agents-use-without-seeing.md`.
+Scopes (one agent, a host, the organization), sharing across hosts, and permissions per agent: see `docs/SPEC-SHARED-SECRETS.md` (F065).

@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - Backlog: F064, stage V6 of the voice plan. Each agent can have a real phone number on the user's Twilio or Telnyx account, answer calls from any phone and place calls, through the V1 voice layer over SIP. Covers the number-to-agent mapping, caller authority (caller ID can be faked, so a phone caller never has operator authority), voicemail transcripts, and the rules for AI calls (US TCPA consent, all-party recording consent, STIR/SHAKEN, EU AI Act disclosure). F050 lists V6 with its cost.
 - Spec `docs/SPEC-SHARED-SECRETS.md` and backlog F065: secrets with a scope (one agent by default, a host, or the organization), shared across hosts without copying (a host asks the home host with a request signed by a new host key and gets the value sealed to its own key), Settings > Secrets and Settings > Voice providers; phase 2 adds per-agent, team and feature grants, access requests approved from the phone, and a history.
+- Backlog B020: AI Maestro's own secrets (memory classifier key, Claude token, attachment signing key, `ANTHROPIC_API_KEY`, browser TTS keys) live in plain files or the environment, not the vault; moving them in is the first step of F065. B021: agents on one host can read every secret and every agent key on it; accepted as the trade-off of running agents directly on a host (containers isolate), documentation only.
 
 ## [0.106.55] - 2026-11-02 - Voice and video plan: five stages, one pipeline (backlog only)
 

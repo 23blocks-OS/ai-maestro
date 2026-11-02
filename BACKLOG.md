@@ -106,6 +106,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B017** — [Gateways: /api is open when ADMIN_TOKEN is unset](./backlog/B017-gateway-open-api-without-token.md) — `Todo`
 - **B018** — [Installers for agent-identity and agent-files run from main with no checksum](./backlog/B018-installers-unpinned-curl-bash.md) — `Todo`
 - **B019** — [The call screen says "connected" after 2.5 seconds, whatever happens](./backlog/B019-call-overlay-fakes-connection.md) — `Done` (0.106.18)
+- **B020** — [AI Maestro's own secrets are kept in plain files, outside the vault](./backlog/B020-service-secrets-outside-the-vault.md) — `Todo` (first step of F065 phase 1)
+- **B021** — [Agents on one host can read every secret and every agent key on it](./backlog/B021-agents-on-a-host-share-one-key-store.md) — `Todo` (accepted trade-off; docs only; containers isolate)
 
 ## Unfiled
 

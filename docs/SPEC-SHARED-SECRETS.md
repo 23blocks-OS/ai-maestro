@@ -9,7 +9,7 @@
 - An agent uses it with `aim-secret exec --use NAME -- <command>`: the value goes into the child's environment and is scrubbed from the output. The model only ever sees the name.
 - An agent asks for one with `aim-secret request NAME`; a card in its chat takes the value and stores it on the agent's host.
 - **Every secret is host-wide.** Any agent on that host can use any name. Nothing is shared between hosts.
-- **The server's own features do not use the vault.** The memory classifier keeps its key in `~/.aimaestro/memory-settings.json` (0600); the voice narration reads `ANTHROPIC_API_KEY` from the environment; the browser keeps TTS keys in local storage; the iPhone app keeps its ElevenLabs key in its Keychain.
+- **The server's own features do not use the vault (B020).** The memory classifier keeps its key in `~/.aimaestro/memory-settings.json` (0600); the voice narration reads `ANTHROPIC_API_KEY` from the environment; the browser keeps TTS keys in local storage; the iPhone app keeps its ElevenLabs key in its Keychain.
 - **Hosts have no keys of their own.** Peers trust each other because they are on the same network (Tailscale or LAN).
 
 ## 2. Words
@@ -125,6 +125,7 @@ Settings > Secrets > History: every use and every change, from every host's log,
 
 ## 7. What this does not protect against
 
+- **Agents on one host are not separated from each other (B021, accepted trade-off).** They run as the same OS user, so any of them can read the vault (the encrypted file keeps its key beside it; the keychain answers that user without a prompt) and every agent's AMP key. Scopes are a policy for agents on a host and a real boundary only for agents in containers, which do not see the host's vault. Isolation means containers.
 - An agent that may use a secret can misuse it or copy it out: it runs commands, and scrubbing only stops accidents (`docs/SECRETS.md`). Grants decide who has it; they do not make it safe in the wrong hands. Use narrow keys.
 - On a host with the file backend, any process of that user, agents included, can read the vault file.
 - Whoever controls a home host controls its secrets.
@@ -134,6 +135,7 @@ Settings > Secrets > History: every use and every change, from every host's log,
 ## 8. Order of work
 
 **Phase 1 (about one 6-day cycle):**
+0. AI Maestro's own secrets into the vault: `useSecret()`, migrate the memory classifier key, the Claude token and the attachment signing key out of their plain files, `ANTHROPIC_API_KEY` from the vault first (B020) (S).
 1. Secret records and scoped keychain names, with migration of existing secrets to host scope; `exec` lookup order (S).
 2. Scope on `aim-secret request` and the card (S).
 3. Settings > Secrets, listing every host (M).

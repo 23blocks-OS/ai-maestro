@@ -39,6 +39,7 @@ Today a secret lives in one host's keychain and every agent on that host can use
 Full design, threat model and order of work: `docs/SPEC-SHARED-SECRETS.md`.
 
 - **Phase 1 (about one 6-day cycle):**
+  - first, AI Maestro's own secrets into the vault (B020);
   - secret records and scoped keychain names; existing secrets migrate to host scope;
   - scope on the request and the card;
   - Settings > Secrets across hosts;

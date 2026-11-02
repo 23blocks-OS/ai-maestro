@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.55] - 2026-11-02 - Voice and video plan: five stages, one pipeline (backlog only)
+
+### Changed
+- Backlog: the voice work is one plan in five stages. F050 is the umbrella: the five steps of every call (audio transport, speech to text, the brain, text to speech, audio back), the protocols at each step (WebRTC for app and browser, WebSocket between servers, SIP only for phone numbers), three architectures, what works with which user key, cost per call, and vendors that closed. New items F059 (V1 call), F060 (V2 face in a call), F061 (V3 audio conference), F062 (V4 video meetings), F063 (V5 agents in Zoom, Meet and Teams by dial-in, bot service or app). F051-F055 are folded into them; F056 is blocked until V1 runs a real call; B019 is marked done (0.106.18); the talking face moved from F012 to F060.
+
 ## [0.106.54] - 2026-11-01 - Person messaging, step 4: agents reply, and the phone is told
 
 ### Added

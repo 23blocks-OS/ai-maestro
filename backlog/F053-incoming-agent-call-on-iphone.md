@@ -1,8 +1,10 @@
 # F053 - An agent's call rings a locked iPhone (issue #699, PR #707)
 
-**Status:** Todo (decision on Apple policy and repo needed)
+**Status:** Wontfix (merged into F059 step 7, 2026-11-02; PR #707 closed; issue #699 still open)
 **Type:** Feature
 **Created:** 2026-10-29
+
+> Superseded by F059 (V1), step 7. Push to the app shipped (0.106.4x); CallKit and PushKit remain. Kept for history.
 
 ## Description
 

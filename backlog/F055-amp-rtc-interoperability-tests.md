@@ -1,8 +1,10 @@
 # F055 - Call interoperability and failure tests (issue #700)
 
-**Status:** Todo (becomes real once F051 exists)
+**Status:** Wontfix (folded into each stage, 2026-11-02; issue #700 still open)
 **Type:** Feature
 **Created:** 2026-10-29
+
+> Superseded by F059 step 8 (call state tests); each later stage lists its own tests. Kept for history.
 
 ## Description
 

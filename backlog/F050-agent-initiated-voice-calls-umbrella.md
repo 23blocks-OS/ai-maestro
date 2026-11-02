@@ -8,7 +8,7 @@
 
 People and agents talk by voice and video: a call, a "FaceTime", a conference call, a meeting in AI Maestro, and later an agent inside a real Zoom, Meet or Teams meeting. Users bring their own provider keys; AI Maestro holds them and connects the pieces.
 
-**The five stages** (one backlog item each; each stage reuses the one before):
+**The stages** (one backlog item each; each reuses V1; V6 was added after the first five and can come right after V1):
 
 | Stage | Item | What the person gets | Status |
 |---|---|---|---|
@@ -17,6 +17,7 @@ People and agents talk by voice and video: a call, a "FaceTime", a conference ca
 | V3 | F061 | Conference call (audio) with several people and agents | Not built |
 | V4 | F062 | Video meetings in AI Maestro (our own Zoom view with real video) | Not built |
 | V5 | F063 | Agents join real Zoom, Meet, Teams: by phone dial-in, a bot service, or an app integration | Backlog |
+| V6 | F064 | Real telephony: each agent has its own phone number, receives and places calls | Not built (can follow V1 directly) |
 
 The animated explanation, with every step clickable, is the canvas page `voice-business-models.html` of the ai-maestro agent.
 
@@ -37,7 +38,7 @@ person ──1 audio in──► 2 speech to text ──► 3 the brain (voice l
 | 3 The brain | the voice model's tool call `ask_agent` → AI Maestro → the agent (`chat:send` or stream session); AMP person messages for long jobs | GPT-Live / gpt-realtime, Gemini Live, a voice platform with a custom LLM URL, or a cascade with any LLM (the only way to use Claude by voice) | Agent paths and person messages: done. Hand-off from a voice model: not built |
 | 4 Text to speech | streaming over WebSocket, or inside the speech-to-speech model | Apple on device; ElevenLabs Flash; Cartesia Sonic; Deepgram Aura-2; Azure; Inworld; local Kokoro | Apple and ElevenLabs: done in the app; Web Speech, OpenAI, ElevenLabs: done in the browser |
 
-**Where SIP fits.** SIP is the phone network's protocol. The app and the browser use WebRTC: wideband, encrypted, built for the internet. SIP appears only when a real phone number is involved: "call my agent from any phone", and an agent dialing into a Zoom, Meet or Teams meeting (V5 way A). OpenAI Realtime, LiveKit, Twilio, Telnyx, ElevenLabs, Vapi and Retell all accept SIP.
+**Where SIP fits.** SIP is the phone network's protocol. The app and the browser use WebRTC: wideband, encrypted, built for the internet. SIP appears only when a real phone number is involved: an agent's own number (V6), and an agent dialing into a Zoom, Meet or Teams meeting (V5 way A). OpenAI Realtime, LiveKit, Twilio, Telnyx, ElevenLabs, Vapi and Retell all accept SIP.
 
 ## Three architectures for the brain
 
@@ -55,7 +56,7 @@ person ──1 audio in──► 2 speech to text ──► 3 the brain (voice l
 | Deepgram or AssemblyAI + a TTS key + any LLM key | Architecture 3 |
 | Only an Anthropic key | Not enough alone: Anthropic has no voice API. Claude is the brain in a cascade or behind a custom LLM endpoint |
 | No key | Today's on-device mode: free, private, turn by turn |
-| A Twilio or Telnyx key | Adds phone numbers and dial-in to meetings (V5 way A) |
+| A Twilio or Telnyx key | Adds a phone number per agent (V6) and dial-in to meetings (V5 way A) |
 
 What has to exist for "bring a key and it works" (all in F059): provider keys on the host (Settings, secret vault), a session-token endpoint, the `ask_agent` hand-off, a signed call start, and a WebRTC client in the app (dev build) and the browser (HTTPS).
 
@@ -70,6 +71,7 @@ What has to exist for "bring a key and it works" (all in F059): provider keys on
 | Local cascade | $0 |
 | Add a photoreal face (V2) | + $0.10 (Simli) to $1 (HeyGen) |
 | Dial into Zoom by phone (V5 A) | + $0.14 (Twilio outbound) |
+| A call to or from an agent's own number (V6) | + $0.09-0.14 phone minutes, plus $1.15 per number per month |
 
 The agent's own work is billed as today.
 

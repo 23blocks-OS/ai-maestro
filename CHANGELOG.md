@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.59] - 2026-11-02 - Plans: an audit trail and agent governance (backlog only)
+
+### Changed
+- Backlog F066: an audit trail that records, for every agent action, what happened, who authorized it (a rule or mode, a person on a card or a signed phone, another agent's AMP message, a schedule), the prompt or message that caused it, and the rules in force (model, permission mode, program version, hashes of CLAUDE.md and settings). Append-only, hash-chained, per agent, with an optional export to a SIEM.
+- Backlog F067: governance from Jaime Peláez's helpdesk deployment. Covers governance profiles per agent written into the program's settings and sandbox, a baseline of deny rules, rule files that change only with a phone-signed approval and drift detection, a highest permission mode, escalation of unanswered approvals, an allow list that learns from approvals, and a weekly governance check.
+- Spec `docs/SPEC-AUDIT-TRAIL.md` for F066: the event format (prompt, action, approval, message, config, system), how each action links to its cause and authority through a turn id, where events come from today, a hash-chained append-only store per agent, the read, export and verify API, the Audit tab, and slice 1 as an experiment that is off by default.
 ## [0.106.58] - 2026-11-02 - The chat loads earlier messages
 
 ### Fixed

@@ -82,6 +82,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F061** — [V3: An audio conference with people and agents](./backlog/F061-v3-audio-conference-people-and-agents.md) — `Todo`
 - **F062** — [V4: Video meetings in AI Maestro (our own Zoom)](./backlog/F062-v4-video-meetings-our-zoom.md) — `Todo`
 - **F063** — [V5: Agents join real Zoom, Google Meet and Teams meetings](./backlog/F063-v5-agents-in-zoom-meet-teams.md) — `Todo` (backlog)
+- **F064** — [V6: Real telephony, each agent has its own phone number](./backlog/F064-v6-real-telephony-agent-phone-numbers.md) — `Todo`
 
 ## Bugs
 

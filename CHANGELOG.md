@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.56] - 2026-11-02 - Voice plan: V6, an agent with its own phone number (backlog only)
+
+### Changed
+- Backlog: F064, stage V6 of the voice plan. Each agent can have a real phone number on the user's Twilio or Telnyx account, answer calls from any phone and place calls, through the V1 voice layer over SIP. Covers the number-to-agent mapping, caller authority (caller ID can be faked, so a phone caller never has operator authority), voicemail transcripts, and the rules for AI calls (US TCPA consent, all-party recording consent, STIR/SHAKEN, EU AI Act disclosure). F050 lists V6 with its cost.
+
 ## [0.106.55] - 2026-11-02 - Voice and video plan: five stages, one pipeline (backlog only)
 
 ### Changed

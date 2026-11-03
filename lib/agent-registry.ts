@@ -1052,7 +1052,7 @@ export function updateAgentStatus(id: string, status: Agent['status']): boolean 
  * Link a session to an agent
  * Uses parseSessionName to determine session index from tmux session name
  */
-export function linkSession(agentId: string, sessionName: string, workingDirectory: string): boolean {
+export function linkSession(agentId: string, sessionName: string, workingDirectory?: string): boolean {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 

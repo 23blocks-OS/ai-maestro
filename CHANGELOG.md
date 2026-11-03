@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.62] - 2026-11-03 - No more agents in the AI Maestro folder
+
+### Fixed
+- A tmux session that AI Maestro found without an agent (an orphan) was registered with its folder even when another agent owned it, and with the AI Maestro install folder when it had none. Most of the agents that shared a folder came from this. An orphan in a folder another agent owns is now registered without that folder, and one without a folder gets none (B023).
+- Waking an agent that had no folder started it in the AI Maestro install folder, where its conversations were saved with those of every other agent woken the same way. On 2026-11-02 this happened to `salesland-dev-3metas`. The agent now gets its own folder, `~/agents/<name>`, as a new session does, and the registry records it (B023).
+- `POST /api/agents/register` and linking a session to an agent no longer record the AI Maestro install folder when no folder is given (B023).
+- An OpenClaw session in a folder another agent owns was refused on every poll, with a warning each time. It is now registered without that folder (B023).
+
 ## [0.106.61] - 2026-11-02 - One folder per agent
 
 ### Fixed

@@ -1,6 +1,6 @@
 # B023 — Orphan tmux sessions are registered in folders other agents own
 
-**Status:** Todo
+**Status:** Done (0.106.62)
 **Type:** Bug
 **Created:** 2026-11-02
 
@@ -39,7 +39,8 @@ offline" (#758) comes back each time a new sharer appears.
 ## Implementation Plan
 
 - In `createOrphanAgent`: when `folderOwner(dir)` returns an agent, register the orphan without a
-  workingDirectory (the session keeps its own), or skip it and log once. Decide which.
+  workingDirectory. Done this way in 0.106.62; wake gives a folder-less agent `~/agents/<name>`
+  rather than refusing.
 - Remove the `process.cwd()` fallbacks (wake, orphan agent, register endpoint, `linkSession` callers). Wake without a folder returns an error that asks for one.
 - Log the OpenClaw registration failure once per session, not per poll.
 - Test: an orphan session in a taken folder does not become a second owner.

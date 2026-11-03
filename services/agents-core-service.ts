@@ -44,6 +44,7 @@ import {
   parseNameForDisplay,
   computeSessionName,
   isCallSession,
+  ORPHAN_TASK_DESCRIPTION,
 } from '@/types/agent'
 import {
   loadAgents,
@@ -609,7 +610,7 @@ function createOrphanAgent(
     hostName,
     hostUrl,
     program: 'claude-code',
-    taskDescription: 'Auto-registered from orphan tmux session',
+    taskDescription: ORPHAN_TASK_DESCRIPTION,
     tags,
     capabilities: [],
     deployment: {

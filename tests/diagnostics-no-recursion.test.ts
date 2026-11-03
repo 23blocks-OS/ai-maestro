@@ -20,7 +20,9 @@ vi.mock('@/lib/hosts-config', () => ({
     { id: 'off', name: 'off', url: 'http://off:23000', enabled: false },
   ],
   isSelf: (id: string) => id === 'self',
+  getSelfHostId: () => 'self',
 }))
+vi.mock('@/lib/agent-backup-retention', () => ({ agentBackupsDir: () => '/nonexistent/backups', parseBackupName: () => null }))
 vi.mock('@/lib/agent-registry', () => ({ loadAgents: () => [] }))
 vi.mock('@/lib/channel-bridge.mjs', () => ({ hasChannel: () => false, isChannelVerified: () => false }))
 vi.mock('@/lib/amp-keys', () => ({ loadKeyPair: () => null }))
@@ -42,6 +44,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 const report = async () => (await runDiagnostics()).data as Report
+/** Report runs so far: each run asks tmux for its version once (it also lists sessions for the Doctor) */
+const runs = () => tmux.mock.calls.filter((c: unknown[]) => (c[0] as string[])[0] === '-V').length
 
 describe('diagnostics never calls a peer\'s diagnostics', () => {
   it('asks each enabled peer for its health only', async () => {
@@ -62,16 +66,25 @@ describe('diagnostics never calls a peer\'s diagnostics', () => {
 describe('a burst of requests costs one run', () => {
   it('concurrent callers share the run in progress', async () => {
     await Promise.all(Array.from({ length: 50 }, () => runDiagnostics()))
-    expect(tmux).toHaveBeenCalledTimes(1)
+    expect(runs()).toBe(1)
+    expect(tmux).toHaveBeenCalledTimes(2)
     expect(execFile).toHaveBeenCalledTimes(1)
   })
 
   it('a finished report is reused for a minute, then run again', async () => {
     await runDiagnostics()
     await runDiagnostics(Date.now() + REPORT_CACHE_MS - 1000)
-    expect(tmux).toHaveBeenCalledTimes(1)
+    expect(runs()).toBe(1)
     await runDiagnostics(Date.now() + REPORT_CACHE_MS + 1000)
-    expect(tmux).toHaveBeenCalledTimes(2)
+    expect(runs()).toBe(2)
+  })
+
+  it('fresh skips a finished report but shares a run in progress', async () => {
+    await runDiagnostics()
+    await runDiagnostics(Date.now(), { fresh: true })
+    expect(runs()).toBe(2)
+    await Promise.all(Array.from({ length: 10 }, () => runDiagnostics(Date.now(), { fresh: true })))
+    expect(runs()).toBe(3)
   })
 })
 

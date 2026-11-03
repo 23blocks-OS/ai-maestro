@@ -22,7 +22,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F002** — [AWS Lambda MicroVM as an agent deployment mode](./backlog/F002-microvm-agent-deployment.md) — `Todo`
 - **F003** — [Native iOS selection and paste in the terminal](./backlog/F003-ios-terminal-selection.md) — `Todo`
 - **F004** — [Codex chat support (multi-provider transcript reader)](./backlog/F004-codex-chat-transcript.md) — `Done` (history+live+status; approval cards deferred, TUI-only)
-- **F005** — [Warn when a host's AMP scripts drift from the fleet](./backlog/F005-host-amp-script-staleness.md) — `Todo`
+- **F005** — [Warn when a host's AMP scripts drift from the fleet](./backlog/F005-host-amp-script-staleness.md) — `Todo` (local half in 0.106.63)
 - **F006** — [Memory cards and an entity graph (the agent summarizes its own memory)](./backlog/F006-memory-cards-entity-graph.md) — `Done` (v0.40.1)
 - **F007** — [Measure whether recalled memory changes what an agent does](./backlog/F007-measure-memory-use.md) — `Todo`
 - **F008** — [Lessons become skills (procedural memory)](./backlog/F008-lessons-become-skills.md) — `Todo`
@@ -87,6 +87,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F066** — [Audit trail: what each agent did, who authorized it, and under which rules](./backlog/F066-audit-trail-who-did-what-who-authorized.md) — `Todo` (spec drafted; slice 1 as an experiment; foundation for F067)
 - **F067** — [Agent governance: profiles, protected rules, escalation and a weekly check](./backlog/F067-agent-governance-profiles-and-checks.md) — `Todo` (from Jaime's helpdesk deployment)
 - **F068** — [An agent hands its work to subagents so it can answer a call fast](./backlog/F068-agent-delegates-work-to-answer-calls.md) — `Todo` (idea to test)
+- **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63; page, CLI, mobile next)
+- **F070** — [Notify a person when a long action finishes, and when an agent has a result](./backlog/F070-notify-long-actions-and-agent-results.md) — `Todo` (idea to shape)
 
 ## Bugs
 

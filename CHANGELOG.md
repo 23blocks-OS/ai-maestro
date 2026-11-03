@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.67] - 2026-11-03 - The dashboard keeps your agent; approval cards keep their command
+
+### Fixed
+- **The dashboard reopens the agent you had open** (B028, #773). The desktop and tablet layouts opened the first online agent on every load, so a refresh, or coming back from the org chart, could switch the agent the next message went to. The open agent is now remembered in the browser and restored, on desktop, tablet and phone (one helper, `lib/last-agent.ts`; phones keep the agent they had saved). A `?agent=` link still wins. The first online agent is opened only on a browser that never had one open; if the remembered agent is not available, the page says so and lets you pick, instead of choosing one for you.
+- **Approval cards keep saying what is being approved** (B025, #768). A card first showed the command ("Run: git var GIT_AUTHOR_IDENT") and seconds later only "Do you want to proceed?" and the options, because the card read from the terminal replaced the hook's card whole. The terminal reader now also reads the dialog above the options (its header, its description and the command in its dashed box), so the card shows the command even without the hook. The hook's own description is kept only when the screen shows the same command or path, so a command from an earlier request can never sit next to a new menu. Web chat and the mobile app read the same card.
+
+### Added
+- Backlog: F074 (a person sees only the organizations they belong to, and can hide one), F075 (the first run creates an unnamed organization that every person and agent joins).
+
 ## [0.106.66] - 2026-11-03 - Pasted text shows once, without tags, and confirmed
 
 ### Fixed

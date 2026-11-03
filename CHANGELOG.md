@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.66] - 2026-11-03 - Pasted text shows once, without tags, and confirmed
+
+### Fixed
+- **Pasted text in the chat** (B026, #769). Claude Code (2.1.31x) stores a pasted message inside `<pasted_content id="…">` tags in its transcript. The chat showed those tags, and could not match the text to the person's "Sending" bubble, so the bubble turned to "Not confirmed — may not have reached the agent" with a Retry that would send the whole text again, while the agent was already working on it. The transcript reader now removes exactly what Claude Code inserted (the closing tag can land mid-word), in user messages and queued messages, so the chat shows the text as sent and the bubble is confirmed. The mobile app reads the same feed.
+
+### Added
+- Backlog: F071 (Doctor checks the agent programs on each host), F072 (create agent shows which programs a host can run, then offers to install the missing ones), F073 (hibernate idle agents by rule and wake them for a message).
+
 ## [0.106.65] - 2026-11-03 - Installers ask the Claude Code the agents run, and never hang on it
 
 ### Fixed

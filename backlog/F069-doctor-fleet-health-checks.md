@@ -1,6 +1,6 @@
 # F069 - Doctor: one page that checks agents, hosts and installs, and offers the fix
 
-**Status:** In Progress (spec: [docs/SPEC-DOCTOR.md](../docs/SPEC-DOCTOR.md); step 1, the server, in 0.106.63)
+**Status:** In Progress (spec: [docs/SPEC-DOCTOR.md](../docs/SPEC-DOCTOR.md); step 1, the server, in 0.106.63; step 2, the Settings page, in 0.106.64)
 **Type:** Feature
 **Created:** 2026-11-03
 

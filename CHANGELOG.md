@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.64] - 2026-11-03 - Doctor page in Settings
+
+### Added
+- **Settings → Doctor** shows the diagnostics report of every host, one card per host (F069 step 2, `docs/SPEC-DOCTOR.md` section 7). Each card has the host's version, its checks grouped as Agents, Install, Host and Peers with failures first, each finding's agent (linked to the agent) and what to do, and its own Refresh. `/settings?section=doctor` opens it directly.
+- Hosts are fetched in parallel, each straight from the browser with a 25-second limit, so a slow or down host does not hold up the others.
+- The page adds the fleet findings: a host that does not answer, a host behind the newest version, and a host too old for the full checks.
+- A fix (delete a ghost agent, remove backups of deleted agents) asks inline first, posts to the host the report came from, shows that host's answer (including "nothing was changed" when the finding has gone), and refreshes the host.
+- Peer checks show once: not for a host that has its own card, and not again on a later card. A peer only some hosts know, such as one that is down, still shows. Card counts come from the checks the card shows.
+
 ## [0.106.63] - 2026-11-03 - Doctor checks: agents, installs and fixes in the diagnostics report
 
 ### Added

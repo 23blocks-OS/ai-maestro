@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import SettingsSidebar from '@/components/SettingsSidebar'
 import HostsSection from '@/components/settings/HostsSection'
+import DoctorSection from '@/components/settings/DoctorSection'
 import DomainsSection from '@/components/settings/DomainsSection'
 import WebhooksSection from '@/components/settings/WebhooksSection'
 import HelpSection from '@/components/settings/HelpSection'
@@ -16,8 +17,17 @@ import { VersionChecker } from '@/components/VersionChecker'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
+const SECTIONS = ['hosts', 'doctor', 'domains', 'webhooks', 'memory', 'terminal', 'help', 'about', 'onboarding', 'experiments', 'marketplace'] as const
+type Section = typeof SECTIONS[number]
+
 export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState<'hosts' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'>('hosts')
+  const [activeSection, setActiveSection] = useState<Section>('hosts')
+
+  // ?section=doctor opens a section directly (read once on mount; no Suspense needed)
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get('section')
+    if ((SECTIONS as readonly string[]).includes(s || '')) setActiveSection(s as Section)
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white">
@@ -42,6 +52,7 @@ export default function SettingsPage() {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
           {activeSection === 'hosts' && <HostsSection />}
+          {activeSection === 'doctor' && <DoctorSection />}
           {activeSection === 'domains' && <DomainsSection />}
           {activeSection === 'webhooks' && <WebhooksSection />}
           {activeSection === 'memory' && <MemorySection />}

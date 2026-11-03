@@ -1,10 +1,10 @@
 'use client'
 
-import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Brain, SquareTerminal } from 'lucide-react'
+import { Server, Stethoscope, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Brain, SquareTerminal } from 'lucide-react'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
-  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
+  activeSection: 'hosts' | 'doctor' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
+  onSectionChange: (section: 'hosts' | 'doctor' | 'domains' | 'webhooks' | 'memory' | 'terminal' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -14,6 +14,12 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
       label: 'Hosts',
       icon: Server,
       description: 'Manage remote workers',
+    },
+    {
+      id: 'doctor' as const,
+      label: 'Doctor',
+      icon: Stethoscope,
+      description: 'Check agents and hosts',
     },
     {
       id: 'domains' as const,

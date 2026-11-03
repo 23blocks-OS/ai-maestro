@@ -225,6 +225,8 @@ export function useAgents() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [hostErrors, setHostErrors] = useState<Record<string, Error>>({})
+  // Every host answered (or failed) once; until then a missing agent may still be on a slow host
+  const [allHostsLoaded, setAllHostsLoaded] = useState(false)
   const hasLoadedOnce = useRef(false)
   /**
    * The last successful result per host. A refresh that fails (or times out) for
@@ -288,6 +290,7 @@ export function useAgents() {
       setAgents(allAgents)
       setStats(aggregatedStats)
       setHostErrors(errors)
+      setAllHostsLoaded(true)
       hasLoadedOnce.current = true
 
       // Log summary
@@ -437,6 +440,7 @@ export function useAgents() {
     error,
     hostErrors,
     hasHostErrors,
+    allHostsLoaded,
 
     // Computed lists
     onlineAgents,

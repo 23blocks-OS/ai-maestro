@@ -12,7 +12,7 @@ import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
 import { resolveBindHost } from './lib/bind-host.mjs'
 // Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
-import { approvalKindForProgram, parseApprovalForProgram, needsPaneApprovalCard } from './lib/pane-approval.mjs'
+import { approvalKindForProgram, parseApprovalForProgram, needsPaneApprovalCard, cardWithPaneMenu } from './lib/pane-approval.mjs'
 import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
 import { isValidSessionName } from './lib/tmux-safe.mjs'
 // F026 Phase 0: every tmux call in this file goes through lib/tmux-runtime.mjs
@@ -510,7 +510,7 @@ function broadcastHookState(sessionName, sessionState) {
     state = null
   } else if (needsPaneApprovalCard(state, grokKind)) {
     const fromPane = detectPermissionFromPane(sessionName, sessionState._program)
-    if (fromPane) state = fromPane
+    if (fromPane) state = cardWithPaneMenu(state, fromPane)
   }
   // The hook state that an assistant message already cleared is stale unless the pane still shows the menu
   if (state?.status === 'permission_request' && hookJson && hookJson === sessionState._clearedHookJson) {

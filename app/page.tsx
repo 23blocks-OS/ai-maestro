@@ -15,6 +15,7 @@ import AgentMatrixPanel from '@/components/matrix/AgentMatrixPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import TabletDashboard from '@/components/TabletDashboard'
+import { autoPickAgent, loadLastAgent, saveLastAgent } from '@/lib/last-agent'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
@@ -97,7 +98,7 @@ const CanvasPanel = dynamic(
 export default function DashboardPage() {
   const { addToast } = useToast()
   // Agent-centric: Primary hook is useAgents
-  const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
+  const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents, allHostsLoaded } = useAgents()
 
   // PRIMARY STATE: Agent ID (no longer session-driven)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -227,10 +228,14 @@ export default function DashboardPage() {
         urlParamProcessedRef.current = true
       }
     } else {
-      // No URL params — nothing to do
+      // No URL params: reopen the agent this browser had open (B028)
+      const saved = loadLastAgent()
+      if (saved) setActiveAgentId(saved)
       urlParamProcessedRef.current = true
     }
   }, [agents, urlParamProcessedRef])
+
+  useEffect(() => { saveLastAgent(activeAgentId) }, [activeAgentId])
 
   // Collapse sidebar on phone/tablet
   useEffect(() => {
@@ -299,15 +304,15 @@ export default function DashboardPage() {
     }
   }, [isResizing, sidebarWidth])
 
-  // Auto-select first online agent when agents load
+  // Auto-select the first online agent, only on a browser that never had one open (B028)
   // Optimized: use derived primitives instead of full array dependency
   const firstOnlineAgentId = onlineAgents[0]?.id
   const hasOnlineAgents = onlineAgents.length > 0
 
   useEffect(() => {
-    if (hasOnlineAgents && !activeAgentId && firstOnlineAgentId) {
-      setActiveAgentId(firstOnlineAgentId)
-    }
+    if (!hasOnlineAgents) return
+    const pick = autoPickAgent(activeAgentId, loadLastAgent(), firstOnlineAgentId)
+    if (pick) setActiveAgentId(pick)
   }, [hasOnlineAgents, activeAgentId, firstOnlineAgentId])
 
   // Initialize agent memories for all agents on load
@@ -750,6 +755,18 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-600">
                     Agents are AI assistants that help you code, debug, and build
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* No agent open: say so instead of opening one the next message would go to (B028) */}
+            {agents.length > 0 && !agentsLoading && !activeAgent && (!activeAgentId || allHostsLoaded) && (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                <div className="text-center max-w-md">
+                  <p className="text-xl mb-2 text-gray-200">
+                    {activeAgentId ? 'The agent you had open is not available' : 'No agent open'}
+                  </p>
+                  <p className="text-sm text-gray-500">Pick an agent in the sidebar.</p>
                 </div>
               </div>
             )}

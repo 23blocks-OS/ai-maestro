@@ -92,6 +92,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F071** — [Doctor: check the agent programs on each host (Claude Code, Codex, Pi, …)](./backlog/F071-doctor-agent-programs-check.md) — `Todo`
 - **F072** — [Create agent: show which programs each host can run, then offer to install the missing ones](./backlog/F072-create-agent-program-availability-and-install.md) — `Todo`
 - **F073** — [Hibernate idle agents by rule, and wake them for a message or a task](./backlog/F073-auto-hibernate-idle-agents.md) — `Todo` (idea to shape)
+- **F074** — [A person sees only the organizations they belong to, and can hide one](./backlog/F074-people-see-only-their-orgs.md) — `Todo`
+- **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
 
 ## Bugs
 
@@ -119,9 +121,10 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B022** — [Hook state files are keyed by folder, not by agent or session](./backlog/B022-chat-state-files-keyed-by-folder.md) — `Todo` (found with #758)
 - **B023** — [Orphan tmux sessions are registered in folders other agents own](./backlog/B023-orphan-sessions-bypass-folder-rule.md) — `Done` (0.106.62)
 - **B024** — [System text (skills, Stop hook feedback, message notices) shows in the chat as the person's message](./backlog/B024-skill-text-shows-as-chat-message.md) — `Todo` (#767)
-- **B025** — [The approval card shows the command, then only the options](./backlog/B025-approval-card-loses-command.md) — `Todo` (#768)
+- **B025** — [The approval card shows the command, then only the options](./backlog/B025-approval-card-loses-command.md) — `Done` (0.106.67, #768)
 - **B026** — [Pasted text shows twice in the chat, once with raw `<pasted_content>` tags](./backlog/B026-pasted-text-shows-raw-wrapper-twice.md) — `Done` (0.106.66, #769)
 - **B027** — [A message sent while the agent works shows as Queued and as delivered at once](./backlog/B027-queued-message-shows-queued-and-delivered.md) — `Todo` (#770)
+- **B028** — [The dashboard forgets which agent was open and opens another one](./backlog/B028-dashboard-forgets-open-agent.md) — `Done` (0.106.67, #773)
 
 ## Unfiled
 

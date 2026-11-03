@@ -1,6 +1,6 @@
 # B025 — The approval card shows the command, then only the options
 
-**Status:** Todo
+**Status:** Done (0.106.67)
 **Type:** Bug
 **Created:** 2026-11-03
 

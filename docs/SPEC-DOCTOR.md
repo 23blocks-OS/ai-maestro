@@ -1,6 +1,6 @@
 # Spec: Doctor, health checks for agents, hosts and installs
 
-**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63; steps 2-4 to do. Backlog: F069. Absorbs the local half of F005.
+**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64; steps 3-4 to do. Backlog: F069. Absorbs the local half of F005.
 **Goal:** one report per host that names every configuration problem with the agent or file it is about,
 says what to do, and offers a safe fix where one exists. The web dashboard, the mobile app and the agents
 CLI all read the same report from each host. The server does the checks and the fixes; the clients only
@@ -260,8 +260,11 @@ The client has every host's report, so it derives these. Nothing on the server c
 | A host's `version` is lower than the highest in the fleet | warn |
 | A host answers `schema` 1 (no `schema` field) | warn: "Update this host for the full checks"; show its checks without items |
 
-Each report's `host:<name>` checks (peer reachability) are shown only from the host the client talks to
-first. Every host has them, so showing all would repeat each pair.
+Each report's `host:<name>` checks (peer reachability) are shown once, from the first card that has
+them, and not at all when that peer has its own card (its card already says whether it answered). Every
+host has them, so showing all would repeat each pair; a peer that only some hosts know, such as one that is
+down, still shows. A card's counts and status are computed from the checks it shows, so the header never
+names a failure the card hides.
 
 ## 6. Fixes (closed list)
 

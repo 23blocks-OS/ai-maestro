@@ -87,7 +87,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F066** — [Audit trail: what each agent did, who authorized it, and under which rules](./backlog/F066-audit-trail-who-did-what-who-authorized.md) — `Todo` (spec drafted; slice 1 as an experiment; foundation for F067)
 - **F067** — [Agent governance: profiles, protected rules, escalation and a weekly check](./backlog/F067-agent-governance-profiles-and-checks.md) — `Todo` (from Jaime's helpdesk deployment)
 - **F068** — [An agent hands its work to subagents so it can answer a call fast](./backlog/F068-agent-delegates-work-to-answer-calls.md) — `Todo` (idea to test)
-- **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63; page, CLI, mobile next)
+- **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63, page in 0.106.64; CLI, mobile next)
 - **F070** — [Notify a person when a long action finishes, and when an agent has a result](./backlog/F070-notify-long-actions-and-agent-results.md) — `Todo` (idea to shape)
 
 ## Bugs

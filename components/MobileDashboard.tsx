@@ -16,6 +16,7 @@ import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 import versionInfo from '@/version.json'
+import { loadLastAgent, saveLastAgent } from '@/lib/last-agent'
 
 interface MobileDashboardProps {
   agents: Agent[]
@@ -26,7 +27,6 @@ interface MobileDashboardProps {
   link?: { agentId: string; view: 'chat' | 'terminal' | null } | null
 }
 
-const LAST_AGENT_KEY = 'aimaestro-mobile-agent'
 
 export default function MobileDashboard({
   agents,
@@ -60,11 +60,11 @@ export default function MobileDashboard({
       if (link.view) setViewMode(link.view)
       setActiveTab('terminal')
     } else {
-      setActiveAgentId(id => id ?? localStorage.getItem(LAST_AGENT_KEY))
+      setActiveAgentId(id => id ?? loadLastAgent())
     }
   }, [link])
   useEffect(() => {
-    if (activeAgentId) localStorage.setItem(LAST_AGENT_KEY, activeAgentId)
+    saveLastAgent(activeAgentId)
   }, [activeAgentId])
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)

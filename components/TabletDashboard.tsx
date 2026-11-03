@@ -14,6 +14,7 @@ import InfraIcon from './InfraIcon'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
+import { autoPickAgent, loadLastAgent, saveLastAgent } from '@/lib/last-agent'
 import versionInfo from '@/version.json'
 
 interface TabletDashboardProps {
@@ -46,11 +47,12 @@ export default function TabletDashboard({
     [agents]
   )
 
-  // Auto-select first agent
+  // Reopen the agent this browser had open; pick the first online one only on a browser that never had one (B028)
+  useEffect(() => { setActiveAgentId(id => id ?? loadLastAgent()) }, [])
+  useEffect(() => { saveLastAgent(activeAgentId) }, [activeAgentId])
   useEffect(() => {
-    if (onlineAgents.length > 0 && !activeAgentId) {
-      setActiveAgentId(onlineAgents[0].id)
-    }
+    const pick = autoPickAgent(activeAgentId, loadLastAgent(), onlineAgents[0]?.id)
+    if (pick) setActiveAgentId(pick)
   }, [onlineAgents, activeAgentId])
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)

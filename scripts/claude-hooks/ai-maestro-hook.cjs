@@ -161,28 +161,15 @@ function resolveAgent(cwd, agents) {
     return null;
 }
 
-// Folders that hold many unrelated projects: an agent there owns only the folder itself, not what is under it
-function isBroadFolder(dir) {
-    return ['/', '/tmp', '/private/tmp', os.homedir()].some(b => path.resolve(b) === dir);
-}
-
-// The agents whose folder is the deepest one containing cwd. A session in a subfolder still finds its
-// agent, and an agent nested inside another agent's folder wins over the parent (#758).
+// The agents whose folder is exactly cwd. Not a subfolder: a plain session in repo/docs would then send
+// the agent's heartbeat, replace its claudeSessionId and get its messages (#758 review).
 function agentsForCwd(cwd, agents) {
     if (!cwd) return [];
     const here = path.resolve(cwd);
-    let best = [];
-    let bestLen = -1;
-    for (const a of agents) {
+    return agents.filter(a => {
         const wd = a.workingDirectory || a.session?.workingDirectory || a.sessions?.[0]?.workingDirectory;
-        if (!wd || a.deletedAt) continue;
-        const dir = path.resolve(wd);
-        const inside = here === dir || (!isBroadFolder(dir) && here.startsWith(dir === '/' ? '/' : dir + '/'));
-        if (!inside) continue;
-        if (dir.length > bestLen) { best = [a]; bestLen = dir.length; }
-        else if (dir.length === bestLen) best.push(a);
-    }
-    return best;
+        return !!wd && !a.deletedAt && path.resolve(wd) === here;
+    });
 }
 
 // Said to the person when this session cannot be linked to an agent: it would otherwise run, and the

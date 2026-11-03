@@ -428,6 +428,12 @@ describe('one folder per agent (#758)', () => {
     expect(createAgent(makeCreateRequest({ name: 'child', workingDirectory: '/repo/agents/child' })).workingDirectory).toBe('/repo/agents/child')
   })
 
+  it('docker agents own no host folder', () => {
+    createAgent(makeCreateRequest({ name: 'box1', workingDirectory: '/tmp', runtime: 'docker' }))
+    expect(createAgent(makeCreateRequest({ name: 'box2', workingDirectory: '/tmp', runtime: 'docker' })).name).toBe('box2')
+    expect(createAgent(makeCreateRequest({ name: 'plain', workingDirectory: '/tmp' })).name).toBe('plain')
+  })
+
   it('refuses a move into a taken folder, and a pane cd does not move the agent there', () => {
     createAgent(makeCreateRequest({ name: 'a', workingDirectory: '/a' }))
     const b = createAgent(makeCreateRequest({ name: 'b', workingDirectory: '/b' }))

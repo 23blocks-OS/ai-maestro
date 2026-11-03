@@ -364,19 +364,16 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
 }
 
 /**
- * Get agent by name from ANY host (global search)
- * Use sparingly - prefer getAgentByName(name, hostId) for per-host lookups
- */
-/**
  * The agent on this host, other than `exceptId`, that already owns exactly `dir`. One folder per agent
  * (#758): transcripts, memory, the name hint and the chat state are all keyed by folder, so two agents in
  * one folder read each other's work and cannot be moved apart. A folder inside another agent's is fine.
+ * Docker agents keep all of that inside their container, so they own no host folder.
  */
 export function folderOwner(dir: string | null | undefined, exceptId?: string, agents: Agent[] = loadAgents()): Agent | null {
   if (!dir) return null
   const want = path.resolve(dir)
   return agents.find(a => {
-    if (a.deletedAt || a.id === exceptId || (a.hostId != null && !isSelf(a.hostId))) return false
+    if (a.deletedAt || a.id === exceptId || a.runtime === 'docker' || (a.hostId != null && !isSelf(a.hostId))) return false
     const own = a.workingDirectory || a.sessions?.[0]?.workingDirectory
     return !!own && path.resolve(own) === want
   }) || null
@@ -391,6 +388,10 @@ function assertFolderFree(dir: string | null | undefined, exceptId: string | und
   if (owner) throw new Error(folderTakenMessage(dir!, owner))
 }
 
+/**
+ * Get agent by name from ANY host (global search)
+ * Use sparingly - prefer getAgentByName(name, hostId) for per-host lookups
+ */
 export function getAgentByNameAnyHost(name: string): Agent | null {
   const agents = loadAgents()
   // Exclude soft-deleted agents from name lookups
@@ -524,7 +525,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
   if (existing) {
     throw new Error(`Agent "${agentName}" already exists on host "${hostId}"`)
   }
-  assertFolderFree(request.workingDirectory, undefined, agents)
+  // The folder is on the agent's own host; a docker agent's folder is only mounted into its container
+  if (isSelf(hostId) && request.runtime !== 'docker') assertFolderFree(request.workingDirectory, undefined, agents)
 
   // Create initial sessions array
   const sessions: AgentSession[] = []
@@ -701,7 +703,8 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   // A new working directory is also the folder a wake falls back to: keep the
   // preference and the first session in step, unless the caller set them.
   if (updates.workingDirectory && updates.workingDirectory !== agents[index].workingDirectory) {
-    assertFolderFree(updates.workingDirectory, id, agents)
+    const own = agents[index]
+    if (own.runtime !== 'docker' && (own.hostId == null || isSelf(own.hostId))) assertFolderFree(updates.workingDirectory, id, agents)
     updates.preferences = {
       ...updates.preferences,
       defaultWorkingDirectory: updates.preferences?.defaultWorkingDirectory ?? updates.workingDirectory,

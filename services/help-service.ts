@@ -124,7 +124,7 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
         tags,
         owner: 'system',
         createSession: true,
-        workingDirectory: cwd,
+        // No folder: it only reads the docs in the install folder, which a real agent may own (one folder per agent)
         programArgs: '',
       })
     }
@@ -141,7 +141,8 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
     writeFileSync(promptFile, SYSTEM_PROMPT)
 
     // Launch claude with read-only tools and bypass permissions
-    const launchCmd = `claude --model ${ASSISTANT_MODEL} --tools ${ASSISTANT_TOOLS} --permission-mode bypassPermissions --system-prompt "$(cat ${promptFile})"`
+    // AIM_AGENT_ID so the hook links the session to the assistant, not to an agent that owns this folder
+    const launchCmd = `AIM_AGENT_ID=${agent.id} claude --model ${ASSISTANT_MODEL} --tools ${ASSISTANT_TOOLS} --permission-mode bypassPermissions --system-prompt "$(cat ${promptFile})"`
     await runtime.sendKeys(ASSISTANT_NAME, launchCmd, { literal: true, enter: true })
 
     return {

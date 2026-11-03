@@ -7,7 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - Two agents could be registered in the same folder, and nothing stopped it. Claude transcripts, memory, the name hint in `.claude/settings.local.json` and the hook's state are all kept per folder, so such agents read each other's conversations and cannot be exported or moved apart. Creating, importing or moving an agent into a folder that another agent on the host owns is now refused, with the owner's name. A folder inside another agent's folder is still allowed. When an agent's terminal `cd`s into another agent's folder, the registry no longer moves the agent there (#758).
-- An agent whose session runs outside AI Maestro showed offline when the session was in a subfolder of the agent's folder (`docs/`, `plugin/`). The hook now links a session to the agent with the deepest folder that contains it, so a nested agent wins over its parent. `$HOME`, `/` and `/tmp` match only exactly (#758).
+- The rule has exceptions where a folder does not hold the agent's work: docker agents (their transcripts are in the container), agents on other hosts, and AMP identities, which are registered without the folder when another agent owns it. Creating an agent in a taken folder is refused before its tmux session starts, so no orphan session is left behind. The Help assistant no longer registers the install folder, and its session carries `AIM_AGENT_ID`, so it is not taken for an agent that owns that folder (#758).
+- The hook no longer counts deleted agents when it matches a session to an agent by folder (#758).
 - When several agents share a folder, the hook used to link the session to none of them without saying so. The session now shows a one-line notice that names the agents and how to start the session as one of them (#758).
 
 - Deleting an agent (or ending a call session, or a memory summary) killed its tmux session with a bare `-t name`, which tmux treats as a prefix match when no session has exactly that name. Deleting agent `foo` with no session of its own could kill `foo-bar`'s session. Every `kill-session` now uses an exact target (`=name`).
@@ -15,7 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Diagnostics check `shared-folders`: lists the folders that more than one agent on the host uses.
 - Troubleshooting: "Agent shows offline while its session is running".
-- Backlog F068 (an agent hands its work to subagents so it can answer a call fast, an idea to test) and B022 (hook state files are keyed by folder).
+- Backlog F068 (an agent hands its work to subagents so it can answer a call fast, an idea to test) B022 (hook state files are keyed by folder) and B023 (orphan tmux sessions bypass the folder rule).
 
 ## [0.106.60] - 2026-11-02 - A phone reading the chat no longer shrinks the agent's terminal
 

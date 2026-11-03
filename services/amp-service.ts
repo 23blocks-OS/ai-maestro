@@ -39,7 +39,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHost, updateAgent, deleteAgent, markAgentAsAMPRegistered, checkMeshAgentExists, getAMPRegisteredAgents } from '@/lib/agent-registry'
+import { loadAgents, createAgent, getAgent, getAgentByName, getAgentByNameAnyHost, updateAgent, deleteAgent, markAgentAsAMPRegistered, checkMeshAgentExists, getAMPRegisteredAgents, folderOwner } from '@/lib/agent-registry'
 import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader, revokeApiKey, rotateApiKey, revokeAllKeysForAgent } from '@/lib/amp-auth'
 import { saveKeyPair, loadKeyPair, loadAllRegistrations, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
 import { checkKnownKey, recordKnownKey, rotateKnownKey } from '@/lib/amp-known-keys'
@@ -707,6 +707,13 @@ export async function registerAgent(
         console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}...)`)
       }
     } else {
+      // An AMP identity needs no folder; one another agent owns is left out rather than refusing the registration
+      let ampFolder = body.metadata?.working_directory as string || undefined
+      const ampFolderOwner = folderOwner(ampFolder)
+      if (ampFolderOwner) {
+        console.log(`[AMP Register] '${normalizedName}' registered without folder ${ampFolder}: it belongs to ${ampFolderOwner.name}`)
+        ampFolder = undefined
+      }
       try {
         agent = createAgent({
           id: body.agent_id,
@@ -715,7 +722,7 @@ export async function registerAgent(
           program: 'Claude Code',
           model: 'Claude',
           taskDescription: body.metadata?.description as string || `AMP-registered agent: ${normalizedName}`,
-          workingDirectory: body.metadata?.working_directory as string || undefined,
+          workingDirectory: ampFolder,
           runtime: 'api',
           createSession: false,
           metadata: {

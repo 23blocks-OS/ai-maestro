@@ -31,7 +31,7 @@ import path from 'path'
 import os from 'os'
 import type { Session } from '@/types/session'
 import { getAgent, getAgentBySession, getAgentByName, createAgent, deleteAgentBySession, renameAgentSession, updateAgent } from '@/lib/agent-registry'
-import { loadAgents } from '@/lib/agent-registry'
+import { loadAgents, folderOwner, folderTakenMessage } from '@/lib/agent-registry'
 // F004 Phase 2b: a codex agent has no AI Maestro hook, so its status is not in
 // the hook-fed sessionActivity map — derive it from its own transcript instead.
 import { resolveJsonlPath, isPiAgent } from '@/lib/chat-transcript.mjs'
@@ -1023,6 +1023,9 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     return invalidField('workingDirectory', where.error || 'Unusable working directory')
   }
   const cwd = where.cwd
+  // Refuse before the session starts: a session without its agent would be registered as an orphan
+  const owner = known ? null : folderOwner(cwd)
+  if (owner) return runtimeConflict(folderTakenMessage(cwd, owner))
   await runtime.createSession(actualSessionName, cwd)
 
   // Register agent

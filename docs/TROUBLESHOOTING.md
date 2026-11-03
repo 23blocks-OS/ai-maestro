@@ -136,8 +136,8 @@ folder, the hook cannot tell which one it is and links none. On start, the sessi
    The name must be set when the session starts. A session that is already running does not
    see it, so restart it.
 
-A session in a subfolder of the agent's folder (for example `docs/`) is linked to the agent. If an
-agent's folder is inside another agent's folder, the deeper agent wins.
+A session that runs outside AI Maestro is linked by its exact folder. A session in a subfolder (for
+example `docs/`) is not linked: start it from the agent's folder, or with `AIM_AGENT_NAME`.
 
 ### Problem: Agents Don't Appear in Dashboard
 

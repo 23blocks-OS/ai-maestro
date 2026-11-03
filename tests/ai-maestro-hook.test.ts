@@ -536,30 +536,25 @@ describe('ai-maestro-hook · a prompt that already carries the message is not an
 })
 
 describe('agent for a folder (#758)', () => {
-  const os = require('os')
-  const ag = (name: string, workingDirectory: string) => ({ id: name, name, workingDirectory })
+  const ag = (name: string, workingDirectory: string, extra = {}) => ({ id: name, name, workingDirectory, ...extra })
   const repo = ag('repo', '/work/repo')
   const child = ag('child', '/work/repo/agents/child')
 
-  it('a session in a subfolder finds the agent that owns the folder', () => {
-    expect(hook.resolveAgent('/work/repo/docs', [repo]).name).toBe('repo')
+  it('matches the exact folder only: a session in a subfolder is not the agent', () => {
+    expect(hook.resolveAgent('/work/repo/', [repo, child]).name).toBe('repo')
+    expect(hook.resolveAgent('/work/repo/agents/child', [repo, child]).name).toBe('child')
+    expect(hook.resolveAgent('/work/repo/docs', [repo])).toBeNull()
   })
 
-  it('a nested agent wins over its parent', () => {
-    expect(hook.resolveAgent('/work/repo/agents/child/src', [repo, child]).name).toBe('child')
-    expect(hook.resolveAgent('/work/repo/plugin', [repo, child]).name).toBe('repo')
-  })
-
-  it('an agent in $HOME owns only $HOME itself', () => {
-    const home = ag('home', os.homedir())
-    expect(hook.resolveAgent(os.homedir() + '/elsewhere', [home])).toBeNull()
-    expect(hook.resolveAgent(os.homedir(), [home]).name).toBe('home')
+  it('a deleted agent does not make the folder ambiguous', () => {
+    expect(hook.resolveAgent('/work/repo', [repo, ag('old', '/work/repo', { deletedAt: '2026-01-01' })]).name).toBe('repo')
   })
 
   it('tells the person when agents share the folder, and stays quiet otherwise', () => {
     const twin = ag('twin', '/work/repo')
     expect(hook.resolveAgent('/work/repo', [repo, twin])).toBeNull()
-    expect(hook.unlinkedNotice('/work/repo/docs', [repo, twin])).toMatch(/2 agents use this folder \(repo, twin\)/)
+    expect(hook.unlinkedNotice('/work/repo', [repo, twin])).toMatch(/2 agents use this folder \(repo, twin\)/)
+    expect(hook.unlinkedNotice('/work/repo/docs', [repo, twin])).toBeNull()
     expect(hook.unlinkedNotice('/work/repo', [repo])).toBeNull()
     expect(hook.unlinkedNotice('/somewhere/else', [repo, twin])).toBeNull()
   })

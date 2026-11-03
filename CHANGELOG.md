@@ -10,6 +10,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - An agent whose session runs outside AI Maestro showed offline when the session was in a subfolder of the agent's folder (`docs/`, `plugin/`). The hook now links a session to the agent with the deepest folder that contains it, so a nested agent wins over its parent. `$HOME`, `/` and `/tmp` match only exactly (#758).
 - When several agents share a folder, the hook used to link the session to none of them without saying so. The session now shows a one-line notice that names the agents and how to start the session as one of them (#758).
 
+- Deleting an agent (or ending a call session, or a memory summary) killed its tmux session with a bare `-t name`, which tmux treats as a prefix match when no session has exactly that name. Deleting agent `foo` with no session of its own could kill `foo-bar`'s session. Every `kill-session` now uses an exact target (`=name`).
+
 ### Added
 - Diagnostics check `shared-folders`: lists the folders that more than one agent on the host uses.
 - Troubleshooting: "Agent shows offline while its session is running".

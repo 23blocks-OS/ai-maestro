@@ -323,7 +323,7 @@ export class TmuxRuntime implements AgentRuntime {
 
   async killSession(name: string): Promise<void> {
     try {
-      await tmux(['kill-session', '-t', assertSessionName(name)])
+      await tmux(['kill-session', '-t', `=${assertSessionName(name)}`])
     } finally {
       this.forgetListing()
     }
@@ -502,7 +502,8 @@ export function sessionExistsSync(name: string, socketPath?: string): boolean {
 
 export function killSessionSync(name: string): void {
   try {
-    nodeExecFileSync('tmux', ['kill-session', '-t', name], { encoding: 'utf-8', stdio: 'ignore' })
+    // '=' makes the target exact: a bare name is a prefix match, so deleting "foo" would kill "foo-bar"
+    nodeExecFileSync('tmux', ['kill-session', '-t', `=${name}`], { encoding: 'utf-8', stdio: 'ignore' })
   } catch {
     // Session may not exist
   }

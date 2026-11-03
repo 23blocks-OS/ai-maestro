@@ -30,7 +30,8 @@ const sim = vi.hoisted(() => {
   const fail = (msg: string) => { const e: any = new Error(msg); e.code = 1; throw e }
   const target = (args: string[]) => {
     const i = args.indexOf('-t')
-    return i === -1 ? '' : args[i + 1].split(':')[0]
+    // A leading '=' asks real tmux for an exact match; the fake only matches exactly anyway
+    return i === -1 ? '' : args[i + 1].split(':')[0].replace(/^=/, '')
   }
   const pane = (args: string[]) => sessions.get(target(args)) || fail(`can't find session: ${target(args)}`)
   const format = (name: string, p: any, fmt: string) => fmt

@@ -382,7 +382,7 @@ async function runViaTmux(claude: string, args: string[], prompt: string): Promi
   const session = `${id}__call`
   const cleanup = () => {
     for (const ext of ['prompt', 'sh', 'tmp', 'out', 'err', 'code']) fs.rmSync(file(ext), { force: true })
-    tmux(['kill-session', '-t', session]).catch(() => { /* already gone */ })
+    tmux(['kill-session', '-t', `=${session}`]).catch(() => { /* already gone */ })
   }
   try {
     await tmux(['new-session', '-d', '-s', session, `bash ${shellQuote(file('sh'))}`])

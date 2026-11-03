@@ -100,6 +100,7 @@ import {
   getAgentBySession,
   addSessionToAgent,
   incrementAgentMetric,
+  updateAgentWorkingDirectory,
 } from '@/lib/agent-registry'
 import type { Agent, CreateAgentRequest } from '@/types/agent'
 
@@ -415,6 +416,32 @@ describe('createAgent', () => {
 // ============================================================================
 // updateAgent
 // ============================================================================
+
+describe('one folder per agent (#758)', () => {
+  it('refuses a second agent in a folder another agent owns, naming the owner', () => {
+    createAgent(makeCreateRequest({ name: 'owner', workingDirectory: '/repo' }))
+    expect(() => createAgent(makeCreateRequest({ name: 'second', workingDirectory: '/repo/' }))).toThrow(/belongs to agent "owner"/)
+  })
+
+  it('allows a folder inside another agent\'s folder', () => {
+    createAgent(makeCreateRequest({ name: 'parent', workingDirectory: '/repo' }))
+    expect(createAgent(makeCreateRequest({ name: 'child', workingDirectory: '/repo/agents/child' })).workingDirectory).toBe('/repo/agents/child')
+  })
+
+  it('docker agents own no host folder', () => {
+    createAgent(makeCreateRequest({ name: 'box1', workingDirectory: '/tmp', runtime: 'docker' }))
+    expect(createAgent(makeCreateRequest({ name: 'box2', workingDirectory: '/tmp', runtime: 'docker' })).name).toBe('box2')
+    expect(createAgent(makeCreateRequest({ name: 'plain', workingDirectory: '/tmp' })).name).toBe('plain')
+  })
+
+  it('refuses a move into a taken folder, and a pane cd does not move the agent there', () => {
+    createAgent(makeCreateRequest({ name: 'a', workingDirectory: '/a' }))
+    const b = createAgent(makeCreateRequest({ name: 'b', workingDirectory: '/b' }))
+    expect(() => updateAgent(b.id, { workingDirectory: '/a' })).toThrow(/belongs to agent "a"/)
+    expect(updateAgentWorkingDirectory(b.id, '/a')).toBe(false)
+    expect(getAgent(b.id)!.workingDirectory).toBe('/b')
+  })
+})
 
 describe('updateAgent', () => {
   it('updates specified fields while preserving others', () => {

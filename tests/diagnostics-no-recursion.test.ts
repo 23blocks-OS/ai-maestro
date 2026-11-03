@@ -83,3 +83,15 @@ describe('disk space', () => {
     expect(r.checks.find(c => c.name === 'disk-space')).toMatchObject({ status: 'pass', details: { availableKB: 171966464 } })
   })
 })
+
+describe('shared-folders check (#758)', () => {
+  it('warns about a folder two agents on this host own, ignores nesting, other hosts and deleted agents', async () => {
+    const { checkSharedFolders } = await import('@/services/diagnostics-service')
+    const a = (name: string, workingDirectory: string, extra = {}) => ({ id: name, name, workingDirectory, hostId: 'self', ...extra }) as any
+    expect(checkSharedFolders([a('x', '/r'), a('y', '/r/sub')]).status).toBe('pass')
+    expect(checkSharedFolders([a('x', '/r'), a('y', '/r', { hostId: 'mac-mini' }), a('z', '/r', { deletedAt: '2026-01-01' })]).status).toBe('pass')
+    const r = checkSharedFolders([a('x', '/r'), a('y', '/r/')])
+    expect(r.status).toBe('warn')
+    expect(r.details).toEqual({ shared: [{ folder: '/r', agents: ['x', 'y'] }] })
+  })
+})

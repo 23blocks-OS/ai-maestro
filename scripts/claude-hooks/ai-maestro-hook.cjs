@@ -153,15 +153,34 @@ function resolveAgent(cwd, agents) {
     // is ambiguous we refuse to guess and return null: the session shows no identity
     // rather than a wrong one. To identify such a session, launch it with AIM_AGENT_ID
     // or AIM_AGENT_NAME (AI Maestro's launcher sets these; manual sessions don't).
-    const cwdMatches = agents.filter(a => {
-        const agentWd = a.workingDirectory || a.session?.workingDirectory;
-        return agentWd && agentWd === cwd;
-    });
+    const cwdMatches = agentsForCwd(cwd, agents);
     if (cwdMatches.length === 1) return cwdMatches[0];
     if (cwdMatches.length > 1) {
         debugLog({ event: 'ambiguous_cwd_no_guess', cwd, count: cwdMatches.length });
     }
     return null;
+}
+
+// The agents whose folder is exactly cwd. Not a subfolder: a plain session in repo/docs would then send
+// the agent's heartbeat, replace its claudeSessionId and get its messages (#758 review).
+function agentsForCwd(cwd, agents) {
+    if (!cwd) return [];
+    const here = path.resolve(cwd);
+    return agents.filter(a => {
+        const wd = a.workingDirectory || a.session?.workingDirectory || a.sessions?.[0]?.workingDirectory;
+        return !!wd && !a.deletedAt && path.resolve(wd) === here;
+    });
+}
+
+// Said to the person when this session cannot be linked to an agent: it would otherwise run, and the
+// agent would show offline with nothing to say why. Null when the session has no agent to be linked to.
+function unlinkedNotice(cwd, agents) {
+    if (!agents || resolveAgent(cwd, agents)) return null;
+    const matches = agentsForCwd(cwd, agents);
+    if (matches.length < 2) return null;
+    const names = matches.map(a => a.name).filter(Boolean);
+    return `This session is not linked to an AI Maestro agent: ${names.length} agents use this folder (${names.join(', ')}), so none of them shows online. `
+        + `Restart it as one of them: AIM_AGENT_NAME=<name> claude --continue. Each agent should have its own folder (a git worktree works).`;
 }
 
 // The hookState the server relays to chat clients: only for events that produce a card or a notice.
@@ -1325,6 +1344,14 @@ async function handleEvent(input) {
                 debugLog({ event: 'injecting_context', cwd, agent, trigger: 'session_start', hasInbox: !!startMessagePrompt, hasMeeting: !!startMeetingContext, hasMemory: !!startMemory });
                 hookResponse = buildContextResponse(agent, rawEvent, startCombined);
             }
+            if (agent === 'claude') {
+                const notice = unlinkedNotice(cwd, await fetchAgentsOnce().catch(() => null));
+                if (notice) {
+                    debugLog({ event: 'unlinked_session', cwd });
+                    // systemMessage is shown to the person; the model gets the same line so it can explain
+                    hookResponse = { ...(hookResponse || buildContextResponse(agent, rawEvent, notice)), systemMessage: notice };
+                }
+            }
             break;
 
         case 'UserPromptSubmit': {
@@ -1379,6 +1406,9 @@ if (require.main === module) {
 module.exports = {
     aimBase,
     buildHookStateData,
+    resolveAgent,
+    agentsForCwd,
+    unlinkedNotice,
     summarizeToolInput,
     describePermission,
     rotateDebugLog,

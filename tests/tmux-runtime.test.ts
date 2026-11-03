@@ -104,7 +104,7 @@ describe('sync operations keep the argv of the shell strings they replaced', () 
     expect(lastSyncArgs()).toEqual(['has-session', '-t', `${S}__call`])
     expect(lastSyncOpts()).toEqual({ stdio: 'ignore', timeout: 5000 })
     rt.killSessionSync(`${S}__call`, { timeout: 5000 })
-    expect(lastSyncArgs()).toEqual(['kill-session', '-t', `${S}__call`])
+    expect(lastSyncArgs()).toEqual(['kill-session', '-t', `=${S}__call`])
     expect(lastSyncOpts()).toEqual({ stdio: 'ignore', timeout: 5000 })
     rt.newSessionSync(`${S}__call`, '/work dir', { timeout: 5000 })
     expect(lastSyncArgs()).toEqual(['new-session', '-d', '-s', `${S}__call`, '-c', '/work dir'])
@@ -155,7 +155,7 @@ describe('async operations keep the argv of the execFile calls they replaced', (
     await rt.sendKeyAsync(S, 'Enter')
     expect(lastAsyncArgs()).toEqual(['send-keys', '-t', S, 'Enter'])
     await rt.killSessionAsync(S)
-    expect(lastAsyncArgs()).toEqual(['kill-session', '-t', S])
+    expect(lastAsyncArgs()).toEqual(['kill-session', '-t', `=${S}`])
   })
 
   it('a bad target rejects before tmux runs', async () => {

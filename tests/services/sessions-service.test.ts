@@ -44,6 +44,8 @@ const {
       deleteAgentBySession: vi.fn(),
       renameAgentSession: vi.fn(),
       loadAgents: vi.fn().mockReturnValue([]),
+      folderOwner: vi.fn().mockReturnValue(null),
+      folderTakenMessage: vi.fn((dir: string, owner: { name: string }) => `The folder ${dir} already belongs to agent "${owner.name}".`),
     },
     mockHostsConfig: {
       getHosts: vi.fn().mockReturnValue([{ id: 'test-host', name: 'Test Host', url: 'http://localhost:23000' }]),
@@ -312,6 +314,19 @@ describe('createSession', () => {
 
     expect(result.status).toBe(409)
     expect((result.data as ServiceError).message).toMatch(/already exists/i)
+  })
+
+  it('returns 409 for a folder another agent owns, before any tmux session starts (#758)', async () => {
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.getAgentByName.mockReturnValue(null)
+    mockAgentRegistry.folderOwner.mockReturnValueOnce({ id: 'o', name: 'owner' })
+    mockRuntime.createSession.mockClear()
+
+    const result = await createSession({ name: 'second', workingDirectory: '/repo' })
+
+    expect(result.status).toBe(409)
+    expect((result.data as ServiceError).message).toMatch(/belongs to agent "owner"/)
+    expect(mockRuntime.createSession).not.toHaveBeenCalled()
   })
 
   it('normalizes name to lowercase', async () => {

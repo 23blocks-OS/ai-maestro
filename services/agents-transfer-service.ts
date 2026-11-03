@@ -5,7 +5,7 @@
  * Routes are thin wrappers that call these functions.
  */
 
-import { getAgent, getAgentByAlias, getAgentByName, getAgentSkills, loadAgents, saveAgents } from '@/lib/agent-registry'
+import { getAgent, getAgentByAlias, getAgentByName, getAgentSkills, loadAgents, saveAgents, folderOwner, folderTakenMessage } from '@/lib/agent-registry'
 import { getSkillById } from '@/lib/marketplace-skills'
 import { hasKeyPair, getKeysDir, getRegistrationsDir, listRegisteredProviders, generateKeyPair, saveKeyPair } from '@/lib/amp-keys'
 import { getSelfHost } from '@/lib/hosts-config'
@@ -708,6 +708,14 @@ export async function importAgent(
 
     // Import to registry
     const agents = loadAgents()
+
+    const folderTakenBy = folderOwner(agentToImport.workingDirectory, existingAgent && options.overwrite ? existingAgent.id : undefined, agents)
+    if (folderTakenBy) {
+      return {
+        data: { success: false, warnings, errors: [folderTakenMessage(agentToImport.workingDirectory!, folderTakenBy)], stats } as AgentImportResult,
+        status: 409
+      }
+    }
 
     if (existingAgent && options.overwrite) {
       const filteredAgents = agents.filter(a => a.id !== existingAgent.id)

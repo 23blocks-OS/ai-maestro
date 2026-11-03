@@ -547,7 +547,8 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                     tags,
                     owner: os.userInfo().username,
                     createSession: true,
-                    workingDirectory: resolvedWorkingDirectory || undefined,
+                    // A folder another agent owns is left out: the registration would fail on every poll (B023)
+                    workingDirectory: resolvedWorkingDirectory && !folderOwner(resolvedWorkingDirectory) ? resolvedWorkingDirectory : undefined,
                   })
                   agentId = agent.id
                   console.log(`[Sessions] Auto-registered OpenClaw agent: ${sessionName} (${agent.id})`)

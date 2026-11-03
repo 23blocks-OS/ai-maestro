@@ -55,6 +55,7 @@ const {
       linkSession: vi.fn(),
       unlinkSession: vi.fn(),
       trustProjectDirectory: vi.fn().mockReturnValue(true),
+      folderOwner: vi.fn().mockReturnValue(null),
     },
     mockHostsConfig: {
       getHosts: vi.fn().mockReturnValue([{ id: 'test-host', name: 'Test Host', url: 'http://localhost:23000' }]),
@@ -217,6 +218,21 @@ describe('listAgents', () => {
     expect((result.data as any)?.stats.orphans).toBe(1)
     // Orphan should be saved to registry
     expect(mockAgentRegistry.saveAgents).toHaveBeenCalled()
+  })
+
+  it('an orphan in a folder another agent owns is registered without that folder (B023)', async () => {
+    mockAgentRegistry.loadAgents.mockReturnValue([])
+    mockAgentRegistry.folderOwner.mockReturnValueOnce({ id: 'o', name: 'owner' })
+    mockRuntime.listSessions.mockResolvedValue([
+      { name: 'stray', workingDirectory: '/repo', createdAt: '2025-01-01T00:00:00Z', windows: 1 },
+    ])
+
+    await listAgents()
+
+    const saved = mockAgentRegistry.saveAgents.mock.calls.at(-1)![0].find((a: any) => a.name === 'stray')
+    expect(saved.workingDirectory).toBeUndefined()
+    expect(saved.preferences.defaultWorkingDirectory).toBeUndefined()
+    expect(saved.sessions[0].workingDirectory).toBeUndefined()
   })
 
   it('does NOT create orphan agents for __call sessions', async () => {
@@ -539,7 +555,8 @@ describe('registerAgent', () => {
     const result = registerAgent({ sessionName: 'my-agent' })
 
     expect(result.status).toBe(200)
-    expect(mockAgentRegistry.linkSession).toHaveBeenCalledWith('existing-id', 'my-agent', expect.any(String))
+    // No folder given: none is recorded (it used to be the AI Maestro folder, B023)
+    expect(mockAgentRegistry.linkSession).toHaveBeenCalledWith('existing-id', 'my-agent', undefined)
     expect((result.data as any)?.registryAgent?.id).toBe('existing-id')
   })
 
@@ -637,6 +654,21 @@ describe('wakeAgent', () => {
     expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', '/home')
     // Claude Code must not stop at "trust this folder" after the wake
     expect(mockAgentRegistry.trustProjectDirectory).toHaveBeenCalledWith('/home')
+  })
+
+  it('an agent with no folder wakes in its own ~/agents/<name>, never the AI Maestro folder (B023)', async () => {
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', workingDirectory: undefined })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    const own = require('path').join(require('os').homedir(), 'agents', 'my-agent')
+    mockAgentRegistry.updateAgent.mockReset()
+
+    const result = await wakeAgent('agent-1', { startProgram: false })
+
+    expect(result.status).toBe(200)
+    expect(mockAgentRegistry.updateAgent).toHaveBeenCalledWith('agent-1', { workingDirectory: own })
+    expect(mockRuntime.createSession).toHaveBeenCalledWith('my-agent', own)
   })
 
   it('refuses to wake into a folder that does not exist, instead of starting in home', async () => {

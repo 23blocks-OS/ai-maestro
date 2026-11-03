@@ -112,7 +112,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B020** — [AI Maestro's own secrets are kept in plain files, outside the vault](./backlog/B020-service-secrets-outside-the-vault.md) — `Todo` (first step of F065 phase 1)
 - **B021** — [Agents on one host can read every secret and every agent key on it](./backlog/B021-agents-on-a-host-share-one-key-store.md) — `Todo` (accepted trade-off; docs only; containers isolate)
 - **B022** — [Hook state files are keyed by folder, not by agent or session](./backlog/B022-chat-state-files-keyed-by-folder.md) — `Todo` (found with #758)
-- **B023** — [Orphan tmux sessions are registered in folders other agents own](./backlog/B023-orphan-sessions-bypass-folder-rule.md) — `Todo` (found in the #758 review)
+- **B023** — [Orphan tmux sessions are registered in folders other agents own](./backlog/B023-orphan-sessions-bypass-folder-rule.md) — `Done` (0.106.62)
 
 ## Unfiled
 

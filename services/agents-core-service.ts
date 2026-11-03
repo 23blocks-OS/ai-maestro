@@ -58,6 +58,7 @@ import {
   linkSession,
   unlinkSession,
   trustProjectDirectory,
+  folderOwner,
 } from '@/lib/agent-registry'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/lib/hosts-config'
@@ -83,6 +84,7 @@ import {
 } from '@/lib/container-utils'
 import type { Host } from '@/types/host'
 import { shouldLogChange } from '@/lib/log-on-change'
+import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout, runtimeConflict } from '@/services/service-errors'
 
 // ---------------------------------------------------------------------------
@@ -582,7 +584,8 @@ function createOrphanAgent(
   session: DiscoveredSession,
   hostId: string,
   hostName: string,
-  hostUrl: string
+  hostUrl: string,
+  folder: string | undefined
 ): Agent {
   const { agentName: rawAgentName, index } = parseSessionName(session.name)
   const agentName = rawAgentName.toLowerCase()
@@ -591,7 +594,7 @@ function createOrphanAgent(
   const agentSession: AgentSession = {
     index,
     status: 'online',
-    workingDirectory: session.workingDirectory || process.cwd(),
+    workingDirectory: folder,
     createdAt: session.createdAt,
     lastActive: session.lastActivity,
   }
@@ -600,7 +603,7 @@ function createOrphanAgent(
     id: uuidv4(),
     name: agentName,
     label: undefined,
-    workingDirectory: session.workingDirectory || process.cwd(),
+    workingDirectory: folder,
     sessions: [agentSession],
     hostId,
     hostName,
@@ -622,7 +625,7 @@ function createOrphanAgent(
     createdAt: session.createdAt,
     lastActive: session.lastActivity,
     preferences: {
-      defaultWorkingDirectory: session.workingDirectory || process.cwd(),
+      defaultWorkingDirectory: folder,
     },
     metadata: {
       autoRegistered: true,
@@ -898,14 +901,18 @@ export async function listAgents(): Promise<ServiceResult<{
           return index === 0
         }) || sessions[0]
 
-        const orphanAgent = createOrphanAgent(primarySession, hostId, hostName, hostUrl)
+        // One folder per agent (B023): an orphan in a folder another agent owns is registered without it
+        const owner = folderOwner(primarySession.workingDirectory, undefined, [...agents, ...newOrphanAgents])
+        if (owner) console.log(`[Agents] Orphan session ${primarySession.name} registered without folder ${primarySession.workingDirectory}: it belongs to ${owner.name}`)
+        const folder = owner ? undefined : primarySession.workingDirectory || undefined
+        const orphanAgent = createOrphanAgent(primarySession, hostId, hostName, hostUrl, folder)
 
         orphanAgent.sessions = sessions.map(session => {
           const { index } = parseSessionName(session.name)
           return {
             index,
             status: 'online' as const,
-            workingDirectory: session.workingDirectory,
+            workingDirectory: owner ? undefined : session.workingDirectory,
             createdAt: session.createdAt,
             lastActive: session.lastActivity,
           }
@@ -1160,14 +1167,14 @@ export function registerAgent(body: RegisterAgentParams): ServiceResult<{
       agentConfig = {
         id: agentId,
         sessionName,
-        workingDirectory: workingDirectory || process.cwd(),
+        workingDirectory,
         createdAt: Date.now(),
       }
 
       // Check if agent already exists in registry by session name
       const existingAgent = getAgentBySession(sessionName)
       if (existingAgent) {
-        linkSession(existingAgent.id, sessionName, workingDirectory || process.cwd())
+        linkSession(existingAgent.id, sessionName, workingDirectory)
         registryAgent = existingAgent
       } else {
         const parts = sessionName.split('-')
@@ -1184,7 +1191,7 @@ export function registerAgent(body: RegisterAgentParams): ServiceResult<{
             tags,
             owner: os.userInfo().username,
             createSession: true,
-            workingDirectory: workingDirectory || process.cwd()
+            workingDirectory
           })
         } catch (createError) {
           console.warn(`[Register] Could not create registry entry for ${sessionName}:`, createError)
@@ -1528,7 +1535,7 @@ export function linkAgentSession(agentId: string, params: LinkSessionParams): Se
       return missingField('sessionName')
     }
 
-    const success = linkSession(agentId, sessionName, workingDirectory || process.cwd())
+    const success = linkSession(agentId, sessionName, workingDirectory)
     if (!success) {
       return notFound('Agent', agentId)
     }
@@ -1754,9 +1761,21 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
       return invalidField('name', 'Agent has no name configured')
     }
 
-    const workingDirectory = agent.workingDirectory ||
-                            agent.preferences?.defaultWorkingDirectory ||
-                            process.cwd()
+    let workingDirectory = agent.workingDirectory || agent.preferences?.defaultWorkingDirectory || ''
+    // A cloud agent works in its container: it gets no folder on this host
+    if (!workingDirectory && agent.deployment?.type !== 'cloud') {
+      // No folder: its own ~/agents/<name>, as a new session gets. Never the AI Maestro folder, where its
+      // conversations would mix with every other agent woken without one (B023).
+      const where = resolveWorkingDirectory(undefined, agentName)
+      if (!where.ok || !where.cwd) return invalidField('workingDirectory', where.error || 'The agent has no folder')
+      try {
+        updateAgent(agentId, { workingDirectory: where.cwd })
+      } catch (err) {
+        return invalidField('workingDirectory', (err as Error).message)
+      }
+      workingDirectory = where.cwd
+      console.log(`[Wake] ${agentName} (${agentId}) had no folder; it now has ${workingDirectory}`)
+    }
 
     const sessionName = computeSessionName(agentName, sessionIndex)
 

@@ -102,6 +102,28 @@ describe('install-hooks.sh · PermissionRequest (observe-only, 2.0.45 or later)'
     expect(out).toMatch(/PermissionRequest hook: skipped/)
   })
 
+  // mac-mini, 2026-11-03: a Homebrew 2.0.33 in /usr/local/bin came first on the updater's PATH and hung on
+  // --version, which stalled the deploy and left the hook out; the agents run ~/.local/bin/claude.
+  const hangingClaude = () =>
+    fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\nexec sleep 60\n', { mode: 0o755 })
+
+  it('asks the native ~/.local/bin/claude, not an older one earlier on PATH', () => {
+    hangingClaude()
+    const local = path.join(home, '.local', 'bin')
+    fs.mkdirSync(local, { recursive: true })
+    fs.writeFileSync(path.join(local, 'claude'), '#!/bin/sh\necho "2.1.316 (Claude Code)"\n', { mode: 0o755 })
+    run()
+    expect(ours(settings().hooks.PermissionRequest).length).toBe(1)
+  })
+
+  it('gives up on a claude that hangs on --version instead of stalling', () => {
+    hangingClaude()
+    const started = Date.now()
+    const out = run()
+    expect(Date.now() - started).toBeLessThan(25000)
+    expect(out).toMatch(/PermissionRequest hook: skipped/)
+  }, 30000)
+
   it('AIM_PERMISSION_REQUEST_HOOK=1 registers it without a version check', () => {
     run({ AIM_PERMISSION_REQUEST_HOOK: '1' })
     expect(ours(settings().hooks.PermissionRequest).length).toBe(1)

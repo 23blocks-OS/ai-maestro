@@ -515,8 +515,13 @@ fi
 
 # Check Claude Code (optional)
 print_info "Checking for Claude Code..."
-if command -v claude &> /dev/null; then
-    CLAUDE_VERSION=$(claude --version 2>/dev/null | head -n1 || echo "unknown")
+# The native installer's ~/.local/bin/claude first: an older copy earlier on PATH can hang on --version
+# (mac-mini's Homebrew 2.0.33), and the 15 s limit keeps a broken install from stalling the updater.
+CLAUDE_BIN="$HOME/.local/bin/claude"
+[ -x "$CLAUDE_BIN" ] || CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+if [ -n "$CLAUDE_BIN" ]; then
+    CLAUDE_VERSION=$(perl -e 'alarm 15; exec @ARGV' "$CLAUDE_BIN" --version 2>/dev/null | head -n1)
+    CLAUDE_VERSION=${CLAUDE_VERSION:-unknown}
     print_success "Claude Code installed ($CLAUDE_VERSION)"
     INSTALL_SKILL=true
 else

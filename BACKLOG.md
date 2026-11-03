@@ -115,6 +115,10 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B021** — [Agents on one host can read every secret and every agent key on it](./backlog/B021-agents-on-a-host-share-one-key-store.md) — `Todo` (accepted trade-off; docs only; containers isolate)
 - **B022** — [Hook state files are keyed by folder, not by agent or session](./backlog/B022-chat-state-files-keyed-by-folder.md) — `Todo` (found with #758)
 - **B023** — [Orphan tmux sessions are registered in folders other agents own](./backlog/B023-orphan-sessions-bypass-folder-rule.md) — `Done` (0.106.62)
+- **B024** — [System text (skills, Stop hook feedback, message notices) shows in the chat as the person's message](./backlog/B024-skill-text-shows-as-chat-message.md) — `Todo` (#767)
+- **B025** — [The approval card shows the command, then only the options](./backlog/B025-approval-card-loses-command.md) — `Todo` (#768)
+- **B026** — [Pasted text shows twice in the chat, once with raw `<pasted_content>` tags](./backlog/B026-pasted-text-shows-raw-wrapper-twice.md) — `Todo` (#769)
+- **B027** — [A message sent while the agent works shows as Queued and as delivered at once](./backlog/B027-queued-message-shows-queued-and-delivered.md) — `Todo` (#770)
 
 ## Unfiled
 

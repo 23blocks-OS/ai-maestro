@@ -624,7 +624,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   }
 
   // Group consecutive tool-only messages into collapsible bursts
-  const groupedItems = useMemo(() => groupMessages(messages as any[], 'power'), [messages])
+  const groupedItems = useMemo(() => groupMessages(messages as any[], 'power', false), [messages])
 
   // Determine status
   const isPermission = hookState?.status === 'permission_request'

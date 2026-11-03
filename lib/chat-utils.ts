@@ -30,6 +30,9 @@ interface Message {
   toolInput?: any
   operation?: 'enqueue' | 'dequeue'
   content?: string
+  /** system_notice (B024): what kind of system text, and the text */
+  kind?: string
+  text?: string
 }
 
 export interface ToolBurst {
@@ -163,7 +166,38 @@ export function getToolPreviewText(name: string, input: any): string {
  * - In 'assisted' mode, tool-only messages are filtered out entirely
  * - Non-assistant messages pass through unchanged
  */
-export function groupMessages(messages: Message[], chatMode: 'power' | 'assisted'): GroupedItem[] {
+const norm = (t: string) => t.replace(/\s+/g, ' ').trim()
+
+/** The text of a user message, a queued entry or a system note, for matching one against another. */
+function plainText(m: Message): string {
+  if (m.type === 'system_notice') return m.text || ''
+  if (m.type === 'queue-operation') return m.content || ''
+  const c = m.message?.content
+  if (typeof c === 'string') return c
+  return Array.isArray(c) ? c.filter(b => b.type === 'text' && b.text).map(b => b.text).join('\n\n') : ''
+}
+
+/**
+ * What the chat draws (B024, B027):
+ * - a "Queued" entry only until its text is delivered (a later user line, or the system note it became);
+ *   Claude Code writes the enqueue and the delivery as separate lines, often in separate updates;
+ * - system notes (skills, Stop hook feedback, message notices) only when `showSystemNotes` (X-Ray).
+ */
+export function visibleMessages<T extends Message>(messages: T[], showSystemNotes: boolean): T[] {
+  const delivered = new Set<string>()
+  const out: T[] = []
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.type === 'user' || m.type === 'system_notice') delivered.add(norm(plainText(m)))
+    if (m.type === 'queue-operation' && m.operation === 'enqueue' && delivered.has(norm(plainText(m)))) continue
+    if (m.type === 'system_notice' && !showSystemNotes) continue
+    out.push(m)
+  }
+  return out.reverse()
+}
+
+export function groupMessages(messages: Message[], chatMode: 'power' | 'assisted', showSystemNotes = chatMode === 'power'): GroupedItem[] {
+  messages = visibleMessages(messages, showSystemNotes)
   if (chatMode === 'assisted') {
     // Assisted mode: filter out tool-only messages entirely (existing behavior)
     return messages.filter(msg => !isToolOnlyMessage(msg))

@@ -1,6 +1,6 @@
 # B026 — Pasted text shows twice in the chat, once with raw `<pasted_content>` tags
 
-**Status:** Todo
+**Status:** Done (0.106.66)
 **Type:** Bug
 **Created:** 2026-11-03
 
@@ -25,7 +25,12 @@ at 17:46:38Z): Claude Code (2.1.31x) now stores a pasted prompt as
 2. cannot match it to the text it sent, so the person's pending bubble is never confirmed and stays next
    to the transcript's copy: two cards.
 
-Expected: one bubble with the pasted text, no tags.
+Second report, 11:44 the same day, on Lola (pas-lola): a pasted brief about suesca.com. The agent got it
+and was working on it, yet the person's own bubble said **"Not confirmed — may not have reached the
+agent"** with **Retry** and **Dismiss**, under the tagged copy. Retry would send the whole brief again, so
+this bug can make a person resend a task an agent is already doing.
+
+Expected: one bubble with the pasted text, no tags, confirmed as delivered.
 
 ## Why It's Needed
 

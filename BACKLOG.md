@@ -89,6 +89,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F068** — [An agent hands its work to subagents so it can answer a call fast](./backlog/F068-agent-delegates-work-to-answer-calls.md) — `Todo` (idea to test)
 - **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63, page in 0.106.64; CLI, mobile next)
 - **F070** — [Notify a person when a long action finishes, and when an agent has a result](./backlog/F070-notify-long-actions-and-agent-results.md) — `Todo` (idea to shape)
+- **F071** — [Doctor: check the agent programs on each host (Claude Code, Codex, Pi, …)](./backlog/F071-doctor-agent-programs-check.md) — `Todo`
+- **F072** — [Create agent: show which programs each host can run, then offer to install the missing ones](./backlog/F072-create-agent-program-availability-and-install.md) — `Todo`
+- **F073** — [Hibernate idle agents by rule, and wake them for a message or a task](./backlog/F073-auto-hibernate-idle-agents.md) — `Todo` (idea to shape)
 
 ## Bugs
 
@@ -117,7 +120,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B023** — [Orphan tmux sessions are registered in folders other agents own](./backlog/B023-orphan-sessions-bypass-folder-rule.md) — `Done` (0.106.62)
 - **B024** — [System text (skills, Stop hook feedback, message notices) shows in the chat as the person's message](./backlog/B024-skill-text-shows-as-chat-message.md) — `Todo` (#767)
 - **B025** — [The approval card shows the command, then only the options](./backlog/B025-approval-card-loses-command.md) — `Todo` (#768)
-- **B026** — [Pasted text shows twice in the chat, once with raw `<pasted_content>` tags](./backlog/B026-pasted-text-shows-raw-wrapper-twice.md) — `Todo` (#769)
+- **B026** — [Pasted text shows twice in the chat, once with raw `<pasted_content>` tags](./backlog/B026-pasted-text-shows-raw-wrapper-twice.md) — `Done` (0.106.66, #769)
 - **B027** — [A message sent while the agent works shows as Queued and as delivered at once](./backlog/B027-queued-message-shows-queued-and-delivered.md) — `Todo` (#770)
 
 ## Unfiled

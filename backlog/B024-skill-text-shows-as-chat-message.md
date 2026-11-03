@@ -1,6 +1,6 @@
 # B024 — System text (skills, Stop hook feedback, message notices) shows in the chat as the person's message
 
-**Status:** Todo
+**Status:** Done (0.106.68)
 **Type:** Bug
 **Created:** 2026-11-03
 

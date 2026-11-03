@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.68] - 2026-11-03 - System text is the system's, and a queued message shows once
+
+### Fixed
+- **System text no longer shows as your message** (B024, #767). The chat drew text the system put into the conversation as a blue bubble from the person: a loaded skill (its whole SKILL.md), the Stop hook's unread-mail notice, the `[#ref] [MESSAGE]` notice AI Maestro types into the pane, Claude Code's background-task and sub-agent notices. The transcript reader now marks these as system notes (`type: 'system_notice'` with a `kind`). The web chat shows them only in X-Ray, on the left, labelled "System" with a dashed border, and long ones (a skill) folded. Outside X-Ray, and in the mobile web chat, they are hidden.
+- **A message sent while the agent works shows once** (B027, #770). Claude Code (2.1.31x) now writes its own queue lines (enqueue, then dequeue or remove). The "Queued" entry stayed next to the delivered copy, with an older agent reply between them. Now a message is "Queued" only until it is delivered: when it becomes the next turn, or when the agent reads it mid-turn (it then shows as your message where the agent read it). A queued message notice is not a "Queued" bubble; it shows once, as a system note.
+- Checked on 60 real transcripts from this Mac: 2,813 system notes, no system text left as the person's, no "Queued" entry left that had been delivered.
+
+### Changed
+- For the mobile app: the chat feed has a new entry type, `system_notice` (`kind`, `text`), and mid-turn messages arrive as `type: 'user'` with `queued: true` instead of a `queue-operation` enqueue.
+
 ## [0.106.67] - 2026-11-03 - The dashboard keeps your agent; approval cards keep their command
 
 ### Fixed

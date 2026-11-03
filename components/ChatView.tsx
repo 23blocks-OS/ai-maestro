@@ -12,7 +12,7 @@ import AgentHeaderBar from './AgentHeaderBar'
 import { primaryAmpAddress } from '@/lib/status-format'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
-import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye } from 'lucide-react'
+import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Info } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
 import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import LoadEarlierMessages from '@/components/chat/LoadEarlierMessages'
@@ -78,6 +78,8 @@ interface Message {
     // payload — it exists so the UI can tell an answered question from a live
     // one after a page reload. See isQuestionAnswered.
     | 'tool_result_marker'
+    // Text the system put in the conversation (B024): shown only in X-Ray
+    | 'system_notice'
   tool_use_id?: string
   timestamp?: string
   uuid?: string
@@ -92,6 +94,9 @@ interface Message {
   // For queue-operation type
   operation?: 'enqueue' | 'dequeue'
   content?: string
+  // For system_notice
+  kind?: string
+  text?: string
 }
 
 interface ContentBlock {
@@ -131,6 +136,44 @@ function messageKey(m: Message): string {
 const PENDING_EXPIRY_MS = 30000
 /** Let the TUI open its free-text field before the answer is pasted into it. */
 const QUESTION_OTHER_SETTLE_MS = 400
+
+/** What a system note is, in a few words (B024). */
+function systemNoteLabel(kind: string | undefined, text: string): string {
+  if (kind === 'skill') {
+    const name = text.match(/^Base directory for this skill:\s*(\S+)/)?.[1]?.split('/').filter(Boolean).pop()
+    return name ? `Skill loaded: ${name}` : 'Skill loaded'
+  }
+  if (kind === 'stop-hook') return 'Unread messages notice'
+  if (kind === 'message-notice') return 'New message notice'
+  if (kind === 'task-notification') return 'Background task notice'
+  if (kind === 'agent-message') return 'Message from another session'
+  return 'System'
+}
+
+/** Text the system put in the conversation, shown in X-Ray only: on the left, not as the person's bubble. */
+function SystemNote({ kind, text, timestamp }: { kind?: string; text: string; timestamp?: string }) {
+  const lines = text.split('\n')
+  const label = systemNoteLabel(kind, text)
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] min-w-0 rounded-xl border border-dashed border-slate-600 bg-slate-900/70 px-3 py-2 text-slate-300">
+        <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
+          <Info className="w-3.5 h-3.5" />
+          <span>System · {label}</span>
+          {timestamp && <span className="opacity-60">{new Date(timestamp).toLocaleTimeString()}</span>}
+        </div>
+        {lines.length > 4 || text.length > 400 ? (
+          <details>
+            <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-200">Show text ({lines.length} lines)</summary>
+            <pre className="mt-1 whitespace-pre-wrap break-words text-xs font-mono">{text}</pre>
+          </details>
+        ) : (
+          <pre className="whitespace-pre-wrap break-words text-xs font-mono">{text}</pre>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const { requests: secretRequests, refresh: refreshSecretRequests } = useSecretRequests(agent.id, isActive)
@@ -920,7 +963,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     if (messages.length > 0) {
       for (let i = messages.length - 1; i >= 0; i--) {
         const t = messages[i].type
-        if (t === 'user' || t === 'queue-operation') return 'thinking' as const
+        if (t === 'user' || t === 'queue-operation' || t === 'system_notice') return 'thinking' as const
         if (t === 'assistant') return 'idle' as const
       }
     }
@@ -963,7 +1006,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                 ? 'text-amber-300 bg-amber-400/15 hover:bg-amber-400/25'
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
-            title={chatMode === 'power' ? 'X-Ray on: showing thinking and tool calls. Click to hide them' : 'X-Ray off: click to show thinking and tool calls'}
+            title={chatMode === 'power' ? 'X-Ray on: showing thinking, tool calls and system notes. Click to hide them' : 'X-Ray off: click to show thinking, tool calls and system notes'}
             aria-pressed={chatMode === 'power'}
           >
             <ScanEye className="w-4 h-4" />
@@ -1028,6 +1071,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           }
 
           const message = item as Message
+          if (message.type === 'system_notice') {
+            return <SystemNote key={message.uuid || index} kind={message.kind} text={message.text || ''} timestamp={message.timestamp} />
+          }
           const isUser = message.type === 'user'
           const isQueued = message.type === 'queue-operation' && message.operation === 'enqueue'
           const isThinking = message.type === 'thinking'

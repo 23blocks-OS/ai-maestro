@@ -153,26 +153,30 @@ describe('F7 — a queued command is a real message', () => {
     attachment: { type: 'queued_command', prompt },
   })
 
-  it('parses into the queue-operation shape the UI already renders', async () => {
+  // Claude Code writes this line when the agent reads the queued message mid-turn, so it is the person's
+  // message, delivered (B027); the "Queued" state comes from Claude Code's own enqueue line before it.
+  const text = (m: any) => m.content || (typeof m.message?.content === 'string' ? m.message.content : '')
+
+  it('parses into the person\'s message, delivered', async () => {
     const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
     const [m] = parseJsonlLines([queued('do the thing')], 100)
-    expect(m.type).toBe('queue-operation')
-    expect(m.operation).toBe('enqueue')
-    expect(m.content).toBe('do the thing')
+    expect(m.type).toBe('user')
+    expect(m.queued).toBe(true)
+    expect(m.message.content).toBe('do the thing')
   })
 
   it('clears the pending bubble for the message that was queued', async () => {
     const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
     const msgs = parseJsonlLines([queued('do the thing')], 100)
     const pending = [{ id: '1', text: 'do the thing', status: 'sending' }]
-    expect(reconcilePending(pending, msgs, (m: any) => m.content || '')).toHaveLength(0)
+    expect(reconcilePending(pending, msgs, text)).toHaveLength(0)
   })
 
   it('does not clear a DIFFERENT pending message', async () => {
     const { parseJsonlLines } = await import('@/lib/chat-transcript.mjs')
     const msgs = parseJsonlLines([queued('something else')], 100)
     const pending = [{ id: '1', text: 'do the thing', status: 'sending' }]
-    expect(reconcilePending(pending, msgs, (m: any) => m.content || '')).toHaveLength(1)
+    expect(reconcilePending(pending, msgs, text)).toHaveLength(1)
   })
 
   it('leaves other attachment kinds alone — only queued_command is a message', async () => {
@@ -182,7 +186,7 @@ describe('F7 — a queued command is a real message', () => {
       attachment: { type: 'total_tokens_reminder', value: 1 },
     })
     const out = parseJsonlLines([other], 100)
-    expect(out.filter((m: any) => m.type === 'queue-operation')).toHaveLength(0)
+    expect(out.filter((m: any) => m.type === 'queue-operation' || m.type === 'user')).toHaveLength(0)
   })
 
   it('survives a queued_command with no prompt', async () => {

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.65] - 2026-11-03 - Installers ask the Claude Code the agents run, and never hang on it
+
+### Fixed
+- `install-hooks.sh` and `install-plugin.sh` now ask the native `~/.local/bin/claude` for its version when it exists, before any other `claude` on PATH, and give up after 15 seconds. On mac-mini an old Homebrew `claude` 2.0.33 in `/usr/local/bin` came first on the updater's PATH and hung on `--version`, which stalled `update-aimaestro.sh` twice, and left the PermissionRequest hook (Claude Code 2.0.45 or later) unregistered there, so approvals reached AI Maestro late, through the notification path.
+
 ## [0.106.64] - 2026-11-03 - Doctor page in Settings
 
 ### Added

@@ -166,12 +166,19 @@ process.stdout.write((before === after ? 'UNCHANGED' : 'CHANGED') + '\\n' + JSON
 # --- Helpers for the PermissionRequest hook ---
 PERMISSION_REQUEST_MIN_VERSION="2.0.45"
 
+# The Claude Code the agents run: the native installer's ~/.local/bin/claude wins over an older copy earlier
+# on PATH (mac-mini had a Homebrew 2.0.33 in /usr/local/bin that hangs on --version, and agents never use).
+claude_cmd() {
+    if [ -x "$HOME/.local/bin/claude" ]; then echo "$HOME/.local/bin/claude"; else command -v claude; fi
+}
+
 # Is `claude` installed at PERMISSION_REQUEST_MIN_VERSION or later? Sets CLAUDE_VERSION_FOUND.
 claude_supports_permission_request() {
     CLAUDE_VERSION_FOUND=""
-    command -v claude >/dev/null 2>&1 || return 1
-    local out
-    out=$(claude --version 2>/dev/null | head -1) || return 1
+    local bin out
+    bin=$(claude_cmd) && [ -n "$bin" ] || return 1
+    # 15 s limit (alarm survives exec): a broken install must not stall the updater
+    out=$(perl -e 'alarm 15; exec @ARGV' "$bin" --version 2>/dev/null | head -1) || return 1
     CLAUDE_VERSION_FOUND=$(printf '%s' "$out" | sed -n 's/^\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')
     [ -n "$CLAUDE_VERSION_FOUND" ] || return 1
     node -e "

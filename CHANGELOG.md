@@ -3,6 +3,26 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.63] - 2026-11-03 - Doctor checks: agents, installs and fixes in the diagnostics report
+
+### Added
+- `GET /api/diagnostics` now checks each agent and the install. Every finding names the agent, folder or file it is about, and says what to do (F069, `docs/SPEC-DOCTOR.md`). New checks:
+  - `agent-folders`: an agent's folder does not exist.
+  - `name-hints`: a name hint in `.claude/settings.local.json` names another agent. This includes a parent folder's hint that a nested agent inherits, which makes its AMP commands act as the parent.
+  - `amp-mailboxes`: an AMP agent's mailbox is missing, or its address does not match its name.
+  - `ghost-agents`: an agent registered by itself from a tmux session that nobody used. It is flagged only when every one of eleven conditions holds: no Claude session, no name or description, no team, no mail, no schedules or canvas pages, no transcripts in its own folder, nothing running, and nothing for 24 hours.
+  - `outside-agents`: agents running in their own terminal, which AI Maestro will not wake. This is information only.
+  - `deleted-agent-backups`: backups of deleted agents, with their sizes. It warns at 1 GB.
+  - `app-version`.
+  - `claude-hook`: the hook is missing, an event has no hook, or the hook points to a file that does not exist or differs from this install's.
+  - `amp-scripts`: the installed `amp-*.sh` scripts are missing or differ from this install's. This is the local half of F005.
+- The report has `schema: 2`, `hostId` and `version`, and each check has a `category`, a `hint` and `items`. Existing fields are unchanged. The startup log shows a count of the problem items after each check's line.
+- `GET /api/diagnostics?fresh=1` skips the one-minute cache. A run in progress is still shared, so a burst of refreshes costs one run.
+- `POST /api/diagnostics/fix` with `{ check, key, fix }` runs one fix from a closed list:
+  - `delete-ghost-agent` hard-deletes a ghost, with a backup, after testing all eleven conditions again against a fresh tmux list. When anything changed since the report, it answers 409 and deletes nothing.
+  - `remove-deleted-agent-backups` removes backup folders of agents that no longer exist. It never touches a backup of an agent that exists, a symlink, or a folder whose name is not a backup's.
+- Backlog F069 (the Doctor) with its spec, and F070 (notify a person when a long action finishes or an agent has a result).
+
 ## [0.106.62] - 2026-11-03 - No more agents in the AI Maestro folder
 
 ### Fixed

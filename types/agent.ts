@@ -126,6 +126,9 @@ export interface AgentHooks {
 // Session Name Helpers
 // ============================================================================
 
+/** taskDescription of an agent registered from a tmux session nobody created through AI Maestro */
+export const ORPHAN_TASK_DESCRIPTION = 'Auto-registered from orphan tmux session'
+
 /**
  * Parse tmux session name to extract agent name and session index
  * Examples:

@@ -6,7 +6,8 @@
  * API routes become thin wrappers that call these functions.
  *
  * Covers:
- *   GET /api/diagnostics -> runDiagnostics
+ *   GET  /api/diagnostics      -> runDiagnostics
+ *   POST /api/diagnostics/fix  -> runDiagnosticFix
  *
  * Checks:
  *   - tmux availability and version
@@ -16,6 +17,7 @@
  *   - Remote host reachability
  *   - Node.js version
  *   - Disk space on ~/.aimaestro/ partition
+ *   - Doctor checks per agent and per install (services/doctor-checks.ts, docs/SPEC-DOCTOR.md)
  */
 
 import { execFile } from 'child_process'
@@ -23,13 +25,22 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { getHosts, isSelf } from '@/lib/hosts-config'
+import { getHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { loadAgents } from '@/lib/agent-registry'
+import { agentBackupsDir } from '@/lib/agent-backup-retention'
 import { hasChannel, isChannelVerified } from '@/lib/channel-bridge.mjs'
 import { tmux } from '@/lib/tmux-safe.mjs'
 import { loadKeyPair } from '@/lib/amp-keys'
 import { deriveDidKey } from '@/lib/amp-did'
-import { type ServiceResult } from '@/services/service-errors'
+import { type ServiceResult, invalidRequest, runtimeConflict, serviceError } from '@/services/service-errors'
+import {
+  type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
+  checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
+  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, readAppVersion,
+  liveTmuxNames, ghostSavers, listDeletedAgentBackups, dirBytes, formatBytes,
+} from '@/services/doctor-checks'
+
+export type { DiagnosticStatus, DiagnosticCheck, DiagnosticItem, DiagnosticFix } from '@/services/doctor-checks'
 
 const execFileAsync = promisify(execFile)
 
@@ -40,18 +51,13 @@ export const REPORT_CACHE_MS = 60_000
 // Types
 // ---------------------------------------------------------------------------
 
-export type DiagnosticStatus = 'pass' | 'fail' | 'warn'
-
-export interface DiagnosticCheck {
-  name: string
-  status: DiagnosticStatus
-  message: string
-  details?: Record<string, unknown>
-}
-
 export interface DiagnosticReport {
+  /** 2 since the Doctor (F069); absent on older hosts */
+  schema: 2
   timestamp: string
   hostname: string
+  hostId: string
+  version: string
   summary: {
     total: number
     passed: number
@@ -118,6 +124,8 @@ export function checkSharedFolders(agents = loadAgents()): DiagnosticCheck {
     name: 'shared-folders',
     status: 'warn',
     message: `${shared.length} folder(s) used by more than one agent: ${shared.map(s => `${s.folder} (${s.agents.join(', ')})`).join('; ')}. Give each agent its own folder or a git worktree.`,
+    hint: "Give each agent its own folder or a git worktree, in the agent's profile.",
+    items: shared.map(s => ({ key: s.folder, status: 'warn' as const, path: s.folder, message: `${s.folder} is used by ${s.agents.join(', ')}` })),
     details: { shared },
   }
 }
@@ -397,14 +405,19 @@ const g = globalThis as unknown as { _diagRun?: Promise<ServiceResult<Diagnostic
  * The report, at most once a minute. Callers that arrive while a run is in progress get that run,
  * so a burst of requests costs one tmux call and one df, not one each.
  */
-export function runDiagnostics(now = Date.now()): Promise<ServiceResult<DiagnosticReport>> {
-  if (g._diagRun && (g._diagAt === undefined || now - g._diagAt < REPORT_CACHE_MS)) return g._diagRun
+export function runDiagnostics(now = Date.now(), { fresh = false } = {}): Promise<ServiceResult<DiagnosticReport>> {
+  // fresh skips a finished report, never a run in progress: a burst of refreshes still costs one run
+  if (g._diagRun && (g._diagAt === undefined || (!fresh && now - g._diagAt < REPORT_CACHE_MS))) return g._diagRun
   g._diagAt = undefined
   const run = buildReport()
   g._diagRun = run
   // The cache window starts when the run ends; a failed run is not kept
   run.then(() => { if (g._diagRun === run) g._diagAt = Date.now() }, () => { if (g._diagRun === run) g._diagRun = undefined })
   return run
+}
+
+const CATEGORY: Record<string, DiagnosticCategory> = {
+  'agent-registry': 'agents', 'shared-folders': 'agents', 'amp-identity-integrity': 'agents', 'channel-wake': 'agents',
 }
 
 async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
@@ -425,6 +438,30 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
   checks.push(checkNodeVersion())
   checks.push(diskSpace)
 
+  // Doctor checks (docs/SPEC-DOCTOR.md section 4)
+  const home = os.homedir()
+  const repoDir = process.cwd()
+  const version = readAppVersion(repoDir)
+  const tmuxNames = await liveTmuxNames()
+  const agents = loadAgents()
+  const doctor = await Promise.all(([
+    ['agent-folders', () => checkAgentFolders(agents)],
+    ['name-hints', () => checkNameHints(agents)],
+    ['amp-mailboxes', () => checkAmpMailboxes(agents, home)],
+    ['ghost-agents', () => checkGhostAgents(agents, home, tmuxNames)],
+    ['outside-agents', () => checkOutsideAgents(agents, tmuxNames)],
+    ['deleted-agent-backups', () => checkDeletedAgentBackups(agents, agentBackupsDir())],
+    ['app-version', () => checkAppVersion(version)],
+    ['claude-hook', () => checkClaudeHook(home, repoDir)],
+    ['amp-scripts', () => checkAmpScripts(home, repoDir)],
+  ] as [string, () => DiagnosticCheck | Promise<DiagnosticCheck>][]).map(async ([name, run]): Promise<DiagnosticCheck> => {
+    // One broken check must not take the report down
+    try { return await run() } catch (error: any) {
+      return { name, status: 'warn', message: `The ${name} check failed to run: ${error?.message}` }
+    }
+  }))
+  checks.push(...doctor)
+
   // Check remote hosts
   try {
     const hosts = getHosts()
@@ -434,7 +471,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
       const hostChecks = await Promise.all(
         remoteHosts.map(h => checkRemoteHost({ id: h.id, name: h.name, url: h.url }))
       )
-      checks.push(...hostChecks)
+      checks.push(...hostChecks.map(c => ({ ...c, category: 'peers' as const })))
     }
   } catch {
     // hosts.json might not exist yet — not a failure
@@ -449,9 +486,14 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
   if (failed > 0) summaryStatus = 'fail'
   else if (warnings > 0) summaryStatus = 'warn'
 
+  for (const c of checks) c.category ??= CATEGORY[c.name] ?? 'host'
+
   const report: DiagnosticReport = {
+    schema: 2,
     timestamp: new Date().toISOString(),
     hostname: os.hostname(),
+    hostId: getSelfHostId(),
+    version,
     summary: {
       total: checks.length,
       passed,
@@ -478,7 +520,8 @@ const STATUS_ICONS: Record<DiagnosticStatus, string> = {
 export function logDiagnosticReport(report: DiagnosticReport): void {
   for (const check of report.checks) {
     const icon = STATUS_ICONS[check.status]
-    console.log(`[Diagnostics] ${icon} ${check.message}`)
+    const problems = check.items?.filter(i => i.status !== 'pass').length
+    console.log(`[Diagnostics] ${icon} ${check.message}${problems ? ` (${problems} item(s))` : ''}`)
   }
 
   const { passed, total, failed, warnings } = report.summary
@@ -486,4 +529,62 @@ export function logDiagnosticReport(report: DiagnosticReport): void {
   if (failed > 0) parts.push(`${failed} failed`)
   if (warnings > 0) parts.push(`${warnings} warning(s)`)
   console.log(`[Diagnostics] Summary: ${parts.join(', ')}`)
+}
+
+// ---------------------------------------------------------------------------
+// Fixes (docs/SPEC-DOCTOR.md section 6): a closed list, each checks its finding again before acting
+// ---------------------------------------------------------------------------
+
+const FIXES: Record<string, string> = {
+  'delete-ghost-agent': 'ghost-agents',
+  'remove-deleted-agent-backups': 'deleted-agent-backups',
+}
+
+export async function runDiagnosticFix(body: { check?: unknown; key?: unknown; fix?: unknown }): Promise<ServiceResult<{ ok: true; message: string }>> {
+  const { check, key, fix } = body || {}
+  if (typeof fix !== 'string' || !(fix in FIXES)) return invalidRequest('Unknown fix')
+  if (check !== FIXES[fix]) return invalidRequest(`Fix ${fix} belongs to the check ${FIXES[fix]}`)
+  if (typeof key !== 'string' || !key) return invalidRequest('key is required')
+
+  const result = fix === 'delete-ghost-agent' ? await deleteGhost(key) : await removeDeletedBackups(key)
+  // The report must show the new state on the next read
+  if (result.status === 200) { g._diagRun = undefined; g._diagAt = undefined }
+  return result
+}
+
+async function deleteGhost(agentId: string): Promise<ServiceResult<{ ok: true; message: string }>> {
+  const agents = loadAgents()
+  const agent = agents.find(a => a.id === agentId)
+  if (!agent) return invalidRequest('No agent with that id')
+  const tmuxNames = await liveTmuxNames()
+  if (tmuxNames === null) return runtimeConflict('Could not list tmux sessions; nothing was deleted')
+  const savers = ghostSavers(agent, { home: os.homedir(), agents, tmuxNames, now: Date.now() })
+  if (savers.length) return runtimeConflict(`${agent.name} is not a ghost any more: it ${savers[0]}. Nothing was deleted.`)
+
+  // Dynamic: the agents service pulls in the whole runtime, which diagnostics does not otherwise need
+  const { deleteAgentById } = await import('@/services/agents-core-service')
+  const deleted = await deleteAgentById(agent.id, true)
+  if (deleted.status !== 200) return deleted as ServiceResult<never>
+  return { data: { ok: true, message: `Deleted ${agent.name}; a backup is in ~/.aimaestro/backups/agents/` }, status: 200 }
+}
+
+async function removeDeletedBackups(key: string): Promise<ServiceResult<{ ok: true; message: string }>> {
+  if (key !== '*') return invalidRequest('key must be "*"')
+  const backups = listDeletedAgentBackups(loadAgents(), agentBackupsDir())
+  if (!backups.length) return runtimeConflict('No backups of deleted agents are left')
+  let freed = 0
+  const failed: string[] = []
+  for (const b of backups) {
+    try {
+      // Checked again right before removal: a real directory, never a symlink
+      if (!fs.lstatSync(b.dir).isDirectory()) { failed.push(b.name); continue }
+      freed += (await dirBytes(b.dir)) ?? 0
+      fs.rmSync(b.dir, { recursive: true })
+    } catch {
+      failed.push(b.name)
+    }
+  }
+  const removed = backups.length - failed.length
+  if (failed.length) return serviceError('operation_failed', `Removed ${removed} backup(s); could not remove ${failed.join(', ')}`, 500)
+  return { data: { ok: true, message: `Removed ${removed} backup(s), ${formatBytes(freed)} freed` }, status: 200 }
 }

@@ -1,6 +1,6 @@
 # F005 — Warn when a host's AMP scripts drift from the fleet
 
-**Status:** Todo
+**Status:** Todo (the local half, installed scripts vs this install, shipped in 0.106.63 as the Doctor check `amp-scripts`, F069; comparing hosts is still to do)
 **Type:** Feature
 **Created:** 2026-09-22
 

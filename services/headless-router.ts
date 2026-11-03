@@ -330,7 +330,7 @@ import {
   deleteExportJob,
 } from '@/services/config-service'
 
-import { runDiagnostics } from '@/services/diagnostics-service'
+import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 
@@ -548,8 +548,12 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/debug\/pty$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getPtyDebugInfo())
   }},
-  { method: 'GET', pattern: /^\/api\/diagnostics$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, await runDiagnostics())
+  { method: 'GET', pattern: /^\/api\/diagnostics$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, await runDiagnostics(Date.now(), { fresh: query.fresh === '1' }))
+  }},
+  { method: 'POST', pattern: /^\/api\/diagnostics\/fix$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req).catch(() => ({}))
+    sendServiceResult(res, await runDiagnosticFix(body))
   }},
   { method: 'GET', pattern: /^\/api\/tools\/readiness$/, paramNames: [], handler: async (req, res) => {
     const hostUrl = new URL(req.url || '', 'http://localhost').searchParams.get('hostUrl')

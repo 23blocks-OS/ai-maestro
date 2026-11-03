@@ -12,6 +12,7 @@
  *   - tmux availability and version
  *   - node-pty native module loadability
  *   - Agent registry filesystem access
+ *   - Agents that share a folder (one folder per agent)
  *   - Remote host reachability
  *   - Node.js version
  *   - Disk space on ~/.aimaestro/ partition
@@ -99,6 +100,25 @@ async function checkNodePty(): Promise<DiagnosticCheck> {
       status: 'fail',
       message: `Failed to load: ${error.message}`,
     }
+  }
+}
+
+/** Folders that more than one agent on this host owns. They read each other's transcripts and memory (#758). */
+export function checkSharedFolders(agents = loadAgents()): DiagnosticCheck {
+  const byFolder = new Map<string, string[]>()
+  for (const a of agents) {
+    const dir = a.workingDirectory || a.sessions?.[0]?.workingDirectory
+    if (a.deletedAt || !dir || (a.hostId != null && !isSelf(a.hostId))) continue
+    const key = path.resolve(dir)
+    byFolder.set(key, [...(byFolder.get(key) || []), a.name])
+  }
+  const shared = [...byFolder].filter(([, names]) => names.length > 1).map(([folder, agents]) => ({ folder, agents }))
+  if (shared.length === 0) return { name: 'shared-folders', status: 'pass', message: 'Every agent has its own folder' }
+  return {
+    name: 'shared-folders',
+    status: 'warn',
+    message: `${shared.length} folder(s) used by more than one agent: ${shared.map(s => `${s.folder} (${s.agents.join(', ')})`).join('; ')}. Give each agent its own folder or a git worktree.`,
+    details: { shared },
   }
 }
 
@@ -399,6 +419,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
 
   checks.push(tmux, nodePty)
   checks.push(checkAgentRegistry())
+  checks.push(checkSharedFolders())
   checks.push(checkAMPIdentityIntegrity())
   checks.push(checkChannelWake())
   checks.push(checkNodeVersion())

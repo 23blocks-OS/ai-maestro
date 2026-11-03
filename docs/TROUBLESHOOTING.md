@@ -113,6 +113,32 @@ yarn dev
 
 ## Agent Discovery Issues
 
+### Problem: Agent Shows Offline While Its Session Is Running
+
+**Symptom**: You run the agent's Claude Code session in a terminal outside AI Maestro, but the
+dashboard and the app show the agent offline. Messages reach its inbox, but the agent gets no
+notification and cannot be called.
+
+**Cause**: The hook links a session to an agent by `AIM_AGENT_ID` or `AIM_AGENT_NAME` (the AI Maestro
+launcher sets these), or else by the folder the session runs in. When several agents use the same
+folder, the hook cannot tell which one it is and links none. On start, the session prints:
+"This session is not linked to an AI Maestro agent: N agents use this folder (...)".
+
+**Solutions**:
+
+1. **Give each agent its own folder.** Two agents on one repo can each have a git worktree.
+   Diagnostics (`/api/diagnostics`, check `shared-folders`) lists the folders that more than one
+   agent uses. A folder inside another agent's folder is fine.
+2. **For now, start the session with the agent's name**, from the agent's folder:
+   ```bash
+   AIM_AGENT_NAME=<agent-name> claude --continue
+   ```
+   The name must be set when the session starts. A session that is already running does not
+   see it, so restart it.
+
+A session in a subfolder of the agent's folder (for example `docs/`) is linked to the agent. If an
+agent's folder is inside another agent's folder, the deeper agent wins.
+
 ### Problem: Agents Don't Appear in Dashboard
 
 **Symptom**: You created a tmux session but it doesn't show up in AI Maestro.

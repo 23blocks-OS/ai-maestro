@@ -3,6 +3,18 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.61] - 2026-11-02 - One folder per agent
+
+### Fixed
+- Two agents could be registered in the same folder, and nothing stopped it. Claude transcripts, memory, the name hint in `.claude/settings.local.json` and the hook's state are all kept per folder, so such agents read each other's conversations and cannot be exported or moved apart. Creating, importing or moving an agent into a folder that another agent on the host owns is now refused, with the owner's name. A folder inside another agent's folder is still allowed. When an agent's terminal `cd`s into another agent's folder, the registry no longer moves the agent there (#758).
+- An agent whose session runs outside AI Maestro showed offline when the session was in a subfolder of the agent's folder (`docs/`, `plugin/`). The hook now links a session to the agent with the deepest folder that contains it, so a nested agent wins over its parent. `$HOME`, `/` and `/tmp` match only exactly (#758).
+- When several agents share a folder, the hook used to link the session to none of them without saying so. The session now shows a one-line notice that names the agents and how to start the session as one of them (#758).
+
+### Added
+- Diagnostics check `shared-folders`: lists the folders that more than one agent on the host uses.
+- Troubleshooting: "Agent shows offline while its session is running".
+- Backlog F068 (an agent hands its work to subagents so it can answer a call fast, an idea to test) and B022 (hook state files are keyed by folder).
+
 ## [0.106.60] - 2026-11-02 - A phone reading the chat no longer shrinks the agent's terminal
 
 ### Fixed

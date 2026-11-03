@@ -40,6 +40,12 @@ ignored `?agent=`/`?tab=` and auto-opened `onlineAgents[0]` (reported by pas-lol
 Now the terminal mounts only in terminal mode, links are honoured, and nothing is auto-selected.
 A phone in **terminal** mode still resizes the window: the general fix below is still open.
 
+Checked on 0.106.60 (phone emulation, tmux list-clients): a chat-only phone attaches no client. But
+after terminal → chat, the PTY stays attached at phone size for as long as the chat is open, because
+a chat client keeps the session alive on purpose (`handleClientDisconnect`, server.mjs ~774: the
+hookState and permission watchers live with it). Fix with care: detach the PTY when the last terminal
+client leaves, but keep the watchers for the chat.
+
 ## Why It's Needed
 
 Two browsers on one agent is ordinary: a desktop and a phone, or a second tab.

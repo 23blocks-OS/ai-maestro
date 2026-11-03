@@ -367,6 +367,30 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
  * Get agent by name from ANY host (global search)
  * Use sparingly - prefer getAgentByName(name, hostId) for per-host lookups
  */
+/**
+ * The agent on this host, other than `exceptId`, that already owns exactly `dir`. One folder per agent
+ * (#758): transcripts, memory, the name hint and the chat state are all keyed by folder, so two agents in
+ * one folder read each other's work and cannot be moved apart. A folder inside another agent's is fine.
+ */
+export function folderOwner(dir: string | null | undefined, exceptId?: string, agents: Agent[] = loadAgents()): Agent | null {
+  if (!dir) return null
+  const want = path.resolve(dir)
+  return agents.find(a => {
+    if (a.deletedAt || a.id === exceptId || (a.hostId != null && !isSelf(a.hostId))) return false
+    const own = a.workingDirectory || a.sessions?.[0]?.workingDirectory
+    return !!own && path.resolve(own) === want
+  }) || null
+}
+
+export function folderTakenMessage(dir: string, owner: Agent): string {
+  return `The folder ${dir} already belongs to agent "${owner.name}". Each agent needs its own folder: pick another one, or give this agent a git worktree of the same repo.`
+}
+
+function assertFolderFree(dir: string | null | undefined, exceptId: string | undefined, agents: Agent[]): void {
+  const owner = folderOwner(dir, exceptId, agents)
+  if (owner) throw new Error(folderTakenMessage(dir!, owner))
+}
+
 export function getAgentByNameAnyHost(name: string): Agent | null {
   const agents = loadAgents()
   // Exclude soft-deleted agents from name lookups
@@ -500,6 +524,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
   if (existing) {
     throw new Error(`Agent "${agentName}" already exists on host "${hostId}"`)
   }
+  assertFolderFree(request.workingDirectory, undefined, agents)
 
   // Create initial sessions array
   const sessions: AgentSession[] = []
@@ -676,6 +701,7 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   // A new working directory is also the folder a wake falls back to: keep the
   // preference and the first session in step, unless the caller set them.
   if (updates.workingDirectory && updates.workingDirectory !== agents[index].workingDirectory) {
+    assertFolderFree(updates.workingDirectory, id, agents)
     updates.preferences = {
       ...updates.preferences,
       defaultWorkingDirectory: updates.preferences?.defaultWorkingDirectory ?? updates.workingDirectory,
@@ -1055,8 +1081,8 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
     agents[index].sessions.push(sessionData)
   }
 
-  // Update agent-level working directory if not set
-  if (!agents[index].workingDirectory) {
+  // Update agent-level working directory if not set, and not another agent's
+  if (!agents[index].workingDirectory && !folderOwner(workingDirectory, agentId, agents)) {
     agents[index].workingDirectory = workingDirectory
   }
 
@@ -1086,6 +1112,12 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
   const oldWd = agents[index].workingDirectory
   if (oldWd === workingDirectory) {
     return true // No change needed
+  }
+  // The pane cd'd into another agent's folder: that is a visit, not a move
+  const owner = folderOwner(workingDirectory, agentId, agents)
+  if (owner) {
+    console.log(`[Agent Registry] Not moving ${agentId.substring(0, 8)} to ${workingDirectory}: it belongs to ${owner.name}`)
+    return false
   }
 
   console.log(`[Agent Registry] Updating workingDirectory for ${agentId.substring(0, 8)}:`)

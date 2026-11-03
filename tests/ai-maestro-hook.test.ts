@@ -534,3 +534,33 @@ describe('ai-maestro-hook · a prompt that already carries the message is not an
     expect(next.notice).toBeNull()
   })
 })
+
+describe('agent for a folder (#758)', () => {
+  const os = require('os')
+  const ag = (name: string, workingDirectory: string) => ({ id: name, name, workingDirectory })
+  const repo = ag('repo', '/work/repo')
+  const child = ag('child', '/work/repo/agents/child')
+
+  it('a session in a subfolder finds the agent that owns the folder', () => {
+    expect(hook.resolveAgent('/work/repo/docs', [repo]).name).toBe('repo')
+  })
+
+  it('a nested agent wins over its parent', () => {
+    expect(hook.resolveAgent('/work/repo/agents/child/src', [repo, child]).name).toBe('child')
+    expect(hook.resolveAgent('/work/repo/plugin', [repo, child]).name).toBe('repo')
+  })
+
+  it('an agent in $HOME owns only $HOME itself', () => {
+    const home = ag('home', os.homedir())
+    expect(hook.resolveAgent(os.homedir() + '/elsewhere', [home])).toBeNull()
+    expect(hook.resolveAgent(os.homedir(), [home]).name).toBe('home')
+  })
+
+  it('tells the person when agents share the folder, and stays quiet otherwise', () => {
+    const twin = ag('twin', '/work/repo')
+    expect(hook.resolveAgent('/work/repo', [repo, twin])).toBeNull()
+    expect(hook.unlinkedNotice('/work/repo/docs', [repo, twin])).toMatch(/2 agents use this folder \(repo, twin\)/)
+    expect(hook.unlinkedNotice('/work/repo', [repo])).toBeNull()
+    expect(hook.unlinkedNotice('/somewhere/else', [repo, twin])).toBeNull()
+  })
+})

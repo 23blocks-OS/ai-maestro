@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.60] - 2026-11-02 - A phone reading the chat no longer shrinks the agent's terminal
+
+### Fixed
+- On a phone, the chat view kept the agent's terminal open behind it. An open terminal is an attached tmux client, and tmux sizes the window to the client used last, so reading the chat on a phone shrank the agent's terminal to phone width for every other viewer (B001). The phone now opens the terminal only in terminal mode.
+- The phone layout ignored `?agent=` and `?tab=` links and opened the first online agent, which could belong to anyone. It now opens the linked agent in the linked view, else the agent picked last on that phone, else asks you to pick one.
+- Chat history paging: entries with no uuid (mode, ai-title, permission-mode and similar) shared one key, so loading older pages dropped all but one of each. The page cursor counts them, so a refresh after loading older pages could lose or repeat messages at a page boundary. Found by the app team.
+
 ## [0.106.59] - 2026-11-02 - Plans: an audit trail and agent governance (backlog only)
 
 ### Changed

@@ -1762,7 +1762,8 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
     }
 
     let workingDirectory = agent.workingDirectory || agent.preferences?.defaultWorkingDirectory || ''
-    if (!workingDirectory) {
+    // A cloud agent works in its container: it gets no folder on this host
+    if (!workingDirectory && agent.deployment?.type !== 'cloud') {
       // No folder: its own ~/agents/<name>, as a new session gets. Never the AI Maestro folder, where its
       // conversations would mix with every other agent woken without one (B023).
       const where = resolveWorkingDirectory(undefined, agentName)

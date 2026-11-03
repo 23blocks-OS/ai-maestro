@@ -1,6 +1,6 @@
 # B027 — A message sent while the agent works shows as Queued and as delivered at once
 
-**Status:** Todo
+**Status:** Done (0.106.68)
 **Type:** Bug
 **Created:** 2026-11-03
 

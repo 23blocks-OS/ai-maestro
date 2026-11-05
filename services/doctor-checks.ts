@@ -19,6 +19,7 @@ import { defaultSchedule } from '@/lib/agent-schedule'
 import { parseBackupName } from '@/lib/agent-backup-retention'
 import { runtimeOf, runningOutsideTmux } from '@/lib/agent-runtime-kind.mjs'
 import { matchProgramName } from '@/lib/program-names'
+import { allOnPath, realDeps, type ReadinessDeps } from '@/services/tool-readiness-service'
 import { resolveJsonlPathForDir } from '@/lib/chat-transcript.mjs'
 import { tmux } from '@/lib/tmux-safe.mjs'
 
@@ -436,33 +437,19 @@ const newer = (a: string, b: string) => {
 }
 
 /**
- * The real probe. Agents launch a bare `claude`, `codex`, … in a tmux shell, so the copy that runs is the first
- * on the user's interactive login-shell PATH, which can differ from this server's PATH: on mac-mini an old
- * Homebrew claude in /usr/local/bin came first there and hung on --version (2026-11-03).
+ * The real probe, on the same login-shell PATH and runner as tool readiness (F040): agents launch a bare
+ * `claude`, `codex`, … in a tmux shell, so the copy that runs is the first on that PATH, which can differ from
+ * this server's PATH. On mac-mini an old Homebrew claude in /usr/local/bin came first there and hung on
+ * --version (2026-11-03).
  */
-export function systemProgramProbe(shell = process.env.SHELL || '/bin/zsh'): ProgramProbe {
-  let pathDirs: Promise<string[] | null> | null = null
-  const shellPath = () => pathDirs ??= execFileAsync(shell, ['-ilc', 'printf "__AIM_PATH__%s__AIM_PATH__" "$PATH"'], { timeout: 8000 })
-    .then(({ stdout }) => stdout.match(/__AIM_PATH__(.*)__AIM_PATH__/)?.[1]?.split(':').filter(Boolean) ?? null)
-    .catch(() => null)
+export function systemProgramProbe(deps: ReadinessDeps = realDeps): ProgramProbe {
   return {
     async copies(cmd) {
-      const dirs = await shellPath()
-      if (!dirs) return null
-      const found: string[] = []
-      for (const dir of dirs) {
-        const p = path.join(dir, cmd)
-        try { fs.accessSync(p, fs.constants.X_OK); if (fs.statSync(p).isFile() && !found.includes(p)) found.push(p) } catch { /* not here */ }
-      }
-      return found
+      try { return allOnPath(cmd, await deps.agentPath(), deps.isExecutable) } catch { return null }
     },
     async version(bin) {
-      try {
-        const { stdout } = await execFileAsync(bin, ['--version'], { timeout: 10_000 })
-        return { text: stdout.split('\n')[0].trim() || null, hung: false }
-      } catch (e: any) {
-        return { text: null, hung: !!e?.killed }
-      }
+      const r = await deps.run(bin, ['--version'], { ...process.env, PATH: await deps.agentPath() })
+      return { text: r.ok ? r.output.split('\n')[0].trim() || null : null, hung: !!r.timedOut }
     },
   }
 }
@@ -493,7 +480,7 @@ export async function checkAgentPrograms(agents: Agent[], home: string, probe: P
     const first = await probe.version(copies[0])
     programs.push({ name: cmd, path: copies[0], version: semver(first.text) || first.text })
     if (first.hung) {
-      items.push({ key: `program:${cmd}`, status: 'fail', path: copies[0], message: `${copies[0]} --version did not answer in 10 s${who}` })
+      items.push({ key: `program:${cmd}`, status: 'fail', path: copies[0], message: `${copies[0]} --version did not answer in 8 s${who}` })
       return
     }
     // An older copy that runs first: scripts and new agents get it, not the one you updated

@@ -50,7 +50,7 @@ describe('agent-programs', () => {
   it('fails for a copy that hangs on --version (mac-mini, 2026-11-03)', async () => {
     const r = await checkAgentPrograms([], home, probe({ claude: ['/usr/local/bin/claude'] }, { '/usr/local/bin/claude': 'hang' }))
     expect(r.status).toBe('fail')
-    expect(r.items![0].message).toMatch(/did not answer in 10 s/)
+    expect(r.items![0].message).toMatch(/did not answer in 8 s/)
   })
 
   it('warns when an older copy runs before a newer one', async () => {

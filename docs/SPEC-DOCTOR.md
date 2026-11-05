@@ -255,12 +255,12 @@ across hosts is the other half of F005 and stays there.
 The programs this host's agents launch (`claude`, `codex`, `pi`, … from each local agent's `program`), plus
 Claude Code always. Agents launch a bare name in a tmux shell, so each program is found on the user's
 interactive login-shell PATH (`$SHELL -ilc`), which can differ from the server's own PATH; then each copy
-is asked `--version` with a 10-second limit.
+is asked `--version` with an 8-second limit (the tool-readiness runner, F040).
 
 | Finding | Status |
 |---|---|
 | A program an agent runs is not installed | fail, naming up to five agents |
-| The copy that runs first does not answer `--version` in 10 s | fail |
+| The copy that runs first does not answer `--version` in 8 s | fail |
 | An older copy runs before a newer one on the PATH | warn |
 | Claude Code 2.0.45 or later, and the PermissionRequest hook is not registered | warn |
 | The login shell could not be asked | warn |

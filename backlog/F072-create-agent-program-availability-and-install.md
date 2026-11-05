@@ -1,6 +1,6 @@
 # F072 — Create agent: show which programs each host can run, then offer to install the missing ones
 
-**Status:** Todo
+**Status:** Todo (phase 2 only; phase 1 exists since F040)
 **Type:** Feature
 **Created:** 2026-11-03
 
@@ -9,7 +9,9 @@
 When a person creates an agent, the program choice (Claude Code, Codex, Pi, Grok, …) reflects what the
 chosen host has, using the F071 Doctor check.
 
-**Phase 1, availability and hints.**
+**Phase 1, availability and hints: already built** (F040 step 4, tool readiness, `services/tool-readiness-service.ts`, `hooks/useToolReadiness.ts`, found 2026-11-05). The create and wake dialogs mark each tool on the chosen host ready, missing (with its install command) or broken. What follows describes it; only phase 2 is open.
+
+**Phase 1 (done), as described:**
 - Programs installed on the host are offered as today, with their version.
 - Missing or broken ones are shown greyed out, with the reason ("not installed", "does not answer",
   "older than …") and the exact install command to copy.

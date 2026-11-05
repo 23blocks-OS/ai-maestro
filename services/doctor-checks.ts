@@ -19,6 +19,7 @@ import { defaultSchedule } from '@/lib/agent-schedule'
 import { parseBackupName } from '@/lib/agent-backup-retention'
 import { runtimeOf, runningOutsideTmux } from '@/lib/agent-runtime-kind.mjs'
 import { matchProgramName } from '@/lib/program-names'
+import { ampRefusalsFile, readAmpRefusals } from '@/lib/amp-refusals'
 import { allOnPath, realDeps, type ReadinessDeps } from '@/services/tool-readiness-service'
 import { resolveJsonlPathForDir } from '@/lib/chat-transcript.mjs'
 import { tmux } from '@/lib/tmux-safe.mjs'
@@ -505,4 +506,27 @@ function hasPermissionRequestHook(home: string): boolean {
     const groups = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'))?.hooks?.PermissionRequest
     return Array.isArray(groups) && groups.some((g: any) => (g?.hooks || []).some((h: any) => String(h?.command || '').includes('ai-maestro-hook')))
   } catch { return false }
+}
+
+// ---------------------------------------------------------------------------
+// amp-refusals (B006): messages this host refused in the last day, grouped by reason and sender
+// ---------------------------------------------------------------------------
+
+export function checkAmpRefusals(now = Date.now(), file = ampRefusalsFile()): DiagnosticCheck {
+  const hint = 'Usually the sender\'s host runs stale AMP scripts or the sender rotated its key: update that host (./update-aimaestro.sh -y). Every refusal is in ~/.aimaestro/logs/amp-refusals.jsonl.'
+  const recent = readAmpRefusals(now - 24 * 60 * 60 * 1000, file)
+  const groups = new Map<string, { reason: string; from: string; via?: string; n: number; last: string }>()
+  for (const r of recent) {
+    const from = r.from || 'an unknown sender'
+    const k = `${r.reason}|${from}`
+    const g = groups.get(k) || { reason: r.reason, from, via: r.via, n: 0, last: r.at }
+    g.n++; g.last = r.at; g.via = r.via || g.via
+    groups.set(k, g)
+  }
+  const items: DiagnosticItem[] = [...groups.values()].sort((a, b) => b.n - a.n).slice(0, 10).map(g => ({
+    key: `refusal:${g.reason}:${g.from}`,
+    status: 'warn' as const,
+    message: `${g.n} message(s) from ${g.from} refused: ${g.reason}${g.via ? ` (via ${g.via})` : ''}; last at ${g.last.slice(0, 16).replace('T', ' ')} UTC`,
+  }))
+  return check('amp-refusals', 'host', items, 'No AMP messages refused in the last 24 hours', `${recent.length} AMP message(s) refused in the last 24 hours`, hint)
 }

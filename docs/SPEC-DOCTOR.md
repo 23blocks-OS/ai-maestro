@@ -1,6 +1,6 @@
 # Spec: Doctor, health checks for agents, hosts and installs
 
-**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64, the mobile screen in app 1.0.2; step 3 (CLI) to do. 4.11 added in 0.106.69. Backlog: F069. Absorbs the local half of F005.
+**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64, the mobile screen in app 1.0.2; step 3 (CLI) to do. 4.11 and 4.12 added in 0.106.69. Backlog: F069. Absorbs the local half of F005.
 **Goal:** one report per host that names every configuration problem with the agent or file it is about,
 says what to do, and offers a safe fix where one exists. The web dashboard, the mobile app and the agents
 CLI all read the same report from each host. The server does the checks and the fixes; the clients only
@@ -268,6 +268,20 @@ is asked `--version` with an 8-second limit (the tool-readiness runner, F040).
 `details.programs` lists `{ name, path, version }` for every program found (for F072, the create-agent
 dialog). Cost: one login shell and one `--version` per program per run, a few seconds, in parallel with the
 other checks.
+
+### 4.12 `amp-refusals` (host), added in 0.106.69 (B006)
+
+Every AMP message this host refuses with 401/403, at `/api/v1/route` (local and mesh delivery) or
+`/api/v1/federation/deliver` (another provider), is written as one JSON line to
+`~/.aimaestro/logs/amp-refusals.jsonl` (`lib/amp-refusals.ts`: time, endpoint, status, reason code, sender,
+recipient, forwarding host or provider, key fingerprint prefix; kept to its newest 2,000 lines past 1 MB).
+The check reads the last 24 hours.
+
+| Finding | Status |
+|---|---|
+| Refusals in the last 24 hours | warn, one item per reason and sender (count, via, last time), at most 10 |
+
+Hint: the sender's host usually runs stale AMP scripts or the sender rotated its key; update that host.
 
 ## 5. Fleet findings, made by the client
 

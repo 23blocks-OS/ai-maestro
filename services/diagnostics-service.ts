@@ -36,7 +36,7 @@ import { type ServiceResult, invalidRequest, runtimeConflict, serviceError } fro
 import {
   type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
   checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
-  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, readAppVersion,
+  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, readAppVersion,
   liveTmuxNames, ghostSavers, listDeletedAgentBackups, dirBytes, formatBytes,
 } from '@/services/doctor-checks'
 
@@ -455,6 +455,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
     ['claude-hook', () => checkClaudeHook(home, repoDir)],
     ['amp-scripts', () => checkAmpScripts(home, repoDir)],
     ['agent-programs', () => checkAgentPrograms(agents, home)],
+    ['amp-refusals', () => checkAmpRefusals()],
   ] as [string, () => DiagnosticCheck | Promise<DiagnosticCheck>][]).map(async ([name, run]): Promise<DiagnosticCheck> => {
     // One broken check must not take the report down
     try { return await run() } catch (error: any) {

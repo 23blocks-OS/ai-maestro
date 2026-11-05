@@ -1,6 +1,6 @@
 # B006 — AMP signature refusals (403) leave no readable record
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Bug
 **Created:** 2026-09-22
 
@@ -28,3 +28,15 @@ Refusals are signal. With no record, a 403 reads as "message lost" to the sender
 - Expose `GET /api/v1/refusals?since=` and show the recent-refusal count per host in the Hosts view
 - Optional: when refusing a *relayed* message, notify the forwarding host so the sender's side learns why
 - Effort: S–M
+
+## Resolution (2026-11-05, 0.106.69)
+
+- `lib/amp-refusals.ts`: one JSON line per refusal in `~/.aimaestro/logs/amp-refusals.jsonl` (rotated past 1 MB,
+  never throws, nothing written under vitest unless a test names the file).
+- `routeMessage` and `deliverFederated` (`services/amp-service.ts`) record every 401/403 they return; these two
+  are the only entry points for messages (the other 401s are API-key checks on other endpoints). The existing
+  `console.warn` lines stay.
+- The Hosts-view count became a Doctor check, `amp-refusals` (SPEC-DOCTOR 4.12): it already shows every host,
+  on the web and in the app. No separate `/api/v1/refusals` endpoint.
+- Not done: telling the forwarding host why its relayed message was refused (the optional item).
+

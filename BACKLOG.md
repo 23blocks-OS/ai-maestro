@@ -104,7 +104,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B003** — [Clicking a question option may not confirm it](./backlog/B003-option-click-missing-enter.md) — `Done` (0.106.69)
 - **B004** — [Audit remaining shell-string external commands (git, aws) for injection](./backlog/B004-shell-string-external-command-audit.md) — `Todo`
 - **B005** — [Listener network posture (bind address / firewall)](./backlog/B005-listener-network-posture.md) — `Wontfix` (no auth is by design)
-- **B006** — [AMP signature refusals (403) leave no readable record](./backlog/B006-amp-refusals-not-recorded.md) — `Todo`
+- **B006** — [AMP signature refusals (403) leave no readable record](./backlog/B006-amp-refusals-not-recorded.md) — `Done` (0.106.69)
 - **B007** — [Leftovers from the skills and prompts audit](./backlog/B007-prompt-audit-leftovers.md) — `In Progress`
 - **B008** — [GET /api/agents/:id/tracking returns 500 for every agent](./backlog/B008-tracking-endpoint-500.md) — `Done`
 - **B009** — [A request for an unknown agent id creates an agent and a database folder](./backlog/B009-unknown-agent-id-creates-agent.md) — `Done` (0.60.4)

@@ -87,10 +87,10 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F066** — [Audit trail: what each agent did, who authorized it, and under which rules](./backlog/F066-audit-trail-who-did-what-who-authorized.md) — `Todo` (spec drafted; slice 1 as an experiment; foundation for F067)
 - **F067** — [Agent governance: profiles, protected rules, escalation and a weekly check](./backlog/F067-agent-governance-profiles-and-checks.md) — `Todo` (from Jaime's helpdesk deployment)
 - **F068** — [An agent hands its work to subagents so it can answer a call fast](./backlog/F068-agent-delegates-work-to-answer-calls.md) — `Todo` (idea to test)
-- **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63, page in 0.106.64; CLI, mobile next)
+- **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63, page in 0.106.64, CLI in 0.106.70; mobile is ai-maestro-app's)
 - **F070** — [Notify a person when a long action finishes, and when an agent has a result](./backlog/F070-notify-long-actions-and-agent-results.md) — `Todo` (idea to shape)
 - **F071** — [Doctor: check the agent programs on each host (Claude Code, Codex, Pi, …)](./backlog/F071-doctor-agent-programs-check.md) — `Done` (0.106.69)
-- **F072** — [Create agent: show which programs each host can run, then offer to install the missing ones](./backlog/F072-create-agent-program-availability-and-install.md) — `Todo` (phase 2, one-click install; phase 1 exists since F040)
+- **F072** — [Create agent: show which programs each host can run, then offer to install the missing ones](./backlog/F072-create-agent-program-availability-and-install.md) — `Done` (phase 1 since F040; Install button in 0.106.70)
 - **F073** — [Hibernate idle agents by rule, and wake them for a message or a task](./backlog/F073-auto-hibernate-idle-agents.md) — `Todo` (idea to shape)
 - **F074** — [A person sees only the organizations they belong to, and can hide one](./backlog/F074-people-see-only-their-orgs.md) — `Todo`
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`

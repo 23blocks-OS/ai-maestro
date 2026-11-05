@@ -139,7 +139,10 @@ export async function programInstallRequest(method: 'GET' | 'POST', hostUrl?: st
       signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
       ...(method === 'POST' ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool: body?.tool }) } : {}),
     })
-    return { data: await response.json(), status: response.status }
+    const data = await response.json().catch(() => null)
+    // A host older than this feature answers 404 with a page, not JSON
+    if (!data) return { data: { error: 'not_supported', message: `${known.name || known.url} cannot install programs yet. Update AI Maestro there.` }, status: 501 }
+    return { data, status: response.status }
   } catch {
     return { data: { error: `Host is unreachable (${known.name || known.url})` }, status: 502 }
   }

@@ -1,5 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { startInstall, getInstallJob, resetInstallJob, type InstallDeps } from '@/services/program-install-service'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+vi.mock('@/lib/hosts-config', () => ({
+  getHosts: () => [{ id: 'old', name: 'Old Host', url: 'http://old.test:23000' }],
+  isSelf: (u: string) => u === 'http://self.test:23000',
+}))
+
+import { startInstall, getInstallJob, resetInstallJob, programInstallRequest, type InstallDeps } from '@/services/program-install-service'
 
 // F072 phase 2: the Install button runs a closed list of installers, one at a time, never sudo.
 const calls: Array<{ file: string; args: string[]; path?: string }> = []
@@ -71,5 +77,21 @@ describe('startInstall', () => {
     const r = await startInstall({ tool: 'codex' }, deps({ run: async () => ({ ok: false, output: '', timedOut: true }) }))
     await r.data!.wait
     expect(getInstallJob().data!.job!.message).toContain('did not finish')
+  })
+})
+
+describe('programInstallRequest for another host', () => {
+  it('refuses an address that is not a configured host', async () => {
+    expect((await programInstallRequest('POST', 'http://evil.test', { tool: 'codex' })).status).toBe(400)
+  })
+
+  it('a host too old for this answers with a page: says to update it, not "unreachable"', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>404</html>', { status: 404 }))
+    try {
+      const r = await programInstallRequest('POST', 'http://old.test:23000/', { tool: 'codex' })
+      expect(r.status).toBe(501)
+      expect(r.data.message).toBe('Old Host cannot install programs yet. Update AI Maestro there.')
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]!.body))).toEqual({ tool: 'codex' })
+    } finally { fetchMock.mockRestore() }
   })
 })

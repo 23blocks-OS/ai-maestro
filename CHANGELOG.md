@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.69] - 2026-11-05 - The compaction summary is a system note
+
+### Fixed
+- **The compaction summary no longer shows as your message** (B031, #786). After Claude Code compacts a conversation it writes a summary ("This session is being continued from a previous conversation …") that the chat drew as the person's blue bubble. Claude Code marks it `isCompactSummary` rather than `isMeta`, so the 0.106.68 rule missed it. It is now a system note like the others: shown only in X-Ray, on the left, as "Conversation summary after compaction". The mobile app already hides system notes.
+
+### Added
+- Backlog from the review of issues #776-#785: F076 (tasks go to idle agents and come back for review; #638, #779), F077 (a task records its result; #776), B029 (the meeting chat's poll has no timeout; #782), B030 (a schedule run reports success without proof the prompt arrived).
+
 ## [0.106.68] - 2026-11-03 - System text is the system's, and a queued message shows once
 
 ### Fixed

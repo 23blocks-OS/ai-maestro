@@ -1,6 +1,6 @@
 # B003 — Clicking a question option may not confirm it
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Bug
 **Created:** 2026-09-19
 
@@ -47,3 +47,13 @@ double-submit there. Confirm both menu shapes before changing one path.
 
 - Effort: **S** once verified
 - Blocked on: a live agent not holding production state
+
+## Resolution (2026-11-05, 0.106.69)
+
+Fixed without the live test the plan asked for, by reading the screen instead of assuming: after the key,
+`sendPermissionResponse` captures the pane and presses Enter only when the same menu is still there with that
+option selected and the footer says "Enter to select" (`needsEnterAfterKey` in `lib/pane-permission.mjs`). A
+permission menu, where the number confirms, closes and has no such footer, so it never gets a second key.
+If the real footer differs from the one measured on 15 Sep, the check simply does nothing, as before.
+Watch the next real question answered from the chat to confirm it closes on one click.
+

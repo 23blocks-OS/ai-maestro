@@ -9,7 +9,7 @@ import path from 'path'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
-import { parsePermissionMenu } from './lib/pane-permission.mjs'
+import { parsePermissionMenu, needsEnterAfterKey } from './lib/pane-permission.mjs'
 import { resolveBindHost } from './lib/bind-host.mjs'
 // Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
 import { approvalKindForProgram, parseApprovalForProgram, needsPaneApprovalCard, cardWithPaneMenu } from './lib/pane-approval.mjs'
@@ -1045,8 +1045,13 @@ async function sendPermissionResponse(sessionName, key) {
   }
   exitCopyMode(sessionName)
   try {
-    // Raw keypress — what a human presses at the menu. Number selects+confirms.
+    // Raw keypress — what a human presses at the menu
     tmuxRt.sendLiteralSync(sessionName, k, { timeout: 3000 })
+    // A permission menu confirms on the number; a question menu only moves the selection to it (B003)
+    await new Promise((r) => setTimeout(r, 300))
+    if (needsEnterAfterKey(tmuxRt.capturePaneSync(sessionName, 40, { timeout: 2000 }), k)) {
+      tmuxRt.sendKeySync(sessionName, 'Enter', { timeout: 3000 })
+    }
   } catch (err) {
     return { ok: false, error: 'Failed to send response: ' + err.message }
   }

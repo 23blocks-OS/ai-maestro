@@ -858,8 +858,9 @@ export async function routeMessage(
 ): Promise<ServiceResult<AMPRouteResponse>> {
   const result = await routeMessageUnrecorded(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
   if (result.status === 401 || result.status === 403) {
-    const d = result.data as { error?: string; message?: string; details?: { fingerprint?: string } } | undefined
-    recordAmpRefusal({ endpoint: 'route', status: result.status, reason: d?.error || 'unknown', message: d?.message, from: body?.from, to: body?.to, via: forwardedFrom || undefined, fingerprint: d?.details?.fingerprint })
+    const d = result.data as { error?: string; message?: string; details?: { fingerprint?: string; from?: string } } | undefined
+    // A local agent's request carries no body.from; the refusal names the sender it checked
+    recordAmpRefusal({ endpoint: 'route', status: result.status, reason: d?.error || 'unknown', message: d?.message, from: body?.from || d?.details?.from, to: body?.to, via: forwardedFrom || undefined, fingerprint: d?.details?.fingerprint })
   }
   return result
 }

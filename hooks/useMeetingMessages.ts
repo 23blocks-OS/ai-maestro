@@ -63,7 +63,9 @@ export function useMeetingMessages({
   const seenCountRef = useRef(0)
   const [lastDelivery, setLastDelivery] = useState<MeetingDelivery | null>(null)
   // B029: a poll had no timeout and swallowed every error, and a hung one was stacked on every 7 s
-  const pollingRef = useRef(false)
+  const pollingRef = useRef(0)
+  // Bumped when the meeting (or who is in it) changes: a poll started for the previous one is dropped
+  const generationRef = useRef(0)
   const failuresRef = useRef(0)
   const [notUpdating, setNotUpdating] = useState(false)
 
@@ -74,11 +76,13 @@ export function useMeetingMessages({
     stableParticipantIds.current = participantIds
   }, [participantKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchMessages = useCallback(async () => {
+  // `force`: the first load and the refresh after a send run even while a background poll is in flight
+  const fetchMessages = useCallback(async (force = false) => {
     const pIds = stableParticipantIds.current
     if (!meetingId || !isActive || pIds.length === 0) return
-    if (pollingRef.current) return
-    pollingRef.current = true
+    if (pollingRef.current > 0 && !force) return
+    pollingRef.current++
+    const generation = generationRef.current
 
     try {
       const params = new URLSearchParams({
@@ -93,6 +97,7 @@ export function useMeetingMessages({
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const data = await res.json()
+      if (generation !== generationRef.current) return // the meeting changed while this poll ran
       const newMessages: MeetingMessage[] = (data.messages || []).map((msg: MessageSummary) => ({
         ...msg,
         isMine: msg.from === 'maestro' || msg.fromAlias === 'Maestro',
@@ -122,16 +127,20 @@ export function useMeetingMessages({
       failuresRef.current = 0
       setNotUpdating(false)
     } catch (err) {
+      if (generation !== generationRef.current) return
       failuresRef.current++
       console.warn(`[Meeting] Message poll failed (${failuresRef.current} in a row):`, err instanceof Error ? err.message : err)
       if (failuresRef.current >= FAILURES_BEFORE_NOTICE) setNotUpdating(true)
     } finally {
-      pollingRef.current = false
+      pollingRef.current--
     }
   }, [meetingId, isActive, participantKey])
 
   // Initial fetch
   useEffect(() => {
+    generationRef.current++
+    failuresRef.current = 0
+    setNotUpdating(false)
     if (!meetingId || !isActive) {
       setMessages([])
       lastFetchRef.current = null
@@ -139,13 +148,13 @@ export function useMeetingMessages({
       return
     }
     setLoading(true)
-    fetchMessages().finally(() => setLoading(false))
+    fetchMessages(true).finally(() => setLoading(false))
   }, [meetingId, isActive, fetchMessages])
 
   // Poll every 7s
   useEffect(() => {
     if (!meetingId || !isActive) return
-    intervalRef.current = setInterval(fetchMessages, 7000)
+    intervalRef.current = setInterval(() => { void fetchMessages() }, 7000)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
@@ -206,7 +215,7 @@ export function useMeetingMessages({
       setMessages(prev => prev.filter(m => !(m.id.startsWith('optimistic-') && m.preview === delivery.message)))
     }
     // Refresh after a short delay to let file I/O settle
-    setTimeout(() => fetchMessages(), 300)
+    setTimeout(() => fetchMessages(true), 300)
   }, [fetchMessages])
 
   const sendToAgent = useCallback(async (agentId: string, message: string) => {

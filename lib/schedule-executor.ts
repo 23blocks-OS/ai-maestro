@@ -11,6 +11,7 @@ import { getRuntime } from '@/lib/agent-runtime'
 import type { Schedule } from '@/types/schedule'
 import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
 import { deliverAndVerify } from '@/lib/chat-verify.mjs'
+import { countEchoes, stripDimPlaceholder } from '@/lib/pane-readback.mjs'
 import { isPaneAtBareShell } from '@/lib/pane-occupant'
 
 const execAsync = promisify(exec)
@@ -154,7 +155,10 @@ async function runExecution(
   }
   console.log(`[Scheduler] Sending prompt to "${sessionName}": ${schedule.prompt.substring(0, 80)}...`)
   // Typed as written: send-keys -l passes it verbatim, so no shell escaping (it turned ' into '\'')
+  // The same text every run: the last run's echo may still be on screen, so only a new copy is proof
+  const echoesBefore = countEchoes(stripDimPlaceholder(await runtime.capturePaneRaw(sessionName)), schedule.prompt)
   const { submitted } = await deliverAndVerify(schedule.prompt, {
+    echoesBefore,
     capture: () => runtime.capturePaneRaw(sessionName),
     deliver: () => runtime.sendKeys(sessionName, schedule.prompt, { literal: true, enter: true }),
     clear: (count: number) => runtime.repeatKey(sessionName, 'BSpace', count),

@@ -2,6 +2,9 @@
  * B004 guard: no shell-string command with a value interpolated into it, unless the value goes through
  * shellQuote(). The tmux injection advisories (GHSA-2vm8-3q4q-wqv3) came from exactly this shape, and the
  * "${name}" in double quotes that looked safe was not. Use execFile with an argument list instead.
+ *
+ * A tripwire, not a proof: it reads template literals written straight into exec(...). A command built into a
+ * variable first, or joined with +, is not seen; review those by hand.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'

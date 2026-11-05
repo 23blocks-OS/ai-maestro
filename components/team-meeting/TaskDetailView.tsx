@@ -73,6 +73,8 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
         ...(task.scope !== 'team' && org !== (task.org || '') ? { org: org || null } : {}),
         ...(result !== (task.result || '') ? { result: result.trim() || null } : {}),
       })
+      // Saved as trimmed text: match it, or a whitespace-only box would keep "Save" showing
+      setResult(r => r.trim())
     } finally {
       setSaving(false)
     }

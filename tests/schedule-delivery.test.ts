@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   bareShell: false,
   copyModeCancelled: 0,
   submitOnEnter: true,
+  history: '',
 }))
 
 vi.mock('@/lib/schedule-registry', () => ({
@@ -28,10 +29,10 @@ vi.mock('@/lib/agent-runtime', () => ({
     sessionExists: async () => true,
     cancelCopyMode: async () => { m.copyModeCancelled++ },
     capturePaneRaw: async () => m.pane,
-    repeatKey: async () => { m.pane = box('') },
+    repeatKey: async () => { m.pane = m.history + box('') },
     sendKeys: async (_s: string, text: string) => {
       m.sent.push(text)
-      m.pane = m.submitOnEnter ? `❯ ${text}\n\n⏺ On it.\n${box('')}` : box(text)
+      m.pane = m.submitOnEnter ? `${m.history}❯ ${text}\n\n⏺ On it.\n${box('')}` : `${m.history}${box(text)}`
     },
   }),
 }))
@@ -44,7 +45,7 @@ const settle = () => new Promise(r => setTimeout(r, 0))
 const waitDone = async () => { for (let i = 0; i < 400 && m.complete.mock.calls.length === 0; i++) await new Promise(r => setTimeout(r, 25)) }
 
 beforeEach(() => {
-  m.pane = box(''); m.sent = []; m.complete.mockReset(); m.bareShell = false; m.copyModeCancelled = 0; m.submitOnEnter = true
+  m.pane = box(''); m.sent = []; m.complete.mockReset(); m.bareShell = false; m.copyModeCancelled = 0; m.submitOnEnter = true; m.history = ''
 })
 
 describe('schedule run delivery', () => {
@@ -61,6 +62,23 @@ describe('schedule run delivery', () => {
     await executeSchedule(schedule('Send day'), 'manual')
     await waitDone()
     expect(m.complete).toHaveBeenCalledWith('exec-1', 'failure', expect.stringMatching(/never submitted/))
+  }, 20000)
+
+  it('yesterday\'s echo of the same prompt is not proof of today\'s run', async () => {
+    m.history = '❯ Send day: read your inbox now\n\n⏺ Done yesterday.\n'
+    m.pane = m.history + box('')
+    m.submitOnEnter = false
+    await executeSchedule(schedule('Send day: read your inbox now'), 'cron')
+    await waitDone()
+    expect(m.complete).toHaveBeenCalledWith('exec-1', 'failure', expect.stringMatching(/never submitted/))
+  }, 20000)
+
+  it('a repeated prompt that does go through is success', async () => {
+    m.history = '❯ Send day: read your inbox now\n\n⏺ Done yesterday.\n'
+    m.pane = m.history + box('')
+    await executeSchedule(schedule('Send day: read your inbox now'), 'cron')
+    await waitDone()
+    expect(m.complete).toHaveBeenCalledWith('exec-1', 'success')
   }, 20000)
 
   it('fails without typing into a bare shell', async () => {

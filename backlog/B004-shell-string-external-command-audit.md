@@ -75,9 +75,10 @@ feeding one of them attacker input.
   `execFileSync('git', ['clone', '--branch', branch, '--', remoteUrl, targetPath])`
   (`services/agents-transfer-service.ts`) and every `aws` call is `execFileAsync('aws', [...])`
   (`services/agents-cloud-service.ts`). A sweep found no other shell-string command with an unquoted value.
-- The guard: `tests/no-shell-string-interpolation.test.ts` fails CI on any `exec`/`execSync`/`execAsync`
+- The tripwire: `tests/no-shell-string-interpolation.test.ts` fails CI on any `exec`/`execSync`/`execAsync`
   template literal in `services/`, `lib/`, `app/` or `server.mjs` that interpolates a value not passed through
   `shellQuote()`. Three values that cannot carry shell syntax (a number, a fixed flag, a computed line count in
-  `lib/container-utils.ts`) are listed in the test by file and expression.
+  `lib/container-utils.ts`) are listed in the test by file and expression. It does not see a command built into
+  a variable first or joined with `+`; it catches the common shape, not every one.
 - Open question answered: per-site argv is enough; no shared helper.
 

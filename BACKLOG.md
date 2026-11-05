@@ -94,6 +94,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F073** — [Hibernate idle agents by rule, and wake them for a message or a task](./backlog/F073-auto-hibernate-idle-agents.md) — `Todo` (idea to shape)
 - **F074** — [A person sees only the organizations they belong to, and can hide one](./backlog/F074-people-see-only-their-orgs.md) — `Todo`
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
+- **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
+- **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Todo` (#776)
 
 ## Bugs
 
@@ -125,6 +127,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B026** — [Pasted text shows twice in the chat, once with raw `<pasted_content>` tags](./backlog/B026-pasted-text-shows-raw-wrapper-twice.md) — `Done` (0.106.66, #769)
 - **B027** — [A message sent while the agent works shows as Queued and as delivered at once](./backlog/B027-queued-message-shows-queued-and-delivered.md) — `Done` (0.106.68, #770)
 - **B028** — [The dashboard forgets which agent was open and opens another one](./backlog/B028-dashboard-forgets-open-agent.md) — `Done` (0.106.67, #773)
+- **B029** — [The meeting chat's poll has no timeout and hides every error](./backlog/B029-meeting-poll-no-timeout.md) — `Todo` (#782)
+- **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Todo`
+- **B031** — [The compaction summary shows in the chat as the person's message](./backlog/B031-compact-summary-shows-as-message.md) — `Done` (0.106.69, #786)
 
 ## Unfiled
 

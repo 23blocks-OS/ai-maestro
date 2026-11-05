@@ -1,6 +1,6 @@
 # B004 — Audit remaining shell-string external commands (git, aws) for injection
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Bug
 **Created:** 2026-09-19
 
@@ -68,3 +68,16 @@ feeding one of them attacker input.
 - Effort: **S**.
 - Open question: is a shared `spawn`-based helper (like `tmux-safe`) worth it for
   git/docker/aws, or is per-site conversion enough given how few remain?
+
+## Resolution (2026-11-05, 0.106.69)
+
+- Both sites were already converted to argv when this was checked: `git clone` is
+  `execFileSync('git', ['clone', '--branch', branch, '--', remoteUrl, targetPath])`
+  (`services/agents-transfer-service.ts`) and every `aws` call is `execFileAsync('aws', [...])`
+  (`services/agents-cloud-service.ts`). A sweep found no other shell-string command with an unquoted value.
+- The guard: `tests/no-shell-string-interpolation.test.ts` fails CI on any `exec`/`execSync`/`execAsync`
+  template literal in `services/`, `lib/`, `app/` or `server.mjs` that interpolates a value not passed through
+  `shellQuote()`. Three values that cannot carry shell syntax (a number, a fixed flag, a computed line count in
+  `lib/container-utils.ts`) are listed in the test by file and expression.
+- Open question answered: per-site argv is enough; no shared helper.
+

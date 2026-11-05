@@ -1,6 +1,6 @@
 # B029 — The meeting chat's poll has no timeout and hides every error
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Bug
 **Created:** 2026-11-05
 

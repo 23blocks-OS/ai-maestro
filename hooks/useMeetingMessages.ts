@@ -43,7 +43,12 @@ interface UseMeetingMessagesResult {
   dismissDelivery: () => void
   markAsRead: () => void
   loading: boolean
+  /** The poll failed several times in a row: the chat is not updating (B029) */
+  notUpdating: boolean
 }
+
+const POLL_TIMEOUT_MS = 10_000
+const FAILURES_BEFORE_NOTICE = 3
 
 export function useMeetingMessages({
   meetingId,
@@ -57,6 +62,10 @@ export function useMeetingMessages({
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const seenCountRef = useRef(0)
   const [lastDelivery, setLastDelivery] = useState<MeetingDelivery | null>(null)
+  // B029: a poll had no timeout and swallowed every error, and a hung one was stacked on every 7 s
+  const pollingRef = useRef(false)
+  const failuresRef = useRef(0)
+  const [notUpdating, setNotUpdating] = useState(false)
 
   // Stabilize participantIds — only change when the sorted list actually changes
   const participantKey = useMemo(() => [...participantIds].sort().join(','), [participantIds])
@@ -68,6 +77,8 @@ export function useMeetingMessages({
   const fetchMessages = useCallback(async () => {
     const pIds = stableParticipantIds.current
     if (!meetingId || !isActive || pIds.length === 0) return
+    if (pollingRef.current) return
+    pollingRef.current = true
 
     try {
       const params = new URLSearchParams({
@@ -78,8 +89,8 @@ export function useMeetingMessages({
         params.set('since', lastFetchRef.current)
       }
 
-      const res = await fetch(`/api/messages/meeting?${params}`)
-      if (!res.ok) return
+      const res = await fetch(`/api/messages/meeting?${params}`, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const data = await res.json()
       const newMessages: MeetingMessage[] = (data.messages || []).map((msg: MessageSummary) => ({
@@ -108,8 +119,14 @@ export function useMeetingMessages({
         const latest = newMessages[newMessages.length - 1]
         lastFetchRef.current = latest.timestamp
       }
-    } catch {
-      // Silently fail on poll errors
+      failuresRef.current = 0
+      setNotUpdating(false)
+    } catch (err) {
+      failuresRef.current++
+      console.warn(`[Meeting] Message poll failed (${failuresRef.current} in a row):`, err instanceof Error ? err.message : err)
+      if (failuresRef.current >= FAILURES_BEFORE_NOTICE) setNotUpdating(true)
+    } finally {
+      pollingRef.current = false
     }
   }, [meetingId, isActive, participantKey])
 
@@ -230,5 +247,6 @@ export function useMeetingMessages({
     dismissDelivery,
     markAsRead,
     loading,
+    notUpdating,
   }
 }

@@ -26,6 +26,8 @@ export interface MeetingDeliveryProps {
   lastDelivery: MeetingDelivery | null
   retryFailed: () => Promise<void>
   dismissDelivery: () => void
+  /** The message poll keeps failing: say so instead of looking quiet (B029) */
+  notUpdating?: boolean
 }
 
 export type MeetingChatPanelMode = 'sidebar' | 'overlay'
@@ -206,6 +208,12 @@ export default function MeetingChatPanel({ agents, messages, onSendToAgent, onBr
         })()}
         <div ref={messagesEndRef} />
       </div>
+
+      {delivery?.notUpdating && (
+        <div className="mx-3 mb-2 px-3 py-1.5 rounded-md bg-yellow-900/30 text-yellow-200 text-xs">
+          Not updating: new messages could not be loaded. Retrying…
+        </div>
+      )}
 
       {/* Who got the last message */}
       {delivery?.lastDelivery && (() => {

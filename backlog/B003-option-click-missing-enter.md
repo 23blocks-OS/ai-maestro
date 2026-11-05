@@ -1,6 +1,6 @@
 # B003 — Clicking a question option may not confirm it
 
-**Status:** Done (0.106.69)
+**Status:** Done (not reproducible on Claude Code 2.1.318; no code change)
 **Type:** Bug
 **Created:** 2026-09-19
 
@@ -48,12 +48,22 @@ double-submit there. Confirm both menu shapes before changing one path.
 - Effort: **S** once verified
 - Blocked on: a live agent not holding production state
 
-## Resolution (2026-11-05, 0.106.69)
+## Resolution (2026-11-05): does not reproduce on Claude Code 2.1.318; no code change
 
-Fixed without the live test the plan asked for, by reading the screen instead of assuming: after the key,
-`sendPermissionResponse` captures the pane and presses Enter only when the same menu is still there with that
-option selected and the footer says "Enter to select" (`needsEnterAfterKey` in `lib/pane-permission.mjs`). A
-permission menu, where the number confirms, closes and has no such footer, so it never gets a second key.
-If the real footer differs from the one measured on 15 Sep, the check simply does nothing, as before.
-Watch the next real question answered from the chat to confirm it closes on one click.
+Tested live on a scratch agent (`zz-scratch-review`, Claude Code 2.1.318), the way the chat answers a
+question: the option's number sent as a single key.
 
+- One question ("Which colour?", Red/Green/Blue): pressing `2` **selected and confirmed** it. The menu closed
+  and the transcript shows "User answered Claude's questions: Which colour do you prefer? → Green". The
+  behaviour measured on 15 Sep 2026 (the number only moves the selection) no longer happens.
+- The menu's footer is "Enter to select · ↑/↓ to navigate · Esc to cancel" (one question) and
+  "Enter to select · Tab/Arrow keys to navigate · Esc to cancel" (several).
+
+A fix was written first (press Enter when the menu still shows the chosen option selected with "Enter to
+select") and **removed before release**: in a menu with two questions, pressing `1` answers the first and shows
+the second with option 1 already selected and the same footer, so the fix would have pressed Enter and
+answered the second question for the person ("Tea", in the test). Sending the number alone, as the code always
+did, is right for this version.
+
+If a future Claude Code goes back to "number moves, Enter confirms", the fix must tell the same question
+from the next one (for example by its title) before adding an Enter.

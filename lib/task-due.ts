@@ -110,3 +110,12 @@ export function compareDue(a?: string | null, b?: string | null): number {
 export function sortByDue<T extends { due?: string | null }>(cards: T[]): T[] {
   return cards.map((c, i) => ({ c, i })).sort((x, y) => compareDue(x.c.due, y.c.due) || x.i - y.i).map(r => r.c)
 }
+
+/** A task's result (F077): text (control characters dropped, at most 4000), null or '' to clear, absent to leave */
+export function parseResult(v: unknown): { ok: true; value: string | null | undefined } | { ok: false; message: string } {
+  if (v === undefined) return { ok: true, value: undefined }
+  if (v === null) return { ok: true, value: null }
+  if (typeof v !== 'string') return { ok: false, message: 'result must be text, or null to clear' }
+  const text = v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, 4000).trim()
+  return { ok: true, value: text || null }
+}

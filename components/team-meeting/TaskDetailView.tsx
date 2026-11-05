@@ -14,7 +14,7 @@ interface TaskDetailViewProps {
   task: TaskWithDeps
   agents: Agent[]
   allTasks: TaskWithDeps[]
-  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null; org?: string | null; due?: string | null; owners?: string[] | null }) => Promise<void>
+  onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; waitingOn?: string; waitingNote?: string; urgent?: boolean | null; important?: boolean | null; org?: string | null; due?: string | null; owners?: string[] | null; result?: string | null }) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onClose: () => void
   /** When given, the card shows a comment box. deliver=true sends the text to the assignee's session. */
@@ -30,6 +30,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
   const [assigneeAgentId, setAssigneeAgentId] = useState(task.assigneeAgentId || '')
   const [blockedBy, setBlockedBy] = useState<string[]>(task.blockedBy)
   const [org, setOrg] = useState(task.org || '')
+  const [result, setResult] = useState(task.result || '')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [waitingDraft, setWaitingDraft] = useState<{ on: string; note: string } | null>(
@@ -46,7 +47,11 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
     setAssigneeAgentId(task.assigneeAgentId || '')
     setBlockedBy(task.blockedBy)
     setOrg(task.org || '')
-  }, [task.id, task.subject, task.description, task.assigneeAgentId, task.blockedBy, task.org])
+    setResult(task.result || '')
+  }, [task.id, task.subject, task.description, task.assigneeAgentId, task.blockedBy, task.org, task.result])
+
+  // What was done (F077): written once the card is in review or completed
+  const resultEditable = task.status === 'review' || task.status === 'completed'
 
   // Organizations a card can be labelled for: those named by any agent's org: tag, on every host
   const orgChoices = useMemo(() => {
@@ -66,6 +71,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
         blockedBy,
         // Only sent when changed, and never for a team card (team boards do not keep a company label)
         ...(task.scope !== 'team' && org !== (task.org || '') ? { org: org || null } : {}),
+        ...(result !== (task.result || '') ? { result: result.trim() || null } : {}),
       })
     } finally {
       setSaving(false)
@@ -135,6 +141,7 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
     || assigneeAgentId !== (task.assigneeAgentId || '')
     || JSON.stringify(blockedBy) !== JSON.stringify(task.blockedBy)
     || (task.scope !== 'team' && org !== (task.org || ''))
+    || result !== (task.result || '')
 
   return (
     <div className="flex flex-col h-full flex-1 min-h-0">
@@ -261,6 +268,25 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
             className="w-full text-[11px] bg-gray-800/50 text-gray-300 placeholder-gray-600 rounded px-2 py-1.5 mt-1 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600"
           />
         </div>
+
+        {/* Result: what was actually done (F077) */}
+        {(resultEditable || task.result) && (
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Result</label>
+            {resultEditable ? (
+              <textarea
+                value={result}
+                onChange={e => setResult(e.target.value)}
+                placeholder="What was actually done..."
+                rows={3}
+                className="w-full text-[11px] bg-gray-800/50 text-gray-300 placeholder-gray-600 rounded px-2 py-1.5 mt-1 resize-y focus:outline-none focus:ring-1 focus:ring-gray-600"
+                data-testid="task-result"
+              />
+            ) : (
+              <p className="text-[11px] text-gray-300 whitespace-pre-wrap mt-1">{task.result}</p>
+            )}
+          </div>
+        )}
 
         {/* Assignee */}
         <div>

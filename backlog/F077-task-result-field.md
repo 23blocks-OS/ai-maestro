@@ -1,6 +1,6 @@
 # F077 — A task records what was actually done (Result)
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Feature
 **Created:** 2026-11-05
 

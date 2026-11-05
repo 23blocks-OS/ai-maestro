@@ -24,7 +24,7 @@ import {
   circularDependency, selfReference,
 } from '@/services/service-errors'
 import { parseKindAndOrigin } from '@/lib/task-origin'
-import { parseDueInput, parseOwnersInput, isCoOwner } from '@/lib/task-due'
+import { parseDueInput, parseOwnersInput, isCoOwner, parseResult } from '@/lib/task-due'
 import { quadrantOf, type Quadrant, type Task, type TaskComment, type TaskScope, type TaskStatus, type TaskWithDeps, type WaitingOn } from '@/types/task'
 
 const STATUSES: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'waiting', 'completed']
@@ -47,6 +47,8 @@ export interface TaskParams {
   org?: string | null
   /** YYYY-MM-DD, or null to clear */
   due?: unknown
+  /** What was actually done (F077), or null to clear */
+  result?: string | null
   /** Extra owners (agent ids or names, any host); a list replaces, null or [] clears; not notified */
   owners?: unknown
   /** A new card only: task (default), idea, bug or research */
@@ -107,6 +109,7 @@ function clean(text: string): string {
   // Keep newlines and tabs, drop other control characters
   return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, MAX_TEXT)
 }
+
 
 function resolved(tasks: Task[]): TaskWithDeps[] {
   return resolveTaskDeps(tasks)
@@ -337,12 +340,14 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
   if (pl) return pl
   const og = checkOrg(params)
   if (og) return og
+  const result = parseResult(params.result)
+  if (!result.ok) return invalidField('result', result.message)
   const due = parseDueInput(params.due)
   if (!due.ok) return invalidField('due', due.message)
   const owners = parseOwnersInput(params.owners, [params.assigneeAgentId === undefined ? existing.assigneeAgentId : params.assigneeAgentId, scope.kind === 'agent' ? scope.id : null])
   if (!owners.ok) return invalidField('owners', owners.message)
   try {
-    const result = updateScopeTask(scope, taskId, {
+    const updated = updateScopeTask(scope, taskId, {
       org: params.org,
       due: due.value,
       owners: owners.value,
@@ -356,9 +361,10 @@ export function updateInScope(scope: TaskScope, taskId: string, params: TaskPara
       waitingNote: params.waitingNote,
       urgent: params.urgent,
       important: params.important,
+      result: result.value,
     })
-    if (!result.task) return notFound('Task', taskId)
-    return { data: { task: result.task, unblocked: result.unblocked }, status: 200 }
+    if (!updated.task) return notFound('Task', taskId)
+    return { data: { task: updated.task, unblocked: updated.unblocked }, status: 200 }
   } catch (error) {
     return operationFailed('update task', (error as Error).message)
   }

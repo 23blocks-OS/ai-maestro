@@ -95,7 +95,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F074** — [A person sees only the organizations they belong to, and can hide one](./backlog/F074-people-see-only-their-orgs.md) — `Todo`
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
 - **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
-- **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Todo` (#776)
+- **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Done` (0.106.69, #776)
 
 ## Bugs
 

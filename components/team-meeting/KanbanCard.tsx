@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, User, MessageSquare, AlertCircle } from 'lucide-react'
+import { Archive, Circle, PlayCircle, Eye, CheckCircle2, Hourglass, Lock, User, MessageSquare, AlertCircle, ClipboardCheck } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 import { kindLabel } from './TaskOriginBlock'
 import { DueBadge, OwnersLine, ownerLabels } from './DueAndOwners'
@@ -109,6 +109,9 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
           <span className="flex items-center gap-0.5 text-[10px] text-gray-500 flex-shrink-0">
             <MessageSquare className="w-2.5 h-2.5" />{task.comments!.length}
           </span>
+        )}
+        {task.result && (
+          <span title="Has a result: what was done" className="flex-shrink-0"><ClipboardCheck className="w-3 h-3 text-emerald-400/80" /></span>
         )}
 
         {task.blockedBy.length > 0 && (

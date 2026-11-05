@@ -1,6 +1,6 @@
 # F071 — Doctor: check the agent programs on each host (Claude Code, Codex, Pi, …)
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Feature
 **Created:** 2026-11-03
 

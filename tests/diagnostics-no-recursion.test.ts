@@ -68,7 +68,8 @@ describe('a burst of requests costs one run', () => {
     await Promise.all(Array.from({ length: 50 }, () => runDiagnostics()))
     expect(runs()).toBe(1)
     expect(tmux).toHaveBeenCalledTimes(2)
-    expect(execFile).toHaveBeenCalledTimes(1)
+    // one disk check per run (the agent-programs check also runs commands, once per run)
+    expect(execFile.mock.calls.filter((c: unknown[]) => c[0] === 'df')).toHaveLength(1)
   })
 
   it('a finished report is reused for a minute, then run again', async () => {

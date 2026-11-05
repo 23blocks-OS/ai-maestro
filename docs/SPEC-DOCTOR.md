@@ -1,6 +1,6 @@
 # Spec: Doctor, health checks for agents, hosts and installs
 
-**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64; steps 3-4 to do. Backlog: F069. Absorbs the local half of F005.
+**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64, the mobile screen in app 1.0.2; step 3 (CLI) to do. 4.11 added in 0.106.69. Backlog: F069. Absorbs the local half of F005.
 **Goal:** one report per host that names every configuration problem with the agent or file it is about,
 says what to do, and offers a safe fix where one exists. The web dashboard, the mobile app and the agents
 CLI all read the same report from each host. The server does the checks and the fixes; the clients only
@@ -249,6 +249,25 @@ Compares each `plugin/plugins/ai-maestro/scripts/amp-*.sh` in this checkout with
 
 Extra scripts in `~/.local/bin` are not findings. Hint: run `./update-aimaestro.sh -y`. Comparing scripts
 across hosts is the other half of F005 and stays there.
+
+### 4.11 `agent-programs` (install), added in 0.106.69 (F071)
+
+The programs this host's agents launch (`claude`, `codex`, `pi`, … from each local agent's `program`), plus
+Claude Code always. Agents launch a bare name in a tmux shell, so each program is found on the user's
+interactive login-shell PATH (`$SHELL -ilc`), which can differ from the server's own PATH; then each copy
+is asked `--version` with a 10-second limit.
+
+| Finding | Status |
+|---|---|
+| A program an agent runs is not installed | fail, naming up to five agents |
+| The copy that runs first does not answer `--version` in 10 s | fail |
+| An older copy runs before a newer one on the PATH | warn |
+| Claude Code 2.0.45 or later, and the PermissionRequest hook is not registered | warn |
+| The login shell could not be asked | warn |
+
+`details.programs` lists `{ name, path, version }` for every program found (for F072, the create-agent
+dialog). Cost: one login shell and one `--version` per program per run, a few seconds, in parallel with the
+other checks.
 
 ## 5. Fleet findings, made by the client
 

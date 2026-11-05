@@ -30,17 +30,22 @@ export interface ReadinessReport {
   tools: ToolReadiness[]
 }
 
-/** The tools worth checking. `install` is only given where the command was verified; never guessed. */
-export const READINESS_TOOLS: Array<{ id: string; command: string; install?: string; needsZstdNode?: boolean }> = [
-  { id: 'claude', command: 'claude', install: 'npm install -g @anthropic-ai/claude-code' },
-  { id: 'codex', command: 'codex', install: 'npm install -g @openai/codex' },
+/**
+ * The tools worth checking. `npmPackage` is only given where the package was verified, never guessed: it is the
+ * install command shown (`npm install -g <package>`) and the closed list the Install button may run (F072).
+ */
+export const READINESS_TOOLS: Array<{ id: string; command: string; npmPackage?: string; needsZstdNode?: boolean }> = [
+  { id: 'claude', command: 'claude', npmPackage: '@anthropic-ai/claude-code' },
+  { id: 'codex', command: 'codex', npmPackage: '@openai/codex' },
   { id: 'grok', command: 'grok' },
-  { id: 'copilot', command: 'copilot', install: 'npm install -g @github/copilot' },
-  { id: 'pi', command: 'pi', install: 'npm install -g @earendil-works/pi-coding-agent', needsZstdNode: true },
-  { id: 'gemini', command: 'gemini', install: 'npm install -g @google/gemini-cli' },
+  { id: 'copilot', command: 'copilot', npmPackage: '@github/copilot' },
+  { id: 'pi', command: 'pi', npmPackage: '@earendil-works/pi-coding-agent', needsZstdNode: true },
+  { id: 'gemini', command: 'gemini', npmPackage: '@google/gemini-cli' },
   { id: 'opencode', command: 'opencode' },
   { id: 'openclaw', command: 'openclaw' },
 ]
+
+export const installCommand = (npmPackage: string) => `npm install -g ${npmPackage}`
 
 /** First thing that looks like a version in a tool's `--version` output ("1.0.96", "2.1.3 (Claude Code)"). */
 export function parseVersion(output: string | undefined | null): string | undefined {
@@ -77,13 +82,13 @@ export function nodeSupportsZstd(version: string | undefined | null): boolean {
 export function judgeTool(input: {
   id: string
   command: string
-  install?: string
+  npmPackage?: string
   needsZstdNode?: boolean
   foundPath?: string
   run?: { ok: boolean; output: string }
   node?: string
 }): ToolReadiness {
-  const base = { id: input.id, command: input.command, ...(input.install ? { install: input.install } : {}) }
+  const base = { id: input.id, command: input.command, ...(input.npmPackage ? { install: installCommand(input.npmPackage) } : {}) }
   if (!input.foundPath) return { ...base, state: 'missing' }
   const withPath = { ...base, path: input.foundPath }
   if (input.needsZstdNode && !nodeSupportsZstd(input.node)) {

@@ -36,7 +36,7 @@ import { type ServiceResult, invalidRequest, runtimeConflict, serviceError } fro
 import {
   type DiagnosticStatus, type DiagnosticCheck, type DiagnosticCategory,
   checkAgentFolders, checkNameHints, checkAmpMailboxes, checkGhostAgents, checkOutsideAgents,
-  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, readAppVersion,
+  checkDeletedAgentBackups, checkAppVersion, checkClaudeHook, checkAmpScripts, checkAgentPrograms, checkAmpRefusals, readAppVersion, runningAppVersion,
   liveTmuxNames, ghostSavers, listDeletedAgentBackups, dirBytes, formatBytes,
 } from '@/services/doctor-checks'
 
@@ -441,7 +441,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
   // Doctor checks (docs/SPEC-DOCTOR.md section 4)
   const home = os.homedir()
   const repoDir = process.cwd()
-  const version = readAppVersion(repoDir)
+  const version = runningAppVersion(repoDir)
   const tmuxNames = await liveTmuxNames()
   const agents = loadAgents()
   const doctor = await Promise.all(([
@@ -451,7 +451,7 @@ async function buildReport(): Promise<ServiceResult<DiagnosticReport>> {
     ['ghost-agents', () => checkGhostAgents(agents, home, tmuxNames)],
     ['outside-agents', () => checkOutsideAgents(agents, tmuxNames)],
     ['deleted-agent-backups', () => checkDeletedAgentBackups(agents, agentBackupsDir())],
-    ['app-version', () => checkAppVersion(version)],
+    ['app-version', () => checkAppVersion(version, readAppVersion(repoDir))],
     ['claude-hook', () => checkClaudeHook(home, repoDir)],
     ['amp-scripts', () => checkAmpScripts(home, repoDir)],
     ['agent-programs', () => checkAgentPrograms(agents, home)],

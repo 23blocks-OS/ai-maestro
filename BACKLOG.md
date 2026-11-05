@@ -128,7 +128,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B027** — [A message sent while the agent works shows as Queued and as delivered at once](./backlog/B027-queued-message-shows-queued-and-delivered.md) — `Done` (0.106.68, #770)
 - **B028** — [The dashboard forgets which agent was open and opens another one](./backlog/B028-dashboard-forgets-open-agent.md) — `Done` (0.106.67, #773)
 - **B029** — [The meeting chat's poll has no timeout and hides every error](./backlog/B029-meeting-poll-no-timeout.md) — `Todo` (#782)
-- **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Todo`
+- **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Done` (0.106.69)
 - **B031** — [The compaction summary shows in the chat as the person's message](./backlog/B031-compact-summary-shows-as-message.md) — `Done` (0.106.69, #786)
 
 ## Unfiled

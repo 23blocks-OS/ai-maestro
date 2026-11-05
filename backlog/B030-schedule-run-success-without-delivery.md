@@ -1,6 +1,6 @@
 # B030 — A schedule run reports "success" without proof the prompt reached the agent
 
-**Status:** Todo
+**Status:** Done (0.106.69)
 **Type:** Bug
 **Created:** 2026-11-05
 

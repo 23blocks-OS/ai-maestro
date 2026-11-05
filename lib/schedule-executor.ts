@@ -10,13 +10,14 @@ import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import type { Schedule } from '@/types/schedule'
 import { pushToStreamSession } from '@/lib/streaming-bridge.mjs'
+import { deliverAndVerify } from '@/lib/chat-verify.mjs'
+import { isPaneAtBareShell } from '@/lib/pane-occupant'
 
 const execAsync = promisify(exec)
 
 const CHECK_INTERVAL_MS = 60_000
 const EXISTING_SESSION_DELAY_MS = 2_000
 const NEW_SESSION_LAUNCH_DELAY_MS = 15_000
-const DEFAULT_TIMEOUT_MS = 300_000
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null
 const runningExecutions = new Set<string>()
@@ -145,18 +146,23 @@ async function runExecution(
     await sleep(EXISTING_SESSION_DELAY_MS)
   }
 
-  // Send the prompt
+  // Send the prompt and prove it was submitted (B030). This used to mark success as soon as the keys were
+  // sent, so a scrolled pane, a dialog or a bare shell swallowed the prompt while the run said "success".
+  await runtime.cancelCopyMode(sessionName)
+  if (await isPaneAtBareShell(sessionName)) {
+    throw new Error(`${sessionName} is at a bare shell (its program is not running); the prompt was not sent`)
+  }
   console.log(`[Scheduler] Sending prompt to "${sessionName}": ${schedule.prompt.substring(0, 80)}...`)
-  const escaped = schedule.prompt.replace(/'/g, "'\\''")
-  await runtime.sendKeys(sessionName, escaped, { literal: true, enter: true })
-
-  // For now, mark as success after sending. We can't easily detect when Claude
-  // finishes processing. Future: poll tmux pane for idle indicator.
-  const timeoutMs = schedule.timeoutMs || DEFAULT_TIMEOUT_MS
-  console.log(
-    `[Scheduler] Prompt sent for "${schedule.name}". ` +
-    `Marking success (timeout tracking: ${timeoutMs / 1000}s — not yet implemented)`
-  )
+  // Typed as written: send-keys -l passes it verbatim, so no shell escaping (it turned ' into '\'')
+  const { submitted } = await deliverAndVerify(schedule.prompt, {
+    capture: () => runtime.capturePaneRaw(sessionName),
+    deliver: () => runtime.sendKeys(sessionName, schedule.prompt, { literal: true, enter: true }),
+    clear: (count: number) => runtime.repeatKey(sessionName, 'BSpace', count),
+  })
+  if (!submitted) {
+    throw new Error(`the prompt reached ${sessionName}'s input box but was never submitted; a prompt or dialog is holding the keyboard`)
+  }
+  console.log(`[Scheduler] Prompt for "${schedule.name}" submitted to ${sessionName}`)
   completeExecution(executionId, 'success')
 }
 

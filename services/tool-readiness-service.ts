@@ -21,7 +21,8 @@ const PROXY_TIMEOUT_MS = 15000
 const REPORT_TTL_MS = 60_000
 const PATH_TTL_MS = 5 * 60_000
 
-type RunResult = { ok: boolean; output: string }
+/** timedOut: killed for taking longer than the limit (a hung program, not a failing one) */
+type RunResult = { ok: boolean; output: string; timedOut?: boolean }
 
 export interface ReadinessDeps {
   /** PATH of an agent's login shell. */
@@ -51,7 +52,7 @@ async function loginShellPath(): Promise<string> {
 function realRun(file: string, args: string[], env: NodeJS.ProcessEnv): Promise<RunResult> {
   return new Promise((resolve) => {
     const child = execFile(file, args, { env, timeout: 8000, maxBuffer: 64 * 1024 }, (err, stdout, stderr) => {
-      resolve({ ok: !err, output: `${stdout || ''}\n${stderr || ''}`.trim() })
+      resolve({ ok: !err, output: `${stdout || ''}\n${stderr || ''}`.trim(), ...((err as { killed?: boolean } | null)?.killed && { timedOut: true }) })
     })
     child.stdin?.end()
   })
@@ -65,14 +66,20 @@ function isExecutableFile(file: string): boolean {
   }
 }
 
-/** First executable named `command` on the PATH, or undefined. */
-export function findOnPath(command: string, searchPath: string, isExecutable: (f: string) => boolean): string | undefined {
+/** Every executable named `command` on the PATH, in PATH order (the first is the one a shell runs). */
+export function allOnPath(command: string, searchPath: string, isExecutable: (f: string) => boolean): string[] {
+  const found: string[] = []
   for (const dir of searchPath.split(path.delimiter)) {
     if (!dir) continue
     const candidate = path.join(dir, command)
-    if (isExecutable(candidate)) return candidate
+    if (!found.includes(candidate) && isExecutable(candidate)) found.push(candidate)
   }
-  return undefined
+  return found
+}
+
+/** First executable named `command` on the PATH, or undefined. */
+export function findOnPath(command: string, searchPath: string, isExecutable: (f: string) => boolean): string | undefined {
+  return allOnPath(command, searchPath, isExecutable)[0]
 }
 
 export async function buildReadinessReport(deps: ReadinessDeps): Promise<ReadinessReport> {
@@ -92,7 +99,8 @@ export async function buildReadinessReport(deps: ReadinessDeps): Promise<Readine
   return { checkedAt: new Date().toISOString(), ...(node ? { node: `v${node}` } : {}), tools }
 }
 
-const realDeps: ReadinessDeps = { agentPath: cachedLoginShellPath, isExecutable: isExecutableFile, run: realRun }
+/** The real login-shell PATH (cached), executable test and bounded runner; the Doctor's agent-programs check uses them too. */
+export const realDeps: ReadinessDeps = { agentPath: cachedLoginShellPath, isExecutable: isExecutableFile, run: realRun }
 
 let pathCache: { at: number; value: string } | null = null
 async function cachedLoginShellPath(): Promise<string> {

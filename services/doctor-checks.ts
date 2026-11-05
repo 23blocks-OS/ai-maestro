@@ -18,6 +18,9 @@ import { listSchedulesByAgent } from '@/lib/schedule-registry'
 import { defaultSchedule } from '@/lib/agent-schedule'
 import { parseBackupName } from '@/lib/agent-backup-retention'
 import { runtimeOf, runningOutsideTmux } from '@/lib/agent-runtime-kind.mjs'
+import { matchProgramName } from '@/lib/program-names'
+import { ampRefusalsFile, readAmpRefusals } from '@/lib/amp-refusals'
+import { allOnPath, realDeps, type ReadinessDeps } from '@/services/tool-readiness-service'
 import { resolveJsonlPathForDir } from '@/lib/chat-transcript.mjs'
 import { tmux } from '@/lib/tmux-safe.mjs'
 
@@ -410,4 +413,120 @@ export function checkAmpScripts(home: string, repoDir: string): DiagnosticCheck 
   }
   return check('amp-scripts', 'install', items, `${scripts.length} AMP scripts match this install`, `${items.length} AMP script(s) missing or out of date`,
     'Run `./update-aimaestro.sh -y`.')
+}
+
+// ---------------------------------------------------------------------------
+// agent-programs (F071): the programs this host's agents run, found the way their tmux shell finds them
+// ---------------------------------------------------------------------------
+
+/** First Claude Code version with the PermissionRequest hook (install-hooks.sh registers it from there) */
+const PERMISSION_REQUEST_MIN = '2.0.45'
+const PROGRAM_NAME = /^[a-z][a-z0-9-]{0,30}$/
+
+export interface ProgramProbe {
+  /** Every copy of `cmd` on the agents' shell PATH, the one that runs first; null when the shell could not be asked */
+  copies: (cmd: string) => Promise<string[] | null>
+  /** `<bin> --version`: its first line, or hung when it did not answer in time */
+  version: (bin: string) => Promise<{ text: string | null; hung: boolean }>
+}
+
+const semver = (t: string | null) => t?.match(/\d+\.\d+\.\d+/)?.[0] || null
+const newer = (a: string, b: string) => {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number)
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]
+  return false
+}
+
+/**
+ * The real probe, on the same login-shell PATH and runner as tool readiness (F040): agents launch a bare
+ * `claude`, `codex`, … in a tmux shell, so the copy that runs is the first on that PATH, which can differ from
+ * this server's PATH. On mac-mini an old Homebrew claude in /usr/local/bin came first there and hung on
+ * --version (2026-11-03).
+ */
+export function systemProgramProbe(deps: ReadinessDeps = realDeps): ProgramProbe {
+  return {
+    async copies(cmd) {
+      try { return allOnPath(cmd, await deps.agentPath(), deps.isExecutable) } catch { return null }
+    },
+    async version(bin) {
+      const r = await deps.run(bin, ['--version'], { ...process.env, PATH: await deps.agentPath() })
+      return { text: r.ok ? r.output.split('\n')[0].trim() || null : null, hung: !!r.timedOut }
+    },
+  }
+}
+
+export async function checkAgentPrograms(agents: Agent[], home: string, probe: ProgramProbe = systemProgramProbe()): Promise<DiagnosticCheck> {
+  const hint = 'Install or update the program for the user that runs AI Maestro, or remove the old copy the item names.'
+  // Which commands this host's agents launch, and by whom; Claude Code always
+  const users = new Map<string, string[]>([['claude', []]])
+  for (const a of agents.filter(isLocal)) {
+    const m = matchProgramName(a.program || '')
+    if (!m || !PROGRAM_NAME.test(m.command)) continue
+    users.set(m.command, [...(users.get(m.command) || []), a.label || a.name])
+  }
+
+  const items: DiagnosticItem[] = []
+  const programs: { name: string; path: string; version: string | null }[] = []
+  await Promise.all([...users].map(async ([cmd, names]) => {
+    const copies = await probe.copies(cmd)
+    if (copies === null) {
+      items.push({ key: `program:${cmd}`, status: 'warn', message: `Could not ask the login shell where ${cmd} is` })
+      return
+    }
+    const who = names.length ? ` (used by ${names.slice(0, 5).join(', ')}${names.length > 5 ? ` and ${names.length - 5} more` : ''})` : ''
+    if (copies.length === 0) {
+      if (names.length) items.push({ key: `program:${cmd}`, status: 'fail', message: `${cmd} is not installed${who}` })
+      return
+    }
+    const first = await probe.version(copies[0])
+    programs.push({ name: cmd, path: copies[0], version: semver(first.text) || first.text })
+    if (first.hung) {
+      items.push({ key: `program:${cmd}`, status: 'fail', path: copies[0], message: `${copies[0]} --version did not answer in 8 s${who}` })
+      return
+    }
+    // An older copy that runs first: scripts and new agents get it, not the one you updated
+    const v1 = semver(first.text)
+    if (copies.length > 1 && v1) {
+      const later = await Promise.all(copies.slice(1).map(async p => ({ p, v: semver((await probe.version(p)).text) })))
+      const newest = later.filter(l => l.v && newer(l.v, v1)).sort((x, y) => (newer(x.v!, y.v!) ? -1 : 1))[0]
+      if (newest) items.push({ key: `program:${cmd}:order`, status: 'warn', path: copies[0], message: `${copies[0]} (${v1}) runs before ${newest.p} (${newest.v})` })
+    }
+    if (cmd === 'claude' && v1 && !newer(PERMISSION_REQUEST_MIN, v1) && !hasPermissionRequestHook(home)) {
+      items.push({ key: 'program:claude:permission-hook', status: 'warn', message: `Claude Code ${v1} supports the PermissionRequest hook, but it is not registered (run scripts/claude-hooks/install-hooks.sh)` })
+    }
+  }))
+  items.sort((a, b) => a.key.localeCompare(b.key))
+  programs.sort((a, b) => a.name.localeCompare(b.name))
+  const ok = programs.map(p => `${p.name} ${p.version || '?'}`).join(', ') || 'No agent programs to check'
+  return { ...check('agent-programs', 'install', items, ok, `${items.length} agent program problem(s)`, hint), details: { programs } }
+}
+
+function hasPermissionRequestHook(home: string): boolean {
+  try {
+    const groups = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'))?.hooks?.PermissionRequest
+    return Array.isArray(groups) && groups.some((g: any) => (g?.hooks || []).some((h: any) => String(h?.command || '').includes('ai-maestro-hook')))
+  } catch { return false }
+}
+
+// ---------------------------------------------------------------------------
+// amp-refusals (B006): messages this host refused in the last day, grouped by reason and sender
+// ---------------------------------------------------------------------------
+
+export function checkAmpRefusals(now = Date.now(), file = ampRefusalsFile()): DiagnosticCheck {
+  const hint = 'Usually the sender\'s host runs stale AMP scripts or the sender rotated its key: update that host (./update-aimaestro.sh -y). Every refusal is in ~/.aimaestro/logs/amp-refusals.jsonl.'
+  const recent = readAmpRefusals(now - 24 * 60 * 60 * 1000, file)
+  const groups = new Map<string, { reason: string; from: string; via?: string; n: number; last: string }>()
+  for (const r of recent) {
+    const from = r.from || 'an unknown sender'
+    const k = `${r.reason}|${from}`
+    const g = groups.get(k) || { reason: r.reason, from, via: r.via, n: 0, last: r.at }
+    g.n++; g.last = r.at; g.via = r.via || g.via
+    groups.set(k, g)
+  }
+  const items: DiagnosticItem[] = [...groups.values()].sort((a, b) => b.n - a.n).slice(0, 10).map(g => ({
+    key: `refusal:${g.reason}:${g.from}`,
+    status: 'warn' as const,
+    message: `${g.n} message(s) from ${g.from} refused: ${g.reason}${g.via ? ` (via ${g.via})` : ''}; last at ${g.last.slice(0, 16).replace('T', ' ')} UTC`,
+  }))
+  return check('amp-refusals', 'host', items, 'No AMP messages refused in the last 24 hours', `${recent.length} AMP message(s) refused in the last 24 hours`, hint)
 }

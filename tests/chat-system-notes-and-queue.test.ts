@@ -40,6 +40,14 @@ describe('B024: system text is a system note, not the person\'s message', () => 
     expect(out[0].text).toBe(SKILL)
   })
 
+  it('the summary Claude Code writes after compacting is a system note', () => {
+    const summary = 'This session is being continued from a previous conversation that ran out of context.'
+    const out = parseJsonlLines([user(summary, { isCompactSummary: true, isVisibleInTranscriptOnly: true })])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ type: 'system_notice', kind: 'compact-summary', text: summary })
+    expect(groupMessages(out, 'assisted')).toHaveLength(0)
+  })
+
   it('shows system notes only in X-Ray', () => {
     const out = parseJsonlLines([user(STOP, { isMeta: true }), user('hello')])
     expect(groupMessages(out, 'assisted').map((m: any) => m.type)).toEqual(['user'])

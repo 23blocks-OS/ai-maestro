@@ -89,20 +89,22 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F068** — [An agent hands its work to subagents so it can answer a call fast](./backlog/F068-agent-delegates-work-to-answer-calls.md) — `Todo` (idea to test)
 - **F069** — [Doctor: one page that checks agents, hosts and installs, and offers the fix](./backlog/F069-doctor-fleet-health-checks.md) — `In Progress` (server in 0.106.63, page in 0.106.64; CLI, mobile next)
 - **F070** — [Notify a person when a long action finishes, and when an agent has a result](./backlog/F070-notify-long-actions-and-agent-results.md) — `Todo` (idea to shape)
-- **F071** — [Doctor: check the agent programs on each host (Claude Code, Codex, Pi, …)](./backlog/F071-doctor-agent-programs-check.md) — `Todo`
-- **F072** — [Create agent: show which programs each host can run, then offer to install the missing ones](./backlog/F072-create-agent-program-availability-and-install.md) — `Todo`
+- **F071** — [Doctor: check the agent programs on each host (Claude Code, Codex, Pi, …)](./backlog/F071-doctor-agent-programs-check.md) — `Done` (0.106.69)
+- **F072** — [Create agent: show which programs each host can run, then offer to install the missing ones](./backlog/F072-create-agent-program-availability-and-install.md) — `Todo` (phase 2, one-click install; phase 1 exists since F040)
 - **F073** — [Hibernate idle agents by rule, and wake them for a message or a task](./backlog/F073-auto-hibernate-idle-agents.md) — `Todo` (idea to shape)
 - **F074** — [A person sees only the organizations they belong to, and can hide one](./backlog/F074-people-see-only-their-orgs.md) — `Todo`
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
+- **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
+- **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Done` (0.106.69, #776)
 
 ## Bugs
 
 - **B001** — [Two browsers on one agent fight over the terminal size](./backlog/B001-multi-client-terminal-sizing.md) — `Todo`
 - **B002** — [wterm and ws are behind](./backlog/B002-wterm-and-ws-updates.md) — `Todo`
-- **B003** — [Clicking a question option may not confirm it](./backlog/B003-option-click-missing-enter.md) — `Todo`
-- **B004** — [Audit remaining shell-string external commands (git, aws) for injection](./backlog/B004-shell-string-external-command-audit.md) — `Todo`
+- **B003** — [Clicking a question option may not confirm it](./backlog/B003-option-click-missing-enter.md) — `Done` (does not reproduce on Claude Code 2.1.318; no code change)
+- **B004** — [Audit remaining shell-string external commands (git, aws) for injection](./backlog/B004-shell-string-external-command-audit.md) — `Done` (0.106.69)
 - **B005** — [Listener network posture (bind address / firewall)](./backlog/B005-listener-network-posture.md) — `Wontfix` (no auth is by design)
-- **B006** — [AMP signature refusals (403) leave no readable record](./backlog/B006-amp-refusals-not-recorded.md) — `Todo`
+- **B006** — [AMP signature refusals (403) leave no readable record](./backlog/B006-amp-refusals-not-recorded.md) — `Done` (0.106.69)
 - **B007** — [Leftovers from the skills and prompts audit](./backlog/B007-prompt-audit-leftovers.md) — `In Progress`
 - **B008** — [GET /api/agents/:id/tracking returns 500 for every agent](./backlog/B008-tracking-endpoint-500.md) — `Done`
 - **B009** — [A request for an unknown agent id creates an agent and a database folder](./backlog/B009-unknown-agent-id-creates-agent.md) — `Done` (0.60.4)
@@ -125,6 +127,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B026** — [Pasted text shows twice in the chat, once with raw `<pasted_content>` tags](./backlog/B026-pasted-text-shows-raw-wrapper-twice.md) — `Done` (0.106.66, #769)
 - **B027** — [A message sent while the agent works shows as Queued and as delivered at once](./backlog/B027-queued-message-shows-queued-and-delivered.md) — `Done` (0.106.68, #770)
 - **B028** — [The dashboard forgets which agent was open and opens another one](./backlog/B028-dashboard-forgets-open-agent.md) — `Done` (0.106.67, #773)
+- **B029** — [The meeting chat's poll has no timeout and hides every error](./backlog/B029-meeting-poll-no-timeout.md) — `Done` (0.106.69, #782)
+- **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Done` (0.106.69)
+- **B031** — [The compaction summary shows in the chat as the person's message](./backlog/B031-compact-summary-shows-as-message.md) — `Done` (0.106.69, #786)
 
 ## Unfiled
 

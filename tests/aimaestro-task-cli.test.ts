@@ -63,6 +63,21 @@ describe.skipIf(!haveTools)('aimaestro-task.sh', () => {
     expect(r.err).toContain('AIM_AGENT_ID')
   })
 
+  it('review --result records what was done with the move (F077)', async () => {
+    const r = await run(['review', 'aaaaaaaa-1111', '--result', "Added the banner; checked it on Juan's phone"])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('result recorded')
+    expect(writes()[0]).toMatchObject({ method: 'PATCH', url: `/api/agents/${AGENT}/tasks/aaaaaaaa-1111`, body: { status: 'review', result: "Added the banner; checked it on Juan's phone" } })
+  })
+
+  it('a move without --result sends no result, and an unknown option is refused', async () => {
+    await run(['done', 'aaaaaaaa-1111'])
+    expect(writes()[0].body).toEqual({ status: 'completed' })
+    const r = await run(['review', 'aaaaaaaa-1111', '--resul', 'x'])
+    expect(r.code).toBe(1)
+    expect(writes()).toEqual([])
+  })
+
   it('add puts a card on the agent\'s own board', async () => {
     const r = await run(['add', 'Write the changelog', '--desc', 'for 0.85'])
     expect(r.code).toBe(0)

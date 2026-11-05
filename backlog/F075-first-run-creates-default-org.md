@@ -36,8 +36,15 @@ create a second one.
   `org:` tag; people get it in `orgs`).
 - Existing installs: a one-time migration does the same for agents and people with no organization.
   Never move an agent that already has an `org:` tag.
-- Multi-host: each host keeps its own registry today; decide whether the default organization is per host
-  or shared (same id on every host is enough for the views).
+- Multi-host, **decided by Juan (2026-11-05): there is one default organization, and a host that is part of
+  the organization is in it.** Hosts do not each keep their own default.
+- The consequence to design for: many hosts were first started on their own, each with its own (default)
+  organization. When such a host joins another host's organization, the two organizations must be **merged**:
+  its agents, people, cards and organization records move into the joined organization (ids, `org:` tags,
+  `orgs` lists, cards' `org`), with no duplicate and nothing lost. That merge is the hard part of this item and
+  needs its own design before code: what wins on a name clash, whether it can be undone, and what the person
+  sees when a host joins.
 - UI: prompt to name the organization (onboarding and Settings).
-- Related: F074.
-- Effort: S-M.
+- Related: F074, the host join flow (Settings → Hosts, `/api/hosts` sync).
+- Effort: M (the merge), was S-M.
+- **Not started**: Juan asked on 2026-11-05 to hold this and the other organization features for now.

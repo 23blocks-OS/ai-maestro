@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.69] - 2026-11-05 - Schedules that prove delivery, task results, two new Doctor checks, refused messages on record
+
+### Fixed
+- **The compaction summary no longer shows as your message** (B031, #786). After compacting, Claude Code writes a summary ("This session is being continued from a previous conversation …") that the chat drew as the person's bubble. It is marked `isCompactSummary`, not `isMeta`, so the 0.106.68 rule missed it. It is now a system note: X-Ray only, labelled "Conversation summary after compaction".
+- **A schedule run is "success" only when the prompt is proven submitted** (B030). The executor marked success as soon as the keys were sent: a scrolled pane (copy mode), a dialog or a bare shell swallowed the prompt while the run said success (3m-it, mac-mini, 2026-11-04). It now leaves copy mode, refuses a bare shell, and verifies the prompt above the input box, and a run that cannot be proven is a failure with the reason. A repeated prompt (every schedule repeats) is proven only by a NEW copy on screen, never by the previous run's. Prompts arrive exactly as written: they were shell-escaped before a verbatim send, so every apostrophe arrived as `'\''`.
+- **The meeting chat no longer hangs silently** (B029, #782). Its 7-second poll had no time limit and hid every error, and a hung request was stacked on every interval. Polls now time out after 10 seconds, never overlap, drop results that belong to a meeting you left, and after three failures in a row the chat says it is not updating.
+- **Every refused AMP message leaves a record** (B006). A 401/403 at `/api/v1/route` or `/api/v1/federation/deliver` is written to `~/.aimaestro/logs/amp-refusals.jsonl` (time, reason, sender, recipient, forwarding host, key fingerprint), kept to a fixed size.
+
+### Added
+- **A task records what was actually done** (F077, #776). A Result field on every board's tasks: the task detail shows it (editable in Review and Done), a card with a result is marked, and agents set it with `aimaestro-task.sh review|done <id> --result "…"` (plugin 1.19.7, agent-tasks skill updated).
+- **Doctor: `agent-programs`** (F071). For each program this host's agents run, as their tmux shell finds it: its version, a missing program an agent uses, a copy that does not answer `--version`, an older copy that runs before a newer one (mac-mini's stale Claude Code), and a missing PermissionRequest hook. It shares the login-shell PATH and runner with the tool-readiness check of the create and wake dialogs.
+- **Doctor: `amp-refusals`** (B006). The messages this host refused in the last 24 hours, by reason and sender.
+- A test that fails CI on a new shell-string command with an unquoted value (B004; the git and aws sites it named were already argv).
+- Backlog from the review of issues #776-#785: F076 (tasks go to idle agents and come back for review; #638, #779), F077, B029, B030. F075 records Juan's decision: one default organization, and hosts that join merge into it (not started).
+
+### Not changed
+- B003 (clicking a question option may not confirm it) does not reproduce on Claude Code 2.1.318: tested live, a number selects and confirms. A fix that pressed Enter after the key was removed before release, because in a two-question menu it would have answered the second question for the person.
+
 ## [0.106.68] - 2026-11-03 - System text is the system's, and a queued message shows once
 
 ### Fixed

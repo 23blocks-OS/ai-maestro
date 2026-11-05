@@ -246,3 +246,27 @@ describe('the host-wide open list (Matrix, Org, Attention read this)', () => {
     expect(((ok(getOpenTasks()) as any).cards as any[])[0].due).toBe('2026-10-19')
   })
 })
+
+describe('result: what was actually done (F077)', () => {
+  it('is set with a move to review, cleaned, kept by other edits, and cleared by null or empty text', () => {
+    const id = task(createAgentTask('a1', { subject: 'Ship the banner' })).id
+    expect(task(updateAgentTask('a1', id, { status: 'review', result: '  Shipped it\u0007; checked on the phone  ' })).result).toBe('Shipped it; checked on the phone')
+    expect(task(updateAgentTask('a1', id, { status: 'completed' })).result).toBe('Shipped it; checked on the phone')
+    expect('result' in task(updateAgentTask('a1', id, { result: '' }))).toBe(false)
+    task(updateAgentTask('a1', id, { result: 'again' }))
+    expect('result' in task(updateAgentTask('a1', id, { result: null }))).toBe(false)
+  })
+
+  it('refuses a result that is not text', () => {
+    const id = task(createAgentTask('a1', { subject: 'x' })).id
+    expect((updateAgentTask('a1', id, { result: 42 as any }) as any).status).toBe(400)
+  })
+
+  it('works on team and project boards too', () => {
+    const tid = task(createTeamTask('t1', { subject: 'Team job' } as any)).id
+    expect(task(updateTeamTask('t1', tid, { status: 'review', result: 'done on the team board' } as any)).result).toBe('done on the team board')
+    const pid = projectId()
+    const ptid = task(createProjectTask(pid, { subject: 'Project job' } as any)).id
+    expect(task(updateProjectTask(pid, ptid, { status: 'review', result: 'done on the project board' })).result).toBe('done on the project board')
+  })
+})

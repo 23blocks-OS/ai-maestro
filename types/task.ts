@@ -73,6 +73,8 @@ export interface Task {
   org?: string | null
   /** A calendar date, YYYY-MM-DD (no time, no timezone); unset = no due date */
   due?: string | null
+  /** What was actually done, written when the card goes to review or is completed (F077); null clears */
+  result?: string | null
   /** Agents (id or name, any host) that also own the card besides assigneeAgentId; they are not notified */
   owners?: string[] | null
   kind?: TaskKind                // Unset = a task

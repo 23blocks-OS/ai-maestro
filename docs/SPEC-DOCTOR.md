@@ -1,6 +1,6 @@
 # Spec: Doctor, health checks for agents, hosts and installs
 
-**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64; steps 3-4 to do. Backlog: F069. Absorbs the local half of F005.
+**Status:** Approved 2026-11-03. Step 1 (server) built in 0.106.63, step 2 (web) in 0.106.64, the mobile screen in app 1.0.2; step 3 (CLI) to do. 4.11 and 4.12 added in 0.106.69. Backlog: F069. Absorbs the local half of F005.
 **Goal:** one report per host that names every configuration problem with the agent or file it is about,
 says what to do, and offers a safe fix where one exists. The web dashboard, the mobile app and the agents
 CLI all read the same report from each host. The server does the checks and the fixes; the clients only
@@ -249,6 +249,39 @@ Compares each `plugin/plugins/ai-maestro/scripts/amp-*.sh` in this checkout with
 
 Extra scripts in `~/.local/bin` are not findings. Hint: run `./update-aimaestro.sh -y`. Comparing scripts
 across hosts is the other half of F005 and stays there.
+
+### 4.11 `agent-programs` (install), added in 0.106.69 (F071)
+
+The programs this host's agents launch (`claude`, `codex`, `pi`, … from each local agent's `program`), plus
+Claude Code always. Agents launch a bare name in a tmux shell, so each program is found on the user's
+interactive login-shell PATH (`$SHELL -ilc`), which can differ from the server's own PATH; then each copy
+is asked `--version` with an 8-second limit (the tool-readiness runner, F040).
+
+| Finding | Status |
+|---|---|
+| A program an agent runs is not installed | fail, naming up to five agents |
+| The copy that runs first does not answer `--version` in 8 s | fail |
+| An older copy runs before a newer one on the PATH | warn |
+| Claude Code 2.0.45 or later, and the PermissionRequest hook is not registered | warn |
+| The login shell could not be asked | warn |
+
+`details.programs` lists `{ name, path, version }` for every program found (for F072, the create-agent
+dialog). Cost: one login shell and one `--version` per program per run, a few seconds, in parallel with the
+other checks.
+
+### 4.12 `amp-refusals` (host), added in 0.106.69 (B006)
+
+Every AMP message this host refuses with 401/403, at `/api/v1/route` (local and mesh delivery) or
+`/api/v1/federation/deliver` (another provider), is written as one JSON line to
+`~/.aimaestro/logs/amp-refusals.jsonl` (`lib/amp-refusals.ts`: time, endpoint, status, reason code, sender,
+recipient, forwarding host or provider, key fingerprint prefix; kept to its newest 2,000 lines past 1 MB).
+The check reads the last 24 hours.
+
+| Finding | Status |
+|---|---|
+| Refusals in the last 24 hours | warn, one item per reason and sender (count, via, last time), at most 10 |
+
+Hint: the sender's host usually runs stale AMP scripts or the sender rotated its key; update that host.
 
 ## 5. Fleet findings, made by the client
 

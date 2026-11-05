@@ -25,7 +25,7 @@
 
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam } from '@/lib/team-registry'
 import { parseKindAndOrigin } from '@/lib/task-origin'
-import { parseDueInput, parseOwnersInput } from '@/lib/task-due'
+import { parseDueInput, parseOwnersInput, parseResult } from '@/lib/task-due'
 import { getSelfHostId } from '@/lib/hosts-config'
 import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
@@ -71,6 +71,8 @@ export interface UpdateTaskParams {
   priority?: number
   waitingOn?: string
   waitingNote?: string
+  /** What was actually done (F077), or null to clear */
+  result?: string | null
   urgent?: boolean | null
   important?: boolean | null
   /** YYYY-MM-DD, or null to clear */
@@ -274,6 +276,8 @@ export function updateTeamTask(
     if (v !== undefined && v !== null && typeof v !== 'boolean') return invalidField(key, `${key} must be true, false or null`)
   }
 
+  const res = parseResult(params.result)
+  if (!res.ok) return invalidField('result', res.message)
   const due = parseDueInput(params.due)
   if (!due.ok) return invalidField('due', due.message)
   const owners = parseOwnersInput(params.owners, [assigneeAgentId === undefined ? existing.assigneeAgentId : assigneeAgentId])
@@ -318,6 +322,7 @@ export function updateTeamTask(
       important,
       due: due.value,
       owners: owners.value,
+      result: res.value,
     })
 
     if (!result.task) {

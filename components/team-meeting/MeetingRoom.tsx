@@ -441,6 +441,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
     lastDelivery: chatHook.lastDelivery,
     retryFailed: chatHook.retryFailed,
     dismissDelivery: chatHook.dismissDelivery,
+    notUpdating: chatHook.notUpdating,
   }
 
   // Poll unread message counts per agent (every 10s)

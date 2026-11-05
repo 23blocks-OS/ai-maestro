@@ -14,6 +14,8 @@ export type TaskUpdates = {
   due?: string | null
   /** The extra owners (agent ids), replacing the list; [] or null clears it */
   owners?: string[] | null
+  /** What was actually done (F077); null clears it */
+  result?: string | null
 }
 
 export type CommentResult = { delivered?: boolean; reason?: string }

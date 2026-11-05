@@ -203,7 +203,7 @@ export function getTask(teamId: string, taskId: string): Task | null {
 export function updateScopeTask(
   scope: TaskScope,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org' | 'due' | 'owners'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org' | 'due' | 'owners' | 'result'>>
 ): { task: Task | null; unblocked: Task[] } {
   const tasks = loadScopeTasks(scope)
   const index = tasks.findIndex(t => t.id === taskId)
@@ -228,6 +228,7 @@ export function updateScopeTask(
   if (updates.org === null) delete tasks[index].org
   // due: null clears the date; owners: null or an empty list clears the extra owners (a new list replaces the old)
   if (updates.due === null) delete tasks[index].due
+  if (updates.result === null) delete tasks[index].result
   if (updates.owners === null || (Array.isArray(updates.owners) && updates.owners.length === 0)) delete tasks[index].owners
 
   // A card that stops waiting forgets what it waited on
@@ -264,7 +265,7 @@ export function updateScopeTask(
 export function updateTask(
   teamId: string,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org' | 'due' | 'owners'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'waitingOn' | 'waitingNote' | 'urgent' | 'important' | 'org' | 'due' | 'owners' | 'result'>>
 ): { task: Task | null; unblocked: Task[] } {
   return updateScopeTask(teamScope(teamId), taskId, updates)
 }

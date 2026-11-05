@@ -29,6 +29,7 @@
  *   POST   /api/v1/federation/deliver         -> deliverFederated
  */
 
+import { recordAmpRefusal } from '@/lib/amp-refusals'
 import crypto from 'crypto'
 import {
   MAX_ATTACHMENT_SIZE,
@@ -846,7 +847,25 @@ export async function registerAgent(
 // POST /api/v1/route
 // ---------------------------------------------------------------------------
 
+/** Every refusal (401/403) is recorded (B006), on top of the console.warn lines inside. */
 export async function routeMessage(
+  body: AMPRouteRequest,
+  authHeader: string | null,
+  forwardedFrom: string | null,
+  envelopeIdHeader: string | null,
+  signatureHeader: string | null,
+  contentLength: string | null
+): Promise<ServiceResult<AMPRouteResponse>> {
+  const result = await routeMessageUnrecorded(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
+  if (result.status === 401 || result.status === 403) {
+    const d = result.data as { error?: string; message?: string; details?: { fingerprint?: string; from?: string } } | undefined
+    // A local agent's request carries no body.from; the refusal names the sender it checked
+    recordAmpRefusal({ endpoint: 'route', status: result.status, reason: d?.error || 'unknown', message: d?.message, from: body?.from || d?.details?.from, to: body?.to, via: forwardedFrom || undefined, fingerprint: d?.details?.fingerprint })
+  }
+  return result
+}
+
+async function routeMessageUnrecorded(
   body: AMPRouteRequest,
   authHeader: string | null,
   forwardedFrom: string | null,
@@ -1994,7 +2013,21 @@ export async function rotateKeypair(body: AMPKeypairRotationRequest | null, auth
 // POST /api/v1/federation/deliver
 // ---------------------------------------------------------------------------
 
+/** Every refusal (401/403) is recorded (B006). */
 export async function deliverFederated(
+  providerName: string | null,
+  body: { envelope: AMPEnvelope; payload: AMPPayload; sender_public_key?: string },
+  auth: { signature: string | null; timestamp: string | null; rawBody: string; fetchDoc?: FetchProviderDocument } = { signature: null, timestamp: null, rawBody: '' }
+): Promise<ServiceResult<any>> {
+  const result = await deliverFederatedUnrecorded(providerName, body, auth)
+  if (result.status === 401 || result.status === 403) {
+    const d = result.data as { error?: string; message?: string; details?: { fingerprint?: string } } | undefined
+    recordAmpRefusal({ endpoint: 'federation', status: result.status, reason: d?.error || 'unknown', message: d?.message, from: body?.envelope?.from, to: body?.envelope?.to, via: providerName || undefined, fingerprint: d?.details?.fingerprint })
+  }
+  return result
+}
+
+async function deliverFederatedUnrecorded(
   providerName: string | null,
   body: { envelope: AMPEnvelope; payload: AMPPayload; sender_public_key?: string },
   auth: { signature: string | null; timestamp: string | null; rawBody: string; fetchDoc?: FetchProviderDocument } = { signature: null, timestamp: null, rawBody: '' }

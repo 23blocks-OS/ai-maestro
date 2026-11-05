@@ -23,6 +23,7 @@ const healthy = report('alpha', [
 const broken = report('beta', [
   { name: 'tmux', status: 'pass', message: 'ok' },
   { name: 'agent-programs', status: 'fail', message: 'claude is missing', hint: 'Install it.' },
+  { name: 'paths', status: 'warn', message: 'C:\\Users\\x has a \\c and a\ttab' },
 ])
 
 let fakeHome = ''
@@ -46,7 +47,8 @@ beforeAll(async () => {
     if (u === '/api/diagnostics') return [200, healthy]
     if (u === '/api/hosts') return [200, { hosts: [
       { id: 'alpha', name: 'Alpha', url: alpha, isSelf: true },
-      { id: 'beta', name: 'Beta', url: `${beta}/` },
+      { id: 'beta', name: '', url: `${beta}/` },
+      { id: 'nourl', name: 'No URL', url: null },
       { id: 'off', name: 'Off', url: 'http://127.0.0.1:1', enabled: false },
     ] }]
     return [200, { sessions: [] }]
@@ -85,13 +87,15 @@ describe.skipIf(!haveTools)('aimaestro-agent.sh doctor', () => {
     expect(r.out).toContain('alpha · v0.106.70')
     expect(r.out).toContain('beta · v0.106.70')
     expect(r.out).toContain('agent-programs: claude is missing')
+    expect(r.out).toContain('paths: C:\\Users\\x has a \\c and a tab')
     expect(r.out).not.toContain('Off')
   })
 
   it('--json prints the raw report; with --all, one entry per host', async () => {
     expect(JSON.parse((await doctor('--json')).out).hostname).toBe('alpha')
     const all = JSON.parse((await doctor('--all', '--json')).out)
-    expect(all.map((h: any) => [h.host, h.report.hostname])).toEqual([['Alpha', 'alpha'], ['Beta', 'beta']])
+    // an empty name falls back to the id; a host with no URL is left out
+    expect(all.map((h: any) => [h.host, h.report.hostname])).toEqual([['Alpha', 'alpha'], ['beta', 'beta']])
   })
 
   it('refuses an unknown option', async () => {

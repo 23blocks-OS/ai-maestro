@@ -8,6 +8,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { InstallJob } from '@/services/program-install-service'
 
 const POLL_MS = 2000
+// The server stops an install after 10 minutes; this leaves a margin
+const MAX_POLLS = 330
+const MAX_ERRORS = 5
 
 export default function ToolInstallButton({ tool, command, hostUrl, hostLabel, onInstalled }: {
   tool: string
@@ -21,22 +24,37 @@ export default function ToolInstallButton({ tool, command, hostUrl, hostLabel, o
   const [job, setJob] = useState<InstallJob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  const alive = useRef(true)
+  useEffect(() => { alive.current = true; return () => { alive.current = false; if (timer.current) clearTimeout(timer.current) } }, [])
 
   const q = hostUrl ? `?hostUrl=${encodeURIComponent(hostUrl)}` : ''
 
-  const follow = () => {
+  const fail = (message: string) => { setError(message); setPhase('failed') }
+
+  // Follows the job until it ends. It also stops when the host restarted (no job), another install took over (our
+  // job ended, so re-check the tool), the host keeps failing, or the server's own limit has long passed.
+  const follow = (polls = 0, errors = 0) => {
     timer.current = setTimeout(async () => {
+      let j: InstallJob | null | undefined
       try {
         const r = await fetch(`/api/tools/install${q}`)
-        const j: InstallJob | null = (await r.json())?.job ?? null
-        if (j && j.tool === tool && j.state !== 'running') {
-          setJob(j)
-          if (j.state === 'done') { setPhase('idle'); onInstalled() } else setPhase('failed')
-          return
-        }
-      } catch { /* the host may be busy installing; keep asking */ }
-      follow()
+        j = r.ok ? ((await r.json())?.job ?? null) : undefined
+      } catch { j = undefined }
+      if (!alive.current) return
+      if (j === undefined) {
+        if (errors + 1 >= MAX_ERRORS) return fail('The host stopped answering. Check the program again later.')
+      } else if (j === null) {
+        onInstalled()
+        return fail('The host lost track of the install (it may have restarted). Check the program again.')
+      } else if (j.tool !== tool) {
+        setPhase('idle'); onInstalled(); return
+      } else if (j.state !== 'running') {
+        setJob(j)
+        if (j.state === 'done') { setPhase('idle'); onInstalled() } else setPhase('failed')
+        return
+      }
+      if (polls + 1 >= MAX_POLLS) return fail('It is taking longer than expected. Check the program again later.')
+      follow(polls + 1, j === undefined ? errors + 1 : 0)
     }, POLL_MS)
   }
 
@@ -47,12 +65,11 @@ export default function ToolInstallButton({ tool, command, hostUrl, hostLabel, o
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool, hostUrl }),
       })
       const data = await r.json().catch(() => ({}))
+      if (!alive.current) return
       if (r.status === 202 || (r.status === 409 && data?.job?.tool === tool)) return follow()
-      setError(data?.message || data?.error || `HTTP ${r.status}`)
-      setPhase('failed')
+      fail(data?.message || data?.error || `HTTP ${r.status}`)
     } catch {
-      setError('The host did not answer.')
-      setPhase('failed')
+      if (alive.current) fail('The host did not answer.')
     }
   }
 

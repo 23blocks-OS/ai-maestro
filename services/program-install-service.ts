@@ -12,8 +12,8 @@
  */
 import { execFile } from 'child_process'
 import { getHosts, isSelf } from '@/lib/hosts-config'
-import { READINESS_TOOLS, installCommand, type ReadinessReport } from '@/lib/tool-readiness'
-import { allOnPath, checkToolReadiness, realDeps, resetReadinessCache } from '@/services/tool-readiness-service'
+import { READINESS_TOOLS, installCommand } from '@/lib/tool-readiness'
+import { allOnPath, realDeps, refreshToolReadiness } from '@/services/tool-readiness-service'
 import type { ServiceResult } from '@/services/service-errors'
 
 const INSTALL_TIMEOUT_MS = 10 * 60_000
@@ -56,11 +56,7 @@ const realInstallDeps: InstallDeps = {
   agentPath: realDeps.agentPath,
   isExecutable: realDeps.isExecutable,
   run: runInstaller,
-  recheck: async (tool) => {
-    resetReadinessCache()
-    const report = (await checkToolReadiness()).data as ReadinessReport | undefined
-    return report?.tools?.find((t) => t.id === tool)?.state === 'ready'
-  },
+  recheck: async (tool) => (await refreshToolReadiness()).tools.find((t) => t.id === tool)?.state === 'ready',
 }
 
 const g = globalThis as unknown as { _programInstall?: InstallJob }
@@ -92,14 +88,16 @@ export async function startInstall(body: { tool?: unknown }, deps: InstallDeps =
     return { data: { error: 'busy', message: `${g._programInstall.tool} is being installed. Wait for it to finish.`, job: g._programInstall } as any, status: 409 }
   }
   const command = installCommand(tool.npmPackage)
-  const searchPath = await deps.agentPath()
-  const npm = allOnPath('npm', searchPath, deps.isExecutable)[0]
-  if (!npm) {
-    return { data: { error: 'no_npm', message: 'npm is not installed on this host. Install Node.js first.' } as any, status: 409 }
-  }
-
+  // Taken before the first await: finding npm can start a login shell, and a second request must see it busy
+  const previous = g._programInstall
   const job: InstallJob = { tool: tool.id, command, state: 'running', startedAt: new Date().toISOString() }
   g._programInstall = job
+  const searchPath = await deps.agentPath().catch(() => '')
+  const npm = allOnPath('npm', searchPath, deps.isExecutable)[0]
+  if (!npm) {
+    g._programInstall = previous
+    return { data: { error: 'no_npm', message: 'npm is not installed on this host. Install Node.js first.' } as any, status: 409 }
+  }
   const wait = (async () => {
     let result: { ok: boolean; output: string; timedOut?: boolean }
     try {

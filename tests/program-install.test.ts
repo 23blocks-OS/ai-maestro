@@ -50,6 +50,25 @@ describe('startInstall', () => {
     expect((await startInstall({ tool: 'gemini' }, deps())).status).toBe(202)
   })
 
+  it('two requests at once while the login shell is still starting: only one runs', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const slowShell = deps({ agentPath: async () => { await gate; return '/opt/node/bin' } })
+    const a = startInstall({ tool: 'codex' }, slowShell)
+    const b = startInstall({ tool: 'gemini' }, slowShell)
+    release()
+    const [ra, rb] = await Promise.all([a, b])
+    expect([ra.status, rb.status].sort()).toEqual([202, 409])
+    await (ra.data as any).wait
+    expect(calls).toHaveLength(1)
+  })
+
+  it('no npm: the earlier job is kept, not replaced', async () => {
+    await (await startInstall({ tool: 'codex' }, deps())).data!.wait
+    await startInstall({ tool: 'gemini' }, deps({ isExecutable: () => false }))
+    expect(getInstallJob().data!.job).toMatchObject({ tool: 'codex', state: 'done' })
+  })
+
   it('no npm on the PATH: says so and runs nothing', async () => {
     const r = await startInstall({ tool: 'codex' }, deps({ isExecutable: () => false }))
     expect(r.status).toBe(409)

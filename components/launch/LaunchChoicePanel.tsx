@@ -12,6 +12,7 @@ import { MODE_SUMMARY, STOP_LABEL, STOP_HELP, stopsFor, canReadOnly, type Freedo
 import { launchOptionsFor } from '@/lib/launch-options'
 import type { LaunchChoice } from '@/hooks/useLaunchChoice'
 import { useToolReadiness } from '@/hooks/useToolReadiness'
+import ToolInstallButton from './ToolInstallButton'
 
 const ICONS: Record<string, typeof Code2> = { claude: Sparkles, terminal: Terminal, current: Cpu }
 
@@ -45,7 +46,7 @@ export default function LaunchChoicePanel({
   /** A line under the tool description, for what is special about where it runs. */
   note?: string
 }) {
-  const { tool: realReadinessOf } = useToolReadiness(hostUrl)
+  const { tool: realReadinessOf, refresh: refreshReadiness } = useToolReadiness(hostUrl)
   const readinessOf: typeof realReadinessOf = onlyTools ? () => undefined : realReadinessOf
   const pad = compact ? 'px-0' : 'px-6'
   const isWaking = disabled
@@ -117,7 +118,14 @@ export default function LaunchChoicePanel({
                       ? `Not installed on this host.${r.install ? ` To install: ${r.install}` : ''}`
                       : `Found, but it will not start: ${r.problem || 'it did not run.'}`
                   const tone = r.state === 'ready' ? 'text-zinc-500' : r.state === 'missing' ? 'text-amber-300' : 'text-red-300'
-                  return <p className={`mt-1 text-[11px] break-words ${tone}`} data-testid="tool-readiness" data-state={r.state}>{text}</p>
+                  return (
+                    <>
+                      <p className={`mt-1 text-[11px] break-words ${tone}`} data-testid="tool-readiness" data-state={r.state}>{text}</p>
+                      {r.state === 'missing' && r.install && !disabled && (
+                        <ToolInstallButton key={`${hostUrl || ''}:${r.id}`} tool={r.id} command={r.install} hostUrl={hostUrl} onInstalled={refreshReadiness} />
+                      )}
+                    </>
+                  )
                 })()}
         {!onlyTools && (
           <>

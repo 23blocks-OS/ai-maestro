@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.70] - 2026-11-05 - Install a missing program from the create dialog; the Doctor on the command line
+
+### Added
+- **Install a missing program from the create and wake dialogs** (F072 phase 2). When the chosen host does not have Claude Code, Codex, Copilot, Pi or Gemini, an **Install** button sits under "Not installed on this host". It says what it runs and where, asks first, then runs `npm install -g <package>` on that host and follows it to the end; on success the tool shows "Installed · v…" and can be picked. A closed list: only tools with a verified npm package, the package fixed per tool, run with argv and the npm an agent's login shell finds, one install at a time per host. It never uses sudo: when npm cannot write its global folder, it says so and gives the command to run in a terminal. `POST /api/tools/install { tool, hostUrl? }`, `GET /api/tools/install` for the job (Next and headless routes); another host is reached through the configured hosts list only, and a host too old for it says to update it.
+- **`aimaestro-agent.sh doctor [--all] [--json]`** (F069 step 3, plugin 1.19.8). The Doctor report on the command line: one line per check, failures first, items named by agent, the hint. `--all` asks every enabled host for its own report. Exit code 1 when a check fails or a host does not answer.
+
+### Fixed
+- **The Doctor reports the version the server runs, not the one on disk.** The report read `version.json` on every run, so after a deploy pulled new files it showed the new version before the restart. `server.mjs` records the version at start; when the files on disk differ, `app-version` warns "AI Maestro X is running; the files on disk are Y" and says to restart.
+
 ## [0.106.69] - 2026-11-05 - Schedules that prove delivery, task results, two new Doctor checks, refused messages on record
 
 ### Fixed

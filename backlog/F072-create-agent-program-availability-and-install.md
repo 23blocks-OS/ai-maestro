@@ -1,6 +1,6 @@
 # F072 — Create agent: show which programs each host can run, then offer to install the missing ones
 
-**Status:** Todo (phase 2 only; phase 1 exists since F040)
+**Status:** Done (phase 1 since F040; phase 2, the Install button, in 0.106.70)
 **Type:** Feature
 **Created:** 2026-11-03
 
@@ -46,3 +46,9 @@ Setting up a new host means installing each program by hand from memory.
 - Open questions: installers that need sudo or a login (Claude Code sign-in) must stop and say so, not
   hang; whether phase 2 is on by default or a host setting.
 - Depends on F071; phase 2 uses F070 for the "done" notification.
+- **Built in 0.106.70** (`services/program-install-service.ts`, `components/launch/ToolInstallButton.tsx`). Decided while
+  building: on by default (anyone who can reach the dashboard can already create agents that run any command, so a
+  closed list of npm installs adds no new power); no sudo, ever: a permission error ends the job with the command to
+  run in a terminal; the dialog follows the job itself, so F070 is not needed for it. Not covered: tools with no
+  verified npm package (Grok, OpenCode, OpenClaw), and a "broken" tool (found but will not start, such as Pi on an
+  old Node): the dialog still only explains those.

@@ -5,7 +5,7 @@
  * minute so opening the wake dialog twice does not run the checks twice. A failure just means "unknown": the
  * panel shows nothing rather than a false warning, and waking still works as before.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReadinessReport, ToolReadiness } from '@/lib/tool-readiness'
 
 const TTL_MS = 60_000
@@ -30,13 +30,20 @@ function load(hostUrl: string): Promise<ReadinessReport | null> {
   return p
 }
 
-export function useToolReadiness(hostUrl?: string): { report: ReadinessReport | null; tool: (id: string) => ToolReadiness | undefined } {
+export function useToolReadiness(hostUrl?: string): {
+  report: ReadinessReport | null
+  tool: (id: string) => ToolReadiness | undefined
+  /** Check again now (after an install). */
+  refresh: () => void
+} {
   const key = hostUrl || ''
   const [report, setReport] = useState<ReadinessReport | null>(() => cache.get(key)?.report ?? null)
+  const [round, setRound] = useState(0)
   useEffect(() => {
     let live = true
     load(key).then((r) => { if (live) setReport(r) })
     return () => { live = false }
-  }, [key])
-  return { report, tool: (id) => report?.tools.find((t) => t.id === id) }
+  }, [key, round])
+  const refresh = useCallback(() => { cache.delete(key); setRound((n) => n + 1) }, [key])
+  return { report, tool: (id) => report?.tools.find((t) => t.id === id), refresh }
 }

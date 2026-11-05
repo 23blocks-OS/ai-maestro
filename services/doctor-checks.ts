@@ -357,8 +357,22 @@ export function readAppVersion(repoDir: string): string {
   try { return JSON.parse(fs.readFileSync(path.join(repoDir, 'version.json'), 'utf8')).version || 'unknown' } catch { return 'unknown' }
 }
 
-export function checkAppVersion(version: string): DiagnosticCheck {
-  return { name: 'app-version', category: 'install', status: version === 'unknown' ? 'warn' : 'pass', message: `AI Maestro ${version}` }
+/** The version this server process runs (server.mjs records it at start), else what is on disk. */
+export function runningAppVersion(repoDir: string): string {
+  return process.env.AIM_RUNNING_VERSION || readAppVersion(repoDir)
+}
+
+/** `onDisk` differs from `running` after a deploy changed the files but before the restart. */
+export function checkAppVersion(running: string, onDisk: string = running): DiagnosticCheck {
+  if (running === 'unknown') return { name: 'app-version', category: 'install', status: 'warn', message: 'AI Maestro version unknown' }
+  if (onDisk !== running && onDisk !== 'unknown') {
+    return {
+      name: 'app-version', category: 'install', status: 'warn',
+      message: `AI Maestro ${running} is running; the files on disk are ${onDisk}`,
+      hint: 'Restart AI Maestro (pm2 restart ai-maestro) to run the new version.',
+    }
+  }
+  return { name: 'app-version', category: 'install', status: 'pass', message: `AI Maestro ${running}` }
 }
 
 // ---------------------------------------------------------------------------

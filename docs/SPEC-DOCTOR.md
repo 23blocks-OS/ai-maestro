@@ -223,6 +223,12 @@ Folders in `~/.aimaestro/backups/agents/` whose name matches the backup pattern 
 
 Status pass, message `AI Maestro <version>`. Clients compare it across hosts (section 5).
 
+The version is the one the server process runs: `server.mjs` records `version.json` at start
+(`AIM_RUNNING_VERSION`), and the report's `version` uses it too. A deploy changes `version.json` before the
+restart, so when the file on disk differs, the check is a warn, `AI Maestro <running> is running; the files on
+disk are <on disk>`, with the hint to restart (0.106.70; before, the file was read on every run, and a host
+reported the new version before it ran it).
+
 ### 4.9 `claude-hook` (install)
 
 Reads `~/.claude/settings.json`. Entries are the `hooks.<Event>[].hooks[]` commands that contain
@@ -344,9 +350,10 @@ Fixes not offered in v1, with the reason:
 The same contract. The app already calls each host directly. The app team builds its own Doctor screen
 from the report and the fix endpoint. Nothing on the server is specific to the app.
 
-### CLI (`aimaestro-agent.sh doctor`, plugin)
+### CLI (`aimaestro-agent.sh doctor`, plugin 1.19.8)
 
-- `doctor` prints this host's report: one line per check and its items indented, coloured by status.
+- `doctor` prints this host's report: one line per check, failures first, and its items indented (named by
+  agent), coloured by status, with the hint under a check that is not a pass.
 - `--json` prints the raw report. `--all` reads `/api/hosts` and prints every enabled host.
 - Exit code 0 when nothing fails, 1 when any check fails.
 - No fixes from the CLI in v1.
@@ -372,7 +379,7 @@ from the report and the fix endpoint. Nothing on the server is specific to the a
 |---|---|---|
 | 1. Server | ai-maestro | Contract v2, checks 4.1-4.10, `POST /api/diagnostics/fix`, Next and headless routes, tests. Version bump and CHANGELOG. |
 | 2. Web | ai-maestro | The Settings Doctor section and the deep link. Version bump and CHANGELOG. |
-| 3. CLI | ai-maestro-plugins | `doctor` subcommand, plugin version bump. |
+| 3. CLI | ai-maestro-plugins | `doctor` subcommand, plugin version bump. Done in plugin 1.19.8 (AI Maestro 0.106.70). |
 | 4. Mobile | ai-maestro-app | Its Doctor screen, built against step 1 once that step is deployed. |
 
 Tests for step 1:

@@ -105,6 +105,8 @@ process.on('SIGPIPE', () => {
 // =============================================================================
 
 const dev = process.env.NODE_ENV !== 'production'
+// The version this process started with: a deploy changes version.json before the restart (Doctor app-version)
+try { process.env.AIM_RUNNING_VERSION = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'version.json'), 'utf8')).version } catch {}
 const hostname = resolveBindHost() // 0.0.0.0 allows network access; HOSTNAME overrides it (see lib/bind-host.mjs)
 const port = parseInt(process.env.PORT || '23000', 10)
 

@@ -102,33 +102,49 @@ export async function buildReadinessReport(deps: ReadinessDeps): Promise<Readine
 /** The real login-shell PATH (cached), executable test and bounded runner; the Doctor's agent-programs check uses them too. */
 export const realDeps: ReadinessDeps = { agentPath: cachedLoginShellPath, isExecutable: isExecutableFile, run: realRun }
 
-let pathCache: { at: number; value: string } | null = null
+// On globalThis: Next can load this module more than once (one copy per route bundle), and the install route's
+// refresh must reach the readiness route's cache (F072)
+const g = globalThis as unknown as {
+  _readinessPath?: { at: number; value: string } | null
+  _readinessReport?: { at: number; report: ReadinessReport } | null
+  _readinessInFlight?: Promise<ReadinessReport> | null
+}
+
 async function cachedLoginShellPath(): Promise<string> {
-  if (pathCache && Date.now() - pathCache.at < PATH_TTL_MS) return pathCache.value
+  if (g._readinessPath && Date.now() - g._readinessPath.at < PATH_TTL_MS) return g._readinessPath.value
   const value = await loginShellPath()
-  pathCache = { at: Date.now(), value }
+  g._readinessPath = { at: Date.now(), value }
   return value
 }
 
-let reportCache: { at: number; report: ReadinessReport } | null = null
-let reportInFlight: Promise<ReadinessReport> | null = null
-
-/** Test hook: forget the cached results. */
+/** Test hook, and after an install: forget the cached results, including a run still in progress. */
 export function resetReadinessCache(): void {
-  pathCache = null
-  reportCache = null
+  g._readinessPath = null
+  g._readinessReport = null
+  g._readinessInFlight = null
+}
+
+/**
+ * A new report now, kept as the cached one. After an install: a run that started before the program existed
+ * (someone opened a dialog meanwhile) must not be the answer.
+ */
+export async function refreshToolReadiness(): Promise<ReadinessReport> {
+  resetReadinessCache()
+  const report = await buildReadinessReport(realDeps)
+  g._readinessReport = { at: Date.now(), report }
+  return report
 }
 
 export async function checkToolReadiness(deps: ReadinessDeps = realDeps): Promise<ServiceResult<ReadinessReport>> {
-  if (deps === realDeps && reportCache && Date.now() - reportCache.at < REPORT_TTL_MS) {
-    return { data: reportCache.report, status: 200 }
+  if (deps === realDeps && g._readinessReport && Date.now() - g._readinessReport.at < REPORT_TTL_MS) {
+    return { data: g._readinessReport.report, status: 200 }
   }
   if (deps !== realDeps) return { data: await buildReadinessReport(deps), status: 200 }
   // Concurrent callers share one build (a login shell plus a --version per tool) instead of each spawning their own.
-  reportInFlight ??= buildReadinessReport(deps)
-    .then((report) => { reportCache = { at: Date.now(), report }; return report })
-    .finally(() => { reportInFlight = null })
-  return { data: await reportInFlight, status: 200 }
+  const run = g._readinessInFlight ??= buildReadinessReport(deps)
+    .then((report) => { if (g._readinessInFlight === run) g._readinessReport = { at: Date.now(), report }; return report })
+    .finally(() => { if (g._readinessInFlight === run) g._readinessInFlight = null })
+  return { data: await run, status: 200 }
 }
 
 /**

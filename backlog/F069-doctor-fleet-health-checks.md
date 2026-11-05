@@ -1,6 +1,6 @@
 # F069 - Doctor: one page that checks agents, hosts and installs, and offers the fix
 
-**Status:** In Progress (spec: [docs/SPEC-DOCTOR.md](../docs/SPEC-DOCTOR.md); step 1, the server, in 0.106.63; step 2, the Settings page, in 0.106.64)
+**Status:** In Progress (spec: [docs/SPEC-DOCTOR.md](../docs/SPEC-DOCTOR.md); step 1, the server, in 0.106.63; step 2, the Settings page, in 0.106.64; step 3, the CLI `aimaestro-agent.sh doctor`, in 0.106.70 with plugin 1.19.8; step 4, the mobile app, is ai-maestro-app's)
 **Type:** Feature
 **Created:** 2026-11-03
 

@@ -272,3 +272,23 @@ describe('amp-scripts', () => {
     expect(r.items?.map(i => i.key).sort()).toEqual(['amp-inbox.sh', 'amp-send.sh'])
   })
 })
+
+describe('app-version: the running version, and a pending restart', () => {
+  it('passes when the files match what runs', () => {
+    expect(d.checkAppVersion('0.106.70', '0.106.70')).toMatchObject({ status: 'pass', message: 'AI Maestro 0.106.70' })
+  })
+  it('warns when a deploy changed the files but the server was not restarted', () => {
+    const c = d.checkAppVersion('0.106.69', '0.106.70')
+    expect(c.status).toBe('warn')
+    expect(c.message).toBe('AI Maestro 0.106.69 is running; the files on disk are 0.106.70')
+    expect(c.hint).toContain('Restart')
+  })
+  it('reports the version the process started with, not the one on disk', () => {
+    const before = process.env.AIM_RUNNING_VERSION
+    process.env.AIM_RUNNING_VERSION = '0.0.1'
+    try { expect(d.runningAppVersion('/nowhere')).toBe('0.0.1') } finally {
+      if (before === undefined) delete process.env.AIM_RUNNING_VERSION; else process.env.AIM_RUNNING_VERSION = before
+    }
+    expect(d.checkAppVersion('unknown').status).toBe('warn')
+  })
+})

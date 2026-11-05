@@ -36,7 +36,7 @@ describe('nodeSupportsZstd (what Pi needs)', () => {
 })
 
 describe('judgeTool', () => {
-  const claude = { id: 'claude', command: 'claude', install: 'npm install -g x' }
+  const claude = { id: 'claude', command: 'claude', npmPackage: 'x' }
   it('missing when it is not on the path, with the install hint', () => {
     expect(judgeTool(claude)).toEqual({ id: 'claude', command: 'claude', install: 'npm install -g x', state: 'missing' })
   })

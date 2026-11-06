@@ -245,7 +245,7 @@ AI Maestro side, once v1.1 is in the SDK:
 | F078.1 | ai-maestro | Vendored SDK, storage, service, routes, states, tests |
 | F078.2 | ai-maestro, ai-maestro-plugins | Agent profile Devices section, Devices page, `aimaestro-device.sh` and skill, announce, activity publisher |
 | F078.3 | — | Real check with Lola and the MacBook; notify ai-maestro-app of the API |
-| F079.1 | ai-maestro-device-protocol | v1.1: operator key, assign and unassign, revision, tests |
+| F079.1 | ai-maestro-device-protocol | Issue #10: operator key, assign and unassign, revision, tests |
 | F079.2 | ai-maestro | Operator key, pending operations, Transfer and Unassign, tests |
 
 ## 13. Open questions

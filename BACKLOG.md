@@ -97,7 +97,14 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
 - **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Done` (0.106.69, #776)
 - **F078** — [Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session](./backlog/F078-agent-devices-pair-and-use.md) — `Todo` (#788, #789 read-only)
-- **F079** — [Agent devices, phase 2: move a device to another agent, or unassign it, from the dashboard](./backlog/F079-agent-devices-transfer-from-dashboard.md) — `Todo` (protocol v1.1 first; #789)
+- **F079** — [Agent devices, phase 2: move a device to another agent, or unassign it, from the dashboard](./backlog/F079-agent-devices-transfer-from-dashboard.md) — `Todo` (device-protocol #10 first; #789)
+- **F080** — [Companion mode makes the phone one of the agent's devices](./backlog/F080-companion-mode-phone-is-a-device.md) — `Todo` (plan first)
+- **F081** — [An agent's devices follow it through export, import, moves and deletion](./backlog/F081-agent-lifecycle-carries-devices.md) — `Todo`
+- **F082** — [What a person says to a device reaches the agent](./backlog/F082-device-input-reaches-the-agent.md) — `Todo` (device-protocol #8, #11, #12)
+- **F083** — [The agent and the person can see the active device, and jump](./backlog/F083-active-device-visible-and-jump.md) — `Todo` (device-protocol #7)
+- **F084** — [Doctor checks for agent devices](./backlog/F084-doctor-device-checks.md) — `Todo`
+- **F085** — [Set up a new device with one command from AI Maestro](./backlog/F085-install-device-bridge-from-maestro.md) — `Todo`
+- **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `Todo` (after device-protocol #7, #8)
 
 ## Bugs
 

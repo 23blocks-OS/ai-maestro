@@ -13,7 +13,7 @@ confirms it.
 Protocol v1 (`23blocks-OS/ai-maestro-device-protocol`) cannot do this: the owner changes only by hand on the
 device (`pair` with the new agent's key and address). So this item has two parts:
 
-1. **Protocol (device-protocol repo), v1.1:**
+1. **Protocol (device-protocol repo, issue #10):**
    - An **operator key**, pinned on the device at pairing time next to the agent's key. It may only change the
      assignment; it cannot invoke capabilities.
    - Signed `assign {agent address, agent key, expectedRevision}` and `unassign {expectedRevision}` requests from

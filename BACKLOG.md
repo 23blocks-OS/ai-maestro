@@ -105,7 +105,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F084** — [Doctor checks for agent devices](./backlog/F084-doctor-device-checks.md) — `Todo`
 - **F085** — [Set up a new device with one command from AI Maestro](./backlog/F085-install-device-bridge-from-maestro.md) — `Todo`
 - **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `Todo` (after device-protocol #7, #8)
-- **F087** — [See the conversation of any agent, with or without tmux](./backlog/F087-conversation-view-without-tmux.md) — `Todo`
+- **F087** — [See the conversation of any agent, with or without tmux](./backlog/F087-conversation-view-without-tmux.md) — `Todo` (spec written)
+- **F088** — [Wake agents that live outside AI Maestro when a message arrives](./backlog/F088-amp-gateway-wakes-outside-agents.md) — `Todo` (idea to shape)
 
 ## Bugs
 
@@ -141,6 +142,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Done` (0.106.69)
 - **B031** — [The compaction summary shows in the chat as the person's message](./backlog/B031-compact-summary-shows-as-message.md) — `Done` (0.106.69, #786)
 - **B032** — [Agents with no tmux session: /term retries forever, and hibernated agents read as outside](./backlog/B032-no-tmux-session-close-code-and-last-runtime.md) — `Done` (0.106.71, #792)
+- **B033** — [A person's message shows a unique id, not their name](./backlog/B033-person-message-shows-id-not-name.md) — `Todo`
 
 ## Unfiled
 

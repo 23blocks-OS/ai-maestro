@@ -1,6 +1,6 @@
 # F087 — See the conversation of any agent, with or without tmux
 
-**Status:** Todo
+**Status:** Todo (spec: [docs/SPEC-CONVERSATION-VIEW.md](../docs/SPEC-CONVERSATION-VIEW.md))
 **Type:** Feature
 **Created:** 2026-11-05
 
@@ -15,7 +15,8 @@ involved: tested 2026-11-05 on an outside agent, it returned that agent's live c
 What stops it:
 
 - The screens show "hibernated" or "running outside tmux" before they reach the chat view (`app/page.tsx`).
-- The file watcher that pushes new messages lives in the `/term` socket, which needs a tmux session (`server.mjs`).
+- The chat's input assumes a pane. Live updates are not the problem: the `chatOnly` socket attaches no terminal and
+  routes to other hosts.
 
 What it can and cannot do:
 
@@ -38,8 +39,7 @@ disk. To follow an agent running in a terminal, a person has to be at that termi
 
 ## Implementation Plan
 
-- Server: a transcript watcher that does not depend on a tmux session, or plain polling of the chat endpoint as a first
-  version. Share the existing parser; do not fork it.
+- Server: small. Check the `chatOnly` path for each state, and prefer the agent's own session file. See the spec.
 - Pick the transport from `session.runtime` and `session.lastRuntime`: pane for `terminal`, AMP for the others.
 - UI: let those agents reach the chat view, read-only input state, and a clear note on how a message is delivered.
   Both `ChatView.tsx` and `MobileChatView.tsx`; read `docs/CHAT-ARCHITECTURE.md` first. The app is ai-maestro-app's.

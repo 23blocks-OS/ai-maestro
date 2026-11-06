@@ -20,7 +20,9 @@ import MobileToolBurstGroup from '@/components/chat/MobileToolBurstGroup'
 import LoadEarlierMessages from '@/components/chat/LoadEarlierMessages'
 import { mergeHistory, prependPage, type HistoryCursor } from '@/lib/chat-history-paging'
 import { useKeepScrollOnPrepend } from '@/hooks/useKeepScrollOnPrepend'
-import { groupMessages, getToolPreviewText, type ToolBurst } from '@/lib/chat-utils'
+import { groupMessages, getToolPreviewText, messageTime, withDividers, type ToolBurst } from '@/lib/chat-utils'
+import { useChatFind } from '@/hooks/useChatFind'
+import { ChatFind, ChatDividerLine } from '@/components/chat/ChatFind'
 
 interface MobileChatViewProps {
   agentId: string
@@ -346,6 +348,10 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     olderTimeoutRef.current = setTimeout(() => { setOlderLoading(false); setOlderFailed(true) }, 15000)
   }, [sendChatWs, agentId, olderLoading])
 
+  const find = useChatFind({ agentId, send: sendChatWs, cursorRef: historyCursorRef, rootRef: scrollContainerRef, messages })
+  const receiveFind = useRef(find.receive)
+  receiveFind.current = find.receive
+
   // Another agent in the same view: its history starts fresh
   useEffect(() => {
     historyCursorRef.current = null
@@ -392,6 +398,10 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               setHookState(history.hookState || null)
               break
             }
+
+            case 'chat:searchResults':
+              receiveFind.current(data.data || {})
+              break
 
             case 'chat:historyPage': {
               clearTimeout(olderTimeoutRef.current)
@@ -624,7 +634,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   }
 
   // Group consecutive tool-only messages into collapsible bursts
-  const groupedItems = useMemo(() => groupMessages(messages as any[], 'power', false), [messages])
+  const groupedItems = useMemo(() => withDividers(groupMessages(messages as any[], 'power', false), find.found), [messages, find.found])
 
   // Determine status
   const isPermission = hookState?.status === 'permission_request'
@@ -646,6 +656,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
   return (
     <div className="flex flex-col h-full bg-gray-900">
+      <div className="relative h-0 flex-shrink-0"><ChatFind find={find} /></div>
+
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-1 py-2" style={{ minHeight: 0 }}>
         {messages.length === 0 && !error && secretRequests.length === 0 && sqlWriteRequests.length === 0 && (
@@ -673,6 +685,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
         )}
 
         {groupedItems.map((item, i) => {
+          if ('_isDivider' in item) return <ChatDividerLine key={item.key} divider={item} />
+
           // Tool burst — render collapsible group
           if ('_isBurst' in item) {
             const burst = item as ToolBurst
@@ -715,7 +729,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                   <div className="px-3 py-2 rounded-2xl rounded-br-sm bg-blue-600 text-white text-sm select-text">
                     <p className="whitespace-pre-wrap">{text}</p>
                   </div>
-                  <div className="flex justify-end mt-0.5 mr-1">
+                  <div className="flex justify-end items-center gap-1 mt-0.5 mr-1">
+                    <span className="text-[10px] text-gray-500">{messageTime(msg.timestamp)}</span>
                     <CopyButton text={text} className="text-gray-500" />
                   </div>
                 </div>
@@ -850,7 +865,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                       <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-gray-800 text-gray-200 text-sm select-text overflow-hidden">
                         {renderMarkdown(text)}
                       </div>
-                      <div className="flex justify-end mt-0.5 mr-1">
+                      <div className="flex justify-end items-center gap-1 mt-0.5 mr-1">
+                        <span className="text-[10px] text-gray-500">{messageTime(msg.timestamp)}</span>
                         <CopyButton text={text} />
                       </div>
                     </div>

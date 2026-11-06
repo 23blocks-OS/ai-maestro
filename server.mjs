@@ -21,6 +21,7 @@ import { isValidSessionName } from './lib/tmux-safe.mjs'
 import * as tmuxRt from './lib/tmux-runtime.mjs'
 import {
   resolveJsonlPath,
+  searchMessages,
   getAgentWorkingDir,
   parseJsonlLines,
   pageOfMessages,
@@ -297,7 +298,7 @@ async function getChatHistory(sessionName, agentId) {
  * An older page of the conversation, ending just before `before` (a historyStart the client got).
  * An empty page when the conversation changed since (another file), so the client stops asking.
  */
-async function getChatHistoryPage(sessionName, agentId, before, conversationFile) {
+async function getChatHistoryPage(sessionName, agentId, before, conversationFile, through) {
   const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
   const agent = (agentId && getAgent(agentId)) || getAgentByName(sessionName)
   const file = agent && resolveJsonlPath(agent)
@@ -306,14 +307,29 @@ async function getChatHistoryPage(sessionName, agentId, before, conversationFile
     return { messages: [], start: 0, hasMore: false, before, conversationFile: file?.path || null }
   }
   const all = parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER)
-  return { ...pageOfMessages(all, { end }), before: end, conversationFile: file.path }
+  return { ...pageOfMessages(all, { end, through }), before: end, conversationFile: file.path }
+}
+
+/** Answers chat:search: over the whole conversation, on the agent's own host, so paged history is covered. */
+async function sendChatSearch(ws, sessionName, parsed) {
+  let data
+  try {
+    const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
+    const agent = (parsed.agentId && getAgent(parsed.agentId)) || getAgentByName(sessionName)
+    const file = agent && resolveJsonlPath(agent)
+    const all = file ? parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER) : []
+    data = { query: parsed.query, ...searchMessages(all, parsed.query) }
+  } catch {
+    data = { query: parsed.query, results: [], total: 0, failed: true }
+  }
+  if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'chat:searchResults', data }))
 }
 
 /** Answers chat:requestHistory that carries `before` (scrolling up). Both chat sockets use it. */
 async function sendChatHistoryPage(ws, sessionName, parsed) {
   let data
   try {
-    data = await getChatHistoryPage(sessionName, parsed.agentId, parsed.before, parsed.conversationFile)
+    data = await getChatHistoryPage(sessionName, parsed.agentId, parsed.before, parsed.conversationFile, parsed.through)
   } catch {
     data = { messages: [], hasMore: true, failed: true, before: parsed.before }
   }
@@ -1937,7 +1953,9 @@ async function startServer(handleRequest) {
             return
           }
 
-          if (parsed.type === 'chat:requestHistory' && parsed.before != null) {
+          if (parsed.type === 'chat:search') {
+            await sendChatSearch(ws, sessionName, parsed)
+          } else if (parsed.type === 'chat:requestHistory' && parsed.before != null) {
             await sendChatHistoryPage(ws, sessionName, parsed)
           } else if (parsed.type === 'chat:requestHistory') {
             try {
@@ -2437,7 +2455,9 @@ async function startServer(handleRequest) {
             return
           }
 
-          if (parsed.type === 'chat:requestHistory' && parsed.before != null) {
+          if (parsed.type === 'chat:search') {
+            await sendChatSearch(ws, sessionName, parsed)
+          } else if (parsed.type === 'chat:requestHistory' && parsed.before != null) {
             await sendChatHistoryPage(ws, sessionName, parsed)
           } else if (parsed.type === 'chat:requestHistory') {
             try {

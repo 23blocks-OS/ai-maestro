@@ -258,3 +258,48 @@ export function groupMessages(messages: Message[], chatMode: 'power' | 'assisted
 
   return result
 }
+
+/** A line in the message list: a day, WhatsApp style, or the mark above a message found by search. */
+export interface ChatDivider {
+  _isDivider: true
+  key: string
+  label: string
+  found?: boolean
+}
+
+const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+
+export function dayLabel(timestamp: string, now = new Date()): string {
+  const date = new Date(timestamp)
+  const days = Math.round((dayStart(now) - dayStart(date)) / 86400000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days > 1 && days < 7) return date.toLocaleDateString(undefined, { weekday: 'long' })
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) })
+}
+
+export function messageTime(timestamp?: string): string {
+  return timestamp ? new Date(timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''
+}
+
+/** A key that finds a message again after search: the uuid, or its time when the program writes none. */
+export const foundKey = (m: { uuid?: string; timestamp?: string }) => m.uuid || m.timestamp || ''
+
+/** The list with a divider where the day changes, and above the message search jumped to. */
+export function withDividers<T extends object>(items: T[], foundMessage: string | null = null, now = new Date()): (T | ChatDivider)[] {
+  const out: (T | ChatDivider)[] = []
+  let day: number | null = null
+  for (const item of items) {
+    const m = item as { timestamp?: string; startTimestamp?: string; uuid?: string }
+    const timestamp = m.timestamp || m.startTimestamp
+    const date = timestamp ? new Date(timestamp) : null
+    if (date && !isNaN(date.getTime()) && dayStart(date) !== day) {
+      day = dayStart(date)
+      out.push({ _isDivider: true, key: `day-${day}`, label: dayLabel(timestamp!, now) })
+    }
+    if (foundMessage && foundKey(m) === foundMessage) out.push({ _isDivider: true, key: 'found', label: 'Found', found: true })
+    out.push(item)
+  }
+  return out
+}
+

@@ -1,3 +1,5 @@
+const IMMUTABLE = [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Disable strict mode to prevent double rendering of terminal
@@ -33,6 +35,10 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
         ],
       },
+      // Built-in avatars never change once shipped. Named one by one because
+      // public/avatars also holds face-anchors.json and local *_enhanced.png files, which do.
+      { source: '/avatars/:file((?:men|women|robots)_\\d{2}\\.png)', headers: IMMUTABLE },
+      { source: '/avatars/:size(128|256)/:file((?:men|women|robots)_\\d{2}\\.webp)', headers: IMMUTABLE },
     ]
   },
 

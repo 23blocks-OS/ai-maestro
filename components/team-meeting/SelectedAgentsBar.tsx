@@ -1,5 +1,6 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import { X, Phone, Bell } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 
@@ -49,7 +50,7 @@ export default function SelectedAgentsBar({
                 >
                   <div className="w-5 h-5 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
                     {agent.avatar ? (
-                      <img src={agent.avatar} alt={displayName} className="w-full h-full object-cover" />
+                      <img src={getAvatarThumbUrl(agent.avatar, 20)} alt={displayName} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 font-bold">
                         {displayName.charAt(0).toUpperCase()}

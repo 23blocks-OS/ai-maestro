@@ -15,6 +15,7 @@
 
 import { useSessionActivity, type PresenceSubject } from '@/hooks/useSessionActivity'
 import { PRESENCE_STYLE, presenceFrom, type AgentPresence } from '@/lib/agent-presence'
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import { useEffect, useState } from 'react'
 
 export type LiveAvatarState = 'idle' | 'working' | 'waiting' | 'sleeping'
@@ -84,7 +85,7 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state: state
   }, [agentId, hostUrl])
 
   const isImage = !!avatar && (avatar.startsWith('http') || avatar.startsWith('/'))
-  const src = isImage ? avatar : null
+  const src = isImage ? (fill ? avatar : getAvatarThumbUrl(avatar, size)) : null
   const hasLoop = loops.includes(state)
   const frame = `relative overflow-hidden flex-shrink-0 ${rounded ? 'rounded-full' : ''} ${fill ? 'w-full h-full' : ''} ${ring ? `ring-2 ${RING[state]}` : ''} ${className}`
   const box = fill ? undefined : { width: size, height: size }

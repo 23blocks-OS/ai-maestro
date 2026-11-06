@@ -1,5 +1,6 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import { useState } from 'react'
 import { Play, Pencil, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from '@/lib/utils'
@@ -53,7 +54,7 @@ export default function TeamCard({ team, agents, onStartMeeting, onEdit, onDelet
                 title={agent ? (agent.label || agent.name || 'Unknown') : 'Deleted agent'}
               >
                 {agent?.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/')) ? (
-                  <img src={agent.avatar} alt="" className="w-full h-full rounded-full object-cover" />
+                  <img src={getAvatarThumbUrl(agent.avatar, 32)} alt="" className="w-full h-full rounded-full object-cover" />
                 ) : (
                   getInitials(agent)
                 )}

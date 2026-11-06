@@ -12,6 +12,7 @@ interface DeviceEvent {
   deviceKey: string
   name?: string
   text?: string
+  source?: string
 }
 
 /** The SDK retries a delivery that failed, and can repeat one on a restart. Enough to cover both */
@@ -36,7 +37,7 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
     content: {
       type: input ? 'request' : 'notification',
       message: input
-        ? `${event.text}\n\n(Typed at your device "${device}". Answer there with: adp-device.sh say "${device}" "...")`
+        ? `${event.text}\n\n(${event.source === 'voice' ? 'Said' : 'Typed'} at your device "${device}"${event.source === 'voice' ? ', transcribed, so it may contain errors' : ''}. Answer there with: adp-device.sh say "${device}" "...")`
         : `The device "${device}" no longer accepts you as its owner.`,
       context: { device: event.deviceKey, source: 'device' },
     },

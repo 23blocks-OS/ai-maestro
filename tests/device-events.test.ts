@@ -17,7 +17,7 @@ describe('device events reach the agent', () => {
     const options = sendFromUI.mock.calls[0][0]
     expect(options).toMatchObject({ to: 'lola-id', toAlias: 'pas-lola', fromVerified: false, fromAlias: 'Device MacBook' })
     expect(options.content.message).toContain('Hello')
-    expect(options.content.message).toContain('adp-device.sh say "MacBook"')
+    expect(options.content.message).toContain('answer first with adp-device.sh say "MacBook"')
   })
 
   it('a retried event is delivered once', async () => {

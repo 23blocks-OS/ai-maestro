@@ -9,6 +9,7 @@ import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle, ShieldAlert } from 'lucide-react'
 import { MarkdownContent } from '@/components/chat/MarkdownRenderer'
+import { systemNoticeKind } from '@/lib/transcript-records.mjs'
 import type { Agent } from '@/types/agent'
 
 /**
@@ -161,7 +162,8 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
           // A user turn (this client's or another's) — rebuild it. Server
           // echoes every send here so live + replay share one code path.
           curAssistantId.current = null
-          setTurns(prev => [...prev, { id: nextId(), role: 'user', text: msg.text || '', tools: [], done: true }])
+          // A reaction note or a message notice is the system's, not the person: the other views show it only in X-Ray
+          if (!systemNoticeKind(msg.text || '')) setTurns(prev => [...prev, { id: nextId(), role: 'user', text: msg.text || '', tools: [], done: true }])
           setThinking(true)
           break
         }

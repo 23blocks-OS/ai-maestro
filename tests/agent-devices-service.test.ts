@@ -394,7 +394,22 @@ describe("the agent's own voice (F092)", () => {
     const device = await setup([file('1.wav', one), file('2.wav', two)], { 'speaker.play': true }, { engine: 'local' })
     const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } }) as any
     expect(result.data).toEqual({ ok: true, value: { played: true, voice: 'agent' } })
-    expect(played).toEqual([one, two])
+    await vi.waitFor(() => expect(played).toEqual([one, two]))
+  })
+
+  it('returns after the first sentence, while the rest plays', async () => {
+    const one = wav(); const two = wav(); two[63] = 9
+    const device = await setup([file('1.wav', one), file('2.wav', two)], { 'speaker.play': true }, { engine: 'local' })
+    let release = () => {}
+    const gate = new Promise<void>(r => { release = r })
+    const realPlay = hardware.play
+    hardware.play = async (bytes: Buffer) => { if (played.length === 1) await gate; return realPlay(bytes) }
+    const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } })
+    hardware.play = realPlay
+    expect(result.status).toBe(200)
+    expect(played).toEqual([one])
+    release()
+    await vi.waitFor(() => expect(played).toEqual([one, two]))
   })
 
   it('a refusal stops the rest of the speech', async () => {

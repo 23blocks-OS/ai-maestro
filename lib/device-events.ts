@@ -37,7 +37,7 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
     content: {
       type: input ? 'request' : 'notification',
       message: input
-        ? `${event.text}\n\n(${event.source === 'voice' ? 'Said' : 'Typed'} at your device "${device}"${event.source === 'voice' ? ', transcribed, so it may contain errors' : ''}. Answer there with: adp-device.sh say "${device}" "...")`
+        ? `${event.text}\n\n(${event.source === 'voice' ? 'Said' : 'Typed'} at your device "${device}"${event.source === 'voice' ? ', transcribed, so it may contain errors' : ''}. This is the whole message: a person is waiting, so answer first with adp-device.sh say "${device}" "...", then mark it read with amp-read.sh.)`
         : `The device "${device}" no longer accepts you as its owner.`,
       context: { device: event.deviceKey, source: 'device' },
     },

@@ -109,6 +109,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F088** — [Wake agents that live outside AI Maestro when a message arrives](./backlog/F088-amp-gateway-wakes-outside-agents.md) — `Todo` (idea to shape)
 - **F089** — [One pattern for the mesh: a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec written)
 - **F090** — [Version history for an agent's documents, canvases and settings, with Git](./backlog/F090-version-history-for-documents-and-settings.md) — `Todo`
+- **F091** — [The Town: default town at install, join from the new machine, and merge](./backlog/F091-town-first-run-join-merge.md) — `Todo` (spec written)
 
 ## Bugs
 

@@ -6,7 +6,7 @@
 
 ## Description
 
-Every entity known across the organization (agents, people, teams, projects, `org:` groups) follows one pattern: every host keeps
+Every entity known across the town (agents, people, teams, projects, organizations) follows one pattern: every host keeps
 a copy of what is needed to find, name and verify it, any host can change identity data, and one generic sync merges it per field. Delivery
 stores and forwards, so it does not depend on the recipient's host being awake.
 

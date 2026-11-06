@@ -38,22 +38,22 @@ Rule from Juan (2026-11-06): **if agents sync between hosts, humans do too. The 
    so the recipient is unknown: 404 "not found". The relay queue is reached only when a host answered the lookup and then failed.
    Read from the code, not tested with a host down. This is B034, and it applies to agents as well as to people.
 4. **"Organization" means two things.** A tenant name that forms addresses (`@rnd23blocks.aimaestro.local`), and `org:` groups
-   (3metas, 23blocks) inside it. F074 and F075 mix them. Settled in section 7.
+   (3metas, 23blocks) inside it. F074 and F075 mix them. Settled in section 7: the first is the Town.
 5. **Names are not shared.** Directory entries have no label, so "Dahlia" is known only on Dahlia's host. Messages show
    `ai-maestro-app`, as they show `p-<id>` for a person.
 
 ## 3. The concepts
 
-- **Organization.** The tenant: the trust and naming boundary, one per mesh. A host is in it or not. Its name forms addresses.
-- **Unit.** An `org:` group inside the organization, such as a client or company. Working name.
-- **Host.** A machine in the organization. It holds things and runs things; it has no identity beyond that.
-- **Entity.** Something with its own identity: an agent, a person, a team, a project. It is known across the organization, whichever
+- **Town.** The trust boundary: the machines that trust each other, one per mesh. A host is in it or not. Its name forms addresses.
+- **Organization.** A company in the town, from `org:` tags: 3metas, 23blocks. Many in a town.
+- **Host.** A machine in the town. It holds things and runs things; it has no identity beyond that.
+- **Entity.** Something with its own identity: an agent, a person, a team, a project. It is known across the town, whichever
   host holds it. A person is not "on" a host, and neither is a team.
 - **Id and name.** Every entity has a stable id that never changes, and a display name that can. Machines use ids. People see names.
   An address is built from something stable.
 - **Home host.** Where an entity's data and mailbox live: an agent runs there, a person's messages are kept there. It is where the entity
   lives, not what it is, and not the only host that can change its identity data.
-- **Directory.** Every host keeps a copy of what the organization knows about every entity: id, name, type, home host, address,
+- **Directory.** Every host keeps a copy of what the town knows about every entity: id, name, type, home host, address,
   public key, last seen. Reading needs no network.
 - **Delivery.** Something sent to an entity is stored and forwarded until it arrives. It never depends on the owner being up at
   that moment.
@@ -82,7 +82,7 @@ home host and is fetched when needed.
 | Team | id, name, members | Tasks, documents |
 | Project | id, name, owner agent | Tasks |
 | Host | as today | |
-| Organization (`org:`) | id, name | |
+| Organization | id, name | |
 
 A person's devices, an agent's devices, tasks, meetings and messages do not need their own entry: they belong to an entity above.
 
@@ -116,7 +116,7 @@ Being consistent does not mean being identical. These differences are correct:
 | 2 | Routing reads the directory; store and forward for agents and people | B034 |
 | 3 | Names in every view from the directory | B033, the agent label |
 | 4 | Teams, projects and `org:` groups into the directory | The rest of section 2 |
-| 5 | Organization: name the two meanings, and merging when a host joins (F075), then F074 | |
+| 5 | The Town: first run, join and merge (F091), then F074 | |
 
 Devices (F078) and the conversation view (F087) should build on step 1.
 
@@ -124,8 +124,8 @@ Devices (F078) and the conversation view (F087) should build on step 1.
 
 Made by Juan, 2026-11-06:
 
-1. **The tenant is the organization.** There is one, and its name forms addresses. `org:` groups (3metas, 23blocks) are something else,
-   inside it, and need their own word: **unit** is used here until Juan chooses. F074 is about units; F075 is about the organization.
+1. **Thing number one is the Town** (`rnd23blocks`), and **organizations stay as they are** (3metas, 23blocks). See
+   [SPEC-TOWN.md](SPEC-TOWN.md). This replaces the earlier "the tenant is the org". Tenant stays as the AMP word for an address space.
 2. **Every host writes identity data; what runs stays with its host.** Section 8. Juan first chose one writer, then chose this after the research.
 3. **mac-mini is the default home** for people, instead of the machine the operator happens to be on. The operator can choose another.
 4. **The directory holds public keys,** so a host can verify a sender while its home is offline. A revoked key must reach every host at
@@ -150,7 +150,7 @@ a single writer: a record that cannot be edited while its owner sleeps.
 - **A restored host takes a new incarnation id**, or peers ignore it silently.
 - **Name clashes keep both and show them.** Ids are UUIDs, so records never collide. Two agents with one name are a visible conflict, not a
   silent winner.
-- **Single-master on purpose (like FSMO),** held by the anchor host, mac-mini by default, movable by the operator: naming the organization,
+- **Single-master on purpose (like FSMO),** held by the anchor host, mac-mini by default, movable by the operator: naming the town,
   and accepting a host into it. Rare, and wrong to do twice at once.
 - **Revocation** is the exception to every rule above: it always wins, and is pushed at once.
 

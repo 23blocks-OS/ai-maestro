@@ -110,6 +110,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F089** — [One pattern for the mesh: a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec written)
 - **F090** — [Version history for an agent's documents, canvases and settings, with Git](./backlog/F090-version-history-for-documents-and-settings.md) — `Todo`
 - **F091** — [The Town: default town at install, join from the new machine, and merge](./backlog/F091-town-first-run-join-merge.md) — `Todo` (spec written)
+- **F092** — [One voice per agent, on every device and call](./backlog/F092-one-voice-per-agent.md) — `In Progress`
 
 ## Bugs
 

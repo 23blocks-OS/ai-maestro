@@ -10,7 +10,7 @@ import {
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain, Home,
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, AudioLines, Brain, Home,
   FolderTree, Terminal
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
@@ -65,6 +65,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identity: true,
     work: true,
+    voice: false,
     deployment: true,
     email: false,
     repositories: false,
@@ -203,6 +204,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           label: agent.label,
           title: agent.title ?? null,
           avatar: agent.avatar,
+          voice: agent.voice ?? null,
           owner: agent.owner,
           team: agent.team,
           model: agent.model,
@@ -507,6 +509,55 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         {!reportsTo.loaded && <p className="mt-1 text-[11px] text-gray-600">Loading people and agents…</p>}
                       </div>
                     )}
+                  </div>
+                )}
+              </section>
+
+              {/* Voice: saved with the agent, so it is the same on every host and device */}
+              <section>
+                <button
+                  onClick={() => toggleSection('voice')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-300 transition-colors"
+                >
+                  {expandedSections.voice ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <AudioLines className="w-4 h-4" />
+                  Voice
+                </button>
+
+                {expandedSections.voice && (
+                  <div className="space-y-3" data-testid="agent-voice">
+                    <label className="block text-xs text-gray-400">
+                      Speech
+                      <select
+                        value={agent.voice?.engine ?? ''}
+                        onChange={(e) => updateField('voice', e.target.value ? { ...agent.voice, engine: e.target.value } : undefined)}
+                        className="block w-full mt-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100"
+                      >
+                        <option value="">No voice chosen</option>
+                        <option value="local">Local models on the host (free, stays on your network)</option>
+                        <option value="elevenlabs">ElevenLabs (paid, needs a key on the host)</option>
+                      </select>
+                    </label>
+                    {agent.voice && (
+                      <label className="block text-xs text-gray-400">
+                        Voice name
+                        <input
+                          value={agent.voice.voiceId ?? ''}
+                          maxLength={80}
+                          placeholder="The engine's default"
+                          onChange={(e) => {
+                            const { voiceId: _old, ...rest } = agent.voice!
+                            updateField('voice', e.target.value ? { ...rest, voiceId: e.target.value } : rest)
+                          }}
+                          className="block w-full mt-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100"
+                        />
+                      </label>
+                    )}
+                    <p className="text-xs text-gray-500">Saved with the agent and moves with it. Nothing speaks with it yet: devices and calls will use it when speech is built.</p>
                   </div>
                 )}
               </section>

@@ -32,15 +32,15 @@ People talking to agents from the app is a core flow. It looks broken on the fir
 
 ## Implementation Plan
 
-- Show the name by looking up the sender on the receiving side: `personIdFromAddress` → the person's `displayName`. The
-  name comes from the registry, never from text the sender wrote.
-- Other hosts: a person's record lives on one host, so the receiver may not have it. It has `personName` in the device
-  registry as a snapshot, and can ask the person's home host. Fall back to the address when it is unknown.
-- Where: `convertAMPToMessage` (dashboard and API), the hook notice, and the pane push.
-- `amp-inbox.sh` and `amp-read.sh` come from `agentmessaging/claude-plugin`: they read local files and know no people
-  registry. Option: at delivery, AI Maestro writes `local.from_name` in the stored message (unsigned, local only), and the
-  scripts print it when present. That change goes upstream first, or the next plugin build reverts it.
-- Do the same check for the reverse direction: an agent's reply to `p-…` in the app.
-- Test: a person's message shows the name in each place; an unknown person shows the address; a name in the message text
+Do not fix this with a lookup per message. The cause is that hosts share no directory, so the name exists on one host only:
+see [docs/SPEC-MESH-ENTITIES.md](../docs/SPEC-MESH-ENTITIES.md).
+
+- Depends on F089 step 1. Then every view reads the name from the local directory, by address.
+- The name comes from the directory, never from text the sender wrote. Unknown: show the address.
+- Agents have the milder form of this: messages show `ai-maestro-app`, not "Dahlia". Same fix.
+- `amp-inbox.sh` and `amp-read.sh` come from `agentmessaging/claude-plugin`, read local files and know no directory. Option: at
+  delivery, AI Maestro writes `local.from_name` (unsigned, local only) and the scripts print it when present. That change goes
+  upstream first, or the next plugin build reverts it.
+- Test: a person and an agent show their names in each place; an unknown sender shows the address; a name in the message text
   changes nothing.
-- Effort: S-M.
+- Effort: S after F089.

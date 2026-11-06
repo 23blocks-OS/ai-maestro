@@ -107,6 +107,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `Todo` (after device-protocol #7, #8)
 - **F087** — [See the conversation of any agent, with or without tmux](./backlog/F087-conversation-view-without-tmux.md) — `Todo` (spec written)
 - **F088** — [Wake agents that live outside AI Maestro when a message arrives](./backlog/F088-amp-gateway-wakes-outside-agents.md) — `Todo` (idea to shape)
+- **F089** — [One pattern for the mesh: owner host and a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec for review)
 
 ## Bugs
 
@@ -142,7 +143,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Done` (0.106.69)
 - **B031** — [The compaction summary shows in the chat as the person's message](./backlog/B031-compact-summary-shows-as-message.md) — `Done` (0.106.69, #786)
 - **B032** — [Agents with no tmux session: /term retries forever, and hibernated agents read as outside](./backlog/B032-no-tmux-session-close-code-and-last-runtime.md) — `Done` (0.106.71, #792)
-- **B033** — [A person's message shows a unique id, not their name](./backlog/B033-person-message-shows-id-not-name.md) — `Todo`
+- **B033** — [A person's message shows a unique id, not their name](./backlog/B033-person-message-shows-id-not-name.md) — `Todo` (needs F089)
+- **B034** — [A message to anyone on a sleeping host is refused, not kept](./backlog/B034-message-refused-when-host-down.md) — `Todo`
+- **B035** — [Agent directory sync is never started](./backlog/B035-agent-directory-sync-never-started.md) — `Todo` (replaced by F089)
 
 ## Unfiled
 

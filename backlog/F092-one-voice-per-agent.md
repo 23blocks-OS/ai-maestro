@@ -20,7 +20,7 @@ Still to build, in order:
 3. Done: the device only plays it, with `speaker.play` and its own grant (protocol #28). The MacBook is a Core 2 Duo without AVX, so neural speech on the device is unlikely to run, and a voice made on the device would differ from home to home.
 4. Still to do: ElevenLabs, voice notes in messages, then calls (F059), with streaming and interruption. On mini-lola the first sentence is ready after 3.6 s, and a pause can follow a short first sentence.
 
-The other direction, hearing, is a separate question: Lola already transcribes audio messages with a script of her own. Study it and see what belongs in a protocol.
+The other direction, hearing: hold to talk in 0.106.87. The device records while a person holds a button, sends a signed `audio` event, and the host transcribes it with faster-whisper, from Lola's recipe. Speech-to-text is local only for now, with no setting on the agent.
 
 ## Why It's Needed
 

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.90] - 2026-11-06 - Reactions on chat messages
+
+### Added
+- **Reactions on chat messages (#799).** A person or an agent can react with 👍 👎 ❓ ✅ 👀 ❤️ under a message, in both web chat views and through `GET/POST/DELETE /api/agents/:id/chat/reactions`. Open views update live through `chat:reaction`. 👍 👎 ❓ reach the agent as one `[REACTION]` line, at most one every 5 seconds; a reaction never answers a permission request. Works for agents on other hosts.
+
 ## [0.106.89] - 2026-11-06 - Assistants, contacts and approval of new members
 
 ### Added

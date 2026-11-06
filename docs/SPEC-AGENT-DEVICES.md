@@ -64,7 +64,7 @@ An agent's address is `agent.metadata.amp.address`. An agent with no AMP identit
 
 ## 6. API
 
-Built in step 1: all of these except `media` and `propose`, which come with steps 2 and 5.
+Built: all of these except `propose`, which comes with step 5. `GET .../snapshot` serves the newest picture to the screens.
 
 | Route | Does |
 |---|---|
@@ -85,16 +85,16 @@ are answers, not failures. Pending is never shown as success.
 ## 7. The agent's tools
 
 The role asks for a fixed list of operations and no shell. The reference controller uses MCP. AI Maestro uses a CLI over its local API, like `aimaestro-task.sh`, so it works for every agent
-program and needs no per-agent setup:
+program and needs no per-agent setup. The script belongs to the protocol:
 
 ```
-aimaestro-device.sh list | jump <device> | health <device>
-aimaestro-device.sh snapshot <device> | listen <device> <seconds> | watch <device> <seconds>
-aimaestro-device.sh show <device> <text> | show-image <device> <file> | say <device> <text>
-aimaestro-device.sh run <device> custom.owner.action [--arg value]
+adp-device.sh list | jump <device> | health <device>
+adp-device.sh snapshot <device> | listen <device> <seconds> | watch <device> <seconds>
+adp-device.sh show <device> <text> | show-image <device> <file> | say <device> <text>
+adp-device.sh run <device> custom.owner.action [--arg value]
 ```
 
-An image or audio result is a file path the agent reads. The skill reuses plugins #99 (`agent-devices`), which is on hold and written for MCP; it changes to these commands.
+An image or audio result is a file path the agent reads. The `agent-devices` skill and `adp-device.sh` live in the protocol repo, as AMP, AID, AAP and AFP keep theirs, and the plugin pulls them through its manifest.
 
 ## 8. Events
 

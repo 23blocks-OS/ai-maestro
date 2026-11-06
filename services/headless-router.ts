@@ -8,6 +8,7 @@
  * No external routing library needed. All service imports are from services/.
  */
 
+import fs from 'fs'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { parse } from 'url'
 
@@ -332,7 +333,7 @@ import {
 
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
-import { addAgentDevice, forgetAgentDevice, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
+import { addAgentDevice, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 
@@ -573,6 +574,16 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
     sendServiceResult(res, await addAgentDevice(params.id, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/media$/, paramNames: ['id', 'key'], handler: async (req, res, params) => {
+    sendServiceResult(res, await captureAgentDevice(params.id, params.key, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/snapshot$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
+    const result = await latestAgentDeviceSnapshot(params.id, params.key)
+    const file = (result.data as { path?: string } | undefined)?.path
+    if (!file) return sendServiceResult(res, result)
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' })
+    res.end(fs.readFileSync(file))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/refresh$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
     sendServiceResult(res, await refreshAgentDevice(params.id, params.key))

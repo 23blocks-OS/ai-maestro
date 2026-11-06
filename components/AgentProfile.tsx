@@ -2,6 +2,7 @@
 
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
+import AgentHomesSection from './AgentHomesSection'
 import React, { useState, useEffect, useRef } from 'react'
 import {
   X, User, Building2, Briefcase, Code2, Cpu, Tag,
@@ -9,7 +10,7 @@ import {
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain, Home,
   FolderTree, Terminal
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
@@ -854,6 +855,26 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
                 {expandedSections.memory && (
                   <MemoryViewer agentId={agent.id} hostUrl={hostUrl} isActive={true} />
+                )}
+              </section>
+
+              {/* Homes: the devices this agent owns. Nothing is read until it is opened */}
+              <section>
+                <button
+                  onClick={() => toggleSection('homes')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-300 transition-colors"
+                >
+                  {expandedSections.homes ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Home className="w-4 h-4" />
+                  Homes
+                </button>
+
+                {expandedSections.homes && (
+                  <AgentHomesSection key={agent.id} agentId={agent.id} hostUrl={hostUrl} />
                 )}
               </section>
 

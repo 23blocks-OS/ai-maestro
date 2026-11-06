@@ -202,6 +202,64 @@ describe('use', () => {
   })
 })
 
+describe('capture and the last picture (step 2)', () => {
+  const stream = (frames: Buffer[]) => async function* () { for (const bytes of frames) yield { kind: 'x', sequence: 1, bytes } }
+
+  it('video keeps the last frame; audio is a WAV; both are private files', async () => {
+    const device = await pair('a')
+    svc.jumpAgentDevice('a', device.key)
+    const media = vi.spyOn(g._deviceHost.controller, 'media')
+    media.mockImplementationOnce(stream([Buffer.from('one'), Buffer.from('two')]))
+    const video = await svc.captureAgentDevice('a', device.key, { kind: 'video', seconds: 2 }) as any
+    expect(fs.readFileSync(video.data.value.path, 'utf8')).toBe('two')
+    expect(fs.statSync(video.data.value.path).mode & 0o777).toBe(0o600)
+    media.mockImplementationOnce(stream([Buffer.alloc(32)]))
+    const audio = await svc.captureAgentDevice('a', device.key, { kind: 'microphone' }) as any
+    expect(audio.data.value.path).toMatch(/\.wav$/)
+    expect(fs.readFileSync(audio.data.value.path).subarray(0, 4).toString()).toBe('RIFF')
+    expect(media).toHaveBeenLastCalledWith('a@town.local', device.key, 'microphone', 5)
+  })
+
+  it('refuses a kind or length outside the limits before reaching the device', async () => {
+    const device = await pair('a')
+    const media = vi.spyOn(g._deviceHost.controller, 'media')
+    for (const body of [{ kind: 'shell' }, { kind: 'toString' }, { kind: 'video', seconds: 31 }, { kind: 'microphone', seconds: 11 }, { kind: 'video', seconds: 0 }, { kind: 'video', seconds: '5' }]) {
+      expect((await svc.captureAgentDevice('a', device.key, body)).status, JSON.stringify(body)).toBe(400)
+    }
+    expect(media).not.toHaveBeenCalled()
+  })
+
+  it('an idle device refuses a capture', async () => {
+    const device = await pair('a')
+    expect((await svc.captureAgentDevice('a', device.key, { kind: 'video' })).status).toBe(409)
+  })
+
+  it('a capture the person ended is the device\'s answer, not a network failure', async () => {
+    const device = await pair('a')
+    svc.jumpAgentDevice('a', device.key)
+    vi.spyOn(g._deviceHost.controller, 'media').mockImplementationOnce(async function* () { throw new Error('Media ended: revoked') })
+    expect(await svc.captureAgentDevice('a', device.key, { kind: 'video' })).toEqual({ data: { ok: false, error: 'revoked' }, status: 200 })
+  })
+
+  it('no capture yields an answer, not an empty file', async () => {
+    const device = await pair('a')
+    svc.jumpAgentDevice('a', device.key)
+    vi.spyOn(g._deviceHost.controller, 'media').mockImplementationOnce(stream([]))
+    expect((await svc.captureAgentDevice('a', device.key, { kind: 'video' })).status).toBe(409)
+  })
+
+  it('the last picture is only for its own agent and device', async () => {
+    const device = await pair('a')
+    expect((await svc.latestAgentDeviceSnapshot('a', device.key)).status).toBe(404)
+    svc.jumpAgentDevice('a', device.key)
+    const taken = await svc.invokeAgentDevice('a', device.key, { capability: 'camera.snapshot' }) as any
+    expect(((await svc.latestAgentDeviceSnapshot('a', device.key)).data as any).path).toBe(taken.data.value.path)
+    await svc.getAgentDeviceIdentity('b')
+    expect((await svc.latestAgentDeviceSnapshot('b', device.key)).status).toBe(404)
+    expect((await svc.latestAgentDeviceSnapshot('a', '../../identity.json')).status).toBe(404)
+  })
+})
+
 describe('a bad file on disk (review of step 1)', () => {
   const stateFile = (id: string) => path.join(dir, id, 'devices/state.json')
   const keyFile = (id: string) => path.join(dir, id, 'devices/identity.json')

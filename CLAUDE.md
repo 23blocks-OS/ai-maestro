@@ -51,7 +51,7 @@ assembles them into `plugin/plugins/ai-maestro/` (build output, committed).
 
 - Local skills and scripts: edit `plugin/src/`, never the build output.
 - AMP scripts (`amp-*.sh`, `amp-helper.sh`, `amp-statusline.sh`) and the
-  agent-messaging, agent-identity and canvas-actions skills come from
+  agent-messaging, agent-identity and agent-actions skills come from
   agentmessaging/* repos at `ref: main`. Fix them upstream and merge, or the
   next build reverts your fix.
 - After any plugin change: `cd plugin && ./build-plugin.sh --clean`, commit

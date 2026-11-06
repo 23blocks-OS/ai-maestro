@@ -779,6 +779,17 @@ if [ "$INSTALL_SKILL" = true ]; then
         print_info "Pruned $remove old $skill backup(s), kept $keep"
     }
 
+    # A renamed skill: its old folder would compete with the new one for the same prompts.
+    # Only once the new one is in place. The old folder goes to the backups, as customizations may be in it.
+    retire_skill() {
+        local old="$1" new="$2"
+        [ -d ~/.claude/skills/"$old" ] && [ -f ~/.claude/skills/"$new"/SKILL.md ] || return 0
+        if mv ~/.claude/skills/"$old" "$SKILL_BACKUP_DIR/$old.backup-$(date +%Y%m%d%H%M%S)"; then
+            print_info "Skill $old is now $new; the old one is in the backups"
+            prune_skill_backups "$old"
+        fi
+    }
+
     # Install AMP messaging skill from plugin
     if [ -d "$PLUGIN_DIR/skills/agent-messaging" ]; then
         SKILL_INSTALL_OK=true
@@ -865,6 +876,8 @@ if [ "$INSTALL_SKILL" = true ]; then
             fi
         fi
     done
+
+    retire_skill canvas-actions agent-actions
 fi
 
 echo ""

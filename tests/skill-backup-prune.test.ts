@@ -187,3 +187,37 @@ describe('the script wires it up', () => {
     expect(prunePos).toBeGreaterThan(install)
   })
 })
+
+describe('retire_skill (a renamed skill must not compete with its new name)', () => {
+  function retire(): void {
+    const src = fs.readFileSync(SCRIPT, 'utf8')
+    const fns = ['prune_skill_backups', 'retire_skill'].map(name => {
+      const fn = src.match(new RegExp(`^    ${name}\\(\\) \\{[\\s\\S]*?^    \\}`, 'm'))
+      if (!fn) throw new Error(`${name}() not found in install-plugin.sh`)
+      return fn[0].replace(/^ {4}/gm, '')
+    })
+    const harness = path.join(home, 'r.sh')
+    fs.writeFileSync(harness, `print_info() { :; }\nSKILL_BACKUP_DIR="${backupDir()}"\n${fns.join('\n')}\nretire_skill old-name new-name\n`)
+    execFileSync('bash', [harness], { encoding: 'utf8', env: { ...process.env, HOME: home } })
+  }
+  const skill = (name: string) => {
+    fs.mkdirSync(path.join(skillsDir(), name), { recursive: true })
+    fs.writeFileSync(path.join(skillsDir(), name, 'SKILL.md'), name)
+  }
+
+  it('moves the old folder to the backups once the new skill is in', () => {
+    fs.mkdirSync(backupDir(), { recursive: true })
+    skill('old-name')
+    skill('new-name')
+    retire()
+    expect(fs.readdirSync(skillsDir())).toEqual(['new-name'])
+    expect(fs.readdirSync(backupDir()).join()).toMatch(/^old-name\.backup-\d{14}$/)
+  })
+
+  it('keeps the old skill when the new one failed to install', () => {
+    fs.mkdirSync(backupDir(), { recursive: true })
+    skill('old-name')
+    retire()
+    expect(fs.readdirSync(skillsDir())).toEqual(['old-name'])
+  })
+})

@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.77] - 2026-11-06 - Agent homes on screen, and agents can use their devices
+
+### Added
+- **Agent devices, step 2** (F078, #788, #789). The Homes page (`/agent-homes`) shows every agent's devices on every host. The agent's profile has a Homes section: add a home, make it active, check health, take a picture, forget it. Nothing loads until the section is opened.
+- **Agents can use their devices** through `adp-device.sh` and the `agent-devices` skill (plugin 1.19.9), which live in the protocol repo like those of the other protocols: list, jump, health, snapshot, watch, listen, show, show-image, say and custom capabilities.
+- `POST /api/agents/[id]/devices/[key]/media` for a bounded capture, and `GET .../snapshot` for the newest picture.
+
+### Changed
+- The `canvas-actions` skill is now `agent-actions`, named after its protocol like the others. The installer moves the old folder to the backups, so agents do not see both.
+
 ## [0.106.76] - 2026-11-06 - agentdevices.org
 
 ### Docs

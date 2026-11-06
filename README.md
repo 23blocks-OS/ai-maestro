@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.76-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.77-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -311,7 +311,7 @@ The AI Maestro plugin (version 1.18.0) carries 14 skills in the open [Agent Skil
 | `aim-secret-management` | Use a credential without seeing it; ask the user to store one | [plugin builder](https://github.com/23blocks-OS/ai-maestro-plugins) |
 | `agent-messaging` | Signed messages between agents (AMP) | [agentmessaging/claude-plugin](https://github.com/agentmessaging/claude-plugin) |
 | `agent-identity` | Sign in with an Ed25519 identity and OAuth 2.0 tokens (AID) | [agentmessaging/agent-identity](https://github.com/agentmessaging/agent-identity) |
-| `canvas-actions` | Interactive pages in the dashboard and their actions (AAP) | [agentmessaging/agent-actions](https://github.com/agentmessaging/agent-actions) |
+| `agent-actions` | Interactive pages in the dashboard and their actions (AAP) | [agentmessaging/agent-actions](https://github.com/agentmessaging/agent-actions) |
 | `agent-files` | Share files across hosts through an AFP space | [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files) |
 | `agentic-sql` | Read-only SQL against real databases through `safe-psql`; changes data only through `safe-psql-write`, after a person approves each change | [23blocks-OS/agentic-sql](https://github.com/23blocks-OS/agentic-sql) |
 | `agentic-support` | Numbered support cases with a written trail, and runbooks | [23blocks-OS/agentic-support](https://github.com/23blocks-OS/agentic-support) |
@@ -504,7 +504,7 @@ Yes. The [Agent Messaging Protocol (AMP)](https://agentmessaging.org) handles cr
 [AID](https://agentids.org) (Agent Identity) gives each agent a portable cryptographic identity. [AAP](https://agentactions.org) (Agent Actions Protocol) carries a click or form submit from an agent-drawn page back to the agent. [AFP](https://github.com/agentmessaging/agent-files) (Agent Files Protocol) shares files across hosts by reference. Together with [AMP](https://agentmessaging.org), they are the open protocols AI Maestro implements. See [Protocols](#protocols).
 
 **What is the Canvas skill?**
-The `canvas-actions` skill lets an agent draw interactive HTML pages (dashboards, charts, forms, approvals) in the AI Maestro dashboard and handle what you click or submit. It ships in the plugin.
+The `agent-actions` skill lets an agent draw interactive HTML pages (dashboards, charts, forms, approvals) in the AI Maestro dashboard and handle what you click or submit. It ships in the plugin.
 
 **How is this different from just using tmux?**
 tmux gives you terminals. AI Maestro gives you an organization — persistent memory, agent-to-agent messaging, team coordination, Kanban boards, multi-machine mesh, cloud deployment, and gateway integrations. tmux is the foundation; AI Maestro is the building.

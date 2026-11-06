@@ -8,6 +8,8 @@
  *   POST   /api/agents/[id]/devices/[key]/jump       make it the active device
  *   DELETE /api/agents/[id]/devices/[key]/jump       no active device
  *   POST   /api/agents/[id]/devices/[key]/invoke     { capability, args }
+ *   POST   /api/agents/[id]/devices/[key]/media      { kind: video|microphone, seconds }: a bounded capture, as a file
+ *   GET    /api/agents/[id]/devices/[key]/snapshot   the newest picture from this device
  *   DELETE /api/agents/[id]/devices/[key]            forget it on this side
  *   GET    /api/devices                              every agent's devices on this host; never asks a peer
  *
@@ -22,6 +24,8 @@ import type { Agent } from '@/types/agent'
 import type { ServiceResult } from '@/services/service-errors'
 
 const MAX_NAME = 80
+/** The protocol's reference tools use the same limits */
+const MAX_SECONDS: Record<string, number> = { video: 30, microphone: 10 }
 
 interface DeviceHost {
   addressOf(agent: Agent): string | null
@@ -33,6 +37,8 @@ interface DeviceHost {
   invoke(agent: Agent, key: string, capability: string, args: Record<string, unknown>): Promise<any>
   forget(agent: Agent, key: string): boolean
   saveSnapshot(agent: Agent, key: string, value: { mime: string; data: string }): string
+  capture(agent: Agent, key: string, kind: string, seconds: number): Promise<string>
+  latestSnapshot(agent: Agent, key: string): string | null
 }
 
 const host = () => (globalThis as unknown as { _deviceHost?: DeviceHost })._deviceHost
@@ -40,11 +46,12 @@ const host = () => (globalThis as unknown as { _deviceHost?: DeviceHost })._devi
 const fail = <T>(status: number, error: string, message: string): ServiceResult<T> => ({ data: { error, message } as any, status })
 
 /** The signed answers of a device: an outcome to show, not a failure of this API */
-const DEVICE_ANSWERS = new Set(['denied', 'hardware_unavailable', 'invalid_arguments', 'grant_revoked', 'permission_denied', 'media_busy'])
+const DEVICE_ANSWERS = new Set(['denied', 'hardware_unavailable', 'invalid_arguments', 'grant_revoked', 'permission_denied', 'media_busy', 'revoked', 'stopped'])
 
 /** SDK errors are plain messages. Order matters. */
 function fromError<T>(err: unknown): ServiceResult<T> {
-  const message = err instanceof Error ? err.message : String(err)
+  // A capture the device ended is its answer too: a person revoking it is not a network failure
+  const message = (err instanceof Error ? err.message : String(err)).replace(/^Media ended: /, '')
   if (DEVICE_ANSWERS.has(message)) return { data: { ok: false, error: message } as any, status: 200 }
   if (message.startsWith('device_state_unreadable')) return fail(500, 'device_state_unreadable', message)
   if (message.startsWith('address_conflict') || message === 'Each agent must use its own key') return fail(409, 'address_conflict', message)
@@ -52,7 +59,7 @@ function fromError<T>(err: unknown): ServiceResult<T> {
   if (message === 'Device is idle') return fail(409, 'device_idle', message)
   if (/another agent|another verified owner|verified ownership|Request rejected: 403/.test(message)) return fail(409, 'not_owner', message)
   if (/Activation changed|Active device changed|superseded/i.test(message)) return fail(409, 'superseded', message)
-  if (/not granted or available/.test(message)) return fail(409, 'not_available', message)
+  if (/not granted or available|No media received/.test(message)) return fail(409, 'not_available', message)
   // Before the device is reached: the request is wrong
   if (/^(Unknown capability|Invalid Ed25519 public key|Invalid device endpoint|Expected one full AMP address|Use a loopback|Invalid (image|enum))|argument/.test(message)) {
     return fail(400, 'invalid_request', message)
@@ -129,6 +136,24 @@ export async function invokeAgentDevice(agentId: string, key: string, body: { ca
       return { data: { ok: true, value: { mime: value.mime, path: h.saveSnapshot(agent, key, value) } }, status: 200 }
     }
     return { data: { ok: true, value }, status: 200 }
+  })
+}
+
+export async function captureAgentDevice(agentId: string, key: string, body: { kind?: unknown; seconds?: unknown }): Promise<ServiceResult<any>> {
+  return withAgent(agentId, async (h, agent) => {
+    const { kind, seconds = 5 } = body || {}
+    const max = typeof kind === 'string' ? MAX_SECONDS[kind] : undefined
+    if (!max || !Object.hasOwn(MAX_SECONDS, kind as string)) return fail(400, 'invalid_request', 'kind must be video or microphone')
+    if (!Number.isInteger(seconds) || (seconds as number) < 1 || (seconds as number) > max) return fail(400, 'invalid_request', `seconds must be 1 to ${max}`)
+    return { data: { ok: true, value: { path: await h.capture(agent, key, kind as string, seconds as number) } }, status: 200 }
+  })
+}
+
+export function latestAgentDeviceSnapshot(agentId: string, key: string) {
+  return withAgent<{ path: string }>(agentId, (h, agent) => {
+    const file = h.latestSnapshot(agent, key)
+    if (!file) return fail(404, 'not_found', 'No picture from this device yet')
+    return { data: { path: file }, status: 200 }
   })
 }
 

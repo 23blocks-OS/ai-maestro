@@ -96,6 +96,8 @@ adp-device.sh run <device> custom.owner.action [--arg value]
 
 An image or audio result is a file path the agent reads. The `agent-devices` skill and `adp-device.sh` live in the protocol repo, as AMP, AID, AAP and AFP keep theirs, and the plugin pulls them through its manifest.
 
+`say` uses the agent's own voice when it has one, the host has local speech, the device is active and it allows `speaker.play`: the host makes speech a sentence at a time and plays each. Otherwise the device speaks with `speaker.say`. See F092.
+
 ## 8. Events
 
 `onEvent` is the single way in. Failed deliveries are retried by the SDK, so delivery must de-duplicate by event id.

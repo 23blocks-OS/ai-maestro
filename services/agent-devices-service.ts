@@ -24,6 +24,8 @@ import type { Agent } from '@/types/agent'
 import type { ServiceResult } from '@/services/service-errors'
 
 const MAX_NAME = 80
+/** speaker.say's limit: one rule for what an agent may say, whichever voice says it */
+const MAX_SPEECH = 500
 /** The protocol's reference tools use the same limits */
 const MAX_SECONDS: Record<string, number> = { video: 30, microphone: 10 }
 
@@ -38,6 +40,8 @@ interface DeviceHost {
   forget(agent: Agent, key: string): boolean
   saveSnapshot(agent: Agent, key: string, value: { mime: string; data: string }): string
   capture(agent: Agent, key: string, kind: string, seconds: number): Promise<string>
+  canSpeak(agent: Agent, key: string): boolean
+  speak(agent: Agent, key: string, text: string, voiceId?: string): Promise<unknown>
   latestSnapshot(agent: Agent, key: string): string | null
 }
 
@@ -53,6 +57,7 @@ function fromError<T>(err: unknown): ServiceResult<T> {
   // A capture the device ended is its answer too: a person revoking it is not a network failure
   const message = (err instanceof Error ? err.message : String(err)).replace(/^Media ended: /, '')
   if (DEVICE_ANSWERS.has(message)) return { data: { ok: false, error: message } as any, status: 200 }
+  if (message.startsWith('speech_failed')) return fail(500, 'speech_failed', message)
   if (message.startsWith('device_state_unreadable')) return fail(500, 'device_state_unreadable', message)
   if (message.startsWith('address_conflict') || message === 'Each agent must use its own key') return fail(409, 'address_conflict', message)
   if (/^Unknown (device|agent)/.test(message)) return fail(404, 'not_found', message)
@@ -130,6 +135,11 @@ export async function invokeAgentDevice(agentId: string, key: string, body: { ca
     const { capability, args = {} } = body || {}
     if (typeof capability !== 'string') return fail(400, 'invalid_request', 'capability is required')
     if (typeof args !== 'object' || args === null || Array.isArray(args)) return fail(400, 'invalid_request', 'args must be an object')
+    // The agent's own voice when it can be used here; otherwise the device speaks, with the device's voice
+    const text = (args as { text?: unknown }).text
+    if (capability === 'speaker.say' && agent.voice?.engine === 'local' && typeof text === 'string' && text.trim() && Buffer.byteLength(text) <= MAX_SPEECH && h.canSpeak(agent, key)) {
+      return { data: { ok: true, value: await h.speak(agent, key, text, agent.voice.voiceId) }, status: 200 }
+    }
     const value = await h.invoke(agent, key, capability, args as Record<string, unknown>)
     if (capability === 'camera.snapshot') {
       // The agent reads a file: a picture does not travel through the API as text

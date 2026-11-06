@@ -4,11 +4,14 @@ import {
   builtinCapabilities,
   validateArguments,
   imageBytes,
+  audioBytes,
 } from "../../packages/sdk/capabilities.mjs";
-import { speechReady, say } from "./output.mjs";
+import { speechReady, say, playReady, play } from "./output.mjs";
 import { mediaFormats } from "../../packages/sdk/media.mjs";
 import { agentAddress, nonce, open, seal } from "@ai-maestro/device-sdk";
 import { cameraReady, snapshot } from "./hardware.mjs";
+
+const OUTPUTS = ["display.text", "display.image", "speaker.say", "speaker.play"];
 
 export function bridge(
   self,
@@ -21,6 +24,12 @@ export function bridge(
 ) {
   const indicatorReady = () =>
     hardware.indicatorReady?.() ?? display?.indicatorReady() ?? false;
+  const outputReady = (name) =>
+    name === "speaker.say"
+      ? speechReady()
+      : name === "speaker.play"
+        ? (hardware.playReady ?? playReady)()
+        : !!display;
   const challenges = new Map();
   let captureOwner;
   let sequence = 0;
@@ -111,11 +120,8 @@ export function bridge(
           ),
           ...(custom?.definitions(peer) ?? {}),
         };
-        for (const name of ["display.text", "display.image", "speaker.say"]) {
-          if (
-            peer.outputs?.[name] === true &&
-            (name === "speaker.say" ? speechReady() : !!display)
-          ) {
+        for (const name of OUTPUTS) {
+          if (peer.outputs?.[name] === true && outputReady(name)) {
             capabilities.push(name);
             definitions[name] = builtinCapabilities[name];
           }
@@ -332,6 +338,7 @@ export function bridge(
         try {
           validateArguments(definitions[msg.capability].args, msg.args ?? {});
           if (msg.capability === "display.image") imageBytes(msg.args);
+          if (msg.capability === "speaker.play") audioBytes(msg.args);
         } catch {
           return result({
             type: "result",
@@ -340,9 +347,7 @@ export function bridge(
           });
         }
         if (
-          ["display.text", "display.image", "speaker.say"].includes(
-            msg.capability,
-          ) ||
+          OUTPUTS.includes(msg.capability) ||
           msg.capability.startsWith("custom.")
         ) {
           const abort = new AbortController();
@@ -367,6 +372,11 @@ export function bridge(
             let value;
             if (msg.capability === "speaker.say")
               value = await say(msg.args.text, abort.signal);
+            else if (msg.capability === "speaker.play")
+              value = await (hardware.play ?? play)(
+                audioBytes(msg.args),
+                abort.signal,
+              );
             else if (msg.capability.startsWith("custom."))
               value = await custom.invoke(
                 msg.capability,

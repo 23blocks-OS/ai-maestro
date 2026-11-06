@@ -56,3 +56,7 @@ discovery.
   requests (only one wins, the other fails with the revision mismatch), against the protocol's test double.
 - Depends on F078. GitHub: #789 (the transfer half).
 - Effort: M (protocol S-M, AI Maestro M).
+
+## Update 2026-11-06
+
+The operator key described above is dropped. The protocol keeps approval on the device (protocol #10 closed): the dashboard sends a signed proposal with `Controller.propose` and shows its outcome. This item is now mostly UI: spec section 9 and step 5.

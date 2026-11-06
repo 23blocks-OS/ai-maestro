@@ -1,6 +1,6 @@
 # F078 — Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session
 
-**Status:** Todo (spec: [docs/SPEC-AGENT-DEVICES.md](../docs/SPEC-AGENT-DEVICES.md))
+**Status:** Todo (spec: [docs/SPEC-AGENT-DEVICES.md](../docs/SPEC-AGENT-DEVICES.md), steps 1 to 3)
 **Type:** Feature
 **Created:** 2026-11-05
 
@@ -80,3 +80,7 @@ the first case.
 - GitHub: #788, #789 (read-only part). Related: F079, F050, B021, `types/person-device.ts` (people's devices,
   a different registry; keep them apart).
 - Effort: M.
+
+## Update 2026-11-06
+
+The protocol now defines the controller role and ships a host SDK, so the spec was rewritten. Where this item differs from the spec, the spec wins: AI Maestro embeds `Controller`, reuses the screens from #791 and the skill from plugins #99, and the protocol's conformance suite is the main test. Node 24 is done.

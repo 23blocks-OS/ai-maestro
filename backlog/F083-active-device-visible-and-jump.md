@@ -27,3 +27,7 @@ Trust and privacy: a person can always see where the agent is present.
 - UI: a small device label on the card and in the chat header; the jump control in the profile and on the Devices page.
 - Tests: a jump changes what every view shows; an agent with no devices shows nothing.
 - Effort: S-M. Depends on F078, device-protocol #7.
+
+## Update 2026-11-06
+
+The SDK holds the active device (`Controller.jump`, the `activated` event). What is left is the status feed, the agent's context and the screens. Spec step 4.

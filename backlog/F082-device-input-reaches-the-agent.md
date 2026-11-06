@@ -29,3 +29,7 @@ It is the core of the product idea, and what Muse gadgets already do.
 - Input makes that device active (#7).
 - Tests: delivered to the assigned agent only; a hibernated agent wakes; a reply returns to the same device.
 - Effort: M. Depends on F078, device-protocol #8, #11, #12.
+
+## Update 2026-11-06
+
+The protocol shipped this: `device.input` arrives through `onEvent`, and it activates the device. What is left is delivery to the agent, de-duplicated by event id. Spec section 8, step 4.

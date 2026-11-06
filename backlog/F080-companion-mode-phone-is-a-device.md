@@ -32,3 +32,7 @@ the middle.
 - The phone keeps its person record (`types/person-device.ts`); companion mode adds a temporary device link beside it.
 - The app also gets a Devices view (who owns what, the agent's active device). The app is ai-maestro-app's work.
 - Effort: L. Depends on F078, device-protocol #7 and #8.
+
+## Update 2026-11-06
+
+The protocol has device-opened connections, but live media over them is excluded for now, and `clients/mobile` is a placeholder. This item waits for those.

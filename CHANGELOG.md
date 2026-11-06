@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.87] - 2026-11-06 - Hold to talk
+
+### Added
+- **Hold to talk** (F092). A person holds a button on the device, speaks, and releases. The host transcribes it with faster-whisper and it reaches the agent like typed input, marked as transcribed. It needs the microphone grant and shows the in-use sign. `scripts/install-voice.sh` installs hearing too; it uses no memory until someone talks.
+
+### Changed
+- Device SDK repinned to the protocol commit with the signed `audio` event.
+
 ## [0.106.86] - 2026-11-06 - Typing at a device no longer cuts the agent off
 
 ### Fixed

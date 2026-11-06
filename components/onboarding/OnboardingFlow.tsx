@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import UseCaseSelector from './UseCaseSelector'
+import ConnectPhoneDialog from '@/components/ConnectPhoneDialog'
 import SingleComputerGuide from './guides/SingleComputerGuide'
 import MultiComputerGuide from './guides/MultiComputerGuide'
 import DockerLocalGuide from './guides/DockerLocalGuide'
@@ -23,6 +24,7 @@ interface OnboardingFlowProps {
 
 export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowProps) {
   const [selectedUseCase, setSelectedUseCase] = useState<UseCase>(null)
+  const [connecting, setConnecting] = useState(false)
 
   const handleUseCaseSelect = (useCase: UseCase) => {
     setSelectedUseCase(useCase)
@@ -54,6 +56,14 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
       ) : selectedUseCase === 'advanced' ? (
         <AdvancedGuide onBack={handleBack} onComplete={handleComplete} />
       ) : null}
+      <button
+        type="button"
+        onClick={() => setConnecting(true)}
+        className="fixed bottom-4 right-4 px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 border border-gray-700 text-sm text-gray-200"
+      >
+        Connect your phone
+      </button>
+      {connecting && <ConnectPhoneDialog onClose={() => setConnecting(false)} />}
     </div>
   )
 }

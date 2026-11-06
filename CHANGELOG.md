@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.79] - 2026-11-06 - Connect your phone with a QR code
+
+### Added
+- **Connect your phone** (#798). `GET /api/hosts/connect-info` lists the addresses a phone can use, best first, with an `aimaestro://connect` link. A QR dialog shows it from each host in Settings > Hosts, and from the first-run setup. The HTTPS name is listed only when `tailscale serve` really reaches this server. It holds addresses only, no secrets.
+
 ## [0.106.78] - 2026-11-06 - Skills install when `claude` is not on PATH
 
 ### Fixed

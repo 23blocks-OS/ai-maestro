@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2 } from 'lucide-react'
+import { QrCode, Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2 } from 'lucide-react'
 import type { Host } from '@/types/host'
 import { isRemoteHost, isSelfHost } from '@/lib/host-kind'
 import localVersion from '@/version.json'
+import ConnectPhoneDialog from '@/components/ConnectPhoneDialog'
 
 interface OrganizationInfo {
   organization: string | null
@@ -39,6 +40,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 export default function HostsSection() {
+  const [connectHost, setConnectHost] = useState<Host | null>(null)
   const [hosts, setHosts] = useState<Host[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -534,6 +536,14 @@ export default function HostsSection() {
 
               {/* Actions */}
               <div className="flex items-center gap-2 ml-4">
+                <button
+                  onClick={() => setConnectHost(host)}
+                  className="p-2 hover:bg-gray-700 rounded transition-colors"
+                  title="Connect your phone to this host"
+                  aria-label={`Connect your phone to ${host.name}`}
+                >
+                  <QrCode className="w-4 h-4 text-gray-400" />
+                </button>
                 {isRemoteHost(host) && (
                   <button
                     onClick={() => checkHealth(host)}
@@ -575,6 +585,8 @@ export default function HostsSection() {
           <p className="text-sm text-gray-500 mt-2">Add a remote host to get started</p>
         </div>
       )}
+
+      {connectHost && <ConnectPhoneDialog baseUrl={isSelfHost(connectHost) ? '' : connectHost.url} onClose={() => setConnectHost(null)} />}
 
       {/* Add Host Wizard */}
       {showWizard && (

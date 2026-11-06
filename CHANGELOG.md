@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.83] - 2026-11-06 - Search the chat, and see which day a message was
+
+### Added
+- **Search in the chat** (F093). A search button finds messages in the whole conversation, not only the loaded pages, and jumps to one. It works for agents on other hosts.
+- **Days in the chat** (F094). A line shows where the day changes, as messaging apps do: Today, Yesterday, the weekday, then the date. The view that had no times on its bubbles now shows them.
+
 ## [0.106.82] - 2026-11-06 - An agent speaks in its own voice on its devices
 
 ### Added

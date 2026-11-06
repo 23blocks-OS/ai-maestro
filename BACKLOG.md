@@ -111,6 +111,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F090** — [Version history for an agent's documents, canvases and settings, with Git](./backlog/F090-version-history-for-documents-and-settings.md) — `Todo`
 - **F091** — [The Town: default town at install, join from the new machine, and merge](./backlog/F091-town-first-run-join-merge.md) — `Todo` (spec written)
 - **F092** — [One voice per agent, on every device and call](./backlog/F092-one-voice-per-agent.md) — `In Progress`
+- **F093** — [Search in the chat](./backlog/F093-chat-search.md) — `In Progress`
+- **F094** — [Days and times in the chat](./backlog/F094-chat-days-and-times.md) — `In Progress`
 
 ## Bugs
 

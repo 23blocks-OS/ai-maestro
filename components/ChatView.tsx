@@ -18,7 +18,9 @@ import ToolBurstGroup from '@/components/chat/ToolBurstGroup'
 import LoadEarlierMessages from '@/components/chat/LoadEarlierMessages'
 import { mergeHistory, prependPage, type HistoryCursor } from '@/lib/chat-history-paging'
 import { useKeepScrollOnPrepend } from '@/hooks/useKeepScrollOnPrepend'
-import { groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
+import { withDividers, groupMessages, getToolPreview, type ToolBurst } from '@/lib/chat-utils'
+import { useChatFind } from '@/hooks/useChatFind'
+import { ChatFind, ChatDividerLine } from '@/components/chat/ChatFind'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
@@ -355,6 +357,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
   useEffect(() => () => clearTimeout(olderTimeoutRef.current), [])
 
+  const find = useChatFind({ agentId: agent.id, send: sendChatMessage, cursorRef: historyCursorRef, rootRef: messagesContainerRef, messages })
+  const receiveFind = useRef(find.receive)
+  receiveFind.current = find.receive
+
   // Connect/disconnect WebSocket based on isActive
   useEffect(() => {
     if (!isActive || !agent?.id) return
@@ -410,6 +416,10 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               setIsLoading(false)
               break
             }
+
+            case 'chat:searchResults':
+              receiveFind.current(data.data || {})
+              break
 
             case 'chat:historyPage': {
               clearTimeout(olderTimeoutRef.current)
@@ -949,7 +959,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const isOnline = agent.sessions?.some(s => s.status === 'online')
 
   // Group consecutive tool-only messages into collapsible bursts
-  const groupedItems = useMemo(() => groupMessages(messages, chatMode), [messages, chatMode])
+  const groupedItems = useMemo(() => withDividers(groupMessages(messages, chatMode), find.found), [messages, chatMode, find.found])
 
   // Activity state derived from hookState + messages + pending.
   // "thinking" = user sent something and no assistant text response yet.
@@ -1019,6 +1029,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         }
       />
 
+      <div className="relative h-0 flex-shrink-0"><ChatFind find={find} /></div>
+
       {/* Messages Area */}
       <div
         ref={messagesContainerRef}
@@ -1060,6 +1072,8 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         )}
 
         {groupedItems.map((item, index) => {
+          if ('_isDivider' in item) return <ChatDividerLine key={item.key} divider={item} />
+
           // Tool burst — render collapsible group
           if ('_isBurst' in item) {
             const burst = item as ToolBurst

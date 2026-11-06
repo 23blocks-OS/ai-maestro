@@ -241,6 +241,10 @@ Scrolling to the top sends `chat:requestHistory` with `before: historyStart` and
 
 A host on an older version ignores `before` and answers with the full history without `historyStart`, which ends paging; no answer at all shows "try again" after 15 seconds. The chat socket to a remote host is forwarded as is, so paging works for agents on other hosts once they run this version.
 
+## Search and days
+
+`chat:search` runs on the agent's host over the whole conversation file (`searchMessages`), so it covers pages not loaded and works through the forwarded socket for agents on other hosts; the answer is `chat:searchResults`. Picking a result sends `chat:requestHistory` with `through: index`, and `pageOfMessages` returns one contiguous page down to it, so `prependPage` needs no change. `withDividers` adds the day lines and the "Found" mark to the list both views draw, and `hooks/useChatFind.ts` scrolls to that mark. Dividers sit in `groupedItems`, so a message after one is not grouped with the message before it.
+
 ## Optimistic state — the rules
 
 The chat shows your message before the agent has it. Everything below exists

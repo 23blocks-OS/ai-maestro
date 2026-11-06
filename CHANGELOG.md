@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.84] - 2026-11-06 - A device shows what its agent is doing
+
+### Added
+- **Presence on devices** (F083). AI Maestro tells each online device every 5 seconds what its agent is doing and whether this is the active device, from the same status feed as every other view. The separate `watch` process of the reference controller is no longer needed for this.
+
 ## [0.106.83] - 2026-11-06 - Search the chat, and see which day a message was
 
 ### Added

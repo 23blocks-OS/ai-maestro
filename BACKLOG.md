@@ -107,7 +107,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `Todo` (after device-protocol #7, #8)
 - **F087** — [See the conversation of any agent, with or without tmux](./backlog/F087-conversation-view-without-tmux.md) — `Todo` (spec written)
 - **F088** — [Wake agents that live outside AI Maestro when a message arrives](./backlog/F088-amp-gateway-wakes-outside-agents.md) — `Todo` (idea to shape)
-- **F089** — [One pattern for the mesh: owner host and a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec for review)
+- **F089** — [One pattern for the mesh: a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec written)
+- **F090** — [Version history for an agent's documents, canvases and settings, with Git](./backlog/F090-version-history-for-documents-and-settings.md) — `Todo`
 
 ## Bugs
 

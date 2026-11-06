@@ -1,13 +1,13 @@
-# F089 — One pattern for the mesh: owner host and a directory on every host
+# F089 — One pattern for the mesh: a directory on every host
 
-**Status:** Todo (spec for review: [docs/SPEC-MESH-ENTITIES.md](../docs/SPEC-MESH-ENTITIES.md))
+**Status:** Todo (spec: [docs/SPEC-MESH-ENTITIES.md](../docs/SPEC-MESH-ENTITIES.md))
 **Type:** Feature
 **Created:** 2026-11-06
 
 ## Description
 
-Every entity known across the organization (agents, people, teams, projects, `org:` groups) follows one pattern: one owner host
-writes it, and every host keeps a read copy of what is needed to find, name and verify it, through one generic sync. Delivery
+Every entity known across the organization (agents, people, teams, projects, `org:` groups) follows one pattern: every host keeps
+a copy of what is needed to find, name and verify it, any host can change identity data, and one generic sync merges it per field. Delivery
 stores and forwards, so it does not depend on the recipient's host being awake.
 
 ## Why It's Needed
@@ -23,7 +23,7 @@ host stops existing for the mesh.
 
 ## Implementation Plan
 
-Steps and decisions are in the spec, sections 6 and 7; the open proposal that every host writes is in section 8. Research:
+Steps and decisions are in the spec, sections 6 and 7; how every host writes is in section 8. Research:
 [docs/RESEARCH-DIRECTORY-REPLICATION.md](../docs/RESEARCH-DIRECTORY-REPLICATION.md). Builds on the peer exchange that hosts use. Replaces `lib/agent-directory.ts`
 sync. Absorbs part of F057; F074 and F075 follow it.
 

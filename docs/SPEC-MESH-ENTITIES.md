@@ -1,6 +1,6 @@
 # Spec: What lives where in the mesh (concepts and patterns)
 
-Status: draft, decisions recorded in section 7, proposal open in section 8, 2026-11-06. Audit of the code and of three live hosts (MacBook, mac-mini, mini-lola). Nothing
+Status: draft, decisions in sections 7 and 8, 2026-11-06. Audit of the code and of three live hosts (MacBook, mac-mini, mini-lola). Nothing
 here is built. Backlog: [F089](../backlog/F089-mesh-directory-one-pattern.md), B033, B034, B035. Touches F057, F074, F075, F078.
 Research: [RESEARCH-DIRECTORY-REPLICATION.md](RESEARCH-DIRECTORY-REPLICATION.md).
 
@@ -51,25 +51,26 @@ Rule from Juan (2026-11-06): **if agents sync between hosts, humans do too. The 
   host holds it. A person is not "on" a host, and neither is a team.
 - **Id and name.** Every entity has a stable id that never changes, and a display name that can. Machines use ids. People see names.
   An address is built from something stable.
-- **Owner host.** Each entity has exactly one host that writes it. It is where the entity lives, not what it is.
+- **Home host.** Where an entity's data and mailbox live: an agent runs there, a person's messages are kept there. It is where the entity
+  lives, not what it is, and not the only host that can change its identity data.
 - **Directory.** Every host keeps a read copy of what the organization knows about every entity: id, name, type, owner host, address,
   public key, last seen. Reading needs no network.
 - **Delivery.** Something sent to an entity is stored and forwarded until it arrives. It never depends on the owner being up at
   that moment.
 
-## 4. The one pattern: owner host + directory
+## 4. The one pattern: a directory on every host
 
 For every entity that is known across the organization:
 
-1. **One writer.** Only the owner host changes the record, so nothing ever has to be merged. This keeps the benefit the people design
-   wanted.
+1. **Any host writes identity data,** with per-field stamps, so it merges by itself (section 8). What runs is written only by the host
+   running it.
 2. **Everyone reads locally.** A host answers from its directory, with no call to a peer.
-3. **Copies are only for reading.** A write goes to the owner host. When it is down, the write fails and says so.
+3. **A write never waits for another host.** It is made locally and spreads through the sync.
 4. **One sync, for all types.** Hosts exchange changes on a timer and on change, by version, using the peer exchange that hosts
    already use. One mechanism and one code path, with the type as a field.
 5. **Honest age.** A copy says when it was last confirmed. A view can show that an owner is unreachable.
 6. **Deletes are remembered**, as tombstones, so an old copy cannot bring something back.
-7. **Ownership can move.** Agents already move between hosts; a person or team can too, so nothing is stuck on a laptop.
+7. **A home can move.** Agents already move between hosts; a person's mailbox or a team's files can too, so nothing is stuck on a laptop.
 
 Not everything goes in the directory. Only what is needed to find, name and verify. A conversation, task list or memory stays with its
 owner and is fetched when needed.
@@ -125,18 +126,18 @@ Made by Juan, 2026-11-06:
 
 1. **The tenant is the organization.** There is one, and its name forms addresses. `org:` groups (3metas, 23blocks) are something else,
    inside it, and need their own word: **unit** is used here until Juan chooses. F074 is about units; F075 is about the organization.
-2. **One writer per record**, with ownership that can move. Under review: see section 8.
+2. **Every host writes identity data; what runs stays with its host.** Section 8. Juan first chose one writer, then chose this after the research.
 3. **mac-mini is the default home** for people, instead of the machine the operator happens to be on. The operator can choose another.
 4. **The directory holds public keys,** so a host can verify a sender while its home is offline. A revoked key must reach every host at
    once, and a revocation cannot be undone by a sync: a key once revoked stays revoked, whatever the clocks say.
 
-## 8. Proposal: every host writes (changes decision 2)
+## 8. Every host writes (decision 2)
 
 Juan's question: what if each host can write, and the last update wins when they sync? Research:
 [RESEARCH-DIRECTORY-REPLICATION.md](RESEARCH-DIRECTORY-REPLICATION.md). This is what Active Directory does, and it answers the one weakness of
 a single writer: a record that cannot be edited while its owner sleeps.
 
-**Recommended, not yet decided.** Identity data is multi-master, and live state stays with its host:
+**Decided by Juan, 2026-11-06.** Identity data is multi-master, and live state stays with its host:
 
 - **Any host writes the identity fields** of a person, team, project or agent's label. Each field has its own stamp: version, then
   time, then host id. **Version first**: a clock is only a tiebreak, as in AD. A time too far in the future is refused.
@@ -155,5 +156,3 @@ a single writer: a record that cannot be edited while its owner sleeps.
 
 Cost: per-field stamps, a vector per host, tombstones. On a small organization this is one small module and a few hundred KB; it needs no
 database product. **No consensus** (Raft, etcd): it needs a majority awake, and laptops sleep.
-
-If Juan agrees, section 4 rule 1 and section 7 decision 2 change; steps in section 6 stay the same.

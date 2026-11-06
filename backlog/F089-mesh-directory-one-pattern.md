@@ -23,7 +23,8 @@ host stops existing for the mesh.
 
 ## Implementation Plan
 
-Steps and decisions are in the spec, sections 6 and 7. Builds on the peer exchange that hosts use. Replaces `lib/agent-directory.ts`
-sync. Depends on Juan's decisions on what "organization" means and on one writer. Absorbs part of F057; F074 and F075 follow it.
+Steps and decisions are in the spec, sections 6 and 7; the open proposal that every host writes is in section 8. Research:
+[docs/RESEARCH-DIRECTORY-REPLICATION.md](../docs/RESEARCH-DIRECTORY-REPLICATION.md). Builds on the peer exchange that hosts use. Replaces `lib/agent-directory.ts`
+sync. Absorbs part of F057; F074 and F075 follow it.
 
 - Effort: L, in steps.

@@ -1,7 +1,8 @@
 # Spec: What lives where in the mesh (concepts and patterns)
 
-Status: draft for Juan's review, 2026-11-06. Audit of the code and of three live hosts (MacBook, mac-mini, mini-lola). Nothing
+Status: draft, decisions recorded in section 7, proposal open in section 8, 2026-11-06. Audit of the code and of three live hosts (MacBook, mac-mini, mini-lola). Nothing
 here is built. Backlog: [F089](../backlog/F089-mesh-directory-one-pattern.md), B033, B034, B035. Touches F057, F074, F075, F078.
+Research: [RESEARCH-DIRECTORY-REPLICATION.md](RESEARCH-DIRECTORY-REPLICATION.md).
 
 ## 1. Why this exists
 
@@ -37,13 +38,14 @@ Rule from Juan (2026-11-06): **if agents sync between hosts, humans do too. The 
    so the recipient is unknown: 404 "not found". The relay queue is reached only when a host answered the lookup and then failed.
    Read from the code, not tested with a host down. This is B034, and it applies to agents as well as to people.
 4. **"Organization" means two things.** A tenant name that forms addresses (`@rnd23blocks.aimaestro.local`), and `org:` groups
-   (3metas, 23blocks) inside it. F074 and F075 mix them.
+   (3metas, 23blocks) inside it. F074 and F075 mix them. Settled in section 7.
 5. **Names are not shared.** Directory entries have no label, so "Dahlia" is known only on Dahlia's host. Messages show
    `ai-maestro-app`, as they show `p-<id>` for a person.
 
 ## 3. The concepts
 
-- **Organization.** The trust and naming boundary: one per mesh. A host is in it or not. Its name forms addresses.
+- **Organization.** The tenant: the trust and naming boundary, one per mesh. A host is in it or not. Its name forms addresses.
+- **Unit.** An `org:` group inside the organization, such as a client or company. Working name.
 - **Host.** A machine in the organization. It holds things and runs things; it has no identity beyond that.
 - **Entity.** Something with its own identity: an agent, a person, a team, a project. It is known across the organization, whichever
   host holds it. A person is not "on" a host, and neither is a team.
@@ -117,13 +119,41 @@ Being consistent does not mean being identical. These differences are correct:
 
 Devices (F078) and the conversation view (F087) should build on step 1.
 
-## 7. Decisions needed
+## 7. Decisions
 
-1. **Two organizations.** Is the tenant *the* organization, with `org:` groups as something inside it (units or clients)? This spec
-   assumes yes. F074 and F075 then need different words for each.
-2. **One writer, or replicated records?** This spec chooses one writer: simple and nothing to merge, but a record cannot change while its
-   owner is off. The alternative is every host writing, last write wins: always editable, but changes can be lost silently. For
-   people and teams, which change rarely, one writer with ownership that can move looks right.
-3. **Where should a person live by default?** A laptop is a poor owner. Prefer an always-on host, chosen by the operator?
-4. **Should the directory hold public keys?** It would let a host verify a sender with its owner offline, which delivery needs. It also makes
-   key revocation a sync problem: how fast must it reach every host?
+Made by Juan, 2026-11-06:
+
+1. **The tenant is the organization.** There is one, and its name forms addresses. `org:` groups (3metas, 23blocks) are something else,
+   inside it, and need their own word: **unit** is used here until Juan chooses. F074 is about units; F075 is about the organization.
+2. **One writer per record**, with ownership that can move. Under review: see section 8.
+3. **mac-mini is the default home** for people, instead of the machine the operator happens to be on. The operator can choose another.
+4. **The directory holds public keys,** so a host can verify a sender while its home is offline. A revoked key must reach every host at
+   once, and a revocation cannot be undone by a sync: a key once revoked stays revoked, whatever the clocks say.
+
+## 8. Proposal: every host writes (changes decision 2)
+
+Juan's question: what if each host can write, and the last update wins when they sync? Research:
+[RESEARCH-DIRECTORY-REPLICATION.md](RESEARCH-DIRECTORY-REPLICATION.md). This is what Active Directory does, and it answers the one weakness of
+a single writer: a record that cannot be edited while its owner sleeps.
+
+**Recommended, not yet decided.** Identity data is multi-master, and live state stays with its host:
+
+- **Any host writes the identity fields** of a person, team, project or agent's label. Each field has its own stamp: version, then
+  time, then host id. **Version first**: a clock is only a tiebreak, as in AD. A time too far in the future is refused.
+- **Sets merge per value:** team members and a person's keys are added and removed one at a time, so two adds both survive.
+- **What runs stays single-writer, by nature:** an agent's sessions, status and folder belong to the host it runs on. Only that host
+  knows them. This is the "one writer" of decision 2, kept where it is true.
+- **Sync:** each host keeps a vector of the highest change it has seen from every host, and asks a peer for what it lacks. A change
+  reaches a host through any peer, and a sleeping host catches up. A periodic full compare repairs anything missed.
+- **Deletes are tombstones,** kept for 180 days. A host away longer must rejoin clean, not resend what it has.
+- **A restored host takes a new incarnation id**, or peers ignore it silently.
+- **Name clashes keep both and show them.** Ids are UUIDs, so records never collide. Two agents with one name are a visible conflict, not a
+  silent winner.
+- **Single-master on purpose (like FSMO),** held by the anchor host, mac-mini by default, movable by the operator: naming the organization,
+  and accepting a host into it. Rare, and wrong to do twice at once.
+- **Revocation** is the exception to every rule above: it always wins, and is pushed at once.
+
+Cost: per-field stamps, a vector per host, tombstones. On a small organization this is one small module and a few hundred KB; it needs no
+database product. **No consensus** (Raft, etcd): it needs a majority awake, and laptops sleep.
+
+If Juan agrees, section 4 rule 1 and section 7 decision 2 change; steps in section 6 stay the same.

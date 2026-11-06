@@ -2561,6 +2561,20 @@ async function startServer(handleRequest) {
       }
     } catch { /* tmux not available or no sessions */ }
 
+    // Device controller: one for the host (docs/SPEC-AGENT-DEVICES.md). An agent with no device costs nothing here
+    try {
+      const [{ createDeviceHost }, { loadAgents, getAgent }] = await Promise.all([import('./lib/device-host.mjs'), import('./lib/agent-registry.ts')])
+      globalThis._deviceHost = createDeviceHost({
+        agentExists: (id) => { const a = getAgent(id); return !!a && !a.deletedAt },
+        // shortcut: only logged; delivering device events to agents is step 4 of the spec
+        onEvent: (event) => console.log(`[Devices] ${event.type} ${event.deviceKey} for ${event.agent}`),
+      })
+      // Not awaited: a dead device takes 15 s to time out, and the startup tasks below must not wait for it
+      globalThis._deviceHost.restore(loadAgents().filter((a) => !a.deletedAt && (!a.hostId || isSelf(a.hostId)))).catch((err) => console.error('[Devices] Restore failed:', err.message))
+    } catch (err) {
+      console.error('[Devices] Controller did not start:', err.message)
+    }
+
     // ── Memory maintenance sweep ─────────────────────────────────────────
     // Each agent's schedule makes indexing (hourly) and consolidation (daily,
     // after 2 AM) DUE, but they only RUN on an idle transition or a sweep, and

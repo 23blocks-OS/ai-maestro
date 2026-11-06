@@ -1,0 +1,18 @@
+# Copied unchanged from agentmessaging/agent-device-protocol (MIT, see LICENSE here). Do not edit: fix it there, then copy again.
+commit 67e0058283e4e6c4c3a1c5436379217dfff73d47
+a4845200aa323391a56bfccd0a4870c6a376a4ef9d1dcc43ca29ced846114f5c  lib/device-sdk/capabilities.mjs
+d5aed1e3723202f012350027a4a67ca1967ad069055e75fa75e61fe16438f701  lib/device-sdk/changes.mjs
+c6c53301ec2a78f63d3c35746d9cf1e5be9cbbf409d9c9d093461017d11e0371  lib/device-sdk/controller-state.mjs
+287f5e4361c4e1c2c44ad4b395bf37ca42b707249b9976a26af910f14064ae9b  lib/device-sdk/controller.mjs
+c666b539297008e710a2e934e6c7bc0adaa41218cd538f09127b182fcd8a4273  lib/device-sdk/index.mjs
+1a5d60a2922af0603523476f588758435156acd906977bef60007fe2b8cad0bc  lib/device-sdk/media.mjs
+8e486811e977133539bb1df0334b4b5ef7ffa79d41fa31079f75dd1781423b0b  lib/device-sdk/reverse.mjs
+3e30e8bfed6c87ef07f44b6befab38bbc65aac5d96d406ce8ce0c7ef1596d5c6  lib/device-sdk/state.mjs
+a304d8dfa19c7fc2fe036a887f0edaf51f04b966a0d0872bae91278b291ca1e3  lib/device-sdk/controller.d.mts
+db643629635bf4abbe975c4d2ad65bd158326b6c42263699ff6962cc01336e0a  lib/device-sdk/index.d.mts
+f6e2f03ab890bcb0e3614554553fa551077b42ee4cbdb7db56d6e6ea62b4bf7c  lib/device-sdk/media.d.mts
+c71ef1ffff498f38b683fb53cc4ce03b2c0db55cd2f3e23ca6c024a1c0a0a735  lib/device-sdk/reverse.d.mts
+c2a00710d266ba5fd4bc8e3aea6d2ecf6ef94a3e0cdf2ebfb6b6dfebd9477a81  tests/fixtures/device-protocol/clients/linux/hardware.mjs
+8dc105344f01e2f9bd4793841926b41b7ff883b551820b3f01725d04455cae53  tests/fixtures/device-protocol/clients/linux/output.mjs
+92c2a12354456553aead6d01722e2ed9dfe83b84c4074d38d83cbefd9943acd7  tests/fixtures/device-protocol/clients/linux/server.mjs
+1299f4ffc3eb6527294056a30815105cee5be51b646db60a13e830213f439479  tests/fixtures/device-protocol/tests/conformance/controller-contract.mjs

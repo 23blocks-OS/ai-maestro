@@ -12,6 +12,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // The protocol's bridge, used as the conformance test double, imports the SDK by its package name
+      '@ai-maestro/device-sdk': path.resolve(__dirname, 'lib/device-sdk/index.mjs'),
       '@': path.resolve(__dirname, '.'),
     },
   },

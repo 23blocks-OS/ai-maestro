@@ -332,6 +332,7 @@ import {
 
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
+import { addAgentDevice, forgetAgentDevice, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 
@@ -559,6 +560,34 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/tools\/readiness$/, paramNames: [], handler: async (req, res) => {
     const hostUrl = new URL(req.url || '', 'http://localhost').searchParams.get('hostUrl')
     sendServiceResult(res, await toolReadinessRequest(hostUrl))
+  }},
+  { method: 'GET', pattern: /^\/api\/devices$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listHostDevices())
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/devices\/identity$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await getAgentDeviceIdentity(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const refresh = new URL(req.url || '', 'http://localhost').searchParams.get('refresh') === '1'
+    sendServiceResult(res, await listAgentDevices(params.id, { refresh }))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
+    sendServiceResult(res, await addAgentDevice(params.id, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/refresh$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await refreshAgentDevice(params.id, params.key))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/jump$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await jumpAgentDevice(params.id, params.key))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/jump$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await jumpAgentDevice(params.id, null))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/invoke$/, paramNames: ['id', 'key'], handler: async (req, res, params) => {
+    sendServiceResult(res, await invokeAgentDevice(params.id, params.key, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await forgetAgentDevice(params.id, params.key))
   }},
   { method: 'GET', pattern: /^\/api\/tools\/install$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, await programInstallRequest('GET', new URL(req.url || '', 'http://localhost').searchParams.get('hostUrl')))

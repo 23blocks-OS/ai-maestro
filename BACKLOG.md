@@ -96,6 +96,20 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
 - **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
 - **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Done` (0.106.69, #776)
+- **F078** — [Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session](./backlog/F078-agent-devices-pair-and-use.md) — `In Progress` (step 1 in 0.106.75; #788, #789)
+- **F079** — [Agent devices, phase 2: move a device to another agent, or unassign it, from the dashboard](./backlog/F079-agent-devices-transfer-from-dashboard.md) — `Todo` (device-protocol #10 first; #789)
+- **F080** — [Companion mode makes the phone one of the agent's devices](./backlog/F080-companion-mode-phone-is-a-device.md) — `Todo` (plan first)
+- **F081** — [An agent's devices follow it through export, import, moves and deletion](./backlog/F081-agent-lifecycle-carries-devices.md) — `Todo`
+- **F082** — [What a person says to a device reaches the agent](./backlog/F082-device-input-reaches-the-agent.md) — `Todo` (device-protocol #8, #11, #12)
+- **F083** — [The agent and the person can see the active device, and jump](./backlog/F083-active-device-visible-and-jump.md) — `Todo` (device-protocol #7)
+- **F084** — [Doctor checks for agent devices](./backlog/F084-doctor-device-checks.md) — `Todo`
+- **F085** — [Set up a new device with one command from AI Maestro](./backlog/F085-install-device-bridge-from-maestro.md) — `Todo`
+- **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `In Progress` (public 2026-11-06; own website left)
+- **F087** — [See the conversation of any agent, with or without tmux](./backlog/F087-conversation-view-without-tmux.md) — `Todo` (spec written)
+- **F088** — [Wake agents that live outside AI Maestro when a message arrives](./backlog/F088-amp-gateway-wakes-outside-agents.md) — `Todo` (idea to shape)
+- **F089** — [One pattern for the mesh: a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec written)
+- **F090** — [Version history for an agent's documents, canvases and settings, with Git](./backlog/F090-version-history-for-documents-and-settings.md) — `Todo`
+- **F091** — [The Town: default town at install, join from the new machine, and merge](./backlog/F091-town-first-run-join-merge.md) — `Todo` (spec written)
 
 ## Bugs
 
@@ -131,6 +145,9 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B030** — [A schedule run reports "success" without proof the prompt reached the agent](./backlog/B030-schedule-run-success-without-delivery.md) — `Done` (0.106.69)
 - **B031** — [The compaction summary shows in the chat as the person's message](./backlog/B031-compact-summary-shows-as-message.md) — `Done` (0.106.69, #786)
 - **B032** — [Agents with no tmux session: /term retries forever, and hibernated agents read as outside](./backlog/B032-no-tmux-session-close-code-and-last-runtime.md) — `Done` (0.106.71, #792)
+- **B033** — [A person's message shows a unique id, not their name](./backlog/B033-person-message-shows-id-not-name.md) — `Todo` (needs F089)
+- **B034** — [A message to anyone on a sleeping host is refused, not kept](./backlog/B034-message-refused-when-host-down.md) — `Todo`
+- **B035** — [Agent directory sync is never started](./backlog/B035-agent-directory-sync-never-started.md) — `Todo` (replaced by F089)
 
 ## Unfiled
 

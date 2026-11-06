@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.73-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.75-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -277,7 +277,7 @@ cd lolabot && ./setup.sh
 
 ## The Agent Ecosystem
 
-Every agent is built from five dimensions:
+Every agent is built from these dimensions:
 
 | | Dimension | What | Where |
 |-|-----------|------|-------|
@@ -286,6 +286,7 @@ Every agent is built from five dimensions:
 | **TRUST** | Identity | Cryptographic keys, OAuth tokens | [AID](https://agentids.org) |
 | **TALK** | Communication | Agent-to-agent messaging | [AMP](https://agentmessaging.org) |
 | **ACT** | Actions | Clicks and forms from agent-drawn pages | [AAP](https://agentactions.org) |
+| **BE THERE** | Devices | Real devices an agent owns and jumps between | [ADP](https://github.com/agentmessaging/agent-device-protocol) |
 
 See [Skills](#skills) and [Protocols](#protocols) below.
 
@@ -329,7 +330,7 @@ Pick your own set with the [plugin builder](./plugin/README.md). More on the [sk
 
 ## Protocols
 
-AI Maestro implements four open protocols, all under [github.com/agentmessaging](https://github.com/agentmessaging). Each works without the others.
+AI Maestro uses the open protocols under [github.com/agentmessaging](https://github.com/agentmessaging): four today, and a fifth, [ADP](https://github.com/agentmessaging/agent-device-protocol), for devices, on its way. Each works without the others.
 
 | Protocol | Covers | Specification |
 |---|---|---|
@@ -337,6 +338,7 @@ AI Maestro implements four open protocols, all under [github.com/agentmessaging]
 | **AID** — Agent Identity | Ed25519 agent identity and OAuth 2.0 tokens | [agentids.org](https://agentids.org) |
 | **AAP** — Agent Actions Protocol | Actions from agent-drawn pages back to the agent | [agentactions.org](https://agentactions.org) |
 | **AFP** — Agent Files Protocol | Files shared by reference through S3-compatible storage | [agentmessaging/agent-files](https://github.com/agentmessaging/agent-files) |
+| **ADP** — Agent Device Protocol | Agents own and use real devices: signed, approved on the device, no cloud. Controller in progress | [agentmessaging/agent-device-protocol](https://github.com/agentmessaging/agent-device-protocol) |
 
 [Protocols page](https://aimaestro.sh/protocols.html) · [AID, AMP and AAP mapped onto the Poppy draft](./docs/AID-POPPY-MAPPING.md) (a design note, nothing implemented) · [AMP outbox design](./docs/AMP-OUTBOX-DESIGN.md) (a proposal, not built)
 
@@ -398,7 +400,7 @@ The documentation site is **[aimaestro.sh](https://aimaestro.sh)** (install and 
 - [Common Issues](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md) · [Windows Installation](./docs/WINDOWS-INSTALLATION.md)
 
 **Open Protocols:**
-- [AMP](https://agentmessaging.org) · [AID](https://agentids.org) · [AAP](https://agentactions.org) · [AFP](https://github.com/agentmessaging/agent-files)
+- [AMP](https://agentmessaging.org) · [AID](https://agentids.org) · [AAP](https://agentactions.org) · [AFP](https://github.com/agentmessaging/agent-files) · [ADP](https://github.com/agentmessaging/agent-device-protocol)
 - Design notes: [AID, AMP and AAP on the Poppy draft](./docs/AID-POPPY-MAPPING.md) · [AMP outbox (proposal)](./docs/AMP-OUTBOX-DESIGN.md)
 
 **Extending:**

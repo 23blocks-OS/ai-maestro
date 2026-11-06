@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.75] - 2026-11-06 - AI Maestro is a device controller
+
+### Added
+- **Agent devices, step 1** (F078, #788). AI Maestro now implements the device protocol's controller role: one `Controller` per host, in the server process, for all its agents (`lib/device-host.mjs`, on the protocol's SDK copied to `lib/device-sdk/` at a pinned commit, with a hash test). An agent can pair a device, jump to it, and use it through `/api/agents/[id]/devices` (list, identity, pair, jump, invoke, forget) and `/api/devices`, in Next and headless. Each agent's key and state live in its own folder, so they move with it. After a restart every device is asked again who owns it: saved state is never trusted. An agent with no device costs nothing: no key, no file, no timer. The protocol's own conformance suite runs against this service in CI.
+
+Not yet: the agent's tools, the screens, devices that connect in, and delivering device events to agents. See docs/SPEC-AGENT-DEVICES.md.
+
+### Docs
+- The Agent Device Protocol (ADP) is public, under MIT: [agentmessaging/agent-device-protocol](https://github.com/agentmessaging/agent-device-protocol). It joins AMP, AID, AAP and AFP on the Protocols page and in the README.
+
 ## [0.106.73] - 2026-11-06 - Node 22 is the minimum
 
 ### Changed

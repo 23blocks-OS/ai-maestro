@@ -47,4 +47,6 @@ create a second one.
 - UI: prompt to name the organization (onboarding and Settings).
 - Related: F074, the host join flow (Settings → Hosts, `/api/hosts` sync).
 - Effort: M (the merge), was S-M.
+- **Split (Juan, 2026-11-06):** everything above about hosts, joining and merging is the Town, now F091 (docs/SPEC-TOWN.md). This item keeps only the
+  default organization label (`personal`) for agents and people.
 - **Not started**: Juan asked on 2026-11-05 to hold this and the other organization features for now.

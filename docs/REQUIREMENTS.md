@@ -66,7 +66,7 @@ yarn --version
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install Node.js
-brew install node@20
+brew install node@24
 
 # Install Yarn globally
 npm install -g yarn

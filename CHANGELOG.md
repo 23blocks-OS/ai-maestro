@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.72] - 2026-11-06 - Node 24
+
+### Changed
+- **AI Maestro moves to Node 24.** Node 20 is end of life. The installers now install Node 24 and refuse anything below 22; `.nvmrc` pins the line. The start and update scripts use that Node when nvm has it (`scripts/use-project-node.sh`) and leave PATH alone when it does not, so a host moves when Node 24 is installed, and a system Node shared with other services is never touched. CI also runs on 24.
+
+### Fixed
+- **Terminals on a clean install with Node 24** failed with `posix_spawnp failed`. The prebuilt `spawn-helper` ships without its execute bit; npm 10 hid that by compiling a fresh copy, and npm 11 does not. The postinstall now sets the bit, and `allowScripts` approves node-pty so its rebuild fallback runs under npm 11.
+
 ## [0.106.71] - 2026-11-05 - Agents with no tmux session: no reconnect loop, and hibernated no longer reads as outside
 
 ### Fixed

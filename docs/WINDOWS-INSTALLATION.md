@@ -121,10 +121,10 @@ In the dashboard, create an agent. When it asks **where the agent should work**:
 sudo apt update
 sudo apt install -y curl git tmux build-essential
 
-# Node.js 20 via nvm
+# Node.js 24 via nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 source ~/.bashrc
-nvm install 20
+nvm install 24
 npm install -g yarn
 
 # Check these are the LINUX versions: the paths must not start with /mnt/

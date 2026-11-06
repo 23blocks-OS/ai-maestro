@@ -96,6 +96,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
 - **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
 - **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Done` (0.106.69, #776)
+- **F078** — [Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session](./backlog/F078-agent-devices-pair-and-use.md) — `Todo` (#788, #789 read-only)
+- **F079** — [Agent devices, phase 2: move a device to another agent, or unassign it, from the dashboard](./backlog/F079-agent-devices-transfer-from-dashboard.md) — `Todo` (protocol v1.1 first; #789)
 
 ## Bugs
 

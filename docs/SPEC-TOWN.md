@@ -23,29 +23,33 @@ tenants (`name@rnd23blocks.aimaestro.local`, `name@mytenant.crabmail.ai`), but a
 | In the town | What it is | Technical word |
 |---|---|---|
 | **Town** | The machines that trust each other | Tenant, in AMP; mesh, in old code |
-| **District** | One machine in the town | Host |
-| **Town hall** | The host holding the few single-master roles; mac-mini by default | Anchor host |
+| **Building** | One machine in the town | Host |
+| **Town hall** | The building holding the few single-master roles; mac-mini by default | Anchor host |
 | **Town registry** | Who exists in the town, known on every host | Directory (F089) |
 | **Organization** | A company in the town | `org:` tag |
-| **Building** | An organization's presence in one district | Its agents on that host |
+| **Office** | An organization's presence in one building | Its agents on that host |
 | **Agent** | Lives and works in the town | Agent |
 | **Person** | A human who works with the agents | Person |
 | **Team, Project** | Unchanged | |
 | **Home** | An agent's own device (F078) | Agent home |
 
-### Why a host is a district, not a building
+### Why organizations have offices in buildings
 
-An organization has buildings; a host cannot be one, because a host holds many organizations: the MacBook has agents of eight, and 3metas is on
-two hosts. So a host is a **district**. An organization has a building in each district where it has agents. 3metas has a building in the
-mac-mini district and one in the MacBook district. Nothing has to be stored for a building: it is derived, as the `/org` page derives
-organizations today.
+Like a real town: one office building holds many companies, and one company can have offices in several buildings. That matches the data: the MacBook
+holds agents of eight organizations, mac-mini six, mini-lola three, and 3metas is on two machines. Juan chose this (2026-11-06) over organization =
+neighborhood, which would need a rule that a host belongs to one organization.
+
+3metas has an office in the mac-mini building and one in the MacBook building. Nothing is stored for an office: it is derived, as the `/org` page
+derives organizations today.
+
+**Neighborhood** stays free. If it is ever needed, it groups buildings by where they are: home, office, cloud.
 
 ### Rules for the analogy
 
 1. **Agent, person, team, project and organization keep their names.** The analogy adds places; it does not rename what already works.
 2. **It is the language of the product:** screens, docs, messages, onboarding. All of it, or it reads as a gimmick.
 3. **Code and APIs keep plain words** (`host`, `agent`), so nothing breaks and an integrator is not asked to learn a story. New code uses `town`.
-4. **Show the plain word once where it helps:** "District (a machine)". An error a person must act on names the real thing: "The district
+4. **Show the plain word once where it helps:** "Building (a machine)". An error a person must act on names the real thing: "The building
    mac-mini is not answering. Check that the machine is on."
 5. **Do not stretch it.** No town word for a concept that is clearer without one.
 
@@ -53,19 +57,21 @@ organizations today.
 
 A new install gets a town at once, with a name chosen from a list. The person can rename it before it has residents (section 5).
 
-Juan's names: **Metropolis, Gotham, Wakanda.**
+Decided by Juan (2026-11-06): **names of ancient and historic cities, that nobody can claim as theirs.** Not fictional cities: Gotham, Metropolis and
+Wakanda were dropped because DC and Marvel own them.
 
-**To check before shipping:** Gotham and Wakanda are names owned by DC and Marvel. In a product that ships to customers, this may be a
-trademark problem. Not legal advice: ask a lawyer, or use names free of owners. Metropolis is also a DC city, though it is a common word.
+The list:
 
-Names that carry the same spirit and belong to legend, not a company: Arcadia, Atlantis, Avalon, Camelot, El Dorado, Shangri-La, Utopia,
-Xanadu.
+- **Greek:** Athens, Sparta, Corinth, Delphi, Thebes, Troy, Ephesus, Knossos, Olympia, Ithaca
+- **Roman:** Rome, Pompeii, Ostia, Carthage, Ravenna, Herculaneum
+- **Americas:** Machu Picchu, Cusco, Tikal, Palenque, Teotihuacan, Tenochtitlan, Chan Chan
+- **Elsewhere:** Alexandria, Babylon, Petra, Persepolis, Angkor, Samarkand, Timbuktu
 
-A name is a lowercase slug, since it goes in addresses: `lola@gotham.aimaestro.local`. Shown with a capital: Gotham.
+A name is a lowercase slug, since it goes in addresses: `lola@delphi.aimaestro.local`, `lola@machu-picchu.aimaestro.local`. Shown as written: Machu Picchu.
 
 ### The catch: a name is not an identity
 
-With a short list, two strangers will both have a Gotham, and a machine joining would treat them as the same town, because **today the
+With a short list, two strangers will both have a Delphi, and a machine joining would treat them as the same town, because **today the
 check compares only the name** (`adoptOrganization`). So:
 
 - Every town has a **town id** (a UUID), made when it is created. It is what hosts compare.
@@ -77,10 +83,10 @@ check compares only the name** (`adoptOrganization`). So:
 | Step | Meaning |
 |---|---|
 | **Install** | Put AI Maestro on a machine |
-| **Found a town** | The first district; happens by itself at install |
-| **Join a town** | A new machine becomes a district of an existing town |
+| **Found a town** | The first building; happens by itself at install |
+| **Join a town** | A new machine becomes a building in an existing town |
 | **Merge towns** | Two towns with residents become one |
-| **Leave a town** | A district goes away cleanly |
+| **Leave a town** | A building goes away cleanly |
 
 ## 5. First run and joining
 
@@ -92,9 +98,9 @@ joining then fails with "mismatch". The join starts on the old machine (Add Host
 ### The new flow
 
 1. **Install.** A town exists at once, with a default name. There is no name screen.
-2. **First screen:** "Welcome to Gotham." and two choices: **Start here**, or **Join another town**.
+2. **First screen:** "Welcome to Delphi." and two choices: **Start here**, or **Join another town**.
 3. **Start here:** the person may rename it, and goes on.
-4. **Join another town:** the person gives the address of a machine in that town. It becomes a district: it takes the town's id and name, and its
+4. **Join another town:** the person gives the address of a machine in that town. It becomes a building: it takes the town's id and name, and its
    default town disappears.
 
 **The rule that makes this work: an empty town costs nothing.** A town with no residents (no agents, no people) can be renamed or dropped freely.
@@ -129,11 +135,9 @@ What it must answer:
 - `docs/SPEC-MESH-ENTITIES.md`: Organization there becomes Town; "unit" goes away.
 - F075 splits: the default organization label stays in F075; the town goes to F091.
 - F074 is about organizations, and is unchanged.
-- Screens later: Settings → Hosts becomes the town's Districts; `/org` stays Organization.
+- Screens later: Settings → Hosts becomes the town's Buildings; `/org` stays Organization.
 
 ## 8. Open questions
 
-1. **Names:** Juan's three, the legendary list, or both? See the trademark note.
-2. **Does joining need approval** from a host in the town, or is reaching it enough, as today?
-3. **Is "district" the right word for a machine?** Alternatives: neighborhood, block. District is short and works in "the mac-mini district".
-4. **Town hall on a one-host town** is that host. When a second host joins, does it move? mac-mini is only our default.
+1. **Does joining need approval** from a building in the town, or is reaching it enough, as today?
+2. **Town hall on a one-building town** is that host. When a second one joins, does it move? mac-mini is only our default.

@@ -25,4 +25,4 @@ An unpatched Node on every host, and installs that run arbitrary package scripts
 
 ## Progress
 
-- 2026-11-06, 0.106.72: Node 24 pinned (`.nvmrc`), installers updated, CI runs on 24. Hosts move one at a time. Still on Node 20: `Containerfile`, `agent-container/Dockerfile`, `infrastructure/terraform/aws-agent/user_data.sh`. After the hosts move: add `engines`, and drop 20 from CI.
+- 2026-11-06, 0.106.72: Node 24 pinned (`.nvmrc`), installers updated, CI runs on 24. All three hosts on Node 24.22.2 the same day; 0.106.73 adds `engines` and drops 20 from CI. Still on Node 20: `Containerfile`, `agent-container/Dockerfile`, `infrastructure/terraform/aws-agent/user_data.sh`.

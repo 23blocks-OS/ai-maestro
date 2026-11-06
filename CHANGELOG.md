@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.73] - 2026-11-06 - Node 22 is the minimum
+
+### Changed
+- `package.json` requires Node 22 or newer, and CI runs on 22 and 24. All hosts run Node 24.22.2 (mini-lola and mac-mini through their own copy; system Node on mini-lola is untouched).
+
 ## [0.106.72] - 2026-11-06 - Node 24
 
 ### Changed

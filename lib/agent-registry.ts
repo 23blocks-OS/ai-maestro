@@ -740,6 +740,17 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   return agents[index]
 }
 
+/** Remembers how each agent was just seen running: one write for a whole listing, and lastActive stays as it was. */
+export function recordLastRuntimes(seen: Map<string, NonNullable<Agent['lastRuntime']>>): void {
+  const agents = loadAgents()
+  for (const agent of agents) {
+    const runtime = seen.get(agent.id)
+    if (runtime) agent.lastRuntime = runtime
+  }
+  saveAgents(agents)
+  invalidateAgentCache()
+}
+
 /**
  * Update agent metrics
  */

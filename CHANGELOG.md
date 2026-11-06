@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.71] - 2026-11-05 - Agents with no tmux session: no reconnect loop, and hibernated no longer reads as outside
+
+### Fixed
+- **`/term` no longer invites endless retries for an agent with no tmux session** (B032, #792). It closed with 1011 ("try again"), so the app reconnected once a second. It now closes with 4004 `no_tmux_session`. The web client keeps its limited retry, which recovers a tab that connects just before a waking agent's session appears.
+- **A hibernated agent no longer reads like a stopped outside agent** (B032, #792). `standalone` is now only for agents with no tmux session now or in their history. `session.lastRuntime` (`terminal`, `streaming`, `outside` or null) says how an agent last ran, whether it runs now or not; the server remembers it in the registry. An outside agent that stopped before this release reads as `terminal` until it next runs.
+
 ## [0.106.70] - 2026-11-05 - Install a missing program from the create dialog; the Doctor on the command line
 
 ### Added

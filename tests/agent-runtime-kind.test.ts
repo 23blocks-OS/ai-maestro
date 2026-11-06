@@ -3,7 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { hookStateFilePath } from '@/lib/chat-transcript.mjs'
-import { runtimeOf, OUTSIDE_LIVE_MS, resumableSessionId, RESUME_QUIET_MS, claimStart, releaseStart } from '@/lib/agent-runtime-kind.mjs'
+import { runtimeOf, lastRuntimeOf, OUTSIDE_LIVE_MS, resumableSessionId, RESUME_QUIET_MS, claimStart, releaseStart } from '@/lib/agent-runtime-kind.mjs'
 import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
 import { buildLaunchCommand } from '@/lib/launch-command'
 import { buildEnv } from '@/lib/streaming-runtime.mjs'
@@ -29,6 +29,16 @@ afterEach(() => {
   vi.restoreAllMocks()
   delete (globalThis as { _streamSessions?: unknown })._streamSessions
   fs.rmSync(home, { recursive: true, force: true })
+})
+
+describe('lastRuntimeOf', () => {
+  it('prefers what runs now, then what was seen, then the setup', () => {
+    expect(lastRuntimeOf({ lastRuntime: 'outside' }, 'terminal')).toBe('terminal')
+    expect(lastRuntimeOf({ lastRuntime: 'outside', sessions: [{}] })).toBe('outside')
+    expect(lastRuntimeOf({ runtimeMode: 'streaming', sessions: [{}] })).toBe('streaming')
+    expect(lastRuntimeOf({ sessions: [{}] })).toBe('terminal')
+    expect(lastRuntimeOf({ sessions: [] })).toBeNull()
+  })
 })
 
 describe('runtimeOf', () => {

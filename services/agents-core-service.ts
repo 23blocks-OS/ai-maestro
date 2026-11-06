@@ -49,6 +49,7 @@ import {
 import {
   loadAgents,
   saveAgents,
+  recordLastRuntimes,
   createAgent,
   getAgent,
   getAgentByName,
@@ -67,7 +68,7 @@ import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity, agentActivity } from '@/services/shared-state'
-import { runtimeOf, runningOutsideTmux, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
+import { runtimeOf, lastRuntimeOf, runningOutsideTmux, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
 import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
 import { resolveProgramCommand, isNoProgram, type ResolvedProgram } from '@/lib/program-command'
@@ -782,6 +783,8 @@ export async function listAgents(): Promise<ServiceResult<{
     const discoveredSessions = await discoverLocalSessions()
     if (shouldLogChange('core.discovered', discoveredSessions.length)) console.log(`[Agents] Found ${discoveredSessions.length} local tmux session(s)`)
 
+    const seenRuntimes = new Map<string, NonNullable<Agent['lastRuntime']>>()
+
     // 3. Group discovered sessions by agent name (NORMALIZED TO LOWERCASE)
     const sessionsByAgentName = new Map<string, DiscoveredSession[]>()
     for (const session of discoveredSessions) {
@@ -841,8 +844,8 @@ export async function listAgents(): Promise<ServiceResult<{
       const heartbeatAge = heartbeatTs ? (Date.now() - heartbeatTs) / 1000 : Infinity
       const hasRecentHeartbeat = heartbeatAge < 120 // 2 minutes
       const isOnline = hasOnlineSession || hasRecentHeartbeat
-      // Standalone = no tmux sessions discovered AND not a cloud agent
-      const isStandalone = agentSessions.length === 0 && agent.deployment?.type !== 'cloud'
+      // Standalone = registered by heartbeat: no tmux session now or in its history (a hibernated agent has one), not cloud
+      const isStandalone = agentSessions.length === 0 && (agent.sessions || []).length === 0 && agent.deployment?.type !== 'cloud'
 
       // Create session status for API response (backward compatibility)
       const onlineSession = updatedSessions.find(s => s.status === 'online')
@@ -853,6 +856,8 @@ export async function listAgents(): Promise<ServiceResult<{
 
       // A recent heartbeat with no tmux session is a Claude session running elsewhere
       const runtime = runtimeOf(agent, { tmuxLive: !!onlineSession }) ?? (hasRecentHeartbeat ? 'outside' : null)
+      const lastRuntime = lastRuntimeOf(agent, runtime)
+      if (runtime && agent.lastRuntime !== runtime) seenRuntimes.set(agent.id, runtime)
 
       const sessionStatus: AgentSessionStatus = onlineSession
         ? {
@@ -863,6 +868,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostId,
             hostName,
             runtime,
+            lastRuntime,
           }
         : hasRecentHeartbeat
         ? {
@@ -873,6 +879,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostName,
             standalone: true,
             runtime,
+            lastRuntime,
           }
         : {
             status: 'offline',
@@ -881,6 +888,7 @@ export async function listAgents(): Promise<ServiceResult<{
             hostName,
             ...(isStandalone && { standalone: true }),
             runtime,
+            lastRuntime,
           }
 
       const updatedAgent: Agent = {
@@ -929,6 +937,8 @@ export async function listAgents(): Promise<ServiceResult<{
           windows: primarySession.windows,
           hostId,
           hostName,
+          runtime: 'terminal',
+          lastRuntime: 'terminal',
         }
 
         resultAgents.push({
@@ -945,6 +955,8 @@ export async function listAgents(): Promise<ServiceResult<{
       saveAgents(updatedAgents)
       console.log(`[Agents] Auto-registered ${newOrphanAgents.length} orphan session(s) as agents`)
     }
+
+    if (seenRuntimes.size > 0) recordLastRuntimes(seenRuntimes)
 
     // 7. Sort: online agents first, then alphabetically by name
     resultAgents.sort((a, b) => {
@@ -1072,7 +1084,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
     }
 
     // The mode and its switch time decide what may resume a conversation: only the mode switch sets them
-    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, ...patch } = body as UpdateAgentRequest
+    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, lastRuntime: _last, ...patch } = body as UpdateAgentRequest
     const agent = updateAgent(id, patch)
     if (!agent) {
       return notFound('Agent', id)

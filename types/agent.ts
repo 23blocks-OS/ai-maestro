@@ -234,6 +234,8 @@ export interface Agent {
   // How the agent is run when it runs: its terminal (tmux) or a streaming (Agent SDK) session. Only one
   // runs at a time; the server refuses to start one while the other is live. Set by the mode switch.
   runtimeMode?: 'terminal' | 'streaming'
+  // How it was last seen running. Kept after it stops: a stopped outside agent and a hibernated one look alike.
+  lastRuntime?: 'terminal' | 'streaming' | 'outside'
   // When the last mode switch stopped the previous mode (ISO). Its conversation was confirmed stopped then,
   // so the next mode may resume it even though it was written to moments ago.
   runtimeSwitchedAt?: string
@@ -583,6 +585,7 @@ export interface UpdateAgentRequest {
   label?: string                // Update display override (was displayName)
   title?: string | null         // null or '' clears it
   runtimeMode?: 'terminal' | 'streaming'  // Set only by the mode switch and wake; PATCH drops it
+  lastRuntime?: 'terminal' | 'streaming' | 'outside'  // Set only by the agent listing; PATCH drops it
   runtimeSwitchedAt?: string               // Set only by the mode switch; PATCH drops it
   avatar?: string
   model?: string
@@ -637,13 +640,15 @@ export interface AgentSessionStatus {
   // GAP6 FIX: Include host context for distributed agents
   hostId?: string                 // Host ID where session runs (e.g., 'local', 'mac-mini')
   hostName?: string               // Human-readable host name
-  standalone?: boolean            // Agent registered via heartbeat, no tmux session
+  standalone?: boolean            // Agent registered via heartbeat, with no tmux session history
   /**
    * How the agent runs right now: 'terminal' (its tmux session), 'streaming' (an SDK session on the
    * server), 'outside' (its own terminal or app, reachable only by AMP), or null when nothing runs.
    * A feature picks its transport from this: type into the pane only for 'terminal'.
    */
   runtime?: 'terminal' | 'streaming' | 'outside' | null
+  /** How the agent last ran, whether it runs now or not; null when it never ran. See lastRuntimeOf. */
+  lastRuntime?: 'terminal' | 'streaming' | 'outside' | null
 }
 
 /**

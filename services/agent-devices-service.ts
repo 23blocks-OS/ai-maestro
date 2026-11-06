@@ -4,6 +4,7 @@
  *   GET    /api/agents/[id]/devices                  the agent's devices; ?refresh=1 asks each one first
  *   GET    /api/agents/[id]/devices/identity         its public key and address, for pairing
  *   POST   /api/agents/[id]/devices                  { key, endpoint, name } pair
+ *   POST   /api/agents/[id]/devices/[key]/refresh    ask the device again who owns it
  *   POST   /api/agents/[id]/devices/[key]/jump       make it the active device
  *   DELETE /api/agents/[id]/devices/[key]/jump       no active device
  *   POST   /api/agents/[id]/devices/[key]/invoke     { capability, args }
@@ -16,6 +17,7 @@
  */
 
 import { getAgent, loadAgents } from '@/lib/agent-registry'
+import { isSelf } from '@/lib/hosts-config'
 import type { Agent } from '@/types/agent'
 import type { ServiceResult } from '@/services/service-errors'
 
@@ -25,7 +27,7 @@ interface DeviceHost {
   addressOf(agent: Agent): string | null
   publicIdentity(agent: Agent): { address: string; key: string } | null
   inventory(agent: Agent): any[]
-  add(agent: Agent, device: { key: string; endpoint: string; name: string }): Promise<any>
+  add(agent: Agent, device: { key: string; endpoint: string; name: string }): Promise<{ device: any; pending?: string } | null>
   refresh(agent: Agent, key: string): Promise<any>
   jump(agent: Agent, key: string | null): { activeDeviceKey: string | null; generation: number }
   invoke(agent: Agent, key: string, capability: string, args: Record<string, unknown>): Promise<any>
@@ -38,18 +40,24 @@ const host = () => (globalThis as unknown as { _deviceHost?: DeviceHost })._devi
 const fail = <T>(status: number, error: string, message: string): ServiceResult<T> => ({ data: { error, message } as any, status })
 
 /** The signed answers of a device: an outcome to show, not a failure of this API */
-const DEVICE_ANSWERS = new Set(['denied', 'hardware_unavailable', 'invalid_arguments'])
+const DEVICE_ANSWERS = new Set(['denied', 'hardware_unavailable', 'invalid_arguments', 'grant_revoked', 'permission_denied', 'media_busy'])
 
-/** SDK errors are plain messages. */
+/** SDK errors are plain messages. Order matters. */
 function fromError<T>(err: unknown): ServiceResult<T> {
   const message = err instanceof Error ? err.message : String(err)
   if (DEVICE_ANSWERS.has(message)) return { data: { ok: false, error: message } as any, status: 200 }
+  if (message.startsWith('device_state_unreadable')) return fail(500, 'device_state_unreadable', message)
+  if (message.startsWith('address_conflict') || message === 'Each agent must use its own key') return fail(409, 'address_conflict', message)
   if (/^Unknown (device|agent)/.test(message)) return fail(404, 'not_found', message)
-  if (/idle/i.test(message)) return fail(409, 'device_idle', message)
-  if (/another agent|another verified owner|verified ownership/.test(message)) return fail(409, 'not_owner', message)
+  if (message === 'Device is idle') return fail(409, 'device_idle', message)
+  if (/another agent|another verified owner|verified ownership|Request rejected: 403/.test(message)) return fail(409, 'not_owner', message)
   if (/Activation changed|Active device changed|superseded/i.test(message)) return fail(409, 'superseded', message)
   if (/not granted or available/.test(message)) return fail(409, 'not_available', message)
-  if (/^Unknown capability|arguments|Invalid|Expected|Use a loopback/i.test(message)) return fail(400, 'invalid_request', message)
+  // Before the device is reached: the request is wrong
+  if (/^(Unknown capability|Invalid Ed25519 public key|Invalid device endpoint|Expected one full AMP address|Use a loopback|Invalid (image|enum))|argument/.test(message)) {
+    return fail(400, 'invalid_request', message)
+  }
+  // Everything else is the device not answering, or answering badly: a bad signature is not the caller's fault
   return fail(502, 'device_unreachable', message)
 }
 
@@ -57,8 +65,15 @@ function withAgent<T>(agentId: string, run: (h: DeviceHost, agent: Agent) => Ser
   const h = host()
   if (!h) return fail<T>(503, 'not_ready', 'The device controller is not running on this host')
   const agent = getAgent(agentId)
-  if (!agent) return fail<T>(404, 'not_found', `Unknown agent ${agentId}`)
-  return run(h, agent)
+  if (!agent || agent.deletedAt) return fail<T>(404, 'not_found', `Unknown agent ${agentId}`)
+  // The controller of an agent is the host it lives on: a key made here would be useless there
+  if (agent.hostId && !isSelf(agent.hostId)) return fail<T>(409, 'other_host', `This agent lives on ${agent.hostId}. Ask that host`)
+  try {
+    const result = run(h, agent)
+    return result instanceof Promise ? result.catch((err) => fromError<T>(err)) : result
+  } catch (err) {
+    return fromError<T>(err)
+  }
 }
 
 export async function listAgentDevices(agentId: string, { refresh = false } = {}): Promise<ServiceResult<{ devices: any[] }>> {
@@ -82,34 +97,24 @@ export async function addAgentDevice(agentId: string, body: { key?: unknown; end
     if (typeof key !== 'string' || typeof endpoint !== 'string') return fail(400, 'invalid_request', 'key and endpoint are required')
     if (name !== undefined && (typeof name !== 'string' || name.length > MAX_NAME)) return fail(400, 'invalid_request', `name must be text of at most ${MAX_NAME} characters`)
     if (!h.addressOf(agent)) return fail(409, 'no_amp_address', 'This agent has no AMP address yet, so it cannot own a device')
-    try {
-      return { data: { device: await h.add(agent, { key, endpoint, name: (name as string) || key }) }, status: 201 }
-    } catch (err) {
-      // Kept as pinned when the device has not assigned this agent yet: the list says so, and a refresh tries again
-      const device = h.inventory(agent).find((d) => d.key === key)
-      if (device) return { data: { device }, status: 202 }
-      return fromError(err)
-    }
+    const known = h.inventory(agent).find((d) => d.key === key)
+    const added = await h.add(agent, { key, endpoint, name: (name as string) || known?.name || key })
+    if (!added) return fail(409, 'no_amp_address', 'This agent has no AMP address yet, so it cannot own a device')
+    // Pinned, but the device has not confirmed this agent yet: the list says so, and refresh asks again
+    if (added.pending) return { data: { device: added.device, pending: added.pending }, status: 202 }
+    return { data: { device: added.device }, status: 201 }
   })
 }
 
 export async function refreshAgentDevice(agentId: string, key: string): Promise<ServiceResult<{ device: any }>> {
   return withAgent(agentId, async (h, agent) => {
-    try {
-      return { data: { device: await h.refresh(agent, key) }, status: 200 }
-    } catch (err) {
-      return fromError(err)
-    }
+    return { data: { device: await h.refresh(agent, key) }, status: 200 }
   })
 }
 
 export function jumpAgentDevice(agentId: string, key: string | null) {
   return withAgent<{ activeDeviceKey: string | null }>(agentId, (h, agent) => {
-    try {
-      return { data: { activeDeviceKey: h.jump(agent, key).activeDeviceKey }, status: 200 }
-    } catch (err) {
-      return fromError(err)
-    }
+    return { data: { activeDeviceKey: h.jump(agent, key).activeDeviceKey }, status: 200 }
   })
 }
 
@@ -118,16 +123,12 @@ export async function invokeAgentDevice(agentId: string, key: string, body: { ca
     const { capability, args = {} } = body || {}
     if (typeof capability !== 'string') return fail(400, 'invalid_request', 'capability is required')
     if (typeof args !== 'object' || args === null || Array.isArray(args)) return fail(400, 'invalid_request', 'args must be an object')
-    try {
-      const value = await h.invoke(agent, key, capability, args as Record<string, unknown>)
-      if (capability === 'camera.snapshot') {
-        // The agent reads a file: a picture does not travel through the API as text
-        return { data: { ok: true, value: { mime: value.mime, path: h.saveSnapshot(agent, key, value) } }, status: 200 }
-      }
-      return { data: { ok: true, value }, status: 200 }
-    } catch (err) {
-      return fromError(err)
+    const value = await h.invoke(agent, key, capability, args as Record<string, unknown>)
+    if (capability === 'camera.snapshot') {
+      // The agent reads a file: a picture does not travel through the API as text
+      return { data: { ok: true, value: { mime: value.mime, path: h.saveSnapshot(agent, key, value) } }, status: 200 }
     }
+    return { data: { ok: true, value }, status: 200 }
   })
 }
 
@@ -138,12 +139,19 @@ export function forgetAgentDevice(agentId: string, key: string) {
   })
 }
 
-export function listHostDevices(): ServiceResult<{ agents: { agentId: string; name?: string; devices: any[] }[] }> {
+export function listHostDevices(): ServiceResult<{ agents: { agentId: string; name?: string; devices: any[]; error?: string }[] }> {
   const h = host()
   if (!h) return fail(503, 'not_ready', 'The device controller is not running on this host')
   const agents = loadAgents()
-    .filter((a) => !a.deletedAt)
-    .map((a) => ({ agentId: a.id, name: a.name || a.alias, devices: h.inventory(a) }))
-    .filter((a) => a.devices.length > 0)
+    .filter((a) => !a.deletedAt && (!a.hostId || isSelf(a.hostId)))
+    .map((a) => {
+      try {
+        return { agentId: a.id, name: a.name || a.alias, devices: h.inventory(a) }
+      } catch (err) {
+        // One agent's bad file must not hide every other agent's devices
+        return { agentId: a.id, name: a.name || a.alias, devices: [], error: err instanceof Error ? err.message : String(err) }
+      }
+    })
+    .filter((a) => a.devices.length > 0 || a.error)
   return { data: { agents }, status: 200 }
 }

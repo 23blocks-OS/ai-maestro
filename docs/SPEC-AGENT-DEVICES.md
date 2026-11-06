@@ -72,6 +72,7 @@ Built in step 1: all of these except `media` and `propose`, which come with step
 | `GET /api/agents/[id]/devices` | `inventory()`. `?refresh=1` refreshes each. Empty list when it has none |
 | `GET /api/agents/[id]/devices/identity` | The agent's public key and address, for pairing. Creates the key |
 | `POST /api/agents/[id]/devices` | `{ key, endpoint, name }`: `registerDevice`, or `pinDevice` for a `reverse` endpoint |
+| `POST /api/agents/[id]/devices/[key]/refresh` | Ask the device again who owns it, for example after running `assign` on it |
 | `POST /api/agents/[id]/devices/[key]/jump` | Make it active. `DELETE` on the same path clears the active device |
 | `POST /api/agents/[id]/devices/[key]/invoke` | `{ capability, args }`. A snapshot is saved; the answer has its path, not the bytes |
 | `POST /api/agents/[id]/devices/[key]/media` | `{ kind, seconds }`: bounded capture; the answer has a file path |

@@ -332,7 +332,7 @@ import {
 
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
-import { addAgentDevice, forgetAgentDevice, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices } from '@/services/agent-devices-service'
+import { addAgentDevice, forgetAgentDevice, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
 
@@ -573,6 +573,9 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
     sendServiceResult(res, await addAgentDevice(params.id, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/refresh$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await refreshAgentDevice(params.id, params.key))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/jump$/, paramNames: ['id', 'key'], handler: async (_req, res, params) => {
     sendServiceResult(res, await jumpAgentDevice(params.id, params.key))

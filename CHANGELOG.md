@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.76] - 2026-11-06 - agentdevices.org
+
+### Docs
+- The Agent Device Protocol has its website: [agentdevices.org](https://agentdevices.org). The README and Protocols page link it.
+
 ## [0.106.75] - 2026-11-06 - AI Maestro is a device controller
 
 ### Added

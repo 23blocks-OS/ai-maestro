@@ -104,7 +104,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F083** — [The agent and the person can see the active device, and jump](./backlog/F083-active-device-visible-and-jump.md) — `Todo` (device-protocol #7)
 - **F084** — [Doctor checks for agent devices](./backlog/F084-doctor-device-checks.md) — `Todo`
 - **F085** — [Set up a new device with one command from AI Maestro](./backlog/F085-install-device-bridge-from-maestro.md) — `Todo`
-- **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `In Progress` (public 2026-11-06; own website left)
+- **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `Done` (public; agentdevices.org)
 - **F087** — [See the conversation of any agent, with or without tmux](./backlog/F087-conversation-view-without-tmux.md) — `Todo` (spec written)
 - **F088** — [Wake agents that live outside AI Maestro when a message arrives](./backlog/F088-amp-gateway-wakes-outside-agents.md) — `Todo` (idea to shape)
 - **F089** — [One pattern for the mesh: a directory on every host](./backlog/F089-mesh-directory-one-pattern.md) — `Todo` (spec written)

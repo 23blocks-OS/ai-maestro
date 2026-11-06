@@ -30,6 +30,9 @@ else
     echo "[AI Maestro] ℹ Tmux server not running (will use correct config when started)"
 fi
 
+# Step 3a: Use the Node line in .nvmrc when nvm has it
+. "$(dirname "$0")/use-project-node.sh"
+
 # Step 3b: Ensure Node >= 18 (the claude-agent-sdk crash-loops on older node).
 # No-op where the ambient node is already >= 18; only reaches for nvm if it's too old.
 NODE_MAJOR=$(node -v 2>/dev/null | sed 's/v\([0-9]*\).*/\1/')

@@ -306,12 +306,12 @@ fi
 print_info "Checking for Node.js..."
 if have_linux_cmd node; then
     NODE_VERSION=$(node --version)
-    # Check if version is >= 18
+    # Check if version is >= 22
     NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
-    if [ "$NODE_MAJOR" -ge 18 ]; then
+    if [ "$NODE_MAJOR" -ge 22 ]; then
         print_success "Node.js installed ($NODE_VERSION)"
     else
-        print_warning "Node.js $NODE_VERSION is too old (need 18+)"
+        print_warning "Node.js $NODE_VERSION is too old (need 22+)"
         NEED_NODE=true
     fi
 else
@@ -416,7 +416,7 @@ if [ "$MISSING_COUNT" -gt 0 ]; then
         echo "  ${PACKAGE} Git - Version control (required for cloning AI Maestro)"
     fi
     if [ "$NEED_NODE" = true ]; then
-        echo "  ${PACKAGE} Node.js 20 LTS - JavaScript runtime (required)"
+        echo "  ${PACKAGE} Node.js 24 LTS - JavaScript runtime (required)"
     fi
     if [ "$NEED_YARN" = true ]; then
         echo "  ${PACKAGE} Yarn - Package manager (required)"
@@ -492,10 +492,10 @@ if [ "$MISSING_COUNT" -gt 0 ]; then
     # Install Node.js
     if [ "$NEED_NODE" = true ]; then
         echo ""
-        print_step "Installing Node.js 20 LTS..."
+        print_step "Installing Node.js 24 LTS..."
         if [ "$OS" = "macos" ]; then
-            brew install node@20
-            brew link --force --overwrite node@20 || true
+            brew install node@24
+            brew link --force --overwrite node@24 || true
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
             print_info "Installing Node.js via nvm (Node Version Manager)..."
             # Check if nvm is already installed
@@ -509,9 +509,9 @@ if [ "$MISSING_COUNT" -gt 0 ]; then
                 export NVM_DIR="$HOME/.nvm"
                 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             fi
-            nvm install 20
-            nvm use 20
-            nvm alias default 20
+            nvm install 24
+            nvm use 24
+            nvm alias default 24
         fi
         print_success "Node.js installed"
     fi

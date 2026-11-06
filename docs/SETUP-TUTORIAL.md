@@ -18,7 +18,7 @@ Step-by-step guide to configure AI Maestro's peer mesh network for managing agen
 
 **Required:**
 - ✅ macOS 12.0+ (Monterey or later)
-- ✅ Node.js 18.17+ or 20.x
+- ✅ Node.js 24 (22 or newer)
 - ✅ tmux 3.0+
 - ✅ Git
 
@@ -243,8 +243,8 @@ Use local IPs or `.local` domains in the Add Host wizard.
 # SSH into your cloud server
 ssh user@your-server.com
 
-# Install Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Install Node.js 24
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Install tmux

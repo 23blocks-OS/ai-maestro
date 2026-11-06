@@ -44,7 +44,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.106.71"
+VERSION="0.106.72"
 # AIMAESTRO_REPO_URL / AIMAESTRO_BRANCH: install a fork or a branch (testing, or a pinned release)
 REPO_URL="${AIMAESTRO_REPO_URL:-https://github.com/23blocks-OS/ai-maestro.git}"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
@@ -522,7 +522,7 @@ act1_hello_and_discovery() {
         node_ver=$(node --version)
         local node_major
         node_major=$(echo "$node_ver" | cut -d'.' -f1 | sed 's/v//')
-        if [ "$node_major" -ge 18 ]; then
+        if [ "$node_major" -ge 22 ]; then
             maestro_check "Node.js" "${node_ver} ${GREEN}✓${NC}"
         else
             maestro_check "Node.js" "${node_ver} ${YELLOW}too old${NC}"
@@ -708,11 +708,11 @@ act2_install_prerequisites() {
         echo ""
         maestro_say "Setting up Node.js..."
         if [ "$OS" = "macos" ]; then
-            maestro_info "Installing Node.js 20 via Homebrew"
-            brew install node@20
-            brew link --force --overwrite node@20 2>/dev/null || true
+            maestro_info "Installing Node.js 24 via Homebrew"
+            brew install node@24
+            brew link --force --overwrite node@24 2>/dev/null || true
         else
-            maestro_info "Installing Node.js 20 via nvm"
+            maestro_info "Installing Node.js 24 via nvm"
             if [ ! -d "$HOME/.nvm" ]; then
                 # Use nvm's latest install URL (auto-resolves to current stable release)
                 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
@@ -720,9 +720,9 @@ act2_install_prerequisites() {
             export NVM_DIR="$HOME/.nvm"
             # shellcheck disable=SC1091
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            nvm install 20
-            nvm use 20
-            nvm alias default 20
+            nvm install 24
+            nvm use 24
+            nvm alias default 24
         fi
         maestro_ok "Node.js installed"
     fi

@@ -34,6 +34,11 @@ function loads() {
   }
 }
 
+// The prebuilt spawn-helper ships without its execute bit, and node-pty fails with "posix_spawnp failed". npm 10 hid this:
+// the rebuild below compiled a fresh copy. npm 11 (Node 24) finds the prebuild and compiles nothing.
+const helper = path.join(root, 'node_modules', 'node-pty', 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+if (fs.existsSync(helper)) fs.chmodSync(helper, 0o755)
+
 const first = loads()
 if (first === true) process.exit(0)
 console.log(`[postinstall] node-pty does not load (${first}), rebuilding...`)

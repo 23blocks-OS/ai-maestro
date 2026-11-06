@@ -34,7 +34,7 @@ test were idle, and the host was a fast Apple Silicon Mac, not a cloud VM. See
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- -y
 ```
 
-It installs Node 20 (nvm), yarn, **pm2**, tmux, jq and build tools, clones AI Maestro, builds it,
+It installs Node 24 (nvm), yarn, **pm2**, tmux, jq and build tools, clones AI Maestro, builds it,
 starts it under pm2 and creates a first agent.
 
 ### Memory needed to install (0.93.4 and later check this for you)

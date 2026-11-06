@@ -21,6 +21,8 @@ People and agents talk by voice and video: a call, a "FaceTime", a conference ca
 
 The animated explanation, with every step clickable, is the canvas page `voice-business-models.html` of the ai-maestro agent.
 
+**One voice per agent (F092, Juan 2026-11-06).** An agent keeps one voice across devices, messages and calls, chosen in its profile: local models on the host (architecture 3) or ElevenLabs (architecture 2). A speech-to-speech model has its own voice, so the V1 default in architecture 1 must be decided against this.
+
 ## The pipeline: five steps in every call
 
 Every voice product does the same five things. What changes is where each step runs and who provides it.

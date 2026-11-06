@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.80] - 2026-11-06 - An agent has a voice setting
+
+### Added
+- **One voice per agent** (F092). An agent keeps a `voice` in the registry, chosen in its profile: local models on the host, or ElevenLabs. It moves with the agent. Nothing speaks with it yet; devices and calls come next.
+
 ## [0.106.79] - 2026-11-06 - Connect your phone with a QR code
 
 ### Added

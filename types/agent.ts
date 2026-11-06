@@ -212,6 +212,16 @@ export interface AgentSession {
 // Agent Interface
 // ============================================================================
 
+/**
+ * An agent's voice, the same wherever it goes. `local` is speech made on the host with local models, at no cost; `elevenlabs` is
+ * the paid service. Never a key: keys belong to the host.
+ */
+export const AGENT_VOICE_ENGINES = ['local', 'elevenlabs'] as const
+export interface AgentVoice {
+  engine: (typeof AGENT_VOICE_ENGINES)[number]
+  voiceId?: string              // The engine's name for the voice; empty means its default
+}
+
 export interface Agent {
   // Identity
   id: string                    // Unique identifier (UUID)
@@ -219,6 +229,7 @@ export interface Agent {
   label?: string                // Optional display override (rarely used)
   title?: string                // What the agent is, as people say it ("AI Maestro product owner"); shown after the label
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
+  voice?: AgentVoice
 
   // AMP Identity (cryptographic identity for messaging)
   ampIdentity?: AMPAgentIdentity
@@ -581,6 +592,7 @@ export interface CreateAgentRequest {
  * Agent update request
  */
 export interface UpdateAgentRequest {
+  voice?: AgentVoice | null     // null clears it
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
   title?: string | null         // null or '' clears it

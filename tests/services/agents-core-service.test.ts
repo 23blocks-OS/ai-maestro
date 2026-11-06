@@ -471,6 +471,24 @@ describe('updateAgentById', () => {
     expect((result.data as any)?.agent.taskDescription).toBe('Updated task')
   })
 
+  // The voice moves with the agent: a key must never ride along in it
+  it('accepts a voice, lets null clear it, and refuses anything else', () => {
+    const agent = makeAgent({ id: 'agent-1' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.updateAgent.mockReturnValue(agent)
+
+    expect(updateAgentById('agent-1', { voice: { engine: 'local', voiceId: 'af_heart' } }).status).toBe(200)
+    expect(updateAgentById('agent-1', { voice: { engine: 'elevenlabs' } }).status).toBe(200)
+    expect(updateAgentById('agent-1', { voice: null }).status).toBe(200)
+    expect(mockAgentRegistry.updateAgent).toHaveBeenLastCalledWith('agent-1', { voice: null })
+    mockAgentRegistry.updateAgent.mockClear()
+
+    for (const voice of [{ engine: 'espeak' }, {}, 'local', { engine: 'local', voiceId: '../x' }, { engine: 'local', voiceId: 7 }, { engine: 'elevenlabs', apiKey: 'sk' }]) {
+      expect(updateAgentById('agent-1', { voice } as any).status, JSON.stringify(voice)).toBe(400)
+    }
+    expect(mockAgentRegistry.updateAgent).not.toHaveBeenCalled()
+  })
+
   // The title is shown on a phone ("George (AI Maestro product owner) needs you"): one short line
   it('accepts a title, trimmed, and refuses one that is too long or spans lines', () => {
     const agent = makeAgent({ id: 'agent-1' })

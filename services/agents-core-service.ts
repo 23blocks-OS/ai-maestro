@@ -31,6 +31,7 @@ import { parseManagerPatch, wouldLoop } from '@/lib/agent-manager'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
+import { AGENT_VOICE_ENGINES, type AgentVoice } from '@/types/agent'
 import type {
   Agent,
   AgentSession,
@@ -1066,6 +1067,15 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
         return invalidRequest(`title must be text of at most ${AGENT_TITLE_MAX} characters, on one line`)
       }
       body = { ...body, title: body.title.trim() }
+    }
+
+    if (body.voice !== undefined && body.voice !== null) {
+      const { engine, voiceId, ...other } = body.voice as AgentVoice
+      if (!AGENT_VOICE_ENGINES.includes(engine)) return invalidRequest(`voice.engine must be one of: ${AGENT_VOICE_ENGINES.join(', ')}`)
+      if (voiceId !== undefined && (typeof voiceId !== 'string' || !/^[\w.-]{1,80}$/.test(voiceId))) {
+        return invalidRequest('voice.voiceId must be letters, digits, dots, dashes or underscores, at most 80')
+      }
+      if (Object.keys(other).length) return invalidRequest('voice has only engine and voiceId: a key belongs to the host')
     }
 
     // A change to the manager is checked: a person and/or an agent, never itself, never a loop among the

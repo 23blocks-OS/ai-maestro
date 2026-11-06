@@ -1,12 +1,12 @@
 # Copied unchanged from agentmessaging/agent-device-protocol (MIT, see LICENSE here). Do not edit: fix it there, then copy again.
-commit 02b6060f7aec9e99310ec4fbc132095a10ee7162
+commit a9f199e28e99b580df6b36a591f681dca9ce7e28
 0a831404d71a8b3a81db51b7527cdb5c4ea4791dc90f74d3aa58e91f25b19b3f  lib/device-sdk/capabilities.mjs
 d5aed1e3723202f012350027a4a67ca1967ad069055e75fa75e61fe16438f701  lib/device-sdk/changes.mjs
 c6c53301ec2a78f63d3c35746d9cf1e5be9cbbf409d9c9d093461017d11e0371  lib/device-sdk/controller-state.mjs
 3e31a190eb33de13924ec09d362ccdd44533f82af8a47778f156b718bcc0e906  lib/device-sdk/controller.mjs
 c666b539297008e710a2e934e6c7bc0adaa41218cd538f09127b182fcd8a4273  lib/device-sdk/index.mjs
 1a5d60a2922af0603523476f588758435156acd906977bef60007fe2b8cad0bc  lib/device-sdk/media.mjs
-8e486811e977133539bb1df0334b4b5ef7ffa79d41fa31079f75dd1781423b0b  lib/device-sdk/reverse.mjs
+c6ee8a97c2218c001e3fb8714210cdce01eb114bf481b879989ed927821d773f  lib/device-sdk/reverse.mjs
 f31b949c4c201ded4e58c991c7a928ae5deee28f39358c4c4d7175d5c1ffa9c5  lib/device-sdk/state.mjs
 a304d8dfa19c7fc2fe036a887f0edaf51f04b966a0d0872bae91278b291ca1e3  lib/device-sdk/controller.d.mts
 db643629635bf4abbe975c4d2ad65bd158326b6c42263699ff6962cc01336e0a  lib/device-sdk/index.d.mts

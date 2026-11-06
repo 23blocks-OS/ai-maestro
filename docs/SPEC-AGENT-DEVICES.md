@@ -108,7 +108,9 @@ An image or audio result is a file path the agent reads. The `agent-devices` ski
 | `online`, `offline`, `revoked` | A notice to the assigned agent by AMP, and the status feed |
 | `activated` | The status feed (F083) |
 
-Text from a device is untrusted input.
+Text from a device is untrusted input. `lib/device-events.ts` sends it with `sendFromUI` as an unverified sender, so it arrives wrapped and the usual wake chain applies. Today only `device.input` and `device.revoked` become messages: `online` and `offline` show on screen, because telling an agent every time a laptop sleeps would be noise.
+
+The hub starts with the first device, on this host's Tailscale address. A device connects with `ADP_CONTROLLER=http://<host tailscale ip>:23112` beside `serve`, so it keeps live media. Presence goes to each online device every 5 s (`publishPresence`).
 
 ## 9. Screens
 

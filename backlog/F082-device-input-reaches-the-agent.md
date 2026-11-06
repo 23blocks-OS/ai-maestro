@@ -1,6 +1,6 @@
 # F082 — What a person says to a device reaches the agent
 
-**Status:** Todo
+**Status:** In Progress (built in 0.106.85; a real chat on the MacBook is the last check)
 **Type:** Feature
 **Created:** 2026-11-05
 

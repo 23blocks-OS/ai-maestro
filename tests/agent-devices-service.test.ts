@@ -11,6 +11,7 @@ vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => agents.get(id
 const { createDeviceHost } = await import('@/lib/device-host.mjs')
 const { identity } = await import('@/lib/device-sdk/index.mjs')
 const { bridge } = await import('./fixtures/device-protocol/clients/linux/server.mjs')
+const { DeviceConnection } = await import('@/lib/device-sdk/reverse.mjs')
 const svc = await import('@/services/agent-devices-service')
 
 let dir = ''
@@ -260,6 +261,33 @@ describe('capture and the last picture (step 2)', () => {
     await svc.getAgentDeviceIdentity('b')
     expect((await svc.latestAgentDeviceSnapshot('b', device.key)).status).toBe(404)
     expect((await svc.latestAgentDeviceSnapshot('a', '../../identity.json')).status).toBe(404)
+  })
+})
+
+describe('a person at a device (F082)', () => {
+  it('input through the hub reaches the host as an event, and makes the device active', async () => {
+    const events: any[] = []
+    const host = createDeviceHost({ agentsDir: dir, hubAddress: '127.0.0.1', onEvent: (e: any) => { events.push(e) } } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    let peer = { key: data.key, assignedAgent: data.address, revision: 'r1' }
+    const device = await startDevice(() => peer)
+    await svc.addAgentDevice('a', device)
+    const connection = new DeviceConnection({
+      origin: 'http://127.0.0.1:23112', identity: deviceKeys.get(device.key), getPeer: () => peer, retryMinMs: 10, retryMaxMs: 20,
+      adapter: async (method: string, body: unknown, signal: AbortSignal) => {
+        const res = await fetch(`${device.endpoint}/v1/${method}`, { signal, method: method === 'challenge' ? 'GET' : 'POST', ...(body ? { body: JSON.stringify(body) } : {}) })
+        return { status: res.status, body: await res.json() }
+      },
+    })
+    await connection.ready
+    await vi.waitFor(() => connection.input('Is anyone there?'))
+    await vi.waitFor(() => expect(events.find(e => e.type === 'device.input')).toBeTruthy())
+    expect(events.find(e => e.type === 'device.input')).toMatchObject({ text: 'Is anyone there?', name: 'kitchen', agent: 'a@town.local', deviceKey: device.key })
+    expect(host.agentIdOf('a@town.local')).toBe('a')
+    expect(((await svc.listAgentDevices('a')) as any).data.devices[0].active).toBe(true)
+    await connection.stop()
   })
 })
 

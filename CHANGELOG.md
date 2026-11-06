@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.85] - 2026-11-06 - A person at a device reaches the agent
+
+### Added
+- **Device input** (F082). AI Maestro runs the device hub on the host's Tailscale address, port 23112, once it has a device. What a person types at a device reaches its agent through the normal message path, which wakes it, wrapped as untrusted input and named after the device, never a person. The message tells the agent how to answer on that device. An agent is also told when it loses a device.
+
+### Changed
+- Device SDK repinned: a device stops on a final refusal, and a bridge can serve and connect out at the same time.
+
 ## [0.106.84] - 2026-11-06 - A device shows what its agent is doing
 
 ### Added

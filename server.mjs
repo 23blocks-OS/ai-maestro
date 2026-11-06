@@ -6,7 +6,7 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
+import { getHostById, getLocalIPs, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
@@ -2588,8 +2588,12 @@ async function startServer(handleRequest) {
         agentExists: (id) => { const a = getAgent(id); return !!a && !a.deletedAt },
         // The one status feed: a device shows what every other view shows
         activity: async () => (await (await fetch(`http://127.0.0.1:${port}/api/sessions/activity?local=true`, { signal: AbortSignal.timeout(4000) })).json()).activity || {},
-        // shortcut: only logged; delivering device events to agents is step 4 of the spec
-        onEvent: (event) => console.log(`[Devices] ${event.type} ${event.deviceKey} for ${event.agent}`),
+        hubAddress: getLocalIPs().find((i) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.ip))?.ip ?? null,
+        onEvent: async (event) => {
+          console.log(`[Devices] ${event.type} ${event.deviceKey} for ${event.agent}`)
+          const { deliverDeviceEvent } = await import('./lib/device-events.ts')
+          await deliverDeviceEvent(event, (address) => globalThis._deviceHost.agentIdOf(address))
+        },
       })
       // Not awaited: a dead device takes 15 s to time out, and the startup tasks below must not wait for it
       globalThis._deviceHost.restore(loadAgents().filter((a) => !a.deletedAt && (!a.hostId || isSelf(a.hostId)))).catch((err) => console.error('[Devices] Restore failed:', err.message))

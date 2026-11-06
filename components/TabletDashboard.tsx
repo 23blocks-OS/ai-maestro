@@ -271,6 +271,7 @@ export default function TabletDashboard({
                       agentName={getAgentDisplayName(agent)}
                       sessionName={(agent as any).session?.tmuxSessionName || agent.name || agent.alias}
                       hostId={agent.hostId}
+                      baseUrl={getAgentBaseUrl(agent)}
                           workingDirectory={agent.workingDirectory || (agent as any).session?.workingDirectory || null}
                           address={primaryAmpAddress(agent as any)}
                     />

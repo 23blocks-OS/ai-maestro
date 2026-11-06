@@ -48,6 +48,7 @@ import {
   getConversationMessages as getChatMessages,
   sendChatMessage,
 } from '@/services/agents-chat-service'
+import { addChatReaction, listChatReactions, removeChatReaction } from '@/services/chat-reactions-service'
 
 import {
   getMemory,
@@ -867,6 +868,15 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await sendChatMessage(params.id, body.message))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat\/reactions$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    sendServiceResult(res, listChatReactions(params.id, query.ids || null))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat\/reactions$/, paramNames: ['id'], handler: async (req, res, params) => {
+    sendServiceResult(res, await addChatReaction(params.id, await readJsonBody(req)))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/chat\/reactions$/, paramNames: ['id'], handler: async (req, res, params) => {
+    sendServiceResult(res, removeChatReaction(params.id, await readJsonBody(req)))
   }},
 
   // Memory maintenance sweep (runs every agent's due index/consolidate tasks)

@@ -245,6 +245,14 @@ A host on an older version ignores `before` and answers with the full history wi
 
 `chat:search` runs on the agent's host over the whole conversation file (`searchMessages`), so it covers pages not loaded and works through the forwarded socket for agents on other hosts; the answer is `chat:searchResults`. Picking a result sends `chat:requestHistory` with `through: index`, and `pageOfMessages` returns one contiguous page down to it, so `prependPage` needs no change. `withDividers` adds the day lines and the "Found" mark to the list both views draw, and `hooks/useChatFind.ts` scrolls to that mark. Dividers sit in `groupedItems`, so a message after one is not grouped with the message before it.
 
+## Reactions
+
+A person or an agent reacts to a message with one of six emoji: 👍 👎 ❓ ✅ 👀 ❤️ (`lib/chat-reactions.ts`). They are stored with the agent, in `~/.aimaestro/agents/<id>/chat-reactions.json`, keyed by transcript `uuid`, one per reactor per emoji per message. `services/chat-reactions-service.ts` serves `GET|POST|DELETE /api/agents/:id/chat/reactions` on the agent's own host: the views send REST to `getAgentBaseUrl(agent)`, and the `chat:reaction` event (`{ agentId, messageId, reactions }`, the full list for that message) goes out on `/term` chat clients, so it passes through a forwarded socket, and on `/stream-chat`.
+
+Who reacted: `deviceId` is a person's paired app, and its key must be active on that host; `agentId` is an agent (`scripts/aimaestro-react.sh`); neither is the dashboard, recorded as `operator`, the way task comments are.
+
+A new 👍 👎 ❓ from a person on the agent's own message reaches the agent as one `[REACTION] ...` line: into the streaming session, or through `sendChatMessage` in `server.mjs` by way of `globalThis.__deliverChatLine`. So it refuses while a permission prompt is on the pane, and a reaction never answers one. The service also refuses a bare shell, because the line quotes the agent's text. One note per agent every 5 seconds; a reaction over that limit is saved and the answer says it was not sent. Nothing is sent on removal, and an agent's reaction is never sent. The line lands in the transcript as a user line, and `systemNoticeKind` makes it a system note by its exact shape, so `buildReactionLine` keeps name and quote on one line, without `"`.
+
 ## Optimistic state — the rules
 
 The chat shows your message before the agent has it. Everything below exists

@@ -4,6 +4,8 @@ import { agentRoleLine } from '@/lib/agent-role-line'
 import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
+import ReactionBar from '@/components/chat/ReactionBar'
+import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
@@ -150,6 +152,7 @@ function systemNoteLabel(kind: string | undefined, text: string): string {
   if (kind === 'task-notification') return 'Background task notice'
   if (kind === 'agent-message') return 'Message from another session'
   if (kind === 'canvas') return 'Canvas action'
+  if (kind === 'reaction') return 'Reaction sent to the agent'
   if (kind === 'interrupted') return 'Interrupted'
   if (kind === 'command') return 'Slash command'
   if (kind === 'compact-summary') return 'Conversation summary after compaction'
@@ -243,6 +246,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const chatReactions = useChatReactions(agent.id, getAgentBaseUrl(agent), messages, setError)
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
@@ -393,6 +397,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
 
           switch (data.type) {
             case 'chat:history': {
+              chatReactions.reload()
               const history = data.data || {}
               const merged = mergeHistory(messagesRef.current, historyCursorRef.current, history, messageKey)
               historyCursorRef.current = merged.cursor
@@ -417,6 +422,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
               break
             }
 
+            case 'chat:reaction':
+              chatReactions.apply(data)
+              break
             case 'chat:searchResults':
               receiveFind.current(data.data || {})
               break
@@ -1351,6 +1359,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                       )}
                     </button>
                   </div>
+                )}
+                {content && message.uuid && !isQueued && (
+                  <ReactionBar
+                    align={isUser ? 'end' : 'start'}
+                    reactions={chatReactions.reactions[message.uuid]}
+                    onToggle={emoji => chatReactions.toggle(message.uuid!, emoji)}
+                  />
                 )}
               </div>
             </div>

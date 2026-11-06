@@ -1044,6 +1044,18 @@ async function sendChatMessage(sessionName, message) {
   return { ok: false, error: NOT_SUBMITTED_MESSAGE }
 }
 
+// A reaction note (services/chat-reactions-service.ts) reaches the agent by the path of chat:send
+globalThis.__deliverChatLine = async (sessionName, text) => {
+  const result = await sendChatMessage(sessionName, text)
+  const sessionState = terminalSessions.get(sessionName)
+  if (result.ok && sessionState) {
+    for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
+      setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
+    }
+  }
+  return result
+}
+
 /**
  * Answer a permission / choice menu (a single key like "1", "2", "3", "y").
  *

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.86] - 2026-11-06 - Typing at a device no longer cuts the agent off
+
+### Fixed
+- A person typing at the device an agent was using cancelled what the agent was doing there, so it started over. A jump to the active device now changes nothing (protocol #30; SDK repinned).
+
 ## [0.106.85] - 2026-11-06 - A person at a device reaches the agent
 
 ### Added

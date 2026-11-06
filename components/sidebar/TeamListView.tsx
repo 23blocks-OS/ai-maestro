@@ -1,5 +1,6 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, UsersRound, X } from 'lucide-react'
@@ -235,7 +236,7 @@ function TeamFormModal({
                       }`}
                     >
                       {agent.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/')) ? (
-                        <img src={agent.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                        <img src={getAvatarThumbUrl(agent.avatar, 20)} alt="" className="w-5 h-5 rounded-full object-cover" />
                       ) : (
                         <div className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-[9px] font-medium">
                           {(agent.label || agent.name || '?').slice(0, 2).toUpperCase()}

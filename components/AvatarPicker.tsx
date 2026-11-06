@@ -1,5 +1,6 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import { useState, useEffect } from 'react'
 import { X, User, Users, Bot } from 'lucide-react'
 
@@ -161,7 +162,7 @@ export default function AvatarPicker({
                   title={isDisabled ? 'Already in use by another agent' : isCurrent ? 'Current avatar' : `Avatar ${index + 1}`}
                 >
                   <img
-                    src={url}
+                    src={getAvatarThumbUrl(url, 128)}
                     alt={`Avatar ${index + 1}`}
                     className="w-full h-full object-cover"
                     loading="lazy"

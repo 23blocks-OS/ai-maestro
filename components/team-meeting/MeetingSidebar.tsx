@@ -1,5 +1,6 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useState } from 'react'
@@ -320,7 +321,7 @@ export default function MeetingSidebar({
               <div className="relative flex-shrink-0">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
                   {agent.avatar ? (
-                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
+                    <LiveAvatar agentId={agent.id} avatar={getAvatarThumbUrl(agent.avatar, 32)} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-bold">
                       {displayName.charAt(0).toUpperCase()}

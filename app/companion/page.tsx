@@ -17,6 +17,7 @@ import { useSpeechLevel } from '@/hooks/useSpeechLevel'
 import AgentFace from '@/components/AgentFace'
 import { useCompanionWebSocket } from '@/hooks/useCompanionWebSocket'
 import type { VoiceCommandMatch } from '@/lib/voice-commands'
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import CompanionInput from '@/components/CompanionInput'
 import FloatingVoiceSettings from '@/components/FloatingVoiceSettings'
 
@@ -626,7 +627,7 @@ function CompanionContent() {
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center flex-shrink-0">
                         {agent.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/')) ? (
-                          <img src={agent.avatar} alt="" className="w-full h-full object-cover" />
+                          <img src={getAvatarThumbUrl(agent.avatar, 32)} alt="" className="w-full h-full object-cover" />
                         ) : agent.avatar ? (
                           <span className="text-sm">{agent.avatar}</span>
                         ) : (
@@ -914,7 +915,7 @@ function CompanionContent() {
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-800 flex items-center justify-center">
                   {isAvatarUrl ? (
-                    <img src={activeAgent.avatar} alt={displayName} className="w-full h-full object-cover" />
+                    <img src={getAvatarThumbUrl(activeAgent.avatar!, 28)} alt={displayName} className="w-full h-full object-cover" />
                   ) : activeAgent.avatar ? (
                     <span className="text-sm">{activeAgent.avatar}</span>
                   ) : (
@@ -1010,7 +1011,7 @@ function CompanionContent() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center flex-shrink-0">
                           {agent.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/')) ? (
-                            <img src={agent.avatar} alt="" className="w-full h-full object-cover" />
+                            <img src={getAvatarThumbUrl(agent.avatar, 40)} alt="" className="w-full h-full object-cover" />
                           ) : agent.avatar ? (
                             <span className="text-xl">{agent.avatar}</span>
                           ) : (

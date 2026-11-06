@@ -147,6 +147,9 @@ function systemNoteLabel(kind: string | undefined, text: string): string {
   if (kind === 'message-notice') return 'New message notice'
   if (kind === 'task-notification') return 'Background task notice'
   if (kind === 'agent-message') return 'Message from another session'
+  if (kind === 'canvas') return 'Canvas action'
+  if (kind === 'interrupted') return 'Interrupted'
+  if (kind === 'command') return 'Slash command'
   if (kind === 'compact-summary') return 'Conversation summary after compaction'
   return 'System'
 }

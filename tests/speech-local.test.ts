@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { synthesize } from '@/lib/speech-local.mjs'
+import { synthesize, transcribe } from '@/lib/speech-local.mjs'
 
 // A stand-in for scripts/voice/speak.py: the contract is paths on stdout, one per sentence
 let dir: string
@@ -62,4 +62,22 @@ describe('synthesize', () => {
     spans.sort((a, b) => a[0] - b[0])
     expect(spans[1][0]).toBeGreaterThanOrEqual(spans[0][1])
   }, 10000)
+})
+
+describe('transcribe', () => {
+  const hear = (body: string) => {
+    fs.writeFileSync(script, `#!/bin/bash\n${body}\n`, { mode: 0o755 })
+    return transcribe(Buffer.from('RIFF audio'), { python: '/bin/bash', script })
+  }
+
+  it('gives the text, from a private temporary file it removes', async () => {
+    expect(await hear('cat "$1"; echo " said"')).toBe('RIFF audio said')
+    await expect(hear('stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"')).resolves.toBe('600')
+    await expect(hear('echo "$1"').then(f => fs.existsSync(f))).resolves.toBe(false)
+  })
+
+  it('a failed run says why, and the next run is not stuck behind it', async () => {
+    await expect(hear('echo "no model" >&2; exit 1')).rejects.toThrow('speech_failed: no model')
+    expect(await hear('echo fine')).toBe('fine')
+  })
 })

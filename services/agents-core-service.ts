@@ -46,6 +46,9 @@ import {
   computeSessionName,
   isCallSession,
   ORPHAN_TASK_DESCRIPTION,
+  cannotBeStarted,
+  memberKind,
+  memberPlatform,
 } from '@/types/agent'
 import {
   loadAgents,
@@ -970,7 +973,7 @@ export async function listAgents(): Promise<ServiceResult<{
 
     return {
       data: {
-        agents: resultAgents,
+        agents: resultAgents.map(a => ({ ...a, kind: memberKind(a), platform: memberPlatform(a) })),
         stats: {
           total: resultAgents.length,
           online: resultAgents.filter(a => a.session?.status === 'online').length,
@@ -1094,7 +1097,8 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
     }
 
     // The mode and its switch time decide what may resume a conversation: only the mode switch sets them
-    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, lastRuntime: _last, ...patch } = body as UpdateAgentRequest
+    // The same goes for who a member is: registration and approval set those
+    const { runtimeMode: _mode, runtimeSwitchedAt: _switched, lastRuntime: _last, registrationStatus: _status, kind: _kind, ...patch } = body as UpdateAgentRequest
     const agent = updateAgent(id, patch)
     if (!agent) {
       return notFound('Agent', id)
@@ -1279,8 +1283,9 @@ export function lookupAgentByName(name: string): ServiceResult<{
       return { data: { exists: false }, status: 200 }
     }
 
+    // Other hosts ask here before forwarding: a pending registration is not a member they can reach
     const agent = getAgent(resolved.agentId)
-    if (!agent) {
+    if (!agent || agent.registrationStatus === 'pending') {
       return { data: { exists: false }, status: 200 }
     }
 
@@ -1777,6 +1782,9 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
     }
     if (agent.deletedAt) {
       return gone('Agent')
+    }
+    if (cannotBeStarted(agent)) {
+      return runtimeConflict(`"${agent.name}" connects over AMP and has nothing to wake`)
     }
 
     const agentName = agent.name || agent.alias
@@ -2318,6 +2326,7 @@ export async function switchRuntimeMode(agentId: string, mode: unknown): Promise
   if (mode !== 'terminal' && mode !== 'streaming') return invalidField('mode', "must be 'terminal' or 'streaming'")
   const agent = getAgent(agentId)
   if (!agent) return notFound('Agent', agentId)
+  if (cannotBeStarted(agent)) return runtimeConflict(`"${agent.name}" connects over AMP and has no terminal or stream`)
   const name = agent.name || agent.alias
   if (!name) return invalidField('name', 'Agent has no name configured')
   const runtime = getRuntime()

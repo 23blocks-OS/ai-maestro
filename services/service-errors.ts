@@ -38,6 +38,8 @@ export type ServiceErrorCode =
   | 'missing_header'
   | 'duplicate_message'
   | 'key_already_registered'
+  | 'registration_pending'
+  | 'recipient_pending'
   | 'address_already_registered'
   // AMP attachment codes — spec/attachment-guide.md section 7. These are part
   // of the protocol contract, not local inventions: the client's recovery

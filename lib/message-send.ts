@@ -158,6 +158,10 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<SendOutcom
   // Resolve recipient agent
   const toAgent = resolveAgentIdentifier(toIdentifier)
 
+  // A pending registration neither sends nor receives. This route has no API key to stop it, and the relay below skips deliver().
+  const unapproved = [fromAgent, toAgent].find(a => a && getAgent(a.agentId)?.registrationStatus === 'pending')
+  if (unapproved) throw new Error(`${unapproved.alias} is waiting for the owner to approve its registration`)
+
   // For unresolved recipients, create minimal resolved info
   // NEVER use raw identifier as agentId - it could be a name
   const toResolved: ResolvedAgent = toAgent || {

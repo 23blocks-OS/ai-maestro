@@ -126,7 +126,8 @@ export function isValidApiKeyFormat(apiKey: string): boolean {
 export function createApiKey(
   agentId: string,
   tenantId: string,
-  address: string
+  address: string,
+  status: 'active' | 'pending' = 'active'
 ): string {
   const apiKey = generateApiKey()
   const keyHash = hashApiKey(apiKey)
@@ -138,7 +139,7 @@ export function createApiKey(
     address,
     created_at: new Date().toISOString(),
     expires_at: null,
-    status: 'active'
+    status
   }
 
   const keys = loadApiKeys()
@@ -288,7 +289,7 @@ export function revokeAllKeysForAgent(agentId: string): number {
   let revokedCount = 0
 
   for (const key of keys) {
-    if (key.agent_id === agentId && key.status === 'active') {
+    if (key.agent_id === agentId && (key.status === 'active' || key.status === 'pending')) {
       key.status = 'revoked'
       revokedCount++
     }
@@ -300,6 +301,15 @@ export function revokeAllKeysForAgent(agentId: string): number {
   }
 
   return revokedCount
+}
+
+/** The owner approved this agent: the keys it was given while pending start working. */
+export function activatePendingKeys(agentId: string): number {
+  const keys = loadApiKeys()
+  const pending = keys.filter(k => k.agent_id === agentId && k.status === 'pending')
+  for (const key of pending) key.status = 'active'
+  if (pending.length > 0) saveApiKeys(keys)
+  return pending.length
 }
 
 /**
@@ -376,6 +386,14 @@ export function authenticateRequest(authHeader: string | null): AMPAuthResult {
   const record = validateApiKey(apiKey)
 
   if (!record) {
+    const keyHash = hashApiKey(apiKey)
+    if (loadApiKeys().some(k => k.key_hash === keyHash && k.status === 'pending')) {
+      return {
+        authenticated: false,
+        error: 'registration_pending',
+        message: 'This registration is waiting for the owner to approve it'
+      }
+    }
     return {
       authenticated: false,
       error: 'unauthorized',

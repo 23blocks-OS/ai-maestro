@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.71] - 2026-11-05 - Agent homes and local device approvals
+
+### Added
+- Agent Homes view and profile links show device ownership, signed-monitor health, capabilities and local camera permission.
+- Full and headless APIs queue camera, transfer and revoke requests for confirmation on the physical device. Signing keys stay in the external device controller.
+
 ## [0.106.70] - 2026-11-05 - Install a missing program from the create dialog; the Doctor on the command line
 
 ### Added

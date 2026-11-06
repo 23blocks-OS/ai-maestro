@@ -70,6 +70,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
             <Building2 className="w-3.5 h-3.5" />
             Org
           </a>
+          <Link href="/agent-homes" className="text-sm px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded" title="Agent homes and accessories">Homes</Link>
           <a
             href="/people"
             className="text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5"

@@ -1,5 +1,6 @@
 'use client'
 
+import { AgentHomesSection } from './AgentHomesSection'
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import React, { useState, useEffect, useRef } from 'react'
@@ -897,6 +898,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
+              <AgentHomesSection address={agent.ampIdentity?.ampAddress} baseUrl={getAgentBaseUrl(agent)} />
               {/* Skill Settings Section */}
               <section>
                 <button

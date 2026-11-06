@@ -1,3 +1,4 @@
+import { listAgentHomes, requestHomeChange } from '@/services/agent-homes-service'
 /**
  * Headless Router
  *
@@ -1797,6 +1798,12 @@ const routes: Route[] = [
   { method: 'PATCH', pattern: /^\/api\/people\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, updatePersonMessage(params.id, params.messageId, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/agent-homes$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listAgentHomes())
+  }},
+  { method: 'POST', pattern: /^\/api\/agent-homes$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, requestHomeChange(await readJsonBody(req)))
   }},
   { method: 'GET', pattern: /^\/api\/people-devices$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, listDevices({ personId: qp(query, 'personId') }))

@@ -566,7 +566,7 @@ case $CHOICE in
     2)
         INSTALL_SCRIPTS=false
         INSTALL_SKILL=true
-        if ! command -v claude &> /dev/null; then
+        if [ -z "$CLAUDE_BIN" ]; then
             print_error "Claude Code not found. Cannot install skills."
             exit 1
         fi
@@ -574,7 +574,7 @@ case $CHOICE in
     3)
         INSTALL_SCRIPTS=true
         INSTALL_SKILL=true
-        if ! command -v claude &> /dev/null; then
+        if [ -z "$CLAUDE_BIN" ]; then
             print_warning "Claude Code not found. Will install scripts only."
             INSTALL_SKILL=false
         fi

@@ -2108,7 +2108,9 @@ async function startServer(handleRequest) {
                   details: 'tmux session not found'
                 }))
               } catch (sendError) { /* ignore */ }
-              ws.close(1011, `tmux session not found: ${sessionName}`)
+              // 4004, not 1011: a client that retries on "server error" would loop forever on an agent with no session
+              // (#792). Not 4000 either: the web client stops for good on it, and a waking agent's session appears shortly
+              ws.close(4004, 'no_tmux_session')
               return
             }
           }

@@ -45,6 +45,7 @@ const {
     mockAgentRegistry: {
       loadAgents: vi.fn().mockReturnValue([]),
       saveAgents: vi.fn(),
+      recordLastRuntimes: vi.fn(),
       createAgent: vi.fn(),
       getAgent: vi.fn(),
       getAgentByName: vi.fn(),
@@ -183,6 +184,45 @@ function liveStream(key: string) {
 // ============================================================================
 
 describe('listAgents', () => {
+  describe('how an agent last ran (#792)', () => {
+    const list = async () => ((await listAgents()).data as any).agents[0]
+
+    it('a hibernated agent is not standalone, and says it last ran in its terminal', async () => {
+      mockAgentRegistry.loadAgents.mockReturnValue([makeAgent({ name: 'sleeper', sessions: [makeAgentSession({ status: 'offline' })] })])
+      const { session } = await list()
+      expect(session.status).toBe('offline')
+      expect(session.standalone).toBeUndefined()
+      expect(session.runtime).toBeNull()
+      expect(session.lastRuntime).toBe('terminal')
+    })
+
+    it('a stopped outside agent keeps saying outside, even with session history', async () => {
+      mockAgentRegistry.loadAgents.mockReturnValue([makeAgent({ name: 'away', lastRuntime: 'outside', sessions: [makeAgentSession({ status: 'offline' })] })])
+      expect((await list()).session.lastRuntime).toBe('outside')
+    })
+
+    it('an agent that only ever sent heartbeats stays standalone', async () => {
+      mockAgentRegistry.loadAgents.mockReturnValue([makeAgent({ name: 'beat', sessions: [] })])
+      const { session } = await list()
+      expect(session.standalone).toBe(true)
+      expect(session.lastRuntime).toBeNull()
+    })
+
+    it('records a new runtime once, and writes nothing when it has not changed', async () => {
+      const live = [{ name: 'busy', workingDirectory: '/home', createdAt: '2025-01-01T00:00:00Z', windows: 1 }]
+      mockRuntime.listSessions.mockResolvedValue(live)
+      const agent = makeAgent({ name: 'busy' })
+      mockAgentRegistry.loadAgents.mockReturnValue([agent])
+      await listAgents()
+      expect(mockAgentRegistry.recordLastRuntimes).toHaveBeenCalledWith(new Map([[agent.id, 'terminal']]))
+
+      mockAgentRegistry.recordLastRuntimes.mockClear()
+      mockAgentRegistry.loadAgents.mockReturnValue([{ ...agent, lastRuntime: 'terminal' }])
+      await listAgents()
+      expect(mockAgentRegistry.recordLastRuntimes).not.toHaveBeenCalled()
+    })
+  })
+
   it('returns empty list when no agents and no sessions', async () => {
     const result = await listAgents()
 

@@ -7,7 +7,7 @@ Status: draft, rewritten 2026-11-06 against the protocol at `08707e80`. GitHub: 
 
 ## 1. What the protocol owns
 
-The protocol is `23blocks-OS/ai-maestro-device-protocol`, with its own owner. **It defines the controller; AI Maestro is an implementation of it.** Read
+The protocol is the Agent Device Protocol (ADP), `agentmessaging/agent-device-protocol`, part of the AI Maestro ecosystem. **It defines the controller; AI Maestro is an implementation of it.** Read
 `protocol/controller.md` (the role), `protocol/v1.md`, `protocol/reverse.md`, `protocol/capabilities.md`, and `docs/controller-sdk.md`.
 
 Rule: AI Maestro never builds or checks a packet, and adds no behaviour the role forbids. If a rule matters, it goes in the protocol first.
@@ -35,9 +35,8 @@ Rule: AI Maestro never builds or checks a packet, and adds no behaviour the role
 
 ## 3. Taking the SDK
 
-`packages/sdk` is several files, depends on `ws` (AI Maestro already has it), and is private and unpublished. A host update must not need GitHub credentials. Waiting
-for the protocol owner's answer (protocol #22). Until then: copy `packages/sdk` to `lib/device-sdk/` at a pinned commit, with the commit in `lib/device-sdk/SOURCE` and a test
-that fails when a file differs from its recorded hash. A hand edit then fails CI. Updating means copying the new files and hashes in one commit.
+The protocol repo is public and MIT, like AI Maestro. `packages/sdk` is copied to `lib/device-sdk/` at a pinned commit, with the commit in `lib/device-sdk/SOURCE` and a test that fails when a file
+differs from its recorded hash. A hand edit then fails CI. Updating means copying the new files and hashes in one commit. It can become a published package later.
 
 ## 4. Where it runs
 
@@ -149,7 +148,7 @@ Phones through companion mode (F080) wait for live media over device-opened conn
 
 ## 13. Open questions
 
-1. **SDK packaging:** protocol #22.
+1. **Publishing the SDK as a package**, in place of the copy.
 2. **A device with no screen or button** cannot approve a change: protocol #10.
 3. **A device that opens its own connection when its agent moves host.** It keeps calling the old host. Does it need a signed redirect?
 4. **Final or temporary refusals:** protocol #22. It must land before devices connect in (step 4).

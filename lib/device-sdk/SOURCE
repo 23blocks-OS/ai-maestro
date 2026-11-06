@@ -1,5 +1,5 @@
-# Copied unchanged from 23blocks-OS/ai-maestro-device-protocol. Do not edit: fix it there, then copy again.
-commit 08707e808c822c97d5fda273dfe7343f39a84a65
+# Copied unchanged from agentmessaging/agent-device-protocol (MIT, see LICENSE here). Do not edit: fix it there, then copy again.
+commit 67e0058283e4e6c4c3a1c5436379217dfff73d47
 a4845200aa323391a56bfccd0a4870c6a376a4ef9d1dcc43ca29ced846114f5c  lib/device-sdk/capabilities.mjs
 d5aed1e3723202f012350027a4a67ca1967ad069055e75fa75e61fe16438f701  lib/device-sdk/changes.mjs
 c6c53301ec2a78f63d3c35746d9cf1e5be9cbbf409d9c9d093461017d11e0371  lib/device-sdk/controller-state.mjs

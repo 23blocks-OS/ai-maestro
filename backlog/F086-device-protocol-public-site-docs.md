@@ -1,6 +1,6 @@
 # F086 — Open the device protocol: name, public repo, website and docs
 
-**Status:** Todo
+**Status:** In Progress (repo public, MIT and renamed on 2026-11-06; own website still to do)
 **Type:** Feature
 **Created:** 2026-11-05
 
@@ -28,3 +28,7 @@ target it, and AI Maestro is the reference controller.
   other protocol sites.
 - Update the protocol repo's runbook: AI Maestro as the controller, without the isolation advice.
 - Effort: S-M.
+
+## Update 2026-11-06
+
+Juan's decision: public, named the Agent Device Protocol (ADP), MIT, and maintained with AI Maestro. The wire signature domain `ai-maestro-device/1` stays for v1. Left: its own website, as AMP and AID have.

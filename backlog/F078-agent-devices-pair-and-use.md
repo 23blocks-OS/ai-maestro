@@ -1,6 +1,6 @@
 # F078 — Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session
 
-**Status:** In Progress (step 1 in 0.106.74; spec: [docs/SPEC-AGENT-DEVICES.md](../docs/SPEC-AGENT-DEVICES.md))
+**Status:** In Progress (step 1 in 0.106.75; spec: [docs/SPEC-AGENT-DEVICES.md](../docs/SPEC-AGENT-DEVICES.md))
 **Type:** Feature
 **Created:** 2026-11-05
 
@@ -11,7 +11,7 @@ and use them from its normal session: "which devices are mine?", "check the lapt
 snapshot". The operator pairs a device to an agent from the dashboard and sees every device, its owner and its
 state.
 
-The device side exists: `23blocks-OS/ai-maestro-device-protocol` (protocol v1, the SDK in `packages/sdk`, the
+The device side exists: `agentmessaging/agent-device-protocol` (protocol v1, the SDK in `packages/sdk`, the
 Linux bridge in `clients/linux`). It signs every request and reply with Ed25519, uses a one-time challenge per
 request, offers only `device.health` and `camera.snapshot` (no shell, no paths), and the bridge's signed
 registration names the one assigned agent (`assignedAgent`, a full AMP address). A device is paired by hand on

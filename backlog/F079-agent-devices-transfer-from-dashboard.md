@@ -10,7 +10,7 @@ The operator moves a device from one agent to another, or unassigns it, from the
 a device has zero or one owner at any moment, and the dashboard shows the new owner only after the device
 confirms it.
 
-Protocol v1 (`23blocks-OS/ai-maestro-device-protocol`) cannot do this: the owner changes only by hand on the
+Protocol v1 (`agentmessaging/agent-device-protocol`) cannot do this: the owner changes only by hand on the
 device (`pair` with the new agent's key and address). So this item has two parts:
 
 1. **Protocol (device-protocol repo, issue #10):**

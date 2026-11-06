@@ -11,8 +11,8 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Agent Protocols: AMP, AID, AAP, AFP | AI Maestro</title>
-    <meta name="description" content="The four open protocols AI Maestro implements: Agent Messaging (AMP), Identity (AID), Actions (AAP) and Files (AFP), with specs, repos and skills.">
+    <title>Open Agent Protocols: AMP, AID, AAP, AFP, ADP | AI Maestro</title>
+    <meta name="description" content="The open protocols AI Maestro implements: Agent Messaging (AMP), Identity (AID), Actions (AAP) and Files (AFP), with specs, repos and skills.">
     <meta name="author" content="Juan Peláez">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://aimaestro.sh/protocols.html">
@@ -20,7 +20,7 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://aimaestro.sh/protocols.html">
-    <meta property="og:title" content="Open protocols for AI agents: AMP, AID, AAP and AFP">
+    <meta property="og:title" content="Open protocols for AI agents: AMP, AID, AAP, AFP and ADP">
     <meta property="og:description" content="Messaging, identity, actions and files for agents, as open protocols that AI Maestro implements.">
     <meta property="og:image" content="https://aimaestro.sh/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -32,7 +32,7 @@
     <!-- X / Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://aimaestro.sh/protocols.html">
-    <meta name="twitter:title" content="Open protocols for AI agents: AMP, AID, AAP and AFP">
+    <meta name="twitter:title" content="Open protocols for AI agents: AMP, AID, AAP, AFP and ADP">
     <meta name="twitter:description" content="Messaging, identity, actions and files for agents, as open protocols that AI Maestro implements.">
     <meta name="twitter:image" content="https://aimaestro.sh/og-image.png">
     <meta name="twitter:creator" content="@jkpelaez">
@@ -68,7 +68,7 @@
     "@type": "CollectionPage",
     "name": "Open protocols for AI agents",
     "url": "https://aimaestro.sh/protocols.html",
-    "description": "AMP, AID, AAP and AFP: open protocols for agent messaging, identity, actions and files.",
+    "description": "AMP, AID, AAP, AFP and ADP: open protocols for agent messaging, identity, actions and files.",
     "isPartOf": {
       "@type": "WebSite",
       "name": "AI Maestro",
@@ -335,8 +335,8 @@
                 <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
                 Open standards under github.com/agentmessaging
             </div>
-            <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6 max-w-[900px] mx-auto">Open <span class="gradient-text">protocols</span> for AI agents: AMP, AID, AAP and AFP</h1>
-            <p class="text-lg md:text-xl text-slate-400 max-w-[760px] mx-auto mb-8">Four small protocols that let agents message each other, prove who they are, act through a user interface, and share files. AI Maestro implements all four, and each one works without the others.</p>
+            <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6 max-w-[900px] mx-auto">Open <span class="gradient-text">protocols</span> for AI agents: AMP, AID, AAP, AFP and ADP</h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[760px] mx-auto mb-8">Five small protocols that let agents message each other, prove who they are, act through a user interface, share files, and work through real devices. AI Maestro implements all four, and each one works without the others.</p>
         </div>
     </header>
 
@@ -345,7 +345,7 @@
             <h2 class="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white text-center mb-8">At a glance</h2>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-slate-300 border border-slate-700">
-                    <caption class="sr-only">The four protocols, what each covers, and the skill that uses it</caption>
+                    <caption class="sr-only">The protocols, what each covers, and the skill that uses it</caption>
                     <thead class="bg-slate-900 text-slate-400 text-sm">
                         <tr><th scope="col" class="p-3">Protocol</th><th scope="col" class="p-3">Covers</th><th scope="col" class="p-3">Skill</th></tr>
                     </thead>
@@ -354,10 +354,11 @@
                         <tr><th scope="row" class="p-3 font-mono"><a href="#aid" class="text-amber-400 hover:underline">AID</a></th><td class="p-3">Agent identity and tokens</td><td class="p-3"><code>agent-identity</code></td></tr>
                         <tr><th scope="row" class="p-3 font-mono"><a href="#aap" class="text-purple-400 hover:underline">AAP</a></th><td class="p-3">Actions from agent-drawn pages</td><td class="p-3"><code>canvas-actions</code></td></tr>
                         <tr><th scope="row" class="p-3 font-mono"><a href="#afp" class="text-emerald-400 hover:underline">AFP</a></th><td class="p-3">Files shared by reference</td><td class="p-3"><code>agent-files</code></td></tr>
+                        <tr><th scope="row" class="p-3 font-mono"><a href="#adp" class="text-rose-400 hover:underline">ADP</a></th><td class="p-3">Real devices an agent owns and uses</td><td class="p-3">In progress</td></tr>
                     </tbody>
                 </table>
             </div>
-            <p class="text-slate-400 mt-6 text-center">All four ship as skills in the AI Maestro plugin. See <a href="/skills.html" class="text-cyan-400 hover:underline">the skills page</a> for the full list.</p>
+            <p class="text-slate-400 mt-6 text-center">AMP, AID, AAP and AFP ship as skills in the AI Maestro plugin. ADP is being added. See <a href="/skills.html" class="text-cyan-400 hover:underline">the skills page</a> for the full list.</p>
         </div>
     </section>
 
@@ -408,6 +409,17 @@
                 </dl>
                 <ul class="list-disc pl-6 text-slate-300 space-y-1"><li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AFP-DEPLOYMENT-OPTIONS.md" class="text-cyan-400 hover:underline" target="_blank" rel="noopener">Deployment options</a></li><li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AFP-SPIKE-RESULTS.md" class="text-cyan-400 hover:underline" target="_blank" rel="noopener">Spike results</a></li></ul>
             </article>
+            <article id="adp" class="bg-gradient-to-br from-rose-500/10 to-rose-600/5 p-8 rounded-2xl border-2 border-rose-500/40 mb-8">
+                <h3 class="font-display text-3xl font-extrabold text-white mb-1">Agent Device Protocol <span class="text-rose-400 font-mono text-xl">(ADP)</span></h3>
+                <p class="text-slate-300 mb-4"><strong>The question it answers:</strong> how does an agent use a real device, such as a laptop, a camera or a screen, without a cloud in the middle, and with the person at the device in charge?</p>
+                <dl class="grid grid-cols-1 md:grid-cols-[10rem_1fr] gap-y-2 gap-x-4 text-slate-300 mb-4">
+                    <dt class="text-slate-400">Specification</dt><dd>Repository only (no separate website)</dd>
+                    <dt class="text-slate-400">Repository</dt><dd><a href="https://github.com/agentmessaging/agent-device-protocol" target="_blank" rel="noopener" class="text-cyan-400 hover:underline">github.com/agentmessaging/agent-device-protocol</a></dd>
+                    <dt class="text-slate-400">Status</dt><dd>v1, experimental. MIT license</dd>
+                    <dt class="text-slate-400">In AI Maestro</dt><dd>In progress. AI Maestro implements the controller role: an agent can own many devices and is active on one at a time. Requests are signed, and the camera, microphone and speaker stay off until granted on the device.</dd>
+                </dl>
+                <ul class="list-disc pl-6 text-slate-300 space-y-1"><li><a href="https://github.com/agentmessaging/agent-device-protocol/blob/main/protocol/controller.md" class="text-cyan-400 hover:underline" target="_blank" rel="noopener">The controller role</a></li><li><a href="https://github.com/agentmessaging/agent-device-protocol/blob/main/protocol/v1.md" class="text-cyan-400 hover:underline" target="_blank" rel="noopener">Protocol v1</a></li></ul>
+            </article>
         </div>
     </section>
 
@@ -422,7 +434,7 @@
     <section class="py-16 md:py-24 px-8 bg-gradient-to-br from-cyan-500/10 to-amber-500/10">
         <div class="max-w-[800px] mx-auto text-center">
             <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4">Try them in AI Maestro</h2>
-            <p class="text-lg text-slate-400 mb-8">One install gives your agents all four protocols and the skills that use them.</p>
+            <p class="text-lg text-slate-400 mb-8">One install gives your agents these protocols and the skills that use them.</p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
                 <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400">View on GitHub</a>
                 <a href="/messaging.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-800 text-white border-2 border-slate-600 hover:border-cyan-500">Agent messaging</a>

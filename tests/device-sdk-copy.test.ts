@@ -22,7 +22,7 @@ describe('device SDK copy', () => {
 
   it('no file in the copy is missing from the record', () => {
     const recorded = new Set(lines.map(l => path.basename(l.split(/\s+/)[1])))
-    for (const f of fs.readdirSync(path.join(root, 'lib/device-sdk'))) if (f !== 'SOURCE') expect(recorded.has(f), f).toBe(true)
+    for (const f of fs.readdirSync(path.join(root, 'lib/device-sdk'))) if (f !== 'SOURCE' && f !== 'LICENSE') expect(recorded.has(f), f).toBe(true)
   })
 
   it('a route never imports the controller, or ws lands in a Next bundle', () => {

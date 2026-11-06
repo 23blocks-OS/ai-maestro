@@ -224,7 +224,7 @@ describe('a bad file on disk (review of step 1)', () => {
     fs.writeFileSync(keyFile('a'), '{ not json')
     await startHost().restore([...agents.values()])
     expect(((await svc.listAgentDevices('b')).data as any).devices.map((d: any) => d.key)).toEqual([b.key])
-    expect(svc.listHostDevices().data!.agents.find(x => x.agentId === 'a')!.error).toContain('device_state_unreadable')
+    expect((svc.listHostDevices().data as any).agents.find((x: any) => x.agentId === 'a').error).toContain('device_state_unreadable')
   })
 
   it('a corrupt key is never replaced by a new one', async () => {

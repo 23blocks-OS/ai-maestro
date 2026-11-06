@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.88] - 2026-11-06 - Avatars load much faster
+
+### Added
+- **Avatars load much faster.** Built-in avatars are now cached for a year (`immutable`), and each one also ships as a small WebP at `/avatars/128/<name>.webp` and `/avatars/256/<name>.webp` (about 4 KB instead of 1.4 MB). The dashboard uses the small files for sidebars, lists and the avatar picker. (#810)
+
 ## [0.106.87] - 2026-11-06 - Hold to talk
 
 ### Added

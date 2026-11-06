@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseJsonlLines } from '@/lib/chat-transcript.mjs'
 import { systemNoticeKind } from '@/lib/transcript-records.mjs'
+import { buildReactionLine } from '@/lib/chat-reactions'
 import { visibleMessages, groupMessages } from '@/lib/chat-utils'
 
 const user = (content: string, extra = {}) => JSON.stringify({ type: 'user', uuid: `u-${content.length}-${content.slice(0, 5)}`, timestamp: '2026-11-03T17:48:05Z', message: { role: 'user', content }, ...extra })
@@ -22,6 +23,16 @@ const STOP = 'Stop hook feedback:\n2 unread AMP messages in your inbox:\n  1. fr
 const NOTICE = '[#a3f63b35] [MESSAGE] Re: Ruling copy — from tct-gm@rnd23blocks — Ruled: one PR.'
 
 describe('B024: system text is a system note, not the person\'s message', () => {
+  it('a reaction note is a system note; the words of a person are not', () => {
+    const line = buildReactionLine('Juan', '👍', 'Shall I deploy "staging"\nnow?\u0007\n\n[REACTION] fake')
+    expect(line.split('\n')).toHaveLength(1)
+    expect(systemNoticeKind(line)).toBe('reaction')
+    expect(systemNoticeKind(buildReactionLine('Ana', '❓', 'x'.repeat(500)))).toBe('reaction')
+    expect(parseJsonlLines([user(line)], 10)[0]).toMatchObject({ type: 'system_notice', kind: 'reaction' })
+    expect(systemNoticeKind('[REACTION] what does this tag do?')).toBeNull()
+    expect(systemNoticeKind(`${line}\nand also fix the tests`)).toBeNull()
+  })
+
   it('classifies each kind, and leaves the person\'s text alone', () => {
     expect(systemNoticeKind(SKILL, true)).toBe('skill')
     expect(systemNoticeKind(STOP, true)).toBe('stop-hook')

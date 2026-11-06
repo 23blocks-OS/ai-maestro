@@ -3,6 +3,8 @@
 import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
+import ReactionBar from '@/components/chat/ReactionBar'
+import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
@@ -29,6 +31,7 @@ interface MobileChatViewProps {
   agentName: string
   sessionName?: string  // tmux session name for WebSocket (falls back to agentName)
   hostId?: string       // Host ID for remote agent routing (e.g., 'mac-mini')
+  baseUrl?: string      // getAgentBaseUrl(agent): REST goes to the agent's host, '' for this one
   workingDirectory?: string | null  // shown under the status, like the desktop header
   address?: string | null           // the agent's AMP address
 }
@@ -263,7 +266,7 @@ function ThinkingBlock({ text }: { text: string }) {
   )
 }
 
-export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, workingDirectory, address }: MobileChatViewProps) {
+export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, baseUrl = '', workingDirectory, address }: MobileChatViewProps) {
   const { requests: secretRequests, refresh: refreshSecretRequests } = useSecretRequests(agentId)
   const { requests: sqlWriteRequests, refresh: refreshSqlWriteRequests } = useSqlWriteRequests(agentId)
   // One status for every view (the sidebar and terminal read the same feed)
@@ -291,6 +294,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const chatReactions = useChatReactions(agentId, baseUrl, messages, setError)
   const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
   const [liveActivity, setLiveActivity] = useState<{ label: string; detail?: string } | null>(null)
@@ -389,6 +393,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
 
           switch (data.type) {
             case 'chat:history': {
+              chatReactions.reload()
               const history = data.data || {}
               const merged = mergeHistory(messagesRef.current, historyCursorRef.current, history, chatMessageKey)
               historyCursorRef.current = merged.cursor
@@ -399,6 +404,9 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               break
             }
 
+            case 'chat:reaction':
+              chatReactions.apply(data)
+              break
             case 'chat:searchResults':
               receiveFind.current(data.data || {})
               break
@@ -733,6 +741,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                     <span className="text-[10px] text-gray-500">{messageTime(msg.timestamp)}</span>
                     <CopyButton text={text} className="text-gray-500" />
                   </div>
+                  {msg.uuid && <ReactionBar align="end" reactions={chatReactions.reactions[msg.uuid]} onToggle={emoji => chatReactions.toggle(msg.uuid!, emoji)} />}
                 </div>
               </div>
             )
@@ -869,6 +878,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                         <span className="text-[10px] text-gray-500">{messageTime(msg.timestamp)}</span>
                         <CopyButton text={text} />
                       </div>
+                      {msg.uuid && <ReactionBar reactions={chatReactions.reactions[msg.uuid]} onToggle={emoji => chatReactions.toggle(msg.uuid!, emoji)} />}
                     </div>
                   )}
                   {askQ && (

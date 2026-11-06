@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.81] - 2026-11-06 - More system text stops looking like the person
+
+### Fixed
+- **The chat drew system text as the person's own messages.** The inbox poll's "You have N new messages from …" line, about 1,000 times in a week of transcripts, and priority notices such as `🟠 [HIGH] [#ref] [MESSAGE]`, interrupted markers, slash commands and canvas actions are now system notes, shown in X-Ray only. Words typed after a notice stay the person's.
+
 ## [0.106.80] - 2026-11-06 - An agent has a voice setting
 
 ### Added

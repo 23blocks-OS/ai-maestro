@@ -86,3 +86,38 @@ describe('B027: one bubble for a message sent while the agent works', () => {
     expect(out.map((m: any) => m.type === 'system_notice' ? m.kind : m.type)).toEqual(['message-notice'])
   })
 })
+
+describe('notices the chat drew as the person speaking', () => {
+  it('the inbox poll line, in every shape it takes', () => {
+    for (const t of [
+      'You have a new message from 3m-gm (rnd23blocks) about "Hello". Please check your inbox.',
+      'You have 3 new messages from a (x), b (x) and others. Please check your inbox.',
+      '[1 URGENT]You have 3 new messages from a (x) and others. Please check your inbox.',
+      '[URGENT] You have a new message from a. Please check your inbox.',
+      'You have 2 new messages from a. Please check your inbox.You have 2 new messages from a. Please check your inbox.',
+    ]) expect(systemNoticeKind(t), t).toBe('message-notice')
+  })
+
+  it('a person\'s words are never swallowed', () => {
+    for (const t of [
+      'You have a new message from Ana, please read it',
+      'You have 3 new messages from a. Please check your inbox.And then fix the bug',
+      'Please check your inbox.',
+      '[MESSAGE]',
+      'why does it say [Request interrupted by user] here?',
+      'the <command-name> tag looks wrong',
+    ]) expect(systemNoticeKind(t), t).toBeNull()
+  })
+
+  it('priority message notices, interruptions, slash commands and canvas actions', () => {
+    expect(systemNoticeKind('🟠 [HIGH] [#b1f1aa64] [MESSAGE] Update — from a — body')).toBe('message-notice')
+    expect(systemNoticeKind('🔴 [URGENT] [#4ro6xl7g] [MESSAGE] Update')).toBe('message-notice')
+    expect(systemNoticeKind('[#4ro6xl7g] [MESSAGE] Update')).toBe('message-notice')
+    expect(systemNoticeKind('[Request interrupted by user]')).toBe('interrupted')
+    expect(systemNoticeKind('[Request interrupted by user for tool use]')).toBe('interrupted')
+    expect(systemNoticeKind('<command-name>/compact</command-name>')).toBe('command')
+    expect(systemNoticeKind('<local-command-stdout>ok</local-command-stdout>')).toBe('command')
+    expect(systemNoticeKind("[CANVAS] a.html: User click 'go' on a.html")).toBe('canvas')
+  })
+})
+

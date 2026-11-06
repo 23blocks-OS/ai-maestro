@@ -72,7 +72,7 @@ describe('transcribe', () => {
 
   it('gives the text, from a private temporary file it removes', async () => {
     expect(await hear('cat "$1"; echo " said"')).toBe('RIFF audio said')
-    await expect(hear('stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1"')).resolves.toBe('600')
+    await expect(hear('stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"')).resolves.toBe('600')
     await expect(hear('echo "$1"').then(f => fs.existsSync(f))).resolves.toBe(false)
   })
 

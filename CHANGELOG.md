@@ -3,10 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.106.79] - 2026-11-06 - An agent has a voice setting
+## [0.106.80] - 2026-11-06 - An agent has a voice setting
 
 ### Added
 - **One voice per agent** (F092). An agent keeps a `voice` in the registry, chosen in its profile: local models on the host, or ElevenLabs. It moves with the agent. Nothing speaks with it yet; devices and calls come next.
+
+## [0.106.79] - 2026-11-06 - Connect your phone with a QR code
+
+### Added
+- **Connect your phone** (#798). `GET /api/hosts/connect-info` lists the addresses a phone can use, best first, with an `aimaestro://connect` link. A QR dialog shows it from each host in Settings > Hosts, and from the first-run setup. The HTTPS name is listed only when `tailscale serve` really reaches this server. It holds addresses only, no secrets.
 
 ## [0.106.78] - 2026-11-06 - Skills install when `claude` is not on PATH
 

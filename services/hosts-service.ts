@@ -11,6 +11,7 @@
  *   PUT    /api/hosts/[id]             -> updateExistingHost
  *   DELETE /api/hosts/[id]             -> deleteExistingHost
  *   GET    /api/hosts/identity         -> getHostIdentity
+ *   GET    /api/hosts/connect-info     -> getConnectInfo
  *   GET    /api/hosts/health           -> checkRemoteHealth
  *   POST   /api/hosts/sync             -> triggerMeshSync
  *   GET    /api/hosts/sync             -> getMeshStatus
@@ -30,6 +31,7 @@ import {
   deleteHost,
   isSelf,
   getSelfHost,
+  getLocalIPs,
   addHostAsync,
   getHostById,
   clearHostsCache,
@@ -52,6 +54,8 @@ import type {
   HostIdentityResponse,
 } from '@/types/host-sync'
 import { loadAgents } from '@/lib/agent-registry'
+import { buildConnectInfo, type ConnectInfo } from '@/lib/connect-info'
+import { resolveBindHost } from '@/lib/bind-host.mjs'
 import { readHostLoad, type HostLoad } from '@/lib/host-load'
 import { type ServiceResult, missingField, invalidField, notFound, operationFailed, invalidRequest } from '@/services/service-errors'
 import { resetCircuitBreaker, isCircuitOpen } from '@/services/agents-core-service'
@@ -562,6 +566,38 @@ export function getHostIdentity(): ServiceResult<HostIdentityResponse> {
       organizationSetAt: orgInfo.setAt || undefined,
       organizationSetBy: orgInfo.setBy || undefined,
     },
+    status: 200,
+  }
+}
+
+// The Mac app keeps its command inside the app, off the PATH
+const TAILSCALE_COMMANDS = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale']
+
+/** `tailscale <args>` as JSON, or undefined when there is no Tailscale: a host on a local network only is fine */
+async function readTailscale(args: string[]): Promise<any> {
+  for (const command of TAILSCALE_COMMANDS) {
+    try {
+      const { stdout } = await execFileAsync(command, args, { timeout: 3000 })
+      return JSON.parse(stdout)
+    } catch { /* try the next one */ }
+  }
+  return undefined
+}
+
+export async function getConnectInfo(): Promise<ServiceResult<ConnectInfo>> {
+  const selfHost = getSelfHost()
+  const [tailscaleStatus, tailscaleServe] = await Promise.all([readTailscale(['status', '--json']), readTailscale(['serve', 'status', '--json'])])
+  return {
+    data: buildConnectInfo({
+      hostId: selfHost.id,
+      name: selfHost.name,
+      organization: getOrganizationInfo().organization || undefined,
+      port: Number(process.env.PORT) || 23000,
+      bindHost: resolveBindHost(),
+      localIPs: getLocalIPs(),
+      tailscaleStatus,
+      tailscaleServe,
+    }),
     status: 200,
   }
 }

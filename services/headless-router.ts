@@ -222,6 +222,7 @@ import {
   updateExistingHost,
   deleteExistingHost,
   getHostIdentity,
+  getConnectInfo,
   getHostLoad,
   checkRemoteHealth,
   triggerMeshSync,
@@ -1457,6 +1458,9 @@ const routes: Route[] = [
   // =========================================================================
   // Hosts
   // =========================================================================
+  { method: 'GET', pattern: /^\/api\/hosts\/connect-info$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await getConnectInfo())
+  }},
   { method: 'GET', pattern: /^\/api\/hosts\/identity$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getHostIdentity())
   }},

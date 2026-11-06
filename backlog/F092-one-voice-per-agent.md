@@ -1,6 +1,6 @@
 # F092 — One voice per agent, on every device and call
 
-**Status:** In Progress (the setting ships in 0.106.79; nothing speaks with it yet)
+**Status:** In Progress (the setting ships in 0.106.80; nothing speaks with it yet)
 **Type:** Feature
 **Created:** 2026-11-06
 

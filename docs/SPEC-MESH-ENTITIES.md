@@ -53,7 +53,7 @@ Rule from Juan (2026-11-06): **if agents sync between hosts, humans do too. The 
   An address is built from something stable.
 - **Home host.** Where an entity's data and mailbox live: an agent runs there, a person's messages are kept there. It is where the entity
   lives, not what it is, and not the only host that can change its identity data.
-- **Directory.** Every host keeps a read copy of what the organization knows about every entity: id, name, type, owner host, address,
+- **Directory.** Every host keeps a copy of what the organization knows about every entity: id, name, type, home host, address,
   public key, last seen. Reading needs no network.
 - **Delivery.** Something sent to an entity is stored and forwarded until it arrives. It never depends on the owner being up at
   that moment.
@@ -72,10 +72,10 @@ For every entity that is known across the organization:
 6. **Deletes are remembered**, as tombstones, so an old copy cannot bring something back.
 7. **A home can move.** Agents already move between hosts; a person's mailbox or a team's files can too, so nothing is stuck on a laptop.
 
-Not everything goes in the directory. Only what is needed to find, name and verify. A conversation, task list or memory stays with its
-owner and is fetched when needed.
+Not everything goes in the directory. Only what is needed to find, name and verify. A conversation, task list or memory stays on its
+home host and is fetched when needed.
 
-| Entity | In the directory | Stays with the owner |
+| Entity | In the directory | Stays on its home host |
 |---|---|---|
 | Agent | id, name, label, address, public key, host, status | Everything else |
 | Person | id, display name, address, public keys, org | Phone, email, notes |

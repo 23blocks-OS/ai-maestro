@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.89] - 2026-11-06 - Assistants, contacts and approval of new members
+
+### Added
+- **Assistants, contacts and approval of new members (#802).** AMP registration accepts `kind`, `platform` and `avatar`, and no longer forces `program: 'Claude Code'`. `/api/agents` returns all three. Assistants are refused wake, terminal and stream. New `/api/contacts` for outside addresses; federation mail says whether it came from a contact or an unknown outside sender. New `/api/registrations` to list, approve and reject new AMP registrations, behind a per-host setting that is off by default.
+
 ## [0.106.88] - 2026-11-06 - Avatars load much faster
 
 ### Added

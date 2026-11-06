@@ -1748,7 +1748,10 @@ async function startServer(handleRequest) {
       // outside AI Maestro, is running (two processes on one conversation corrupt it, and both answer).
       // A name that is not a valid session name cannot be live (hasSessionSync returns false for it).
       const live = getStreamSession(agentKey)
-      if (!live || live.exited) {
+      const { cannotBeStarted } = await import('./types/agent.ts')
+      if (agent && cannotBeStarted(agent)) {
+        refusal = `${agentName} connects over AMP and has no stream.`
+      } else if (!live || live.exited) {
         if (tmuxRt.hasSessionSync(agentName || agentKey, { timeout: 2000 })) {
           refusal = `${agentName} is running in its terminal. Switch it to streaming mode, which stops the terminal first.`
         } else if (agent && runningOutsideTmux(agent)) {

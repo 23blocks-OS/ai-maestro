@@ -13,7 +13,7 @@ import MobileWakePanel from './MobileWakePanel'
 import AgentBoardPanel from './AgentBoardPanel'
 import { Terminal, Mail, RefreshCw, Activity, KanbanSquare, Server, MessageSquare, Phone } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
-import type { Agent } from '@/types/agent'
+import { cannotBeStarted, type Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 import versionInfo from '@/version.json'
 import { loadLastAgent, saveLastAgent } from '@/lib/last-agent'
@@ -191,7 +191,7 @@ export default function MobileDashboard({
         )}
 
         {/* An agent that is asleep: wake it from here */}
-        {activeTab === 'terminal' && activeAgent && activeIsAsleep && (
+        {activeTab === 'terminal' && activeAgent && activeIsAsleep && !cannotBeStarted(activeAgent) && (
           <div className="absolute inset-0 z-10">
             <MobileWakePanel
               key={activeAgent.id}

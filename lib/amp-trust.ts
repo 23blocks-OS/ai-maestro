@@ -33,8 +33,10 @@ export interface VerificationRecord {
   payload_sha256: string
   checked_at: string
   /** AMP spec 13: the sender is a person, signing on one of their approved devices */
-  sender_kind?: 'person'
+  sender_kind?: 'person' | 'contact' | 'unknown_outside'
   person_id?: string
+  /** Federation mail from a saved contact (sender_kind 'contact'): its id in /api/contacts */
+  contact_id?: string
   /** The person is this agent's humanManager, so their message carries operator authority */
   operator?: boolean
 }

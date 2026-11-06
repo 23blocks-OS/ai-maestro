@@ -22,7 +22,7 @@ import { applyContentSecurity } from '@/lib/content-security'
 import { deliverViaWebSocket, isAgentConnectedViaWS } from '@/lib/amp-websocket'
 import { runWakeChain, describeWakeResult } from '@/lib/wake-chain'
 import { enqueueWake } from '@/lib/wake-queue'
-import { computeSessionName } from '@/types/agent'
+import { computeSessionName, cannotBeStarted } from '@/types/agent'
 import { getAgent } from '@/lib/agent-registry'
 import { senderAddressOf, senderLabel } from '@/lib/sender-label'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
@@ -73,6 +73,12 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     subject, priority, messageType, verification,
   } = input
 
+  // A pending registration receives nothing, whichever route the message came in by
+  const recipient = recipientAgentId ? getAgent(recipientAgentId) : null
+  if (recipient?.registrationStatus === 'pending') {
+    return { delivered: false, notified: false, error: 'The recipient is waiting for the owner to approve it' }
+  }
+
   // The sender as the envelope signs it. Shown wherever the agent reads a sender,
   // so the pane notice, the wake text and the content wrapper all agree with it.
   const senderAddress = senderAddressOf(envelope.from)
@@ -112,6 +118,12 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     if (wsOk) {
       console.log(`[Delivery] Also pushed ${envelope.id} via WebSocket to ${recipientAddress}`)
     }
+  }
+
+  // An assistant has no pane or session: there is nothing to wake, and an unproven wake would retry for ever
+  if (recipient && cannotBeStarted(recipient)) {
+    pushToWebhook(recipient, envelope, securedEnvelopePayload, senderPublicKeyHex)
+    return { delivered: true, notified: false }
   }
 
   // The wake text. Every route in the chain carries the same sender/subject/
@@ -191,15 +203,7 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   }
 
   // 3. Webhook delivery (non-fatal, best-effort)
-  if (recipientAgentId) {
-    const recipientAgent = getAgent(recipientAgentId)
-    const webhookUrl = (recipientAgent?.metadata?.amp?.delivery as Record<string, unknown>)?.webhook_url as string | undefined
-    if (webhookUrl) {
-      deliverViaWebhook(webhookUrl, envelope, securedEnvelopePayload, senderPublicKeyHex).catch((err: unknown) => {
-        console.warn(`[Delivery] Webhook delivery failed (non-fatal):`, err)
-      })
-    }
-  }
+  pushToWebhook(recipient, envelope, securedEnvelopePayload, senderPublicKeyHex)
 
   return {
     delivered: true,
@@ -214,6 +218,14 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
 // ============================================================================
 // Webhook Delivery
 // ============================================================================
+
+function pushToWebhook(recipient: ReturnType<typeof getAgent>, envelope: AMPEnvelope, payload: AMPPayload, senderPublicKeyHex?: string): void {
+  const webhookUrl = (recipient?.metadata?.amp?.delivery as Record<string, unknown>)?.webhook_url as string | undefined
+  if (!webhookUrl) return
+  deliverViaWebhook(webhookUrl, envelope, payload, senderPublicKeyHex).catch((err: unknown) => {
+    console.warn(`[Delivery] Webhook delivery failed (non-fatal):`, err)
+  })
+}
 
 const WEBHOOK_RETRY_DELAYS = [0, 30_000, 120_000] // immediate, 30s, 2min
 

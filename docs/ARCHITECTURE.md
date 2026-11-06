@@ -755,3 +755,16 @@ These scripts test end-to-end behavior against a live AI Maestro instance with t
 
 **Prerequisites:** AI Maestro running on localhost:23000, jq installed, tmux installed. AMP tests also require AMP scripts (`./install-plugin.sh -y`).
 
+## Assistants, contacts and approval (#802)
+
+Three kinds of members reach AMP. An **agent** runs in AI Maestro. An **assistant** (`kind: 'assistant'`, with a
+`platform`) is registered through `POST /api/v1/register` and has no terminal, stream or wake; the server refuses
+those, and mail goes to its inbox and webhook without the wake chain. A **contact** (`/api/contacts`) is an outside
+address, never an agent. Federation mail carries `local.verification.sender_kind` of `contact` (with `contact_id`) or
+`unknown_outside`; the message API shows them as `senderKind` and `contactId`. Contact avatars stay outside URLs.
+
+Approval of new registrations (`/api/registrations`) is a per-host setting, **off by default**, because a new outside
+member cannot be told apart from a local session: see the header of `services/amp-registrations-service.ts`. With it
+on, a registration that creates a new record waits, and its key answers `registration_pending` until the owner
+approves. Records already in the registry never wait. It is an owner's decision about members, not authentication:
+the endpoints are as open as the rest of the API.

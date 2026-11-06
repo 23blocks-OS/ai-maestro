@@ -82,6 +82,8 @@ import { saveMessage as savePersonMessage } from '@/lib/person-mailbox'
 import { getPerson } from '@/lib/people-registry'
 import { pushMessage } from '@/lib/push-expo'
 import { checkPersonSend, personNonces, rawKeyToHex } from '@/lib/person-signing'
+import { findContactByAddress, isHttpUrl, isOneLine } from '@/services/contacts-service'
+import { isApprovalRequired } from '@/services/amp-registrations-service'
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)
@@ -541,7 +543,7 @@ export function getProviderInfo(): ServiceResult<AMPInfoResponse> {
         av_scanning: false,
         injection_scanning: false,
       },
-      registration_modes: ['open'],
+      registration_modes: [isApprovalRequired() ? 'admin' : 'open'],
       rate_limits: {
         messages_per_minute: 60,
         api_requests_per_minute: 100
@@ -601,6 +603,35 @@ export async function registerAgent(
     if (!body.key_algorithm || body.key_algorithm !== 'Ed25519') {
       return {
         data: { error: 'invalid_field', message: 'key_algorithm must be "Ed25519"', field: 'key_algorithm' },
+        status: 400
+      }
+    }
+
+    // Who this member is: top-level fields, or metadata until clients send them
+    const kind = body.kind ?? body.metadata?.kind
+    if (kind !== undefined && kind !== 'agent' && kind !== 'assistant') {
+      return {
+        data: { error: 'invalid_field', message: "kind must be 'agent' or 'assistant'", field: 'kind' },
+        status: 400
+      }
+    }
+    const platform = body.platform ?? body.metadata?.platform
+    if (platform !== undefined && !isOneLine(platform, 64)) {
+      return {
+        data: { error: 'invalid_field', message: 'platform must be one line of text, at most 64 characters', field: 'platform' },
+        status: 400
+      }
+    }
+    // A name, never a path: the owner's wake runs what is stored here
+    if (body.program !== undefined && (typeof body.program !== 'string' || !/^[\w .+-]{1,64}$/.test(body.program))) {
+      return {
+        data: { error: 'invalid_field', message: 'program must be a program name of at most 64 characters', field: 'program' },
+        status: 400
+      }
+    }
+    if (body.avatar !== undefined && !isHttpUrl(body.avatar)) {
+      return {
+        data: { error: 'invalid_field', message: 'avatar must be an http or https URL', field: 'avatar' },
         status: 400
       }
     }
@@ -708,8 +739,9 @@ export async function registerAgent(
         console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}...)`)
       }
     } else {
-      // An AMP identity needs no folder; one another agent owns is left out rather than refusing the registration
-      let ampFolder = body.metadata?.working_directory as string || undefined
+      // An AMP identity needs no folder; one another agent owns is left out rather than refusing the registration.
+      // An assistant lives elsewhere: no folder here is its own.
+      let ampFolder = kind === 'assistant' ? undefined : body.metadata?.working_directory as string || undefined
       const ampFolderOwner = folderOwner(ampFolder)
       if (ampFolderOwner) {
         console.log(`[AMP Register] '${normalizedName}' registered without folder ${ampFolder}: it belongs to ${ampFolderOwner.name}`)
@@ -720,8 +752,12 @@ export async function registerAgent(
           id: body.agent_id,
           name: normalizedName,
           label: body.alias,
-          program: 'Claude Code',
-          model: 'Claude',
+          avatar: body.avatar,
+          kind,
+          platform: platform as string | undefined,
+          // Only a record made here can wait: an agent already in the registry was never in doubt
+          registrationStatus: isApprovalRequired() ? 'pending' : undefined,
+          program: body.program ?? '',
           taskDescription: body.metadata?.description as string || `AMP-registered agent: ${normalizedName}`,
           workingDirectory: ampFolder,
           runtime: 'api',
@@ -772,8 +808,9 @@ export async function registerAgent(
     // Get provider domain based on organization
     const providerDomain = getAMPProviderDomain(tenant)
 
-    // Generate API key
-    const apiKey = createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`)
+    // Generate API key. A pending member gets it now, so that approval needs no second step on its side.
+    const pending = agent.registrationStatus === 'pending'
+    const apiKey = createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`, pending ? 'pending' : 'active')
 
     // Mark agent as AMP-registered
     const registeredAt = new Date().toISOString()
@@ -827,7 +864,8 @@ export async function registerAgent(
         route_url: `${hostEndpoint}/api/v1/route`
       },
       fingerprint,
-      registered_at: registeredAt
+      registered_at: registeredAt,
+      ...(pending ? { status: 'pending' as const, message: 'Waiting for the owner to approve this registration. Until then this key cannot send or receive.' } : {})
     }
 
     console.log(`[AMP Register] Registered agent: ${fullAddress} (${agent.id.substring(0, 8)}...)`)
@@ -1325,6 +1363,13 @@ async function routeMessageUnrecorded(
       }
     }
 
+    if (localAgent.registrationStatus === 'pending') {
+      return {
+        data: { error: 'recipient_pending', message: `Recipient '${recipientName}' is waiting for the owner to approve it` },
+        status: 403
+      }
+    }
+
     const recipientAgentName = localAgent.name || localAgent.alias || recipientName
     // A person's message carries operator authority only for agents they manage; to any other agent it is data
     const operator = !!personSender && localAgent.humanManager === personSender
@@ -1543,7 +1588,7 @@ export function listAMPAgents(
     }
   }
 
-  let agents = getAMPRegisteredAgents()
+  let agents = getAMPRegisteredAgents().filter((a: any) => a.registrationStatus !== 'pending')
 
   // Filter to same tenant
   if (auth.tenantId) {
@@ -1798,7 +1843,7 @@ export function resolveAgentAddress(
   const agent: any = (atIndex >= 0 ? findAgentByAddress(loadAgents() as any[], decodedAddress, organization) : undefined)
     || getAgentByNameAnyHost(agentName)
 
-  if (!agent) {
+  if (!agent || agent.registrationStatus === 'pending') {
     return {
       data: { error: 'not_found', message: `Agent not found: ${decodedAddress}` },
       status: 404
@@ -2159,6 +2204,12 @@ async function deliverFederatedUnrecorded(
       publicHex: fwdKeyHex,
     })
 
+    // Who it is from, for clients: a saved contact, or an outsider they can offer to add or block.
+    // One of our own agents at its Crabmail address is neither.
+    const contact = findContactByAddress(envelope.from)
+    if (contact) Object.assign(verification, { sender_kind: 'contact', contact_id: contact.id })
+    else if (!findAgentByAddress(loadAgents() as any[], envelope.from, getOrganization() || undefined)) verification.sender_kind = 'unknown_outside'
+
     // ── Recipient Resolution ────────────────────────────────────────────
     const recipientName = envelope.to.split('@')[0]
     const resolved = resolveAgentIdentifier(recipientName)
@@ -2166,7 +2217,7 @@ async function deliverFederatedUnrecorded(
 
     // The agent must actually have the address the mail is for. Matching the first
     // name alone would deliver mail for sebastian@othertenant to our sebastian.
-    if (localAgent && !agentHasAddress(localAgent, envelope.to, getOrganization() || undefined)) {
+    if (localAgent && (localAgent.registrationStatus === 'pending' || !agentHasAddress(localAgent, envelope.to, getOrganization() || undefined))) {
       console.warn(`[Federation] REJECTED — ${localAgent.name || recipientName} has no address ${envelope.to}`)
       return {
         data: { error: 'not_found', message: `No agent here has the address '${envelope.to}'` },

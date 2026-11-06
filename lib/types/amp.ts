@@ -230,6 +230,18 @@ export interface AMPRegistrationRequest {
   /** Arbitrary metadata */
   metadata?: Record<string, unknown>
 
+  /** 'assistant' for a member with no terminal; `metadata.kind` works too. Missing means 'agent'. */
+  kind?: 'agent' | 'assistant'
+
+  /** Where an assistant lives (muse, grok, or free text); `metadata.platform` works too */
+  platform?: string
+
+  /** Program name, if there is one. Nothing is assumed when it is left out. */
+  program?: string
+
+  /** Avatar image, http(s) URL */
+  avatar?: string
+
   /** Invite code for restricted tenants */
   invite_code?: string
 }
@@ -272,6 +284,12 @@ export interface AMPRegistrationResponse {
 
   /** Registration timestamp */
   registered_at: string
+
+  /** Only when the owner must approve first: the key works from the moment of approval, not before */
+  status?: 'pending'
+
+  /** What the registrant should do next, when `status` is set */
+  message?: string
 }
 
 // ============================================================================
@@ -468,6 +486,8 @@ export type AMPErrorCode = Extract<ServiceErrorCode,
   | 'missing_header'
   | 'duplicate_message'
   | 'key_already_registered'
+  | 'registration_pending'
+  | 'recipient_pending'
 >
 
 /**
@@ -514,8 +534,8 @@ export interface AMPApiKeyRecord {
   /** Last used timestamp */
   last_used_at?: string
 
-  /** Key status */
-  status: 'active' | 'revoked' | 'expired'
+  /** Key status. A pending key belongs to a registration the owner has not approved yet. */
+  status: 'active' | 'pending' | 'revoked' | 'expired'
 }
 
 /**

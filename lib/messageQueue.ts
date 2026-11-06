@@ -28,6 +28,8 @@ export interface Message {
   fromSession?: string   // Actual session name (for delivery)
   fromHost?: string      // Host ID where sender resides (e.g., 'macbook-pro', 'mac-mini')
   fromVerified?: boolean // True if sender is a registered agent, false for external agents
+  senderKind?: string    // Federation mail: 'contact' (see contactId) or 'unknown_outside'; a person: 'person'
+  contactId?: string     // The saved contact this mail came from (/api/contacts)
   to: string             // Agent ID (or session name for backward compat)
   toAlias?: string       // Agent name for addressing
   toLabel?: string       // Agent display label
@@ -74,6 +76,8 @@ export interface MessageSummary {
   fromLabel?: string      // Agent display label
   fromHost?: string
   fromVerified?: boolean  // True if sender is registered, false for external agents
+  senderKind?: string     // As on Message
+  contactId?: string
   to: string
   toAlias?: string
   toLabel?: string        // Agent display label
@@ -230,12 +234,15 @@ function convertAMPToMessage(ampMsg: any, source?: { filePath: string; inboxRoot
   const toHost = extractHostFromAddress(envelope.to)
   const id = normalizeMessageId(envelope.id)
   const status = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
+  const verification = ampMsg.local?.verification
 
   return {
     id,
     from: fromName,
     fromAlias: fromName,
     fromHost,
+    ...(verification?.sender_kind ? { senderKind: verification.sender_kind } : {}),
+    ...(verification?.contact_id ? { contactId: verification.contact_id } : {}),
     to: toName,
     toAlias: toName,
     toHost,
@@ -318,6 +325,8 @@ export async function collectMessagesFromAMPDir(
             fromAlias: msg.fromAlias,
             fromLabel: msg.fromLabel,
             fromHost: msg.fromHost,
+            senderKind: msg.senderKind,
+            contactId: msg.contactId,
             to: msg.to,
             toAlias: msg.toAlias,
             toLabel: msg.toLabel,

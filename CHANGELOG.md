@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.82] - 2026-11-06 - An agent speaks in its own voice on its devices
+
+### Added
+- **Local speech** (F092). An agent whose voice is "Local models on the host" speaks on its device in that voice, the same in every home. The host makes speech with Kokoro, one sentence at a time, and the device plays it with the protocol's new `speaker.play`. Install it per host with `scripts/install-voice.sh`; it uses no memory until an agent speaks. The device must allow agent audio; without that, or without a chosen voice, the device speaks in its own voice as before.
+
+### Changed
+- Device SDK repinned to the protocol commit with `speaker.play`.
+
 ## [0.106.81] - 2026-11-06 - More system text stops looking like the person
 
 ### Fixed

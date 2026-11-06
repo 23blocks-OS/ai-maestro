@@ -21,7 +21,10 @@ const deviceKeys = new Map<string, any>()
 const hardware = {
   cameraReady: () => true, indicatorReady: () => true, indicate: async () => {},
   snapshot: async () => ({ mime: 'image/jpeg', data: '/9j/2Q==' }),
+  playReady: () => true,
+  play: async (bytes: Buffer) => { played.push(bytes); return { played: true } },
 }
+const played: Buffer[] = []
 
 function startHost() {
   const host = createDeviceHost({ agentsDir: dir })
@@ -257,6 +260,69 @@ describe('capture and the last picture (step 2)', () => {
     await svc.getAgentDeviceIdentity('b')
     expect((await svc.latestAgentDeviceSnapshot('b', device.key)).status).toBe(404)
     expect((await svc.latestAgentDeviceSnapshot('a', '../../identity.json')).status).toBe(404)
+  })
+})
+
+describe("the agent's own voice (F092)", () => {
+  const wav = () => { const b = Buffer.alloc(64); b.write('RIFF', 0, 'latin1'); b.write('WAVE', 8, 'latin1'); return b }
+  let stopped = false
+  const speech = (files: string[]) => ({
+    ready: () => true,
+    synthesize: async function* () { try { yield* files } finally { stopped = true } },
+  })
+  const setup = async (files: string[], outputs: Record<string, boolean>, voice?: object) => {
+    played.length = 0
+    stopped = false
+    const host = createDeviceHost({ agentsDir: dir, speech: speech(files) } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    agents.get('a').voice = voice
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    const device = await startDevice(() => ({ key: data.key, assignedAgent: data.address, revision: 'r1', outputs }))
+    expect((await svc.addAgentDevice('a', device)).status).toBe(201)
+    await svc.jumpAgentDevice('a', device.key)
+    return device
+  }
+  const file = (name: string, bytes: Buffer) => { const p = path.join(dir, name); fs.writeFileSync(p, bytes); return p }
+
+  it('plays each sentence on the device, in order', async () => {
+    const one = wav(); const two = wav(); two[63] = 9
+    const device = await setup([file('1.wav', one), file('2.wav', two)], { 'speaker.play': true }, { engine: 'local' })
+    const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } }) as any
+    expect(result.data).toEqual({ ok: true, value: { played: true, voice: 'agent' } })
+    expect(played).toEqual([one, two])
+  })
+
+  it('a refusal stops the rest of the speech', async () => {
+    const device = await setup([file('1.wav', Buffer.from('not audio')), file('2.wav', wav())], { 'speaker.play': true }, { engine: 'local' })
+    const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } })
+    expect(result.status).toBeGreaterThanOrEqual(400)
+    expect(played).toEqual([])
+    expect(stopped).toBe(true)
+  })
+
+  it('without the grant, a chosen voice, or an active device, no audio is made or played', async () => {
+    const say = { capability: 'speaker.say', args: { text: 'Hello.' } }
+    const noGrant = await setup([file('1.wav', wav())], { 'speaker.say': true }, { engine: 'local' })
+    await svc.invokeAgentDevice('a', noGrant.key, say)
+    expect(played).toEqual([])
+    const noVoice = await setup([file('1.wav', wav())], { 'speaker.play': true })
+    await svc.invokeAgentDevice('a', noVoice.key, say)
+    expect(played).toEqual([])
+    const paid = await setup([file('1.wav', wav())], { 'speaker.play': true }, { engine: 'elevenlabs' })
+    await svc.invokeAgentDevice('a', paid.key, say)
+    expect(played).toEqual([])
+    const idle = await setup([file('1.wav', wav())], { 'speaker.play': true }, { engine: 'local' })
+    svc.jumpAgentDevice('a', null as any)
+    expect((await svc.invokeAgentDevice('a', idle.key, say)).status).toBe(409)
+    expect(played).toEqual([])
+  })
+
+  it('the same limit on what an agent may say', async () => {
+    const device = await setup([file('1.wav', wav())], { 'speaker.play': true }, { engine: 'local' })
+    const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'x'.repeat(501) } })
+    expect(result.status).toBeGreaterThanOrEqual(400)
+    expect(played).toEqual([])
   })
 })
 

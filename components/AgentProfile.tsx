@@ -557,7 +557,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         />
                       </label>
                     )}
-                    <p className="text-xs text-gray-500">Saved with the agent and moves with it. Nothing speaks with it yet: devices and calls will use it when speech is built.</p>
+                    <p className="text-xs text-gray-500">Saved with the agent and moves with it. Devices use the local voice when the host has it (run scripts/install-voice.sh there) and the device allows agent audio; otherwise the device speaks in its own voice. ElevenLabs and calls are not built yet.</p>
                   </div>
                 )}
               </section>

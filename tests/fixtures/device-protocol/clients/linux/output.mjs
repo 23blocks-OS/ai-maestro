@@ -37,3 +37,40 @@ export function say(text, signal) {
     if (signal?.aborted) stop();
   });
 }
+export function playReady() {
+  try {
+    accessSync("/usr/bin/aplay", constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function play(bytes, signal) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("/usr/bin/aplay", ["-q", "-"], {
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+    const stop = () => child.kill("SIGKILL");
+    const timer = setTimeout(stop, 14000);
+    signal?.addEventListener("abort", stop, { once: true });
+    child.stdin.on("error", () => {});
+    child.stdin.end(bytes);
+    let done = false;
+    const finish = (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
+      error ? reject(error) : resolve({ played: true });
+    };
+    child.once("error", finish);
+    child.once("close", (code) =>
+      finish(
+        code === 0 && !signal?.aborted
+          ? null
+          : new Error("Audio unavailable or stopped"),
+      ),
+    );
+    if (signal?.aborted) stop();
+  });
+}

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.78] - 2026-11-06 - Skills install when `claude` is not on PATH
+
+### Fixed
+- `install-plugin.sh` found the native `~/.local/bin/claude`, then a second check that looked only on PATH turned skills off. Over SSH that path is often missing, so a host updated its scripts and silently kept old skills (mac-mini, from 3 to 6 November). `install-agent-cli.sh` had the same check.
+
 ## [0.106.77] - 2026-11-06 - Agent homes on screen, and agents can use their devices
 
 ### Added

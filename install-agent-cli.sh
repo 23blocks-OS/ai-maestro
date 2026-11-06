@@ -405,7 +405,8 @@ cmd_install() {
     local skill_dir="${HOME}/.claude/skills/ai-maestro-agents-management"
     local skill_installed="false"
 
-    if command -v claude &> /dev/null; then
+    # Over SSH ~/.local/bin, where the native installer puts claude, is often not on PATH
+    if [ -x "$HOME/.local/bin/claude" ] || command -v claude &> /dev/null; then
         # Claude Code is installed, install the skill
         if ! mkdir -p "$skill_dir" 2>/dev/null; then
             print_warning "Could not create skill directory - skipping skill installation"

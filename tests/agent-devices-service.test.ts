@@ -263,6 +263,52 @@ describe('capture and the last picture (step 2)', () => {
   })
 })
 
+describe('what a device shows about its agent (presence)', () => {
+  const start = async (status: string | undefined, jump: boolean) => {
+    const shown: any[] = []
+    const display = { update: (_p: any, state: string, _o: number, active: boolean) => { shown.push({ state, active }); return true }, indicatorReady: () => false }
+    const host = createDeviceHost({ agentsDir: dir, activity: async () => (status ? { a: { status } } : {}) } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    const device = identity()
+    deviceKeys.set(device.key, device)
+    const server = bridge(device, () => ({ key: data.key, assignedAgent: data.address, revision: 'r1' }), hardware, display as any)
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    servers.push(server)
+    await svc.addAgentDevice('a', { key: device.key, endpoint: `http://127.0.0.1:${(server.address() as any).port}`, name: 'kitchen' })
+    if (jump) await svc.jumpAgentDevice('a', device.key)
+    await host.publishPresence()
+    return shown
+  }
+
+  it('says the agent is working, and that this is its active device', async () => {
+    expect(await start('active', true)).toEqual([{ state: 'working', active: true }])
+  })
+
+  it('an idle device hears the state too, and is told it is not the active one', async () => {
+    expect(await start('waiting', false)).toEqual([{ state: 'waiting', active: false }])
+  })
+
+  it('an agent the feed does not know is unknown, never guessed', async () => {
+    expect(await start(undefined, false)).toEqual([{ state: 'unknown', active: false }])
+  })
+
+  it('a feed that fails or a device that refuses stops nothing', async () => {
+    const host = createDeviceHost({ agentsDir: dir, activity: async () => { throw new Error('down') } } as any)
+    hosts.push(host)
+    await expect(host.publishPresence()).resolves.toBeUndefined()
+  })
+
+  it('a host with no devices keeps no timer', () => {
+    const before = process.getActiveResourcesInfo().filter(r => r === 'Timeout').length
+    const host = createDeviceHost({ agentsDir: dir } as any)
+    hosts.push(host)
+    expect(process.getActiveResourcesInfo().filter(r => r === 'Timeout').length).toBe(before)
+  })
+})
+
 describe("the agent's own voice (F092)", () => {
   const wav = () => { const b = Buffer.alloc(64); b.write('RIFF', 0, 'latin1'); b.write('WAVE', 8, 'latin1'); return b }
   let stopped = false

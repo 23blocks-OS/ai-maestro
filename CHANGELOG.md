@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.89] - 2026-11-06 - Assistants, contacts and approval of new members
+
+### Added
+- **Assistants, contacts and approval of new members (#802).** AMP registration accepts `kind`, `platform` and `avatar`, and no longer forces `program: 'Claude Code'`. `/api/agents` returns all three. Assistants are refused wake, terminal and stream. New `/api/contacts` for outside addresses; federation mail says whether it came from a contact or an unknown outside sender. New `/api/registrations` to list, approve and reject new AMP registrations, behind a per-host setting that is off by default.
+
+## [0.106.88] - 2026-11-06 - Avatars load much faster
+
+### Added
+- **Avatars load much faster.** Built-in avatars are now cached for a year (`immutable`), and each one also ships as a small WebP at `/avatars/128/<name>.webp` and `/avatars/256/<name>.webp` (about 4 KB instead of 1.4 MB). The dashboard uses the small files for sidebars, lists and the avatar picker. (#810)
+
+## [0.106.87] - 2026-11-06 - Hold to talk
+
+### Added
+- **Hold to talk** (F092). A person holds a button on the device, speaks, and releases. The host transcribes it with faster-whisper and it reaches the agent like typed input, marked as transcribed. It needs the microphone grant and shows the in-use sign. `scripts/install-voice.sh` installs hearing too; it uses no memory until someone talks.
+
+### Changed
+- Device SDK repinned to the protocol commit with the signed `audio` event.
+
 ## [0.106.86] - 2026-11-06 - Typing at a device no longer cuts the agent off
 
 ### Fixed

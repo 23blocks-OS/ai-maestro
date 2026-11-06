@@ -184,6 +184,20 @@ function liveStream(key: string) {
 // ============================================================================
 
 describe('listAgents', () => {
+  it('says what kind of member each agent is: no kind means agent (#802)', async () => {
+    mockAgentRegistry.loadAgents.mockReturnValue([
+      makeAgent({ name: 'plain' }),
+      makeAgent({ name: 'amanda', kind: 'assistant', platform: 'muse', avatar: 'https://example.com/a.png' }),
+      makeAgent({ name: 'older', metadata: { kind: 'assistant', platform: 'grok' } }),
+    ])
+    const agents = ((await listAgents()).data as any).agents
+    const byName = (name: string) => agents.find((a: any) => a.name === name)
+    expect(byName('plain').kind).toBe('agent')
+    expect(byName('plain').platform).toBeUndefined()
+    expect(byName('amanda')).toMatchObject({ kind: 'assistant', platform: 'muse', avatar: 'https://example.com/a.png' })
+    expect(byName('older')).toMatchObject({ kind: 'assistant', platform: 'grok' })
+  })
+
   describe('how an agent last ran (#792)', () => {
     const list = async () => ((await listAgents()).data as any).agents[0]
 

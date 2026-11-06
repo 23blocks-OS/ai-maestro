@@ -1,10 +1,11 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useState } from 'react'
 import { LayoutGrid, List, Plus, ListTodo, Mail, Play, Moon, Loader2, X, ExternalLink, Circle } from 'lucide-react'
-import type { Agent } from '@/types/agent'
+import { cannotBeStarted, type Agent } from '@/types/agent'
 import type { SidebarMode } from '@/types/team'
 import type { TaskWithDeps } from '@/types/task'
 import WakeAgentDialog from '@/components/WakeAgentDialog'
@@ -268,6 +269,7 @@ export default function MeetingSidebar({
                   >
                     <ExternalLink className="w-3 h-3" />
                   </div>
+                  {!cannotBeStarted(agent) && (
                   <div
                     onClick={(e) => isOnline ? handleHibernate(agent, e) : handleWake(agent, e)}
                     className={`p-1 rounded-full bg-black/50 backdrop-blur-sm transition-colors cursor-pointer ${
@@ -287,6 +289,7 @@ export default function MeetingSidebar({
                       <Play className="w-3 h-3" />
                     )}
                   </div>
+                  )}
                 </div>
 
                 {/* Bottom bar - agent name */}
@@ -320,7 +323,7 @@ export default function MeetingSidebar({
               <div className="relative flex-shrink-0">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
                   {agent.avatar ? (
-                    <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
+                    <LiveAvatar agentId={agent.id} avatar={getAvatarThumbUrl(agent.avatar, 32)} hostUrl={getAgentBaseUrl(agent)} of={agent} fill rounded={false} ring={false} alt={displayName} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-bold">
                       {displayName.charAt(0).toUpperCase()}
@@ -366,6 +369,7 @@ export default function MeetingSidebar({
                 >
                   <ExternalLink className="w-3 h-3" />
                 </div>
+                {!cannotBeStarted(agent) && (
                 <div
                   onClick={(e) => isOnline ? handleHibernate(agent, e) : handleWake(agent, e)}
                   className={`
@@ -387,6 +391,7 @@ export default function MeetingSidebar({
                     <Play className="w-3 h-3" />
                   )}
                 </div>
+                )}
                 {canRemove && onRemoveAgent && (
                   <div
                     onClick={(e) => { e.stopPropagation(); onRemoveAgent(agent.id) }}

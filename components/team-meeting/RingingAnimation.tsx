@@ -1,5 +1,6 @@
 'use client'
 
+import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef } from 'react'
@@ -121,7 +122,7 @@ export default function RingingAnimation({
                     hasJoined ? 'border-emerald-500' : 'border-gray-600'
                   }`}>
                     {agent.avatar ? (
-                      <LiveAvatar agentId={agent.id} avatar={agent.avatar} hostUrl={getAgentBaseUrl(agent)} state={hasJoined ? 'idle' : 'waiting'} fill rounded={false} ring={false} alt={displayName} />
+                      <LiveAvatar agentId={agent.id} avatar={getAvatarThumbUrl(agent.avatar, 96)} hostUrl={getAgentBaseUrl(agent)} state={hasJoined ? 'idle' : 'waiting'} fill rounded={false} ring={false} alt={displayName} />
                     ) : (
                       <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-400 text-3xl font-bold">
                         {displayName.charAt(0).toUpperCase()}

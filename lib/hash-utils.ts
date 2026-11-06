@@ -39,3 +39,14 @@ export function getAvatarUrl(id: string): string {
   const gender = getGenderFromHash(hash) === 'male' ? 'men' : 'women'
   return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
 }
+
+/**
+ * The small file for a built-in avatar drawn at `px` CSS pixels (twice that on
+ * a retina screen): /avatars/128/men_07.webp. Anything else comes back as it
+ * is, such as emoji, external URLs, and absolute URLs to other hosts, which may
+ * run a version without the small files.
+ */
+export function getAvatarThumbUrl(url: string, px: number): string {
+  const size = px <= 64 ? 128 : px <= 128 ? 256 : 0
+  return size ? url.replace(/^\/avatars\/((?:men|women|robots)_\d{2})\.png$/, `/avatars/${size}/$1.webp`) : url
+}

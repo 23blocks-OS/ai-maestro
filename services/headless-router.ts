@@ -154,6 +154,8 @@ import { sendAsPerson, listPersonMessages, getPersonMessage, updatePersonMessage
 import { getCalls, getCallById, startCall, sendCallEvent } from '@/services/calls-service'
 import { linkAgentManagers } from '@/services/agents-manager-links-service'
 import { listPeople, getPersonById, createPerson, updatePerson, deletePerson } from '@/services/people-service'
+import { listContacts, addContact, removeContact } from '@/services/contacts-service'
+import { listPendingRegistrations, setRegistrationApproval, approveRegistration, rejectRegistration } from '@/services/amp-registrations-service'
 import { listOrgs, getOrgById, createOrg, updateOrg, deleteOrg, setDefault, getDefault } from '@/services/orgs-service'
 
 import {
@@ -726,6 +728,27 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/health$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await proxyHealthCheck(body.url))
+  }},
+  { method: 'GET', pattern: /^\/api\/contacts$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listContacts())
+  }},
+  { method: 'POST', pattern: /^\/api\/contacts$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, addContact(await readJsonBody(req)))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/contacts\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, removeContact(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/registrations$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listPendingRegistrations())
+  }},
+  { method: 'PUT', pattern: /^\/api\/registrations$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, setRegistrationApproval(await readJsonBody(req)))
+  }},
+  { method: 'POST', pattern: /^\/api\/registrations\/([^/]+)\/approve$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, approveRegistration(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/registrations\/([^/]+)\/reject$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, rejectRegistration(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/register$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

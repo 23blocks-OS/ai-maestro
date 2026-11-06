@@ -222,6 +222,22 @@ export interface AgentVoice {
   voiceId?: string              // The engine's name for the voice; empty means its default
 }
 
+type MemberFields = Pick<Agent, 'kind' | 'platform' | 'registrationStatus'> & { metadata?: Record<string, any> }
+
+/** 'agent' or 'assistant'. `metadata.kind` is how an assistant that registered before the field existed says it. */
+export function memberKind(a: MemberFields): 'agent' | 'assistant' {
+  return (a.kind || a.metadata?.kind) === 'assistant' ? 'assistant' : 'agent'
+}
+
+export function memberPlatform(a: MemberFields): string | undefined {
+  return a.platform || (typeof a.metadata?.platform === 'string' ? a.metadata.platform : undefined)
+}
+
+/** Nothing may start here: an assistant has no terminal, stream or wake, and a pending registration is not a member yet. */
+export function cannotBeStarted(a: MemberFields): boolean {
+  return memberKind(a) === 'assistant' || a.registrationStatus === 'pending'
+}
+
 export interface Agent {
   // Identity
   id: string                    // Unique identifier (UUID)
@@ -230,6 +246,9 @@ export interface Agent {
   title?: string                // What the agent is, as people say it ("AI Maestro product owner"); shown after the label
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
   voice?: AgentVoice
+  kind?: 'agent' | 'assistant'  // Missing means 'agent'. An assistant connects over AMP only: no terminal, stream or wake
+  platform?: string             // Where an assistant lives ("muse", "grok", or free text)
+  registrationStatus?: 'pending' // Set only while a new AMP registration waits for the owner; missing means a full member
 
   // AMP Identity (cryptographic identity for messaging)
   ampIdentity?: AMPAgentIdentity
@@ -537,6 +556,8 @@ export interface AgentSummary {
   name: string                  // Agent identity (was alias)
   label?: string                // Optional display override (was displayName)
   avatar?: string               // Avatar URL or emoji
+  kind?: 'agent' | 'assistant'
+  platform?: string
   role?: AgentRole              // Messaging role
   hostId: string                // Host where agent lives
   hostUrl?: string              // Host URL for API calls
@@ -560,6 +581,9 @@ export interface CreateAgentRequest {
   name: string                  // Agent identity (was alias)
   label?: string                // Optional display override (was displayName)
   avatar?: string
+  kind?: 'agent' | 'assistant'
+  platform?: string
+  registrationStatus?: 'pending'
   program: string
   model?: string
   taskDescription: string
@@ -599,6 +623,8 @@ export interface UpdateAgentRequest {
   runtimeMode?: 'terminal' | 'streaming'  // Set only by the mode switch and wake; PATCH drops it
   lastRuntime?: 'terminal' | 'streaming' | 'outside'  // Set only by the agent listing; PATCH drops it
   runtimeSwitchedAt?: string               // Set only by the mode switch; PATCH drops it
+  registrationStatus?: 'pending'           // Set only by registration and approval; PATCH drops it
+  kind?: 'agent' | 'assistant'             // Set only at registration; PATCH drops it
   avatar?: string
   model?: string
   taskDescription?: string

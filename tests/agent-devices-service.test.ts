@@ -291,6 +291,36 @@ describe('a person at a device (F082)', () => {
   })
 })
 
+describe('a person speaking at a device', () => {
+  it('held to talk: the host transcribes it and it arrives as input, marked as voice', async () => {
+    const events: any[] = []
+    const heard: Buffer[] = []
+    const host = createDeviceHost({
+      agentsDir: dir, hubAddress: '127.0.0.1', onEvent: (e: any) => { events.push(e) },
+      speech: { ready: () => false, transcribe: async (audio: Buffer) => { heard.push(audio); return '  Are you there?  ' } },
+    } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    const peer = { key: data.key, assignedAgent: data.address, revision: 'r1' }
+    const device = await startDevice(() => peer)
+    await svc.addAgentDevice('a', device)
+    const connection = new DeviceConnection({
+      origin: 'http://127.0.0.1:23112', identity: deviceKeys.get(device.key), getPeer: () => peer, retryMinMs: 10, retryMaxMs: 20,
+      adapter: async () => ({ status: 200, body: {} }),
+    })
+    await connection.ready
+    const audio = Buffer.alloc(64)
+    audio.write('RIFF', 0, 'latin1')
+    audio.write('WAVE', 8, 'latin1')
+    await vi.waitFor(() => connection.audio(audio))
+    await vi.waitFor(() => expect(events.find(e => e.type === 'device.input')).toBeTruthy())
+    expect(events.find(e => e.type === 'device.input')).toMatchObject({ text: 'Are you there?', source: 'voice', name: 'kitchen' })
+    expect(heard[0].equals(audio)).toBe(true)
+    await connection.stop()
+  })
+})
+
 describe('what a device shows about its agent (presence)', () => {
   const start = async (status: string | undefined, jump: boolean) => {
     const shown: any[] = []

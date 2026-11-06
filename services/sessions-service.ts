@@ -64,7 +64,7 @@ function codexSessionStatus(agent: any): 'active' | 'idle' | null {
 }
 import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
-import { parseNameForDisplay, isCallSession } from '@/types/agent'
+import { parseNameForDisplay, isCallSession, cannotBeStarted } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { observedPermissionVerdict, OBSERVED_GRACE_MS } from '@/lib/observed-permission.mjs'
@@ -1012,6 +1012,9 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   }
   // Never a terminal beside the agent's streaming session (two processes on one conversation)
   const known = getAgentByName(normalizedName)
+  if (known && cannotBeStarted(known)) {
+    return runtimeConflict(`"${normalizedName}" connects over AMP and has no terminal.`)
+  }
   if (known && runtimeOf(known) === 'streaming') {
     return runtimeConflict(`"${normalizedName}" is running as a streaming session. Switch it to terminal mode instead.`)
   }

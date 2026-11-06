@@ -3,7 +3,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
-import { parseSessionName, computeSessionName } from '@/types/agent'
+import { parseSessionName, computeSessionName, memberKind, memberPlatform } from '@/types/agent'
 import { getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 import { invalidateAgentCache } from '@/lib/messageQueue'
@@ -571,6 +571,9 @@ export function createAgent(request: CreateAgentRequest): Agent {
     name: agentName,
     label,
     avatar,
+    ...(request.kind ? { kind: request.kind } : {}),
+    ...(request.platform ? { platform: request.platform } : {}),
+    ...(request.registrationStatus ? { registrationStatus: request.registrationStatus } : {}),
     workingDirectory: request.workingDirectory,
     sessions,
     hostId,
@@ -901,7 +904,7 @@ function backupAgentData(agent: Agent): string | null {
  *               in the registry but preserve all data on disk for potential restore.
  *               If true, hard-delete: create a backup first, then permanently remove all data.
  */
-export function deleteAgent(id: string, hard: boolean = false): boolean {
+export function deleteAgent(id: string, hard: boolean = false, opts: { keepSessions?: boolean } = {}): boolean {
   const agents = loadAgents()
   const agentToDelete = agents.find(a => a.id === id)
 
@@ -912,7 +915,7 @@ export function deleteAgent(id: string, hard: boolean = false): boolean {
   const agentName = agentToDelete.name || agentToDelete.alias
 
   // Kill all tmux sessions belonging to this agent (both soft and hard delete)
-  killAgentSessions(agentToDelete)
+  if (!opts.keepSessions) killAgentSessions(agentToDelete)
 
   if (!hard) {
     // --- Soft-delete path: mark as deleted, preserve agent data on disk, clean AMP ---
@@ -1022,6 +1025,8 @@ export function listAgents(includeDeleted: boolean = false): AgentSummary[] {
       name: agentName,
       label: a.label,
       avatar: a.avatar,
+      kind: memberKind(a),
+      platform: memberPlatform(a),
       hostId: a.hostId || getSelfHostId(),
       hostUrl: a.hostUrl,
       status: a.status,

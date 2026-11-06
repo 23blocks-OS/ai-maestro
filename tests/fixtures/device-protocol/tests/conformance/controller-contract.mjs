@@ -100,6 +100,22 @@ export function controllerConformance(makeController) {
       null,
     );
   });
+  test("controller conformance: a jump to the active device changes nothing", async (t) => {
+    const { controller: c, agents: a, devices: d } = await setup(t);
+    const agent = a[0].address;
+    const { generation } = c.jump(agent, d[0].key);
+    let release;
+    d[0].capture = () =>
+      new Promise((resolve) => {
+        release = resolve;
+      });
+    const running = c.invoke(agent, d[0].key, "camera.snapshot");
+    while (!d[0].captures)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(c.jump(agent, d[0].key).generation, generation);
+    release({ mime: "image/jpeg", data: "/9j/2Q==" });
+    assert.equal((await running).mime, "image/jpeg");
+  });
   test("controller conformance: last jump wins and late old captures cannot escape", async (t) => {
     const { controller: c, agents: a, devices: d } = await setup(t);
     const agent = a[0].address;

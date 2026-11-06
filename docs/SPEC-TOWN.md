@@ -67,6 +67,9 @@ The list:
 - **Americas:** Machu Picchu, Cusco, Tikal, Palenque, Teotihuacan, Tenochtitlan, Chan Chan
 - **Elsewhere:** Alexandria, Babylon, Petra, Persepolis, Angkor, Samarkand, Timbuktu
 
+The list is only what AI Maestro suggests. **A person can name their town whatever they want**, Wakanda included: it is their choice and their
+responsibility. There is no blocklist; the only rule is the format below.
+
 A name is a lowercase slug, since it goes in addresses: `lola@delphi.aimaestro.local`, `lola@machu-picchu.aimaestro.local`. Shown as written: Machu Picchu.
 
 ### The catch: a name is not an identity

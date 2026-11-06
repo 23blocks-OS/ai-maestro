@@ -1,6 +1,6 @@
 # F078 — Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session
 
-**Status:** Todo (spec: [docs/SPEC-AGENT-DEVICES.md](../docs/SPEC-AGENT-DEVICES.md), steps 1 to 3)
+**Status:** In Progress (step 1 in 0.106.74; spec: [docs/SPEC-AGENT-DEVICES.md](../docs/SPEC-AGENT-DEVICES.md))
 **Type:** Feature
 **Created:** 2026-11-05
 

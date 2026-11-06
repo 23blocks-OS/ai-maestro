@@ -65,6 +65,8 @@ An agent's address is `agent.metadata.amp.address`. An agent with no AMP identit
 
 ## 6. API
 
+Built in step 1: all of these except `media` and `propose`, which come with steps 2 and 5.
+
 | Route | Does |
 |---|---|
 | `GET /api/agents/[id]/devices` | `inventory()`. `?refresh=1` refreshes each. Empty list when it has none |

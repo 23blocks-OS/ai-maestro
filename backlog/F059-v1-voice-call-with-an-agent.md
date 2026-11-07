@@ -35,7 +35,7 @@ An agent that needs a person can only write to an inbox today, and the person ma
 
 ## Implementation Plan
 
-0. **The agent's own voice on turn-by-turn calls (S, next).** Calls use `/speech` on the agent's host, like companion mode, in place of a voice chosen on the phone: `docs/SPEC-ELEVENLABS-VOICE.md`, section 8. App team. The filler lines ("On it") were removed from the app in November.
+0. **The agent's own voice on turn-by-turn calls (S, next, needs no ElevenLabs).** Calls use `/speech` on the agent's host, like companion mode, in place of a voice chosen on the phone. Today `useVoiceConversation.ts` never calls it: `docs/SPEC-ELEVENLABS-VOICE.md`, section 8. App team. The filler lines ("On it") were removed from the app in November.
 1. **Spike (S, throwaway, not merged).** On localhost (the browser allows the microphone there): one speech-to-speech session with one tool, `ask_agent`, wired to one streaming agent. Measure first-word latency, the hand-off round trip and cost per minute, with OpenAI and with Gemini. Decide the default from the numbers.
 2. **Provider keys on the host.** The ElevenLabs work reads one host-wide key from the vault first, the smallest slice of this step. Then F065 phase 1: provider secrets with host or org scope, Settings > Voice providers with a Test button, and `useSecret()` so the server on any host can use a key entered once. Keys never go to a browser or phone.
 3. **Voice session endpoint (S).** `POST /api/voice/sessions` returns a short-lived provider token (OpenAI ephemeral key, Gemini ephemeral token) for one agent and one call, so the phone talks to the provider directly and the host never relays audio. Minute cap per call.

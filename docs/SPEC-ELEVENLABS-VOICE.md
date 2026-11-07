@@ -192,9 +192,10 @@ Tests, against a fake ElevenLabs on loopback, never the real service in CI:
 
 Order, each step one PR:
 
+0. **Calls use the agent's voice now, with Kokoro.** The order in section 8, in the app. This needs no ElevenLabs and no host change, so it does not wait for anything below. App team.
 1. **Hear it (no code merged).** With Juan's key on mini-lola: the same five sentences with Flash and v4 Turbo, played on the MacBook. Juan picks the model and Lola's voice. Measure the time to a whole sentence from mini-lola, against Kokoro's 2.9 s. **The numbers here decide whether anything in section 13 changes.**
 2. **Host.** Key, engine, the gates in section 4, fallback, limit, Doctor check, Settings, picker. Lola speaks on her devices and in companion mode.
-3. **App.** The order in section 8, for calls. App team.
+3. **App.** Fall back on any answer other than 200 (section 5). App team.
 4. **Meetings.** "Hear this meeting" in the browser, then the app.
 5. **Streaming, only if step 1 or 3 shows a need** (section 13).
 

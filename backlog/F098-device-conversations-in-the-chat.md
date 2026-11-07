@@ -1,6 +1,6 @@
 # F098 — Device conversations show in the agent's chat
 
-**Status:** Todo
+**Status:** In Progress (built in 0.106.101; the phone app shows it once it reads `device_message`)
 **Type:** Feature
 **Created:** 2026-11-07
 

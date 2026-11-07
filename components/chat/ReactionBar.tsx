@@ -8,17 +8,16 @@ function reactorName(r: Reaction): string {
   return r.byKind === 'operator' ? 'You' : r.byName || r.by
 }
 
-/** Reactions under a chat bubble, and the row of six to add one. Tapping your own takes it back. */
-export default function ReactionBar({ reactions = [], onToggle, align = 'start' }: {
+/** Reactions beside a message's copy icon, and the row of six to add one. Tapping your own takes it back. */
+export default function ReactionBar({ reactions = [], onToggle }: {
   reactions?: Reaction[]
   onToggle: (emoji: ReactionEmoji) => void
-  align?: 'start' | 'end'
 }) {
   const [picking, setPicking] = useState(false)
   const shown = REACTION_EMOJIS.filter(e => reactions.some(r => r.emoji === e))
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 mt-1 ${align === 'end' ? 'justify-end' : ''}`}>
+    <div className="inline-flex flex-wrap items-center gap-1">
       {shown.map(emoji => {
         const who = reactions.filter(r => r.emoji === emoji)
         const mine = who.some(r => r.byKind === 'operator')
@@ -56,7 +55,7 @@ export default function ReactionBar({ reactions = [], onToggle, align = 'start' 
         title="Add a reaction"
         className="p-1 rounded-full text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
       >
-        <SmilePlus className="w-3.5 h-3.5" />
+        <SmilePlus className="w-3 h-3" />
       </button>
     </div>
   )

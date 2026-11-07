@@ -2601,6 +2601,7 @@ async function startServer(handleRequest) {
       const [{ createDeviceHost }, { loadAgents, getAgent }] = await Promise.all([import('./lib/device-host.mjs'), import('./lib/agent-registry.ts')])
       globalThis._deviceHost = createDeviceHost({
         agentExists: (id) => { const a = getAgent(id); return !!a && !a.deletedAt },
+        labelOf: (id) => { const a = getAgent(id); return a?.label || a?.name },
         // The one status feed: a device shows what every other view shows
         activity: async () => (await (await fetch(`http://127.0.0.1:${port}/api/sessions/activity?local=true`, { signal: AbortSignal.timeout(4000) })).json()).activity || {},
         hubAddress: getLocalIPs().find((i) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.ip))?.ip ?? null,

@@ -341,6 +341,28 @@ describe('what a device shows about its agent (presence)', () => {
     return shown
   }
 
+  it('sends the name a person knows the agent by, and leaves out one a device would refuse', async () => {
+    const names: unknown[] = []
+    for (const label of ['Lola', 'bad\nname']) {
+      const display = { update: (_p: any, _s: string, _o: number, _a: boolean, l?: string) => { names.push(l); return true }, indicatorReady: () => false }
+      const host = createDeviceHost({ agentsDir: dir, activity: async () => ({}), labelOf: () => label } as any)
+      hosts.push(host)
+      g._deviceHost = host
+      const { data } = await svc.getAgentDeviceIdentity('a') as any
+      const device = identity()
+      deviceKeys.set(device.key, device)
+      const server = bridge(device, () => ({ key: data.key, assignedAgent: data.address, revision: 'r1' }), hardware, display as any)
+      server.listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      servers.push(server)
+      await svc.addAgentDevice('a', { key: device.key, endpoint: `http://127.0.0.1:${(server.address() as any).port}`, name: 'kitchen' })
+      await host.publishPresence()
+    }
+    expect(names[0]).toBe('Lola')
+    expect(names.length).toBeGreaterThan(1)
+    expect(names.slice(1).every(n => n === undefined)).toBe(true)
+  })
+
   it('says the agent is working, and that this is its active device', async () => {
     expect(await start('active', true)).toEqual([{ state: 'working', active: true }])
   })

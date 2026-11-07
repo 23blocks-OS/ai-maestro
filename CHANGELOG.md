@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.94] - 2026-11-06 - A device shows the agent's name
+
+### Changed
+- A device shows the name a person knows the agent by, such as Lola, not its address. Device SDK repinned.
+- Spec for immersion mode in the phone app (F096).
+
 ## [0.106.93] - 2026-11-06 - What an agent says shows on its device
 
 ### Changed

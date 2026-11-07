@@ -245,6 +245,10 @@ A host on an older version ignores `before` and answers with the full history wi
 
 `chat:search` runs on the agent's host over the whole conversation file (`searchMessages`), so it covers pages not loaded and works through the forwarded socket for agents on other hosts; the answer is `chat:searchResults`. Picking a result sends `chat:requestHistory` with `through: index`, and `pageOfMessages` returns one contiguous page down to it, so `prependPage` needs no change. `withDividers` adds the day lines and the "Found" mark to the list both views draw, and `hooks/useChatFind.ts` scrolls to that mark. Dividers sit in `groupedItems`, so a message after one is not grouped with the message before it.
 
+## Device messages (F098)
+
+Words someone said or typed at one of the agent's devices reach it as an AMP message notice in the pane (`lib/device-events.ts`). `parseJsonlLines` turns that notice into a `device_message` entry (`device`, `source`, `text`), not a `system_notice`, so it is always shown and never drawn as the person: a device cannot know who spoke. The notice holds 400 characters; when it cut the words, `lib/device-message-text.mjs` reads them from the agent's inbox by the notice ref. The agent's own reply needs nothing: it is its written answer and the `adp-device.sh say` step.
+
 ## Reactions
 
 A person or an agent reacts to a message with one of six emoji: 👍 👎 ❓ ✅ 👀 ❤️ (`lib/chat-reactions.ts`). They are stored with the agent, in `~/.aimaestro/agents/<id>/chat-reactions.json`, keyed by transcript `uuid`, one per reactor per emoji per message. `services/chat-reactions-service.ts` serves `GET|POST|DELETE /api/agents/:id/chat/reactions` on the agent's own host: the views send REST to `getAgentBaseUrl(agent)`, and the `chat:reaction` event (`{ agentId, messageId, reactions }`, the full list for that message) goes out on `/term` chat clients, so it passes through a forwarded socket, and on `/stream-chat`.

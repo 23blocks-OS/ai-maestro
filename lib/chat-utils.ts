@@ -33,6 +33,9 @@ interface Message {
   /** system_notice (B024): what kind of system text, and the text */
   kind?: string
   text?: string
+  /** device_message (F098): the device's name, and whether the words were said or typed */
+  device?: string
+  source?: string | null
 }
 
 export interface ToolBurst {
@@ -170,7 +173,7 @@ const norm = (t: string) => t.replace(/\s+/g, ' ').trim()
 
 /** The text of a user message, a queued entry or a system note, for matching one against another. */
 function plainText(m: Message): string {
-  if (m.type === 'system_notice') return m.text || ''
+  if (m.type === 'system_notice' || m.type === 'device_message') return m.text || ''
   if (m.type === 'queue-operation') return m.content || ''
   const c = m.message?.content
   if (typeof c === 'string') return c

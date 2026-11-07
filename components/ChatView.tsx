@@ -5,6 +5,7 @@ import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
+import DeviceMessage from '@/components/chat/DeviceMessage'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
@@ -84,6 +85,8 @@ interface Message {
     | 'tool_result_marker'
     // Text the system put in the conversation (B024): shown only in X-Ray
     | 'system_notice'
+    // Words someone said or typed at one of the agent's devices (F098): always shown
+    | 'device_message'
   tool_use_id?: string
   timestamp?: string
   uuid?: string
@@ -101,6 +104,9 @@ interface Message {
   // For system_notice
   kind?: string
   text?: string
+  // For device_message
+  device?: string
+  source?: string | null
 }
 
 interface ContentBlock {
@@ -985,7 +991,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
     if (messages.length > 0) {
       for (let i = messages.length - 1; i >= 0; i--) {
         const t = messages[i].type
-        if (t === 'user' || t === 'queue-operation' || t === 'system_notice') return 'thinking' as const
+        if (t === 'user' || t === 'queue-operation' || t === 'system_notice' || t === 'device_message') return 'thinking' as const
         if (t === 'assistant') return 'idle' as const
       }
     }
@@ -1097,6 +1103,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           }
 
           const message = item as Message
+          if (message.type === 'device_message') {
+            return <DeviceMessage key={message.uuid || index} device={message.device} source={message.source} text={message.text || ''} timestamp={message.timestamp} />
+          }
           if (message.type === 'system_notice') {
             return <SystemNote key={message.uuid || index} kind={message.kind} text={message.text || ''} timestamp={message.timestamp} />
           }

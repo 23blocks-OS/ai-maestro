@@ -559,3 +559,18 @@ describe('agent for a folder (#758)', () => {
     expect(hook.unlinkedNotice('/somewhere/else', [repo, twin])).toBeNull()
   })
 })
+
+describe('a person talking at a device', () => {
+  const notice = '[#6j5bpzzo] [MESSAGE] Someone at your device MacBook — from Device MacBook@Mini Lola — <external-content …> Hey Lola'
+  it('is a device turn, so the hook adds nothing and the agent answers at once', () => {
+    expect(hook.isDeviceTurn(notice)).toBe(true)
+    expect(hook.isDeviceTurn('[#abc12345] [MESSAGE] Status — from 23b-gm@host — hi')).toBe(false)
+    expect(hook.isDeviceTurn('Someone at your device, said a person typing')).toBe(false)
+    expect(hook.isDeviceTurn(undefined)).toBe(false)
+  })
+  it('a prompt that carries a message notice is not told about unread mail again', () => {
+    expect(hook.carriesMessageNotice(notice)).toBe(true)
+    expect(hook.carriesMessageNotice('[#abc12345] [MESSAGE] Status — from 23b-gm@host — hi')).toBe(true)
+    expect(hook.carriesMessageNotice('please check the [MESSAGE] list')).toBe(false)
+  })
+})

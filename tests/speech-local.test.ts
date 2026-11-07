@@ -90,6 +90,11 @@ describe('synthesize', () => {
 })
 
 describe('transcribe', () => {
+  it('says the language, so hearing never guesses it (B036)', async () => {
+    fake('say(text=r.get("language", "none"), done=True)')
+    expect(await transcribe(Buffer.from('RIFF'), options())).toBe('en')
+  })
+
   it('gives the text, from a private temporary file it removes', async () => {
     fake('import stat\nsay(text=open(r["file"]).read() + " " + oct(stat.S_IMODE(os.stat(r["file"]).st_mode)) + " " + r["file"], done=True)')
     const [text, mode, file] = (await transcribe(Buffer.from('RIFF'), options())).split(' ')

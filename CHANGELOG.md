@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.102] - 2026-11-07 - Hearing is told the language
+
+### Fixed
+- Speech at a device is always heard as English. faster-whisper guessed the language of each clip, and once wrote English speech as Russian (B036). The language is now sent with each request, ready to become a setting on the agent.
+
 ## [0.106.101] - 2026-11-07 - Device conversations in the chat
 
 ### Added

@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.106] - 2026-11-07 - The cerebellum talks about its own things, and speaks before it acts
+
+### Changed
+- The cerebellum treats everything called "you", "your" or by its name as its own: its inbox, its mail, its work. It never says it asked someone or is waiting to hear back (Juan's test: "I've asked for the latest mail. I'll tell you as soon as I hear back").
+- When the model goes straight to a tool, the voice says what is happening the moment the tool starts: "Let me look.", "I'm listening.", "Let me check." The model is told not to repeat it. Measured before: the first words of a turn that used the camera or handed work over took 3.6 to 3.9 s; the prompt alone did not change that.
+- Each turn carries the host's date, time and time zone, so the cerebellum answers "what time is it" and other time zones itself (checked with the real model: Singapore's time without a hand-off).
+
 ## [0.106.105] - 2026-11-07 - The cerebellum, an agent's fast voice (experiment, F100)
 
 ### Added

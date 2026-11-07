@@ -38,12 +38,22 @@ describe('asking for speech', () => {
     expect(JSON.parse(init.body)).toMatchObject({ text: 'How are you?', previous_text: 'Hello there.', next_text: 'Fine.' })
   })
 
-  it('stays one sentence ahead, never more', async () => {
+  it('the first sentence comes alone, and the rest is joined into fewer clips', async () => {
+    const fetcher = vi.fn(async (_url: string, init: any) => pcm(JSON.parse(init.body).text.length * 1000))
+    const got = await all(synthesize('Clean again. Fast speech, no errors. Enough testing. Ready for calls.', 'v', options(fetcher)))
+    expect(fetcher).toHaveBeenCalledTimes(4)
+    // 'Clean again.' alone, then the other three sentences in one clip
+    expect(got.map(w => w.length)).toEqual([12_044, (23 + 15 + 16) * 1000 + 44])
+  })
+
+  it('asks ahead by about one clip of text, never the whole reply', async () => {
+    const long = Array.from({ length: 12 }, (_, i) => `This is sentence number ${i + 1} of a long answer.`).join(' ')
     const fetcher = vi.fn(async () => pcm(10))
-    const files = synthesize('A. B. C. D.', 'v', options(fetcher))
+    const files = synthesize(long, 'v', options(fetcher))
     await files.next()
     await new Promise(r => setTimeout(r, 10))
-    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher.mock.calls.length).toBeGreaterThan(1)
+    expect(fetcher.mock.calls.length).toBeLessThan(6)
     await files.return(undefined)
   })
 

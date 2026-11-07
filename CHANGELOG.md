@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.104] - 2026-11-07 - A person at a device gets an answer sooner
+
+### Changed
+- An ElevenLabs reply plays with fewer gaps: the first sentence comes alone so the agent starts at once, and the rest is asked for while it plays and joined into clips of up to 8 seconds. Each clip a device plays has its own short gap, so a four-sentence reply had three and now has one.
+- The hook adds nothing to a device turn: no inbox notice and no memory lookup, so the agent answers at once. Measured on 2026-11-07, the agent read its whole inbox before answering (12.3 s on one turn), and the hook took 2 to 2.6 s before the model started.
+
+### Fixed
+- When the hook's server check timed out, its fallback announced "1 unread AMP message" for the very message the prompt carried.
+
 ## [0.106.103] - 2026-11-07 - A device's speech heard by ElevenLabs Scribe
 
 ### Added

@@ -455,8 +455,21 @@ function buildContextResponse(agent, hookEvent, message) {
     }
 }
 
+// A prompt that IS a message notice typed into the pane ("[#ref] [MESSAGE] ..."): the message is already here.
+function carriesMessageNotice(prompt) {
+    return typeof prompt === 'string' && /\[#[0-9a-z]+\] \[MESSAGE\] /.test(prompt);
+}
+
+// A person talking to the agent at one of its devices (lib/device-events.ts). They are waiting for its voice:
+// nothing is added to the prompt, so the agent answers at once instead of reading its inbox (2026-11-07).
+function isDeviceTurn(prompt) {
+    return typeof prompt === 'string' && /\[MESSAGE\] Someone at your device /.test(prompt);
+}
+
 // Check for unread messages using AMP CLI (standalone — no AI Maestro needed)
-async function checkUnreadMessagesStandalone() {
+async function checkUnreadMessagesStandalone(prompt) {
+    // This path cannot tell which message the prompt carries, so it would announce the very message being read
+    if (carriesMessageNotice(prompt)) return null;
     const { execSync } = require('child_process');
     try {
         const output = execSync('amp-inbox.sh --count 2>/dev/null', {
@@ -525,7 +538,7 @@ async function checkUnreadMessages(cwd, prompt) {
     } catch (err) {
         debugLog({ event: 'message_check_error', error: err.message });
         // Fall back to standalone AMP check (works without AI Maestro)
-        return checkUnreadMessagesStandalone();
+        return checkUnreadMessagesStandalone(prompt);
     }
 }
 
@@ -1371,7 +1384,7 @@ async function handleEvent(input) {
             // the user just asked, so the agent sees past decisions before it
             // starts reading files.
             // Grok discards an allowing UserPromptSubmit hook's output: skip.
-            const [upsInbox, upsMeeting, upsMemory] = agent === 'grok' ? [null, null, null] : await Promise.all([
+            const [upsInbox, upsMeeting, upsMemory] = agent === 'grok' || isDeviceTurn(input.prompt) ? [null, null, null] : await Promise.all([
                 withDeadline(checkUnreadMessages(cwd, input.prompt), INJECT_DEADLINE_MS, null),
                 withDeadline(drainMeetingInjectQueue(cwd), INJECT_DEADLINE_MS, null),
                 input.prompt ? withDeadline(recallMemories(cwd, sessionId, input.prompt), INJECT_DEADLINE_MS, null) : null
@@ -1405,6 +1418,8 @@ if (require.main === module) {
 
 module.exports = {
     aimBase,
+    carriesMessageNotice,
+    isDeviceTurn,
     buildHookStateData,
     resolveAgent,
     agentsForCwd,

@@ -13,6 +13,8 @@ What a person says or types at a device, and what the agent says back there, app
 
 Today neither shows. The words reach the agent as a message from the device (`lib/device-events.ts`, `sendFromUI` with an unverified sender), and the reply goes back with `adp-device.sh say`, not into the chat. The phone app's companion mode is different: the person's words go into the chat as theirs, so they show.
 
+**Decision (Juan, 2026-11-07):** the chat must have no holes in the conversation flow. Every turn at a device shows there as a device message, both what the person said or typed and what the agent said back, in order with the rest of the chat.
+
 ## Why It's Needed
 
 Juan could not see his kiosk conversations in the chat, while his phone conversations were there (2026-11-07). The history of an agent is split, and nobody can review what was said at a device.

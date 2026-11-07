@@ -11,9 +11,9 @@ What a person says or types at a device, and what the agent says back there, app
 > At MacBook (someone said): "Hey Lola, …"
 > Lola, at MacBook: "Heard you, …"
 
-Today neither shows. The words reach the agent as a message from the device (`lib/device-events.ts`, `sendFromUI` with an unverified sender), and the reply goes back with `adp-device.sh say`, not into the chat. The phone app's companion mode is different: the person's words go into the chat as theirs, so they show.
+Today the person's side does not show. The words reach the agent as a message from the device (`lib/device-events.ts`, `sendFromUI` with an unverified sender), and the chat does not draw them. The agent's side is already in the conversation: its written reply, and the `adp-device.sh say` step with the exact words spoken (Juan, 2026-11-07). The phone app's companion mode is different: the person's words go into the chat as theirs, so they show.
 
-**Decision (Juan, 2026-11-07):** the chat must have no holes in the conversation flow. Every turn at a device shows there as a device message, both what the person said or typed and what the agent said back, in order with the rest of the chat.
+**Decision (Juan, 2026-11-07):** the chat must have no holes in the conversation flow. Every turn at a device shows there, in order with the rest of the chat. The person's words show as a device message.
 
 ## Why It's Needed
 
@@ -28,8 +28,8 @@ Juan could not see his kiosk conversations in the chat, while his phone conversa
 
 - Display only. **The trust rule does not change:** device words stay untrusted data, because a device cannot know who is speaking. Do not turn them into the person's own chat turns.
 - The chat (`lib/chat-transcript.mjs`, `lib/transcript-records.mjs`) recognises the device message (`context.source: 'device'`, the wrapped text) and shows it as a device bubble with the device name, and whether it was said or typed.
-- The agent's `say` to a device is shown as the agent's words at that device. It needs a record the chat can read, for example a transcript note written by `invokeAgentDevice` for `speaker.say`.
+- Optional: draw the agent's `adp-device.sh say` step as "Lola, at MacBook: …", from the tool call already in the transcript. No new record is needed.
 - Both chat views (`ChatView.tsx`, `MobileChatView.tsx`) and the app's chat feed. Tell the app team the entry type.
 - Search (F093) finds them.
-- Tests: a device message shows as a device bubble, never as the person; a reply at the device shows once; an agent with no devices shows nothing new.
-- Related: F082, F096, B024 (system text that looked like the person). Effort: S to M.
+- Tests: a device message shows as a device bubble, never as the person, in order; an agent with no devices shows nothing new.
+- Related: F082, F096, B024 (system text that looked like the person). Effort: S.

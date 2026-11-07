@@ -114,7 +114,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F093** — [Search in the chat](./backlog/F093-chat-search.md) — `In Progress`
 - **F094** — [Days and times in the chat](./backlog/F094-chat-days-and-times.md) — `In Progress`
 - **F095** — [Talk to an agent without tapping: it listens all the time](./backlog/F095-always-listening.md) — `Todo`
-- **F096** — [Immersion mode in the phone app](./backlog/F096-immersion-mode-in-the-app.md) — `Todo`
+- **F096** — [Companion mode in the phone app](./backlog/F096-companion-mode-in-the-app.md) — `Todo`
 
 ## Bugs
 

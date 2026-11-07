@@ -337,6 +337,7 @@ import {
 
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
+import { speakForAgent } from '@/services/agent-speech-service'
 import { addAgentDevice, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
@@ -578,6 +579,13 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
     sendServiceResult(res, await addAgentDevice(params.id, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/speech$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const result = await speakForAgent(params.id, await readJsonBody(req).catch(() => ({})))
+    const audio = (result.data as { audio?: Buffer } | undefined)?.audio
+    if (!audio) return sendServiceResult(res, result)
+    res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' })
+    res.end(audio)
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices\/([^/]+)\/media$/, paramNames: ['id', 'key'], handler: async (req, res, params) => {
     sendServiceResult(res, await captureAgentDevice(params.id, params.key, await readJsonBody(req).catch(() => ({}))))

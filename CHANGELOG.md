@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.96] - 2026-11-06 - The agent's voice, on request
+
+### Added
+- `POST /api/agents/[id]/speech` answers a WAV in the agent's own voice, for the phone app's companion mode (F096). `409 no_voice` when the agent has no local voice on this host.
+
+### Fixed
+- One Kokoro run at a time now holds across the server and Next, which each load the module.
+
 ## [0.106.95] - 2026-11-06 - Reactions sit beside the copy icon
 
 ### Fixed
@@ -12,7 +20,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 - A device shows the name a person knows the agent by, such as Lola, not its address. Device SDK repinned.
-- Spec for immersion mode in the phone app (F096).
+- Spec for companion mode in the phone app (F096).
 
 ## [0.106.93] - 2026-11-06 - What an agent says shows on its device
 

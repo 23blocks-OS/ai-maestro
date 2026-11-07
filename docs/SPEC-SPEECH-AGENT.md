@@ -259,6 +259,5 @@ The voice start adds an estimated 0.5 s (ElevenLabs). Real work takes what it ta
 
 Seen in the tests and still open:
 - It said "I can't verify who's speaking from here" aloud. The trust rule is for it, not for the person; the prompt should keep it silent.
-- Scribe heard "Sweet potato" once for what was likely "sweet, perfect".
 - F102 (Jev routes light and heavy turns) would take the model's decision out of the hand-off path.
 

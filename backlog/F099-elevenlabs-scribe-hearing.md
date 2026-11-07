@@ -1,6 +1,6 @@
 # F099 — Hear a device's speech with ElevenLabs Scribe
 
-**Status:** Todo
+**Status:** Todo (spec: [docs/SPEC-ELEVENLABS-HEARING.md](../docs/SPEC-ELEVENLABS-HEARING.md))
 **Type:** Feature
 **Created:** 2026-11-07
 
@@ -37,7 +37,7 @@ It does not change the agent's own thinking time, about 10 to 12 seconds per tur
 
 - `lib/hearing-elevenlabs.mjs`: one function, the WAV in, the text out. 20-second timeout; one retry on a network error, 429 or 5xx. The key never in a log or an error.
 - `lib/speech.mjs`: `hear(audio)` picks Scribe when the host has the key, otherwise local, and falls back to local on any failure. `lib/device-host.mjs` uses it for the hub's `transcribe` in place of `speech-local.mjs`.
-- Choice: per host, by the key being there. A switch on the agent only if someone needs local hearing with a key present.
+- Choice: per agent, not per host (spec section 3): Scribe only for an agent whose voice is ElevenLabs. It needs the device SDK to pass the agent to `transcribe`.
 - Tests against a fake ElevenLabs: the request (model, language, file), the text out, fallback on 401, 429, 500 and a timeout, the key in no error.
 - Real check: the same sentences at the MacBook as on 2026-11-07, timed against faster-whisper.
 - Related: F092 (one voice), B036 (language), F097 (hearing on another machine: not needed for a host that uses Scribe), `docs/SPEC-ELEVENLABS-VOICE.md`. Effort: S.

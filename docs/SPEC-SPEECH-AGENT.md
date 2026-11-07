@@ -2,7 +2,7 @@
 
 When a person talks to an agent at one of its devices, a fast part of the same agent answers at once, speaking as it writes. Real work goes to the agent's main session, behind the scenes. It is an experiment behind a flag: today's path stays the default and does not change.
 
-Status: draft, revised 2026-11-07 after the spike, Juan's decisions (section 10) and research into earlier work (section 13). Nothing is built.
+Status: built behind the flag (2026-11-07): `lib/cerebellum/speaking-side.mjs`, routing in `lib/device-events.ts`, the chat log in `lib/speaking-log.mjs`, the kiosk's tap in agentmessaging/agent-device-protocol#42, the Agent SDK upgraded to 0.3.319. The locks (one tool to one session, no outside tools) were proven with the real SDK. Not yet run end to end at a device: the test in section 9 is next. First version: Claude Code's own messaging only; for agents without it, the words go the usual way (the other rows of 6.3 come later).
 
 **Words used here.** *SDK session*: a Claude Code session the AI Maestro server runs through the Agent SDK, with no tmux (the same machinery as AI Maestro's "streaming agents", but not one of them: it has no entry in the agent list). *Word by word*: the reply arrives as the model writes it. *Terminal agent*: Claude Code in tmux, as Lola is. Backlog: F100. Related: F059 (the fast voice layer of V1 calls), F068, F092, F098, F101 (kiosk auth), `docs/SPEC-ELEVENLABS-VOICE.md`, `docs/SPEC-ELEVENLABS-HEARING.md`, the AMP-RTC drafts (agentmessaging/protocol #22 to #31).
 

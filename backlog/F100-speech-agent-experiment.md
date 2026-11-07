@@ -1,6 +1,6 @@
 # F100 — Experiment: a fast speaking side of the agent answers at its devices
 
-**Status:** Todo (spec: [docs/SPEC-SPEECH-AGENT.md](../docs/SPEC-SPEECH-AGENT.md))
+**Status:** In Progress (built behind the flag; the test at the MacBook is next. Spec: [docs/SPEC-SPEECH-AGENT.md](../docs/SPEC-SPEECH-AGENT.md))
 **Type:** Feature
 **Created:** 2026-11-07
 

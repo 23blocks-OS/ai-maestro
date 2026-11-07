@@ -3,6 +3,16 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.105] - 2026-11-07 - The speaking side, an experiment (F100)
+
+### Added
+- **The speaking side** (`experiments.speakingSide`, off by default, a switch under Voice in the agent's profile). A fast part of the agent talks with a person at its devices: an SDK session with the agent's own card and recent notes, on Sonnet 5.5, speaking sentence by sentence as it writes. For real work it says "let me check" and hands the work to the agent's main session over Claude Code's cross-session messaging, with where it came from; the main session answers the same way and the speaking side says it. One tool (`SendMessage` to the main session only, locked by a check before every tool call), no outside tools, nothing loaded from disk. Warm on the kiosk's tap, stopped after 10 quiet minutes. When the main session cannot take such messages, or anything fails, the words go the usual way.
+- The speaking side's turns are kept in `~/.aimaestro/agents/<id>/speaking/log.jsonl` and merged into the chat by time: what was said at the device, what the speaking side answered, and each hand-off. New chat entry type: `speaking_message`.
+- `docs/CEREBELLUM.md`: the brain's state today, and the speaking side.
+
+### Changed
+- Agent SDK 0.3.319 (Claude Code 2.1.319, from 0.3.205 / 2.1.205): needed for cross-session messaging. Checked that streaming agents still get their permission requests (`canUseTool` asked for `Write` on both versions).
+
 ## [0.106.104] - 2026-11-07 - A person at a device gets an answer sooner
 
 ### Changed

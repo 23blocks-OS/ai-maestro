@@ -120,6 +120,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `In Progress`
 - **F100** — [Experiment: a fast speaking side of the agent answers at its devices](./backlog/F100-speech-agent-experiment.md) — `In Progress` (built behind the flag; MacBook test next)
 - **F101** — [Kiosk auth: the owner proves it is them with a tap and a picture](./backlog/F101-kiosk-auth-by-face.md) — `Todo` (later)
+- **F102** — [Jev decides if a turn is light (the cerebellum answers) or heavy (the main session works)](./backlog/F102-jev-routes-cerebellum-turns.md) — `Todo`
 
 ## Bugs
 

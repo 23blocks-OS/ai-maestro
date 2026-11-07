@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { createSpeakingSides, mainSessionName, sentenceSplitter, speakingPrompt, toolGate } from '@/lib/cerebellum/speaking-side.mjs'
+import { createSpeakingSides, mainSessionName, nowText, sentenceSplitter, speakingPrompt, startPhrase, toolGate } from '@/lib/cerebellum/speaking-side.mjs'
 import { appendSpeakingLog, speakingEntries, withSpeaking } from '@/lib/speaking-log.mjs'
 
 const dirs: string[] = []
@@ -57,6 +57,16 @@ describe('the lock', () => {
 })
 
 describe('the prompt', () => {
+  it('everything called yours is its own, it speaks before it acts, and it uses the time', () => {
+    const p = speakingPrompt({ card: '', notes: [], mainName: 'lola-f9' })
+    expect(p).toContain('your inbox, your mail')
+    expect(p).toContain('Never say you asked someone')
+    expect(p).toContain('Speak first, then act')
+    expect(p).toContain('date and time where your host is')
+  })
+  it('the time reads as a person says it, with the time zone', () => {
+    expect(nowText(Date.parse('2026-11-07T20:36:00Z'), 'America/Denver')).toBe('Saturday, November 7, 2026 at 1:36 PM Mountain Standard Time')
+  })
   it('is the agent: its own card, its notes, and how to talk and hand off', () => {
     const p = speakingPrompt({ card: '# Lola - Chief of Staff', notes: ['Tested the voice with Juan'], mainName: 'lola-f9' })
     expect(p).toContain('# Lola - Chief of Staff')
@@ -117,7 +127,7 @@ describe('the speaking side', () => {
     expect(o.model).toBe('claude-sonnet-5-5')
     expect(o.systemPrompt).toContain('# Lola - Chief of Staff')
     expect(o.hooks.PreToolUse[0].hooks).toHaveLength(1)
-    expect(fake.seen.prompts[0]).toBe('At your device "MacBook", someone not verified said (transcribed, may contain errors): "Hi"')
+    expect(fake.seen.prompts[0]).toMatch(/^\[\w+day, \w+ \d+, \d{4} at \d+:\d\d [AP]M [^\]]+\] At your device "MacBook", someone not verified said \(transcribed, may contain errors\): "Hi"$/)
     sides.stopAll()
   })
 
@@ -128,6 +138,22 @@ describe('the speaking side', () => {
     expect(said).toEqual(['Doing well, thanks.', 'How are you?'])
     expect(logs.map((l) => l.kind)).toEqual(['heard', 'said'])
     sides.stopAll()
+  })
+
+  it('going straight to a tool, the voice says what is happening at once, and only once', async () => {
+    const toolStart = (name: string) => ({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name } } })
+    const { sides, agent, said } = setup([[toolStart('mcp__device__look'), start, delta('I see a desk. '), stop, toolStart('SendMessage'), result]])
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'What do you see?', source: 'voice' })
+    await wait()
+    expect(said).toEqual(['Let me look.', 'I see a desk.'])
+    sides.stopAll()
+  })
+
+  it('the phrase fits the action', () => {
+    expect(startPhrase('mcp__device__look')).toBe('Let me look.')
+    expect(startPhrase('mcp__device__listen')).toBe("I'm listening.")
+    expect(startPhrase('SendMessage')).toBe('Let me check.')
+    expect(startPhrase('mcp__device__show')).toBeNull()
   })
 
   it('a person talking stops the rest of the reply', async () => {

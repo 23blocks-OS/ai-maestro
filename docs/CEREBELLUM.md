@@ -1,6 +1,6 @@
 # Cerebellum - Agent Subsystem Coordinator
 
-**Version:** 0.23.3
+**Version:** 0.23.3, brain status updated 2026-11-07 (see *The brain today* and *Speaking side*)
 **Location:** `lib/cerebellum/`
 
 Cerebellum is AI Maestro's subsystem coordinator. It manages autonomous background processes for each agent -- currently **memory indexing** and **voice narration**. Named after the brain region that coordinates movement without conscious thought, it handles the things agents need to do automatically.
@@ -75,6 +75,8 @@ interface Subsystem {
 | `memory-subsystem.ts` | 57 | Wraps AgentSubconscious for memory indexing |
 | `voice-subsystem.ts` | ~500 | Voice narration: buffer, LLM summarization, speech history |
 | `voice-prompts.ts` | ~200 | LLM prompt, event classification, template fallbacks |
+| `brain-inbox.ts` | 65 | Signals from the cerebellum and subconscious to the cortex (`brain/cortex-inbox.jsonl`). Written to, not read: see *The brain today* |
+| `speaking-side.mjs` | ~300 | The speaking side (F100, experiment): the agent talking at its devices, handing work to its main session |
 
 ## Data Flow: Terminal Output to Spoken Voice
 
@@ -265,6 +267,33 @@ companion-tts-{agentId} → {
 | Onyx | Deep, authoritative |
 | Sage | Calm, thoughtful |
 | Shimmer | Light, animated |
+
+## The brain today (2026-11-07)
+
+The February design (`marketing/agent-brain-architecture.md`, gitignored) describes an agent as three regions: the **cortex** (Claude Code, the agent's main session), the **cerebellum** (voice and coordination, a fast model, always on) and the **subconscious** (memory). Where each part stands:
+
+| Part | State |
+|---|---|
+| Cortex | The agent's main session (Claude Code in tmux, or an SDK streaming session) |
+| Subconscious | Built: indexing, consolidation, memory cards, recall in the hook (`lib/agent.ts`, `lib/memory/`) |
+| Cerebellum: narration | Built: this file's voice subsystem narrates terminal output for the companion page |
+| Cerebellum: speaking side | Built behind a flag (F100): talks with a person at a device and hands work to the cortex. See below |
+| Brain inbox (regions → cortex, files) | Half wired: the subconscious writes memory signals; nothing reads them (no hook calls `/brain-inbox`) |
+| Real-time channel between regions | Claude Code's own cross-session messaging (2.1.224+): proven 2026-11-07, about 0.2 s each way on one host. It is the "Unix sockets" step of the February roadmap, built into Claude Code |
+| Voice of the agent (devices, phone) | `lib/speech.mjs`: ElevenLabs or Kokoro to speak, Scribe or faster-whisper to hear, per agent (F092, F099). Lives outside this folder |
+
+## Speaking side (F100, experiment)
+
+Spec: `docs/SPEC-SPEECH-AGENT.md`. Off unless an agent's profile turns it on (`experiments.speakingSide`).
+
+- **What it is:** the agent itself, in the cerebellum's voice role. An SDK session (no tmux) with the agent's own `CLAUDE.md`, its recent notes and the rules for speaking, on Sonnet 5.5. It speaks sentence by sentence as it writes, through the same device path as `say`.
+- **Its one tool:** `SendMessage`, to the agent's main session only (a `PreToolUse` hook refuses everything else; no MCP servers, no claude.ai connectors, nothing loaded from disk).
+- **The hand-off:** real work goes to the main session over Claude Code's cross-session messaging, with where it came from (device, not verified). The main session answers with `SendMessage`; the speaking side says it. Needs Claude Code 2.1.224+ on both sides (the Agent SDK is 0.3.319, bundling 2.1.319).
+- **Warm:** started by the kiosk's tap (`device.used`) so the person never waits for it, stopped after 10 quiet minutes (`'always'` keeps it up).
+- **Fallback:** when the main session has no messaging socket, or anything fails before the turn is taken, the words go to the agent the usual way.
+- **The chat:** its turns are logged in `~/.aimaestro/agents/<id>/speaking/log.jsonl` and merged into the chat by time (`lib/speaking-log.mjs`), so there are no holes.
+
+Measured on mini-lola: first sentence 1.6 to 2.4 s from a warm session; hand-off round trip 5.8 s (channel 0.2 s each way, the main session's own thinking 4.1 s).
 
 ## Memory Subsystem
 

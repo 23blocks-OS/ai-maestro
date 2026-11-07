@@ -173,7 +173,7 @@ const norm = (t: string) => t.replace(/\s+/g, ' ').trim()
 
 /** The text of a user message, a queued entry or a system note, for matching one against another. */
 function plainText(m: Message): string {
-  if (m.type === 'system_notice' || m.type === 'device_message') return m.text || ''
+  if (m.type === 'system_notice' || m.type === 'device_message' || m.type === 'speaking_message') return m.text || ''
   if (m.type === 'queue-operation') return m.content || ''
   const c = m.message?.content
   if (typeof c === 'string') return c

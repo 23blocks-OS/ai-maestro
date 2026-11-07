@@ -206,6 +206,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           title: agent.title ?? null,
           avatar: agent.avatar,
           voice: agent.voice ?? null,
+          experiments: agent.experiments ?? null,
           owner: agent.owner,
           team: agent.team,
           model: agent.model,
@@ -562,6 +563,18 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </label>
                     )}
                     <p className="text-xs text-gray-500">Saved with the agent and moves with it. Devices use the local voice when the host has it (run scripts/install-voice.sh there) and the device allows agent audio; otherwise the device speaks in its own voice. ElevenLabs and calls are not built yet.</p>
+                    <label className="flex items-start gap-2 text-xs text-gray-300 pt-1" data-testid="speaking-side-experiment">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={!!agent.experiments?.speakingSide}
+                        onChange={(e) => updateField('experiments', e.target.checked ? { ...agent.experiments, speakingSide: true } : undefined)}
+                      />
+                      <span>
+                        Experiment: a fast speaking side answers at this agent&apos;s devices
+                        <span className="block text-gray-500">It is the agent, with its own card. Real work still goes to the agent, behind the scenes. Needs Claude Code 2.1.224 or later.</span>
+                      </span>
+                    </label>
                   </div>
                 )}
               </section>

@@ -1081,6 +1081,13 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
       if (Object.keys(other).length) return invalidRequest('voice has only engine and voiceId: a key belongs to the host')
     }
 
+    if (body.experiments !== undefined && body.experiments !== null) {
+      const { speakingSide, ...other } = body.experiments as { speakingSide?: unknown }
+      if (typeof body.experiments !== 'object' || Array.isArray(body.experiments)) return invalidRequest('experiments must be an object')
+      if (speakingSide !== undefined && speakingSide !== true && speakingSide !== false && speakingSide !== 'always') return invalidRequest("experiments.speakingSide must be true, false or 'always'")
+      if (Object.keys(other).length) return invalidRequest('experiments has only speakingSide')
+    }
+
     // A change to the manager is checked: a person and/or an agent, never itself, never a loop among the
     // agents this host knows, and never none at all. Any other update leaves the manager fields alone.
     if (body.humanManager !== undefined || body.managerAgentId !== undefined) {

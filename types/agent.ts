@@ -217,6 +217,10 @@ export interface AgentSession {
  * the paid service. Never a key: keys belong to the host.
  */
 export const AGENT_VOICE_ENGINES = ['local', 'elevenlabs'] as const
+export interface AgentExperiments {
+  speakingSide?: boolean | 'always'
+}
+
 export interface AgentVoice {
   engine: (typeof AGENT_VOICE_ENGINES)[number]
   voiceId?: string              // The engine's name for the voice; empty means its default
@@ -246,6 +250,8 @@ export interface Agent {
   title?: string                // What the agent is, as people say it ("AI Maestro product owner"); shown after the label
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
   voice?: AgentVoice
+  /** Experiments, off unless set. speakingSide: a fast speaking side answers at its devices (F100); 'always' keeps it warm */
+  experiments?: AgentExperiments
   kind?: 'agent' | 'assistant'  // Missing means 'agent'. An assistant connects over AMP only: no terminal, stream or wake
   platform?: string             // Where an assistant lives ("muse", "grok", or free text)
   registrationStatus?: 'pending' // Set only while a new AMP registration waits for the owner; missing means a full member
@@ -617,6 +623,7 @@ export interface CreateAgentRequest {
  */
 export interface UpdateAgentRequest {
   voice?: AgentVoice | null     // null clears it
+  experiments?: AgentExperiments | null // null clears them
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
   title?: string | null         // null or '' clears it

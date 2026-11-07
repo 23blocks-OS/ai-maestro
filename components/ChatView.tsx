@@ -5,7 +5,7 @@ import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
-import DeviceMessage from '@/components/chat/DeviceMessage'
+import DeviceMessage, { SpeakingMessage } from '@/components/chat/DeviceMessage'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
@@ -87,6 +87,8 @@ interface Message {
     | 'system_notice'
     // Words someone said or typed at one of the agent's devices (F098): always shown
     | 'device_message'
+    // A turn of the agent's speaking side (F100)
+    | 'speaking_message'
   tool_use_id?: string
   timestamp?: string
   uuid?: string
@@ -1103,6 +1105,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           }
 
           const message = item as Message
+          if (message.type === 'speaking_message') {
+            return <SpeakingMessage key={message.uuid || index} kind={message.kind} device={message.device} source={message.source} text={message.text || ''} timestamp={message.timestamp} />
+          }
           if (message.type === 'device_message') {
             return <DeviceMessage key={message.uuid || index} device={message.device} source={message.source} text={message.text || ''} timestamp={message.timestamp} />
           }

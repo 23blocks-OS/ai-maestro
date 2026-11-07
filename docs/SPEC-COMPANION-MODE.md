@@ -1,10 +1,10 @@
-# Spec: immersion mode in the phone app
+# Spec: companion mode in the phone app
 
-Talk to an agent on the phone the way a person talks to it at a device: one screen, its signal, your signal, a mic. Status: draft, 2026-11-06. Backlog: F096. The phone as a real device is F080, and is not part of this spec.
+Talk to an agent on the phone the way a person talks to it at a device: one screen, its signal, your signal, a mic. Status: draft, 2026-11-06. Backlog: F096. In the app it is its own screen, opened from the agent's page, and is not part of calls. The next step of companion mode, the phone as a real device, is F080 and is not part of this spec.
 
 ## 1. The decision
 
-Immersion mode is a mode of the existing AI Maestro app, not a new app. Pairing, QR connect, identity, push and the agent list are already there. A separate app makes sense only for a different audience, such as a person who should never see hosts or tasks. The screen and the API stay the same if that happens.
+Companion mode is a mode of the existing AI Maestro app, not a new app. Pairing, QR connect, identity, push and the agent list are already there. A separate app makes sense only for a different audience, such as a person who should never see hosts or tasks. The screen and the API stay the same if that happens.
 
 ## 2. The design
 

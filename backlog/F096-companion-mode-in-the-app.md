@@ -1,6 +1,6 @@
-# F096 — Immersion mode in the phone app
+# F096 — Companion mode in the phone app
 
-**Status:** Todo (spec: [docs/SPEC-IMMERSION-MODE.md](../docs/SPEC-IMMERSION-MODE.md))
+**Status:** Todo (spec: [docs/SPEC-COMPANION-MODE.md](../docs/SPEC-COMPANION-MODE.md))
 **Type:** Feature
 **Created:** 2026-11-06
 

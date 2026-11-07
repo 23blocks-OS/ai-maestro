@@ -4,25 +4,33 @@ import os from 'os'
 import path from 'path'
 import { synthesize, transcribe } from '@/lib/speech-local.mjs'
 
-// A stand-in for scripts/voice/speak.py: the contract is paths on stdout, one per sentence
+// A stand-in for scripts/voice/serve.py: the contract is one JSON request per line, JSON lines back
 let dir: string
 let script: string
-const fake = (body: string) => fs.writeFileSync(script, `#!/bin/bash\nwhile [ $# -gt 0 ]; do [ "$1" = --out ] && OUT="$2"; [ "$1" = --voice ] && VOICE="$2"; shift; done\n${body}\n`, { mode: 0o755 })
-const run = (text = 'Hi.', voice?: string) => synthesize(text, voice, { python: '/bin/bash', script })
+const HEAD = `import json, os, sys, time\nfor line in sys.stdin:\n    r = json.loads(line)\n    say = lambda **f: print(json.dumps({"id": r.get("id"), **f}), flush=True)\n`
+const fake = (body: string) => fs.writeFileSync(script, HEAD + body.split('\n').map(l => `    ${l}`).join('\n') + '\n')
+const options = (extra = {}) => ({ python: 'python3', script, ...extra })
+const read = async (source: AsyncIterable<string>) => { const got: string[] = []; for await (const f of source) got.push(fs.readFileSync(f, 'utf8').trim()); return got }
+const WRITE = (name: string, text: string) => `open(os.path.join(r["out"], "${name}"), "w").write(${text})\nsay(file=os.path.join(r["out"], "${name}"))`
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-speech-test-'))
-  script = path.join(dir, 'speak.sh')
+  script = path.join(dir, 'serve.py')
 })
-afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+afterEach(() => {
+  const g = globalThis as any
+  g._speechWorker?.child.kill('SIGKILL')
+  g._speechWorker = undefined
+  fs.rmSync(dir, { recursive: true, force: true })
+})
 
 describe('synthesize', () => {
   it('yields files as they are ready, and removes them afterwards', async () => {
-    fake('cat > "$OUT/text"; echo "$OUT/text"; echo "$VOICE" > "$OUT/voice"; echo "$OUT/voice"')
-    const got: string[] = []
+    fake(`${WRITE('a', 'r["text"]')}\n${WRITE('b', 'r["voice"]')}\nsay(done=True)`)
     let folder = ''
-    for await (const file of run('Hello there.', 'bf_emma')) {
-      got.push(fs.readFileSync(file, 'utf8').trim())
+    const got: string[] = []
+    for await (const file of synthesize('Hello there.', 'bf_emma', options())) {
+      got.push(fs.readFileSync(file, 'utf8'))
       folder = path.dirname(file)
     }
     expect(got).toEqual(['Hello there.', 'bf_emma'])
@@ -30,34 +38,51 @@ describe('synthesize', () => {
   })
 
   it('uses the default voice when none is chosen', async () => {
-    fake('echo "$VOICE" > "$OUT/v"; echo "$OUT/v"')
-    for await (const file of run()) expect(fs.readFileSync(file, 'utf8').trim()).toBe('af_heart')
+    fake(`${WRITE('v', 'r["voice"]')}\nsay(done=True)`)
+    expect(await read(synthesize('Hi.', undefined, options()))).toEqual(['af_heart'])
   })
 
-  it('a failed run says why', async () => {
-    fake('echo "Unknown voice: nope" >&2; exit 1')
-    await expect(async () => { for await (const _ of run()) { /* nothing */ } }).rejects.toThrow('speech_failed: Unknown voice: nope')
+  it('stays warm: the second request does not start again', async () => {
+    fake(`${WRITE('p', 'str(os.getpid())')}\nsay(done=True)`)
+    const [first] = await read(synthesize('Hi.', undefined, options()))
+    const [second] = await read(synthesize('Hi.', undefined, options()))
+    expect(second).toBe(first)
   })
 
-  it('a program that cannot start is an answer, not a hang', async () => {
-    await expect(async () => { for await (const _ of synthesize('Hi.', undefined, { python: '/no/such/python', script })) { /* nothing */ } }).rejects.toThrow('speech_failed')
+  it('ends after a quiet spell, so an idle host holds nothing', async () => {
+    fake(`${WRITE('p', 'str(os.getpid())')}\nsay(done=True)`)
+    await read(synthesize('Hi.', undefined, options({ idleMs: 30 })))
+    const worker = (globalThis as any)._speechWorker
+    await expect.poll(() => worker.dead, { timeout: 2000 }).toBe(true)
   })
 
-  it('stopping early frees the next run', async () => {
-    fake('echo a > "$OUT/a"; echo "$OUT/a"; sleep 30')
+  it('a bad request says why, and the next one starts clean', async () => {
+    fake(`if r["text"] == "bad":\n    say(error="Unknown voice: nope")\n    continue\n${WRITE('p', 'str(os.getpid())')}\nsay(done=True)`)
+    const [before] = await read(synthesize('Hi.', undefined, options()))
+    await expect(read(synthesize('bad', undefined, options()))).rejects.toThrow('speech_failed: Unknown voice: nope')
+    const [after] = await read(synthesize('Hi.', undefined, options()))
+    expect(after).not.toBe(before)
+  })
+
+  it('a program that dies or cannot start is an answer, not a hang', async () => {
+    fake('sys.stderr.write("no model\\n")\nsys.exit(1)')
+    await expect(read(synthesize('Hi.', undefined, options()))).rejects.toThrow('speech_failed: no model')
+    await expect(read(synthesize('Hi.', undefined, { python: '/no/such/python', script }))).rejects.toThrow('speech_failed')
+  })
+
+  it('stopping early ends the program, so a late answer cannot reach the next request', async () => {
+    fake(`${WRITE('a', '"one"')}\ntime.sleep(30)\nsay(done=True)`)
     let folder = ''
-    for await (const file of run()) { folder = path.dirname(file); break }
+    for await (const file of synthesize('Hi.', undefined, options())) { folder = path.dirname(file); break }
     expect(fs.existsSync(folder)).toBe(false)
-    fake('echo b > "$OUT/b"; echo "$OUT/b"')
-    const second: string[] = []
-    for await (const file of run()) second.push(fs.readFileSync(file, 'utf8').trim())
-    expect(second).toEqual(['b'])
+    fake(`${WRITE('b', '"two"')}\nsay(done=True)`)
+    expect(await read(synthesize('Hi.', undefined, options()))).toEqual(['two'])
   }, 10000)
 
   it('runs one at a time', async () => {
-    fake('T=$(python3 -c "import time;print(time.time())"); sleep 0.2; python3 -c "import time;print($T, time.time())" > "$OUT/t"; echo "$OUT/t"')
+    fake(`t = time.time()\ntime.sleep(0.2)\n${WRITE('t', 'f"{t} {time.time()}"')}\nsay(done=True)`)
     const spans: number[][] = []
-    const one = async () => { for await (const f of run()) spans.push(fs.readFileSync(f, 'utf8').trim().split(' ').map(Number)) }
+    const one = async () => { for (const line of await read(synthesize('Hi.', undefined, options()))) spans.push(line.split(' ').map(Number)) }
     await Promise.all([one(), one()])
     spans.sort((a, b) => a[0] - b[0])
     expect(spans[1][0]).toBeGreaterThanOrEqual(spans[0][1])
@@ -65,19 +90,17 @@ describe('synthesize', () => {
 })
 
 describe('transcribe', () => {
-  const hear = (body: string) => {
-    fs.writeFileSync(script, `#!/bin/bash\n${body}\n`, { mode: 0o755 })
-    return transcribe(Buffer.from('RIFF audio'), { python: '/bin/bash', script })
-  }
-
   it('gives the text, from a private temporary file it removes', async () => {
-    expect(await hear('cat "$1"; echo " said"')).toBe('RIFF audio said')
-    await expect(hear('stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"')).resolves.toBe('600')
-    await expect(hear('echo "$1"').then(f => fs.existsSync(f))).resolves.toBe(false)
+    fake('import stat\nsay(text=open(r["file"]).read() + " " + oct(stat.S_IMODE(os.stat(r["file"]).st_mode)) + " " + r["file"], done=True)')
+    const [text, mode, file] = (await transcribe(Buffer.from('RIFF'), options())).split(' ')
+    expect(text).toBe('RIFF')
+    expect(mode).toBe('0o600')
+    expect(fs.existsSync(file)).toBe(false)
   })
 
-  it('a failed run says why, and the next run is not stuck behind it', async () => {
-    await expect(hear('echo "no model" >&2; exit 1')).rejects.toThrow('speech_failed: no model')
-    expect(await hear('echo fine')).toBe('fine')
+  it('a failed run says why, and the next one is not stuck behind it', async () => {
+    fake('if open(r["file"]).read() == "bad":\n    say(error="no model")\n    continue\nsay(text="fine", done=True)')
+    await expect(transcribe(Buffer.from('bad'), options())).rejects.toThrow('speech_failed: no model')
+    expect(await transcribe(Buffer.from('good'), options())).toBe('fine')
   })
 })

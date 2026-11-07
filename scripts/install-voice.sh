@@ -22,7 +22,15 @@ if command -v uv >/dev/null; then
   [ -x "$DIR/.venv/bin/python" ] || uv venv -q "$DIR/.venv"
   uv pip install -q --python "$DIR/.venv/bin/python" kokoro-onnx==0.6.1 soundfile==0.14.0 faster-whisper==1.2.1
 else
-  [ -x "$DIR/.venv/bin/python" ] || python3 -m venv "$DIR/.venv"
+  # macOS ships Python 3.9, and Kokoro needs 3.10 or newer
+  if [ ! -x "$DIR/.venv/bin/python" ]; then
+    PY=""
+    for candidate in python3.13 python3.12 python3.11 python3.10 python3 "$HOME"/.pyenv/versions/3.1[0-3]*/bin/python; do
+      if command -v "$candidate" >/dev/null && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then PY="$candidate"; break; fi
+    done
+    [ -n "$PY" ] || { echo "Error: local speech needs Python 3.10 or newer. Install it, or install uv, then run this again." >&2; exit 1; }
+    "$PY" -m venv "$DIR/.venv"
+  fi
   "$DIR/.venv/bin/python" -m pip install -q kokoro-onnx==0.6.1 soundfile==0.14.0 faster-whisper==1.2.1
 fi
 fetch "$BASE/kokoro-v1.0.int8.onnx" kokoro.onnx "$MODEL_SHA"

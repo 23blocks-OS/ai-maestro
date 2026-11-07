@@ -291,6 +291,56 @@ describe('a person at a device (F082)', () => {
   })
 })
 
+describe('a device that connects in, such as a phone', () => {
+  it('is pinned first, then connects, and the first refresh confirms it', async () => {
+    const host = createDeviceHost({ agentsDir: dir, hubAddress: '127.0.0.1' } as any)
+    hosts.push(host)
+    g._deviceHost = host
+    const { data } = await svc.getAgentDeviceIdentity('a') as any
+    expect(data.hub).toBe('http://127.0.0.1:23112')
+    const device = identity()
+    deviceKeys.set(device.key, device)
+    const peer = { key: data.key, assignedAgent: data.address, revision: 'r1', camera: true }
+    const server = bridge(device, () => peer, hardware)
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    servers.push(server)
+    const origin = `http://127.0.0.1:${(server.address() as any).port}`
+
+    const added = await svc.addAgentDevice('a', { key: device.key, endpoint: 'reverse', name: 'phone' }) as any
+    expect(added.status).toBe(202)
+    expect(added.data.device.endpoint).toEqual({ reverse: data.hub })
+
+    const connection = new DeviceConnection({
+      origin: data.hub, identity: device, getPeer: () => peer, retryMinMs: 10, retryMaxMs: 20,
+      adapter: async (method: string, body: unknown, signal: AbortSignal) => {
+        const res = await fetch(`${origin}/v1/${method}`, { signal, method: method === 'challenge' ? 'GET' : 'POST', ...(body ? { body: JSON.stringify(body) } : {}) })
+        return { status: res.status, body: await res.json() }
+      },
+    })
+    await connection.ready
+    await vi.waitFor(async () => expect(((await svc.refreshAgentDevice('a', device.key)) as any).data.device.verified).toBe(true))
+    await svc.jumpAgentDevice('a', device.key)
+    const picture = await svc.invokeAgentDevice('a', device.key, { capability: 'camera.snapshot' }) as any
+    expect(picture.data.value.mime).toBe('image/jpeg')
+    await connection.stop()
+  })
+
+  it('takes the endpoint as an object too, and refuses nonsense', async () => {
+    const device = identity()
+    const object = await svc.addAgentDevice('a', { key: device.key, endpoint: { reverse: 'http://127.0.0.1:23112' }, name: 'phone' })
+    expect(object.status).toBe(202)
+    for (const endpoint of [{}, { reverse: 7 }, null, 5]) {
+      expect((await svc.addAgentDevice('a', { key: identity().key, endpoint })).status, JSON.stringify(endpoint)).toBe(400)
+    }
+  })
+
+  it('a host with no private address says so', async () => {
+    expect((await svc.getAgentDeviceIdentity('a') as any).data.hub).toBeNull()
+    expect((await svc.addAgentDevice('a', { key: identity().key, endpoint: 'reverse' })).status).toBe(409)
+  })
+})
+
 describe('a person speaking at a device', () => {
   it('held to talk: the host transcribes it and it arrives as input, marked as voice', async () => {
     const events: any[] = []
@@ -544,7 +594,7 @@ describe('agents that change (review of step 1)', () => {
     const device = await pair('a')
     const key = ((await svc.getAgentDeviceIdentity('a')).data as any).key
     agents.get('a').metadata.amp.address = 'a2@town.local'
-    expect(((await svc.getAgentDeviceIdentity('a')).data as any)).toEqual({ address: 'a2@town.local', key })
+    expect(((await svc.getAgentDeviceIdentity('a')).data as any)).toEqual({ hub: null, address: 'a2@town.local', key })
     expect(((await svc.listAgentDevices('a')).data as any).devices.map((d: any) => d.key)).toEqual([device.key])
     expect(svc.listHostDevices().status).toBe(200)
   })

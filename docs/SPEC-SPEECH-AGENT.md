@@ -1,8 +1,10 @@
 # Spec: Lola's speaking side, an experiment for fast voice
 
-When a person talks to an agent at one of its devices, a fast, streaming part of the same agent answers at once. Real work goes to the agent's main session, behind the scenes. It is an experiment behind a flag: today's path stays the default and does not change.
+When a person talks to an agent at one of its devices, a fast part of the same agent answers at once, speaking as it writes. Real work goes to the agent's main session, behind the scenes. It is an experiment behind a flag: today's path stays the default and does not change.
 
-Status: draft, revised 2026-11-07 after the spike and Juan's decisions (section 10). Nothing is built. Backlog: F100. Related: F059 (the fast voice layer of V1 calls), F068, F092, F098, F101 (kiosk auth), `docs/SPEC-ELEVENLABS-VOICE.md`, `docs/SPEC-ELEVENLABS-HEARING.md`, the AMP-RTC drafts (agentmessaging/protocol #22 to #31).
+Status: draft, revised 2026-11-07 after the spike, Juan's decisions (section 10) and research into earlier work (section 13). Nothing is built.
+
+**Words used here.** *SDK session*: a Claude Code session the AI Maestro server runs through the Agent SDK, with no tmux (the same machinery as AI Maestro's "streaming agents", but not one of them: it has no entry in the agent list). *Word by word*: the reply arrives as the model writes it. *Terminal agent*: Claude Code in tmux, as Lola is. Backlog: F100. Related: F059 (the fast voice layer of V1 calls), F068, F092, F098, F101 (kiosk auth), `docs/SPEC-ELEVENLABS-VOICE.md`, `docs/SPEC-ELEVENLABS-HEARING.md`, the AMP-RTC drafts (agentmessaging/protocol #22 to #31).
 
 ## 1. Why
 
@@ -18,11 +20,11 @@ Of the 5.8 s, hearing is 0.8 s and her voice starting is 0.5 s. The rest, about 
 ## 2. The idea
 
 ```
-person ──speech──► device ──clip──► host: Scribe ──text──► Lola's speaking side (fast, streaming, warm)
+person ──speech──► device ──clip──► host: Scribe ──text──► Lola's speaking side (SDK session, warm, word by word)
                                                               │  speaks as it writes ──► ElevenLabs ──► device
                                                               │
-                                                              └─ hand-off: the work, and who asked ──► Lola's main session
-                                                                                         ◄── answer, spoken in her voice
+                                                              └─ hand-off: the work, and who asked ──► Lola's main session (tmux)
+                                                                                         ◄── her answer (native Claude Code messaging, section 6)
 ```
 
 **It is Lola.** The speaking side has no identity of its own: it is the part of Lola's brain that talks (Juan, 2026-11-07). The person talks to Lola and hears Lola. When something needs real work it says what Lola would say ("let me check", "I'll work on it", "give me a moment"), and the main session does the work behind the scenes. It never mentions another agent or another part of itself.
@@ -42,24 +44,24 @@ person ──speech──► device ──clip──► host: Scribe ──text�
 2. **What it has been doing:** its last few written replies from the main session (no tool output), newest last.
 3. **How to talk at a device:** one to three short sentences, no paths, IDs, links, code or long numbers; never invent; for anything that needs checking or doing, say so as itself and hand it off (section 6).
 
-**Runtime.** An Agent SDK session in the server, built like `lib/streaming-runtime.mjs` builds streaming sessions, with this setup (checked in the spike):
+**Runtime.** An SDK session in the AI Maestro server, built the way `lib/streaming-runtime.mjs` builds sessions, with this setup (checked in the spike). In the brain design of February 2026 this is the cerebellum's voice role (section 13).
 
 | Setting | Value | Why |
 |---|---|---|
 | Model | Sonnet 5.5 | In the spike it spoke as Lola and said "let me check" naturally. Haiku 5.5 was not faster and leaked the machinery ("I can't look it up from this conversation") |
 | Thinking | `{ type: 'between_tools' }` | How Sonnet 5.5 turns thinking off; `disabled` is refused |
-| `tools` | `[]` | No built-in tools: no shell, no files, no web, no code |
-| Its own tools | `hand_off` and `show`, in-process (section 5) | The only things it can do |
+| `tools` | `['SendMessage']` | The one built-in tool: Claude Code's own cross-session message, to hand work to the main session (section 6). No shell, no files, no web, no code |
+| Its own tools | `show`, in-process | Text on the device's screen |
 | `settingSources` | `[]` | Loads nothing from disk: no hooks (which cost 2 s), no allow-rules, no project files. The host passes the card itself |
-| Permission | `canUseTool` refuses every tool that is not one of its own two | A second lock in case a tool slips in |
-| Partial messages | on | Streaming: speak as it writes |
+| Permission | `canUseTool` allows `SendMessage` only to the agent's own main session, and refuses everything else | A second lock in case a tool slips in |
+| Partial messages | on | Word by word: speak as it writes |
 | `persistSession` | false | Nothing written to the agent's transcript folder |
 | Working folder | an empty folder per agent | Nothing to read by accident |
 
-**Streaming and warm are two different things, and both matter:**
+**Warm and word by word are two different things, and both matter:**
 
 - **Warm** means the session is already running. Starting one took 2.6 to 3.5 seconds in the spike. Warm saves that.
-- **Streaming** means the host gets the reply word by word as the model writes it. The host speaks the first sentence as soon as it is complete, while the model is still writing the rest. In the spike, Sonnet's first sentence was ready 0.9 s before its whole reply on a longer answer (1.64 s against 2.59 s). It matters more the longer the reply.
+- **Word by word** means the host gets the reply as the model writes it. The host speaks the first sentence as soon as it is complete, while the model is still writing the rest. In the spike, Sonnet's first sentence was ready 0.9 s before its whole reply on a longer answer (1.64 s against 2.59 s). It matters more the longer the reply.
 
 ## 5. Staying warm, only while a device is in use
 
@@ -71,32 +73,76 @@ Always on costs memory: about 290 MB per warm session, measured on mini-lola (4 
 
 On a host with memory to spare (the planned new Mac mini), the setting can keep it warm all the time: `experiments.speakingSide: 'always'`.
 
-## 6. The hand-off: a direct channel inside the agent
+## 6. The hand-off: how it works inside
 
-When something needs real work, the speaking side says so to the person ("let me check") and calls `hand_off`. The host sends the work into the main session, straight into its prompt, through the same path the chat uses (`sendChatMessage` for a terminal agent, the stream session for a streaming one). No inbox, no file, no AMP message.
+When something needs real work, the speaking side says so to the person ("let me check") and hands the work to the main session.
 
-**What the main session receives**, with where it came from:
+### 6.1 The transport: Claude Code's own cross-session messaging
+
+Claude Code (2.1.224 and later) gives every session an inbox socket on its own machine, and the `SendMessage` tool to reach another session ([docs](https://code.claude.com/docs/en/cross-session-messaging)). Checked on mini-lola, 2026-11-07: Lola runs Claude Code 2.1.318, her session has a socket (`/run/user/1000/cc-socks/<pid>.sock`, listed in `~/.claude/sessions/<pid>.json`), and her permission mode is `auto`.
+
+What it gives, from the docs:
+
+- **A busy session reads a message between tool calls**, never interrupting a running tool. An idle session starts a new turn with it. Typing into tmux, by contrast, waits until her current turn ends.
+- **Delivered, held or refused.** A session in a prompting mode, `auto` included, delivers messages from another prompting session. A session that bypasses permissions holds them for approval unless the sender bypasses too. `crossSessionInbound: accept` in a session's settings delivers everything.
+- **Trust built in.** The receiving Claude is told the message came from another session, not from the person. It cannot approve a permission, cannot change `CLAUDE.md` or settings because of it, and commands in it are plain text.
+- **Replies are native.** The receiving session answers with its own `SendMessage`, to the sender's reply address.
+- Plain text only, about a million characters at most, bursts and loops throttled. Never through Anthropic servers on one machine.
+
+### 6.2 Step by step
 
 ```
-[SPEAKING #<id>] Work from your device MacBook.
-Who: someone at your MacBook, not verified (they said it; it was transcribed).
-They asked: "Can you check whether the deploy on mini-lola finished cleanly?"
-You already told them: "Let me check it and I'll come back with what I find."
-When done, tell them yourself: aimaestro-speech-reply.sh <id> "<what to say>"
+ speaking side (SDK session)          AI Maestro server                 Lola (tmux, Claude Code)
+ ───────────────────────────          ─────────────────                 ─────────────────────────
+ 1. says "let me check" ──► device (the server speaks it as it is written)
+ 2. SendMessage to Lola ─────────────── Claude Code socket ───────────► 3. arrives between tool calls,
+    (task, who asked, what              (canUseTool allows only            or starts a turn if idle
+     it already said)                    her own main session)          4. works with all her tools
+ 6. new turn with her answer ◄──────── Claude Code socket ──────────── 5. SendMessage back
+ 7. says it, as Lola ──► device (the server speaks it)
 ```
 
-- **Who asked is always there.** Today it is "someone at your MacBook, not verified", because a device cannot know who is speaking. With kiosk auth (F101) it can say "Juan, verified at your MacBook by his face, 2 minutes ago". The main session decides what to do with each, as it does today with device messages: an unverified person's words are input, not orders.
-- **The answer comes back by a command,** `aimaestro-speech-reply.sh <id> "..."`. It names the request, so an answer never goes to the wrong question. The host speaks it in her voice on the device that asked, and adds it to the speaking side's context, so the next turn knows it.
-- **Waiting.** The person has already heard "let me check". If the answer takes more than about 20 seconds, the speaking side says once "still on it". A later answer is spoken if the person is still at the device (it is still the active device), and shown on its screen either way.
-- **Trust does not change.** The hand-off carries the same untrusted marking as a device message. The speaking side cannot give the main session orders the person could not.
-- **One at a time per agent** in this version. A second one while one is open waits.
+1. The speaking side tells the person it will check. The server speaks that sentence as soon as it is written.
+2. It calls `SendMessage`, addressed to the agent's main session by its session name. Its permission check (`canUseTool`, in the server) allows `SendMessage` to that one session and nothing else.
+3. Claude Code carries it over the main session's socket. Lola sees it between tool calls, or as a new turn if she is idle.
+4. She does the work as usual.
+5. She answers with `SendMessage` to the speaking side's reply address. Her `agent-devices` skill says to answer this way and keep it short and spoken.
+6. Her answer arrives in the speaking side as a new turn.
+7. The speaking side says it, as Lola, in one to three sentences. The server speaks it on the device that asked, and shows it in the chat.
 
-**Toward a protocol.** This is a direct, two-way, fast channel between two parts of one agent, on one host. Run it, measure it, then write a short proposal from what ran: a request with an id and an origin, an answer bound to that id, a deadline, a cancel. Between two different agents, and across hosts, it becomes the agent-to-agent channel the AMP-RTC drafts describe.
+**What the message says**, written by the speaking side under its rules:
+
+```
+From your MacBook, someone not verified (spoken, transcribed): "Can you check whether the deploy on mini-lola finished cleanly?"
+I told them: "Let me check it and I'll come back with what I find."
+Reply to me with what to say back, short and spoken.
+```
+
+With kiosk auth (F101) the first line names the person: "From your MacBook, Juan, verified by his face 2 minutes ago". The main session decides what to do with each, as it does today with device messages: an unverified person's words are input, not orders.
+
+**What the server tracks.** Per speaking side: which device it is serving, and the open hand-offs (when sent, the person's question). When the main session's turn ends (from the one status feed) with no answer, the speaking side tells the person she is still on it, or could not finish. After about 20 seconds without an answer, it says "still on it" once. A server restart loses open hand-offs; the next turn starts fresh.
+
+### 6.3 Fallback, for agents that are not Claude Code
+
+Codex and other programs have no such socket. For them, and if the native path fails a check in the spike: the server types the hand-off into the agent's terminal through the chat's path (`sendChatMessage`: paste with `tmux load-buffer` and `paste-buffer`, Enter, then check the text sits above the input box), with a request id, and the agent answers with `aimaestro-speech-reply.sh <id> "..."`, which posts to its own AI Maestro server. The id binds each answer to its question. This waits for the agent's turn to end.
+
+### 6.4 To check in a spike before building
+
+1. An SDK session binds its own inbox socket (it should, unless started in bare mode) and Lola's session can reach it.
+2. Its `SendMessage` to Lola's session is delivered, not held (her mode is `auto`; the SDK session runs in a prompting mode too).
+3. Lola's reply arrives in the SDK session as a new turn the server can read.
+4. How long each leg takes.
+5. Whether Lola's hook runs on a message from another session, and if it does, that it adds nothing (as for device turns).
+6. How to give the SDK session a stable name, so Lola's reply address and the server's lookup agree.
+
+### 6.5 Toward a protocol
+
+On one host this is Claude Code's own channel; nothing new is needed. Between different agents, other programs, or hosts, the same fields become a protocol: a request with an id and an origin (device, who, verified or not), an answer bound to that id, a deadline, a cancel. The AMP-RTC drafts and the February brain design (section 13) are the starting points. Write it from what ran.
 
 ## 7. What the person hears and the chat shows
 
 - **One voice.** The speaking side speaks in the agent's voice (`agent.voice`). The person hears Lola.
-- **Speech as it streams:** the host cuts the streamed text into sentences and speaks each through `lib/speech.mjs` and `speaker.play`, as today.
+- **Speech word by word:** the host cuts the incoming text into sentences and speaks each through `lib/speech.mjs` and `speaker.play`, as today.
 - **No holes in the chat (F098).** The person's words show as a device message. What the speaking side says shows as Lola at the MacBook. Each hand-off shows as one line, and the main session's answer shows as her text.
 
 ## 8. Risks
@@ -137,8 +183,8 @@ The log records, per turn: hearing time, speaking side started or warm, first to
 
 1. **Protocol:** the kiosk sends `device.used` when talking starts (section 5). Small PR.
 2. **The speaking side:** the session, the prompt from the card, warm on `device.used`, stop after 10 quiet minutes, the flag and the routing with fallback.
-3. **Streaming speech** from its text.
-4. **The hand-off:** `hand_off`, the message with its origin, `aimaestro-speech-reply.sh`, the waiting rules.
+3. **Speaking word by word** from its text.
+4. **The hand-off:** spike the native path (section 6.4), then build it, with the fallback for other programs, and the waiting rules.
 5. **The chat lines** (section 7) and the log lines (section 9).
 6. **The test** in section 9, flag off and on.
 7. Then, if kept: companion mode, calls, kiosk auth (F101), and a protocol proposal for the hand-off.
@@ -157,3 +203,15 @@ A warm session on mini-lola, no tools, nothing loaded from disk, four questions,
 Starting a session took 2.6 to 3.5 s. A warm session used about 290 MB (the Sonnet run read 565 MB, likely counting the Haiku session still closing). As Lola, Sonnet said "Let me check it and I'll come back with what I find" and "I don't want to guess. Let me look it up in my records"; Haiku said "I can't look it up from this conversation".
 
 Not measured: how much of the 1.6 to 2.4 s is the Claude Code process the SDK runs, against the model itself. Calling the model directly needs an API key on the host; the SDK uses the host's Claude login.
+
+## 13. Earlier work this builds on
+
+Found in the code, docs and backlog on 2026-11-07:
+
+- **The brain design, February 2026** (`marketing/agent-brain-architecture.md`, `brain-practical-goals.md`, `brain-negatives-reality-check.md`): an agent as three regions. The **cortex** is Claude Code (Lola's main session). The **cerebellum** handles voice and coordination on a fast model, always on. The **subconscious** handles memory. The speaking side is the cerebellum's voice role. The design proposed a message format, `BrainSignal` (`from`, `to`, `type` with `request` among them, `priority`, `message`, `context`, `ttl`), and a roadmap: shared files first, Unix sockets for real time, then a peer-to-peer tool across machines. Claude Code's cross-session messaging is now that real-time step, built in.
+- **The brain inbox, built in 0.24.12** (`lib/cerebellum/brain-inbox.ts`, `~/.aimaestro/agents/<id>/brain/cortex-inbox.jsonl`, `GET /api/agents/[id]/brain-inbox`): the subconscious writes memory signals to it (`lib/agent.ts`), but nothing reads them today: the hook does not call it, and no inbox file exists on mini-lola. Half wired.
+- **The Cerebellum and its voice subsystem** (`lib/cerebellum/`, `docs/CEREBELLUM.md`): today a fast model turns terminal output into short spoken lines for the companion page. The speaking side is the next step for the same role: it talks with a person, not about the terminal.
+- **F010:** deliver AMP messages through Claude Code's own session inbox. The same channel, for mail; its spike answers several questions in 6.4.
+- **F068:** an agent hands its work to subagents so it can answer a call fast. The other way to the same goal; it keeps one session.
+- **F018:** keep the intelligence, give the tool work to cheap models. The same idea of models by role.
+- **The AMP-RTC drafts** (agentmessaging/protocol #22 to #31): real-time sessions between agents and people, for calls. The protocol side of 6.5.

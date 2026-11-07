@@ -71,7 +71,7 @@ function AddHome({ base, onAdded }: { base: string; onAdded: () => void }) {
   if (!identity) {
     return (
       <div className="mt-3">
-        <button type="button" onClick={open} className="text-xs px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-200" data-testid="add-home">Add a home</button>
+        <button type="button" onClick={open} className="text-xs px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-200" data-testid="add-home">Add a device</button>
         {error && <p role="alert" className="mt-2 text-xs text-red-300">{error}</p>}
       </div>
     )
@@ -145,7 +145,7 @@ export default function AgentHomesSection({ agentId, hostUrl = '' }: { agentId: 
     <div data-testid="agent-homes">
       {error && <p role="alert" className="text-xs text-red-300 mb-2">{error}</p>}
       {homes === null && !error && <p className="text-xs text-gray-500">Loading…</p>}
-      {homes?.length === 0 && <p className="text-xs text-gray-500">No homes. An agent works fine without one.</p>}
+      {homes?.length === 0 && <p className="text-xs text-gray-500">No devices. An agent works fine without one.</p>}
       <ul className="space-y-3">
         {homes?.map((home) => (
           <li key={home.key} className="border border-gray-700 rounded-lg p-3">

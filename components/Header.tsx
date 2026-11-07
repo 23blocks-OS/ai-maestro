@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useExperiment } from '@/hooks/useExperiment'
-import { Home, Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing, Globe, Contact } from 'lucide-react'
+import { MonitorSmartphone, Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet, LayoutGrid, FolderGit2, Building2, BellRing, Globe, Contact } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -73,10 +73,10 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           <a
             href="/agent-homes"
             className="text-sm px-3 py-1 bg-rose-700 hover:bg-rose-600 text-white rounded transition-colors flex items-center gap-1.5"
-            title="Agent homes: the real devices your agents own"
+            title="The real devices your agents own"
           >
-            <Home className="w-3.5 h-3.5" />
-            Homes
+            <MonitorSmartphone className="w-3.5 h-3.5" />
+            Devices
           </a>
           <a
             href="/people"

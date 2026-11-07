@@ -10,7 +10,7 @@ import {
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, AudioLines, Brain, Home,
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, AudioLines, Brain, MonitorSmartphone,
   FolderTree, Terminal
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
@@ -909,7 +909,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
-              {/* Homes: the devices this agent owns. Nothing is read until it is opened */}
+              {/* Devices: this agent owns. Nothing is read until it is opened */}
               <section>
                 <button
                   onClick={() => toggleSection('homes')}
@@ -920,8 +920,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
-                  <Home className="w-4 h-4" />
-                  Homes
+                  <MonitorSmartphone className="w-4 h-4" />
+                  Devices
                 </button>
 
                 {expandedSections.homes && (

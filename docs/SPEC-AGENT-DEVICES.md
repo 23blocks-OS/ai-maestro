@@ -1,7 +1,6 @@
 # Spec: AI Maestro as a device controller
 
-An agent can own devices, for example a laptop in the office or a camera in the kitchen, and work through them. In town language a device is the agent's
-**home**. This spec says how AI Maestro implements the protocol's **controller role**.
+An agent can own devices, for example a laptop in the office or a camera in the kitchen, and work through them. The screens say Device. In town language it is the agent's home. This spec says how AI Maestro implements the protocol's **controller role**.
 
 Status: draft, rewritten 2026-11-06 against the protocol at `08707e80`. GitHub: #788, #789. Backlog: F078, F079, F081 to F085.
 

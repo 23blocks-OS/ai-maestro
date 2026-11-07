@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.100] - 2026-11-07 - Homes are Devices on screen
+
+### Changed
+- The screens say Devices, not Homes: the header link, the agent profile and the page. The address stays `/agent-homes`.
+
+### Added
+- Spec for an agent's voice from ElevenLabs, agent to person, on devices, companion mode, calls and meetings: `docs/SPEC-ELEVENLABS-VOICE.md`. Backlog F097, speech and hearing on another machine.
+
 ## [0.106.99] - 2026-11-07 - A phone can connect to the hub
 
 ### Fixed

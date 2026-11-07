@@ -2,7 +2,7 @@
 
 An agent can speak with an ElevenLabs voice, the same one on its devices, in companion mode, on calls and in audio meetings. The host holds the key, makes the audio and sends it out. Nothing that plays the voice needs to know which engine made it.
 
-Status: draft, 2026-11-07. Nothing here is built. Backlog: F092 (one voice per agent). Related: F050, F059, F061, F065, F096, F097, B020.
+Status: the host engine is built (0.106.100), and the first test is next. Built: the engine, fallback to local speech, the voice picker, and the key in the vault. Later (Juan, 2026-11-07, "make it work first"): the daily limit, usage count, Settings → Voice, and the Doctor check. Backlog: F092 (one voice per agent). Related: F050, F059, F061, F065, F096, F097, B020.
 
 This spec covers one direction: **agent to person**. A person's voice to the agent stays as it is, and is planned separately.
 
@@ -42,10 +42,10 @@ agent text ──► host ──► engine (local Kokoro, or ElevenLabs) ──�
 
 ## 3. The key
 
-- Stored in the host's vault as `ELEVENLABS_API_KEY`, entered through the existing secret card (`aim-secret request`), so it is never pasted into a chat. `lib/speech-elevenlabs.mjs` reads it with `getBackend().get()`.
+- Stored in the host's vault as `ELEVENLABS_API_KEY`, with `aim-secret set ELEVENLABS_API_KEY` on that host, at a hidden prompt, so it is never pasted into a chat. `lib/speech-elevenlabs.mjs` reads it with `getBackend().get()`.
 - This is the first server feature to read the vault. It is the smallest piece of F065 and of the fix for B020: a host-wide secret that AI Maestro itself uses. F065's scopes and sharing stay for later, and this code moves to `useSecret()` when they exist.
 - **The key is per host, so it must be entered on every host where an agent uses ElevenLabs.** For Lola, that is mini-lola. An agent that moves to a host with no key answers `no_voice` until the key is added there, and the Doctor says so.
-- `ready()` must be cheap and synchronous, and vault reads are not. The server reads the key at start and after it is saved, and keeps it in memory. It is never logged, never returned by an API, and never sent to a peer.
+- The server reads the key when it first needs it and keeps it in memory for a minute, so a new key works with no restart. It is never logged, never returned by an API, and never sent to a peer.
 - On a Mac, the keychain can refuse a server that was started outside the desktop session, or after a reboot with no login (`docs/SECRETS.md`). That counts as no key. It must show in the Doctor, not as silence.
 - Recommended for whoever makes the key: restrict it to text to speech and reading voices, and set a credit limit on the key itself. To confirm in the ElevenLabs dashboard (section 13).
 
@@ -115,11 +115,11 @@ An agent keeps talking, in this order. The person is never left with silence and
 
 | Case | What happens |
 |---|---|
-| No key, wrong key (401), quota used up, ElevenLabs down, daily cap reached | The host uses Kokoro with its default voice if installed. Otherwise the device's own voice, or `no_voice` to the app, which uses the phone voice |
+| No key, wrong key (401), quota used up, ElevenLabs down | The host uses Kokoro with its default voice if installed (Juan, 2026-11-07). With no local speech, the request fails with `speech_failed` |
 | Unknown voice id | The same, and the Doctor names the agent |
 | A failure in the middle of a reply | The rest of that reply uses the fallback |
 
-A fallback voice is a different voice, which goes against F092. It is a choice between that and silence, and it is logged once per agent per hour with the reason. The text always still arrives, so a reply is never lost. **Decision for Juan in section 12.**
+A fallback voice is a different voice, which goes against F092, but it is better than silence. Each fallback is logged with the reason. The text always still arrives, so a reply is never lost.
 
 ## 7. Screens
 
@@ -165,8 +165,8 @@ Estimates, not measured: a 300-character reply costs about $0.012 past the plan.
 
 An agent can spend money in a loop, so:
 
-- **A daily limit per host** in characters, default 100,000 (about $4). At the limit, section 6 applies and the Doctor says so.
-- The host counts characters per agent per day in `~/.aimaestro/voice/usage.json`, and shows them in Settings.
+- **Later: a daily limit per host** in characters. At the limit, section 6 applies and the Doctor says so.
+- **Later:** the host counts characters per agent per day in `~/.aimaestro/voice/usage.json`, and shows them in Settings.
 - `/speech` keeps its 500-byte limit per call.
 
 ## 10. Privacy and rules
@@ -176,7 +176,7 @@ An agent can spend money in a loop, so:
 - The Doctor and Settings never show spoken text. Logs hold the agent, the count of characters and the error, never the text.
 - **A real person's voice needs their consent.** AI Maestro only lists what the account holds. Cloning is done in ElevenLabs, under its rules, and is outside this spec.
 - **The agent says it is an AI at the start of a call or meeting** (rule in F050). A natural voice makes this matter more. On calls, the first sentence is fixed text with the agent's name. To be confirmed with legal advice, which this spec does not provide.
-- Same trust model as all of AI Maestro: anyone on the network can call `/speech`, so anyone on the network can spend characters. The daily limit is the protection, not authentication.
+- Same trust model as all of AI Maestro: anyone on the network can call `/speech`, so anyone on the network can spend characters. Until the daily limit exists, the plan's own allowance is the only limit.
 
 ## 11. Tests and order of work
 
@@ -199,11 +199,12 @@ Order, each step one PR:
 4. **Meetings.** "Hear this meeting" in the browser, then the app.
 5. **Streaming, only if step 1 or 3 shows a need** (section 13).
 
-## 12. Decisions for Juan
+## 12. Decisions (Juan, 2026-11-07)
 
-1. **When ElevenLabs fails, should the agent speak in another voice, or only show text?** Recommended: another voice, as in section 6, because on a device or a call silence looks broken.
-2. **The daily limit.** Recommended: 100,000 characters per host.
-3. **Which plan.** Recommended: Starter ($6) for the test. The Free plan's terms were not checked.
+1. When ElevenLabs fails, the agent goes back to local speech.
+2. Limits come later: make it work first.
+3. Plan: Starter.
+4. First test: point Lola at ElevenLabs and repeat the whole device and companion test.
 
 ## 13. Not checked yet
 

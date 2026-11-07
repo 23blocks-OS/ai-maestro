@@ -1,6 +1,6 @@
 # F092 — One voice per agent, on every device and call
 
-**Status:** In Progress (setting in 0.106.80; speech on devices with Kokoro in 0.106.82; warm in 0.106.98)
+**Status:** In Progress (setting in 0.106.80; speech on devices with Kokoro in 0.106.82; warm in 0.106.98; ElevenLabs on the host in 0.106.100, first test next)
 **Type:** Feature
 **Created:** 2026-11-06
 

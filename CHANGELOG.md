@@ -3,7 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.106.100] - 2026-11-07 - Homes are Devices on screen
+## [0.106.100] - 2026-11-07 - An agent can speak with ElevenLabs; Homes are Devices on screen
+
+### Added
+- An agent can use an ElevenLabs voice on its devices and through `/speech`, with the same audio as Kokoro. The host holds the key: `aim-secret set ELEVENLABS_API_KEY`. The profile lists the key's voices (`GET /api/voice/elevenlabs/voices`). When ElevenLabs fails, local speech finishes the reply.
+
+### Fixed
+- A device stops getting speech once a person starts talking at it, so no more sentences are made for nobody.
 
 ### Changed
 - The screens say Devices, not Homes: the header link, the agent profile and the page. The address stays `/agent-homes`.

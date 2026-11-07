@@ -7,7 +7,8 @@
 import fs from 'fs'
 import { getAgent } from '@/lib/agent-registry'
 import { isSelf } from '@/lib/hosts-config'
-import { localSpeechReady, synthesize } from '@/lib/speech-local.mjs'
+import { speakWith, voiceReady } from '@/lib/speech.mjs'
+import { listVoices } from '@/lib/speech-elevenlabs.mjs'
 import type { ServiceResult } from '@/services/service-errors'
 
 /** speaker.say's limit: one rule for what an agent may say */
@@ -26,19 +27,29 @@ export function joinWavs(files: Buffer[]): Buffer {
   return Buffer.concat([header, pcm])
 }
 
-export async function speakForAgent(agentId: string, body: { text?: unknown }, speech = { ready: localSpeechReady, synthesize }): Promise<ServiceResult<{ audio: Buffer }>> {
+export async function speakForAgent(agentId: string, body: { text?: unknown }, speech = { ready: voiceReady, synthesize: speakWith }): Promise<ServiceResult<{ audio: Buffer }>> {
   const agent = getAgent(agentId)
   if (!agent || agent.deletedAt) return fail(404, 'not_found', `Unknown agent ${agentId}`)
   if (agent.hostId && !isSelf(agent.hostId)) return fail(409, 'other_host', `This agent lives on ${agent.hostId}. Ask that host.`)
   const text = body?.text
   if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text) > MAX_TEXT) return fail(400, 'invalid_request', `text must be 1 to ${MAX_TEXT} bytes`)
-  if (agent.voice?.engine !== 'local' || !speech.ready()) return fail(409, 'no_voice', 'This agent has no voice on this host')
+  if (!agent.voice || !(await speech.ready(agent.voice))) return fail(409, 'no_voice', 'This agent has no voice on this host')
   try {
     const files: Buffer[] = []
-    for await (const file of speech.synthesize(text, agent.voice.voiceId)) files.push(fs.readFileSync(file))
+    for await (const file of speech.synthesize(text, agent.voice)) files.push(fs.readFileSync(file))
     if (!files.length) return fail(500, 'speech_failed', 'No speech was made')
     return { data: { audio: joinWavs(files) }, status: 200 }
   } catch (err) {
     return fail(500, 'speech_failed', (err as Error).message)
+  }
+}
+
+export async function elevenLabsVoices(list = listVoices): Promise<ServiceResult<any>> {
+  try {
+    const voices = await list()
+    if (!voices) return fail(409, 'no_key', 'This host has no ElevenLabs key')
+    return { data: { voices }, status: 200 }
+  } catch (err) {
+    return fail(502, 'provider_failed', (err as Error).message)
   }
 }

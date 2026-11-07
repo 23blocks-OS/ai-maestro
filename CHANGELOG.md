@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.92] - 2026-11-06 - aimaestro.sh mentions the phone app
+
+### Changed
+- aimaestro.sh says AI Maestro for iPhone is available on the App Store, with the Safari app banner and Apple's credit line.
+
 ## [0.106.91] - 2026-11-06 - Talking at a device feels faster
 
 ### Changed

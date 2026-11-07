@@ -4,7 +4,7 @@ import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
-import DeviceMessage from '@/components/chat/DeviceMessage'
+import DeviceMessage, { SpeakingMessage } from '@/components/chat/DeviceMessage'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
@@ -726,6 +726,11 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                 <div className="flex-1 border-t border-gray-700/50" />
               </div>
             )
+          }
+
+          if (msg.type === 'speaking_message') {
+            const m = msg as any
+            return <SpeakingMessage key={key} kind={m.kind} device={m.device} source={m.source} text={m.text || ''} timestamp={msg.timestamp} />
           }
 
           // Words someone said or typed at one of the agent's devices (F098)

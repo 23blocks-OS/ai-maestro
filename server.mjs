@@ -28,6 +28,7 @@ import {
   readHookState,
   hookStateFilePath,
 } from './lib/chat-transcript.mjs'
+import { withSpeaking, speakingEntries } from './lib/speaking-log.mjs'
 import { askUserQuestionIn } from './lib/question-state.mjs'
 // F004 Phase 2: a codex agent has no AI Maestro hook, so its live "working"
 // indicator is derived from the turn-lifecycle events in its own transcript.
@@ -221,7 +222,8 @@ async function getChatHistory(sessionName, agentId) {
   const lines = fileContent.split('\n')
   // The newest page, counted in conversation messages (tool calls do not use it up); older pages
   // come from getChatHistoryPage. historyStart is where this page begins, the cursor for the next one.
-  const page = pageOfMessages(parseJsonlLines(lines, Number.MAX_SAFE_INTEGER))
+  // The speaking side's turns (F100) join the conversation by time, so the chat has no holes
+  const page = pageOfMessages(withSpeaking(parseJsonlLines(lines, Number.MAX_SAFE_INTEGER), speakingEntries(agent.id)))
   const messages = page.messages
 
   const workingDir = getAgentWorkingDir(agent)
@@ -306,7 +308,7 @@ async function getChatHistoryPage(sessionName, agentId, before, conversationFile
   if (!file || file.path !== conversationFile || !Number.isInteger(end) || end <= 0) {
     return { messages: [], start: 0, hasMore: false, before, conversationFile: file?.path || null }
   }
-  const all = parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER)
+  const all = withSpeaking(parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER), speakingEntries(agent.id))
   return { ...pageOfMessages(all, { end, through }), before: end, conversationFile: file.path }
 }
 
@@ -317,7 +319,7 @@ async function sendChatSearch(ws, sessionName, parsed) {
     const { getAgent, getAgentByName } = await import('./lib/agent-registry.ts')
     const agent = (parsed.agentId && getAgent(parsed.agentId)) || getAgentByName(sessionName)
     const file = agent && resolveJsonlPath(agent)
-    const all = file ? parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER) : []
+    const all = file ? withSpeaking(parseJsonlLines(fs.readFileSync(file.path, 'utf-8').split('\n'), Number.MAX_SAFE_INTEGER), speakingEntries(agent.id)) : []
     data = { query: parsed.query, ...searchMessages(all, parsed.query) }
   } catch {
     data = { query: parsed.query, results: [], total: 0, failed: true }
@@ -2603,6 +2605,8 @@ async function startServer(handleRequest) {
         agentExists: (id) => { const a = getAgent(id); return !!a && !a.deletedAt },
         labelOf: (id) => { const a = getAgent(id); return a?.label || a?.name },
         voiceOf: (id) => getAgent(id)?.voice,
+        // A tap on the mic warms the agent's speaking side while the person talks (F100)
+        onUsed: (id) => { const a = getAgent(id); if (a?.experiments?.speakingSide) globalThis._speakingSides?.ensure(a) },
         // The one status feed: a device shows what every other view shows
         activity: async () => (await (await fetch(`http://127.0.0.1:${port}/api/sessions/activity?local=true`, { signal: AbortSignal.timeout(4000) })).json()).activity || {},
         hubAddress: getLocalIPs().find((i) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.ip))?.ip ?? null,
@@ -2612,6 +2616,51 @@ async function startServer(handleRequest) {
           await deliverDeviceEvent(event, (address) => globalThis._deviceHost.agentIdOf(address))
         },
       })
+      // The speaking side of agents that use the F100 experiment: created now, started on the first tap or words
+      try {
+        const [{ createSpeakingSides }, { query, tool, createSdkMcpServer }, { buildEnv }, { appendSpeakingLog }] = await Promise.all([
+          import('./lib/cerebellum/speaking-side.mjs'), import('@anthropic-ai/claude-agent-sdk'), import('./lib/streaming-runtime.mjs'), import('./lib/speaking-log.mjs'),
+        ])
+        const { toChatEntry } = await import('./lib/speaking-log.mjs')
+        const { z } = await import('zod')
+        const devices = () => import('./services/agent-devices-service.ts')
+        const value = (r) => { if (r.status !== 200 || r.data?.ok === false) throw new Error(r.data?.error || r.data?.message || 'refused'); return r.data.value }
+        globalThis._speakingSides = createSpeakingSides({
+          query, buildEnv,
+          say: async (agentId, key, text) => {
+            const { invokeAgentDevice } = await import('./services/agent-devices-service.ts')
+            return (await invokeAgentDevice(agentId, key, { capability: 'speaker.say', args: { text } })).data?.value
+          },
+          transcriptPath: (agent) => resolveJsonlPath(agent)?.path,
+          // The device it is at: quick things it does itself (F100). The device's own switches still decide
+          sdkTools: { tool, createSdkMcpServer, z },
+          device: {
+            look: async (agentId, key) => {
+              const v = value(await (await devices()).invokeAgentDevice(agentId, key, { capability: 'camera.snapshot', args: {} }))
+              return { mime: v.mime, data: fs.readFileSync(v.path).toString('base64') }
+            },
+            show: async (agentId, key, text) => value(await (await devices()).invokeAgentDevice(agentId, key, { capability: 'display.text', args: { text } })),
+            health: async (agentId, key) => value(await (await devices()).invokeAgentDevice(agentId, key, { capability: 'device.health', args: {} })),
+            listen: async (agentId, key, seconds) => {
+              const v = value(await (await devices()).captureAgentDevice(agentId, key, { kind: 'microphone', seconds }))
+              const { hear } = await import('./lib/speech.mjs')
+              return hear(fs.readFileSync(v.path), getAgent(agentId)?.voice)
+            },
+          },
+          log: (agentId, entry) => {
+            const record = appendSpeakingLog(agentId, entry)
+            // Live: anyone with this agent's chat open sees it now
+            const name = getAgent(agentId)?.name
+            const st = name && terminalSessions.get(name)
+            if (record && st?.chatClients?.size) {
+              const msg = JSON.stringify({ type: 'chat:messages', data: [toChatEntry(record)] })
+              st.chatClients.forEach((ws) => { if (ws.readyState === 1) try { ws.send(msg) } catch {} })
+            }
+          },
+        })
+      } catch (err) {
+        console.error('[Speaking] Not available:', err.message)
+      }
       // Not awaited: a dead device takes 15 s to time out, and the startup tasks below must not wait for it
       globalThis._deviceHost.restore(loadAgents().filter((a) => !a.deletedAt && (!a.hostId || isSelf(a.hostId)))).catch((err) => console.error('[Devices] Restore failed:', err.message))
     } catch (err) {

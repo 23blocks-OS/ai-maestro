@@ -20,6 +20,7 @@ import { type ServiceResult, notFound, invalidRequest, missingField } from '@/se
 // Shared transcript logic — single source of truth with server.mjs (do not fork;
 // the underscore path-encoding bug had to be fixed in 3 copies once already)
 import { resolveJsonlPath, parseJsonlLines, readHookState } from '@/lib/chat-transcript.mjs'
+import { withSpeaking, speakingEntries } from '@/lib/speaking-log.mjs'
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -63,7 +64,8 @@ export async function getConversationMessages(
   const fileContent = fs.readFileSync(currentConversation.path, 'utf-8')
   const lines = fileContent.split('\n')
 
-  let messages: any[] = parseJsonlLines(lines, Number.MAX_SAFE_INTEGER)
+  // The speaking side's turns (F100) join the conversation by time
+  let messages: any[] = withSpeaking(parseJsonlLines(lines, Number.MAX_SAFE_INTEGER), speakingEntries(agent.id))
   if (since) {
     const sinceTime = new Date(since).getTime()
     messages = messages.filter(m =>

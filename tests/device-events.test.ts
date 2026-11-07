@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const sendFromUI = vi.fn(async (_options: any) => ({}))
 vi.mock('@/lib/message-send', () => ({ sendFromUI: (o: any) => sendFromUI(o) }))
-vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'lola-id' ? { id, name: 'pas-lola' } : null) }))
+vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'lola-id' ? { id, name: 'pas-lola' } : id === 'exp-id' ? { id, name: 'pas-exp', experiments: { speakingSide: true } } : null) }))
 
 const { deliverDeviceEvent } = await import('@/lib/device-events')
 const idOf = (address: string) => (address === 'lola@x' ? 'lola-id' : undefined)
@@ -45,5 +45,32 @@ describe('device events reach the agent', () => {
     sendFromUI.mockClear()
     for (const type of ['device.online', 'device.offline', 'device.activated']) await deliverDeviceEvent(event({ type }), idOf)
     expect(sendFromUI).not.toHaveBeenCalled()
+  })
+})
+
+describe('the speaking side experiment (F100)', () => {
+  const g = globalThis as any
+  const expOf = (address: string) => (address === 'lola@x' ? 'exp-id' : undefined)
+  it('with the flag on, the speaking side takes the words and nothing goes the usual way', async () => {
+    const handle = vi.fn(() => true)
+    g._speakingSides = { handle }
+    await deliverDeviceEvent(event({ source: 'voice' }), expOf)
+    expect(handle).toHaveBeenCalledWith(expect.objectContaining({ id: 'exp-id' }), { deviceKey: 'WCKlMemnV7JtD6Yln67o', deviceName: 'MacBook', text: 'Hello', source: 'voice' })
+    expect(sendFromUI).not.toHaveBeenCalled()
+    delete g._speakingSides
+  })
+  it('when the speaking side cannot take them, the words go the usual way', async () => {
+    g._speakingSides = { handle: () => false }
+    await deliverDeviceEvent(event(), expOf)
+    expect(sendFromUI).toHaveBeenCalledTimes(1)
+    delete g._speakingSides
+  })
+  it('with the flag off, the speaking side is never asked', async () => {
+    const handle = vi.fn(() => true)
+    g._speakingSides = { handle }
+    await deliverDeviceEvent(event(), idOf)
+    expect(handle).not.toHaveBeenCalled()
+    expect(sendFromUI).toHaveBeenCalledTimes(1)
+    delete g._speakingSides
   })
 })

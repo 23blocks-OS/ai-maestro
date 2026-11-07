@@ -556,7 +556,7 @@ describe("the agent's own voice (F092)", () => {
     svc.jumpAgentDevice('a', null as any)
     expect((await svc.invokeAgentDevice('a', idle.key, say)).status).toBe(409)
     expect(played).toEqual([])
-  })
+  }, 20000) // four fake devices: under a loaded machine 5 s was too tight (seen twice on 2026-11-07)
 
   it('the same limit on what an agent may say', async () => {
     const device = await setup([file('1.wav', wav())], { 'speaker.play': true }, { engine: 'local' })

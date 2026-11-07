@@ -4,7 +4,7 @@ Detail for working on specific subsystems. `CLAUDE.md` holds the rules every
 session needs; this file holds how things work. Read the section you need.
 
 Other deep dives: `docs/CHAT-ARCHITECTURE.md` (chat send paths and question
-renderers), `docs/CEREBELLUM.md` (subsystems, voice), `docs/LONG-TERM-MEMORY.md`
+renderers), `docs/CEREBELLUM.md` (subsystems, voice, the brain's state and the speaking side, F100), `docs/LONG-TERM-MEMORY.md`
 (memory), `docs/SKILLS-QUALITY.md` (skills and evals),
 `docs/COST-OPTIMIZATION.md` (where an agent's money goes).
 

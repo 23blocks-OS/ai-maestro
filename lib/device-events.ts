@@ -28,6 +28,13 @@ export async function deliverDeviceEvent(event: DeviceEvent, agentIdOf: (address
 
   const device = event.name || event.deviceKey.slice(0, 8)
   const input = event.type === 'device.input'
+
+  // Experiment F100: the agent's speaking side answers. When it cannot, the words go the usual way below
+  const speaking = (globalThis as { _speakingSides?: { handle(a: unknown, e: unknown): boolean } })._speakingSides
+  if (input && agent.experiments?.speakingSide && speaking?.handle(agent, { deviceKey: event.deviceKey, deviceName: device, text: event.text, source: event.source })) {
+    seen.add(event.id)
+    return
+  }
   await sendFromUI({
     from: `device-${event.deviceKey.slice(0, 8)}`,
     fromAlias: `Device ${device}`,

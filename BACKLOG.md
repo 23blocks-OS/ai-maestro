@@ -118,6 +118,8 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F097** — [Speech and hearing on another machine](./backlog/F097-voice-on-another-host.md) — `Todo`
 - **F098** — [Device conversations show in the agent's chat](./backlog/F098-device-conversations-in-the-chat.md) — `In Progress`
 - **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `In Progress`
+- **F100** — [Experiment: a fast speaking side of the agent answers at its devices](./backlog/F100-speech-agent-experiment.md) — `In Progress` (built behind the flag; MacBook test next)
+- **F101** — [Kiosk auth: the owner proves it is them with a tap and a picture](./backlog/F101-kiosk-auth-by-face.md) — `Todo` (later)
 
 ## Bugs
 

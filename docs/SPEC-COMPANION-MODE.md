@@ -46,11 +46,20 @@ Kokoro takes about as long to make speech as to play it on mini-lola, and one ru
 
 The camera preview is the person's own picture, shown on their phone only. It is not sent to the agent or to any server. The label says "Only on this screen". The camera button turns it off with one tap.
 
-In this step the agent cannot use the phone's camera at all, so the app must never show "Lola is looking". That comes with F080.
+The agent can also ask for one still picture. While companion mode is open, the phone is a small device that opens its own connection (`protocol/reverse.md`) and offers `device.health` and `camera.snapshot`. No live media. It must show the protocol's in-use sign while taking the picture, the screen shows "Lola is looking" only then, and the Camera switch off refuses it.
+
+Pairing, from the phone, because the person holding it is the owner:
+
+1. `GET /api/agents/[id]/devices/identity` gives the agent's key, address and `hub`, the origin to connect to. `hub` is null on a host with no private address.
+2. `POST /api/agents/[id]/devices` with the phone's device key and `endpoint: "reverse"`. Answers 202 pending. This starts the hub if it is the host's first device.
+3. Connect to `ws://<hub host>:23112/v1/connect/<deviceKey>` on the agent's own host.
+4. `POST .../devices/[key]/refresh`, then the device is confirmed.
+
+A picture needs the device active: send `device.used` when the mode opens. That makes the phone the active device, so the MacBook goes idle, by the protocol's one-active-device rule.
 
 ## 6. Not in this step
 
-- The phone as a device: the agent jumping to it and using its camera, microphone and speaker. That needs live media over device-opened connections in the protocol (F080).
+- Live camera, microphone and speaker on the phone. That needs live media over device-opened connections in the protocol (F080).
 - Listening without a tap (F095). iOS also limits this to the app being on screen, or the call system.
 - Real-time voice (F059).
 - Other languages.

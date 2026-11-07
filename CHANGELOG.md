@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.97] - 2026-11-06 - A phone can be a device
+
+### Added
+- `POST /api/agents/[id]/devices` accepts a device that opens its own connection: `endpoint: "reverse"` or `{ reverse }`. `GET .../devices/identity` returns `hub`, the address to connect to (F096).
+
+### Fixed
+- `scripts/install-voice.sh` finds Python 3.10 or newer, and says so when there is none: macOS ships 3.9.
+
 ## [0.106.96] - 2026-11-06 - The agent's voice, on request
 
 ### Added

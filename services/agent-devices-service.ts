@@ -33,7 +33,7 @@ interface DeviceHost {
   addressOf(agent: Agent): string | null
   publicIdentity(agent: Agent): { address: string; key: string } | null
   inventory(agent: Agent): any[]
-  add(agent: Agent, device: { key: string; endpoint: string; name: string }): Promise<{ device: any; pending?: string } | null>
+  add(agent: Agent, device: { key: string; endpoint: string | { reverse: string }; name: string }): Promise<{ device: any; pending?: string } | null>
   refresh(agent: Agent, key: string): Promise<any>
   jump(agent: Agent, key: string | null): { activeDeviceKey: string | null; generation: number }
   invoke(agent: Agent, key: string, capability: string, args: Record<string, unknown>): Promise<any>
@@ -41,6 +41,7 @@ interface DeviceHost {
   saveSnapshot(agent: Agent, key: string, value: { mime: string; data: string }): string
   capture(agent: Agent, key: string, kind: string, seconds: number): Promise<string>
   canSpeak(agent: Agent, key: string): boolean
+  hubOrigin(): string | null
   speak(agent: Agent, key: string, text: string, voiceId?: string): Promise<unknown>
   latestSnapshot(agent: Agent, key: string): string | null
 }
@@ -96,21 +97,26 @@ export async function listAgentDevices(agentId: string, { refresh = false } = {}
 }
 
 export function getAgentDeviceIdentity(agentId: string) {
-  return withAgent<{ address: string; key: string }>(agentId, (h, agent) => {
+  return withAgent<{ address: string; key: string; hub: string | null }>(agentId, (h, agent) => {
     const identity = h.publicIdentity(agent)
     if (!identity) return fail(409, 'no_amp_address', 'This agent has no AMP address yet, so it cannot own a device')
-    return { data: identity, status: 200 }
+    return { data: { ...identity, hub: h.hubOrigin() }, status: 200 }
   })
 }
 
 export async function addAgentDevice(agentId: string, body: { key?: unknown; endpoint?: unknown; name?: unknown }): Promise<ServiceResult<{ device: any }>> {
   return withAgent(agentId, async (h, agent) => {
-    const { key, endpoint, name } = body || {}
-    if (typeof key !== 'string' || typeof endpoint !== 'string') return fail(400, 'invalid_request', 'key and endpoint are required')
+    const { key, name } = body || {}
+    // A device that opens its own connection, such as a phone: 'reverse' means this host's hub
+    const hub = h.hubOrigin()
+    if (body?.endpoint === 'reverse' && !hub) return fail(409, 'no_hub', 'This host has no Tailscale address, so a device cannot connect in')
+    const endpoint = body?.endpoint === 'reverse' ? { reverse: hub as string } : body?.endpoint
+    const validEndpoint = typeof endpoint === 'string' || typeof (endpoint as { reverse?: unknown } | null | undefined)?.reverse === 'string'
+    if (typeof key !== 'string' || !validEndpoint) return fail(400, 'invalid_request', 'key and endpoint are required')
     if (name !== undefined && (typeof name !== 'string' || name.length > MAX_NAME)) return fail(400, 'invalid_request', `name must be text of at most ${MAX_NAME} characters`)
     if (!h.addressOf(agent)) return fail(409, 'no_amp_address', 'This agent has no AMP address yet, so it cannot own a device')
     const known = h.inventory(agent).find((d) => d.key === key)
-    const added = await h.add(agent, { key, endpoint, name: (name as string) || known?.name || key })
+    const added = await h.add(agent, { key, endpoint: endpoint as string | { reverse: string }, name: (name as string) || known?.name || key })
     if (!added) return fail(409, 'no_amp_address', 'This agent has no AMP address yet, so it cannot own a device')
     // Pinned, but the device has not confirmed this agent yet: the list says so, and refresh asks again
     if (added.pending) return { data: { device: added.device, pending: added.pending }, status: 202 }

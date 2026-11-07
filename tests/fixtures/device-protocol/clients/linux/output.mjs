@@ -1,16 +1,18 @@
-import { accessSync, constants } from "node:fs";
+import {
+  playArgs,
+  playCommand,
+  playPresent,
+  speechArgs,
+  speechCommand,
+  speechPresent,
+} from "./platform.mjs";
 import { spawn } from "node:child_process";
 export function speechReady() {
-  try {
-    accessSync("/usr/bin/espeak-ng", constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
+  return speechPresent();
 }
 export function say(text, signal) {
   return new Promise((resolve, reject) => {
-    const child = spawn("/usr/bin/espeak-ng", ["--stdin"], {
+    const child = spawn(speechCommand, speechArgs, {
       stdio: ["pipe", "ignore", "ignore"],
     });
     const stop = () => child.kill("SIGKILL");
@@ -38,16 +40,11 @@ export function say(text, signal) {
   });
 }
 export function playReady() {
-  try {
-    accessSync("/usr/bin/aplay", constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
+  return playPresent();
 }
 export function play(bytes, signal) {
   return new Promise((resolve, reject) => {
-    const child = spawn("/usr/bin/aplay", ["-q", "-"], {
+    const child = spawn(playCommand, playArgs, {
       stdio: ["pipe", "ignore", "ignore"],
     });
     const stop = () => child.kill("SIGKILL");

@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.99] - 2026-11-07 - A phone can connect to the hub
+
+### Fixed
+- The device hub dropped every phone with no log: iOS and Android socket libraries always send `Origin`, and the hub refused any. It now accepts its own origin, and logs any other as a refusal (protocol #39; Device SDK repinned).
+
 ## [0.106.98] - 2026-11-06 - The voice stays warm
 
 ### Changed

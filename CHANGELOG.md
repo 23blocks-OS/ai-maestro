@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.91] - 2026-11-06 - Talking at a device feels faster
+
+### Changed
+- A device message tells the agent to answer first and mark it read afterwards: the notice already holds the whole text.
+- `say` returns once the first sentence has played, and the rest keeps playing, so an agent can read what the person says next.
+- The device shows "You said: ..." as soon as speech is transcribed.
+- `aimaestro-react.sh` is in the plugin (1.19.10), so agents get it.
+
+### Fixed
+- `StreamingChatView` no longer shows system notes, such as a reaction, as the person speaking.
+
 ## [0.106.90] - 2026-11-06 - Reactions on chat messages
 
 ### Added

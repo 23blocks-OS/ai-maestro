@@ -279,7 +279,7 @@ describe('an agent on another host', () => {
 })
 
 describe('aimaestro-react.sh', () => {
-  const script = path.join(__dirname, '..', 'scripts', 'aimaestro-react.sh')
+  const script = path.join(__dirname, '..', 'plugin', 'plugins', 'ai-maestro', 'scripts', 'aimaestro-react.sh')
 
   async function run(args: string[], agentId = 'a1'): Promise<{ code: number; out: string; requests: any[] }> {
     const requests: any[] = []

@@ -2,7 +2,7 @@
 
 What a person says at one of an agent's devices is turned into text by ElevenLabs Scribe, for agents that already speak with ElevenLabs. Local hearing stays for everything else, and is the fallback.
 
-Status: built in 0.106.103 (Juan took the recommendations in section 9: per agent, the kiosk line, fallback to local). First real check on mini-lola: Scribe 0.51 to 0.66 s per clip, local hearing 2.18 s warm and 5.45 s cold, the same words. Backlog: F099. Related: F092, `docs/SPEC-ELEVENLABS-VOICE.md` (speaking), B036 (language), B037 (delay), F097 (hearing on another machine).
+Status: built in 0.106.103 (Juan took the recommendations in section 9: per agent, the kiosk line, fallback to local). First real check on mini-lola: Scribe 0.51 to 0.66 s per clip (0.47 to 0.9 s over a day of tests at the MacBook), local hearing 2.18 s warm and 5.45 s cold, the same words. Backlog: F099. Related: F092, `docs/SPEC-ELEVENLABS-VOICE.md` (speaking), B036 (language), B037 (delay), F097 (hearing on another machine).
 
 ## 1. What it changes, and what it does not
 

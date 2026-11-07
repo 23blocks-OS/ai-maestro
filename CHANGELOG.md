@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.109] - 2026-11-07 - Voice and call docs: where the cerebellum leaves us
+
+### Docs
+- The cerebellum's results at the MacBook (`docs/SPEC-SPEECH-AGENT.md` section 14): about 2.5 s from the last word to the voice, 0.75 s to "Let me check." on turns that do work.
+- V1 call (F059): what the device work gives a call, what is still missing (live audio both ways), and the choice it opens between this cascade and a speech-to-speech model. Progress notes in F050 and `docs/SPEC-PEOPLE-CALLS-MEETINGS.md`.
+- Companion mode on the cerebellum (`docs/SPEC-COMPANION-MODE.md`), from the app's TestFlight 1.0.4.
+- Backlog: F099 and F103 done; F059, F092 and F100 updated.
+
 ## [0.106.108] - 2026-11-07 - A paired device can speak as its owner (F103)
 
 ### Added

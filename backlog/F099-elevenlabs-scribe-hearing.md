@@ -1,6 +1,6 @@
 # F099 — Hear a device's speech with ElevenLabs Scribe
 
-**Status:** In Progress (built in 0.106.103; check at the MacBook next; spec: [docs/SPEC-ELEVENLABS-HEARING.md](../docs/SPEC-ELEVENLABS-HEARING.md))
+**Status:** Done (0.106.103; checked at the MacBook: 0.47 to 0.9 s per clip against 2 to 5 s locally. Spec: [docs/SPEC-ELEVENLABS-HEARING.md](../docs/SPEC-ELEVENLABS-HEARING.md))
 **Type:** Feature
 **Created:** 2026-11-07
 

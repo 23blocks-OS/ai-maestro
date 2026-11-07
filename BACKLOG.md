@@ -77,7 +77,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Blocked` (until V1 runs a real call)
 - **F057** — [A directory of humans, owned by hosts the way agents are](./backlog/F057-humans-directory.md) — `In Progress`
 - **F058** — [Optional access token for instances exposed to the internet (experiment)](./backlog/F058-optional-access-token-internet.md) — `Todo`
-- **F059** — [V1: A voice call with an agent](./backlog/F059-v1-voice-call-with-an-agent.md) — `In Progress` (signalling done; the agent's own voice on calls next; then the real-time spike)
+- **F059** — [V1: A voice call with an agent](./backlog/F059-v1-voice-call-with-an-agent.md) — `In Progress` (the voice pieces exist for devices, about 2.5 s a turn; live audio is next)
 - **F060** — [V2: The agent's face in a call (FaceTime with an agent)](./backlog/F060-v2-avatar-in-calls.md) — `Todo`
 - **F061** — [V3: An audio conference with people and agents](./backlog/F061-v3-audio-conference-people-and-agents.md) — `Todo`
 - **F062** — [V4: Video meetings in AI Maestro (our own Zoom)](./backlog/F062-v4-video-meetings-our-zoom.md) — `Todo`
@@ -117,11 +117,11 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F096** — [Companion mode in the phone app](./backlog/F096-companion-mode-in-the-app.md) — `In Progress` (works on TestFlight)
 - **F097** — [Speech and hearing on another machine](./backlog/F097-voice-on-another-host.md) — `Todo`
 - **F098** — [Device conversations show in the agent's chat](./backlog/F098-device-conversations-in-the-chat.md) — `In Progress`
-- **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `In Progress`
-- **F100** — [Experiment: a fast speaking side of the agent answers at its devices](./backlog/F100-speech-agent-experiment.md) — `In Progress` (built behind the flag; MacBook test next)
+- **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `Done`
+- **F100** — [Experiment: the cerebellum, an agent's fast voice at its devices](./backlog/F100-speech-agent-experiment.md) — `In Progress` (built behind the flag; MacBook test next)
 - **F101** — [Kiosk auth: the owner proves it is them with a tap and a picture](./backlog/F101-kiosk-auth-by-face.md) — `Todo` (later)
 - **F102** — [Jev decides if a turn is light (the cerebellum answers) or heavy (the main session works)](./backlog/F102-jev-routes-cerebellum-turns.md) — `Todo`
-- **F103** — [A paired device can speak as its owner (the phone counts as Juan)](./backlog/F103-paired-device-speaks-as-person.md) — `In Progress`
+- **F103** — [A paired device can speak as its owner (the phone counts as Juan)](./backlog/F103-paired-device-speaks-as-person.md) — `Done`
 
 ## Bugs
 

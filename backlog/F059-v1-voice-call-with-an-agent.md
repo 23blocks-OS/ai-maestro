@@ -1,6 +1,6 @@
 # F059 - V1: A voice call with an agent
 
-**Status:** In Progress (signalling and the turn-by-turn voice mode exist; the agent's own voice on calls is next; the real-time pipeline does not exist)
+**Status:** In Progress (signalling and the turn-by-turn voice mode exist; the agent's own voice, Scribe hearing and the cerebellum are built and measured for devices, about 2.5 s a turn; live audio both ways is what a call still needs)
 **Type:** Feature
 **Created:** 2026-11-02
 
@@ -32,6 +32,28 @@ An agent that needs a person can only write to an inbox today, and the person ma
 - No other agent dashboard lets you call your agents. It is the headline feature of the mobile app.
 - Bring your own keys keeps our cost at zero: about $0.12 to $0.50 for a 10-minute call on the user's account, depending on the provider (F050 has the table).
 - The pieces built here (key store, voice session endpoint, hand-off to the agent) are reused by V2 to V5.
+
+## What the device work gives V1 (2026-11-07)
+
+Built and measured at the MacBook for devices, and reusable for a call:
+
+| Step | Built | Measured |
+|---|---|---|
+| Hearing | ElevenLabs Scribe, one clip per turn, local faster-whisper as fallback (F099) | 0.47 to 0.9 s per clip |
+| A fast brain | The cerebellum: a warm Sonnet 5.5 session per agent with its own card; hands real work to the agent's main session over Claude Code's messaging (F100) | first sentence 0.9 to 2.0 s, median 1.4 s |
+| The agent's own voice | ElevenLabs on the host, Kokoro as fallback, one voice per agent (F092) | about 0.26 s per sentence |
+| The whole turn | | about 2.5 s from the last word to the voice (22.9 s on 6 November) |
+| Who is talking | A paired device can speak as its owner (F103) | |
+
+The phone app (TestFlight 1.0.4) already sends the person's words as device input to the cerebellum when its switch is on, and plays the answer.
+
+**What a call still needs that devices do not have:** live audio both ways. A device sends one finished clip per turn (tap, talk, tap), so there is no listening while the agent talks except the tap that stops it, and no streaming hearing. That is protocol work (F080) or a provider's real-time session.
+
+**A choice this opens for V1 (Juan's to make):**
+- **A. The cascade we have** (Scribe, the cerebellum, ElevenLabs), with live audio added. The agent's own voice and its own card on every call, so F092 holds. About 2.5 s a turn today; streaming hearing (Scribe v2 Realtime) would take most of the hearing time off.
+- **B. A speech-to-speech model** (the plan above, step 1). Faster turn-taking, but its own voice, against F092, and its hand-off to the agent is less proven than the cerebellum's.
+
+Recommended: run the step 1 spike against A, with the same questions and numbers, before choosing.
 
 ## Implementation Plan
 

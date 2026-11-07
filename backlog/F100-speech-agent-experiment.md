@@ -1,6 +1,6 @@
 # F100 — Experiment: a fast speaking side of the agent answers at its devices
 
-**Status:** In Progress (built behind the flag; the test at the MacBook is next. Spec: [docs/SPEC-SPEECH-AGENT.md](../docs/SPEC-SPEECH-AGENT.md))
+**Status:** In Progress (live on Lola since 0.106.105, tested at the MacBook: about 2.5 s a turn, 0.75 s to "Let me check." on turns that do work; the phone next, with TestFlight 1.0.4. Spec: [docs/SPEC-SPEECH-AGENT.md](../docs/SPEC-SPEECH-AGENT.md))
 **Type:** Feature
 **Created:** 2026-11-07
 

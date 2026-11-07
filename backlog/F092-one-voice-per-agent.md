@@ -1,6 +1,6 @@
 # F092 — One voice per agent, on every device and call
 
-**Status:** In Progress (setting in 0.106.80; speech on devices with Kokoro in 0.106.82; warm in 0.106.98; ElevenLabs on the host in 0.106.100, first test next)
+**Status:** In Progress (ElevenLabs on the host since 0.106.100, tested on Lola at the MacBook and the iPhone; the cerebellum speaks with the same voice; calls still use the phone's voice until F059 step 0)
 **Type:** Feature
 **Created:** 2026-11-06
 

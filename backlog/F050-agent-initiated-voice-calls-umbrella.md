@@ -4,6 +4,10 @@
 **Type:** Feature
 **Created:** 2026-10-29 (rewritten 2026-11-02)
 
+## Progress, 2026-11-07
+
+The cascade exists and is measured on devices: Scribe hearing, the cerebellum (a fast part of the agent on Sonnet 5.5) and the agent's own ElevenLabs voice, about 2.5 s from the last word to the voice. What V1 can reuse, and the choice it opens between this cascade and a speech-to-speech model, is in F059.
+
 ## Description
 
 People and agents talk by voice and video: a call, a "FaceTime", a conference call, a meeting in AI Maestro, and later an agent inside a real Zoom, Meet or Teams meeting. Users bring their own provider keys; AI Maestro holds them and connects the pieces.

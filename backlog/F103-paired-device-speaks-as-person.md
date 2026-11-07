@@ -1,6 +1,6 @@
 # F103 — A paired device can speak as its owner (the phone counts as Juan)
 
-**Status:** In Progress
+**Status:** Done (0.106.108; the phone's "Speaks as" is set in the Devices view)
 **Type:** Feature
 **Created:** 2026-11-07
 

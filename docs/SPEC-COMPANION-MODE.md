@@ -69,3 +69,14 @@ A picture needs the device active: send `device.used` when the mode opens. That 
 1. The phone voice stays as the fallback.
 2. The screen stays awake while the mode is open, and only then.
 3. The app team measures delay with the first build, on the local network and over Tailscale.
+
+## Since 2026-11-07: the cerebellum on the phone
+
+From TestFlight 1.0.4 (build 2611072123), when the agent's cerebellum switch is on (`experiments.speakingSide`, in `GET /api/agents`) and the device link is up, the phone works like a kiosk:
+
+- A mic tap sends `device.used`, so the cerebellum is warm before the words arrive.
+- What the person says or types goes as signed device input over the link, not as a chat message. Switch off or link down: a chat message, as before.
+- The phone offers `speaker.play` and `display.text`, and plays the cerebellum's voice a sentence at a time. A mic tap stops it.
+- The chat shows `speaking_message` entries: what was heard, what was said, and one small line for each hand-off.
+- The operator can mark the phone as speaking for its owner in the agent's Devices view (F103). Its words then reach the agent as that person, verified. Otherwise they arrive as someone not verified, as at a kiosk.
+

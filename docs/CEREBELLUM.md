@@ -277,7 +277,7 @@ The February design (`marketing/agent-brain-architecture.md`, gitignored) descri
 | Cortex | The agent's main session (Claude Code in tmux, or an SDK streaming session) |
 | Subconscious | Built: indexing, consolidation, memory cards, recall in the hook (`lib/agent.ts`, `lib/memory/`) |
 | Cerebellum: narration | Built: this file's voice subsystem narrates terminal output for the companion page |
-| Cerebellum: fast voice | Built behind a flag (F100): talks, looks and listens at a device, and hands work to the cortex. See below |
+| Cerebellum: fast voice | Live on Lola, behind a per-agent switch (F100): talks, looks and listens at a device, and hands work to the cortex. About 2.5 s from the last word to the voice at the MacBook. See below |
 | Brain inbox (regions → cortex, files) | Half wired: the subconscious writes memory signals; nothing reads them (no hook calls `/brain-inbox`) |
 | Real-time channel between regions | Claude Code's own cross-session messaging (2.1.224+): proven 2026-11-07, about 0.2 s each way on one host. It is the "Unix sockets" step of the February roadmap, built into Claude Code |
 | Voice of the agent (devices, phone) | `lib/speech.mjs`: ElevenLabs or Kokoro to speak, Scribe or faster-whisper to hear, per agent (F092, F099). Lives outside this folder |

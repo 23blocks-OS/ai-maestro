@@ -1,6 +1,6 @@
 # Spec: People, calls and meetings
 
-**Status:** Draft for review (2026-10-29). Nothing here is built. Backlog: F050 (umbrella) and the five stages F059-F063 (V1 call, V2 face, V3 conference, V4 video meetings, V5 Zoom/Meet/Teams); F057 directory. The voice pipeline and providers are in F050.
+**Status:** Draft for review (2026-10-29), with progress notes. The directory (F057), call signalling and ringing exist; no call carries live audio yet. Since 2026-11-07 the voice pieces a call needs exist for devices (section 1). Backlog: F050 (umbrella) and the five stages F059-F063 (V1 call, V2 face, V3 conference, V4 video meetings, V5 Zoom/Meet/Teams); F057 directory. The voice pipeline and providers are in F050.
 **Goal:** several humans and several agents working together, with a real call experience (like FaceTime) and a real meeting experience (like Zoom).
 
 ## 1. Where we are
@@ -10,6 +10,12 @@
 - The Zoom View is a grid of agent cards and terminals, not an audio room.
 - People were free text: agents have `owner` and `humanManager` strings (`types/agent.ts`). Since 0.106.28 `humanManager` holds a person id from the directory (chosen in the agent profile's Reports to, or linked from old text with `/api/agents/manager-links`); older text still works and is shown as is.
 - Other work in flight: seven draft PRs and four issues (#697-#700, #701-#710) and six AMP protocol drafts (agentmessaging/protocol #22-#24, #26-#31). Reviewed in F050-F056. None runs a call.
+
+### Since 2026-11-07: the voice pieces exist, for devices
+
+- An agent at its devices answers in about 2.5 s from the person's last word: ElevenLabs Scribe hears, the cerebellum (a fast, warm part of the agent on Sonnet 5.5, `docs/SPEC-SPEECH-AGENT.md`) answers and hands real work to the agent's main session, and the agent's own ElevenLabs voice speaks.
+- The phone app's companion mode uses the same path when the switch is on (TestFlight 1.0.4), and the phone a person paired can speak as them (F103).
+- Still missing for a real call: live audio both ways. A device sends one clip per turn. What V1 can reuse, and the choice between this cascade and a speech-to-speech model, is in F059.
 
 ## 2. Principles
 

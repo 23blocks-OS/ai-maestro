@@ -2,7 +2,7 @@
 
 When a person talks to an agent at one of its devices, a fast part of the same agent answers at once, speaking as it writes. Real work goes to the agent's main session, behind the scenes. It is an experiment behind a flag: today's path stays the default and does not change.
 
-Status: built behind the flag (2026-11-07): `lib/cerebellum/speaking-side.mjs`, routing in `lib/device-events.ts`, the chat log in `lib/speaking-log.mjs`, the kiosk's tap in agentmessaging/agent-device-protocol#42, the Agent SDK upgraded to 0.3.319. The locks (one tool to one session, no outside tools) were proven with the real SDK. Not yet run end to end at a device: the test in section 9 is next. First version: Claude Code's own messaging only; for agents without it, the words go the usual way (the other rows of 6.3 come later).
+Status: live on Lola since 0.106.105 and tested at the MacBook (2026-11-07): about 2.5 s from the last word to her voice (first sentence median 1.4 s over 6 turns), 0.75 s to "Let me check." on turns that do work, "what do you see?" in about 4.5 s with no hand-off. Fixes from the tests: 0.106.106 (her things are her own, speak before acting, the time), 0.106.107 ("I'm still on it"). The phone uses it from TestFlight 1.0.4, and a paired phone speaks as its owner (F103, 0.106.108). Built: `lib/cerebellum/speaking-side.mjs`, routing in `lib/device-events.ts`, the chat log in `lib/speaking-log.mjs`, the kiosk's tap in agentmessaging/agent-device-protocol#42, the Agent SDK upgraded to 0.3.319. The locks (one tool to one session, no outside tools) were proven with the real SDK. Not yet run end to end at a device: the test in section 9 is next. First version: Claude Code's own messaging only; for agents without it, the words go the usual way (the other rows of 6.3 come later).
 
 **Words used here.** *SDK session*: a Claude Code session the AI Maestro server runs through the Agent SDK, with no tmux (the same machinery as AI Maestro's "streaming agents", but not one of them: it has no entry in the agent list). *Word by word*: the reply arrives as the model writes it. *Terminal agent*: Claude Code in tmux, as Lola is. Backlog: F100. Related: F059 (the fast voice layer of V1 calls), F068, F092, F098, F101 (kiosk auth), `docs/SPEC-ELEVENLABS-VOICE.md`, `docs/SPEC-ELEVENLABS-HEARING.md`, the AMP-RTC drafts (agentmessaging/protocol #22 to #31).
 
@@ -245,3 +245,20 @@ Found in the code, docs and backlog on 2026-11-07:
 - **F068:** an agent hands its work to subagents so it can answer a call fast. The other way to the same goal; it keeps one session.
 - **F018:** keep the intelligence, give the tool work to cheap models. The same idea of models by role.
 - **The AMP-RTC drafts** (agentmessaging/protocol #22 to #31): real-time sessions between agents and people, for calls. The protocol side of 6.5.
+
+## 14. Results at the MacBook (2026-11-07)
+
+| Turn | Hearing (Scribe) | First sentence | Last word to her voice (est.) |
+|---|---|---|---|
+| Conversation, 6 turns | 0.47 to 0.90 s | 0.9 to 2.0 s, median 1.4 s | about 2.5 s |
+| Work handed to the main session, before 0.106.106 | | 3.6 to 3.9 s | about 4.5 s |
+| Work handed to the main session, after | | 0.75 s ("Let me check.") | about 1.9 s |
+| "What do you see?" (the camera, no hand-off) | 0.63 s | 3.9 s | about 4.5 s |
+
+The voice start adds an estimated 0.5 s (ElevenLabs). Real work takes what it takes: 11 to 55 s for the time in another city and for mail, with "I'm still on it." after 20 s since 0.106.107. Before the cerebellum the same turns took 5.8 s (the morning of 2026-11-07) and 22.9 s (the evening before).
+
+Seen in the tests and still open:
+- It said "I can't verify who's speaking from here" aloud. The trust rule is for it, not for the person; the prompt should keep it silent.
+- Scribe heard "Sweet potato" once for what was likely "sweet, perfect".
+- F102 (Jev routes light and heavy turns) would take the model's decision out of the hand-off path.
+

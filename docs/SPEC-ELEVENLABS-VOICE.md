@@ -2,7 +2,7 @@
 
 An agent can speak with an ElevenLabs voice, the same one on its devices, in companion mode, on calls and in audio meetings. The host holds the key, makes the audio and sends it out. Nothing that plays the voice needs to know which engine made it.
 
-Status: the host engine is built (0.106.100), and the first test is next. Built: the engine, fallback to local speech, the voice picker, and the key in the vault. Later (Juan, 2026-11-07, "make it work first"): the daily limit, usage count, Settings → Voice, and the Doctor check. Backlog: F092 (one voice per agent). Related: F050, F059, F061, F065, F096, F097, B020.
+Status: built (0.106.100) and in use: Lola speaks with ElevenLabs at the MacBook, the Air and the iPhone, and her cerebellum uses the same voice (about 0.26 s per sentence). Built: the engine, fallback to local speech, the voice picker, and the key in the vault. Later (Juan, 2026-11-07, "make it work first"): the daily limit, usage count, Settings → Voice, and the Doctor check. Backlog: F092 (one voice per agent). Related: F050, F059, F061, F065, F096, F097, B020.
 
 This spec covers one direction: **agent to person**. A person's voice to the agent stays as it is, and is planned separately.
 

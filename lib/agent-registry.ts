@@ -696,6 +696,7 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   if (updates.title === null || updates.title === '') updateData.title = undefined
   if (updates.voice === null) updateData.voice = undefined
   if (updates.experiments === null) updateData.experiments = undefined
+  if (updates.devicePeople === null) updateData.devicePeople = undefined
   if (updates.managerAgentId === null) updateData.managerAgentId = undefined
   // null clears the Copilot launch fields
   if ((updates as any).programKind === null) updateData.programKind = undefined

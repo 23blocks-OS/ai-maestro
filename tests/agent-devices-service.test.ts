@@ -7,7 +7,8 @@ import type { Server } from 'http'
 import { Controller } from '@/lib/device-sdk/controller.mjs'
 
 const agents = new Map<string, any>()
-vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => agents.get(id), loadAgents: () => [...agents.values()] }))
+const updateAgent = vi.fn((id: string, u: any) => { const a = agents.get(id); if (a) { a.devicePeople = u.devicePeople ?? undefined }; return a })
+vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => agents.get(id), loadAgents: () => [...agents.values()], updateAgent: (id: string, u: any) => updateAgent(id, u) }))
 
 const { createDeviceHost } = await import('@/lib/device-host.mjs')
 const { identity } = await import('@/lib/device-sdk/index.mjs')
@@ -198,6 +199,16 @@ describe('use', () => {
     expect((await svc.forgetAgentDevice('a', device.key)).status).toBe(200)
     expect(((await svc.listAgentDevices('a')).data as any).devices).toEqual([])
     expect(JSON.parse(fs.readFileSync(path.join(dir, 'a/devices/state.json'), 'utf8'))).toMatchObject({ devices: [], activeDeviceKey: null })
+  })
+
+  it('a device lists who it speaks for, and forgetting it clears that (F103)', async () => {
+    const device = await pair('a')
+    agents.get('a').devicePeople = { [device.key]: { personId: 'p1', name: 'Juan' }, other: { personId: 'p2', name: 'Ana' } }
+    const listed = ((await svc.listAgentDevices('a')).data as any).devices
+    expect(listed[0].speaksAs).toEqual({ personId: 'p1', name: 'Juan' })
+    expect((await svc.forgetAgentDevice('a', device.key)).status).toBe(200)
+    expect(updateAgent).toHaveBeenLastCalledWith('a', { devicePeople: { other: { personId: 'p2', name: 'Ana' } } })
+    delete agents.get('a').devicePeople
   })
 
   it('answers 503 when the controller is not running, and 404 for an unknown agent', async () => {

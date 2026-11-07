@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.108] - 2026-11-07 - A paired device can speak as its owner (F103)
+
+### Added
+- **"Speaks as"** on each device in an agent's Devices view (Juan's decision: his paired phone counts as him). Input from that device reaches the agent as that person, verified, and the cerebellum is told it is them. Every other device stays "someone not verified". Only the operator sets it, from the dashboard; a device can never claim it. Forgetting the device clears it. It trusts the device, not the voice: for a device one person carries, never a shared kiosk (that is F101).
+- Stored on the agent as `devicePeople` (device key to person id and a snapshot of the name, since the person's record may live on another host).
+
 ## [0.106.107] - 2026-11-07 - The cerebellum says "I'm still on it" while the main session works
 
 ### Fixed

@@ -179,6 +179,14 @@ describe('the speaking side', () => {
     sides.stopAll()
   })
 
+  it('a verified person is named in the turn; anyone else is someone not verified', async () => {
+    const { sides, agent, fake } = setup([[start, delta('Hi. '), stop, result], [start, delta('Hi. '), stop, result]])
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'iPhone', text: 'Hi', source: 'voice', person: 'Juan' })
+    await wait()
+    expect(fake.seen.prompts[0]).toContain(`At your device "iPhone", Juan (verified: the operator marked this device as Juan's) said`)
+    sides.stopAll()
+  })
+
   it('its own words after the hand-off do not cancel "still on it", and a repeated "let me check" is dropped', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const toolStart = { type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name: 'SendMessage' } } }

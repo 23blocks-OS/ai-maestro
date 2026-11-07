@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.103] - 2026-11-07 - A device's speech heard by ElevenLabs Scribe
+
+### Added
+- For an agent whose voice is ElevenLabs, what a person says at its devices is heard by ElevenLabs Scribe, with the same key (F099). Per agent: an agent on local voice keeps local hearing, even on a host that has the key. When Scribe fails, local hearing takes over. On mini-lola Scribe took 0.5 to 0.7 s per clip, against 2.2 s warm and 5.5 s cold for local hearing.
+- The device is told who hears it, and the kiosk shows "What you say is heard by ElevenLabs" under Microphone (protocol #40; Device SDK repinned).
+- A log line for every clip heard: how long it took, and which engine heard it.
+
 ## [0.106.102] - 2026-11-07 - Hearing is told the language
 
 ### Fixed

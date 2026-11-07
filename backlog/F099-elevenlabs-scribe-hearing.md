@@ -1,6 +1,6 @@
 # F099 — Hear a device's speech with ElevenLabs Scribe
 
-**Status:** Todo (spec: [docs/SPEC-ELEVENLABS-HEARING.md](../docs/SPEC-ELEVENLABS-HEARING.md))
+**Status:** In Progress (built in 0.106.103; check at the MacBook next; spec: [docs/SPEC-ELEVENLABS-HEARING.md](../docs/SPEC-ELEVENLABS-HEARING.md))
 **Type:** Feature
 **Created:** 2026-11-07
 

@@ -117,7 +117,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F096** — [Companion mode in the phone app](./backlog/F096-companion-mode-in-the-app.md) — `In Progress` (works on TestFlight)
 - **F097** — [Speech and hearing on another machine](./backlog/F097-voice-on-another-host.md) — `Todo`
 - **F098** — [Device conversations show in the agent's chat](./backlog/F098-device-conversations-in-the-chat.md) — `In Progress`
-- **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `Todo`
+- **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `In Progress`
 
 ## Bugs
 

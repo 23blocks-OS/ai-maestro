@@ -106,7 +106,7 @@ describe('picking the engine', () => {
     local: async function* (text: string, voice?: string) { yield `local:${voice ?? 'default'}:${text}` },
     elevenLabs: async function* (text: string) { yield `eleven:${text}` },
     ...over,
-  })
+  }) as any
   const list = async (source: AsyncIterable<string>) => { const got: string[] = []; for await (const f of source) got.push(f); return got }
 
   it('a local voice behaves as before', async () => {
@@ -136,5 +136,65 @@ describe('picking the engine', () => {
     expect(await voiceReady({ engine: 'elevenlabs' }, engines(noLocal))).toBe(false)
     expect(await voiceReady({ engine: 'elevenlabs', voiceId: 'v' }, engines({ ...noLocal, elevenLabsKey: async () => null }))).toBe(false)
     expect(await voiceReady({ engine: 'elevenlabs' }, engines())).toBe(true)
+  })
+})
+
+describe('hearing with Scribe (F099)', async () => {
+  const { transcribe } = await import('@/lib/hearing-elevenlabs.mjs')
+  const { hear, hearingBy } = await import('@/lib/speech.mjs')
+  const wav = Buffer.from('RIFF....WAVE')
+
+  it('sends one clip, told English, with the key only in the header', async () => {
+    const fetcher = vi.fn(async (_url: string, _init: any) => Response.json({ text: ' Hey Lola. ', language_code: 'en' }))
+    expect(await transcribe(wav, options(fetcher))).toBe('Hey Lola.')
+    const [url, init] = fetcher.mock.calls[0] as any
+    expect(url).toBe('https://api.elevenlabs.io/v1/speech-to-text')
+    expect(init.headers['xi-api-key']).toBe(KEY)
+    expect(init.body.get('model_id')).toBe('scribe_v2')
+    expect(init.body.get('language_code')).toBe('en')
+    expect(Buffer.from(await init.body.get('file').arrayBuffer()).equals(wav)).toBe(true)
+  })
+
+  it('sends the clip again on a retry', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response('', { status: 503 })).mockResolvedValueOnce(Response.json({ text: 'ok' }))
+    expect(await transcribe(wav, options(fetcher))).toBe('ok')
+    expect((fetcher.mock.calls[1] as any)[1].body.get('file')).toBeTruthy()
+  })
+
+  it('a failure never carries the key', async () => {
+    const err: any = await transcribe(wav, options(async () => new Response('', { status: 401 }))).catch(e => e)
+    expect(err.message).toBe('ElevenLabs answered 401')
+    expect(String(err.stack)).not.toContain(KEY)
+  })
+
+  const engines = (over = {}) => ({
+    elevenLabsKey: async () => KEY,
+    scribe: vi.fn(async () => 'from scribe'),
+    localHear: vi.fn(async () => 'from local'),
+    ...over,
+  }) as any
+  const quiet = () => { vi.spyOn(console, 'log').mockImplementation(() => {}); vi.spyOn(console, 'error').mockImplementation(() => {}) }
+
+  it('is per agent: an ElevenLabs voice is heard by Scribe, a local voice stays local on the same host', async () => {
+    quiet()
+    const e = engines()
+    expect(await hear(wav, { engine: 'elevenlabs', voiceId: 'v' }, e)).toBe('from scribe')
+    expect(await hear(wav, { engine: 'local' }, e)).toBe('from local')
+    expect(await hear(wav, undefined, e)).toBe('from local')
+    expect(e.scribe).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
+  })
+
+  it('falls back to local hearing when Scribe fails, and with no key', async () => {
+    quiet()
+    expect(await hear(wav, { engine: 'elevenlabs' }, engines({ scribe: async () => { throw new Error('down') } }))).toBe('from local')
+    expect(await hear(wav, { engine: 'elevenlabs' }, engines({ elevenLabsKey: async () => null }))).toBe('from local')
+    vi.restoreAllMocks()
+  })
+
+  it('names who hears a device only when it leaves the host', async () => {
+    expect(await hearingBy({ engine: 'elevenlabs' }, engines())).toBe('ElevenLabs')
+    expect(await hearingBy({ engine: 'elevenlabs' }, engines({ elevenLabsKey: async () => null }))).toBeNull()
+    expect(await hearingBy({ engine: 'local' }, engines())).toBeNull()
   })
 })

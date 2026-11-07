@@ -62,6 +62,8 @@ export function publishActivity(
   fetcher?: typeof fetch,
   active?: boolean,
   label?: string,
+  /** The speech service that hears this device, when it is not on the controller itself, such as "ElevenLabs" */
+  hearing?: string,
 ): Promise<{ type: "activity.ack"; id: string; to: string; challenge: string }>;
 
 export function exchange(

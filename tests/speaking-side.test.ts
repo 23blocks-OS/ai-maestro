@@ -187,6 +187,18 @@ describe('the speaking side', () => {
     sides.stopAll()
   })
 
+  it('its own words after the hand-off do not cancel "still on it", and a repeated "let me check" is dropped', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const toolStart = { type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name: 'SendMessage' } } }
+    const handoff = { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'SendMessage', input: { to: 'lola-f9', message: 'Check my inbox' } }] } }
+    const after = { type: 'assistant', message: { content: [{ type: 'text', text: 'Glad the test worked. Let me check my email now.' }] } }
+    const { sides, agent, said } = setup([[toolStart, handoff, start, delta('Glad the test worked. Let me check my email now.'), stop, after, result]], { stillOnItMs: 1000 })
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'Can you check your email?', source: 'voice' })
+    await vi.advanceTimersByTimeAsync(1010)
+    expect(said).toEqual(['Let me check.', 'Glad the test worked.', "I'm still on it."])
+    sides.stopAll()
+  })
+
   it('is not started for an agent with no main session that takes messages', () => {
     const { sides } = setup([])
     expect(sides.handle({ id: 'x', name: 'x', workingDirectory: '/nowhere' }, { deviceKey: 'k', deviceName: 'M', text: 'hi', source: 'voice' })).toBe(false)

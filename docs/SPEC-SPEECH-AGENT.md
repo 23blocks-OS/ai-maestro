@@ -27,7 +27,7 @@ person ──speech──► device ──clip──► host: Scribe ──text�
                                                                                          ◄── her answer (native Claude Code messaging, section 6)
 ```
 
-**It is Lola.** The speaking side has no identity of its own: it is the part of Lola's brain that talks (Juan, 2026-11-07). The person talks to Lola and hears Lola. When something needs real work it says what Lola would say ("let me check", "I'll work on it", "give me a moment"), and the main session does the work behind the scenes. It never mentions another agent or another part of itself.
+**It is Lola.** Its session is named `<agent>-cerebellum` (`pas-lola-cerebellum`), the name her main session sees. The speaking side has no identity of its own: it is the part of Lola's brain that talks (Juan, 2026-11-07). The person talks to Lola and hears Lola. When something needs real work it says what Lola would say ("let me check", "I'll work on it", "give me a moment"), and the main session does the work behind the scenes. It never mentions another agent or another part of itself.
 
 ## 3. The flag
 

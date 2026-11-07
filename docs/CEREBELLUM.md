@@ -284,7 +284,7 @@ The February design (`marketing/agent-brain-architecture.md`, gitignored) descri
 
 ## Speaking side (F100, experiment)
 
-Spec: `docs/SPEC-SPEECH-AGENT.md`. Off unless an agent's profile turns it on (`experiments.speakingSide`).
+Spec: `docs/SPEC-SPEECH-AGENT.md`. Off unless an agent's profile turns it on (`experiments.speakingSide`). Its session is named `<agent>-cerebellum` (for Lola, `pas-lola-cerebellum`): the name her main session sees when it hands work back.
 
 - **What it is:** the agent itself, in the cerebellum's voice role. An SDK session (no tmux) with the agent's own `CLAUDE.md`, its recent notes and the rules for speaking, on Sonnet 5.5. It speaks sentence by sentence as it writes, through the same device path as `say`.
 - **Its tools:** `SendMessage`, to the agent's main session only, and four tools for the device it is at: `look` (a picture it sees), `show`, `health`, `listen` (a few seconds, as words). A `PreToolUse` hook refuses everything else; no other MCP servers, no claude.ai connectors, nothing loaded from disk. Checked with the real SDK: it looked at a test picture and described it about 4 s after the question.

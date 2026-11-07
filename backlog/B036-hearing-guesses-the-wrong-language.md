@@ -1,6 +1,6 @@
 # B036 — Hearing on the host guesses the language, and can write English as Russian
 
-**Status:** Todo
+**Status:** Done in the version in its changelog entry (hearing is told English)
 **Type:** Bug
 **Created:** 2026-11-07
 

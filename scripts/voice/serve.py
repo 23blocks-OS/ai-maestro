@@ -57,7 +57,8 @@ def hear(request):
     # Decoded here: faster-whisper's own decoder fails with some PyAV versions
     with wave.open(request['file']) as audio:
         samples = np.frombuffer(audio.readframes(audio.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
-    segments, _ = whisper.transcribe(samples, beam_size=5)
+    # Told, never guessed: guessing wrote English speech as Russian (B036)
+    segments, _ = whisper.transcribe(samples, beam_size=5, language=request.get('language') or 'en')
     answer(text=' '.join(segment.text.strip() for segment in segments), done=True)
 
 

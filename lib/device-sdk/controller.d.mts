@@ -87,7 +87,12 @@ export class Controller {
     change: DeviceChange,
     options?: { expectedRevision?: string; requestId?: string },
   ): Promise<Record<string, unknown>>;
-  createHub(options?: { heartbeatMs?: number; silentMs?: number }): ReverseHub;
+  createHub(options?: {
+    heartbeatMs?: number;
+    silentMs?: number;
+    /** Speech from a device's talk control to text. `agent` and `device` say whose clip it is. */
+    transcribe?: (audio: Buffer, context: { agent: string; device: string }) => Promise<string> | string;
+  }): ReverseHub;
   poll(): Promise<void>;
   start(options?: { intervalMs?: number }): void;
   stop(): Promise<void>;

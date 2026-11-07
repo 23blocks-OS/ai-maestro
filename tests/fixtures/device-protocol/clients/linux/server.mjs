@@ -161,6 +161,9 @@ export function bridge(
             (msg.label !== undefined &&
               (typeof msg.label !== "string" ||
                 !/^[^\p{Cc}]{1,64}$/u.test(msg.label))) ||
+            (msg.hearing !== undefined &&
+              (typeof msg.hearing !== "string" ||
+                !/^[^\p{Cc}]{1,64}$/u.test(msg.hearing))) ||
             !["working", "waiting", "idle", "unknown"].includes(msg.state) ||
             Object.keys(msg).some(
               (k) =>
@@ -173,11 +176,12 @@ export function bridge(
                   "state",
                   "active",
                   "label",
+                  "hearing",
                 ].includes(k),
             )
           )
             return reply(400, { error: "invalid_activity" });
-          if (!display.update(peer, msg.state, ticket.order, msg.active, msg.label))
+          if (!display.update(peer, msg.state, ticket.order, msg.active, msg.label, msg.hearing))
             return reply(409, { error: "superseded" });
           return result({ type: "activity.ack" });
         }

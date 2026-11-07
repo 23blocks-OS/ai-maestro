@@ -540,7 +540,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       >
                         <option value="">No voice chosen</option>
                         <option value="local">Local models on the host (free, stays on your network)</option>
-                        <option value="elevenlabs">ElevenLabs (paid, what the agent says is sent to ElevenLabs)</option>
+                        <option value="elevenlabs">ElevenLabs (paid: what the agent says, and what people say to it at its devices, is sent to ElevenLabs)</option>
                       </select>
                     </label>
                     {agent.voice?.engine === 'elevenlabs' && (

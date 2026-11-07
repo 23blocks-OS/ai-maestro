@@ -346,10 +346,13 @@ describe('a person speaking at a device', () => {
   it('held to talk: the host transcribes it and it arrives as input, marked as voice', async () => {
     const events: any[] = []
     const heard: Buffer[] = []
+    const voices: any[] = []
     const host = createDeviceHost({
       agentsDir: dir, hubAddress: '127.0.0.1', onEvent: (e: any) => { events.push(e) },
-      speech: { ready: () => false, transcribe: async (audio: Buffer) => { heard.push(audio); return '  Are you there?  ' } },
+      speech: { ready: () => false, transcribe: async (audio: Buffer, voice: any) => { heard.push(audio); voices.push(voice); return '  Are you there?  ' } },
+      voiceOf: (id: string) => agents.get(id)?.voice,
     } as any)
+    agents.get('a').voice = { engine: 'elevenlabs', voiceId: 'v' }
     hosts.push(host)
     g._deviceHost = host
     const { data } = await svc.getAgentDeviceIdentity('a') as any
@@ -368,6 +371,8 @@ describe('a person speaking at a device', () => {
     await vi.waitFor(() => expect(events.find(e => e.type === 'device.input')).toBeTruthy())
     expect(events.find(e => e.type === 'device.input')).toMatchObject({ text: 'Are you there?', source: 'voice', name: 'kitchen' })
     expect(heard[0].equals(audio)).toBe(true)
+    // Heard the way the clip's own agent chose (F099)
+    expect(voices[0]).toEqual({ engine: 'elevenlabs', voiceId: 'v' })
     await connection.stop()
   })
 })
@@ -391,6 +396,30 @@ describe('what a device shows about its agent (presence)', () => {
     await host.publishPresence()
     return shown
   }
+
+  it('tells a device who hears it, only for an agent whose hearing leaves the host (F099)', async () => {
+    const heard: unknown[] = []
+    for (const voice of [{ engine: 'elevenlabs', voiceId: 'v' }, { engine: 'local' }]) {
+      const display = { update: (_p: any, _s: string, _o: number, _a: boolean, _l?: string, h?: string) => { heard.push(h); return true }, indicatorReady: () => false }
+      const speech = { ready: () => false, hearingBy: async (v: any) => (v?.engine === 'elevenlabs' ? 'ElevenLabs' : null) }
+      const host = createDeviceHost({ agentsDir: dir, activity: async () => ({}), voiceOf: () => voice, speech } as any)
+      hosts.push(host)
+      g._deviceHost = host
+      const { data } = await svc.getAgentDeviceIdentity('a') as any
+      const device = identity()
+      deviceKeys.set(device.key, device)
+      const server = bridge(device, () => ({ key: data.key, assignedAgent: data.address, revision: 'r1' }), hardware, display as any)
+      server.listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      servers.push(server)
+      await svc.addAgentDevice('a', { key: device.key, endpoint: `http://127.0.0.1:${(server.address() as any).port}`, name: 'kitchen' })
+      await host.publishPresence()
+    }
+    // The second round also updates the first device: both stop showing it once the agent hears locally
+    expect(heard[0]).toBe('ElevenLabs')
+    expect(heard.slice(1).length).toBeGreaterThan(0)
+    expect(heard.slice(1).every((h) => h === undefined)).toBe(true)
+  })
 
   it('sends the name a person knows the agent by, and leaves out one a device would refuse', async () => {
     const names: unknown[] = []

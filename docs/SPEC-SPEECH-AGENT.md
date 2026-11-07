@@ -122,18 +122,46 @@ With kiosk auth (F101) the first line names the person: "From your MacBook, Juan
 
 **What the server tracks.** Per speaking side: which device it is serving, and the open hand-offs (when sent, the person's question). When the main session's turn ends (from the one status feed) with no answer, the speaking side tells the person she is still on it, or could not finish. After about 20 seconds without an answer, it says "still on it" once. A server restart loses open hand-offs; the next turn starts fresh.
 
-### 6.3 Fallback, for agents that are not Claude Code
+### 6.3 Other programs, and brains made of different providers
 
-Codex and other programs have no such socket. For them, and if the native path fails a check in the spike: the server types the hand-off into the agent's terminal through the chat's path (`sendChatMessage`: paste with `tmux load-buffer` and `paste-buffer`, Enter, then check the text sits above the input box), with a request id, and the agent answers with `aimaestro-speech-reply.sh <id> "..."`, which posts to its own AI Maestro server. The id binds each answer to its question. This waits for the agent's turn to end.
+The hand-off is defined by the host, not by Claude Code. Its fields are always the same: an id, where it came from (device, who, verified or not), the task, what was already said, and a deadline. The host picks a transport for each pair of sides, by what each program supports. Claude Code's own channel is the fastest, used when both sides have it; every other pair still works.
 
-### 6.4 To check in a spike before building
+| Sending side | Receiving side | Transport | Reply |
+|---|---|---|---|
+| Claude Code 2.1.224+ | Claude Code 2.1.224+, same host | Claude Code's own messaging (`SendMessage`) | `SendMessage` back |
+| Any program | A terminal agent of any program (Claude Code, Codex, Pi, Copilot CLI) | The host types it into the agent's terminal through the chat's path (`sendChatMessage`), with the id | `aimaestro-speech-reply.sh <id> "..."`, a script that posts to the host |
+| Any program | An AI Maestro streaming agent (SDK session) | The host pushes it into that session's input | The same script, or a host tool in that session |
+| Any program | An agent on another host | An AMP message to that agent, carrying the same fields; its host then uses one of the rows above | AMP back, bound to the id |
 
-1. An SDK session binds its own inbox socket (it should, unless started in bare mode) and Lola's session can reach it.
-2. Its `SendMessage` to Lola's session is delivered, not held (her mode is `auto`; the SDK session runs in a prompting mode too).
-3. Lola's reply arrives in the SDK session as a new turn the server can read.
-4. How long each leg takes.
-5. Whether Lola's hook runs on a message from another session, and if it does, that it adds nothing (as for device turns).
-6. How to give the SDK session a stable name, so Lola's reply address and the server's lookup agree.
+**What makes every row work:** the speaking side never needs to know the other side's program. When it is not Claude Code (for example a voice model from another provider, or Codex, or Pi), it does not use `SendMessage`. It calls a tool the host gives it, `hand_off`, and the host delivers by the table. The reply script needs only a shell, so any program that can run a command can answer.
+
+**Brains of one other provider, or mixed.** A brain made only of Codex, or only of Pi, uses the second and third rows for every leg. A brain where one provider talks (say a realtime voice model) and another works (Claude Code, Codex) uses the host's `hand_off` tool on the talking side and whatever the working side supports. Codex's and Pi's own machine interfaces (Codex's JSON-RPC server, Pi's RPC mode) could replace typing into the terminal later, as adapters behind the same table: not checked yet.
+
+**Costs of the slower rows:** typing into a terminal waits until the receiving agent's turn ends, where Claude Code's channel is read between tool calls; and a reply script depends on the agent remembering to run it, which its skill must say. The host watches for a turn that ends without an answer (6.2).
+
+### 6.4 The spike (2026-11-07): the hand-off works
+
+A speaking side on mini-lola (an SDK session, Sonnet 5.5, named `lola-speaking-spike`) sent Lola's main session one test message with `SendMessage`, and Lola answered with `SendMessage`. Lola was told first, by AMP. Times from both sides' logs:
+
+| Step | Time |
+|---|---|
+| `SendMessage` sent → in Lola's inbox | 0.18 s |
+| Inbox → Lola starts a turn with it (she was idle) | about 1.5 s |
+| Lola thinks and replies with `SendMessage` | 4.1 s |
+| Her reply → arrives in the speaking side as a new turn | under 0.1 s |
+| The speaking side has it ready to say | 1.2 s |
+| Round trip | about 5.8 s |
+
+Lola saw it as `<cross-session-message from-name="lola-speaking-spike" from-mode="prompting">`, answered to the sender's address, and her hook added nothing. Her chat files it as "Message from another session", visible only in X-Ray.
+
+What the spike found, to handle before building:
+
+1. **Claude Code version.** The Agent SDK in AI Maestro (0.3.205) bundles Claude Code 2.1.205, older than 2.1.224, and its sessions have no cross-session messaging ("No agent named 'lola-f9' is reachable"; no `ListAgents`). It worked with `pathToClaudeCodeExecutable` set to the host's Claude Code 2.1.319. Fix: upgrade the SDK (0.3.319 is current) and test AI Maestro's streaming agents on it, or point the SDK at the host's install.
+2. **`canUseTool` is not called for `SendMessage` or `ListAgents`.** Claude Code allows them by itself, so `canUseTool` cannot hold the "only the agent's own main session" rule. Use a check that runs before every tool call (a `PreToolUse` hook given in the SDK options) and test that it can refuse a `SendMessage` to anyone else.
+3. **The Claude account's connectors appeared.** On the reply turn the session also listed the claude.ai Claude Docs tools, although nothing was loaded from disk. The speaking side must load no outside tools: test a strict, empty tool configuration.
+4. **The chat (F098).** A hand-off and its answer must show in the chat, not only in X-Ray.
+
+Still open: a stable name per agent (`--name` worked here, `lola-speaking-spike`); a busy main session (read between tool calls, not measured); the speaking side warm across many turns.
 
 ### 6.5 Toward a protocol
 
@@ -184,7 +212,7 @@ The log records, per turn: hearing time, speaking side started or warm, first to
 1. **Protocol:** the kiosk sends `device.used` when talking starts (section 5). Small PR.
 2. **The speaking side:** the session, the prompt from the card, warm on `device.used`, stop after 10 quiet minutes, the flag and the routing with fallback.
 3. **Speaking word by word** from its text.
-4. **The hand-off:** spike the native path (section 6.4), then build it, with the fallback for other programs, and the waiting rules.
+4. **The hand-off:** build the transports in 6.3, starting with Claude Code's own messaging (proven in 6.4), after fixing what 6.4 found: the SDK's Claude Code version, the tool lock, the outside tools. Then the waiting rules.
 5. **The chat lines** (section 7) and the log lines (section 9).
 6. **The test** in section 9, flag off and on.
 7. Then, if kept: companion mode, calls, kiosk auth (F101), and a protocol proposal for the hand-off.

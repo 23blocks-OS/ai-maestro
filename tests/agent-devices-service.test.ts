@@ -412,6 +412,16 @@ describe("the agent's own voice (F092)", () => {
     await vi.waitFor(() => expect(played).toEqual([one, two]))
   })
 
+  it('what the agent says also shows on the screen, and a screen that refuses changes nothing', async () => {
+    const one = wav()
+    const device = await setup([file('1.wav', one)], { 'speaker.play': true }, { engine: 'local' })
+    const spy = vi.spyOn(g._deviceHost, 'invoke')
+    const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello.' } })
+    expect(spy).toHaveBeenCalledWith(expect.anything(), device.key, 'display.text', { text: 'Hello.' })
+    expect(result.status).toBe(200)
+    await vi.waitFor(() => expect(played).toEqual([one]))
+  })
+
   it('a refusal stops the rest of the speech', async () => {
     const device = await setup([file('1.wav', Buffer.from('not audio')), file('2.wav', wav())], { 'speaker.play': true }, { engine: 'local' })
     const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } })

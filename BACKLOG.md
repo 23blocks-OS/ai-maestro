@@ -113,6 +113,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F092** — [One voice per agent, on every device and call](./backlog/F092-one-voice-per-agent.md) — `In Progress`
 - **F093** — [Search in the chat](./backlog/F093-chat-search.md) — `In Progress`
 - **F094** — [Days and times in the chat](./backlog/F094-chat-days-and-times.md) — `In Progress`
+- **F095** — [Talk to an agent without tapping: it listens all the time](./backlog/F095-always-listening.md) — `Todo`
 
 ## Bugs
 

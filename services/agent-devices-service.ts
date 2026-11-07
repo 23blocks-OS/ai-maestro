@@ -137,6 +137,10 @@ export async function invokeAgentDevice(agentId: string, key: string, body: { ca
     if (typeof args !== 'object' || args === null || Array.isArray(args)) return fail(400, 'invalid_request', 'args must be an object')
     // The agent's own voice when it can be used here; otherwise the device speaks, with the device's voice
     const text = (args as { text?: unknown }).text
+    // What the agent says also shows on the device's screen. Without the grant it just is not shown
+    if (capability === 'speaker.say' && typeof text === 'string' && text.trim()) {
+      h.invoke(agent, key, 'display.text', { text }).catch(() => {})
+    }
     if (capability === 'speaker.say' && agent.voice?.engine === 'local' && typeof text === 'string' && text.trim() && Buffer.byteLength(text) <= MAX_SPEECH && h.canSpeak(agent, key)) {
       return { data: { ok: true, value: await h.speak(agent, key, text, agent.voice.voiceId) }, status: 200 }
     }

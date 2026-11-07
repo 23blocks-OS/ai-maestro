@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 - Spec for an agent's voice from ElevenLabs, agent to person, on devices, companion mode, calls and meetings: `docs/SPEC-ELEVENLABS-VOICE.md`. Backlog F097, speech and hearing on another machine.
+- Backlog brought up to date for voice, calls, devices and companion mode: F050, F059 to F061, F064, F065, F078, F080, F082 to F084, F092, F096, B020.
 
 ## [0.106.99] - 2026-11-07 - A phone can connect to the hub
 

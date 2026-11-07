@@ -77,7 +77,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F056** — [The AMP-RTC protocol drafts (agentmessaging/protocol #22-#24, #26-#31)](./backlog/F056-amp-rtc-protocol-drafts.md) — `Blocked` (until V1 runs a real call)
 - **F057** — [A directory of humans, owned by hosts the way agents are](./backlog/F057-humans-directory.md) — `In Progress`
 - **F058** — [Optional access token for instances exposed to the internet (experiment)](./backlog/F058-optional-access-token-internet.md) — `Todo`
-- **F059** — [V1: A voice call with an agent](./backlog/F059-v1-voice-call-with-an-agent.md) — `In Progress` (signalling done; real-time pipeline next, spike first)
+- **F059** — [V1: A voice call with an agent](./backlog/F059-v1-voice-call-with-an-agent.md) — `In Progress` (signalling done; the agent's own voice on calls next; then the real-time spike)
 - **F060** — [V2: The agent's face in a call (FaceTime with an agent)](./backlog/F060-v2-avatar-in-calls.md) — `Todo`
 - **F061** — [V3: An audio conference with people and agents](./backlog/F061-v3-audio-conference-people-and-agents.md) — `Todo`
 - **F062** — [V4: Video meetings in AI Maestro (our own Zoom)](./backlog/F062-v4-video-meetings-our-zoom.md) — `Todo`
@@ -96,12 +96,12 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F075** — [First run creates an unnamed organization that every person and agent joins](./backlog/F075-first-run-creates-default-org.md) — `Todo`
 - **F076** — [Tasks go to idle agents by themselves and come back for review](./backlog/F076-tasks-dispatched-to-idle-agents-into-review.md) — `Todo` (design first; #638, #779)
 - **F077** — [A task records what was actually done (Result)](./backlog/F077-task-result-field.md) — `Done` (0.106.69, #776)
-- **F078** — [Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session](./backlog/F078-agent-devices-pair-and-use.md) — `In Progress` (steps 1 and 2 in 0.106.77; #788, #789)
+- **F078** — [Agent devices, phase 1: an agent's own computers and cameras, paired and usable from its session](./backlog/F078-agent-devices-pair-and-use.md) — `In Progress` (steps 1 to 4 shipped; step 5 is F079)
 - **F079** — [Agent devices, phase 2: move a device to another agent, or unassign it, from the dashboard](./backlog/F079-agent-devices-transfer-from-dashboard.md) — `Todo` (device-protocol #10 first; #789)
-- **F080** — [Companion mode makes the phone one of the agent's devices](./backlog/F080-companion-mode-phone-is-a-device.md) — `Todo` (plan first)
+- **F080** — [Companion mode makes the phone one of the agent's devices](./backlog/F080-companion-mode-phone-is-a-device.md) — `In Progress` (small device works; live media waits for the protocol)
 - **F081** — [An agent's devices follow it through export, import, moves and deletion](./backlog/F081-agent-lifecycle-carries-devices.md) — `Todo`
-- **F082** — [What a person says to a device reaches the agent](./backlog/F082-device-input-reaches-the-agent.md) — `In Progress` (device-protocol #8, #11, #12)
-- **F083** — [The agent and the person can see the active device, and jump](./backlog/F083-active-device-visible-and-jump.md) — `Todo` (device-protocol #7)
+- **F082** — [What a person says to a device reaches the agent](./backlog/F082-device-input-reaches-the-agent.md) — `Done`
+- **F083** — [The agent and the person can see the active device, and jump](./backlog/F083-active-device-visible-and-jump.md) — `In Progress` (jump shipped; agent context and labels to do)
 - **F084** — [Doctor checks for agent devices](./backlog/F084-doctor-device-checks.md) — `Todo`
 - **F085** — [Set up a new device with one command from AI Maestro](./backlog/F085-install-device-bridge-from-maestro.md) — `Todo`
 - **F086** — [Open the device protocol: name, public repo, website and docs](./backlog/F086-device-protocol-public-site-docs.md) — `Done` (public; agentdevices.org)
@@ -114,7 +114,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F093** — [Search in the chat](./backlog/F093-chat-search.md) — `In Progress`
 - **F094** — [Days and times in the chat](./backlog/F094-chat-days-and-times.md) — `In Progress`
 - **F095** — [Talk to an agent without tapping: it listens all the time](./backlog/F095-always-listening.md) — `Todo`
-- **F096** — [Companion mode in the phone app](./backlog/F096-companion-mode-in-the-app.md) — `Todo`
+- **F096** — [Companion mode in the phone app](./backlog/F096-companion-mode-in-the-app.md) — `In Progress` (works on TestFlight)
 - **F097** — [Speech and hearing on another machine](./backlog/F097-voice-on-another-host.md) — `Todo`
 
 ## Bugs

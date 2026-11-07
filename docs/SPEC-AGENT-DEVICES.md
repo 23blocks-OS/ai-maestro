@@ -147,7 +147,7 @@ Reuse `components/AgentHomesSection.tsx`, `app/agent-homes/page.tsx` and their l
 | 4 | ai-maestro | Hub and device-opened connections; events to agents (F082); active device on screens (F083) |
 | 5 | ai-maestro | Transfer and permission changes (F079); Doctor checks (F084) |
 
-Phones through companion mode (F080) wait for live media over device-opened connections, which the protocol has not done.
+A phone in companion mode is a small device today, with `device.health` and `camera.snapshot`. Its live media (F080) waits for live media over device-opened connections, which the protocol has not done.
 
 ## 13. Open questions
 

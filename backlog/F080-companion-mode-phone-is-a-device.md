@@ -1,6 +1,6 @@
 # F080 — Companion mode makes the phone one of the agent's devices
 
-**Status:** Todo (plan first; Juan, 2026-11-05: this needs careful planning)
+**Status:** In Progress (the phone as a small device works, 0.106.99; live media waits for the protocol)
 **Type:** Feature
 **Created:** 2026-11-05
 
@@ -36,3 +36,9 @@ the middle.
 ## Update 2026-11-06
 
 The protocol has device-opened connections, but live media over them is excluded for now, and `clients/mobile` is a placeholder. This item waits for those.
+
+## Update 2026-11-07
+
+**Status:** the first small part works. In companion mode the phone is a device of its agent: it connects to the hub, registers, and offers `device.health` and `camera.snapshot` (F096). Tested on an iPhone with Lola: a real picture. It needed protocol #39 (0.106.99): phones always send `Origin`, and the hub dropped them.
+
+Still waiting: live microphone, camera and speaker, because the protocol excludes live media over device-opened connections. Not tested: the app in the background.

@@ -14,7 +14,7 @@ Follow the device page: `apps/display` in `agentmessaging/agent-device-protocol`
 - **Agent:** its name, one line under the name, and its signal. The line says "Here with you", "Listening to you" or "Thinking", and shows its words while it talks. They stay until you talk again.
 - **You:** "You", your last words under it, your signal, and your camera behind them.
 - **Signals:** the interlocked traces of `signals.js` on 24ailab.com. Blue for the agent, white for you. They follow real audio levels, never an animation that pretends.
-- **Controls:** a large mic in the centre: tap to talk, tap to send. In a column at the left: keyboard, camera, settings. A second tap on the keyboard goes back to the mic.
+- **Controls:** a large mic in the centre: tap to talk, tap to send. In a column at the left: keyboard, captions, camera, settings. A second tap on the keyboard goes back to the mic.
 - Portrait suits this better than the laptop: the two channels stack.
 - English only for now.
 
@@ -40,7 +40,7 @@ The one new thing: speech in the agent's own voice.
 - With the phone voice the app cannot read levels, so the agent's signal stays still. The line shows the agent's words, never "talking" (Juan, 2026-11-06).
 - Same trust as every API here: the network is the boundary.
 
-Kokoro takes about as long to make speech as to play it on mini-lola, and one run at a time. So a host serves one request at a time, and a second one waits.
+Kokoro runs one request at a time, so a second one waits. It stays warm while a person talks (0.106.98): on mini-lola about 2.9 s for a normal sentence, 1.2 s for a short one, and 5.2 s after a quiet spell.
 
 ## 5. The camera
 

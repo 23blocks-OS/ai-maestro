@@ -34,6 +34,6 @@ The other direction, hearing: hold to talk in 0.106.87. The device records while
 ## Implementation Plan
 
 - Done: `AgentVoice` in `types/agent.ts`, checked in `updateAgentById`, Voice section in `components/AgentProfile.tsx`. Export and import copy it with the agent.
-- Next: the test in step 1 decides the local engine and whether cascade becomes F050's V1 default.
+- Decided: Kokoro is the local engine. Whether a cascade becomes F050's V1 default is still open.
 - Protocol first for `speaker.play`, then repin the SDK, bridge, AI Maestro. Piper's maintained version is GPL: run it as a program, do not bundle it.
 - Related: F050, F059, F078. Effort: the setting S; speech on devices M; calls are F059.

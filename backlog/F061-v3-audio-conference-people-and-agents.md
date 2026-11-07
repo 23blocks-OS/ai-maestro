@@ -28,6 +28,7 @@ Work with several agents today means switching between chats. A meeting puts the
 
 ## Implementation Plan
 
+0. **One way first: hear the meeting (S, no media server).** Each agent's text is spoken in its own voice through `/speech` on its own host, one at a time. Off by default. `docs/SPEC-ELEVENLABS-VOICE.md`, section 5. People do not hear each other yet.
 1. **Turn-taking design (S, first).** One voice layer listens to the room and speaks for the agents, in a different voice per agent, and routes a question to the agent who was named (or the meeting's lead agent). Alternative to measure: a floor token per agent. Write it down before building.
 2. **People in `Meeting` (S).** Add person ids next to `agentIds`; the meeting page lists both.
 3. **Media server (M).** LiveKit on one host, started by AI Maestro like other services, certificates from Tailscale; a join token endpoint per participant. Off by default.

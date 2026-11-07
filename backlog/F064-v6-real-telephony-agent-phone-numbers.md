@@ -41,3 +41,7 @@ Not everyone has the app, and many of the people an agent works for or with (cus
 Risks: spam and abuse through outbound calls (rate limits, per-agent allow-list of numbers to call); cost runaway (minute caps per day).
 
 Effort: about one 6-day cycle after V1.
+
+## Update 2026-11-07
+
+ElevenLabs can return `ulaw_8000`, phone-call audio, so an agent can keep its own voice on a phone number (F092). Not tested.

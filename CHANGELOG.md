@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.98] - 2026-11-06 - The voice stays warm
+
+### Changed
+- Speech and hearing stay loaded while a person is talking, in one program (`scripts/voice/serve.py`) that ends after two quiet minutes, so an idle host holds no model in memory. Each sentence no longer starts Kokoro from zero, which matters most on the phone, where every sentence is its own request. It replaces `speak.py` and `transcribe.py`.
+- A speech or hearing request that gets no answer for a minute ends the program, so a hung model cannot block the queue.
+
 ## [0.106.97] - 2026-11-06 - A phone can be a device
 
 ### Added

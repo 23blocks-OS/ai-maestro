@@ -277,12 +277,14 @@ The February design (`marketing/agent-brain-architecture.md`, gitignored) descri
 | Cortex | The agent's main session (Claude Code in tmux, or an SDK streaming session) |
 | Subconscious | Built: indexing, consolidation, memory cards, recall in the hook (`lib/agent.ts`, `lib/memory/`) |
 | Cerebellum: narration | Built: this file's voice subsystem narrates terminal output for the companion page |
-| Cerebellum: speaking side | Built behind a flag (F100): talks with a person at a device and hands work to the cortex. See below |
+| Cerebellum: fast voice | Built behind a flag (F100): talks, looks and listens at a device, and hands work to the cortex. See below |
 | Brain inbox (regions → cortex, files) | Half wired: the subconscious writes memory signals; nothing reads them (no hook calls `/brain-inbox`) |
 | Real-time channel between regions | Claude Code's own cross-session messaging (2.1.224+): proven 2026-11-07, about 0.2 s each way on one host. It is the "Unix sockets" step of the February roadmap, built into Claude Code |
 | Voice of the agent (devices, phone) | `lib/speech.mjs`: ElevenLabs or Kokoro to speak, Scribe or faster-whisper to hear, per agent (F092, F099). Lives outside this folder |
 
-## Speaking side (F100, experiment)
+## The cerebellum's fast voice (F100, experiment)
+
+Called the speaking side while it was specified; named the cerebellum by Juan on 2026-11-07, since it also looks and listens. The cerebellum now has two roles: narrating terminal output (above) and this fast voice at the agent's devices.
 
 Spec: `docs/SPEC-SPEECH-AGENT.md`. Off unless an agent's profile turns it on (`experiments.speakingSide`). Its session is named `<agent>-cerebellum` (for Lola, `pas-lola-cerebellum`): the name her main session sees when it hands work back.
 

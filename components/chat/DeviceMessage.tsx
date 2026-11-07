@@ -37,7 +37,7 @@ export function SpeakingMessage({ kind, device, source, text, timestamp }: { kin
         <div className="max-w-[85%] min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 ml-1 text-[11px] text-teal-300/90">
             <MonitorSmartphone className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Said at {device || 'a device'} · speaking side</span>
+            <span>Said at {device || 'a device'} · cerebellum</span>
           </div>
           <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-gray-800 border border-teal-800/60 text-gray-100 text-sm select-text">
             <p className="whitespace-pre-wrap break-words">{text}</p>
@@ -47,7 +47,7 @@ export function SpeakingMessage({ kind, device, source, text, timestamp }: { kin
       </div>
     )
   }
-  const label = kind === 'handoff' ? 'Handed to the main session' : 'Back from the main session'
+  const label = kind === 'handoff' ? 'Cerebellum handed work to the main session' : 'Back from the main session'
   return (
     <div className="flex justify-center mx-3 my-1" data-testid={`speaking-${kind}`}>
       <details className="max-w-[85%] text-[11px] text-gray-500">

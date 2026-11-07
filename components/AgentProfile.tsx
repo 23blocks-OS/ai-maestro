@@ -571,8 +571,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         onChange={(e) => updateField('experiments', e.target.checked ? { ...agent.experiments, speakingSide: true } : undefined)}
                       />
                       <span>
-                        Experiment: a fast speaking side answers at this agent&apos;s devices
-                        <span className="block text-gray-500">It is the agent, with its own card. Real work still goes to the agent, behind the scenes. Needs Claude Code 2.1.224 or later.</span>
+                        Experiment: the cerebellum (fast voice) answers at this agent&apos;s devices
+                        <span className="block text-gray-500">A fast part of the agent itself, with its own card: it talks, looks and listens at the device. Real work still goes to the agent, behind the scenes. Needs Claude Code 2.1.224 or later.</span>
                       </span>
                     </label>
                   </div>

@@ -1,4 +1,4 @@
-# Spec: Lola's speaking side, an experiment for fast voice
+# Spec: the cerebellum, an agent's fast voice (experiment)
 
 When a person talks to an agent at one of its devices, a fast part of the same agent answers at once, speaking as it writes. Real work goes to the agent's main session, behind the scenes. It is an experiment behind a flag: today's path stays the default and does not change.
 
@@ -200,6 +200,8 @@ The log records, per turn: hearing time, speaking side started or warm, first to
 **Keep it** if the targets hold with no invented answers. **Drop it** otherwise. Today's path stays either way.
 
 ## 10. Decisions (Juan, 2026-11-07)
+
+0. **Its name is the cerebellum.** "Speaking side" undersold it once it could look and listen too. The brain name was chosen over more exact ones (thalamus) because people know it. Its session is `<agent>-cerebellum`; screens say "cerebellum (fast voice)". Internal names (`experiments.speakingSide`, `speaking_message`) stay as they are.
 
 1. **It is Lola.** No identity of its own, part of her brain. It loads her personality (her card).
 2. **For real work it says "let me check", "I'll work on it"**, in her voice, never "I'll ask Lola".

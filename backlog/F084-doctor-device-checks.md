@@ -21,5 +21,6 @@ Support load: the same reason as F069.
 
 - `services/doctor-checks.ts`: a `devices` check in category `agents`, with an item per device, named by agent. Uses
   last contact from the records; it does not call devices on every run.
+- Voice: an agent whose voice cannot work on this host (no key, an unknown voice, the daily limit reached). `docs/SPEC-ELEVENLABS-VOICE.md`.
 - Same contract v2, so the app and the CLI show it with no change.
 - Effort: S. Depends on F078.

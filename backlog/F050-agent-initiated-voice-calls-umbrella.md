@@ -12,16 +12,16 @@ People and agents talk by voice and video: a call, a "FaceTime", a conference ca
 
 | Stage | Item | What the person gets | Status |
 |---|---|---|---|
-| V1 | F059 | Call an agent, or the agent calls you; voice only, real time | In progress: ringing and turn-by-turn voice exist |
+| V1 | F059 | Call an agent, or the agent calls you; voice only, real time | In progress: ringing and turn-by-turn voice exist; the agent's own voice on calls is next |
 | V2 | F060 | FaceTime with an agent: its face moves with its voice | Face and state loops exist; lip-sync from a call does not |
-| V3 | F061 | Conference call (audio) with several people and agents | Not built |
+| V3 | F061 | Conference call (audio) with several people and agents | Not built; a one-way first step is specified |
 | V4 | F062 | Video meetings in AI Maestro (our own Zoom view with real video) | Not built |
 | V5 | F063 | Agents join real Zoom, Meet, Teams: by phone dial-in, a bot service, or an app integration | Backlog |
 | V6 | F064 | Real telephony: each agent has its own phone number, receives and places calls | Not built (can follow V1 directly) |
 
 The animated explanation, with every step clickable, is the canvas page `voice-business-models.html` of the ai-maestro agent.
 
-**One voice per agent (F092, Juan 2026-11-06).** An agent keeps one voice across devices, messages and calls, chosen in its profile: local models on the host (architecture 3) or ElevenLabs (architecture 2). A speech-to-speech model has its own voice, so the V1 default in architecture 1 must be decided against this.
+**One voice per agent (F092, Juan 2026-11-06).** An agent keeps one voice across devices, messages and calls, chosen in its profile: local models on the host or ElevenLabs. **The host holds the key, makes the audio and sends it out (Juan, 2026-11-07):** `docs/SPEC-ELEVENLABS-VOICE.md`, for ElevenLabs as text to speech, not the ElevenLabs Agents platform. A speech-to-speech model has its own voice, so the V1 default in architecture 1 must be decided against this.
 
 ## The pipeline: five steps in every call
 
@@ -35,10 +35,10 @@ person ──1 audio in──► 2 speech to text ──► 3 the brain (voice l
 | Step | Protocols | Options | In AI Maestro today |
 |---|---|---|---|
 | 0 Ring, answer, hang up | HTTPS + Expo push | ours | Done: `/api/calls`, `lib/amp-rtc.ts`, push `call`, the app's incoming-call screen |
-| 1 and 5 Audio transport | **WebRTC** (Opus, DTLS/SRTP, ICE/STUN/TURN) for app and browser; **WebSocket** PCM between servers; **SIP/RTP** (G.711, 8 kHz) only for phone numbers | provider SDKs, LiveKit, Twilio/Telnyx for phones | Not built. Today audio never leaves the phone: it does steps 2 and 4 itself and sends text |
-| 2 Speech to text | streaming over WebSocket, or inside a speech-to-speech model | Apple on device; Deepgram Flux; AssemblyAI Universal-Streaming; ElevenLabs Scribe v2 Realtime; Speechmatics; Gladia; OpenAI; local Parakeet | Apple on device: done in the app |
+| 1 and 5 Audio transport | **WebRTC** (Opus, DTLS/SRTP, ICE/STUN/TURN) for app and browser; **WebSocket** PCM between servers; **SIP/RTP** (G.711, 8 kHz) only for phone numbers | provider SDKs, LiveKit, Twilio/Telnyx for phones | Real time: not built. Turn by turn: the host sends a WAV per sentence, with `speaker.play` to devices and `/speech` to the app, and a device sends a signed audio clip up |
+| 2 Speech to text | streaming over WebSocket, or inside a speech-to-speech model | Apple on device; Deepgram Flux; AssemblyAI Universal-Streaming; ElevenLabs Scribe v2 Realtime; Speechmatics; Gladia; OpenAI; local Parakeet | Apple on device: done in the app; faster-whisper on the host: done for devices (whole clips) |
 | 3 The brain | the voice model's tool call `ask_agent` → AI Maestro → the agent (`chat:send` or stream session); AMP person messages for long jobs | GPT-Live / gpt-realtime, Gemini Live, a voice platform with a custom LLM URL, or a cascade with any LLM (the only way to use Claude by voice) | Agent paths and person messages: done. Hand-off from a voice model: not built |
-| 4 Text to speech | streaming over WebSocket, or inside the speech-to-speech model | Apple on device; ElevenLabs Flash; Cartesia Sonic; Deepgram Aura-2; Azure; Inworld; local Kokoro | Apple and ElevenLabs: done in the app; Web Speech, OpenAI, ElevenLabs: done in the browser |
+| 4 Text to speech | streaming over WebSocket, or inside the speech-to-speech model | Apple on device; ElevenLabs Flash; Cartesia Sonic; Deepgram Aura-2; Azure; Inworld; local Kokoro | Apple and ElevenLabs: done in the app; Web Speech, OpenAI, ElevenLabs: done in the browser; Kokoro on the host: done (F092); ElevenLabs on the host: spec in `docs/SPEC-ELEVENLABS-VOICE.md` |
 
 **Where SIP fits.** SIP is the phone network's protocol. The app and the browser use WebRTC: wideband, encrypted, built for the internet. SIP appears only when a real phone number is involved: an agent's own number (V6), and an agent dialing into a Zoom, Meet or Teams meeting (V5 way A). OpenAI Realtime, LiveKit, Twilio, Telnyx, ElevenLabs, Vapi and Retell all accept SIP.
 
@@ -57,7 +57,7 @@ person ──1 audio in──► 2 speech to text ──► 3 the brain (voice l
 | An ElevenLabs key | Architecture 2 (ElevenLabs Agents with AI Maestro as the LLM), or STT + TTS in a cascade |
 | Deepgram or AssemblyAI + a TTS key + any LLM key | Architecture 3 |
 | Only an Anthropic key | Not enough alone: Anthropic has no voice API. Claude is the brain in a cascade or behind a custom LLM endpoint |
-| No key | Today's on-device mode: free, private, turn by turn |
+| No key | Turn by turn and free: on-device mode, or Kokoro and faster-whisper on the host, the agent's own voice on devices and in companion mode |
 | A Twilio or Telnyx key | Adds a phone number per agent (V6) and dial-in to meetings (V5 way A) |
 
 What has to exist for "bring a key and it works" (all in F059): provider keys on the host (Settings, secret vault), a session-token endpoint, the `ask_agent` hand-off, a signed call start, and a WebRTC client in the app (dev build) and the browser (HTTPS).

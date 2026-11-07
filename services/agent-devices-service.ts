@@ -40,9 +40,9 @@ interface DeviceHost {
   forget(agent: Agent, key: string): boolean
   saveSnapshot(agent: Agent, key: string, value: { mime: string; data: string }): string
   capture(agent: Agent, key: string, kind: string, seconds: number): Promise<string>
-  canSpeak(agent: Agent, key: string): boolean
+  canSpeak(agent: Agent, key: string): Promise<boolean>
   hubOrigin(): string | null
-  speak(agent: Agent, key: string, text: string, voiceId?: string): Promise<unknown>
+  speak(agent: Agent, key: string, text: string, voice: Agent['voice']): Promise<unknown>
   latestSnapshot(agent: Agent, key: string): string | null
 }
 
@@ -147,8 +147,8 @@ export async function invokeAgentDevice(agentId: string, key: string, body: { ca
     if (capability === 'speaker.say' && typeof text === 'string' && text.trim()) {
       h.invoke(agent, key, 'display.text', { text }).catch(() => {})
     }
-    if (capability === 'speaker.say' && agent.voice?.engine === 'local' && typeof text === 'string' && text.trim() && Buffer.byteLength(text) <= MAX_SPEECH && h.canSpeak(agent, key)) {
-      return { data: { ok: true, value: await h.speak(agent, key, text, agent.voice.voiceId) }, status: 200 }
+    if (capability === 'speaker.say' && agent.voice && typeof text === 'string' && text.trim() && Buffer.byteLength(text) <= MAX_SPEECH && await h.canSpeak(agent, key)) {
+      return { data: { ok: true, value: await h.speak(agent, key, text, agent.voice) }, status: 200 }
     }
     const value = await h.invoke(agent, key, capability, args as Record<string, unknown>)
     if (capability === 'camera.snapshot') {

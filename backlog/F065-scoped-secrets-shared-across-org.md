@@ -61,3 +61,7 @@ Full design, threat model and order of work: `docs/SPEC-SHARED-SECRETS.md`.
 - fetch on use (recommended) or copy to every host;
 - phone signature for widening (recommended);
 - existing secrets become host scope (recommended).
+
+## Update 2026-11-07
+
+The ElevenLabs work (`docs/SPEC-ELEVENLABS-VOICE.md`) comes first and needs only a small part of this: one host-wide provider secret that the server reads from the vault. It is entered on each host, with no scopes and no sharing. That code moves to `useSecret()` when this item is built.

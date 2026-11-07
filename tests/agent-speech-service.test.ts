@@ -36,9 +36,7 @@ describe('POST /api/agents/[id]/speech', () => {
 
   it('no voice is 409 no_voice, so the app uses the phone voice', async () => {
     agents.set('plain', { id: 'plain' })
-    agents.set('paid', { id: 'paid', voice: { engine: 'elevenlabs' } })
     expect(await speakForAgent('plain', { text: 'Hi' }, speech([]))).toMatchObject({ status: 409, data: { error: 'no_voice' } })
-    expect(await speakForAgent('paid', { text: 'Hi' }, speech([]))).toMatchObject({ status: 409, data: { error: 'no_voice' } })
     expect(await speakForAgent('lola', { text: 'Hi' }, { ready: () => false, synthesize: speech([]).synthesize })).toMatchObject({ status: 409 })
   })
 

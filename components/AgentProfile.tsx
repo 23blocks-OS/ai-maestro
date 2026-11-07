@@ -3,6 +3,7 @@
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import AgentHomesSection from './AgentHomesSection'
+import ElevenLabsVoicePicker from './ElevenLabsVoicePicker'
 import React, { useState, useEffect, useRef } from 'react'
 import {
   X, User, Building2, Briefcase, Code2, Cpu, Tag,
@@ -10,7 +11,7 @@ import {
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, AudioLines, Brain, Home,
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, AudioLines, Brain, MonitorSmartphone,
   FolderTree, Terminal
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
@@ -534,15 +535,18 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       Speech
                       <select
                         value={agent.voice?.engine ?? ''}
-                        onChange={(e) => updateField('voice', e.target.value ? { ...agent.voice, engine: e.target.value } : undefined)}
+                        onChange={(e) => updateField('voice', e.target.value ? { engine: e.target.value } : undefined)}
                         className="block w-full mt-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100"
                       >
                         <option value="">No voice chosen</option>
                         <option value="local">Local models on the host (free, stays on your network)</option>
-                        <option value="elevenlabs">ElevenLabs (paid, needs a key on the host)</option>
+                        <option value="elevenlabs">ElevenLabs (paid, what the agent says is sent to ElevenLabs)</option>
                       </select>
                     </label>
-                    {agent.voice && (
+                    {agent.voice?.engine === 'elevenlabs' && (
+                      <ElevenLabsVoicePicker baseUrl={baseUrl} voiceId={agent.voice.voiceId} onPick={(voiceId) => updateField('voice', { engine: 'elevenlabs', voiceId })} />
+                    )}
+                    {agent.voice?.engine === 'local' && (
                       <label className="block text-xs text-gray-400">
                         Voice name
                         <input
@@ -909,7 +913,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
-              {/* Homes: the devices this agent owns. Nothing is read until it is opened */}
+              {/* Devices: this agent owns. Nothing is read until it is opened */}
               <section>
                 <button
                   onClick={() => toggleSection('homes')}
@@ -920,8 +924,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
-                  <Home className="w-4 h-4" />
-                  Homes
+                  <MonitorSmartphone className="w-4 h-4" />
+                  Devices
                 </button>
 
                 {expandedSections.homes && (

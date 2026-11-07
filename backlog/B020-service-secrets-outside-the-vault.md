@@ -40,3 +40,7 @@ Risk reduction before bring-your-own-keys multiplies the keys we hold. One place
 Scope note: this makes the service secrets as safe as agent secrets, not safer. Agents on the same host can still reach the vault (B021, accepted).
 
 Effort: S to M. Part of F065 phase 1, done first.
+
+## Update 2026-11-07
+
+The ElevenLabs key is the first server secret to go through the vault (`docs/SPEC-ELEVENLABS-VOICE.md`, section 3). The other secrets listed here stay as they are. The browser's TTS keys (step 5) are also unchanged by that work, and `lib/tts.ts` still uses an old model id.

@@ -1,7 +1,6 @@
 # Spec: AI Maestro as a device controller
 
-An agent can own devices, for example a laptop in the office or a camera in the kitchen, and work through them. In town language a device is the agent's
-**home**. This spec says how AI Maestro implements the protocol's **controller role**.
+An agent can own devices, for example a laptop in the office or a camera in the kitchen, and work through them. The screens say Device. In town language it is the agent's home. This spec says how AI Maestro implements the protocol's **controller role**.
 
 Status: draft, rewritten 2026-11-06 against the protocol at `08707e80`. GitHub: #788, #789. Backlog: F078, F079, F081 to F085.
 
@@ -148,7 +147,7 @@ Reuse `components/AgentHomesSection.tsx`, `app/agent-homes/page.tsx` and their l
 | 4 | ai-maestro | Hub and device-opened connections; events to agents (F082); active device on screens (F083) |
 | 5 | ai-maestro | Transfer and permission changes (F079); Doctor checks (F084) |
 
-Phones through companion mode (F080) wait for live media over device-opened connections, which the protocol has not done.
+A phone in companion mode is a small device today, with `device.health` and `camera.snapshot`. Its live media (F080) waits for live media over device-opened connections, which the protocol has not done.
 
 ## 13. Open questions
 

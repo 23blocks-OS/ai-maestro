@@ -1,6 +1,6 @@
 # F083 — The agent and the person can see the active device, and jump
 
-**Status:** Todo
+**Status:** In Progress (jump and the Active marker work; the rest is below)
 **Type:** Feature
 **Created:** 2026-11-05
 
@@ -31,3 +31,9 @@ Trust and privacy: a person can always see where the agent is present.
 ## Update 2026-11-06
 
 The SDK holds the active device (`Controller.jump`, the `activated` event). What is left is the status feed, the agent's context and the screens. Spec step 4.
+
+## Update 2026-11-07
+
+Shipped: jump and the Active marker on the Devices page and in the agent's profile, `adp-device.sh jump`, and a device shows what its agent is doing (0.106.84).
+
+Still to do: the hook does not tell the agent its active device, and the agent's card and chat header show no device label.

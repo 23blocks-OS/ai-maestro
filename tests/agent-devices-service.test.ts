@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { once } from 'events'
 import type { Server } from 'http'
+import { Controller } from '@/lib/device-sdk/controller.mjs'
 
 const agents = new Map<string, any>()
 vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => agents.get(id), loadAgents: () => [...agents.values()] }))
@@ -502,6 +503,18 @@ describe("the agent's own voice (F092)", () => {
     expect(stopped).toBe(true)
   })
 
+  it('stops making speech once a person is talking at the device', async () => {
+    const device = await setup([file('1.wav', wav()), file('2.wav', wav())], { 'speaker.play': true }, { engine: 'elevenlabs', voiceId: 'v' })
+    // The bridge answers this while a person holds the talk control (protocol capabilities.md)
+    const invoke = vi.spyOn(Controller.prototype, 'invoke').mockResolvedValue({ played: false } as never)
+    const result = await svc.invokeAgentDevice('a', device.key, { capability: 'speaker.say', args: { text: 'Hello. Bye.' } })
+    const plays = invoke.mock.calls.filter((c) => c[2] === 'speaker.play').length
+    invoke.mockRestore()
+    expect(result.data).toEqual({ ok: true, value: { played: false, voice: 'agent' } })
+    expect(plays).toBe(1)
+    expect(stopped).toBe(true)
+  })
+
   it('without the grant, a chosen voice, or an active device, no audio is made or played', async () => {
     const say = { capability: 'speaker.say', args: { text: 'Hello.' } }
     const noGrant = await setup([file('1.wav', wav())], { 'speaker.say': true }, { engine: 'local' })
@@ -509,9 +522,6 @@ describe("the agent's own voice (F092)", () => {
     expect(played).toEqual([])
     const noVoice = await setup([file('1.wav', wav())], { 'speaker.play': true })
     await svc.invokeAgentDevice('a', noVoice.key, say)
-    expect(played).toEqual([])
-    const paid = await setup([file('1.wav', wav())], { 'speaker.play': true }, { engine: 'elevenlabs' })
-    await svc.invokeAgentDevice('a', paid.key, say)
     expect(played).toEqual([])
     const idle = await setup([file('1.wav', wav())], { 'speaker.play': true }, { engine: 'local' })
     svc.jumpAgentDevice('a', null as any)

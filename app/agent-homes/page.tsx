@@ -56,14 +56,14 @@ export default function AgentHomesPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         <Link href="/" className="text-sm text-blue-300">← AI Maestro</Link>
         <div>
-          <h1 className="text-2xl font-semibold">Agent homes</h1>
+          <h1 className="text-2xl font-semibold">Agent devices</h1>
           <p className="mt-1 text-sm text-gray-400">
             The real devices your agents own. An agent can have many and is active on one at a time. Add one from the agent&apos;s profile.
           </p>
         </div>
         {noHomes && (
           <p className="text-sm text-gray-500" data-testid="no-homes">
-            No homes yet. Most agents do not need one. See <a className="text-blue-300" href="https://agentdevices.org" target="_blank" rel="noopener noreferrer">agentdevices.org</a>.
+            No devices yet. Most agents do not need one. See <a className="text-blue-300" href="https://agentdevices.org" target="_blank" rel="noopener noreferrer">agentdevices.org</a>.
           </p>
         )}
         {enabled.map((host) => {

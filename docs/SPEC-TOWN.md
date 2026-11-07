@@ -31,7 +31,7 @@ tenants (`name@rnd23blocks.aimaestro.local`, `name@mytenant.crabmail.ai`), but a
 | **Agent** | Lives and works in the town | Agent |
 | **Person** | A human who works with the agents | Person |
 | **Team, Project** | Unchanged | |
-| **Home** | An agent's own device (F078) | Agent home |
+| **Home** | An agent's own device (F078). The screens say Device (Juan, 2026-11-07) | Device |
 
 ### Why organizations have offices in buildings
 

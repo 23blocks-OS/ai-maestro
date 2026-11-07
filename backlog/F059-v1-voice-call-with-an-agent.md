@@ -1,6 +1,6 @@
 # F059 - V1: A voice call with an agent
 
-**Status:** In Progress (signalling and the turn-by-turn voice mode exist; the real-time pipeline does not)
+**Status:** In Progress (signalling and the turn-by-turn voice mode exist; the agent's own voice on calls is next; the real-time pipeline does not exist)
 **Type:** Feature
 **Created:** 2026-11-02
 
@@ -35,8 +35,9 @@ An agent that needs a person can only write to an inbox today, and the person ma
 
 ## Implementation Plan
 
+0. **The agent's own voice on turn-by-turn calls (S, next, needs no ElevenLabs).** Calls use `/speech` on the agent's host, like companion mode, in place of a voice chosen on the phone. Today `useVoiceConversation.ts` never calls it: `docs/SPEC-ELEVENLABS-VOICE.md`, section 8. App team. The filler lines ("On it") were removed from the app in November.
 1. **Spike (S, throwaway, not merged).** On localhost (the browser allows the microphone there): one speech-to-speech session with one tool, `ask_agent`, wired to one streaming agent. Measure first-word latency, the hand-off round trip and cost per minute, with OpenAI and with Gemini. Decide the default from the numbers.
-2. **Provider keys on the host.** F065 phase 1: provider secrets with host or org scope, Settings > Voice providers with a Test button, and `useSecret()` so the server on any host can use a key entered once. Keys never go to a browser or phone.
+2. **Provider keys on the host.** The ElevenLabs work reads one host-wide key from the vault first, the smallest slice of this step. Then F065 phase 1: provider secrets with host or org scope, Settings > Voice providers with a Test button, and `useSecret()` so the server on any host can use a key entered once. Keys never go to a browser or phone.
 3. **Voice session endpoint (S).** `POST /api/voice/sessions` returns a short-lived provider token (OpenAI ephemeral key, Gemini ephemeral token) for one agent and one call, so the phone talks to the provider directly and the host never relays audio. Minute cap per call.
 4. **The hand-off (M).** `ask_agent` from the voice model reaches the agent: streaming agents through the stream session, terminal agents through `chat:send`; the reply text goes back to the voice model. Work that outlives the call: the agent replies by AMP to the person.
 5. **Signed call start (S).** A call that can instruct an agent starts from a request signed with the person's approved device key; only agents the person manages take orders (same rule as person messages). Optional `reason` on `POST /api/calls` (asked by the app team) so the ring screen and the agent's first words say why.
@@ -44,6 +45,6 @@ An agent that needs a person can only write to an inbox today, and the person ma
 7. **Ring a locked iPhone (from F053).** CallKit with PushKit is the native experience; a time-sensitive push (what ships today) is the fallback. Apple requires every VoIP push to show a call screen, so only real calls use it.
 8. **Tests (from F055).** Call state: out of order, cancel and accept at once, accepted but never connected, every call reaches an end state. Voice: a call with no key falls back to the on-device mode.
 
-Risks: GPT-Live's hand-off to an outside agent is not fully documented (the spike answers it; fallback is gpt-realtime with a tool). A voice call injects instructions, so step 5 is not optional. EU AI Act Art. 50: the agent says it is an AI at the start of a call.
+Risks: a speech-to-speech model has its own voice, which goes against F092: the spike must answer this too. GPT-Live's hand-off to an outside agent is not fully documented (the spike answers it; fallback is gpt-realtime with a tool). A voice call injects instructions, so step 5 is not optional. EU AI Act Art. 50: the agent says it is an AI at the start of a call.
 
 Effort: spike S, then about one 6-day cycle with the app team.

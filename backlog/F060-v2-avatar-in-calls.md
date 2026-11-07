@@ -28,7 +28,7 @@ Two ways to draw the face:
 
 ## Implementation Plan
 
-1. Lip-sync the existing face from the V1 audio stream (Web Audio analyser in the browser; the same level in the app) (S).
+1. Lip-sync the existing face from the V1 audio stream (Web Audio analyser in the browser; the same level in the app) (S). The app already reads real loudness from each WAV for companion mode's signals (`utils/wav.ts`), so this can start before V1.
 2. Viseme mouth shapes when the TTS returns timestamps (ElevenLabs alignment, Azure visemes; see F050's provider table) (M).
 3. State during a call: listening, thinking (the voice layer is waiting on the agent), working (the agent is busy) from the voice session events and `presenceOf(agent)` (S).
 4. Optional avatar provider key (Simli first: cheap, takes our audio as PCM) behind a small interface (M).

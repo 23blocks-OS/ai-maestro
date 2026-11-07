@@ -337,7 +337,7 @@ import {
 
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
-import { speakForAgent } from '@/services/agent-speech-service'
+import { elevenLabsVoices, speakForAgent } from '@/services/agent-speech-service'
 import { addAgentDevice, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
@@ -579,6 +579,10 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/devices$/, paramNames: ['id'], handler: async (req, res, params) => {
     sendServiceResult(res, await addAgentDevice(params.id, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'GET', pattern: /^\/api\/voice\/elevenlabs\/voices$/, paramNames: [], handler: async (_req, res) => {
+    const result = await elevenLabsVoices()
+    sendJson(res, result.status, result.data)
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/speech$/, paramNames: ['id'], handler: async (req, res, params) => {
     const result = await speakForAgent(params.id, await readJsonBody(req).catch(() => ({})))

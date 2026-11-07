@@ -1,27 +1,18 @@
 import { execFile } from "node:child_process";
-import { accessSync, constants } from "node:fs";
 import { promisify } from "node:util";
+import { cameraInput, cameraPresent, ffmpegPath, ffmpegReady } from "./platform.mjs";
 const run = promisify(execFile);
 export function cameraReady() {
-  try {
-    accessSync("/dev/video0", constants.R_OK);
-    accessSync("/usr/bin/ffmpeg", constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
+  return cameraPresent() && ffmpegReady();
 }
 export async function snapshot(signal) {
   const { stdout } = await run(
-    "/usr/bin/ffmpeg",
+    ffmpegPath,
     [
       "-nostdin",
       "-loglevel",
       "error",
-      "-f",
-      "video4linux2",
-      "-i",
-      "/dev/video0",
+      ...cameraInput(),
       "-frames:v",
       "1",
       "-vf",

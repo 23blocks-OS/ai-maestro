@@ -61,6 +61,7 @@ export function publishActivity(
   state: ActivityState,
   fetcher?: typeof fetch,
   active?: boolean,
+  label?: string,
 ): Promise<{ type: "activity.ack"; id: string; to: string; challenge: string }>;
 
 export function exchange(

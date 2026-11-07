@@ -158,6 +158,9 @@ export function bridge(
           if (
             msg.assignedAgent !== assignedAgent ||
             (msg.active !== undefined && typeof msg.active !== "boolean") ||
+            (msg.label !== undefined &&
+              (typeof msg.label !== "string" ||
+                !/^[^\p{Cc}]{1,64}$/u.test(msg.label))) ||
             !["working", "waiting", "idle", "unknown"].includes(msg.state) ||
             Object.keys(msg).some(
               (k) =>
@@ -169,11 +172,12 @@ export function bridge(
                   "assignedAgent",
                   "state",
                   "active",
+                  "label",
                 ].includes(k),
             )
           )
             return reply(400, { error: "invalid_activity" });
-          if (!display.update(peer, msg.state, ticket.order, msg.active))
+          if (!display.update(peer, msg.state, ticket.order, msg.active, msg.label))
             return reply(409, { error: "superseded" });
           return result({ type: "activity.ack" });
         }

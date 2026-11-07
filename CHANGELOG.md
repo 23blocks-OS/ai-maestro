@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.95] - 2026-11-06 - Reactions sit beside the copy icon
+
+### Fixed
+- Reactions in the chat are in the same row as the copy icon, not in a row of their own under the message.
+
 ## [0.106.94] - 2026-11-06 - A device shows the agent's name
 
 ### Changed

@@ -740,8 +740,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                   <div className="flex justify-end items-center gap-1 mt-0.5 mr-1">
                     <span className="text-[10px] text-gray-500">{messageTime(msg.timestamp)}</span>
                     <CopyButton text={text} className="text-gray-500" />
+                    {msg.uuid && <ReactionBar reactions={chatReactions.reactions[msg.uuid]} onToggle={emoji => chatReactions.toggle(msg.uuid!, emoji)} />}
                   </div>
-                  {msg.uuid && <ReactionBar align="end" reactions={chatReactions.reactions[msg.uuid]} onToggle={emoji => chatReactions.toggle(msg.uuid!, emoji)} />}
                 </div>
               </div>
             )
@@ -877,8 +877,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
                       <div className="flex justify-end items-center gap-1 mt-0.5 mr-1">
                         <span className="text-[10px] text-gray-500">{messageTime(msg.timestamp)}</span>
                         <CopyButton text={text} />
+                        {msg.uuid && <ReactionBar reactions={chatReactions.reactions[msg.uuid]} onToggle={emoji => chatReactions.toggle(msg.uuid!, emoji)} />}
                       </div>
-                      {msg.uuid && <ReactionBar reactions={chatReactions.reactions[msg.uuid]} onToggle={emoji => chatReactions.toggle(msg.uuid!, emoji)} />}
                     </div>
                   )}
                   {askQ && (

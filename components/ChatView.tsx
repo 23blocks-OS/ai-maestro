@@ -1358,14 +1358,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                         <Copy className="w-3 h-3" />
                       )}
                     </button>
+                    {message.uuid && !isQueued && (
+                      <ReactionBar
+                        reactions={chatReactions.reactions[message.uuid]}
+                        onToggle={emoji => chatReactions.toggle(message.uuid!, emoji)}
+                      />
+                    )}
                   </div>
-                )}
-                {content && message.uuid && !isQueued && (
-                  <ReactionBar
-                    align={isUser ? 'end' : 'start'}
-                    reactions={chatReactions.reactions[message.uuid]}
-                    onToggle={emoji => chatReactions.toggle(message.uuid!, emoji)}
-                  />
                 )}
               </div>
             </div>

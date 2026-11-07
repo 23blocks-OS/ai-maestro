@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.101] - 2026-11-07 - Device conversations in the chat
+
+### Added
+- What someone says or types at one of an agent's devices shows in the chat, as a device message with the device's name, never as the person's own message (F098). It was filed as a system note, shown only in X-Ray, so the conversation had holes. When the pane notice cut the words, the whole words come from the agent's inbox. Search finds them.
+- For the phone app: the chat feed has a new entry type, `device_message` (`device`, `source`: `said` or `typed`, `text`).
+
 ## [0.106.100] - 2026-11-07 - An agent can speak with ElevenLabs; Homes are Devices on screen
 
 ### Added

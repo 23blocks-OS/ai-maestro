@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.93] - 2026-11-06 - What an agent says shows on its device
+
+### Changed
+- What an agent says on a device also shows there as text, for the redesigned device page (protocol #33). Device SDK repinned.
+
 ## [0.106.92] - 2026-11-06 - aimaestro.sh mentions the phone app
 
 ### Changed

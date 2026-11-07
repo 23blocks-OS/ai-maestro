@@ -6,7 +6,7 @@ import {
   imageBytes,
   audioBytes,
 } from "../../packages/sdk/capabilities.mjs";
-import { speechReady, say, playReady, play } from "./output.mjs";
+import { speechReady, playReady, play, Voice } from "./output.mjs";
 import { mediaFormats } from "../../packages/sdk/media.mjs";
 import { agentAddress, nonce, open, seal } from "@ai-maestro/device-sdk";
 import { cameraReady, snapshot } from "./hardware.mjs";
@@ -30,6 +30,7 @@ export function bridge(
       : name === "speaker.play"
         ? (hardware.playReady ?? playReady)()
         : !!display;
+  const voice = hardware.voice ?? new Voice({ play: hardware.play ?? play });
   const challenges = new Map();
   let captureOwner;
   let sequence = 0;
@@ -371,12 +372,9 @@ export function bridge(
           try {
             let value;
             if (msg.capability === "speaker.say")
-              value = await say(msg.args.text, abort.signal);
+              value = await voice.say(msg.args.text, abort.signal);
             else if (msg.capability === "speaker.play")
-              value = await (hardware.play ?? play)(
-                audioBytes(msg.args),
-                abort.signal,
-              );
+              value = await voice.play(audioBytes(msg.args), abort.signal);
             else if (msg.capability.startsWith("custom."))
               value = await custom.invoke(
                 msg.capability,

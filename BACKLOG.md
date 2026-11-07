@@ -118,6 +118,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F097** — [Speech and hearing on another machine](./backlog/F097-voice-on-another-host.md) — `Todo`
 - **F098** — [Device conversations show in the agent's chat](./backlog/F098-device-conversations-in-the-chat.md) — `In Progress`
 - **F099** — [Hear a device's speech with ElevenLabs Scribe](./backlog/F099-elevenlabs-scribe-hearing.md) — `In Progress`
+- **F100** — [Experiment: a fast speech agent answers at an agent's devices](./backlog/F100-speech-agent-experiment.md) — `Todo` (spec written)
 
 ## Bugs
 

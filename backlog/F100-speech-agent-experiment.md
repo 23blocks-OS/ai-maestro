@@ -1,4 +1,4 @@
-# F100 — Experiment: a fast speech agent answers at an agent's devices
+# F100 — Experiment: a fast speaking side of the agent answers at its devices
 
 **Status:** Todo (spec: [docs/SPEC-SPEECH-AGENT.md](../docs/SPEC-SPEECH-AGENT.md))
 **Type:** Feature
@@ -6,7 +6,7 @@
 
 ## Description
 
-Behind a per-agent flag, off by default, a small and fast "speech agent" talks with a person at one of the agent's devices. It speaks as it writes, answers what it can from a short briefing, and hands everything else to the real agent through a direct, two-way channel with no inbox. Today's path is the default and does not change. Juan's idea (2026-11-07).
+Behind a per-agent flag, off by default, a fast, streaming part of the same agent talks with a person at one of its devices. It is the agent (Lola), with her personality from her own card, not a separate identity. It answers what it can at once, says "let me check" for real work, and hands that work to the main session through a direct, two-way channel with no inbox, carrying who asked. It stays warm while a device is in use. Today's path is the default and does not change. Juan's idea (2026-11-07). Spike done: Sonnet 5.5, first sentence in 1.6 to 2.4 s.
 
 ## Why It's Needed
 

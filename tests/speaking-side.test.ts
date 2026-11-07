@@ -179,6 +179,14 @@ describe('the speaking side', () => {
     sides.stopAll()
   })
 
+  it('a verified person is named in the turn; anyone else is someone not verified', async () => {
+    const { sides, agent, fake } = setup([[start, delta('Hi. '), stop, result], [start, delta('Hi. '), stop, result]])
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'iPhone', text: 'Hi', source: 'voice', person: 'Juan' })
+    await wait()
+    expect(fake.seen.prompts[0]).toContain(`At your device "iPhone", Juan (verified: the operator marked this device as Juan's) said`)
+    sides.stopAll()
+  })
+
   it('is not started for an agent with no main session that takes messages', () => {
     const { sides } = setup([])
     expect(sides.handle({ id: 'x', name: 'x', workingDirectory: '/nowhere' }, { deviceKey: 'k', deviceName: 'M', text: 'hi', source: 'voice' })).toBe(false)

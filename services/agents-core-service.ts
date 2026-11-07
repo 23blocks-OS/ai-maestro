@@ -1088,6 +1088,20 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
       if (Object.keys(other).length) return invalidRequest('experiments has only speakingSide')
     }
 
+    if (body.devicePeople !== undefined && body.devicePeople !== null) {
+      const map = body.devicePeople as unknown
+      if (typeof map !== 'object' || Array.isArray(map)) return invalidRequest('devicePeople must be an object of device key to { personId, name }')
+      const entries = Object.entries(map as Record<string, unknown>)
+      if (entries.length > 50) return invalidRequest('devicePeople has at most 50 devices')
+      for (const [key, person] of entries) {
+        if (!/^[A-Za-z0-9_-]{16,128}$/.test(key)) return invalidRequest('devicePeople keys are device keys')
+        const p = person as { personId?: unknown; name?: unknown }
+        if (!p || typeof p !== 'object' || typeof p.personId !== 'string' || !/^[\w-]{1,80}$/.test(p.personId)) return invalidRequest('devicePeople needs a personId for each device')
+        if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 80) return invalidRequest('devicePeople needs a name of at most 80 characters for each device')
+        if (Object.keys(p).some((k) => k !== 'personId' && k !== 'name')) return invalidRequest('devicePeople entries have only personId and name')
+      }
+    }
+
     // A change to the manager is checked: a person and/or an agent, never itself, never a loop among the
     // agents this host knows, and never none at all. Any other update leaves the manager fields alone.
     if (body.humanManager !== undefined || body.managerAgentId !== undefined) {

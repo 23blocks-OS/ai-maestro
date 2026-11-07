@@ -485,6 +485,19 @@ describe('updateAgentById', () => {
     expect((result.data as any)?.agent.taskDescription).toBe('Updated task')
   })
 
+  // F103: only the operator says who a device speaks for, and the shape is strict
+  it('accepts devicePeople, lets null clear it, and refuses anything else', () => {
+    const agent = makeAgent({ id: 'agent-1' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockAgentRegistry.updateAgent.mockReturnValue(agent)
+    const key = 'WCKlMemnV7JtD6Yln67ozz1F5Gt9PNpaGuX339hi5ag'
+    expect(updateAgentById('agent-1', { devicePeople: { [key]: { personId: '580dcebd-ac31-4b86-99a7-4abed9fdff57', name: 'Juan Pelaez' } } }).status).toBe(200)
+    expect(updateAgentById('agent-1', { devicePeople: null }).status).toBe(200)
+    for (const bad of [[], { 'not a key!': { personId: 'p1', name: 'Juan' } }, { [key]: { personId: 'p1' } }, { [key]: { personId: 'p1', name: 'Juan', admin: true } }, { [key]: 'Juan' }]) {
+      expect(updateAgentById('agent-1', { devicePeople: bad as any }).status).toBe(400)
+    }
+  })
+
   // The voice moves with the agent: a key must never ride along in it
   it('accepts a voice, lets null clear it, and refuses anything else', () => {
     const agent = makeAgent({ id: 'agent-1' })

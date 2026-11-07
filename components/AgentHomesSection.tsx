@@ -15,6 +15,8 @@ export interface AgentHome {
   state: 'unverified' | 'online' | 'offline' | 'revoked'
   capabilities: string[]
   lastSeen?: number
+  /** F103: the person this device speaks for, set by the operator */
+  speaksAs?: { personId: string; name: string } | null
 }
 
 const STATE: Record<AgentHome['state'], { label: string; tone: string }> = {
@@ -110,6 +112,12 @@ export default function AgentHomesSection({ agentId, hostUrl = '' }: { agentId: 
   const [status, setStatus] = useState<Record<string, string>>({})
   const [picture, setPicture] = useState<Record<string, number>>({})
   const [forgetting, setForgetting] = useState<string | null>(null)
+  const [people, setPeople] = useState<{ id: string; displayName: string }[]>([])
+
+  // People live in this dashboard's directory; the agent's host keeps a snapshot of the name
+  useEffect(() => {
+    fetch('/api/people').then((r) => r.json()).then((d) => setPeople((d.people || []).filter((p: { active?: boolean }) => p.active !== false))).catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -139,6 +147,18 @@ export default function AgentHomesSection({ agentId, hostUrl = '' }: { agentId: 
   }
 
   const device = (home: AgentHome) => `${base}/${encodeURIComponent(home.key)}`
+
+  // The whole map goes back each time: the agent keeps only what the operator chose here
+  const setSpeaksAs = (home: AgentHome, personId: string) => act(home, async () => {
+    const map: Record<string, { personId: string; name: string }> = {}
+    for (const h of homes || []) if (h.speaksAs && h.key !== home.key) map[h.key] = h.speaksAs
+    const person = people.find((p) => p.id === personId)
+    if (person) map[home.key] = { personId: person.id, name: person.displayName }
+    await call(`${hostUrl}/api/agents/${encodeURIComponent(agentId)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ devicePeople: Object.keys(map).length ? map : null }),
+    })
+    return person ? `What is said here now counts as ${person.displayName}.` : 'What is said here is from someone not verified again.'
+  })
   const button = 'text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:opacity-40'
 
   return (
@@ -154,6 +174,22 @@ export default function AgentHomesSection({ agentId, hostUrl = '' }: { agentId: 
               <span className={`text-xs ${homeState(home).tone}`}>{homeState(home).label}</span>
             </div>
             <p className="mt-1 text-xs text-gray-500 break-words">{home.capabilities.join(' · ') || 'No capabilities yet'}</p>
+            {(people.length > 0 || home.speaksAs) && (
+              <label className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                Speaks as
+                <select
+                  value={home.speaksAs?.personId ?? ''}
+                  disabled={status[home.key] === WORKING}
+                  onChange={(e) => void setSpeaksAs(home, e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-gray-200"
+                >
+                  <option value="">Someone not verified</option>
+                  {home.speaksAs && !people.some((p) => p.id === home.speaksAs!.personId) && <option value={home.speaksAs.personId}>{home.speaksAs.name}</option>}
+                  {people.map((p) => <option key={p.id} value={p.id}>{p.displayName}</option>)}
+                </select>
+                <span className="text-gray-500">Only for a device one person carries, like their phone: anyone holding it speaks as them.</span>
+              </label>
+            )}
             {picture[home.key] && (
               // eslint-disable-next-line @next/next/no-img-element -- a local capture, not a site asset
               <img src={`${device(home)}/snapshot?t=${picture[home.key]}`} alt={`Latest picture from ${home.name}`} className="mt-2 rounded max-h-48" />

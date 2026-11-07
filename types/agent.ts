@@ -252,6 +252,8 @@ export interface Agent {
   voice?: AgentVoice
   /** Experiments, off unless set. speakingSide: a fast speaking side answers at its devices (F100); 'always' keeps it warm */
   experiments?: AgentExperiments
+  /** F103: paired devices that speak for one person, by device key. Set by the operator only; a device can never claim it */
+  devicePeople?: Record<string, DevicePerson>
   kind?: 'agent' | 'assistant'  // Missing means 'agent'. An assistant connects over AMP only: no terminal, stream or wake
   platform?: string             // Where an assistant lives ("muse", "grok", or free text)
   registrationStatus?: 'pending' // Set only while a new AMP registration waits for the owner; missing means a full member
@@ -621,9 +623,16 @@ export interface CreateAgentRequest {
 /**
  * Agent update request
  */
+/** The person a paired device speaks for (F103). The name is a snapshot: the person's record may live on another host */
+export interface DevicePerson {
+  personId: string
+  name: string
+}
+
 export interface UpdateAgentRequest {
   voice?: AgentVoice | null     // null clears it
   experiments?: AgentExperiments | null // null clears them
+  devicePeople?: Record<string, DevicePerson> | null // the whole map; null clears it
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
   title?: string | null         // null or '' clears it

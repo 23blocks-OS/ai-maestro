@@ -18,7 +18,7 @@
  * machine are not isolated from each other, so that prevents mistakes, not a deliberate misuse of another agent's key.
  */
 
-import { getAgent, loadAgents } from '@/lib/agent-registry'
+import { getAgent, loadAgents, updateAgent } from '@/lib/agent-registry'
 import { isSelf } from '@/lib/hosts-config'
 import type { Agent } from '@/types/agent'
 import type { ServiceResult } from '@/services/service-errors'
@@ -92,7 +92,8 @@ function withAgent<T>(agentId: string, run: (h: DeviceHost, agent: Agent) => Ser
 export async function listAgentDevices(agentId: string, { refresh = false } = {}): Promise<ServiceResult<{ devices: any[] }>> {
   return withAgent(agentId, async (h, agent) => {
     if (refresh) await Promise.allSettled(h.inventory(agent).map((d) => h.refresh(agent, d.key)))
-    return { data: { devices: h.inventory(agent) }, status: 200 }
+    // F103: who a device speaks for, if the operator said so
+    return { data: { devices: h.inventory(agent).map((d) => ({ ...d, speaksAs: agent.devicePeople?.[d.key] ?? null })) }, status: 200 }
   })
 }
 
@@ -180,6 +181,11 @@ export function latestAgentDeviceSnapshot(agentId: string, key: string) {
 export function forgetAgentDevice(agentId: string, key: string) {
   return withAgent<{ forgotten: true; note: string }>(agentId, (h, agent) => {
     if (!h.forget(agent, key)) return fail(404, 'not_found', 'Unknown device')
+    // A forgotten device no longer speaks for anyone (F103)
+    if (agent.devicePeople?.[key]) {
+      const { [key]: _gone, ...rest } = agent.devicePeople
+      updateAgent(agent.id, { devicePeople: Object.keys(rest).length ? rest : null })
+    }
     return { data: { forgotten: true, note: 'Forgotten here. The device stays assigned to this agent until its owner changes that.' }, status: 200 }
   })
 }

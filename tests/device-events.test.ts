@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const sendFromUI = vi.fn(async (_options: any) => ({}))
 vi.mock('@/lib/message-send', () => ({ sendFromUI: (o: any) => sendFromUI(o) }))
-vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'lola-id' ? { id, name: 'pas-lola' } : id === 'exp-id' ? { id, name: 'pas-exp', experiments: { speakingSide: true } } : null) }))
+vi.mock('@/lib/agent-registry', () => ({ getAgent: (id: string) => (id === 'lola-id' ? { id, name: 'pas-lola' } : id === 'exp-id' ? { id, name: 'pas-exp', experiments: { speakingSide: true }, devicePeople: { PHONEKEY0123456789ab: { personId: 'p1', name: 'Juan' } } } : null) }))
 
 const { deliverDeviceEvent } = await import('@/lib/device-events')
 const idOf = (address: string) => (address === 'lola@x' ? 'lola-id' : undefined)
@@ -48,6 +48,28 @@ describe('device events reach the agent', () => {
   })
 })
 
+describe('a device that speaks for a person (F103)', () => {
+  const g = globalThis as any
+  const expOf = (address: string) => (address === 'lola@x' ? 'exp-id' : undefined)
+  it('its words reach the agent as that person, verified', async () => {
+    await deliverDeviceEvent(event({ deviceKey: 'PHONEKEY0123456789ab', name: 'iPhone' }), expOf)
+    const options = sendFromUI.mock.calls[0][0]
+    expect(options).toMatchObject({ fromVerified: true, fromAlias: 'Juan at iPhone', subject: 'Juan at your device iPhone' })
+    expect(options.content.message).toContain("which the operator marked as Juan's")
+  })
+  it('the cerebellum is told who it is', async () => {
+    const handle = vi.fn(() => true)
+    g._speakingSides = { handle }
+    await deliverDeviceEvent(event({ deviceKey: 'PHONEKEY0123456789ab', name: 'iPhone' }), expOf)
+    expect(handle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ person: 'Juan' }))
+    delete g._speakingSides
+  })
+  it('another device of the same agent stays unverified', async () => {
+    await deliverDeviceEvent(event(), expOf)
+    expect(sendFromUI.mock.calls[0][0]).toMatchObject({ fromVerified: false, fromAlias: 'Device MacBook' })
+  })
+})
+
 describe('the speaking side experiment (F100)', () => {
   const g = globalThis as any
   const expOf = (address: string) => (address === 'lola@x' ? 'exp-id' : undefined)
@@ -55,7 +77,7 @@ describe('the speaking side experiment (F100)', () => {
     const handle = vi.fn(() => true)
     g._speakingSides = { handle }
     await deliverDeviceEvent(event({ source: 'voice' }), expOf)
-    expect(handle).toHaveBeenCalledWith(expect.objectContaining({ id: 'exp-id' }), { deviceKey: 'WCKlMemnV7JtD6Yln67o', deviceName: 'MacBook', text: 'Hello', source: 'voice' })
+    expect(handle).toHaveBeenCalledWith(expect.objectContaining({ id: 'exp-id' }), { deviceKey: 'WCKlMemnV7JtD6Yln67o', deviceName: 'MacBook', text: 'Hello', source: 'voice', person: undefined })
     expect(sendFromUI).not.toHaveBeenCalled()
     delete g._speakingSides
   })

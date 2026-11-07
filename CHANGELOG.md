@@ -3,6 +3,12 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.107] - 2026-11-07 - The cerebellum says "I'm still on it" while the main session works
+
+### Fixed
+- "I'm still on it." never played while the main session worked (Juan's test: 55 s of silence on "check your email"). The cerebellum's own words after a hand-off cancelled the timer; only the main session's answer cancels it now.
+- No second "let me check": when the host already said "Let me check." as the tool started, a sentence that only repeats it is not spoken.
+
 ## [0.106.106] - 2026-11-07 - The cerebellum talks about its own things, and speaks before it acts
 
 ### Changed

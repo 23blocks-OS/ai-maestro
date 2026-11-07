@@ -287,7 +287,7 @@ The February design (`marketing/agent-brain-architecture.md`, gitignored) descri
 Spec: `docs/SPEC-SPEECH-AGENT.md`. Off unless an agent's profile turns it on (`experiments.speakingSide`).
 
 - **What it is:** the agent itself, in the cerebellum's voice role. An SDK session (no tmux) with the agent's own `CLAUDE.md`, its recent notes and the rules for speaking, on Sonnet 5.5. It speaks sentence by sentence as it writes, through the same device path as `say`.
-- **Its one tool:** `SendMessage`, to the agent's main session only (a `PreToolUse` hook refuses everything else; no MCP servers, no claude.ai connectors, nothing loaded from disk).
+- **Its tools:** `SendMessage`, to the agent's main session only, and four tools for the device it is at: `look` (a picture it sees), `show`, `health`, `listen` (a few seconds, as words). A `PreToolUse` hook refuses everything else; no other MCP servers, no claude.ai connectors, nothing loaded from disk. Checked with the real SDK: it looked at a test picture and described it about 4 s after the question.
 - **The hand-off:** real work goes to the main session over Claude Code's cross-session messaging, with where it came from (device, not verified). The main session answers with `SendMessage`; the speaking side says it. Needs Claude Code 2.1.224+ on both sides (the Agent SDK is 0.3.319, bundling 2.1.319).
 - **Warm:** started by the kiosk's tap (`device.used`) so the person never waits for it, stopped after 10 quiet minutes (`'always'` keeps it up).
 - **Fallback:** when the main session has no messaging socket, or anything fails before the turn is taken, the words go to the agent the usual way.

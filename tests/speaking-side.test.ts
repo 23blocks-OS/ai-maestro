@@ -186,3 +186,49 @@ describe('the speaking log, for the chat', () => {
     expect(speakingEntries('../../etc', { root })).toEqual([])
   })
 })
+
+describe('the device it is at (look, show, health, listen)', () => {
+  const fakeTools = {
+    z: { string: () => ({ min: () => ({ max: () => 'string' }) }), number: () => ({ int: () => ({ min: () => ({ max: () => 'number' }) }) }) },
+    tool: (name: string, _d: string, _s: object, handler: Function) => ({ name, handler }),
+    createSdkMcpServer: (o: any) => ({ type: 'sdk', name: o.name, tools: o.tools }),
+  }
+  it('the lock lets these four through, and still nothing else', async () => {
+    const gate = toolGate('lola-f9', ['mcp__device__look', 'mcp__device__show'])
+    const decision = async (input: object) => ((await gate(input)) as any).hookSpecificOutput.permissionDecision
+    expect(await decision({ tool_name: 'mcp__device__look', tool_input: {} })).toBe('allow')
+    expect(await decision({ tool_name: 'mcp__device__delete_everything', tool_input: {} })).toBe('deny')
+    expect(await decision({ tool_name: 'SendMessage', tool_input: { to: 'someone-else' } })).toBe('deny')
+  })
+
+  it('uses the device in use: a picture comes back as an image it sees, a refusal as an error it can say', async () => {
+    const calls: any[] = []
+    const device = {
+      look: async (id: string, key: string) => { calls.push(['look', id, key]); return { mime: 'image/jpeg', data: 'AAAA' } },
+      show: async (id: string, key: string, text: string) => { calls.push(['show', key, text]) },
+      health: async () => ({ status: 'ok' }),
+      listen: async (_id: string, _key: string, seconds: number) => { calls.push(['listen', seconds]); throw new Error('denied') },
+    }
+    const { sides, agent, fake } = setup([[result]], { device, sdkTools: fakeTools })
+    sides.handle(agent, { deviceKey: 'kitchen-key', deviceName: 'MacBook', text: 'What do you see?', source: 'voice' })
+    await wait()
+    const o = fake.seen.options
+    expect(Object.keys(o.mcpServers)).toEqual(['device'])
+    expect(o.systemPrompt).toContain('look (a picture from its camera')
+    const byName = Object.fromEntries(o.mcpServers.device.tools.map((t: any) => [t.name, t.handler]))
+    expect(await byName.look({})).toEqual({ content: [{ type: 'image', data: 'AAAA', mimeType: 'image/jpeg' }] })
+    expect(await byName.show({ text: 'Hi' })).toEqual({ content: [{ type: 'text', text: 'Shown.' }] })
+    expect(await byName.listen({ seconds: 3 })).toEqual({ content: [{ type: 'text', text: 'Could not: denied' }], isError: true })
+    expect(calls).toEqual([['look', 'lola-id', 'kitchen-key'], ['show', 'kitchen-key', 'Hi'], ['listen', 3]])
+    sides.stopAll()
+  })
+
+  it('without device tools it has none, and says so in its prompt', async () => {
+    const { sides, agent, fake } = setup([[result]])
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'Hi', source: 'voice' })
+    await wait()
+    expect(fake.seen.options.mcpServers).toEqual({})
+    expect(fake.seen.options.systemPrompt).not.toContain('look (a picture')
+    sides.stopAll()
+  })
+})

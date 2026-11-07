@@ -51,9 +51,9 @@ person ──speech──► device ──clip──► host: Scribe ──text�
 | Model | Sonnet 5.5 | In the spike it spoke as Lola and said "let me check" naturally. Haiku 5.5 was not faster and leaked the machinery ("I can't look it up from this conversation") |
 | Thinking | `{ type: 'between_tools' }` | How Sonnet 5.5 turns thinking off; `disabled` is refused |
 | `tools` | `['SendMessage']` | The one built-in tool: Claude Code's own cross-session message, to hand work to the main session (section 6). No shell, no files, no web, no code |
-| Its own tools | `show`, in-process | Text on the device's screen |
+| Its own tools | `look`, `show`, `health`, `listen`, in-process, on the device it is at | Quick things at the device it does itself (Juan, 2026-11-07): handing "what do you see?" to the main session would cost a full round trip. The device's own switches still decide |
 | `settingSources` | `[]` | Loads nothing from disk: no hooks (which cost 2 s), no allow-rules, no project files. The host passes the card itself |
-| Permission | `canUseTool` allows `SendMessage` only to the agent's own main session, and refuses everything else | A second lock in case a tool slips in |
+| Permission | A `PreToolUse` hook allows `SendMessage` only to the agent's own main session, and the four device tools, and refuses everything else | `canUseTool` is not consulted for `SendMessage` (spike) |
 | Partial messages | on | Word by word: speak as it writes |
 | `persistSession` | false | Nothing written to the agent's transcript folder |
 | Working folder | an empty folder per agent | Nothing to read by accident |

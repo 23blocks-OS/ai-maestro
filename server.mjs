@@ -2618,10 +2618,13 @@ async function startServer(handleRequest) {
       })
       // The speaking side of agents that use the F100 experiment: created now, started on the first tap or words
       try {
-        const [{ createSpeakingSides }, { query }, { buildEnv }, { appendSpeakingLog }] = await Promise.all([
+        const [{ createSpeakingSides }, { query, tool, createSdkMcpServer }, { buildEnv }, { appendSpeakingLog }] = await Promise.all([
           import('./lib/cerebellum/speaking-side.mjs'), import('@anthropic-ai/claude-agent-sdk'), import('./lib/streaming-runtime.mjs'), import('./lib/speaking-log.mjs'),
         ])
         const { toChatEntry } = await import('./lib/speaking-log.mjs')
+        const { z } = await import('zod')
+        const devices = () => import('./services/agent-devices-service.ts')
+        const value = (r) => { if (r.status !== 200 || r.data?.ok === false) throw new Error(r.data?.error || r.data?.message || 'refused'); return r.data.value }
         globalThis._speakingSides = createSpeakingSides({
           query, buildEnv,
           say: async (agentId, key, text) => {
@@ -2629,6 +2632,21 @@ async function startServer(handleRequest) {
             return (await invokeAgentDevice(agentId, key, { capability: 'speaker.say', args: { text } })).data?.value
           },
           transcriptPath: (agent) => resolveJsonlPath(agent)?.path,
+          // The device it is at: quick things it does itself (F100). The device's own switches still decide
+          sdkTools: { tool, createSdkMcpServer, z },
+          device: {
+            look: async (agentId, key) => {
+              const v = value(await (await devices()).invokeAgentDevice(agentId, key, { capability: 'camera.snapshot', args: {} }))
+              return { mime: v.mime, data: fs.readFileSync(v.path).toString('base64') }
+            },
+            show: async (agentId, key, text) => value(await (await devices()).invokeAgentDevice(agentId, key, { capability: 'display.text', args: { text } })),
+            health: async (agentId, key) => value(await (await devices()).invokeAgentDevice(agentId, key, { capability: 'device.health', args: {} })),
+            listen: async (agentId, key, seconds) => {
+              const v = value(await (await devices()).captureAgentDevice(agentId, key, { kind: 'microphone', seconds }))
+              const { hear } = await import('./lib/speech.mjs')
+              return hear(fs.readFileSync(v.path), getAgent(agentId)?.voice)
+            },
+          },
           log: (agentId, entry) => {
             const record = appendSpeakingLog(agentId, entry)
             // Live: anyone with this agent's chat open sees it now

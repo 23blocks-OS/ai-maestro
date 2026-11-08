@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-08T00:07:02Z",
+  "title": "Design System: AI Maestro Docs",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Charcoal Ink",
+        "canonical": "oklch(21.6% 0.006 56)",
+        "tonalRamp": [
+          "oklch(15% 0.003 56)",
+          "oklch(26% 0.006 56)",
+          "oklch(38% 0.008 56)",
+          "oklch(50% 0.008 56)",
+          "oklch(62% 0.006 56)",
+          "oklch(74% 0.005 56)",
+          "oklch(86% 0.004 56)",
+          "oklch(95% 0.002 56)"
+        ]
+      },
+      "ink-pressed": {
+        "role": "primary",
+        "displayName": "Pressed Black",
+        "canonical": "oklch(0% 0 0)",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Soft Charcoal",
+        "canonical": "oklch(35.8% 0.008 75)",
+        "tonalRamp": [
+          "oklch(15% 0.003 75)",
+          "oklch(26% 0.006 75)",
+          "oklch(38% 0.008 75)",
+          "oklch(50% 0.008 75)",
+          "oklch(62% 0.006 75)",
+          "oklch(74% 0.005 75)",
+          "oklch(86% 0.004 75)",
+          "oklch(95% 0.002 75)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "oklch(97.3% 0.003 85)",
+        "tonalRamp": [
+          "oklch(15% 0.002 85)",
+          "oklch(26% 0.003 85)",
+          "oklch(38% 0.004 85)",
+          "oklch(50% 0.004 85)",
+          "oklch(62% 0.004 85)",
+          "oklch(74% 0.003 85)",
+          "oklch(86% 0.003 85)",
+          "oklch(95% 0.002 85)"
+        ]
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "oklch(100% 0 0)",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(90.8% 0.008 81)",
+        "tonalRamp": [
+          "oklch(15% 0.003 81)",
+          "oklch(26% 0.006 81)",
+          "oklch(38% 0.008 81)",
+          "oklch(50% 0.009 81)",
+          "oklch(62% 0.008 81)",
+          "oklch(74% 0.008 81)",
+          "oklch(86% 0.006 81)",
+          "oklch(95% 0.003 81)"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "oklch(82.2% 0.009 78)",
+        "tonalRamp": [
+          "oklch(15% 0.003 78)",
+          "oklch(26% 0.006 78)",
+          "oklch(38% 0.008 78)",
+          "oklch(50% 0.009 78)",
+          "oklch(62% 0.009 78)",
+          "oklch(74% 0.008 78)",
+          "oklch(86% 0.006 78)",
+          "oklch(95% 0.003 78)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Home title, wrapping inside 12ch."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Guide quickstart title. Long-form page titles use the same weight and tracking at clamp(2rem, 4vw, 3rem)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headings on the sheet and in the directory."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose in the 68ch column. The lede is 1.125rem."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Copy, Menu, and other controls. Figtree, weight 600, line-height 1."
+      }
+    },
+    "shadows": [
+      {
+        "name": "current-section",
+        "value": "inset 0 -1px 0 var(--ink)",
+        "purpose": "Hairline under the current masthead section. Not elevation."
+      }
+    ],
+    "motion": [
+      {
+        "name": "copy-label",
+        "value": "2400ms",
+        "purpose": "How long Copy reads Copied or Selected before it returns to Copy."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "Under prefers-reduced-motion, animation and transition durations collapse."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact",
+        "value": "720px"
+      },
+      {
+        "name": "quickstart",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Copy",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled control on a command row. The label is the word Copy; it reads Copied or Selected for 2.4s.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Copy</button>",
+      "css": ".ds-btn-primary { border: 0; border-radius: 6px; background: var(--ink); color: var(--sheet); font: 600 0.95rem/1 \"Figtree\", \"Segoe UI\", sans-serif; min-height: 2.75rem; padding: 0 1rem; cursor: pointer; } .ds-btn-primary:hover { background: #000000; } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "Menu",
+      "kind": "button",
+      "refersTo": "button-menu",
+      "description": "Masthead control from 720px down. Opens the stacked section links.",
+      "html": "<button class=\"ds-btn-menu\" type=\"button\" aria-expanded=\"false\">Menu</button>",
+      "css": ".ds-btn-menu { border: 1px solid var(--line-strong); border-radius: 6px; background: var(--sheet); color: var(--ink); font: 600 0.95rem/1 \"Figtree\", \"Segoe UI\", sans-serif; min-height: 2.75rem; padding: 0 0.85rem; cursor: pointer; } .ds-btn-menu:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "Command row",
+      "kind": "custom",
+      "refersTo": "command",
+      "description": "A ruled row for a command you can copy. The monospace command sits beside Copy.",
+      "html": "<div class=\"ds-command\"><code>curl -fsSL aimaestro.sh/install | bash</code><button class=\"ds-command-copy\" type=\"button\">Copy</button></div>",
+      "css": ".ds-command { display: flex; align-items: stretch; gap: 0.75rem; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--sheet); padding: 0.45rem 0.45rem 0.45rem 1rem; } .ds-command code { flex: 1; align-self: center; font-family: ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace; font-size: 0.92rem; white-space: nowrap; color: var(--ink); } .ds-command-copy { border: 0; border-radius: 6px; background: var(--ink); color: var(--sheet); font: 600 0.95rem/1 \"Figtree\", \"Segoe UI\", sans-serif; min-height: 2.75rem; padding: 0 1rem; cursor: pointer; } .ds-command-copy:hover { background: #000000; } .ds-command-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "Masthead",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Sticky white bar. The constellation mark, the section links, and the current section as weight plus a hairline.",
+      "html": "<header class=\"ds-nav\"><a class=\"ds-mark\" href=\"/\"><svg width=\"28\" height=\"28\" viewBox=\"0 0 200 200\" aria-hidden=\"true\"><line x1=\"50\" y1=\"80\" x2=\"100\" y2=\"60\" stroke=\"#3b82f6\" stroke-width=\"6\" opacity=\"0.8\"/><line x1=\"100\" y1=\"60\" x2=\"150\" y2=\"85\" stroke=\"#3b82f6\" stroke-width=\"6\" opacity=\"0.8\"/><line x1=\"50\" y1=\"80\" x2=\"70\" y2=\"130\" stroke=\"#8b5cf6\" stroke-width=\"5\" opacity=\"0.7\"/><line x1=\"150\" y1=\"85\" x2=\"130\" y2=\"140\" stroke=\"#8b5cf6\" stroke-width=\"5\" opacity=\"0.7\"/><line x1=\"70\" y1=\"130\" x2=\"130\" y2=\"140\" stroke=\"#8b5cf6\" stroke-width=\"5\" opacity=\"0.7\"/><circle cx=\"50\" cy=\"80\" r=\"16\" fill=\"#3b82f6\" stroke=\"#ffffff\" stroke-width=\"2\"/><circle cx=\"100\" cy=\"60\" r=\"16\" fill=\"#3b82f6\" stroke=\"#ffffff\" stroke-width=\"2\"/><circle cx=\"150\" cy=\"85\" r=\"16\" fill=\"#3b82f6\" stroke=\"#ffffff\" stroke-width=\"2\"/><circle cx=\"70\" cy=\"130\" r=\"14\" fill=\"#8b5cf6\" stroke=\"#ffffff\" stroke-width=\"2\"/><circle cx=\"130\" cy=\"140\" r=\"14\" fill=\"#8b5cf6\" stroke=\"#ffffff\" stroke-width=\"2\"/></svg><span>AI Maestro</span></a><a href=\"/#start\" aria-current=\"page\">Start</a><a href=\"/#guides\">Guides</a><a class=\"ds-split\" href=\"https://getaimaestro.com/\">Ecosystem</a></header>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 0.5rem 1.5rem; min-height: 4.25rem; padding: 0.65rem 1.25rem; background: var(--sheet); border-bottom: 1px solid var(--line); font-family: \"Figtree\", \"Segoe UI\", sans-serif; } .ds-nav .ds-mark { display: inline-flex; align-items: center; gap: 0.65rem; color: var(--ink); text-decoration: none; font-weight: 600; letter-spacing: -0.03em; font-size: 1.05rem; } .ds-nav .ds-mark svg { display: block; width: 28px; height: 28px; } .ds-nav a { color: var(--ink); text-decoration: none; font-size: 0.98rem; } .ds-nav a:hover { text-decoration: underline; text-underline-offset: 0.22em; } .ds-nav a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-nav a[aria-current] { font-weight: 650; box-shadow: inset 0 -1px 0 var(--ink); text-decoration: none; } .ds-nav .ds-split { margin-left: auto; color: var(--ink-soft); }"
+    },
+    {
+      "name": "Place line",
+      "kind": "custom",
+      "refersTo": "place",
+      "description": "The line under the masthead on a guide or long-form page. Section link, a middle dot, then the page name.",
+      "html": "<p class=\"ds-place\"><a href=\"/#start\">Start</a> · One computer</p>",
+      "css": ".ds-place { margin: 0; padding: 0.45rem 1.25rem; background: var(--sheet); border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 0.92rem; font-family: \"Figtree\", \"Segoe UI\", sans-serif; } .ds-place a { color: var(--ink); text-underline-offset: 0.18em; } .ds-place a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "Directory row",
+      "kind": "custom",
+      "description": "One row of the wayfinding list. The page name and a short description, ruled top and bottom.",
+      "html": "<ul class=\"ds-dir\"><li><a href=\"single-computer.html\">One computer</a><p>Several agents on the machine in front of you.</p></li></ul>",
+      "css": ".ds-dir { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); font-family: \"Figtree\", \"Segoe UI\", sans-serif; } .ds-dir li { display: grid; grid-template-columns: minmax(11rem, 16rem) 1fr; gap: 0.35rem 1.5rem; align-items: baseline; padding: 0.8rem 0; border-bottom: 1px solid var(--line); } .ds-dir a { font-weight: 600; color: var(--ink); text-decoration: none; } .ds-dir a:hover { text-decoration: underline; text-underline-offset: 0.18em; } .ds-dir a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-dir p { margin: 0; color: var(--ink-soft); }"
+    },
+    {
+      "name": "Code sample",
+      "kind": "custom",
+      "refersTo": "code-sample",
+      "description": "A square ruled sample, labeled as an example. It is not the command row.",
+      "html": "<p class=\"ds-example-label\">Example, not the output of a run on this page</p><pre class=\"ds-example\"><code>Dashboard\nhttp://localhost:23000</code></pre>",
+      "css": ".ds-example-label { margin: 0 0 0.4rem; font-weight: 650; font-family: \"Figtree\", \"Segoe UI\", sans-serif; color: var(--ink); } .ds-example { margin: 0; border: 1px solid var(--line); background: var(--sheet); padding: 0.9rem 1rem; overflow-x: auto; font-family: ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace; font-size: 0.9rem; color: var(--ink); }"
+    },
+    {
+      "name": "Skip link",
+      "kind": "nav",
+      "description": "Shown as focused. At rest it sits off the page, translated up by 150%, and returns on focus.",
+      "html": "<a class=\"ds-skip\" href=\"#start\">Skip to content</a>",
+      "css": ".ds-skip { background: var(--ink); color: var(--sheet); padding: 0.5rem 0.75rem; text-decoration: none; font-family: \"Figtree\", \"Segoe UI\", sans-serif; } .ds-skip:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Municipal wayfinding",
+    "overview": "This file is the visual system for the public docs site in `docs/`, served as aimaestro.sh. PRODUCT.md describes the person who runs the dashboard at localhost:23000. That dashboard is a different surface. A later change to the app does not inherit this sheet as the app theme.\n\nThe site reads as a wayfinding sheet. The ground is warm paper. White is the sheet that sits on it: the masthead, the place line, the command, the code sample, and the home footer. Ink is charcoal. Type is Figtree. Regions meet on a gray hairline. The constellation mark sits in the masthead, taken from the existing file. The section you are in is heavier type plus a hairline. A command is a ruled row with the word Copy.\n\nGuide pages (`body.docs-legacy`) and the long-form assistant page (`body.docs-read`) keep their articles inside this frame: the same masthead, the same place line, the same ink and type. The article already on the one-computer page stays there. The frame is what a new docs surface copies.",
+    "keyCharacteristics": [
+      "Warm paper ground, with white sheets for the masthead, place line, command, code sample, and home footer",
+      "Figtree for the frame and the prose; ui-monospace for code",
+      "One-pixel hairlines; the current section is heavier type plus an inset charcoal rule",
+      "A 68ch reading column and a 60rem directory",
+      "Copy is a charcoal button on the command row; the designed motion is that button’s label",
+      "The existing constellation file, shown at 28px, is the mark",
+      "Light appearance only (`color-scheme: light`)"
+    ],
+    "rules": [
+      {
+        "name": "The Docs Sheet Rule",
+        "body": "This system is the public docs site in `docs/` (aimaestro.sh). It is not the theme of the localhost dashboard.",
+        "section": "overview"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "A region is separated by a 1px line. The section you are in is weight 650 and an inset 1px charcoal rule. A colored pill is not a state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mark File Rule",
+        "body": "`docs/logo-constellation.svg` keeps the blue and violet already drawn in that file. Those hues are not tokens, and new surfaces do not pick them up as accents.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Face Rule",
+        "body": "Figtree carries prose, navigation, and controls. Code uses ui-monospace. Syne, DM Sans, and JetBrains Mono remain named inside old guide pages and are not this ramp.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tight Title Rule",
+        "body": "A frame title is weight 600 and tracks at -0.035em, with no eyebrow above it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Measure Rule",
+        "body": "Prose stays in 68ch. The directory stays in 60rem. The gutter stays 1.25rem.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Surfaces are flat. The only box-shadow in the frame is the inset 1px rule under the current masthead link.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Square-Enough Rule",
+        "body": "Interactive controls use a 6px radius. The command row uses 8px. Text regions and rules stay square.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Command Row Rule",
+        "body": "A command is one ruled row: the command in monospace, Copy as the charcoal button. A blocked clipboard selects the command.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do paint the ground Warm Paper and the masthead, place line, command, code sample, and home footer Sheet White.",
+      "Do mark the current section with weight 650 and an inset 1px Charcoal Ink rule.",
+      "Do set frame titles in Figtree at weight 600 and letter-spacing -0.035em, inside a 68ch column, with code in ui-monospace.",
+      "Do use `docs/logo-constellation.svg` at 28×28. Leave the file as it is.",
+      "Do keep Copy at least 2.75rem tall, with a 2px Charcoal Ink focus outline offset 3px.",
+      "Do build a new docs index as the sheet plus the directory, and leave a kept guide article inside the frame."
+    ],
+    "donts": [
+      "Don't use this sheet as the localhost dashboard theme.",
+      "Don't use a drop shadow, a colored pill, or a chromatic accent as a state.",
+      "Don't put an eyebrow above a frame title.",
+      "Don't reuse the kept articles’ card grids, pills, emoji, or social glyphs as components.",
+      "Don't add a generated raster to the site. Files under `.impeccable/review` and `/opt/cursor/artifacts` are review evidence, not pages.",
+      "Don't take a theme color from the indigo, emerald, or navy values still left in some `theme-color` meta tags and in `docs/site.webmanifest`."
+    ]
+  }
+}

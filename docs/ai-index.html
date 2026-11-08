@@ -77,7 +77,7 @@
           "Team Meetings and a Kanban board"
         ],
         "installUrl": "https://github.com/23blocks-OS/ai-maestro#installation",
-        "requirements": "Node.js 24, tmux 3.0+, macOS 12.0+ or Windows 10/11 (WSL2) or Linux"
+        "requirements": "bash, git, and curl. The installer accepts Node.js 22 or newer and installs Node.js 24, Yarn, pm2, tmux, and jq when they are missing. macOS, Linux, or Windows via WSL2. The build needs about 2.5 GB of RAM plus swap."
       },
       {
         "@context": "https://schema.org",
@@ -99,14 +99,35 @@
       }
     ]
     </script>
+    <link rel="stylesheet" href="site.css">
 </head>
-<body>
+<body class="docs-read">
+    <a class="skip" href="#doc-start">Skip to content</a>
+    <header class="site-header">
+        <a class="site-mark" href="/">
+            <img src="logo-constellation.svg" alt="" width="28" height="28">
+            <span>AI Maestro</span>
+        </a>
+        <button class="site-menu" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Documentation">
+            <a href="/#start">Start</a>
+            <a href="/#guides">Guides</a>
+            <a href="/#operate">Operate</a>
+            <a href="/#reference" aria-current="location">Reference</a>
+            <a class="is-split" href="https://getaimaestro.com/">Ecosystem</a>
+            <a href="/#help">Help</a>
+            <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CHANGELOG.md">Releases</a>
+        </nav>
+    </header>
+    <p class="site-place"><a href="/#reference">Reference</a> · For assistants</p>
+    <span id="doc-start"></span>
+
     <!-- Copy for AI Button - Fixed Position -->
     <button
         onclick="copyForAI()"
         class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
         title="Copy this page in AI-friendly format to paste into ChatGPT, Claude, or any LLM"
-        style="font-family: 'Space Grotesk', system-ui, sans-serif;">
+>
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -269,7 +290,7 @@
             <p>Installs the AI Maestro service, web dashboard, CLI scripts, and the AI Maestro plugin with its 14 skills.</p>
             <pre>
 # One command installs everything
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+curl -fsSL aimaestro.sh/install | bash
 
 # Or manually:
 git clone https://github.com/23blocks-OS/ai-maestro.git
@@ -490,5 +511,6 @@ cd ai-maestro && yarn install && yarn dev
 
     <!-- Copy for AI functionality -->
     <script src="copy-for-ai.js"></script>
+    <script src="site.js"></script>
 </body>
 </html>

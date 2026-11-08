@@ -34,13 +34,15 @@ AI Maestro offers different installation options depending on your needs:
 
 ### Option A: One-Line Install (Recommended)
 
+The address below is the public installer. It is the same file as `scripts/remote-install.sh`. The installer accepts an existing Node.js 22 or newer and installs Node.js 24 when Node is missing or older than that.
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+curl -fsSL aimaestro.sh/install | bash
 ```
 
 **Unattended installation** (for CI/CD, scripts, WSL):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- -y --auto-start
+curl -fsSL aimaestro.sh/install | bash -s -- -y
 ```
 
 This handles everything: prerequisites, installation, configuration. The `-y` flag skips all prompts.

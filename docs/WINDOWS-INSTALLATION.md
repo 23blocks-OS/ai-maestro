@@ -92,12 +92,12 @@ If `VERSION` shows `1`, run `wsl --set-version Ubuntu 2`.
 In the **Ubuntu** terminal (not PowerShell):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+curl -fsSL aimaestro.sh/install | bash
 ```
 
 The installer detects WSL and installs everything inside Ubuntu: Node.js, Yarn, tmux, AI Maestro itself (it also offers to install Claude Code or Codex if you have neither) (in `~/ai-maestro`), the tmux and SSH-agent configuration, and it starts the dashboard. It ignores Windows copies of Node.js or Claude Code that WSL can see on your Windows PATH, and installs the Linux versions.
 
-Unattended (no prompts): add `-s -- -y --auto-start` after `sh`.
+Unattended (no prompts): `curl -fsSL aimaestro.sh/install | bash -s -- -y`
 
 ### Step 4: Open the dashboard in your Windows browser
 

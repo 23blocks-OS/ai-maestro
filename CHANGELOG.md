@@ -3,6 +3,14 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-11-07 - aimaestro.sh reads as the install guide
+
+### Changed
+- The docs site served from `docs/` (aimaestro.sh) leads with the install command, the conditions the installer actually checks, and the guides that already exist. Guide pages share that frame. `docs/install` and `scripts/remote-install.sh` are unchanged.
+- Public install snippets now say `curl -fsSL aimaestro.sh/install | bash`. That address is the same file as `scripts/remote-install.sh`. A `--auto-start` flag some notes mentioned is not an installer option; boot persistence remains `pm2 startup`.
+
+The version number is unchanged. `scripts/bump-version.sh` rewrites the installer, and this change does not.
+
 ## [0.106.108] - 2026-11-07 - A paired device can speak as its owner (F103)
 
 ### Added

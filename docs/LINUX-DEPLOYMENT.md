@@ -31,7 +31,7 @@ test were idle, and the host was a fast Apple Silicon Mac, not a cloud VM. See
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- -y
+curl -fsSL aimaestro.sh/install | bash -s -- -y
 ```
 
 It installs Node 24 (nvm), yarn, **pm2**, tmux, jq and build tools, clones AI Maestro, builds it,

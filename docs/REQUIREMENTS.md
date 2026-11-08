@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 **Last Updated:** 2025-10-09
-**Platform:** macOS (Local Development)
+**Platform:** The installer supports macOS, Linux, and Windows via WSL2. The manual steps below were written for a Mac.
 
 ---
 
@@ -30,7 +30,7 @@ This document outlines all prerequisites and installation steps required to run 
 
 **One command installs everything:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+curl -fsSL aimaestro.sh/install | bash
 ```
 
 This automatically:
@@ -41,7 +41,7 @@ This automatically:
 
 **See all options:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- --help
+curl -fsSL aimaestro.sh/install | bash -s -- --help
 ```
 
 ---
@@ -52,7 +52,7 @@ If you prefer manual installation, follow the steps below.
 
 ### 3.1 Node.js and Yarn
 
-The dashboard requires Node.js v18.17+ or v20.x and Yarn package manager.
+The installer accepts Node.js 22 or newer and installs Node.js 24 when Node is missing or older than that. Yarn is installed if it is missing.
 
 **Check if already installed:**
 ```bash

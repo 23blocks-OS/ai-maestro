@@ -11,94 +11,32 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Maestro: install and docs</title>
-    <meta name="description" content="Install AI Maestro with one command and read the docs: setup on one or many computers, agents, memory, messaging, skills and plugins.">
+    <title>Install AI Maestro</title>
+    <meta name="description" content="Install AI Maestro on a computer you operate, then open the dashboard at localhost:23000. Guides for one machine, several machines, Docker, AWS, agents, messaging, and skills.">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="23blocks">
     <meta name="apple-itunes-app" content="app-id=6823011943">
 
-    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://aimaestro.sh/">
-    <meta property="og:title" content="AI Maestro: install and docs">
-    <meta property="og:description" content="Install AI Maestro with one command and read the docs: setup on one or many computers, agents, memory, messaging, skills and plugins.">
+    <meta property="og:title" content="Install AI Maestro">
+    <meta property="og:description" content="Install AI Maestro on a computer you operate, then open the dashboard at localhost:23000.">
     <meta property="og:image" content="https://aimaestro.sh/og-image.png">
 
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="AI Maestro: install and docs">
-    <meta name="twitter:description" content="Install AI Maestro with one command and read the docs: setup on one or many computers, agents, memory, messaging, skills and plugins.">
+    <meta name="twitter:title" content="Install AI Maestro">
+    <meta name="twitter:description" content="Install AI Maestro on a computer you operate, then open the dashboard at localhost:23000.">
     <meta name="twitter:image" content="https://aimaestro.sh/og-image.png">
 
-    <!-- Favicon & Icons -->
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
     <link rel="manifest" href="site.webmanifest">
-
-    <!-- Theme Colors -->
-    <meta name="theme-color" content="#0f172a">
-
-    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        display: ['Syne', 'system-ui', 'sans-serif'],
-                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
-                    },
-                    colors: {
-                        slate: {
-                            950: '#020617',
-                            900: '#0f172a',
-                            850: '#131c31',
-                            800: '#1e293b',
-                        },
-                        cyan: {
-                            400: '#22d3ee',
-                            500: '#00d4ff',
-                        },
-                        amber: {
-                            400: '#fbbf24',
-                            500: '#f59e0b',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
-    <style>
-        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
-        body { background-color: #0f172a; color: #e2e8f0; }
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            opacity: 0.03;
-            pointer-events: none;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            z-index: 9999;
-        }
-        .gradient-text {
-            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-    </style>
+    <meta name="theme-color" content="#f7f6f4">
     <link rel="canonical" href="https://aimaestro.sh/">
     <meta property="og:site_name" content="AI Maestro">
     <meta property="og:locale" content="en_US">
+    <link rel="stylesheet" href="site.css">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -109,128 +47,169 @@
     }
     </script>
 </head>
-<body class="font-sans antialiased">
-    <!-- Google Tag Manager (noscript) -->
+<body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
-    <!-- Navigation -->
-    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
-        <div class="max-w-7xl mx-auto px-4 md:px-8">
-            <div class="flex justify-between items-center py-4">
-                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
-                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
-                </a>
-                <div class="flex gap-6 items-center">
-                    <a href="#install" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">INSTALL</a>
-                    <a href="#docs" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">DOCS</a>
-                    <a href="https://getaimaestro.com/" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GETAIMAESTRO.COM</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" class="hidden md:inline text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GITHUB</a>
+    <a class="skip" href="#start">Skip to content</a>
+    <header class="site-header">
+        <a class="site-mark" href="/">
+            <img src="logo-constellation.svg" alt="" width="28" height="28">
+            <span>AI Maestro</span>
+        </a>
+        <button class="site-menu" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Documentation">
+            <a href="/#start" aria-current="page">Start</a>
+            <a href="/#guides">Guides</a>
+            <a href="/#operate">Operate</a>
+            <a href="/#reference">Reference</a>
+            <a class="is-split" href="https://getaimaestro.com/">Ecosystem</a>
+            <a href="/#help">Help</a>
+            <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CHANGELOG.md">Releases</a>
+        </nav>
+    </header>
+
+    <main id="start">
+        <article class="sheet">
+            <h1>Install AI Maestro.</h1>
+            <p class="lede">A dashboard and orchestrator for AI coding agents (Claude Code, Codex, Grok Build, and others) on one computer or many. This site is how you install it, run it, and extend it. What it is for a company, and why, is on <a href="https://getaimaestro.com/">getaimaestro.com</a>.</p>
+
+            <div id="install" class="command-block">
+                <div class="command">
+                    <code id="install-command">curl -fsSL aimaestro.sh/install | bash</code>
+                    <button type="button" data-copy="install-command">Copy</button>
                 </div>
+                <p id="copy-status" class="visually-hidden" aria-live="polite"></p>
+                <p class="command-fallback">If Copy cannot use the clipboard, select the command and copy it.</p>
+                <p class="command-note"><code>aimaestro.sh/install</code> is <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/scripts/remote-install.sh">scripts/remote-install.sh</a> from this repository, byte for byte. Read it before you run it. The raw GitHub address of that file is the same script.</p>
             </div>
-        </div>
-    </nav>
 
-    <main class="max-w-5xl mx-auto px-4 md:px-8 py-16 md:py-24">
-        <h1 class="font-display text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-4">AI Maestro: <span class="gradient-text">install and docs</span></h1>
-        <p class="text-lg text-slate-400 mb-12">A dashboard and orchestrator for AI coding agents (Claude Code, Codex, Grok Build and others) on one computer or many. What it is and why: <a href="https://getaimaestro.com/" class="text-cyan-400 hover:underline">getaimaestro.com</a>.</p>
-
-        <section id="install" class="mb-16">
-            <h2 class="font-mono text-xs text-slate-500 tracking-widest mb-4">INSTALL</h2>
-            <div class="bg-slate-950 border border-slate-800 rounded-lg p-5 font-mono text-base overflow-x-auto">
-                <code class="text-cyan-400 select-all">curl -fsSL aimaestro.sh/install | bash</code>
+            <h2>Before you run it</h2>
+            <ul class="conditions">
+                <li>The installer is bash. It runs on macOS, Linux, and Windows inside WSL2. It does not install on native Windows. On Windows, install WSL2 first (<code>wsl --install</code> in PowerShell), open Ubuntu, and run the command there. <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WINDOWS-INSTALLATION.md">WSL2 guide</a>.</li>
+                <li>You need git and curl. On macOS without git, the installer tells you to run <code>xcode-select --install</code>. On Linux it names your package manager.</li>
+                <li>It installs what is missing: Node.js 24 when Node is absent or older than 22, plus Yarn, pm2, tmux, and jq. On macOS it can install Homebrew first. On Linux it uses apt, dnf, pacman, zypper, or apk when one of those is present, and it asks for build tools (make, a C++ compiler, python3) so the terminal module can compile.</li>
+                <li>It asks which coding assistant to install (Claude Code, Codex, both, or skip) unless you pass <code>-y</code>. Tailscale is optional and defaults to no. It is for reaching agents on other machines, not for a single computer.</li>
+                <li>Building needs about 2.5 GB of RAM plus swap. On Linux the installer stops below that and prints how to add swap, or to use a machine with 4 GB. A Mac with less is warned and not stopped. Once built, the server itself is a few hundred megabytes. <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/LINUX-DEPLOYMENT.md">Linux sizing</a>.</li>
+            </ul>
+            <p>For a script, with the prompts accepted:</p>
+            <div class="command">
+                <code id="install-unattended">curl -fsSL aimaestro.sh/install | bash -s -- -y</code>
+                <button type="button" data-copy="install-unattended">Copy</button>
             </div>
-            <p class="mt-3 text-slate-400 text-sm"><code class="bg-slate-800 px-2 py-1 rounded text-cyan-400">aimaestro.sh/install</code> is <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/scripts/remote-install.sh" class="text-cyan-400 hover:underline">scripts/remote-install.sh</a> from the repository, byte for byte; read it first if you like. The dashboard opens at <code class="bg-slate-800 px-2 py-1 rounded text-cyan-400">http://localhost:23000</code>. On Windows, see the <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WINDOWS-INSTALLATION.md" class="text-cyan-400 hover:underline">WSL2 guide</a>.</p>
-            <h2 class="font-mono text-xs text-slate-500 tracking-widest mt-10 mb-4">ON YOUR PHONE</h2>
-            <p class="text-slate-400 text-sm"><a href="https://apps.apple.com/us/app/id6823011943" class="text-cyan-400 no-underline hover:underline">AI Maestro for iPhone</a>, available on the App Store. Lead your agents from anywhere: see who needs you, approve, chat. Scan the QR code from Settings &gt; Hosts to connect. <a href="https://getaimaestro.com/iphone.html" class="text-cyan-400 no-underline hover:underline">Learn more</a>.</p>
-        </section>
 
-        <div id="docs">
-            <section id="setup" class="mb-12">
-                <h2 class="font-mono text-xs text-slate-500 tracking-widest mb-4">SET UP</h2>
-                <ul class="grid md:grid-cols-2 gap-3">
-                    <li><a href="/single-computer.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Single Computer Setup: Multiple Agents</a></li>
-                    <li><a href="/multi-computer.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Multiple Computers: Distributed AI Agent Mesh</a></li>
-                    <li><a href="/peers.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Peer Mesh Network: Scale Your AI Agent Fleet</a></li>
-                    <li><a href="/docker-local.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Local Docker Agents: Isolated AI Agents</a></li>
-                    <li><a href="/docker-hybrid.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Docker Hybrid: Local + Cloud AI Agents</a></li>
-                    <li><a href="/cloud-aws.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Cloud Agents on AWS: EC2 and ECS Fargate</a></li>
-                    <li><a href="/advanced-setup.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Advanced Setup: Local, Remote &amp; Cloud Agents</a></li>
-                    <li><a href="/mobile.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Mobile AI Agent Dashboard: Monitor Claude Code Remotely</a></li>
-                </ul>
+            <h2>Open the dashboard</h2>
+            <p>The installer serves the dashboard at <a href="http://localhost:23000">http://localhost:23000</a>. <code>--port</code> or <code>AIMAESTRO_PORT</code> changes that. The software in this repository is the MIT-licensed program you run yourself. This site does not create an account.</p>
+            <p>A coding agent still talks to its own provider when you use Claude Code, Codex, Grok Build, or another hosted model. The dashboard being on your machine is not the same thing as the model running there.</p>
+            <p>The first useful workflow is one agent on one computer: install, open the dashboard, create a session, start the tool you installed. That page is <a href="single-computer.html#quickstart">one computer</a>.</p>
+            <p class="example-label">Example, not the output of a run on this page</p>
+            <pre class="example"><code>Dashboard
+http://localhost:23000</code></pre>
+
+            <h2>On your phone</h2>
+            <p><a href="https://apps.apple.com/us/app/id6823011943">AI Maestro for iPhone</a> is a separate App Store app. It connects to a host you already run: see who needs you, approve, chat. Scan the QR code from Settings &gt; Hosts. <a href="https://getaimaestro.com/iphone.html">Learn more</a>. The price is the one on the App Store page.</p>
+        </article>
+
+        <div id="docs" class="atlas">
+            <h2>Where to go next</h2>
+            <p>Every link below is a page that already exists. There is no search on this site.</p>
+
+            <section id="guides">
+                <h3>Guides</h3>
+                <div id="setup">
+                    <ul class="dir">
+                        <li><a href="single-computer.html">One computer</a><p>Several agents on the machine in front of you. Start here after install.</p></li>
+                        <li><a href="multi-computer.html">Several computers</a><p>Agents on more than one machine.</p></li>
+                        <li><a href="peers.html">Peers</a><p>How hosts see each other.</p></li>
+                        <li><a href="docker-local.html">Docker, local</a><p>Agents in containers on your machine.</p></li>
+                        <li><a href="docker-hybrid.html">Docker, hybrid</a><p>Local agents together with container agents.</p></li>
+                        <li><a href="cloud-aws.html">AWS</a><p>Agents on EC2 and ECS Fargate.</p></li>
+                        <li><a href="advanced-setup.html">Advanced setup</a><p>Local, remote, and cloud agents in one place.</p></li>
+                        <li><a href="mobile.html">From a phone browser</a><p>Open the dashboard you already run.</p></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WINDOWS-INSTALLATION.md">Windows (WSL2)</a><p>The written Windows guide.</p></li>
+                    </ul>
+                </div>
             </section>
-            <section id="agents" class="mb-12">
-                <h2 class="font-mono text-xs text-slate-500 tracking-widest mb-4">AGENTS</h2>
-                <ul class="grid md:grid-cols-2 gap-3">
-                    <li><a href="/agent-management.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Manage AI Agents: Create, Export, Transfer</a></li>
-                    <li><a href="/agent-intelligence.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Agent Intelligence: Code Graph &amp; Memory</a></li>
-                    <li><a href="/memory.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Long-Term Memory: Agents That Remember</a></li>
-                    <li><a href="/conversations.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Conversation View &amp; Search: Agent Work History</a></li>
-                    <li><a href="/agent-actions.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Agent Canvas Interactions: UI-to-Agent Actions</a></li>
-                </ul>
+
+            <section id="operate">
+                <h3>Operate</h3>
+                <div id="agents">
+                    <ul class="dir">
+                        <li><a href="agent-management.html">Agents</a><p>Create, export, and transfer agents.</p></li>
+                        <li><a href="agent-intelligence.html">Intelligence</a><p>Code graph and memory.</p></li>
+                        <li><a href="memory.html">Memory</a><p>What an agent keeps.</p></li>
+                        <li><a href="conversations.html">Conversations</a><p>Search the work an agent already did.</p></li>
+                        <li><a href="agent-actions.html">Canvas actions</a><p>Clicks on a canvas that reach an agent.</p></li>
+                    </ul>
+                </div>
             </section>
-            <section id="messaging" class="mb-12">
-                <h2 class="font-mono text-xs text-slate-500 tracking-widest mb-4">MESSAGING, IDENTITY AND SECURITY</h2>
-                <ul class="grid md:grid-cols-2 gap-3">
-                    <li><a href="/messaging.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Agent-to-Agent Messaging: Direct Coordination</a></li>
-                    <li><a href="/email-identity.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Agent Email Identity: Domains &amp; Webhooks</a></li>
-                    <li><a href="/protocols.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Open Agent Protocols: AMP, AID, AAP, AFP</a></li>
-                    <li><a href="/security.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Content Security - Prompt Injection Defense</a></li>
-                </ul>
+
+            <section id="reference">
+                <h3>Reference</h3>
+                <div id="messaging">
+                    <ul class="dir">
+                        <li><a href="messaging.html">Messaging</a><p>Agent-to-agent messages.</p></li>
+                        <li><a href="email-identity.html">Email identity</a><p>Domains and webhooks for an agent.</p></li>
+                        <li><a href="protocols.html">Protocols</a><p>AMP, AID, AAP, and AFP.</p></li>
+                        <li><a href="security.html">Content security</a><p>What the product does about prompt injection.</p></li>
+                    </ul>
+                </div>
+                <div id="skills">
+                    <ul class="dir">
+                        <li><a href="skills.html">Skills</a><p>The skills the plugin installs for coding agents.</p></li>
+                        <li><a href="plugin-builder.html">Plugin builder</a><p>Assemble a custom set of skills.</p></li>
+                    </ul>
+                </div>
+                <div id="ai">
+                    <ul class="dir">
+                        <li><a href="ai-index.html">For assistants</a><p>A single page an assistant can read.</p></li>
+                    </ul>
+                </div>
             </section>
-            <section id="skills" class="mb-12">
-                <h2 class="font-mono text-xs text-slate-500 tracking-widest mb-4">SKILLS AND PLUGINS</h2>
-                <ul class="grid md:grid-cols-2 gap-3">
-                    <li><a href="/skills.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">AI Maestro Skills: 14 Skills for Coding Agents</a></li>
-                    <li><a href="/plugin-builder.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">Plugin Builder: Custom Skill Sets for AI Agents</a></li>
-                </ul>
-            </section>
-            <section id="ai" class="mb-12">
-                <h2 class="font-mono text-xs text-slate-500 tracking-widest mb-4">FOR AI ASSISTANTS</h2>
-                <ul class="grid md:grid-cols-2 gap-3">
-                    <li><a href="/ai-index.html" class="block bg-slate-850 border border-slate-800 rounded-lg px-5 py-4 no-underline text-slate-200 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors">AI Maestro: Complete AI Agent Orchestration Guide for LLMs</a></li>
+
+            <section id="help">
+                <h3>Help</h3>
+                <ul class="dir">
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/TROUBLESHOOTING.md">Troubleshooting</a><p>When something you already installed misbehaves.</p></li>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/OPERATIONS-GUIDE.md">Operations</a><p>Running a host after it is installed.</p></li>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/QUICKSTART.md">Manual install</a><p>Clone, build, and the options around the one-line installer.</p></li>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/issues">Issues</a><p>Bugs and requests on GitHub. This site has no contact form.</p></li>
                 </ul>
             </section>
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
-        <div class="max-w-7xl mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
-                <div>
-                    <div class="flex items-center gap-3 mb-4">
-                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
-                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
-                    </div>
-                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
-                </div>
-                <div>
-                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h3>
-                    <a href="https://getaimaestro.com/" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">getaimaestro.com</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
-                </div>
-                <div>
-                    <h3 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h3>
-                    <p class="text-slate-400 text-sm mb-2">
-                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
-                    </p>
-                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">♥</span> in Boulder, Colorado</p>
-                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
-                </div>
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <div>
+                <a class="site-mark" href="/">
+                    <img src="logo-constellation.svg" alt="" width="28" height="28">
+                    <span>AI Maestro</span>
+                </a>
+                <p>Open-source orchestration you run yourself. MIT License.</p>
             </div>
-            <div class="pt-8 border-t border-slate-800 text-center">
-                <p class="text-slate-500 text-sm">© 2025-2026 Juan Peláez / 23blocks. MIT License.</p>
+            <div>
+                <h2>This site</h2>
+                <ul>
+                    <li><a href="/#install">Install</a></li>
+                    <li><a href="single-computer.html#quickstart">One computer</a></li>
+                    <li><a href="https://getaimaestro.com/">getaimaestro.com</a></li>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro">GitHub</a></li>
+                </ul>
+            </div>
+            <div>
+                <h2>Project</h2>
+                <ul>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CHANGELOG.md">Releases</a></li>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md">Contributing</a></li>
+                    <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE">License (MIT)</a></li>
+                    <li><a href="https://x.com/jkpelaez">Juan Peláez</a> at <a href="https://23blocks.com">23blocks</a></li>
+                </ul>
             </div>
         </div>
-        <p class="mt-6 text-center text-xs text-slate-600">Apple, the Apple logo, iPhone and App Store are trademarks of Apple Inc., registered in the U.S. and other countries.</p>
+        <p class="legal">© 2025-2026 Juan Peláez / 23blocks. MIT License. Apple, the Apple logo, iPhone, and App Store are trademarks of Apple Inc., registered in the U.S. and other countries.</p>
     </footer>
-
-    <!-- Copy for AI functionality -->
+    <script src="site.js"></script>
     <script src="copy-for-ai.js"></script>
 </body>
 </html>

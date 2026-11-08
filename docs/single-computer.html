@@ -65,12 +65,7 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
     <link rel="manifest" href="site.webmanifest">
-    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Tailwind CSS CDN -->
+<!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -129,14 +124,6 @@
             z-index: 9999;
         }
 
-        /* Gradient text */
-        .gradient-text {
-            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
         /* Hamburger menu */
         .hamburger span {
             display: block;
@@ -173,25 +160,11 @@
             background: linear-gradient(90deg, transparent, #00d4ff, transparent);
         }
 
-        /* Typing cursor */
-        .typing-cursor {
-            display: inline-block;
-            width: 3px;
-            height: 1em;
-            background-color: #00d4ff;
-            margin-left: 4px;
-            animation: blink 1s infinite;
-            vertical-align: text-bottom;
-        }
-
-        @keyframes blink {
-            0%, 49% { opacity: 1; }
-            50%, 100% { opacity: 0; }
-        }
     </style>
 
+    <link rel="stylesheet" href="site.css">
 </head>
-<body class="font-sans antialiased">
+<body class="docs-legacy font-sans antialiased">
     <!-- Google Tag Manager (noscript) -->
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -211,81 +184,45 @@
 
 
     
-    <!-- Navigation -->
-    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
-        <div class="max-w-7xl mx-auto px-4 md:px-8">
-            <div class="flex justify-between items-center py-4">
-                <a href="/" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
-                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
-                </a>
+    <a class="skip" href="#quickstart">Skip to content</a>
+    <header class="site-header">
+        <a class="site-mark" href="/">
+            <img src="logo-constellation.svg" alt="" width="28" height="28">
+            <span>AI Maestro</span>
+        </a>
+        <button class="site-menu" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Documentation">
+            <a href="/#start" aria-current="location">Start</a>
+            <a href="/#guides">Guides</a>
+            <a href="/#operate">Operate</a>
+            <a href="/#reference">Reference</a>
+            <a class="is-split" href="https://getaimaestro.com/">Ecosystem</a>
+            <a href="/#help">Help</a>
+            <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CHANGELOG.md">Releases</a>
+        </nav>
+    </header>
+    <p class="site-place"><a href="/#start">Start</a> · One computer</p>
 
-                <!-- Desktop Navigation -->
-                <div class="hidden md:flex gap-8 items-center">
-                    <a href="https://getaimaestro.com/#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
-                    <a href="https://getaimaestro.com/#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
-                    <a href="https://getaimaestro.com/ecosystem.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">ECOSYSTEM</a>
-                    <a href="/skills.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">SKILLS</a>
-                    <a href="/protocols.html" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">PROTOCOLS</a>
-                    <a href="https://getaimaestro.com/blog/" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">BLOG</a>
-                    <a href="/#install" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
-                    </a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-display font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
-                        START FREE
-                    </a>
-                </div>
-
-                <!-- Mobile Navigation -->
-                <div class="flex md:hidden items-center gap-3">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-display font-bold text-xs tracking-wide" target="_blank">START</a>
-                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </button>
-                </div>
+    <section id="quickstart" class="aim-quick">
+        <div class="aim-wrap">
+            <h1>Install, then open the dashboard</h1>
+            <p>Same installer as the <a href="/#install">home page</a>. <code>aimaestro.sh/install</code> is <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/scripts/remote-install.sh">scripts/remote-install.sh</a>, byte for byte. Read it before you run it.</p>
+            <div id="install" class="command">
+                <code id="install-command">curl -fsSL aimaestro.sh/install | bash</code>
+                <button type="button" data-copy="install-command">Copy</button>
             </div>
-
-            <!-- Mobile Menu -->
-            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
-                <a href="https://getaimaestro.com/#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
-                <a href="https://getaimaestro.com/#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
-                <a href="https://getaimaestro.com/ecosystem.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Ecosystem</a>
-                <a href="/skills.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Skills</a>
-                <a href="/protocols.html" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Protocols</a>
-                <a href="https://getaimaestro.com/blog/" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Blog</a>
-                <a href="/#install" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
-                    GitHub
-                </a>
-            </div>
+            <p id="copy-status" class="visually-hidden" aria-live="polite"></p>
+            <p class="command-fallback">If Copy cannot use the clipboard, select the command and copy it.</p>
+            <ol>
+                <li>Run it on macOS, Linux, or Ubuntu on WSL2. You need git and curl. It installs Node.js 24 when Node is missing or older than 22, plus Yarn, pm2, tmux, and jq.</li>
+                <li>Open <a href="http://localhost:23000">http://localhost:23000</a>. That is the default port. <code>--port</code> or <code>AIMAESTRO_PORT</code> changes it.</li>
+                <li>Create one session and start the coding tool you installed. The rest of this page, including <a href="#how-it-works">how it works</a>, is that workflow.</li>
+            </ol>
+            <p class="example-label">Example, not the output of a run on this page</p>
+            <pre class="example"><code>Dashboard
+http://localhost:23000</code></pre>
         </div>
-    </nav>
-
-    <script>
-        const hamburger = document.getElementById('hamburger');
-        const mobileMenu = document.getElementById('mobile-menu');
-        hamburger.addEventListener('click', () => {
-            hamburger.classList.toggle('active');
-            mobileMenu.classList.toggle('active');
-        });
-        mobileMenu.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                hamburger.classList.remove('active');
-                mobileMenu.classList.remove('active');
-            });
-        });
-        document.addEventListener('click', (e) => {
-            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
-                hamburger.classList.remove('active');
-                mobileMenu.classList.remove('active');
-            }
-        });
-    </script>
-
+    </section>
 
     <!-- Hero Section -->
     <section class="relative py-20 overflow-hidden">
@@ -293,17 +230,17 @@
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div class="text-center max-w-4xl mx-auto">
-                <p class="text-2xl md:text-3xl font-display font-medium text-slate-400 mb-4" id="announcement"><span class="typing-cursor"></span></p>
-                <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-                    <span class="gradient-text">Single Computer</span><br/>
+                <p class="text-2xl md:text-3xl font-display font-medium text-slate-400 mb-4" id="announcement">One computer, several agents.</p>
+                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
+                    <span>Single Computer</span><br/>
                     <span class="text-white">Multiple AI Agents, One Machine</span>
-                </h1>
+                </h2>
                 <p class="text-xl text-slate-400 mb-8 leading-relaxed">
-                    Perfect for solo developers. Run Claude Code, Codex, Grok Build, and any AI coding assistant side-by-side on your laptop or desktop. Zero configuration required.
+                    Run Claude Code, Codex, Grok Build, and other coding agents on one laptop or desktop. The installer is the block above.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#quick-start" target="_blank" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
-                        Get Started in 5 Minutes
+                    <a href="#quickstart" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
+                        Back to the install command
                     </a>
                     <a href="#how-it-works" class="bg-slate-900 hover:bg-slate-950 text-white border-2 border-slate-700 px-8 py-3 rounded-lg font-semibold transition no-underline">
                         See How It Works
@@ -319,7 +256,7 @@
             <div class="flex flex-col md:flex-row items-center gap-8">
                 <div class="flex-shrink-0">
                     <div class="w-20 h-20 rounded-full bg-gradient-to-br from-green-500/30 to-green-600/10 border-2 border-green-500/50 flex items-center justify-center shadow-lg shadow-green-500/20">
-                        <span class="text-4xl">👤</span>
+                        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5 19c1.5-3 4-4.5 7-4.5S17.5 16 19 19"/></svg>
                     </div>
                 </div>
                 <div class="text-center md:text-left">
@@ -342,7 +279,7 @@
     <section class="py-20 bg-slate-950">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
-                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 gradient-text">Why Single Computer Mode?</h2>
+                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 ">Why Single Computer Mode?</h2>
                 <p class="text-xl text-slate-400">The simplest way to run multiple AI agents</p>
             </div>
 
@@ -353,9 +290,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Zero Configuration</h3>
+                    <h3 class="text-xl font-display font-bold mb-3 text-white">One machine</h3>
                     <p class="text-slate-400">
-                        No SSH setup, no network configuration, no complex settings. Install and start using immediately.
+                        Agents on this computer share the dashboard. Tailscale is only for reaching agents on another machine.
                     </p>
                 </div>
 
@@ -365,9 +302,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">5 Minute Setup</h3>
+                    <h3 class="text-xl font-display font-bold mb-3 text-white">After install</h3>
                     <p class="text-slate-400">
-                        Clone the repo, run install script, done. Start managing AI agents faster than making coffee.
+                        Run the installer above. The dashboard opens at localhost:23000.
                     </p>
                 </div>
 
@@ -377,9 +314,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-display font-bold mb-3 text-white">Completely Local</h3>
+                    <h3 class="text-xl font-display font-bold mb-3 text-white">On your machines</h3>
                     <p class="text-slate-400">
-                        Everything runs on your machine. No cloud dependencies, no external connections required.
+                        The dashboard, the agent files, and the terminals run on computers you operate. A coding agent still talks to its provider when you use Claude Code, Codex, Grok Build, or another hosted model.
                     </p>
                 </div>
 
@@ -426,7 +363,7 @@
     <section id="how-it-works" class="py-20">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
-                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 gradient-text">How It Works</h2>
+                <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-4 ">How It Works</h2>
                 <p class="text-xl text-slate-400">Three simple steps to AI agent orchestration</p>
             </div>
 
@@ -438,7 +375,7 @@
                     <h3 class="text-xl font-display font-bold mb-3 text-white">Install AI Maestro</h3>
                     <div class="relative bg-slate-800 p-4 rounded-lg text-sm mb-3">
                         <div class="flex items-center justify-between gap-2">
-                            <code class="text-cyan-400 text-left overflow-x-auto install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash</code>
+                            <code class="text-cyan-400 text-left overflow-x-auto install-cmd">curl -fsSL aimaestro.sh/install | bash</code>
                             <button onclick="copyCmd(this)" class="copy-btn flex-shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 text-xs transition-all" title="Copy">
                                 <span class="copy-label">Copy</span>
                             </button>
@@ -514,7 +451,7 @@ cursor</code></pre>
         <div class="absolute inset-0 bg-slate-950 pointer-events-none"></div>
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
             <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-                <span class="gradient-text">Start Managing</span><br/>
+                <span>Start Managing</span><br/>
                 <span class="text-white">Your AI Agents Today</span>
             </h2>
             <p class="text-xl text-slate-400 mb-8">
@@ -624,35 +561,24 @@ cursor</code></pre>
         function copyCmd(btn) {
             const code = btn.parentElement.querySelector('.install-cmd');
             const label = btn.querySelector('.copy-label');
-            navigator.clipboard.writeText(code.textContent).then(() => {
-                label.textContent = 'Copied!';
-                btn.classList.add('border-green-500', 'text-green-400');
-                setTimeout(() => {
-                    label.textContent = 'Copy';
-                    btn.classList.remove('border-green-500', 'text-green-400');
-                }, 2000);
-            });
+            const text = code.textContent;
+            const flash = () => {
+                label.textContent = 'Copied';
+                window.setTimeout(() => { label.textContent = 'Copy'; }, 2000);
+            };
+            const fail = () => {
+                label.textContent = 'Selected';
+                const range = document.createRange();
+                range.selectNodeContents(code);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            };
+            if (!navigator.clipboard || !navigator.clipboard.writeText) { fail(); return; }
+            navigator.clipboard.writeText(text).then(flash).catch(fail);
         }
     </script>
 
-    <!-- Typing animation -->
-    <script>
-        const announcement = document.getElementById('announcement');
-        const text = "Zero config, instant power.";
-        const cursor = announcement.querySelector('.typing-cursor');
-        let charIndex = 0;
-
-        function typeCharacter() {
-            if (charIndex < text.length) {
-                const char = text[charIndex];
-                const textNode = document.createTextNode(char);
-                announcement.insertBefore(textNode, cursor);
-                charIndex++;
-                setTimeout(typeCharacter, 50);
-            }
-        }
-
-        setTimeout(typeCharacter, 800);
-    </script>
+    <script src="site.js"></script>
 </body>
 </html>

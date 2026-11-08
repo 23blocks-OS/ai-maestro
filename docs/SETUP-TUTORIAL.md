@@ -52,15 +52,17 @@ Follow these steps to connect your first peer.
 **Recommended: One-Line Installer**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+curl -fsSL aimaestro.sh/install | bash
 ```
 
 This handles prerequisites, installation, and configuration automatically.
 
-**With auto-start (recommended):**
+**Without prompts:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash -s -- --auto-start
+curl -fsSL aimaestro.sh/install | bash -s -- -y
 ```
+
+The installer has no auto-start flag. After it finishes, `pm2 startup` in the install directory is what brings the dashboard back on boot.
 
 ---
 

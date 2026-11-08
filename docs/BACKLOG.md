@@ -3034,7 +3034,7 @@ Current installation requires cloning a repo, running yarn install, building, et
 
 **Current (works now):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+curl -fsSL aimaestro.sh/install | sh
 ```
 
 **Phase 2 - Branded URL Setup:**
@@ -3349,7 +3349,7 @@ Document the download-then-inspect workflow:
 
 ```bash
 # Download first
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh -o install.sh
+curl -fsSL aimaestro.sh/install -o install.sh
 
 # Inspect it
 less install.sh

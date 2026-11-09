@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.121] - 2026-11-09 - Hosts reconnect within a minute after an update
+
+### Fixed
+- A host that met a peer mid-update (still on the older mesh protocol) retries after 1 minute instead of 5, so the mesh is whole again soon after a rolling deploy.
+
 ## [0.106.120] - 2026-11-09 - The agent list and sessions travel over the mesh
 
 ### Added

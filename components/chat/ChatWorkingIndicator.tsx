@@ -39,13 +39,14 @@ export default function ChatWorkingIndicator({ working, activity, compact = fals
 
   return (
     <div className={compact ? 'mx-3 my-1' : 'flex justify-start'} role="status" aria-live="polite">
-      <div className={`inline-flex items-center gap-2 border border-gray-700/50 bg-gray-800/60 ${compact ? 'px-3 py-1.5 rounded-full' : 'px-4 py-2 rounded-2xl'}`}>
-        <div className="flex gap-0.5" aria-hidden="true">
+      {/* max-w-full + min-w-0: a long tool detail wraps inside the chat instead of running off the edge */}
+      <div className={`inline-flex max-w-full items-center gap-2 border border-gray-700/50 bg-gray-800/60 ${compact ? 'px-3 py-1.5 rounded-2xl' : 'px-4 py-2 rounded-2xl'}`}>
+        <div className="flex flex-shrink-0 gap-0.5" aria-hidden="true">
           <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
           <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
           <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
         </div>
-        <span className="text-xs text-gray-300">{label}</span>
+        <span className="min-w-0 text-xs text-gray-300 break-words [overflow-wrap:anywhere]">{label}</span>
       </div>
     </div>
   )

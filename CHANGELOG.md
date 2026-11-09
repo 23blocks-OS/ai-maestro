@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.116] - 2026-11-09 - The chat's working message wraps
+
+### Fixed
+- The chat's working message (the tool and its detail) wraps inside the chat instead of being cut at the edge.
+
 ## [0.106.115] - 2026-11-09 - Hosts share agent status over one live channel
 
 ### Added

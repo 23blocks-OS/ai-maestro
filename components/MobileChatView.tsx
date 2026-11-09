@@ -1096,7 +1096,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
               return (
                 <>
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} title={style.title} />
-                  <span className={`text-xs ${style.text}`}>
+                  <span className={`min-w-0 truncate text-xs ${style.text}`}>
                     {presence === 'working' && liveActivity
                       ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}`
                       : style.label}

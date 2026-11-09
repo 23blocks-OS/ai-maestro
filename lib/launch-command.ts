@@ -38,13 +38,16 @@ export function buildLaunchCommand(input: LaunchCommandInput): string {
   const kind = input.kind
   let full = input.command
 
+  const options = sanitizeLaunchOptions(kind, input.launchOptions)
+  const model = typeof options.model === 'string' ? options.model : input.model
+
   if (input.programArgs) {
-    const args = sanitizeProgramArgs(input.programArgs)
+    let args = sanitizeProgramArgs(input.programArgs)
+    // One --model only (B039): when the model is chosen, a --model in the extra arguments would be a second, silent winner
+    if (args && model) args = args.replace(/(^|\s)--model(=|\s+)\S+/g, ' ').replace(/\s+/g, ' ').trim()
     if (args) full = `${full} ${args}`
   }
 
-  const options = sanitizeLaunchOptions(kind, input.launchOptions)
-  const model = typeof options.model === 'string' ? options.model : input.model
   if (model) full = `${full} --model ${model}`
 
   // Grok Build, Copilot CLI and Codex have their own permission flags. None of the Claude-only additions below apply.

@@ -51,6 +51,12 @@ describe('createSession starts the program the way a wake does', () => {
     expect(typed()).toBe('CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 claude')
   })
 
+  it('an agent already registered with a model starts on that model, as a wake would (B039)', async () => {
+    m.getAgentByName.mockReturnValue({ id: 'agent-1', name: 'aria', program: 'claude-code', model: 'claude-opus-5-5' })
+    await createSession({ name: 'aria', program: 'claude-code' })
+    expect(typed()).toBe('CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 claude --model claude-opus-5-5')
+  })
+
   it('carries the chosen permission mode and saves it on the agent', async () => {
     await createSession({ name: 'aria', program: 'claude-code', permissionMode: 'trustEdits' })
     expect(typed()).toBe('CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 claude --permission-mode acceptEdits')

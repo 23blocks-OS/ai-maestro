@@ -24,6 +24,16 @@ describe('buildLaunchCommand: Claude Code', () => {
     })).toBe(`${CLAUDE_PREFIX}claude --chrome --model opus --permission-mode acceptEdits --channels plugin:amp@x`)
   })
 
+  it('one --model only: a --model in the extra arguments gives way to the chosen model (B039)', () => {
+    expect(buildLaunchCommand({ ...base, command: 'claude', kind: 'claude', programArgs: '--model claude-fable-5-1 --chrome', model: 'claude-fable-5-1' }))
+      .toBe(`${CLAUDE_PREFIX}claude --chrome --model claude-fable-5-1`)
+    expect(buildLaunchCommand({ ...base, command: 'claude', kind: 'claude', programArgs: '--model=sonnet', model: 'opus' }))
+      .toBe(`${CLAUDE_PREFIX}claude --model opus`)
+    // No model chosen: the extra arguments keep theirs
+    expect(buildLaunchCommand({ ...base, command: 'claude', kind: 'claude', programArgs: '--model sonnet' }))
+      .toBe(`${CLAUDE_PREFIX}claude --model sonnet`)
+  })
+
   it('a model chosen in the launch options replaces the agent\'s model', () => {
     expect(buildLaunchCommand({ ...base, command: 'claude', kind: 'claude', model: 'opus', launchOptions: { model: 'sonnet' } })).toBe(`${CLAUDE_PREFIX}claude --model sonnet`)
   })

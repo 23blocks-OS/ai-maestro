@@ -373,6 +373,20 @@ export const MESH_PRIMER = [
  *
  * Exported for direct unit testing; the wake flow calls it internally.
  */
+/**
+ * The first prompt for an agent's very first launch (B040), or null. Only when the program started, the agent
+ * has never launched, has no on-wake hook, and has a real task: the default "Agent for <name>" is not one.
+ */
+export function firstPromptFor(
+  agent: Pick<Agent, 'name' | 'launchCount' | 'taskDescription' | 'hooks'>,
+  programStarted: boolean,
+): string | null {
+  if (!programStarted || (agent.launchCount || 0) > 0 || agent.hooks?.['on-wake']) return null
+  const task = (agent.taskDescription || '').trim()
+  if (!task || task === `Agent for ${agent.name}`) return null
+  return task
+}
+
 export function loadMeshPrimer(agent: Agent): string {
   if (agent.meshAware === false) return ''
   return MESH_PRIMER
@@ -2103,7 +2117,11 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
           const envExport = ampDir
             ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'; `
             : ''
-          await runtime.sendKeys(sessionName, `"${envExport}unset CLAUDECODE; ${fullCommand}"`, { enter: true })
+          // B040: an agent with no keys yet woke with no AMP identity. amp-init.sh exits early when one exists.
+          const ampInit = ampDir && !fs.existsSync(path.join(ampDir, 'keys', 'private.pem'))
+            ? 'command -v amp-init.sh >/dev/null 2>&1 && amp-init.sh --auto >/dev/null 2>&1; '
+            : ''
+          await runtime.sendKeys(sessionName, `"${envExport}${ampInit}unset CLAUDECODE; ${fullCommand}"`, { enter: true })
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
         }
@@ -2136,6 +2154,10 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
       const meshPrimer = loadMeshPrimer(agent)
       executeHook(sessionName, agent.hooks['on-wake'], runtime, hookVars, meshPrimer)
         .catch(err => console.warn(`[Wake] on-wake hook failed for ${agentName}:`, err))
+    } else if (firstPromptFor(agent, startProgram && launchVerdict.started)) {
+      // B040: a new agent woke blank. Its first launch gets its task as the first prompt, once.
+      executeHook(sessionName, `prompt:${firstPromptFor(agent, true)}`, runtime, {}, loadMeshPrimer(agent))
+        .catch(err => console.warn(`[Wake] first prompt failed for ${agentName}:`, err))
     }
 
     return {

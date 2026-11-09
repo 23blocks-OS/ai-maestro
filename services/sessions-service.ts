@@ -1111,6 +1111,8 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
         kind: resolved.kind,
         agentName,
         programArgs: typeof programArgs === 'string' ? programArgs : undefined,
+        // The record's model, as the wake passes it (B039: a new agent started on the tool's default model)
+        model: registeredAgent?.model,
         permissionMode: chosenMode ?? registeredAgent?.permissionMode,
         launchOptions: Object.keys(chosenOptions).length > 0 ? chosenOptions : registeredAgent?.launchOptions,
       })

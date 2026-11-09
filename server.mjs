@@ -2004,7 +2004,8 @@ async function startServer(handleRequest) {
               const result = await sendChatMessage(sessionName, parsed.message)
               if (result.ok) {
                 if (ws.readyState === 1) {
-                  ws.send(JSON.stringify({ type: 'chat:sent' }))
+                  // The text, so the client marks THAT bubble delivered (B038); matches chat:sendFailed
+                  ws.send(JSON.stringify({ type: 'chat:sent', message: parsed.message }))
                 }
                 for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
                   setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
@@ -2511,7 +2512,8 @@ async function startServer(handleRequest) {
               const result = await sendChatMessage(sessionName, parsed.message)
               if (result.ok) {
                 if (ws.readyState === 1) {
-                  ws.send(JSON.stringify({ type: 'chat:sent' }))
+                  // The text, so the client marks THAT bubble delivered (B038); matches chat:sendFailed
+                  ws.send(JSON.stringify({ type: 'chat:sent', message: parsed.message }))
                 }
                 for (const delay of [500, 1500, 3000, 5000, 8000, 12000]) {
                   setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)

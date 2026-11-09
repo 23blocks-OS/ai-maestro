@@ -3,6 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.122] - 2026-11-09 - A late tool batch no longer marks an idle agent Working
+
+### Fixed
+- A tool batch reported after the agent's turn ended counts as work only if the transcript has a new entry since; a late batch with none no longer shows an idle agent as Working for 15 minutes (3m-growth on mac-mini). When the transcript cannot be read, the old rule applies.
 ## [0.106.121] - 2026-11-09 - Hosts reconnect within a minute after an update
 
 ### Fixed

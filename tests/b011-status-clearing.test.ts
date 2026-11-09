@@ -298,3 +298,32 @@ describe('B011 #9: parsing', () => {
   // `source` is one word, identical in snake_case and camelCase, so there is no second key
   // style to read: not reproducible.
 })
+
+// 3m-growth on mac-mini, 2026-11-09: a turn with no tools ended at 16:45:46 (Stop), and one
+// PostToolBatch of that same prompt arrived 68 s later with no new transcript entry. It set
+// the agent Working for 15 minutes while it sat idle.
+describe('a tool batch after the turn ended counts only if the transcript moved', () => {
+  const fs = require('fs'); const os = require('os'); const path = require('path')
+  const transcript = (entries: Array<{ type: string; at: number }>) => {
+    const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tr-')), 't.jsonl')
+    fs.writeFileSync(f, entries.map(e => JSON.stringify({ type: e.type, timestamp: new Date(e.at).toISOString() })).join('\n') + '\n')
+    return f
+  }
+
+  it('stays idle when no entry was written since the Stop', async () => {
+    r = createReplay()
+    const tp = transcript([{ type: 'user', at: Date.now() - 3000 }, { type: 'assistant', at: Date.now() - 500 }])
+    await r.run([claude('UserPromptSubmit', { transcript_path: tp }), claude('Stop', { transcript_path: tp })])
+    r.wait(68_000)
+    expect((await r.send(claude('PostToolBatch', { transcript_path: tp }))).status).toBe('idle')
+  })
+
+  it('goes active when the agent really resumed (new entries after the Stop)', async () => {
+    r = createReplay()
+    const tp = transcript([{ type: 'user', at: Date.now() - 3000 }])
+    await r.run([claude('UserPromptSubmit', { transcript_path: tp }), claude('Stop', { transcript_path: tp })])
+    r.wait(23_000)
+    fs.appendFileSync(tp, JSON.stringify({ type: 'assistant', timestamp: new Date(Date.now() - 1000).toISOString() }) + '\n')
+    expect((await r.send(claude('PostToolBatch', { transcript_path: tp }))).status).toBe('active')
+  })
+})

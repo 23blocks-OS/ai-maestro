@@ -16,7 +16,6 @@ function transcript(file: string, model: string, tokens: number, ts = new Date()
 
 const files: Record<string, string> = {}
 let agents: any[] = []
-let hosts: any[] = []
 
 vi.mock('@/lib/agent-registry', () => ({
   loadAgents: () => agents,
@@ -25,13 +24,10 @@ vi.mock('@/lib/agent-registry', () => ({
 vi.mock('@/lib/chat-transcript.mjs', () => ({
   resolveJsonlPath: (agent: any) => (files[agent.id] ? { path: files[agent.id] } : null),
 }))
-vi.mock('@/lib/hosts-config', () => ({
-  getHosts: () => hosts,
-  isSelfHost: (h: any) => h.id === 'self',
-}))
 
 const { getLocalSnapshots, getSnapshots, resetSnapshotCaches } = await import('@/services/status-snapshots-service')
 const { clearSnapshotCache } = await import('@/lib/transcript-snapshot')
+const { peerSnapshots } = await import('@/services/shared-state')
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }))
 
@@ -39,7 +35,6 @@ beforeEach(() => {
   resetSnapshotCaches()
   clearSnapshotCache()
   agents = []
-  hosts = []
   for (const k of Object.keys(files)) delete files[k]
 })
 
@@ -76,88 +71,23 @@ describe('local snapshots', () => {
   })
 })
 
-describe('other hosts', () => {
+describe('other hosts (the /mesh copy)', () => {
   const remoteSnap = { model: 'claude-sonnet-5', contextTokens: 10, contextWindow: 200000, contextApprox: true, contextPercent: 0, compact: 'none', asOf: 1 }
+  afterEach(() => peerSnapshots.clear())
 
-  it('answers at once with what it has, and fills in the other host after its refresh', async () => {
-    hosts = [{ id: 'self', url: 'http://self' }, { id: 'mac-mini', url: 'http://mini:23000' }]
-    const httpGet = vi.fn().mockResolvedValue({ snapshots: { 'remote-agent': remoteSnap, 'rid': remoteSnap } })
-
-    const first = getSnapshots({ httpGet })
-    expect(first['remote-agent']).toBeUndefined() // not waited for
-    expect(httpGet).toHaveBeenCalledTimes(1)
-    expect(httpGet).toHaveBeenCalledWith('http://mini:23000/api/sessions/activity?local=true')
-
-    await new Promise(r => setTimeout(r, 0))
-    const second = getSnapshots({ httpGet })
-    expect(second['remote-agent']).toEqual(remoteSnap)
-    expect(httpGet).toHaveBeenCalledTimes(1) // inside the refresh window: no second request
+  it('adds the snapshots of a connected peer, never a dropped one, and not for localOnly', () => {
+    peerSnapshots.set('mac-mini', { items: { 'remote-agent': remoteSnap }, seq: 1, okAt: 1, connected: true })
+    peerSnapshots.set('down', { items: { 'gone-agent': remoteSnap }, seq: 1, okAt: 1, connected: false })
+    const all = getSnapshots()
+    expect(all['remote-agent']).toEqual(remoteSnap)
+    expect(all['gone-agent']).toBeUndefined()
+    expect(getSnapshots({ localOnly: true })['remote-agent']).toBeUndefined()
   })
 
-  it('does not ask this host itself, a disabled host, or another host when localOnly', () => {
-    hosts = [{ id: 'self', url: 'http://self' }, { id: 'off', url: 'http://off', enabled: false }]
-    const httpGet = vi.fn().mockResolvedValue({ snapshots: {} })
-    getSnapshots({ httpGet })
-    expect(httpGet).not.toHaveBeenCalled()
-
-    hosts = [{ id: 'mac-mini', url: 'http://mini' }]
-    getSnapshots({ httpGet, localOnly: true })
-    expect(httpGet).not.toHaveBeenCalled()
-  })
-
-  it('keeps the last copy when the other host stops answering, and prefers its own agents', async () => {
+  it('prefers its own agents over a peer copy with the same key', () => {
     files.a1 = transcript('a1.jsonl', 'claude-opus-5-5', 5_000)
     agents = [{ id: 'a1', name: 'shared-name' }]
-    hosts = [{ id: 'mac-mini', url: 'http://mini' }]
-    const httpGet = vi.fn()
-      .mockResolvedValueOnce({ snapshots: { gone: remoteSnap, 'shared-name': remoteSnap } })
-      .mockRejectedValue(new Error('down'))
-
-    const t = Date.now()
-    getSnapshots({ httpGet, now: t })
-    await new Promise(r => setTimeout(r, 0))
-    const later = getSnapshots({ httpGet, now: t + 60_000 }) // refresh due, fails
-    await new Promise(r => setTimeout(r, 0))
-    const after = getSnapshots({ httpGet, now: t + 120_000 })
-    expect(after.gone).toEqual(remoteSnap) // last copy kept
-    expect(after['shared-name'].model).toBe('claude-opus-5-5') // local wins
-    expect(later.gone).toEqual(remoteSnap)
-  })
-})
-
-
-describe('the remote copy stays fresh without anyone asking', () => {
-  beforeEach(() => { vi.useFakeTimers(); resetSnapshotCaches() })
-  afterEach(() => { resetSnapshotCaches(); vi.useRealTimers() })
-
-  const snap = { model: 'claude-sonnet-5', contextTokens: 10, contextWindow: 200000, contextApprox: true, contextPercent: 0, compact: 'none', asOf: 1 }
-
-  it('refreshes a host on a timer after the first request', async () => {
-    hosts = [{ id: 'mini', url: 'http://mini:23000', enabled: true }]
-    const httpGet = vi.fn().mockResolvedValue({ snapshots: { 'remote-agent': snap } })
-    getSnapshots({ httpGet })
-    expect(httpGet).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(16_000)
-    expect(httpGet.mock.calls.length).toBeGreaterThanOrEqual(2)
-    await vi.advanceTimersByTimeAsync(16_000)
-    expect(httpGet.mock.calls.length).toBeGreaterThanOrEqual(3)
-  })
-
-  it('stops by itself ten minutes after the last request', async () => {
-    hosts = [{ id: 'mini', url: 'http://mini:23000', enabled: true }]
-    const httpGet = vi.fn().mockResolvedValue({ snapshots: {} })
-    getSnapshots({ httpGet })
-    await vi.advanceTimersByTimeAsync(11 * 60_000)
-    const calls = httpGet.mock.calls.length
-    await vi.advanceTimersByTimeAsync(5 * 60_000)
-    expect(httpGet.mock.calls.length).toBe(calls)
-  })
-
-  it('does not start a timer for a request another host makes', async () => {
-    hosts = [{ id: 'mini', url: 'http://mini:23000', enabled: true }]
-    const httpGet = vi.fn().mockResolvedValue({ snapshots: {} })
-    getSnapshots({ httpGet, localOnly: true })
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(httpGet).not.toHaveBeenCalled()
+    peerSnapshots.set('mac-mini', { items: { 'shared-name': remoteSnap }, seq: 1, okAt: 1, connected: true })
+    expect(getSnapshots()['shared-name'].model).toBe('claude-opus-5-5')
   })
 })

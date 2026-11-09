@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getActivity, httpGet } from '@/services/sessions-service'
+import { getActivity } from '@/services/sessions-service'
 import { getSnapshots } from '@/services/status-snapshots-service'
 
 // Disable caching - this endpoint reads from global state that changes frequently
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     // the activity. A failure there must not cost the activity.
     let snapshots = {}
     try {
-      snapshots = getSnapshots({ localOnly, httpGet })
+      snapshots = getSnapshots({ localOnly })
     } catch (error) {
       console.error('Failed to build status snapshots:', error)
     }

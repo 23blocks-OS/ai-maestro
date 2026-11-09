@@ -212,7 +212,6 @@ import {
   restoreSessions,
   deletePersistedSession,
   getActivity,
-  httpGet,
   broadcastActivityUpdate,
   heartbeat,
 } from '@/services/sessions-service'
@@ -700,7 +699,7 @@ const routes: Route[] = [
       const activity = await getActivity({ localOnly: query.local === 'true' })
       // Status snapshots ride beside the activity: a failure here must not cost the activity
       let snapshots = {}
-      try { snapshots = getSnapshots({ localOnly: query.local === 'true', httpGet }) } catch { /* no snapshots */ }
+      try { snapshots = getSnapshots({ localOnly: query.local === 'true' }) } catch { /* no snapshots */ }
       sendJson(res, 200, { activity, snapshots })
     } catch (error) {
       sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })

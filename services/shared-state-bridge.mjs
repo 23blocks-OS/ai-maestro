@@ -23,6 +23,7 @@ if (!globalThis._sharedState) {
     peerActivity: new Map(),         // hostId -> { items, seq, okAt, connected } per /mesh feed (lib/mesh-sync.mjs): status
     peerAgents: new Map(),           //   ... agents
     peerSessions: new Map(),         //   ... sessions
+    peerSnapshots: new Map(),        //   ... snapshots (model, context, cost)
   }
 }
 // Ensure late-added maps exist for hot-reload / late initialization, and for
@@ -36,7 +37,7 @@ if (!globalThis._sharedState.hookStatus) {
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
 }
-for (const k of ['peerActivity', 'peerAgents', 'peerSessions']) {
+for (const k of ['peerActivity', 'peerAgents', 'peerSessions', 'peerSnapshots']) {
   if (!globalThis._sharedState[k]) globalThis._sharedState[k] = new Map()
 }
 
@@ -53,6 +54,7 @@ export const observedExpired = state.observedExpired
 export const peerActivity = state.peerActivity
 export const peerAgents = state.peerAgents
 export const peerSessions = state.peerSessions
+export const peerSnapshots = state.peerSnapshots
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.

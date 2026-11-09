@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.123] - 2026-11-09 - Snapshots travel over the mesh
+
+### Changed
+- The status snapshots of agents on other hosts (model, context, cost) now come over `/mesh` (a fourth feed, `snapshots`) instead of a 15-second poll of every host. A host that is not connected shows no snapshot for its agents. A peer on an older version sends no snapshots until it is updated (F107 step 4).
+
 ## [0.106.122] - 2026-11-09 - A late tool batch no longer marks an idle agent Working
 
 ### Fixed

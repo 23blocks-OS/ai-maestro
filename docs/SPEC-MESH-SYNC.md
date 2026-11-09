@@ -1,6 +1,6 @@
 # Spec: one sync channel between hosts
 
-Status: steps 1 and 2 shipped 2026-11-09; step 3 (agents and sessions feeds, protocol 2, Unknown status) in review (v0.106.113 to v0.106.115, branch `fix/status-owning-host`): audit 0 wrong on this Mac and mac-mini, both ways; a change crosses in about 210 ms. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
+Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 in progress: snapshots moved (v0.106.123). Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
 
 ## 1. The problem
 
@@ -24,7 +24,7 @@ Read from the code on 2026-11-09.
 |---|---|---|
 | Session list | `services/sessions-service.ts` `fetchRemoteSessions` → `/api/sessions?local=true` | each request |
 | Agent search | `services/agents-core-service.ts` `getUnifiedAgents` → `/api/agents` | each request |
-| Status snapshots | `services/status-snapshots-service.ts` `refreshRemote` → `/api/sessions/activity?local=true` | every 15 s; the `activity` part is thrown away |
+| Status snapshots | `services/status-snapshots-service.ts` `refreshRemote` → `/api/sessions/activity?local=true` | every 15 s; the `activity` part is thrown away. **Moved to `/mesh` in v0.106.123** |
 | World events | `services/world-events-service.ts` → `/api/world/events?local=1` | each request |
 | Manager links | `services/agents-manager-links-service.ts` → `/api/people`, `/api/agents` | each request |
 | Agent by name | `lib/agent-registry.ts` ~2595 → `/api/agents/by-name/<name>` | on lookup |

@@ -16,11 +16,8 @@
  *   2. The agent's own Claude transcript, on the host where the agent lives
  *      (lib/transcript-snapshot.ts): model, context, effort, permission mode and
  *      the prompt-cache expiry for every agent, with or without the plugin.
- * Agents on other hosts are read from that host's own feed, in the background:
- * a refresh runs when the cached copy is older than REMOTE_REFRESH_MS, and the
- * feed answers with the last copy without waiting for it. A host that does not
- * answer simply keeps showing its last snapshot until the header's age rule
- * hides it.
+ * Agents on other hosts come from that host over /mesh (the `snapshots` feed in
+ * server.mjs); this host never works them out itself.
  */
 
 import fs from 'fs'
@@ -30,13 +27,12 @@ import { loadAgents, getAgent } from '@/lib/agent-registry'
 import { resolveJsonlPath } from '@/lib/chat-transcript.mjs'
 import { readTranscriptSnapshot, type StatusSnapshot } from '@/lib/transcript-snapshot'
 import { compactHint } from '@/lib/context-hint'
-import { getHosts, isSelfHost } from '@/lib/hosts-config'
+import { peerSnapshots } from '@/services/shared-state'
 import { type ServiceResult, invalidRequest, invalidField, notFound, serviceError } from '@/services/service-errors'
 
 export type SnapshotMap = Record<string, StatusSnapshot>
 
 const PATH_MEMO_MS = 8_000
-const REMOTE_REFRESH_MS = 15_000
 
 const pathMemo = new Map<string, { at: number; path: string | null }>()
 
@@ -366,87 +362,23 @@ export function getLocalSnapshots(now: number = Date.now()): SnapshotMap {
 
 // ── Other hosts ─────────────────────────────────────────────────────────────
 
-interface RemoteEntry { at: number; map: SnapshotMap; inflight: boolean }
-const remote = new Map<string, RemoteEntry>()
-
-export type HttpGetJson = (url: string) => Promise<any>
-
-function refreshRemote(hostId: string, url: string, httpGet: HttpGetJson, now: number): void {
-  const entry = remote.get(hostId) || { at: 0, map: {}, inflight: false }
-  remote.set(hostId, entry)
-  if (entry.inflight || now - entry.at < REMOTE_REFRESH_MS) return
-  entry.inflight = true
-  // `local=true`: ask the other host for its OWN snapshots only. Two hosts that
-  // each fetched the other's merged feed would chase each other's stale copies.
-  httpGet(`${url}/api/sessions/activity?local=true`)
-    .then((data) => {
-      const snaps = data?.snapshots
-      if (snaps && typeof snaps === 'object') entry.map = snaps as SnapshotMap
-    })
-    .catch(() => { /* keep the last copy */ })
-    .finally(() => { entry.inflight = false; entry.at = Date.now() })
-}
-
-// A copy that is refreshed only when someone asks is old at the moment they ask:
-// the first request after a quiet spell got the old copy and only then started a
-// refresh (an agent on another host showed a cost eight hours old). While requests
-// keep coming, a timer keeps every host's copy within one refresh window; it stops
-// by itself ten minutes after the last request.
-const REFRESHER_IDLE_MS = 10 * 60_000
-let refresher: ReturnType<typeof setInterval> | null = null
-let lastRequestAt = 0
-let refresherGet: HttpGetJson | null = null
-
-function stopRefresher(): void {
-  if (refresher) { clearInterval(refresher); refresher = null }
-}
-
-function ensureRefresher(httpGet: HttpGetJson, now: number): void {
-  lastRequestAt = now
-  refresherGet = httpGet
-  if (refresher) return
-  refresher = setInterval(() => {
-    if (!refresherGet || Date.now() - lastRequestAt > REFRESHER_IDLE_MS) { stopRefresher(); return }
-    let hosts: any[] = []
-    try { hosts = getHosts() } catch { return }
-    for (const host of hosts) {
-      if (host.enabled === false || !host.url) continue
-      try { if (isSelfHost(host)) continue } catch { continue }
-      refreshRemote(host.id, host.url, refresherGet, Date.now())
-    }
-  }, REMOTE_REFRESH_MS)
-  // Never keep the process alive for this
-  ;(refresher as any).unref?.()
-}
-
 /**
- * Local snapshots, plus the cached snapshots of the other hosts' agents (never
- * waiting on them). `localOnly` is for the request another host makes.
+ * Local snapshots, plus the copies of the other hosts' snapshots that /mesh keeps
+ * (docs/SPEC-MESH-SYNC.md). A host that is not connected has no copy. `localOnly`
+ * is for the request another host makes.
  */
-export function getSnapshots(opts: { localOnly?: boolean; httpGet?: HttpGetJson; now?: number } = {}): SnapshotMap {
-  const now = opts.now ?? Date.now()
-  const local = getLocalSnapshots(now)
-  if (opts.localOnly || !opts.httpGet) return local
-  ensureRefresher(opts.httpGet, now)
-
-  let hosts: any[] = []
-  try { hosts = getHosts() } catch { hosts = [] }
+export function getSnapshots(opts: { localOnly?: boolean; now?: number } = {}): SnapshotMap {
+  const local = getLocalSnapshots(opts.now ?? Date.now())
+  if (opts.localOnly) return local
   const merged: SnapshotMap = {}
-  for (const host of hosts) {
-    if (host.enabled === false || !host.url) continue
-    try { if (isSelfHost(host)) continue } catch { continue }
-    refreshRemote(host.id, host.url, opts.httpGet, now)
-    Object.assign(merged, remote.get(host.id)?.map || {})
-  }
+  for (const copy of peerSnapshots.values()) if (copy.connected) Object.assign(merged, copy.items)
   // This host's own agents win over any copy another host holds
   return Object.assign(merged, local)
 }
 
 /** For tests */
 export function resetSnapshotCaches(): void {
-  stopRefresher()
   pathMemo.clear()
-  remote.clear()
   reportStore().clear()
   if (persistTimer) { clearTimeout(persistTimer); persistTimer = null }
 }

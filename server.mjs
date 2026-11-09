@@ -51,7 +51,8 @@ import {
   observedExpired,
   peerActivity,
   peerAgents,
-  peerSessions
+  peerSessions,
+  peerSnapshots
 } from './services/shared-state-bridge.mjs'
 import { createMesh } from './lib/mesh-sync.mjs'
 
@@ -1866,6 +1867,11 @@ async function startServer(handleRequest) {
           return Object.fromEntries(r.data.agents.map(a => [a.id, a]))
         },
       },
+      // Model, context, cost: changes come from the status line report or the transcript, so a poll is enough
+      snapshots: {
+        pollMs: 15_000,
+        get: async () => (await import('./services/status-snapshots-service.ts')).getLocalSnapshots(),
+      },
       sessions: {
         pollMs: 10_000, minGapMs: 2_000,
         get: async () => {
@@ -1874,7 +1880,7 @@ async function startServer(handleRequest) {
         },
       },
     },
-    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions },
+    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots },
     getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
     // A remote agent's status change reaches this host's pages in under a second. A dropped
     // host's agents are not announced: the page's next fetch no longer has them.

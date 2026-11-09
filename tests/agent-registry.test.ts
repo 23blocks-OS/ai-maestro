@@ -15,6 +15,8 @@ vi.mock('@/lib/hosts-config', () => ({
   getSelfHostId: () => 'test-host',
   isSelf: (hostId: string) => hostId?.toLowerCase() === 'test-host',
   isSelfHost: (host: { id: string }) => host.id?.toLowerCase() === 'test-host',
+  getPeerHosts: () => [{ id: 'mac-mini', url: 'http://mini:23000' }],
+  getHosts: () => [],
 }))
 
 vi.mock('@/lib/amp-inbox-writer', () => ({
@@ -101,7 +103,9 @@ import {
   addSessionToAgent,
   incrementAgentMetric,
   updateAgentWorkingDirectory,
+  checkMeshAgentExists,
 } from '@/lib/agent-registry'
+import { peerAgents } from '@/services/shared-state'
 import type { Agent, CreateAgentRequest } from '@/types/agent'
 
 // ============================================================================
@@ -1083,5 +1087,28 @@ describe('incrementAgentMetric', () => {
   it('returns false for non-existent agent', () => {
     const result = incrementAgentMetric('nonexistent', 'totalApiCalls')
     expect(result).toBe(false)
+  })
+})
+
+describe('checkMeshAgentExists', () => {
+  beforeEach(() => { resetStore(); peerAgents.clear() })
+  afterEach(() => { peerAgents.clear(); vi.unstubAllGlobals() })
+
+  it('answers an exact name from a connected peer\'s /mesh copy without asking it', async () => {
+    peerAgents.set('mac-mini', { items: { r1: { id: 'r1', name: 'Dahlia', hostId: 'mac-mini', sessions: [] } }, seq: 1, okAt: 1, connected: true })
+    const f = vi.fn()
+    vi.stubGlobal('fetch', f)
+    const r = await checkMeshAgentExists('dahlia')
+    expect(r).toMatchObject({ exists: true, host: 'mac-mini', agent: { id: 'r1', name: 'Dahlia' } })
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('asks the peers on a miss, and ignores a dropped peer\'s copy', async () => {
+    peerAgents.set('mac-mini', { items: { r1: { id: 'r1', name: 'dahlia' } }, seq: 1, okAt: 1, connected: false })
+    const f = vi.fn(async () => ({ ok: true, json: async () => ({}) }))
+    vi.stubGlobal('fetch', f)
+    const r = await checkMeshAgentExists('dahlia')
+    expect(r.exists).toBe(false)
+    expect(f).toHaveBeenCalledTimes(1)
   })
 })

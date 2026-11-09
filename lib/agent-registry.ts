@@ -2583,9 +2583,24 @@ export async function checkMeshAgentExists(
   }
   result.checkedHosts.push(selfHostId)
 
+  // A connected peer's /mesh copy answers an exact name or alias without asking it.
+  // shortcut: a miss still asks every peer, because the peer's own resolution also matches
+  // session names and name endings; move those rules here if the misses cost too much.
+  const normalizedName = name.toLowerCase()
+  const { findInMesh } = await import('./owning-host')
+  const hit = findInMesh(a => a.registrationStatus !== 'pending' && !a.deletedAt
+    && ((a.name || '').toLowerCase() === normalizedName || (a.alias || '').toLowerCase() === normalizedName))
+  if (hit) {
+    result.exists = true
+    result.host = hit.hostId
+    const a = hit.agent
+    result.agent = { id: a.id, name: a.name || a.alias || '', label: a.label, hostId: a.hostId || hit.hostId, status: a.status, lastActive: a.lastActive, sessions: a.sessions || [], deployment: a.deployment }
+    result.checkedHosts.push(hit.hostId)
+    return result
+  }
+
   // Check peer hosts in parallel
   const peerHosts = getPeerHosts()
-  const normalizedName = name.toLowerCase()
 
   const checks = peerHosts.map(async (host) => {
     try {

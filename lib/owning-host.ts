@@ -5,8 +5,22 @@
  * the browser sends here about an agent that lives on a peer (a credential card, a SQL approval)
  * must be forwarded to that peer. Asking each peer "do you know this agent?" finds it; the answer
  * is remembered for a minute (a miss for 30 seconds), so the cards' 3-second polling does not probe every time.
+ *
+ * A peer on /mesh has already sent its full agent list (docs/SPEC-MESH-SYNC.md), so it is read from that
+ * copy and never asked; only peers not on the mesh (down, or an older version) are probed.
  */
 import { getHosts, isSelf } from '@/lib/hosts-config'
+import { peerAgents } from '@/services/shared-state'
+
+/** The first agent in a connected peer's /mesh copy that `match` accepts, with that peer's host id */
+export function findInMesh(match: (agent: any) => boolean): { hostId: string; agent: any } | null {
+  for (const [hostId, copy] of peerAgents) {
+    if (!copy.connected) continue
+    const agent = Object.values(copy.items).find(match)
+    if (agent) return { hostId, agent }
+  }
+  return null
+}
 
 const PROBE_TIMEOUT_MS = 4000
 const CACHE_MS = 60_000
@@ -30,7 +44,11 @@ export async function findPeerHostUrl(agentId: string, fetchImpl: typeof fetch =
 
 async function probePeers(agentId: string, fetchImpl: typeof fetch): Promise<string | undefined> {
   const peers = getHosts().filter(h => h.url && h.enabled !== false && !isSelf(h.id))
-  const answers = await Promise.all(peers.map(async (host) => {
+  const owner = peers.find(h => peerAgents.get(h.id)?.connected && peerAgents.get(h.id)!.items[agentId])
+  if (owner) return owner.url.replace(/\/$/, '')
+  // A connected peer's list is complete: it does not have this agent
+  const unknown = peers.filter(h => !peerAgents.get(h.id)?.connected)
+  const answers = await Promise.all(unknown.map(async (host) => {
     const base = host.url.replace(/\/$/, '')
     try {
       const res = await fetchImpl(`${base}/api/agents/${encodeURIComponent(agentId)}`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })

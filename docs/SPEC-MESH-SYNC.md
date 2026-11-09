@@ -1,6 +1,6 @@
 # Spec: one sync channel between hosts
 
-Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 in progress: snapshots moved (v0.106.123). Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
+Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 in progress: snapshots (v0.106.123), owning host and agent by name (v0.106.124) moved. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
 
 ## 1. The problem
 

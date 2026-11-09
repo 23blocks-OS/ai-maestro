@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.124] - 2026-11-09 - Agent lookups read the mesh
+
+### Changed
+- Finding which host owns an agent, and finding an agent by name (AMP routing), read the peers' agent lists from `/mesh` first. A connected peer is no longer asked; only a peer not on the mesh is probed. A name the copies do not match exactly still asks every peer, because a peer also matches session names and name endings (F107 step 4).
+
 ## [0.106.123] - 2026-11-09 - Snapshots travel over the mesh
 
 ### Changed

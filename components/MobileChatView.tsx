@@ -6,6 +6,8 @@ import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
 import DeviceMessage, { SpeakingMessage } from '@/components/chat/DeviceMessage'
 import ChatWorkingIndicator from '@/components/chat/ChatWorkingIndicator'
+import AttachButton from '@/components/chat/AttachButton'
+import { useAttachFiles } from '@/hooks/useAttachFiles'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
@@ -301,6 +303,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string; status: 'sending' | 'delivered' | 'failed' }>>([])
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
   const [liveActivity, setLiveActivity] = useState<{ label: string; detail?: string } | null>(null)
+  const attach = useAttachFiles(agentId, baseUrl)
 
   const [chatWsConnected, setChatWsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -1129,11 +1132,13 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
           </div>
         )}
         <div className="flex items-end gap-2">
+          <AttachButton onFiles={attach.uploadFiles} busy={attach.isUploading} className="p-2" />
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
+            onPaste={attach.onPaste}
             placeholder={`Message ${agentName}...`}
             rows={1}
             className="flex-1 bg-gray-800 text-gray-200 text-sm rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-500"

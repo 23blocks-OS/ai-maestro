@@ -6,6 +6,8 @@ import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
 import ChatWorkingIndicator from '@/components/chat/ChatWorkingIndicator'
+import AttachButton from '@/components/chat/AttachButton'
+import { useAttachFiles } from '@/hooks/useAttachFiles'
 import DeviceMessage, { SpeakingMessage } from '@/components/chat/DeviceMessage'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
@@ -257,6 +259,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const chatReactions = useChatReactions(agent.id, getAgentBaseUrl(agent), messages, setError)
+  const attach = useAttachFiles(agent.id, getAgentBaseUrl(agent))
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
@@ -1534,12 +1537,14 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         )}
 
         <div className="flex items-end gap-3">
+          <AttachButton onFiles={attach.uploadFiles} busy={attach.isUploading} className="py-3" />
           <textarea
             ref={inputRef}
             data-chat-input
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onPaste={attach.onPaste}
             placeholder={isOnline ? `Message ${agent.label || agent.name || agent.alias || 'agent'}... (Enter to send)` : "Agent is offline"}
             className="flex-1 bg-gray-900 text-gray-200 text-sm rounded-lg px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700 disabled:opacity-50"
             rows={1}
@@ -1560,7 +1565,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         </div>
 
         <div className="mt-2 text-xs text-gray-500">
-          Enter = Send &bull; Shift+Enter = New Line
+          Enter = Send &bull; Shift+Enter = New Line &bull; Paste an image or use the clip to attach files
         </div>
       </div>
     </div>

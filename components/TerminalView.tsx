@@ -13,6 +13,7 @@ import { useDeviceType } from '@/hooks/useDeviceType'
 import MobileKeyToolbar from './MobileKeyToolbar'
 import type { Session } from '@/types/session'
 import { useToast } from '@/contexts/ToastContext'
+import { useAttachFiles } from '@/hooks/useAttachFiles'
 
 // PERFORMANCE: Hoist static JSX to avoid recreation on every render
 const LoadingSpinner = (
@@ -39,74 +40,7 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
   const { presenceOf, snapshotOf } = useSessionActivity()
   const { addToast } = useToast()
   const [isDraggingFile, setIsDraggingFile] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-
-  /**
-   * Hand files to the agent (#270).
-   *
-   * The bytes go to the server, which writes them to disk on the agent's own
-   * host and tells the agent the path — agent CLIs read files from disk, and
-   * pushing a megabyte of base64 through a TUI keystroke-batch would be both
-   * enormous and mangled.
-   */
-  const uploadFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return
-    const agentId = session.agentId
-    if (!agentId) {
-      addToast({ type: 'error', title: 'Cannot attach files', message: 'This session has no registered agent.' })
-      return
-    }
-
-    setIsUploading(true)
-    try {
-      const form = new FormData()
-      // A pasted screenshot has no name. The server generates one from the MIME
-      // type rather than inventing a uuid, because the agent quotes the path
-      // back to a human.
-      for (const f of files) form.append('files', f, f.name || '')
-
-      const res = await fetch(`/api/agents/${agentId}/files`, { method: 'POST', body: form })
-      const data = await res.json().catch(() => ({}))
-
-      if (!res.ok) {
-        addToast({
-          type: 'error',
-          title: 'Could not attach the file',
-          message: data?.message || `Upload failed (${res.status})`,
-        })
-        return
-      }
-
-      // Saved and announced are separate outcomes: the file can land safely
-      // while the agent cannot be told (no session, or a program that never
-      // started). Reporting that as plain success would be a claim we have not
-      // earned.
-      if (data?.announced === false) {
-        addToast({
-          type: 'warning',
-          title: 'File saved, but the agent was not told',
-          message: `${data.announceError || 'The agent could not be reached.'} The file is at ${data.files?.[0]?.path ?? 'the upload directory'}.`,
-          duration: 15000,
-        })
-        return
-      }
-
-      const n = data?.files?.length ?? files.length
-      addToast({
-        type: 'success',
-        title: n === 1 ? 'File sent to the agent' : `${n} files sent to the agent`,
-        message: data?.files?.[0]?.path || '',
-      })
-    } catch (err) {
-      addToast({
-        type: 'error',
-        title: 'Could not attach the file',
-        message: err instanceof Error ? err.message : 'Unknown error',
-      })
-    } finally {
-      setIsUploading(false)
-    }
-  }, [session.agentId, addToast])
+  const { uploadFiles, isUploading } = useAttachFiles(session.agentId)
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])

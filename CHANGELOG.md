@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.118] - 2026-11-09 - Attach files from the chat
+
+### Added
+- The chat has a paperclip to send images and documents to the agent, as the phone app does; pasting an image into the message box sends it too. The file is saved on the agent's own host and the agent is told its path (`hooks/useAttachFiles.ts`, shared with the terminal's drop and paste).
+
 ## [0.106.117] - 2026-11-09 - An agent's notes open collapsed
 
 ### Changed

@@ -70,6 +70,7 @@ const {
       // busy/idle question to. Omitting it makes isSessionIdle() deref
       // undefined rather than fail a clear assertion.
       hookStatus: new Map<string, { status: string; notificationType?: string; at: number }>(),
+      peerActivity: new Map(),
       broadcastStatusUpdate: vi.fn(),
     },
     mockFs: {

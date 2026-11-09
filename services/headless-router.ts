@@ -697,7 +697,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res, _params, query) => {
     try {
-      const activity = await getActivity()
+      const activity = await getActivity({ localOnly: query.local === 'true' })
       // Status snapshots ride beside the activity: a failure here must not cost the activity
       let snapshots = {}
       try { snapshots = getSnapshots({ localOnly: query.local === 'true', httpGet }) } catch { /* no snapshots */ }

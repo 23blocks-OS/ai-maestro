@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.115] - 2026-11-09 - Hosts share agent status over one live channel
+
+### Added
+- `/mesh`: each host opens one WebSocket to every enabled peer and receives that host's agent status the moment it changes (a full list on connect and every 5 minutes, a ping every 20 s; 45 s of silence drops the host's agents and reconnects). Each host publishes only its own agents, as its own feed computes them (F107 step 2, `docs/SPEC-MESH-SYNC.md`, `lib/mesh-sync.mjs`).
+- The status feed includes the agents of connected peers (with `hostId`); a local agent with the same name wins, and `?local=true` stays local. Remote changes reach the page through the existing `/status` socket.
+
+### Fixed
+- An agent on another host no longer shows Ready while it works, or Working while its chat or terminal is open and it is idle: the relay no longer counts its own traffic as activity (cloud containers still do).
+
 ## [0.106.114] - 2026-11-09 - Status reads the agent's subfolders
 
 ### Fixed

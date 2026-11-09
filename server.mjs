@@ -48,8 +48,10 @@ import {
   companionClients,
   broadcastStatusUpdate,
   broadcastChatEvent,
-  observedExpired
+  observedExpired,
+  peerActivity
 } from './services/shared-state-bridge.mjs'
+import { createMesh } from './lib/mesh-sync.mjs'
 
 // =============================================================================
 // GLOBAL ERROR HANDLERS - Must be first to catch all errors
@@ -1217,7 +1219,9 @@ async function startServer(handleRequest) {
 
   // Handle remote worker connections (proxy WebSocket to remote host)
   // With retry logic for flaky networks
-  function handleRemoteWorker(clientWs, sessionName, workerUrl, extraParams = '') {
+  // trackActivity: only for cloud containers, which have no status of their own. A peer host
+  // reports its agents' status over /mesh; counting relay traffic made them flicker Working.
+  function handleRemoteWorker(clientWs, sessionName, workerUrl, extraParams = '', trackActivity = false) {
     const MAX_RETRIES = 5
     const RETRY_DELAYS = [500, 1000, 2000, 3000, 5000] // Exponential backoff
     let retryCount = 0
@@ -1301,8 +1305,7 @@ async function startServer(handleRequest) {
         // Reset retry count on successful connection
         retryCount = 0
 
-        // Track activity for remote sessions
-        sessionActivity.set(sessionName, Date.now())
+        if (trackActivity) sessionActivity.set(sessionName, Date.now())
 
         // Flush queued messages (e.g. chat:requestHistory sent before remote connected)
         while (messageQueue.length > 0) {
@@ -1321,8 +1324,7 @@ async function startServer(handleRequest) {
             // Send as string (browser expects string)
             clientWs.send(dataStr)
 
-            // Track activity when worker sends data
-            if (dataStr.length >= 3) {
+            if (trackActivity && dataStr.length >= 3) {
               sessionActivity.set(sessionName, Date.now())
             }
           }
@@ -1845,10 +1847,28 @@ async function startServer(handleRequest) {
     ws.on('error', () => session.detach(ws))
   })
 
+  // One sync channel between hosts: each host publishes its own agents' status (docs/SPEC-MESH-SYNC.md)
+  const { getSelfHostId, getPeerHosts } = await import('./lib/hosts-config.ts')
+  const mesh = createMesh({
+    selfId: getSelfHostId(),
+    version: process.env.AIM_RUNNING_VERSION || '?',
+    getLocalActivity: async () => (await import('./services/sessions-service.ts')).getActivity({ localOnly: true }),
+    getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
+    peerActivity,
+    // A remote agent's change reaches this host's pages in under a second. A dropped host's
+    // agents are not announced: the page's next fetch no longer has them.
+    onRemoteChange: (hostId, name, info) => {
+      if (info) broadcastStatusUpdate(name, info.status, info.hookStatus, info.notificationType)
+    },
+  })
+  globalThis._meshNotify = mesh.notify
+
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
 
-    if (pathname === '/stream-chat') {
+    if (pathname === '/mesh') {
+      mesh.handleUpgrade(request, socket, head)
+    } else if (pathname === '/stream-chat') {
       streamChatWss.handleUpgrade(request, socket, head, (ws) => {
         streamChatWss.emit('connection', ws, query)
       })
@@ -2107,7 +2127,7 @@ async function startServer(handleRequest) {
         if (query.socket) cloudParams.push(`socket=${encodeURIComponent(query.socket)}`)
         const cloudExtraParams = cloudParams.length > 0 ? `&${cloudParams.join('&')}` : ''
         console.log(`☁️  [CLOUD] Routing ${sessionName} (resolved to ${containerSessionName}) to container at ${containerBaseUrl}`)
-        handleRemoteWorker(ws, containerSessionName, containerBaseUrl, cloudExtraParams)
+        handleRemoteWorker(ws, containerSessionName, containerBaseUrl, cloudExtraParams, true)
         return
       }
     } catch (error) {
@@ -2735,6 +2755,8 @@ async function startServer(handleRequest) {
         console.error('[Restore] Startup restore failed:', error?.message || error)
       }
     }, 5000)
+
+    mesh.start()
 
     // Claude Code fires no hook event when you answer, press Esc or choose "No" at a dialog, so a
     // permission request the hook reported ("Needs you" from the PermissionRequest event) is expired

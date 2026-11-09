@@ -53,6 +53,15 @@ export interface HookStatusState {
   at: number
 }
 
+/** One peer host's agents, as that host published them over /mesh (lib/mesh-sync.mjs) */
+export interface PeerActivityCopy {
+  agents: Record<string, { status: string; hookStatus?: string; notificationType?: string; lastActivity?: string }>
+  seq: number
+  okAt: number
+  connected: boolean
+  version?: string
+}
+
 export interface CallSessionState {
   agentId: string
   agentName: string
@@ -77,7 +86,10 @@ declare global {
     callSessions: Map<string, CallSessionState>
     hookStatus: Map<string, HookStatusState>
     observedExpired: Map<string, { at: number; status: 'active' | 'idle' }>
+    peerActivity: Map<string, PeerActivityCopy>
   } | undefined
+  // eslint-disable-next-line no-var
+  var _meshNotify: (() => void) | undefined
 }
 
 if (!globalThis._sharedState) {
@@ -90,6 +102,7 @@ if (!globalThis._sharedState) {
     callSessions: new Map<string, CallSessionState>(),
     hookStatus: new Map<string, HookStatusState>(),
     observedExpired: new Map<string, { at: number; status: 'active' | 'idle' }>(),
+    peerActivity: new Map<string, PeerActivityCopy>(),
   }
 }
 // Ensure late-added maps exist for hot-reload, and for whichever module graph
@@ -103,6 +116,9 @@ if (!globalThis._sharedState.hookStatus) {
 }
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
+}
+if (!globalThis._sharedState.peerActivity) {
+  globalThis._sharedState.peerActivity = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -139,6 +155,9 @@ export const hookStatus: Map<string, HookStatusState> = state.hookStatus
  * is not covered. See lib/observed-permission.mjs and sweepObservedPermissions.
  */
 export const observedExpired: Map<string, { at: number; status: 'active' | 'idle' }> = state.observedExpired
+
+/** hostId -> that peer's agents, kept by the /mesh client. Read-only here: only lib/mesh-sync.mjs writes it. */
+export const peerActivity: Map<string, PeerActivityCopy> = state.peerActivity
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session
@@ -184,4 +203,5 @@ export function broadcastStatusUpdate(
       ws.send(message)
     }
   })
+  globalThis._meshNotify?.() // tell peers this host's status moved (lib/mesh-sync.mjs)
 }

@@ -66,7 +66,7 @@ import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession, cannotBeStarted } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, peerActivity, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { observedPermissionVerdict, OBSERVED_GRACE_MS } from '@/lib/observed-permission.mjs'
 import { capturePaneSync } from '@/lib/tmux-runtime.mjs'
 import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
@@ -93,6 +93,8 @@ export interface SessionActivityInfo {
   status: SessionActivityStatus
   hookStatus?: string
   notificationType?: string
+  /** Set on an agent of another host, from that host's /mesh feed */
+  hostId?: string
 }
 
 export interface CreateSessionParams {
@@ -710,7 +712,7 @@ export async function listLocalSessions(): Promise<{ sessions: Session[] }> {
 /**
  * Get session activity with hook state enrichment.
  */
-export async function getActivity(): Promise<Record<string, SessionActivityInfo>> {
+export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<Record<string, SessionActivityInfo>> {
   const activityMap = sessionActivity
   const activity: Record<string, SessionActivityInfo> = {}
 
@@ -822,6 +824,19 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
       notificationType: reported.notificationType,
     }
   })
+
+  // Agents of other hosts, exactly as their own host published them over /mesh
+  // (docs/SPEC-MESH-SYNC.md). A local entry always wins. `localOnly` is what a peer
+  // asks for, so two hosts never pass each other's copies back.
+  if (!opts.localOnly) {
+    peerActivity.forEach((copy, hostId) => {
+      if (!copy.connected) return
+      for (const [name, info] of Object.entries(copy.agents)) {
+        if (activity[name]) continue
+        activity[name] = { ...info, status: normalizeActivityStatus(info.status), lastActivity: info.lastActivity || new Date(copy.okAt).toISOString(), hostId }
+      }
+    })
+  }
 
   return activity
 }

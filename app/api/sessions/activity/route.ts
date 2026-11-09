@@ -8,13 +8,13 @@ export const revalidate = 0
 
 export async function GET(request: Request) {
   try {
-    const activity = await getActivity()
+    // `?local=true` is what another host asks for: this host's own agents only.
+    const localOnly = new URL(request.url).searchParams.get('local') === 'true'
+    const activity = await getActivity({ localOnly })
     // Status snapshots (model, context, /compact hint, cost, mode...) ride beside
-    // the activity. A failure there must not cost the activity. `?local=true` is
-    // what another host asks for: this host's own agents only.
+    // the activity. A failure there must not cost the activity.
     let snapshots = {}
     try {
-      const localOnly = new URL(request.url).searchParams.get('local') === 'true'
       snapshots = getSnapshots({ localOnly, httpGet })
     } catch (error) {
       console.error('Failed to build status snapshots:', error)

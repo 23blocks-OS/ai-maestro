@@ -3,6 +3,17 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.112] - 2026-11-08 - The chat shows when the agent is working; wake fixes
+
+### Fixed
+- The chat shows the working dots while the agent works, also with no terminal open (the phone, the Chat tab alone). They come from the agent's status, the same as the sidebar; the tool name is added when a terminal is open, and "still working, N min" after 2 minutes.
+- A sent message shows Sending…, then Delivered when the server confirms it reached the agent, or "Not delivered yet" after 15 seconds, with Retry and Dismiss on the phone layout.
+- Creating an agent that already has a model starts it on that model, as a wake does; only one `--model` is passed.
+- A new agent with a task gets that task as its first prompt on its first wake, unless it has an on-wake hook; its messaging identity is set up if missing.
+
+### Docs
+- `docs/SPEC-CHAT-WORKING-STATE.md`.
+
 ## [0.106.108] - 2026-11-07 - A paired device can speak as its owner (F103)
 
 ### Added

@@ -5,6 +5,7 @@ import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
 import DeviceMessage, { SpeakingMessage } from '@/components/chat/DeviceMessage'
+import ChatWorkingIndicator from '@/components/chat/ChatWorkingIndicator'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
@@ -12,7 +13,7 @@ import { useSessionActivity } from '@/hooks/useSessionActivity'
 import AgentStatusRow from './AgentStatusRow'
 import AgentIdentityLine from './AgentIdentityLine'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check } from 'lucide-react'
+import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check, AlertCircle } from 'lucide-react'
 import { reconcilePending } from '@/lib/pending-reconcile.mjs'
 import {
   isQuestionAnswered as sharedIsAnswered,
@@ -296,7 +297,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const chatReactions = useChatReactions(agentId, baseUrl, messages, setError)
-  const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
+  // delivered: the server read the pane and saw it submitted (chat:sent); failed: no confirmation in time (B038)
+  const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string; status: 'sending' | 'delivered' | 'failed' }>>([])
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
   const [liveActivity, setLiveActivity] = useState<{ label: string; detail?: string } | null>(null)
 
@@ -455,6 +457,15 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             }
 
             case 'chat:sent': {
+              // The server saw the text submitted in the pane: mark that bubble delivered (B038)
+              const sentText = (data.message || '').trim()
+              setPendingMessages(prev => {
+                const idx = prev.findIndex(p => p.status !== 'delivered' && (!sentText || p.text.trim() === sentText))  // a host before this fix sends no text: the oldest one
+                if (idx === -1) return prev
+                const next = [...prev]
+                next[idx] = { ...next[idx], status: 'delivered' }
+                return next
+              })
               break
             }
 
@@ -593,7 +604,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
       textareaRef.current.style.height = 'auto'
     }
 
-    const pendingMsg = { text, timestamp: new Date().toISOString() }
+    const pendingMsg = { text, timestamp: new Date().toISOString(), status: 'sending' as const }
     setPendingMessages(prev => [...prev, pendingMsg])
 
     const sent = sendChatWs('chat:send', { message: text })
@@ -604,6 +615,32 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
     }
 
     setSending(false)
+  }
+
+  // No confirmation in time: show it as not delivered, with Retry (B038). Same 15 s as ChatView.
+  useEffect(() => {
+    if (!pendingMessages.some(p => p.status === 'sending')) return
+    const timer = setInterval(() => {
+      const now = Date.now()
+      setPendingMessages(prev => {
+        let changed = false
+        const next = prev.map(p => {
+          if (p.status === 'sending' && now - new Date(p.timestamp).getTime() > 15000) { changed = true; return { ...p, status: 'failed' as const } }
+          return p
+        })
+        return changed ? next : prev
+      })
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [pendingMessages])
+
+  const retryPending = (timestamp: string) => {
+    const p = pendingMessages.find(x => x.timestamp === timestamp)
+    if (!p) return
+    const sent = sendChatWs('chat:send', { message: p.text })
+    if (!sent) setError('Not connected — reconnecting...')
+    const fresh = new Date().toISOString()
+    setPendingMessages(prev => prev.map(x => x.timestamp === timestamp ? { ...x, status: sent ? 'sending' as const : 'failed' as const, timestamp: sent ? fresh : x.timestamp } : x))
   }
 
   // Send quick response (for permission prompts)
@@ -656,12 +693,8 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
   // "Allow Edit?" prompts match no transcript question and still show.
   // See paneCardBelongsToTranscriptQuestion. Mirrors ChatView exactly.
   const showPermission = isPermission && !paneCardBelongsToTranscriptQuestion(messages, hookState)
-  const isWaiting = hookState?.status === 'waiting_for_input'
-  const isSendingMsg = sending
-  // F004 Phase 2: codex reports 'working' from its transcript (no hook).
-  const isCodexWorking = hookState?.status === 'working'
-  const isWorking = isCodexWorking || (!sending && (pendingMessages.length > 0 || (messages.length > 0 && !isWaiting && !showPermission &&
-    (messages[messages.length - 1]?.type === 'user' || messages[messages.length - 1]?.type === 'human'))))
+  // The shared store's status: the same value every other view shows (B038: the dots follow it)
+  const presence = presenceOf({ name: sessionNameProp || agentName, id: agentId }, { online: true })
 
   return (
     <div className="flex flex-col h-full bg-gray-900">
@@ -965,33 +998,27 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             <div className="max-w-[85%]">
               <div className="px-3 py-2 rounded-2xl rounded-br-sm bg-blue-600/70 text-white text-sm border border-blue-500/50 select-text">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span className="text-xs opacity-70">Sending...</span>
+                  {pending.status === 'failed' ? <AlertCircle className="w-3 h-3 text-red-300" />
+                    : pending.status === 'delivered' ? <Check className="w-3 h-3" />
+                    : <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span className="text-xs opacity-70">
+                    {pending.status === 'failed' ? 'Not delivered yet' : pending.status === 'delivered' ? 'Delivered' : 'Sending...'}
+                  </span>
                 </div>
                 <p className="whitespace-pre-wrap">{pending.text}</p>
+                {pending.status === 'failed' && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button onClick={() => retryPending(pending.timestamp)} className="px-2 py-1 text-xs rounded bg-blue-800/60 border border-blue-400/50">Retry</button>
+                    <button onClick={() => setPendingMessages(prev => prev.filter(p => p.timestamp !== pending.timestamp))} className="px-2 py-1 text-xs rounded bg-gray-800/60 border border-gray-600/50">Dismiss</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
 
-        {/* Live activity indicator */}
-        {liveActivity && !showPermission && (
-          <div className="mx-3 my-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800/60 border border-gray-700/50">
-              <div className="flex gap-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-              <span className="text-xs text-gray-300">
-                {liveActivity.label}
-                {liveActivity.detail && (
-                  <span className="text-gray-500 font-mono ml-1">{liveActivity.detail}</span>
-                )}
-              </span>
-            </div>
-          </div>
-        )}
+        {/* What the agent is doing now, from the shared status (B038) */}
+        <ChatWorkingIndicator compact working={presence === 'working' && !showPermission} activity={liveActivity} />
 
         <div ref={messagesEndRef} />
       </div>
@@ -1065,8 +1092,6 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
             {/* One rule for every view (lib/agent-presence.ts): a permission
                 prompt is "needs you"; idle_prompt / a finished turn is "ready" */}
             {(() => {
-              // The shared store's status: the same value every other view shows
-              const presence = presenceOf({ name: sessionNameProp || agentName, id: agentId }, { online: true })
               const style = PRESENCE_STYLE[presence]
               return (
                 <>

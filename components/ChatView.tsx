@@ -5,6 +5,7 @@ import SecretRequestCard from '@/components/chat/SecretRequestCard'
 import { useSecretRequests } from '@/hooks/useSecretRequests'
 import SqlWriteRequestCard from '@/components/chat/SqlWriteRequestCard'
 import ReactionBar from '@/components/chat/ReactionBar'
+import ChatWorkingIndicator from '@/components/chat/ChatWorkingIndicator'
 import DeviceMessage, { SpeakingMessage } from '@/components/chat/DeviceMessage'
 import { useChatReactions } from '@/hooks/useChatReactions'
 import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
@@ -124,7 +125,8 @@ interface PendingMessage {
   id: string
   text: string
   timestamp: string
-  status: 'sending' | 'failed'
+  /** delivered: the server read the pane and saw it submitted (chat:sent) */
+  status: 'sending' | 'delivered' | 'failed'
 }
 
 /** Extract the plain text of a message for pending-echo matching. */
@@ -145,7 +147,7 @@ function messageKey(m: Message): string {
   return `${m.type}|${m.timestamp || ''}|${messageText(m).slice(0, 120)}`
 }
 
-const PENDING_EXPIRY_MS = 30000
+const PENDING_EXPIRY_MS = 15000
 /** Let the TUI open its free-text field before the answer is pasted into it. */
 const QUESTION_OTHER_SETTLE_MS = 400
 
@@ -502,6 +504,16 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             }
 
             case 'chat:sent': {
+              // The server saw the text submitted in the pane: mark that bubble delivered (B038).
+              // A late confirmation also rescues a bubble the expiry already marked failed.
+              const sentText = (data.message || '').trim()
+              setPendingMessages(prev => {
+                const idx = prev.findIndex(p => p.status !== 'delivered' && (!sentText || p.text.trim() === sentText))  // a host before this fix sends no text: the oldest one
+                if (idx === -1) return prev
+                const next = [...prev]
+                next[idx] = { ...next[idx], status: 'delivered' }
+                return next
+              })
               break
             }
 
@@ -977,29 +989,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   // Group consecutive tool-only messages into collapsible bursts
   const groupedItems = useMemo(() => withDividers(groupMessages(messages, chatMode), find.found), [messages, chatMode, find.found])
 
-  // Activity state derived from hookState + messages + pending.
-  // "thinking" = user sent something and no assistant text response yet.
-  // We scan backwards from the end: metadata messages (system, attachment, etc.)
-  // are invisible — keep looking until we find user or assistant.
-  const activityState = useMemo(() => {
-    if (hookState?.status === 'permission_request') return 'permission' as const
-    // F004 Phase 2: codex reports 'working' from its transcript turn-lifecycle
-    // (it has no hook). Show the same amber "working" pulse Claude gets from the
-    // message heuristic below.
-    if (hookState?.status === 'working') return 'thinking' as const
-    if (hookState?.status === 'waiting_for_input') return 'waiting' as const
-    if (isSending) return 'sending' as const
-    if (pendingMessages.length > 0) return 'thinking' as const
-    if (messages.length > 0) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const t = messages[i].type
-        if (t === 'user' || t === 'queue-operation' || t === 'system_notice' || t === 'device_message') return 'thinking' as const
-        if (t === 'assistant') return 'idle' as const
-      }
-    }
-    return 'idle' as const
-  }, [hookState, pendingMessages.length, isSending, messages])
-
   // The status is the shared store's (hooks/useSessionActivity.ts), the same
   // value the sidebar and the terminal show. The chat's own data only adds the
   // detail wording ("Working · Bash · yarn test", "Needs you · approval").
@@ -1023,7 +1012,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           presence === 'working'
             ? (liveActivity ? `Working · ${liveActivity.label}${liveActivity.detail ? ` · ${liveActivity.detail}` : ''}…` : 'Working…')
             : presence === 'needs-you'
-              ? (activityState === 'permission' ? 'Needs you · approval' : 'Needs you')
+              ? (hookState?.status === 'permission_request' ? 'Needs you · approval' : 'Needs you')
               : presenceStyle.label
         }
         actions={
@@ -1385,25 +1374,6 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
           )
         })}
 
-        {/* Live activity indicator — shows what the agent is doing right now */}
-        {activityState === 'thinking' && liveActivity && hookState?.status !== 'permission_request' && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gray-800/60 border border-gray-700/50">
-              <div className="flex gap-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-              <span className="text-xs text-gray-300">
-                {liveActivity.label}
-                {liveActivity.detail && (
-                  <span className="text-gray-500 font-mono ml-1">{liveActivity.detail}</span>
-                )}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* SECRET REQUESTS (F033): a credential an agent asked for. Not a chat message; the value goes to the vault. */}
         {secretRequests.map((r) => (
           <SecretRequestCard key={r.id} agentId={agent.id} request={r} onDone={refreshSecretRequests} />
@@ -1496,11 +1466,13 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
                 <div className="flex items-center gap-2 mb-1">
                   {pending.status === 'failed' ? (
                     <AlertCircle className="w-3.5 h-3.5 text-red-300" />
+                  ) : pending.status === 'delivered' ? (
+                    <Check className="w-3.5 h-3.5" />
                   ) : (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   )}
                   <span className="text-xs opacity-70">
-                    {pending.status === 'failed' ? 'Not confirmed — may not have reached the agent' : 'Sending...'}
+                    {pending.status === 'failed' ? 'Not delivered yet — it may not have reached the agent' : pending.status === 'delivered' ? 'Delivered' : 'Sending...'}
                   </span>
                   <span className="text-xs opacity-50 ml-auto">
                     {formatTimestamp(pending.timestamp)}
@@ -1527,6 +1499,9 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
             </div>
           </div>
         ))}
+
+        {/* What the agent is doing now, from the shared status (B038), under the message just sent */}
+        <ChatWorkingIndicator working={presence === 'working' && hookState?.status !== 'permission_request'} activity={liveActivity} />
 
         <div ref={messagesEndRef} />
       </div>

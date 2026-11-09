@@ -57,7 +57,47 @@ function reportClientEvent(event: string, detail: string) {
 /**
  * Fetch agents from a specific host
  */
-async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
+/** A host's agent list as this page uses it: host fields on every agent, peers cached for offline use */
+function asHostResult(host: Host, data: AgentsApiResponse, isSelf: boolean): HostFetchResult {
+  // Inject host info directly onto agents (for remote hosts, ensure correct hostId/hostName/hostUrl)
+  const agents = data.agents.map(agent => ({
+    ...agent,
+    hostId: host.id,
+    hostName: host.name,
+    hostUrl: host.url,
+    isSelf,
+  }))
+
+  // Cache peer host agents for offline access (not self host)
+  if (!isSelf) {
+    cacheRemoteAgents(host.id, agents)
+  }
+
+  return {
+    hostId: host.id,
+    success: true,
+    response: {
+      ...data,
+      agents,
+      hostInfo: {
+        ...data.hostInfo,
+        id: host.id,
+        name: host.name,
+        isSelf,
+      }
+    }
+  }
+}
+
+/** A host that cannot be reached: keep its last list, with the status shown as Unknown */
+function unreachable(response: AgentsApiResponse): AgentsApiResponse {
+  return { ...response, agents: response.agents.map(a => ({ ...a, hostUnreachable: true })) }
+}
+
+/** Every peer's agents as this page's own host received them over /mesh (`?mesh=1`) */
+type MeshPeers = Array<{ hostId: string; agents: Agent[] }>
+
+async function fetchHostAgents(host: Host, query = ''): Promise<HostFetchResult & { peers?: MeshPeers }> {
   const isSelf = host.isSelf || isLocalhostUrl(host.url)
   const baseUrl = isSelf ? '' : host.url
   const timeout = isSelf ? SELF_FETCH_TIMEOUT : PEER_FETCH_TIMEOUT
@@ -66,7 +106,7 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 
-    const response = await fetch(`${baseUrl}/api/agents`, {
+    const response = await fetch(`${baseUrl}/api/agents${query}`, {
       signal: controller.signal
     })
 
@@ -76,36 +116,8 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: AgentsApiResponse = await response.json()
-
-    // Inject host info directly onto agents (for remote hosts, ensure correct hostId/hostName/hostUrl)
-    const agents = data.agents.map(agent => ({
-      ...agent,
-      hostId: host.id,
-      hostName: host.name,
-      hostUrl: host.url,
-      isSelf,
-    }))
-
-    // Cache peer host agents for offline access (not self host)
-    if (!isSelf) {
-      cacheRemoteAgents(host.id, agents)
-    }
-
-    return {
-      hostId: host.id,
-      success: true,
-      response: {
-        ...data,
-        agents,
-        hostInfo: {
-          ...data.hostInfo,
-          id: host.id,
-          name: host.name,
-          isSelf,
-        }
-      }
-    }
+    const { peers, ...data } = await response.json() as AgentsApiResponse & { peers?: MeshPeers }
+    return { ...asHostResult(host, data, isSelf), ...(peers && { peers }) }
   } catch (error) {
     console.error(`[useAgents] Failed to fetch from ${host.name} (${host.url}):`, error)
 
@@ -119,7 +131,7 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
           success: true,
           fromCache: true,
           response: {
-            agents: cachedAgents,
+            agents: cachedAgents.map(a => ({ ...a, hostUnreachable: true })),
             stats: {
               total: cachedAgents.length,
               online: cachedAgents.filter(a => a.session?.status === 'online').length,
@@ -245,7 +257,7 @@ export function useAgents() {
       const previous = lastGood.current.get(r.hostId)
       if (!previous) return r
       reportClientEvent('agents_fetch_failed_kept_previous', `${r.hostId}: ${r.error?.message ?? 'unknown'}`)
-      return { ...previous, fromCache: true }
+      return { ...previous, fromCache: true, response: previous.response && unreachable(previous.response) }
     })
 
   const loadAgents = useCallback(async () => {
@@ -263,10 +275,12 @@ export function useAgents() {
       const localHosts = enabledHosts.filter(h => h.isSelf || isLocalhostUrl(h.url))
       const remoteHosts = enabledHosts.filter(h => !h.isSelf && !isLocalhostUrl(h.url))
 
-      // Fetch local host first (fast) so the UI can render immediately
-      const localResults = keepLastGood(await Promise.all(
-        localHosts.map(host => fetchHostAgents(host))
-      ))
+      // Fetch local host first (fast) so the UI can render immediately. `?mesh=1`: it also
+      // returns every peer's agents it holds over /mesh, so those hosts are not asked at all.
+      const ownFetches = await Promise.all(localHosts.map(host => fetchHostAgents(host, '?mesh=1')))
+      const meshPeers = new Map<string, Agent[]>()
+      for (const r of ownFetches) for (const p of r.peers || []) meshPeers.set(p.hostId, p.agents)
+      const localResults = keepLastGood(ownFetches.map(({ peers: _peers, ...r }) => r))
 
       // On first load only, show local agents right away so UI doesn't wait for remotes.
       // On subsequent refreshes, skip this to avoid replacing the full list with just local agents.
@@ -278,9 +292,17 @@ export function useAgents() {
         setLoading(false)
       }
 
-      // Then fetch remote hosts in parallel (may be slow or timeout)
+      // Then the remote hosts: from the mesh copy, or (down, older version) asked directly
       const remoteResults = keepLastGood(await Promise.all(
-        remoteHosts.map(host => fetchHostAgents(host))
+        remoteHosts.map(host => {
+          const agents = meshPeers.get(host.id)
+          if (!agents) return fetchHostAgents(host)
+          return asHostResult(host, {
+            agents,
+            stats: { total: agents.length, online: 0, offline: 0, orphans: 0, newlyRegistered: 0 },
+            hostInfo: { id: host.id, name: host.name, url: host.url, isSelf: false },
+          } as AgentsApiResponse, false)
+        })
       ))
 
       // Merge all results

@@ -49,7 +49,9 @@ import {
   broadcastStatusUpdate,
   broadcastChatEvent,
   observedExpired,
-  peerActivity
+  peerActivity,
+  peerAgents,
+  peerSessions
 } from './services/shared-state-bridge.mjs'
 import { createMesh } from './lib/mesh-sync.mjs'
 
@@ -1852,13 +1854,32 @@ async function startServer(handleRequest) {
   const mesh = createMesh({
     selfId: getSelfHostId(),
     version: process.env.AIM_RUNNING_VERSION || '?',
-    getLocalActivity: async () => (await import('./services/sessions-service.ts')).getActivity({ localOnly: true }),
+    feeds: {
+      // Status changes are pushed by notify; the poll catches a report expiring or a session ending
+      status: { pollMs: 5_000, get: async () => (await import('./services/sessions-service.ts')).getActivity({ localOnly: true }) },
+      // The same list this host's own /api/agents gives, by agent id
+      agents: {
+        pollMs: 10_000, minGapMs: 2_000,
+        get: async () => {
+          const r = await (await import('./services/agents-core-service.ts')).listAgents()
+          if (!r.data) throw new Error(r.error || 'listAgents failed')
+          return Object.fromEntries(r.data.agents.map(a => [a.id, a]))
+        },
+      },
+      sessions: {
+        pollMs: 10_000, minGapMs: 2_000,
+        get: async () => {
+          const { sessions } = await (await import('./services/sessions-service.ts')).listLocalSessions()
+          return Object.fromEntries(sessions.map(x => [x.id || x.name, x]))
+        },
+      },
+    },
+    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions },
     getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
-    peerActivity,
-    // A remote agent's change reaches this host's pages in under a second. A dropped host's
-    // agents are not announced: the page's next fetch no longer has them.
-    onRemoteChange: (hostId, name, info) => {
-      if (info) broadcastStatusUpdate(name, info.status, info.hookStatus, info.notificationType)
+    // A remote agent's status change reaches this host's pages in under a second. A dropped
+    // host's agents are not announced: the page's next fetch no longer has them.
+    onRemoteChange: (feed, hostId, name, info) => {
+      if (feed === 'status' && info) broadcastStatusUpdate(name, info.status, info.hookStatus, info.notificationType)
     },
   })
   globalThis._meshNotify = mesh.notify

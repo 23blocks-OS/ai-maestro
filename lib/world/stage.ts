@@ -36,6 +36,7 @@ const POSE: Record<AgentPresence, Pose> = {
   working: 'typing',
   ready: 'standing',
   'needs-you': 'waving',
+  unknown: 'resting',
 }
 /** Back to front */
 const ORDER: AgentPresence[] = ['offline', 'working', 'ready', 'needs-you']

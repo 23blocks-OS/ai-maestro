@@ -20,7 +20,9 @@ if (!globalThis._sharedState) {
     callSessions: new Map(),         // agentId -> CallSessionState for companion call forks
     hookStatus: new Map(),           // sessionName -> { status, notificationType, at } from the Claude Code hook
     observedExpired: new Map(),      // sessionName -> { at, status } an observed permission request the pane showed to be over
-    peerActivity: new Map(),         // hostId -> { agents, seq, okAt, connected } from /mesh (lib/mesh-sync.mjs)
+    peerActivity: new Map(),         // hostId -> { items, seq, okAt, connected } per /mesh feed (lib/mesh-sync.mjs): status
+    peerAgents: new Map(),           //   ... agents
+    peerSessions: new Map(),         //   ... sessions
   }
 }
 // Ensure late-added maps exist for hot-reload / late initialization, and for
@@ -34,8 +36,8 @@ if (!globalThis._sharedState.hookStatus) {
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
 }
-if (!globalThis._sharedState.peerActivity) {
-  globalThis._sharedState.peerActivity = new Map()
+for (const k of ['peerActivity', 'peerAgents', 'peerSessions']) {
+  if (!globalThis._sharedState[k]) globalThis._sharedState[k] = new Map()
 }
 
 const state = globalThis._sharedState
@@ -49,6 +51,8 @@ export const callSessions = state.callSessions
 export const hookStatus = state.hookStatus
 export const observedExpired = state.observedExpired
 export const peerActivity = state.peerActivity
+export const peerAgents = state.peerAgents
+export const peerSessions = state.peerSessions
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.

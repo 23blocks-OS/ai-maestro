@@ -66,7 +66,7 @@ import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession, cannotBeStarted } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, peerActivity, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, peerActivity, peerSessions, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { observedPermissionVerdict, OBSERVED_GRACE_MS } from '@/lib/observed-permission.mjs'
 import { capturePaneSync } from '@/lib/tmux-runtime.mjs'
 import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
@@ -642,8 +642,13 @@ async function fetchAllSessions(): Promise<Session[]> {
   const remoteHosts = hosts.filter(h => !isSelf(h.id))
   if (remoteHosts.length === 0) return localSessions
 
+  // A host connected over /mesh has already sent its sessions; only the others are asked
   const remoteResults = await Promise.all(
-    remoteHosts.map(host => fetchRemoteSessions(host.url, host.id))
+    remoteHosts.map(host => {
+      const copy = peerSessions.get(host.id)
+      if (copy?.connected) return Object.values(copy.items).map((x: Session) => ({ ...x, hostId: host.id }))
+      return fetchRemoteSessions(host.url, host.id)
+    })
   )
 
   const allSessions = [...localSessions, ...remoteResults.flat()]
@@ -831,7 +836,7 @@ export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<R
   if (!opts.localOnly) {
     peerActivity.forEach((copy, hostId) => {
       if (!copy.connected) return
-      for (const [name, info] of Object.entries(copy.agents)) {
+      for (const [name, info] of Object.entries(copy.items)) {
         if (activity[name]) continue
         activity[name] = { ...info, status: normalizeActivityStatus(info.status), lastActivity: info.lastActivity || new Date(copy.okAt).toISOString(), hostId }
       }

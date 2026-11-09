@@ -3,6 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.120] - 2026-11-09 - The agent list and sessions travel over the mesh
+
+### Added
+- Each host also publishes its own agent list and sessions over `/mesh` (protocol 2). A page asks its own host once (`/api/agents?mesh=1`) instead of every host every 10 seconds; the session list and the unified agent list read the same copies. A host not on the mesh (down, or an older version) is still asked directly. An agent whose host cannot be reached shows **Unknown** instead of Ready (F107 step 3).
 ## [0.106.119] - 2026-11-09 - The live status and the fetch agree
 
 ### Fixed

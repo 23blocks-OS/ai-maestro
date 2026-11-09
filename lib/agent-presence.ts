@@ -20,7 +20,7 @@
  * which is only "still idle after a minute", i.e. ready, not needs-you.
  */
 
-export type AgentPresence = 'working' | 'needs-you' | 'ready' | 'offline'
+export type AgentPresence = 'working' | 'needs-you' | 'ready' | 'offline' | 'unknown'
 
 /** Hook notification types that mean the agent is blocked on the user */
 const NEEDS_YOU_NOTIFICATIONS = new Set(['permission_prompt', 'elicitation_dialog'])
@@ -125,5 +125,14 @@ export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
     text: 'text-gray-400',
     ring: 'ring-gray-600/40',
     line: 'border-gray-600',
+  },
+  // Its host cannot be reached: the last list is shown, but nothing is known about it now
+  unknown: {
+    label: 'Unknown',
+    title: 'Unknown: its host cannot be reached right now',
+    dot: 'border border-dashed border-gray-500',
+    text: 'text-gray-500',
+    ring: 'ring-gray-600/30',
+    line: 'border-gray-700',
   },
 }

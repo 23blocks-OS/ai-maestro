@@ -94,7 +94,7 @@ function initialRenderer(): Renderer {
   return window.innerWidth < 640 || !webglAvailable() ? '2d' : '3d'
 }
 
-const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 1, ready: 2, offline: 3 }
+const PRESENCE_RANK: Record<AgentPresence, number> = { 'needs-you': 0, working: 1, ready: 2, unknown: 3, offline: 4 }
 
 /**
  * World: every host / org as an island and its agents as figures on it.

@@ -68,7 +68,7 @@ export function layoutZones(items: Item[], half: number): ZoneRect[] {
 const STEPS = [1.3, 1.1, 0.95, 0.8, 0.7, 0.6, 0.5, 0.42, 0.36]
 const DESK_STEP = 0.8
 const ORDER: AgentPresence[] = ['offline', 'working', 'ready', 'needs-you']
-const POSE: Record<AgentPresence, StagedFigure['pose']> = { offline: 'resting', working: 'typing', ready: 'standing', 'needs-you': 'waving' }
+const POSE: Record<AgentPresence, StagedFigure['pose']> = { offline: 'resting', working: 'typing', ready: 'standing', 'needs-you': 'waving', unknown: 'resting' }
 
 /** Stand a zone's people on a grid inside its rectangle (below the name), the quietest at the back */
 function stageInRect(figs: StageInput[], r: ZoneRect): { figures: StagedFigure[]; step: number } {

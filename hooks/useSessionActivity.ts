@@ -206,6 +206,8 @@ export interface PresenceSubject {
   alias?: string
   session?: { status?: string; tmuxSessionName?: string } | null
   sessions?: Array<{ status?: string }> | null
+  /** Set by useAgents on agents of a host that cannot be reached (shown from its last list) */
+  hostUnreachable?: boolean
 }
 
 function lookup(activity: SessionActivityMap, sessionName?: string | null, agentId?: string | null): SessionActivityInfo | null {
@@ -214,6 +216,7 @@ function lookup(activity: SessionActivityMap, sessionName?: string | null, agent
 
 /** The one mapping from an agent to its status, used by every view */
 export function presenceFromActivity(activity: SessionActivityMap, agent: PresenceSubject, opts: { online?: boolean } = {}): AgentPresence {
+  if (agent.hostUnreachable) return 'unknown'
   const online = opts.online ?? (agent.session?.status === 'online' || agent.sessions?.[0]?.status === 'online')
   const info = lookup(activity, agent.name || agent.alias || agent.session?.tmuxSessionName, agent.id)
   return presenceFrom({ online, activity: info?.status, hookStatus: info?.hookStatus, notificationType: info?.notificationType })

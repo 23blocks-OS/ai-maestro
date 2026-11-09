@@ -1,6 +1,6 @@
 # Spec: one sync channel between hosts
 
-Status: steps 1 and 2 shipped 2026-11-09 (v0.106.113 to v0.106.115, branch `fix/status-owning-host`): audit 0 wrong on this Mac and mac-mini, both ways; a change crosses in about 210 ms. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
+Status: steps 1 and 2 shipped 2026-11-09; step 3 (agents and sessions feeds, protocol 2, Unknown status) in review (v0.106.113 to v0.106.115, branch `fix/status-owning-host`): audit 0 wrong on this Mac and mac-mini, both ways; a change crosses in about 210 ms. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
 
 ## 1. The problem
 

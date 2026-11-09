@@ -86,3 +86,12 @@ describe('presenceFromActivity: the one mapping every view uses', () => {
     expect(presenceFromActivity(activity, { name: 'api-jarvis' }, { online: true })).toBe('working')
   })
 })
+
+describe('an agent whose host cannot be reached', () => {
+  it('is Unknown, whatever its last list or status said', async () => {
+    const { presenceFromActivity } = await import('@/hooks/useSessionActivity')
+    const activity: any = { dahlia: { status: 'active', lastActivity: '' } }
+    expect(presenceFromActivity(activity, { name: 'dahlia', session: { status: 'online' } })).toBe('working')
+    expect(presenceFromActivity(activity, { name: 'dahlia', session: { status: 'online' }, hostUnreachable: true })).toBe('unknown')
+  })
+})

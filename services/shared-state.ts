@@ -53,14 +53,15 @@ export interface HookStatusState {
   at: number
 }
 
-/** One peer host's agents, as that host published them over /mesh (lib/mesh-sync.mjs) */
-export interface PeerActivityCopy {
-  agents: Record<string, { status: string; hookStatus?: string; notificationType?: string; lastActivity?: string }>
+/** One feed of one peer host, as that host published it over /mesh (lib/mesh-sync.mjs) */
+export interface PeerCopy<T = any> {
+  items: Record<string, T>
   seq: number
   okAt: number
   connected: boolean
   version?: string
 }
+export type PeerActivityCopy = PeerCopy<{ status: string; hookStatus?: string; notificationType?: string; lastActivity?: string }>
 
 export interface CallSessionState {
   agentId: string
@@ -87,6 +88,8 @@ declare global {
     hookStatus: Map<string, HookStatusState>
     observedExpired: Map<string, { at: number; status: 'active' | 'idle' }>
     peerActivity: Map<string, PeerActivityCopy>
+    peerAgents: Map<string, PeerCopy>
+    peerSessions: Map<string, PeerCopy>
   } | undefined
   // eslint-disable-next-line no-var
   var _meshNotify: (() => void) | undefined
@@ -103,6 +106,8 @@ if (!globalThis._sharedState) {
     hookStatus: new Map<string, HookStatusState>(),
     observedExpired: new Map<string, { at: number; status: 'active' | 'idle' }>(),
     peerActivity: new Map<string, PeerActivityCopy>(),
+    peerAgents: new Map<string, PeerCopy>(),
+    peerSessions: new Map<string, PeerCopy>(),
   }
 }
 // Ensure late-added maps exist for hot-reload, and for whichever module graph
@@ -119,6 +124,12 @@ if (!globalThis._sharedState.observedExpired) {
 }
 if (!globalThis._sharedState.peerActivity) {
   globalThis._sharedState.peerActivity = new Map()
+}
+if (!globalThis._sharedState.peerAgents) {
+  globalThis._sharedState.peerAgents = new Map()
+}
+if (!globalThis._sharedState.peerSessions) {
+  globalThis._sharedState.peerSessions = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -158,6 +169,12 @@ export const observedExpired: Map<string, { at: number; status: 'active' | 'idle
 
 /** hostId -> that peer's agents, kept by the /mesh client. Read-only here: only lib/mesh-sync.mjs writes it. */
 export const peerActivity: Map<string, PeerActivityCopy> = state.peerActivity
+
+/** hostId -> that peer's agents (its own listAgents, by agent id), from /mesh */
+export const peerAgents: Map<string, PeerCopy> = state.peerAgents
+
+/** hostId -> that peer's sessions (its own local session list, by session id), from /mesh */
+export const peerSessions: Map<string, PeerCopy> = state.peerSessions
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session

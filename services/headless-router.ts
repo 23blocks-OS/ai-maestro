@@ -17,7 +17,7 @@ import { parse } from 'url'
 // ---------------------------------------------------------------------------
 
 import {
-  listAgents,
+  listAgents, listAgentsWithPeers,
   searchAgentsByQuery,
   createNewAgent,
   getAgentById,
@@ -847,7 +847,7 @@ const routes: Route[] = [
     if (query.q) {
       sendServiceResult(res, searchAgentsByQuery(query.q))
     } else {
-      sendServiceResult(res, await listAgents())
+      sendServiceResult(res, query.mesh === '1' ? await listAgentsWithPeers() : await listAgents())
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents$/, paramNames: [], handler: async (req, res) => {

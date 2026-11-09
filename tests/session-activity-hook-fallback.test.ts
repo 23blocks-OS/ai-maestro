@@ -307,11 +307,11 @@ describe('state files in subfolders (docs/AGENT-STATUS.md §6, defect 2)', () =>
 describe('agents of other hosts, from /mesh (docs/SPEC-MESH-SYNC.md)', () => {
   it('are in the feed as their host sent them; a local agent wins; ?local=true leaves them out', async () => {
     const { peerActivity } = await import('@/services/shared-state')
-    peerActivity.set('mac-mini', { connected: true, seq: 1, okAt: Date.now(), agents: {
+    peerActivity.set('mac-mini', { connected: true, seq: 1, okAt: Date.now(), items: {
       dahlia: { status: 'active', hookStatus: 'active', lastActivity: 'x' },
       'backend-api': { status: 'active' },
     } })
-    peerActivity.set('gone', { connected: false, seq: 0, okAt: 0, agents: { ghost: { status: 'active' } } })
+    peerActivity.set('gone', { connected: false, seq: 0, okAt: 0, items: { ghost: { status: 'active' } } })
     hookStatus.set('backend-api', { status: 'idle', at: Date.now() })
     try {
       const all = await getActivity()

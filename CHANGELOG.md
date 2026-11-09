@@ -3,6 +3,20 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.114] - 2026-11-09 - Status reads the agent's subfolders
+
+### Fixed
+- An agent working in a subfolder shows the status of its latest hook event. The server read only the state file of the agent's top folder, so a report lost while the server restarted left the agent Working for up to 15 minutes (ciao-kiosk on mac-mini). It now reads the newest state file in the folder or any subfolder, except another agent's folder (docs/AGENT-STATUS.md §6, defect 2).
+
+## [0.106.113] - 2026-11-09 - Status comes from the hook, not the transcript's file time
+
+### Fixed
+- Agents that finished hours ago no longer show **Working**. The status ignored the hook and read "resumed" from the transcript file's modified time, which Claude Code changes with no new turn (11 agents across two hosts on 2026-11-09). Status now comes only from the hook's report (docs/AGENT-STATUS.md §6, defect 1).
+- With a terminal or chat open, the per-agent hook report is read too, not only the agent's top-folder state file, so an agent working in a subfolder shows its real status (defects 2 and 3).
+
+### Docs
+- `docs/AGENT-STATUS.md` (how status works today, audit, known defects), `docs/SPEC-MESH-SYNC.md` (one sync channel between hosts), `scripts/status-audit.mjs` (read-only status audit). Backlog: F107.
+
 ## [0.106.112] - 2026-11-08 - The chat shows when the agent is working; wake fixes
 
 ### Fixed

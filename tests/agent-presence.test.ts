@@ -71,21 +71,6 @@ describe('normalizeActivityStatus (every broadcast goes through it)', () => {
   })
 })
 
-describe('transcriptResumedSince (fallback for hosts without the PostToolBatch hook)', () => {
-  it('is true only when the transcript grew well after the block was reported', async () => {
-    const fs = await import('fs'); const os = await import('os'); const path = await import('path')
-    const { transcriptResumedSince } = await import('@/services/sessions-service')
-    const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'resume-')), 't.jsonl')
-    fs.writeFileSync(f, '{}')
-    const now = Date.now()
-    fs.utimesSync(f, new Date(now), new Date(now))
-    expect(transcriptResumedSince(f, now - 60_000)).toBe(true)   // written a minute after the block
-    expect(transcriptResumedSince(f, now - 1_000)).toBe(false)   // within the margin: not proof
-    expect(transcriptResumedSince(undefined, now)).toBe(false)
-    expect(transcriptResumedSince('/nope/none.jsonl', 0)).toBe(false)
-  })
-})
-
 describe('presenceFromActivity: the one mapping every view uses', () => {
   it('reads an agent by session name, then by id, with the full hook detail', async () => {
     const { presenceFromActivity } = await import('@/hooks/useSessionActivity')

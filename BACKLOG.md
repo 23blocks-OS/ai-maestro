@@ -122,6 +122,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **F101** — [Kiosk auth: the owner proves it is them with a tap and a picture](./backlog/F101-kiosk-auth-by-face.md) — `Todo` (later)
 - **F102** — [Jev decides if a turn is light (the cerebellum answers) or heavy (the main session works)](./backlog/F102-jev-routes-cerebellum-turns.md) — `Todo`
 - **F103** — [A paired device can speak as its owner (the phone counts as Juan)](./backlog/F103-paired-device-speaks-as-person.md) — `In Progress`
+- **F107** — [One sync channel between hosts](./backlog/F107-one-sync-channel-between-hosts.md) — `Todo` (spec)
 
 ## Bugs
 

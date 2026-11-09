@@ -123,18 +123,8 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
   // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
   const storageId = session.agentId || session.id
 
-  // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
-  // This ensures the terminal container has the correct height BEFORE xterm.js initializes
-  const [notesCollapsed, setNotesCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    const mobile = window.innerWidth < 768
-    const collapsedKey = `agent-notes-collapsed-${session.agentId || session.id}`
-    const savedCollapsed = localStorage.getItem(collapsedKey)
-    if (savedCollapsed !== null) {
-      return savedCollapsed === 'true'
-    }
-    return mobile // Default to collapsed on mobile, expanded on desktop
-  })
+  // Notes always open collapsed (Juan, 2026-11-09); expanding is for this visit only
+  const [notesCollapsed, setNotesCollapsed] = useState(true)
 
   const FOOTER_TAB_STORAGE_KEY = 'terminal-footer-tab'
 
@@ -647,11 +637,6 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
     })
     return () => cancelAnimationFrame(timer)
   }, [footerTab, notesCollapsed])
-
-  // Save collapsed state to localStorage
-  useEffect(() => {
-    localStorage.setItem(`agent-notes-collapsed-${storageId}`, String(notesCollapsed))
-  }, [notesCollapsed, storageId])
 
   // Save logging state to localStorage
   useEffect(() => {

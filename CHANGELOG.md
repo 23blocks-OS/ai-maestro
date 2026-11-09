@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.117] - 2026-11-09 - An agent's notes open collapsed
+
+### Changed
+- An agent's notes always open collapsed; expanding them lasts for that visit only.
+
 ## [0.106.116] - 2026-11-09 - The chat's working message wraps
 
 ### Fixed

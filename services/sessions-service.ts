@@ -924,8 +924,10 @@ export function broadcastActivityUpdate(
       .catch((err) => console.warn('[Push] needs-you push failed:', err))
   }
 
-  // The sidebar vocabulary, never the raw hook word (lib/agent-presence.ts)
-  broadcastStatusUpdate(sessionName, normalizeActivityStatus(hookStatus || status, notificationType), hookStatus, notificationType, agentId)
+  // The page gets the same entry the fetch gives (getActivity's rules: terminal, observed
+  // expiry, subfolder files), not the raw report, so the socket and the 30 s fetch never
+  // disagree and the status cannot flip between them (docs/AGENT-STATUS.md §6, defect 6).
+  void broadcastComputedStatus(sessionName, normalizeActivityStatus(hookStatus || status, notificationType), hookStatus, notificationType, agentId)
 
   // Push hookState to chat-subscribed WebSocket clients in real-time
   if (hookState) {
@@ -951,6 +953,16 @@ export function broadcastActivityUpdate(
   }
 
   return { data: { success: true }, status: 200 }
+}
+
+/** Broadcast an agent's status as getActivity computes it; the report itself when the feed has no entry. */
+async function broadcastComputedStatus(sessionName: string, status: string, hookStatus?: string, notificationType?: string, agentId?: string): Promise<void> {
+  let entry: SessionActivityInfo | undefined
+  if (sessionName) {
+    try { entry = (await getActivity({ localOnly: true }))[sessionName] } catch { /* fall back to the report */ }
+  }
+  if (entry) broadcastStatusUpdate(sessionName, entry.status, entry.hookStatus, entry.notificationType, agentId)
+  else broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)
 }
 
 /**

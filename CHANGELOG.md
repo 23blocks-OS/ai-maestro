@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.119] - 2026-11-09 - The live status and the fetch agree
+
+### Fixed
+- The live status socket sends an agent's status as the feed computes it (terminal, a permission the pane showed to be over, subfolder files), not the hook's raw report, so the page no longer flips between the two (docs/AGENT-STATUS.md §6, defect 6).
+
 ## [0.106.118] - 2026-11-09 - Attach files from the chat
 
 ### Added

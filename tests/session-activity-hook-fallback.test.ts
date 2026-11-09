@@ -322,3 +322,45 @@ describe('agents of other hosts, from /mesh (docs/SPEC-MESH-SYNC.md)', () => {
     } finally { peerActivity.clear() }
   })
 })
+
+describe('the /status socket sends what the fetch gives (docs/AGENT-STATUS.md §6, defect 6)', () => {
+  it('a permission request the pane showed to be over goes out as the fetch reports it, not as Needs you', async () => {
+    const { statusSubscribers, observedExpired } = await import('@/services/shared-state')
+    const { broadcastActivityUpdate } = await import('@/services/sessions-service')
+    const sent: any[] = []
+    const ws: any = { readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) }
+    statusSubscribers.add(ws)
+    try {
+      // The hook's file says permission_request (observed); the sweep recorded it as over
+      const at = Date.now() - 1000
+      const dir = path.join(tmpHome, '.aimaestro', 'chat-state')
+      fs.mkdirSync(dir, { recursive: true })
+      const hash = crypto.createHash('md5').update('/repos/api').digest('hex').substring(0, 16)
+      fs.writeFileSync(path.join(dir, `${hash}.json`), JSON.stringify({ status: 'permission_request', observed: true, cwd: '/repos/api', updatedAt: new Date(at).toISOString() }))
+      observedExpired.set('backend-api', { at, status: 'active' })
+
+      broadcastActivityUpdate('backend-api', 'idle', 'idle', undefined, 'a1')
+      await new Promise(r => setTimeout(r, 20))
+      const fetched = (await getActivity())['backend-api']
+      const update = sent.filter(m => m.type === 'status_update').at(-1)
+      expect(update.status).toBe(fetched.status)
+      expect(update.hookStatus).toBe(fetched.hookStatus)
+    } finally {
+      statusSubscribers.delete(ws)
+      observedExpired.clear()
+    }
+  })
+
+  it('a session that ended (no entry in the feed) still goes out as reported', async () => {
+    const { statusSubscribers } = await import('@/services/shared-state')
+    const { broadcastActivityUpdate } = await import('@/services/sessions-service')
+    const sent: any[] = []
+    const ws: any = { readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) }
+    statusSubscribers.add(ws)
+    try {
+      broadcastActivityUpdate('frontend-web', 'ended', 'ended')
+      await new Promise(r => setTimeout(r, 20))
+      expect(sent.at(-1)).toMatchObject({ type: 'status_update', sessionName: 'frontend-web', hookStatus: 'ended' })
+    } finally { statusSubscribers.delete(ws) }
+  })
+})

@@ -196,7 +196,7 @@ export const peerSessions: Map<string, PeerCopy> = state.peerSessions
 /** hostId -> that peer's status snapshots (by agent id and name), from /mesh */
 export const peerSnapshots: Map<string, PeerCopy> = state.peerSnapshots
 
-/** hostId -> that peer's active people (its own listPeople, by person id), from /mesh */
+/** hostId -> that peer's people, inactive ones too (its own listPeople, by person id), from /mesh */
 export const peerPeople: Map<string, PeerCopy> = state.peerPeople
 
 /** hostId -> that peer's deliveries of the last few minutes (world events, by message id), from /mesh */

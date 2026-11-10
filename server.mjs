@@ -1874,11 +1874,11 @@ async function startServer(handleRequest) {
         pollMs: 15_000,
         get: async () => (await import('./services/status-snapshots-service.ts')).getLocalSnapshots(),
       },
-      // The people directory, so a peer can link its agents' managers without asking (F107 step 4)
+      // The people directory (inactive ones too), so a peer can link managers and find a person's host without asking
       people: {
         pollMs: 30_000,
         get: async () => {
-          const r = (await import('./services/people-service.ts')).listPeople()
+          const r = (await import('./services/people-service.ts')).listPeople({ includeInactive: true })
           return Object.fromEntries((r.data?.people || []).map(p => [p.id, p]))
         },
       },

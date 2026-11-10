@@ -3,6 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.131] - 2026-11-09 - Finding a person's host reads the mesh
+
+### Changed
+- Finding which host holds a person's record (to deliver to their mailbox) reads the other hosts' people from `/mesh`; the people feed now includes inactive people. A device key is still asked of the person's host every time, so a revoked key stops working at once.
 ## [0.106.130] - 2026-11-09 - A label finds an agent on another host
 
 ### Changed

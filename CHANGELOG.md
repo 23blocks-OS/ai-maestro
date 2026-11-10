@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.126] - 2026-11-09 - Manager links read the mesh
+
+### Changed
+- Linking agents to their managers reads other hosts' people and agents from `/mesh`. A new `people` feed carries each host's active people. Only a peer not on the mesh is asked directly (F107 step 4).
+
 ## [0.106.125] - 2026-11-09 - The agent directory lists other hosts again
 
 ### Fixed

@@ -52,7 +52,8 @@ import {
   peerActivity,
   peerAgents,
   peerSessions,
-  peerSnapshots
+  peerSnapshots,
+  peerPeople
 } from './services/shared-state-bridge.mjs'
 import { createMesh } from './lib/mesh-sync.mjs'
 
@@ -1872,6 +1873,14 @@ async function startServer(handleRequest) {
         pollMs: 15_000,
         get: async () => (await import('./services/status-snapshots-service.ts')).getLocalSnapshots(),
       },
+      // The people directory, so a peer can link its agents' managers without asking (F107 step 4)
+      people: {
+        pollMs: 30_000,
+        get: async () => {
+          const r = (await import('./services/people-service.ts')).listPeople()
+          return Object.fromEntries((r.data?.people || []).map(p => [p.id, p]))
+        },
+      },
       sessions: {
         pollMs: 10_000, minGapMs: 2_000,
         get: async () => {
@@ -1880,7 +1889,7 @@ async function startServer(handleRequest) {
         },
       },
     },
-    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots },
+    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots, people: peerPeople },
     getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
     // A remote agent's status change reaches this host's pages in under a second. A dropped
     // host's agents are not announced: the page's next fetch no longer has them.

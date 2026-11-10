@@ -132,4 +132,16 @@ describe('linkAgentManagers', () => {
     expect(updateAgentById).toHaveBeenCalledWith(A1, { humanManager: 'p-ana-0001' })
     expect(r.data!.links[0].error).toBe('nope')
   })
+
+  it('reads a peer on /mesh from its copies and does not ask it', async () => {
+    const { peerAgents, peerPeople } = await import('@/services/shared-state')
+    peerPeople.set('mini', { items: { [ANA.id]: { ...ANA, active: true } }, seq: 1, okAt: 1, connected: true })
+    peerAgents.set('mini', { items: {}, seq: 1, okAt: 1, connected: true })
+    try {
+      const { linkAgentManagers } = await import('@/services/agents-manager-links-service')
+      const r = await linkAgentManagers()
+      expect(r.data!.links.map(l => l.agentId)).toEqual([A1])
+      expect((fetch as any).mock.calls.some((c: string[]) => c[0].startsWith('http://mini'))).toBe(false)
+    } finally { peerPeople.clear(); peerAgents.clear() }
+  })
 })

@@ -99,3 +99,26 @@ describe('the agents feed rides the same socket', () => {
     await until(() => a.copies.agents.get('b').items.id1.session.status === 'online', 1500)
   })
 })
+
+describe('a peer on another protocol', () => {
+  const cleanups: Array<() => void> = []
+  afterEach(() => cleanups.splice(0).forEach(f => f()))
+  it('is marked with its version on the status copy, so pages can say "old version"', async () => {
+    const { WebSocketServer } = await import('ws')
+    const server = http.createServer()
+    const wss = new WebSocketServer({ server })
+    wss.on('connection', ws => ws.send(JSON.stringify({ type: 'hello', hostId: 'old', version: '0.106.100', protocol: 1 })))
+    await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r()))
+    const peerActivity = new Map()
+    const mesh = createMesh({
+      selfId: 'a', version: 't', log: () => {}, onRemoteChange: () => {},
+      getPeers: () => [{ id: 'old', url: `http://127.0.0.1:${(server.address() as any).port}` }],
+      feeds: { status: { pollMs: 60_000, get: async () => ({}) } },
+      copies: { status: peerActivity },
+    } as any)
+    cleanups.push(() => { mesh.stop(); wss.close(); server.close() })
+    mesh.start()
+    await until(() => !!peerActivity.get('old')?.oldVersion)
+    expect(peerActivity.get('old')).toMatchObject({ oldVersion: '0.106.100', connected: false })
+  })
+})

@@ -129,7 +129,7 @@ export const PRESENCE_STYLE: Record<AgentPresence, PresenceStyle> = {
   // Its host cannot be reached: the last list is shown, but nothing is known about it now
   unknown: {
     label: 'Unknown',
-    title: 'Unknown: its host cannot be reached right now',
+    title: 'Unknown: its host cannot be reached right now, or runs an older version',
     dot: 'border border-dashed border-gray-500',
     text: 'text-gray-500',
     ring: 'ring-gray-600/30',

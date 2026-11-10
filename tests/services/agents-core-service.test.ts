@@ -75,6 +75,8 @@ const {
     mockSharedState: {
       sessionActivity: new Map<string, number>(),
       agentActivity: new Map<string, number>(),
+      peerAgents: new Map(),
+      peerActivity: new Map(),
     },
     mockAgentStartup: {
       initializeAllAgents: vi.fn().mockResolvedValue({ initialized: [], failed: [] }),

@@ -1313,6 +1313,15 @@ export default function AgentList({
                                                   </span>
                                                 )}
 
+                                                {agent.hostOldVersion && (
+                                                  <span
+                                                    className="text-[10px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 flex-shrink-0"
+                                                    title={`Its host runs an older version (v${agent.hostOldVersion}): status unknown until it is updated`}
+                                                  >
+                                                    old version
+                                                  </span>
+                                                )}
+
                                                 {/* Orphan indicator */}
                                                 {agent.isOrphan && (
                                                   <span

@@ -71,7 +71,7 @@ import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/l
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
-import { sessionActivity, agentActivity, peerAgents } from '@/services/shared-state'
+import { sessionActivity, agentActivity, peerAgents, peerActivity } from '@/services/shared-state'
 import { runtimeOf, lastRuntimeOf, runningOutsideTmux, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
 import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
@@ -731,7 +731,10 @@ export async function listAgentsWithPeers(): Promise<ServiceResult<any>> {
   peerAgents.forEach((copy, hostId) => {
     if (copy.connected) peers.push({ hostId, version: copy.version, okAt: copy.okAt, agents: Object.values(copy.items) as Agent[] })
   })
-  return { data: { ...own.data, peers }, status: 200 }
+  // Peers on another mesh protocol: the page asks them directly, but gets no status for their agents
+  const oldVersionHosts: Record<string, string> = {}
+  peerActivity.forEach((copy, hostId) => { if (copy.oldVersion && !copy.connected) oldVersionHosts[hostId] = copy.oldVersion })
+  return { data: { ...own.data, peers, oldVersionHosts }, status: 200 }
 }
 
 /** Counts for a host's agent list */

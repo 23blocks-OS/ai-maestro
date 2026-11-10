@@ -60,6 +60,8 @@ export interface PeerCopy<T = any> {
   okAt: number
   connected: boolean
   version?: string
+  /** Set while that peer speaks another mesh protocol: its version */
+  oldVersion?: string
 }
 export type PeerActivityCopy = PeerCopy<{ status: string; hookStatus?: string; notificationType?: string; lastActivity?: string }>
 

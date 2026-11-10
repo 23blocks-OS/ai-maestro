@@ -3,6 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.129] - 2026-11-09 - A host on an older version says so
+
+### Fixed
+- A peer on an older mesh protocol had its agents shown as Ready, because a direct fetch carries no status. Their status is now Unknown, and the agent list shows an "old version" badge with that host's version until it is updated.
 ## [0.106.128] - 2026-11-09 - Agents with the same name on two hosts each show their own status
 
 ### Fixed

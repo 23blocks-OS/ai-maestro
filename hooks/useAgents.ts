@@ -89,6 +89,12 @@ function asHostResult(host: Host, data: AgentsApiResponse, isSelf: boolean): Hos
   }
 }
 
+/** A host on an older mesh protocol: its list is fetched directly, but no status comes with it, so Unknown */
+function markOldVersion<T extends HostFetchResult>(r: T, version: string): T {
+  if (!r.response) return r
+  return { ...r, response: { ...r.response, agents: r.response.agents.map(a => ({ ...a, hostUnreachable: true, hostOldVersion: version })) } }
+}
+
 /** A host that cannot be reached: keep its last list, with the status shown as Unknown */
 function unreachable(response: AgentsApiResponse): AgentsApiResponse {
   return { ...response, agents: response.agents.map(a => ({ ...a, hostUnreachable: true })) }
@@ -96,8 +102,10 @@ function unreachable(response: AgentsApiResponse): AgentsApiResponse {
 
 /** Every peer's agents as this page's own host received them over /mesh (`?mesh=1`) */
 type MeshPeers = Array<{ hostId: string; agents: Agent[] }>
+/** Peers on an older mesh protocol (hostId -> version): their agents' status cannot be known */
+type OldVersionHosts = Record<string, string>
 
-async function fetchHostAgents(host: Host, query = ''): Promise<HostFetchResult & { peers?: MeshPeers }> {
+async function fetchHostAgents(host: Host, query = ''): Promise<HostFetchResult & { peers?: MeshPeers; oldVersionHosts?: OldVersionHosts }> {
   const isSelf = host.isSelf || isLocalhostUrl(host.url)
   const baseUrl = isSelf ? '' : host.url
   const timeout = isSelf ? SELF_FETCH_TIMEOUT : PEER_FETCH_TIMEOUT
@@ -116,8 +124,8 @@ async function fetchHostAgents(host: Host, query = ''): Promise<HostFetchResult 
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const { peers, ...data } = await response.json() as AgentsApiResponse & { peers?: MeshPeers }
-    return { ...asHostResult(host, data, isSelf), ...(peers && { peers }) }
+    const { peers, oldVersionHosts, ...data } = await response.json() as AgentsApiResponse & { peers?: MeshPeers; oldVersionHosts?: OldVersionHosts }
+    return { ...asHostResult(host, data, isSelf), ...(peers && { peers }), ...(oldVersionHosts && { oldVersionHosts }) }
   } catch (error) {
     console.error(`[useAgents] Failed to fetch from ${host.name} (${host.url}):`, error)
 
@@ -280,6 +288,7 @@ export function useAgents() {
       const ownFetches = await Promise.all(localHosts.map(host => fetchHostAgents(host, '?mesh=1')))
       const meshPeers = new Map<string, Agent[]>()
       for (const r of ownFetches) for (const p of r.peers || []) meshPeers.set(p.hostId, p.agents)
+      const oldVersion: OldVersionHosts = Object.assign({}, ...ownFetches.map(r => r.oldVersionHosts || {}))
       const localResults = keepLastGood(ownFetches.map(({ peers: _peers, ...r }) => r))
 
       // On first load only, show local agents right away so UI doesn't wait for remotes.
@@ -296,7 +305,8 @@ export function useAgents() {
       const remoteResults = keepLastGood(await Promise.all(
         remoteHosts.map(host => {
           const agents = meshPeers.get(host.id)
-          if (!agents) return fetchHostAgents(host)
+          const old = oldVersion[host.id]
+          if (!agents) return old ? fetchHostAgents(host).then(r => markOldVersion(r, old)) : fetchHostAgents(host)
           return asHostResult(host, {
             agents,
             stats: { total: agents.length, online: 0, offline: 0, orphans: 0, newlyRegistered: 0 },

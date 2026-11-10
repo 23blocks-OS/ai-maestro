@@ -21,6 +21,8 @@ import {
   getLocalEntriesForSync,
   getDirectoryStats,
   lookupAgent,
+  lookupMeshAgent,
+  meshAgents,
 } from '@/lib/agent-directory'
 import { resolveAgentRef } from '@/lib/agent-resolve'
 import {
@@ -83,9 +85,15 @@ export function lookupAgentByDirectoryName(name: string): ServiceResult<any> {
 
     if (!entry) {
       // Not an address. People say the label ("Titania") or alias ("IaC"); resolve those to the real name.
-      const r = resolveAgentRef(decodedName, loadAgents())
+      // This host's agents first (a label here keeps meaning the agent here), then the other hosts' on /mesh.
+      let r = resolveAgentRef(decodedName, loadAgents())
+      let remote = false
+      if (r.status === 'none') {
+        const there = resolveAgentRef(decodedName, meshAgents())
+        if (there.status !== 'none') { r = there; remote = true }
+      }
       if (r.status === 'found') {
-        const byName = lookupAgent(r.agent.name.toLowerCase())
+        const byName = remote ? lookupMeshAgent(r.agent.name, r.agent.hostId || "") : lookupAgent(r.agent.name.toLowerCase())
         if (byName) return { data: { found: true, matchedBy: r.via, agent: dirAgent(byName) }, status: 200 }
       }
       if (r.status === 'ambiguous') return { data: { found: false, ambiguous: true, matchedBy: r.via, candidates: r.candidates }, status: 200 }

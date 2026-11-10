@@ -3,6 +3,10 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.130] - 2026-11-09 - A label finds an agent on another host
+
+### Changed
+- A directory lookup by label or alias ("Dahlia") that matches no agent on this host now searches the other hosts' agents on `/mesh`. A label used on two other hosts comes back as ambiguous with both candidates. A label that matches an agent here keeps meaning that agent.
 ## [0.106.129] - 2026-11-09 - A host on an older version says so
 
 ### Fixed

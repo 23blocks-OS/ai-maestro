@@ -186,13 +186,28 @@ export function lookupAgent(name: string): AgentDirectoryEntry | null {
   return meshEntries()[normalizedName] || null
 }
 
-/** Entries for the agents of every peer on /mesh, by lowercase name */
-function meshEntries(): Record<string, AgentDirectoryEntry> {
+/** Every agent of the peers on /mesh, as the registry records them (for label and alias lookups) */
+export function meshAgents(): any[] {
+  const out: any[] = []
+  for (const [hostId, copy] of peerAgents) {
+    if (copy.connected) for (const a of Object.values(copy.items) as any[]) out.push({ ...a, hostId: a.hostId || hostId })
+  }
+  return out
+}
+
+/** The directory entry of one peer's agent, even when an agent here has the same name */
+export function lookupMeshAgent(name: string, hostId: string): AgentDirectoryEntry | null {
+  const e = meshEntries(hostId)[name.toLowerCase()]
+  return e || null
+}
+
+/** Entries for the agents of every peer on /mesh (or of one), by lowercase name */
+function meshEntries(onlyHost?: string): Record<string, AgentDirectoryEntry> {
   const out: Record<string, AgentDirectoryEntry> = {}
   let urls = new Map<string, string>()
   try { urls = new Map(getPeerHosts().map(h => [h.id, h.url])) } catch { /* no host list */ }
   for (const [hostId, copy] of peerAgents) {
-    if (!copy.connected) continue
+    if (!copy.connected || (onlyHost && hostId !== onlyHost)) continue
     for (const a of Object.values(copy.items) as any[]) {
       const name = (a.name || a.alias)?.toLowerCase()
       if (!name || a.deletedAt) continue

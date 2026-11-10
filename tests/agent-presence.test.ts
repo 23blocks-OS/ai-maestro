@@ -71,6 +71,16 @@ describe('normalizeActivityStatus (every broadcast goes through it)', () => {
   })
 })
 
+describe('same name on two hosts', () => {
+  it('reads name@host first, so a local agent with the same name cannot hide the remote one', async () => {
+    const { presenceFromActivity } = await import('@/hooks/useSessionActivity')
+    const activity: any = { 'piano-instructor': { status: 'idle' }, 'piano-instructor@mini-lola': { status: 'active', hookStatus: 'working' } }
+    const online = { status: 'online' }
+    expect(presenceFromActivity(activity, { name: 'piano-instructor', hostId: 'mini-lola', session: online })).toBe('working')
+    expect(presenceFromActivity(activity, { name: 'piano-instructor', hostId: 'self', session: online })).toBe('ready')
+  })
+})
+
 describe('presenceFromActivity: the one mapping every view uses', () => {
   it('reads an agent by session name, then by id, with the full hook detail', async () => {
     const { presenceFromActivity } = await import('@/hooks/useSessionActivity')

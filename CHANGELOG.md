@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.128] - 2026-11-09 - Agents with the same name on two hosts each show their own status
+
+### Fixed
+- An agent on another host with the same name as one here (email-gateway, piano-instructor, intercambio-ccenglish) showed this host's agent's status. Peer status is now also keyed `name@host`, the page reads that key first, and the live updates go to it.
+
 ## [0.106.127] - 2026-11-09 - World events read the mesh
 
 ### Changed

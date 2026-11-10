@@ -837,8 +837,10 @@ export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<R
     peerActivity.forEach((copy, hostId) => {
       if (!copy.connected) return
       for (const [name, info] of Object.entries(copy.items)) {
-        if (activity[name]) continue
-        activity[name] = { ...info, status: normalizeActivityStatus(info.status), lastActivity: info.lastActivity || new Date(copy.okAt).toISOString(), hostId }
+        const entry = { ...info, status: normalizeActivityStatus(info.status), lastActivity: info.lastActivity || new Date(copy.okAt).toISOString(), hostId }
+        // `name@host` always: an agent with the same name on this host must not hide it (presenceOf reads this key first)
+        activity[`${name}@${hostId}`] = entry
+        if (!activity[name]) activity[name] = entry
       }
     })
   }

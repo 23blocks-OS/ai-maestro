@@ -1902,8 +1902,11 @@ async function startServer(handleRequest) {
     getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
     // A remote agent's status change reaches this host's pages in under a second. A dropped
     // host's agents are not announced: the page's next fetch no longer has them.
-    onRemoteChange: (feed, hostId, name, info) => {
-      if (feed === 'status' && info) broadcastStatusUpdate(name, info.status, info.hookStatus, info.notificationType)
+    // `name@host` always (same key as getActivity), the bare name only when no local agent has it.
+    onRemoteChange: (feed, hostId, name, info, local) => {
+      if (feed !== 'status' || !info) return
+      broadcastStatusUpdate(`${name}@${hostId}`, info.status, info.hookStatus, info.notificationType)
+      if (!local) broadcastStatusUpdate(name, info.status, info.hookStatus, info.notificationType)
     },
   })
   globalThis._meshNotify = mesh.notify

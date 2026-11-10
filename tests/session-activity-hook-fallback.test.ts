@@ -317,6 +317,7 @@ describe('agents of other hosts, from /mesh (docs/SPEC-MESH-SYNC.md)', () => {
       const all = await getActivity()
       expect(all.dahlia).toMatchObject({ status: 'active', hostId: 'mac-mini' })
       expect(all['backend-api'].status).toBe('idle')
+      expect(all['backend-api@mac-mini']).toMatchObject({ status: 'active', hostId: 'mac-mini' }) // same name here: still reachable
       expect(all.ghost).toBeUndefined()
       expect((await getActivity({ localOnly: true })).dahlia).toBeUndefined()
     } finally { peerActivity.clear() }

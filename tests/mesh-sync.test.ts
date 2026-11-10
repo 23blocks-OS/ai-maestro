@@ -31,18 +31,19 @@ describe('two hosts over /mesh', () => {
     const peerActivity = new Map()
     const peerAgents = new Map()
     const remote: Array<[string, string, any]> = []
+    const flags: Record<string, boolean> = {}
     const mesh = createMesh({
       selfId: id, version: 't', getPeers: peers, log: () => {},
       feeds: { status: { pollMs: 60_000, get: async () => ({ ...local }) }, agents: { pollMs: 60_000, get: async () => ({ ...agents }) } },
       copies: { status: peerActivity, agents: peerAgents },
-      onRemoteChange: (feed: string, h: string, n: string, i: any) => { if (feed === 'status') remote.push([h, n, i]) },
+      onRemoteChange: (feed: string, h: string, n: string, i: any, l: boolean) => { if (feed === 'status') { remote.push([h, n, i]); flags[n] = l } },
     } as any)
     const server = http.createServer()
     server.on('upgrade', (req, sock, head) => mesh.handleUpgrade(req, sock, head))
     await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r()))
     const url = `http://127.0.0.1:${(server.address() as any).port}`
     cleanups.push(() => { mesh.stop(); server.close() })
-    return { mesh, url, local, agents, peerActivity, peerAgents, remote, server }
+    return { mesh, url, local, agents, peerActivity, peerAgents, remote, flags, server }
   }
 
   it('a change on one host reaches the other at once; a local agent with the same name wins', async () => {
@@ -52,7 +53,8 @@ describe('two hosts over /mesh', () => {
     a.mesh.start()
     await until(() => a.peerActivity.get('b')?.connected)
     expect(a.peerActivity.get('b').items.dahlia).toEqual({ status: 'idle' })
-    expect(a.remote.map(r => r[1])).toEqual(['dahlia']) // 'same' is local on a: not forwarded
+    // 'same' is local on a too: forwarded, marked local, so a broadcasts only `same@b`
+    expect(a.flags).toEqual({ dahlia: false, same: true })
 
     b.local.dahlia = { status: 'active' }
     b.mesh.notify()

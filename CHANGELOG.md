@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.125] - 2026-11-09 - The agent directory lists other hosts again
+
+### Fixed
+- The agent directory (`/api/agents/directory/lookup/<name>`) lists the agents of every host on `/mesh`. Its peer sync was never started, so it had held only local agents since #147 (B035). The dead sync code is removed; `POST /api/agents/directory/sync` now only rebuilds the local part.
+
 ## [0.106.124] - 2026-11-09 - Agent lookups read the mesh
 
 ### Changed

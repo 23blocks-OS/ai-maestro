@@ -4,17 +4,16 @@
  * A distributed directory service for locating agents across the mesh network.
  * Each AI Maestro instance maintains its own directory of known agents.
  *
- * Key features:
- * - Fast agent name -> host location lookups
- * - Mesh-wide agent discovery
- * - Periodic sync with peer hosts
- * - Caching with TTL for performance
+ * Local agents are kept in ~/.aimaestro/agent-directory.json (rebuilt from the registry).
+ * Other hosts' agents are read from the copies /mesh keeps (docs/SPEC-MESH-SYNC.md):
+ * a host on the mesh is listed, a host off it is not. Nothing here asks a peer.
  */
 
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { getSelfHostId, getPeerHosts } from './hosts-config'
+import { peerAgents } from '@/services/shared-state'
 import { loadAgents, normalizeHostId } from './agent-registry'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
@@ -22,9 +21,6 @@ const DIRECTORY_FILE = path.join(AIMAESTRO_DIR, 'agent-directory.json')
 
 // Cache TTL in milliseconds (5 minutes)
 const CACHE_TTL = 5 * 60 * 1000
-
-// Directory sync interval (1 minute)
-const SYNC_INTERVAL = 60 * 1000
 
 // ============================================================================
 // Types
@@ -184,34 +180,34 @@ export function rebuildLocalDirectory(): AgentDirectory {
  * Look up an agent in the directory
  */
 export function lookupAgent(name: string): AgentDirectoryEntry | null {
-  const directory = loadDirectory()
   const normalizedName = name.toLowerCase()
-  return directory.entries[normalizedName] || null
+  const local = loadDirectory().entries[normalizedName]
+  if (local?.source === 'local') return local
+  return meshEntries()[normalizedName] || null
 }
 
-/**
- * Register a remote agent in the directory
- * Called when we learn about agents from peer hosts
- */
-export function registerRemoteAgent(entry: Omit<AgentDirectoryEntry, 'source' | 'lastSeen'>): boolean {
-  const directory = loadDirectory()
-  const normalizedName = entry.name.toLowerCase()
-
-  // Don't overwrite local entries with remote ones
-  const existing = directory.entries[normalizedName]
-  if (existing && existing.source === 'local') {
-    console.log(`[Agent Directory] Skipping remote update for local agent: ${normalizedName}`)
-    return false
+/** Entries for the agents of every peer on /mesh, by lowercase name */
+function meshEntries(): Record<string, AgentDirectoryEntry> {
+  const out: Record<string, AgentDirectoryEntry> = {}
+  let urls = new Map<string, string>()
+  try { urls = new Map(getPeerHosts().map(h => [h.id, h.url])) } catch { /* no host list */ }
+  for (const [hostId, copy] of peerAgents) {
+    if (!copy.connected) continue
+    for (const a of Object.values(copy.items) as any[]) {
+      const name = (a.name || a.alias)?.toLowerCase()
+      if (!name || a.deletedAt) continue
+      out[name] = {
+        name,
+        hostId: normalizeHostId(a.hostId || hostId),
+        hostUrl: a.hostUrl || urls.get(hostId),
+        ampAddress: a.metadata?.amp?.address,
+        ampRegistered: a.ampRegistered === true,
+        lastSeen: new Date(copy.okAt || Date.now()).toISOString(),
+        source: 'remote',
+      }
+    }
   }
-
-  directory.entries[normalizedName] = {
-    ...entry,
-    name: normalizedName,
-    lastSeen: new Date().toISOString(),
-    source: 'remote'
-  }
-
-  return saveDirectory(directory)
+  return out
 }
 
 /**
@@ -233,8 +229,10 @@ export function unregisterAgent(name: string): boolean {
  * Get all entries in the directory
  */
 export function getAllDirectoryEntries(): AgentDirectoryEntry[] {
-  const directory = loadDirectory()
-  return Object.values(directory.entries)
+  const local = Object.values(loadDirectory().entries).filter(e => e.source === 'local')
+  const merged = meshEntries()
+  for (const e of local) merged[e.name] = e // this host's own agents win
+  return Object.values(merged)
 }
 
 /**
@@ -249,7 +247,7 @@ export function getDirectoryStats(): {
   lastSync: string
 } {
   const directory = loadDirectory()
-  const entries = Object.values(directory.entries)
+  const entries = getAllDirectoryEntries()
 
   return {
     total: entries.length,
@@ -261,124 +259,10 @@ export function getDirectoryStats(): {
   }
 }
 
-// ============================================================================
-// Mesh Sync
-// ============================================================================
-
-/**
- * Sync directory with peer hosts
- * Fetches agent lists from all known peers and updates directory
- */
-export async function syncWithPeers(timeout: number = 5000): Promise<{
-  synced: string[]
-  failed: string[]
-  newAgents: number
-}> {
-  const peerHosts = getPeerHosts()
-  const result = {
-    synced: [] as string[],
-    failed: [] as string[],
-    newAgents: 0
-  }
-
-  for (const host of peerHosts) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), timeout)
-
-      const response = await fetch(`${host.url}/api/agents/directory`, {
-        signal: controller.signal
-      })
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        result.failed.push(host.id)
-        continue
-      }
-
-      const data = await response.json()
-      if (data.entries && Array.isArray(data.entries)) {
-        for (const entry of data.entries) {
-          // Only import entries from the peer's local agents
-          if (entry.source === 'local' && entry.hostId === host.id) {
-            const existing = lookupAgent(entry.name)
-            if (!existing || existing.source === 'remote') {
-              registerRemoteAgent({
-                name: entry.name,
-                hostId: entry.hostId,
-                hostUrl: entry.hostUrl || host.url,
-                ampAddress: entry.ampAddress,
-                ampRegistered: entry.ampRegistered
-              })
-              result.newAgents++
-            }
-          }
-        }
-      }
-
-      result.synced.push(host.id)
-    } catch (error) {
-      result.failed.push(host.id)
-    }
-  }
-
-  return result
-}
-
 /**
  * Get local entries for sharing with peers
  */
 export function getLocalEntriesForSync(): AgentDirectoryEntry[] {
   const directory = loadDirectory()
   return Object.values(directory.entries).filter(e => e.source === 'local')
-}
-
-// ============================================================================
-// Background Sync (Optional)
-// ============================================================================
-
-let syncInterval: NodeJS.Timeout | null = null
-
-/**
- * Start periodic directory sync with peers
- */
-export function startDirectorySync(intervalMs: number = SYNC_INTERVAL): void {
-  if (syncInterval) {
-    clearInterval(syncInterval)
-  }
-
-  // Do initial sync
-  rebuildLocalDirectory()
-  syncWithPeers().then(result => {
-    if (result.newAgents > 0) {
-      console.log(`[Agent Directory] Initial sync: discovered ${result.newAgents} new agents`)
-    }
-  }).catch(err => {
-    console.error('[Agent Directory] Initial sync failed:', err)
-  })
-
-  // Set up periodic sync
-  syncInterval = setInterval(async () => {
-    try {
-      const result = await syncWithPeers()
-      if (result.newAgents > 0) {
-        console.log(`[Agent Directory] Sync: discovered ${result.newAgents} new agents`)
-      }
-    } catch (err) {
-      console.error('[Agent Directory] Periodic sync failed:', err)
-    }
-  }, intervalMs)
-
-  console.log(`[Agent Directory] Started periodic sync (every ${intervalMs / 1000}s)`)
-}
-
-/**
- * Stop periodic directory sync
- */
-export function stopDirectorySync(): void {
-  if (syncInterval) {
-    clearInterval(syncInterval)
-    syncInterval = null
-    console.log('[Agent Directory] Stopped periodic sync')
-  }
 }

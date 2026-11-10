@@ -160,7 +160,7 @@ Index of features and bugs. Each entry links to a detail file under [`backlog/`]
 - **B032** — [Agents with no tmux session: /term retries forever, and hibernated agents read as outside](./backlog/B032-no-tmux-session-close-code-and-last-runtime.md) — `Done` (0.106.71, #792)
 - **B033** — [A person's message shows a unique id, not their name](./backlog/B033-person-message-shows-id-not-name.md) — `Todo` (needs F089)
 - **B034** — [A message to anyone on a sleeping host is refused, not kept](./backlog/B034-message-refused-when-host-down.md) — `Todo`
-- **B035** — [Agent directory sync is never started](./backlog/B035-agent-directory-sync-never-started.md) — `Todo` (replaced by F089)
+- **B035** — [Agent directory sync is never started](./backlog/B035-agent-directory-sync-never-started.md) — `Done` (v0.106.125, reads /mesh)
 - **B036** — [Hearing on the host guesses the language, and can write English as Russian](./backlog/B036-hearing-guesses-the-wrong-language.md) — `Done`
 - **B037** — [Words from a device reached the agent 15 seconds after they were ready (to check)](./backlog/B037-device-words-reached-agent-late.md) — `Todo`
 

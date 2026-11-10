@@ -1,6 +1,6 @@
 # Spec: one sync channel between hosts
 
-Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 in progress: snapshots (v0.106.123), owning host and agent by name (v0.106.124) moved. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
+Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 in progress: snapshots (v0.106.123), owning host and agent by name (v0.106.124), the directory (v0.106.125) moved. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
 
 ## 1. The problem
 
@@ -29,7 +29,7 @@ Read from the code on 2026-11-09.
 | Manager links | `services/agents-manager-links-service.ts` → `/api/people`, `/api/agents` | each request |
 | Agent by name | `lib/agent-registry.ts` ~2595 → `/api/agents/by-name/<name>` | on lookup |
 | Owning host | `lib/owning-host.ts` → `/api/agents/<id>` | on lookup |
-| Agent directory | `lib/agent-directory.ts` `syncWithPeers` | never started (B035) |
+| Agent directory | `lib/agent-directory.ts` `syncWithPeers` | never started (B035). **Reads `/mesh` since v0.106.125** |
 | Email index | `services/agents-messaging-service.ts` → `/api/agents/email-index` | on lookup |
 
 **Not data sync, and not changed here:** the host list exchange (`lib/host-sync.ts`), health checks (`diagnostics-service.ts`), creating agents or sessions on another host, AMP routing (`/api/v1/route`), agent transfer, and the terminal and chat relays (`server.mjs` `handleRemoteWorker`), which carry a screen, not state.

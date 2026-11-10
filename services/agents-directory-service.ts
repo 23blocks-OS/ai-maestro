@@ -21,7 +21,6 @@ import {
   getLocalEntriesForSync,
   getDirectoryStats,
   lookupAgent,
-  syncWithPeers,
 } from '@/lib/agent-directory'
 import { resolveAgentRef } from '@/lib/agent-resolve'
 import {
@@ -111,22 +110,10 @@ export function lookupAgentByDirectoryName(name: string): ServiceResult<any> {
 // ---------------------------------------------------------------------------
 
 export async function syncDirectory(): Promise<ServiceResult<any>> {
+  // Other hosts' agents come over /mesh now (B035); this only rebuilds the local part
   try {
     rebuildLocalDirectory()
-    const result = await syncWithPeers()
-    const stats = getDirectoryStats()
-
-    return {
-      data: {
-        success: true,
-        result,
-        stats,
-        message: result.newAgents > 0
-          ? `Discovered ${result.newAgents} new agents from ${result.synced.length} peer(s)`
-          : `Synced with ${result.synced.length} peer(s), no new agents`,
-      },
-      status: 200,
-    }
+    return { data: { success: true, stats: getDirectoryStats(), message: 'Local agents rebuilt; other hosts come from the mesh' }, status: 200 }
   } catch (error) {
     console.error('[Agent Directory Service] syncDirectory error:', error)
     return operationFailed('directory operation', error instanceof Error ? error.message : 'Internal server error')

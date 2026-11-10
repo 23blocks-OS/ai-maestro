@@ -92,6 +92,7 @@ declare global {
     peerSessions: Map<string, PeerCopy>
     peerSnapshots: Map<string, PeerCopy>
     peerPeople: Map<string, PeerCopy>
+    peerWorldEvents: Map<string, PeerCopy>
   } | undefined
   // eslint-disable-next-line no-var
   var _meshNotify: (() => void) | undefined
@@ -112,6 +113,7 @@ if (!globalThis._sharedState) {
     peerSessions: new Map<string, PeerCopy>(),
     peerSnapshots: new Map<string, PeerCopy>(),
     peerPeople: new Map<string, PeerCopy>(),
+    peerWorldEvents: new Map<string, PeerCopy>(),
   }
 }
 // Ensure late-added maps exist for hot-reload, and for whichever module graph
@@ -140,6 +142,9 @@ if (!globalThis._sharedState.peerSnapshots) {
 }
 if (!globalThis._sharedState.peerPeople) {
   globalThis._sharedState.peerPeople = new Map()
+}
+if (!globalThis._sharedState.peerWorldEvents) {
+  globalThis._sharedState.peerWorldEvents = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -191,6 +196,9 @@ export const peerSnapshots: Map<string, PeerCopy> = state.peerSnapshots
 
 /** hostId -> that peer's active people (its own listPeople, by person id), from /mesh */
 export const peerPeople: Map<string, PeerCopy> = state.peerPeople
+
+/** hostId -> that peer's deliveries of the last few minutes (world events, by message id), from /mesh */
+export const peerWorldEvents: Map<string, PeerCopy> = state.peerWorldEvents
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session

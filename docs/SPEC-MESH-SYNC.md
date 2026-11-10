@@ -1,6 +1,6 @@
 # Spec: one sync channel between hosts
 
-Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 in progress: snapshots (v0.106.123), owning host and agent by name (v0.106.124), the directory (v0.106.125), manager links with a people feed (v0.106.126) moved. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
+Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 shipped: snapshots (v0.106.123), owning host and agent by name (v0.106.124), the directory (v0.106.125), manager links with a people feed (v0.106.126), world events (v0.106.127). Still direct on purpose: a peer not on the mesh, a name the copies do not match exactly, a day of world history. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
 
 ## 1. The problem
 
@@ -25,7 +25,7 @@ Read from the code on 2026-11-09.
 | Session list | `services/sessions-service.ts` `fetchRemoteSessions` → `/api/sessions?local=true` | each request |
 | Agent search | `services/agents-core-service.ts` `getUnifiedAgents` → `/api/agents` | each request |
 | Status snapshots | `services/status-snapshots-service.ts` `refreshRemote` → `/api/sessions/activity?local=true` | every 15 s; the `activity` part is thrown away. **Moved to `/mesh` in v0.106.123** |
-| World events | `services/world-events-service.ts` → `/api/world/events?local=1` | each request |
+| World events | `services/world-events-service.ts` → `/api/world/events?local=1` | each request. **Recent events read `/mesh` since v0.106.127**; a day of history is still asked |
 | Manager links | `services/agents-manager-links-service.ts` → `/api/people`, `/api/agents` | each request. **Reads `/mesh` (people feed) since v0.106.126** |
 | Agent by name | `lib/agent-registry.ts` ~2595 → `/api/agents/by-name/<name>` | on lookup |
 | Owning host | `lib/owning-host.ts` → `/api/agents/<id>` | on lookup |

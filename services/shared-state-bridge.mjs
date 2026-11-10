@@ -25,6 +25,7 @@ if (!globalThis._sharedState) {
     peerSessions: new Map(),         //   ... sessions
     peerSnapshots: new Map(),        //   ... snapshots (model, context, cost)
     peerPeople: new Map(),           //   ... people
+    peerWorldEvents: new Map(),      //   ... world events (recent deliveries)
   }
 }
 // Ensure late-added maps exist for hot-reload / late initialization, and for
@@ -38,7 +39,7 @@ if (!globalThis._sharedState.hookStatus) {
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
 }
-for (const k of ['peerActivity', 'peerAgents', 'peerSessions', 'peerSnapshots', 'peerPeople']) {
+for (const k of ['peerActivity', 'peerAgents', 'peerSessions', 'peerSnapshots', 'peerPeople', 'peerWorldEvents']) {
   if (!globalThis._sharedState[k]) globalThis._sharedState[k] = new Map()
 }
 
@@ -57,6 +58,7 @@ export const peerAgents = state.peerAgents
 export const peerSessions = state.peerSessions
 export const peerSnapshots = state.peerSnapshots
 export const peerPeople = state.peerPeople
+export const peerWorldEvents = state.peerWorldEvents
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.

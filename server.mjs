@@ -53,7 +53,8 @@ import {
   peerAgents,
   peerSessions,
   peerSnapshots,
-  peerPeople
+  peerPeople,
+  peerWorldEvents
 } from './services/shared-state-bridge.mjs'
 import { createMesh } from './lib/mesh-sync.mjs'
 
@@ -1881,6 +1882,14 @@ async function startServer(handleRequest) {
           return Object.fromEntries((r.data?.people || []).map(p => [p.id, p]))
         },
       },
+      // Who messaged whom in the last few minutes (the World view's pulses)
+      worldEvents: {
+        pollMs: 5_000,
+        get: async () => {
+          const events = await (await import('./services/world-events-service.ts')).listLocalWorldEvents(0, getSelfHostId())
+          return Object.fromEntries(events.map(e => [e.id, e]))
+        },
+      },
       sessions: {
         pollMs: 10_000, minGapMs: 2_000,
         get: async () => {
@@ -1889,7 +1898,7 @@ async function startServer(handleRequest) {
         },
       },
     },
-    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots, people: peerPeople },
+    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots, people: peerPeople, worldEvents: peerWorldEvents },
     getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
     // A remote agent's status change reaches this host's pages in under a second. A dropped
     // host's agents are not announced: the page's next fetch no longer has them.

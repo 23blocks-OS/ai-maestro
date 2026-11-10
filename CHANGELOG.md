@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.127] - 2026-11-09 - World events read the mesh
+
+### Changed
+- The World view's pulses (who messaged whom in the last 10 minutes) read other hosts from `/mesh` (a new `worldEvents` feed) instead of asking every host on each request. A day of history, and a host not on the mesh, are still asked directly. This finishes F107 step 4.
+
 ## [0.106.126] - 2026-11-09 - Manager links read the mesh
 
 ### Changed

@@ -66,7 +66,7 @@ import { getHosts, getSelfHost, isSelf, getHostById } from '@/lib/hosts-config'
 import { persistSession, loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 import { parseNameForDisplay, isCallSession, cannotBeStarted } from '@/types/agent'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
-import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
+import { sessionActivity, agentActivity, terminalSessions, hookStatus as hookStatusMap, observedExpired, peerActivity, peerSessions, broadcastStatusUpdate, broadcastChatEvent } from '@/services/shared-state'
 import { observedPermissionVerdict, OBSERVED_GRACE_MS } from '@/lib/observed-permission.mjs'
 import { capturePaneSync } from '@/lib/tmux-runtime.mjs'
 import { HOOK_STATUS_TTL_MS } from '@/lib/session-idle'
@@ -93,6 +93,8 @@ export interface SessionActivityInfo {
   status: SessionActivityStatus
   hookStatus?: string
   notificationType?: string
+  /** Set on an agent of another host, from that host's /mesh feed */
+  hostId?: string
 }
 
 export interface CreateSessionParams {
@@ -222,36 +224,67 @@ const isWaitingStatus = (status: string): boolean =>
  * because an agent blocked on a prompt stays blocked until someone answers.
  * Default 60s preserves the original behaviour for the terminal-upgrade path.
  */
+// Parsed state files, re-read only when a file's mtime changes (one stat per file per read).
+const stateCache = new Map<string, { mtimeMs: number; state: any }>()
+function hookStateFiles(): Array<{ name: string; state: any }> {
+  const dir = path.join(os.homedir(), '.aimaestro', 'chat-state')
+  const files: Array<{ name: string; state: any }> = []
+  let names: string[] = []
+  try { names = fs.readdirSync(dir).filter(n => /^[0-9a-f]{16}\.json$/.test(n)) } catch { /* no folder yet */ }
+  const seen = new Set(names)
+  stateCache.forEach((_, n) => { if (!seen.has(n)) stateCache.delete(n) })
+  for (const name of names) {
+    const file = path.join(dir, name)
+    try {
+      const mtimeMs = fs.statSync(file).mtimeMs
+      let hit = stateCache.get(name)
+      if (!hit || hit.mtimeMs !== mtimeMs) {
+        hit = { mtimeMs, state: JSON.parse(fs.readFileSync(file, 'utf-8')) }
+        stateCache.set(name, hit)
+      }
+      files.push({ name, state: hit.state })
+    } catch { /* half-written or just removed */ }
+  }
+  return files
+}
+
+/**
+ * Read hook state for an agent's working directory.
+ *
+ * The hook writes one file per FOLDER the agent is in (the cwd at that event), so an
+ * agent working in a subfolder writes there, not in its top folder. The newest file in
+ * the folder or any subfolder is the agent's latest word, except subfolders that are
+ * another agent's folder (`otherAgentDirs`). The file is written before any network
+ * call, so it also survives a POST lost while the server restarts.
+ *
+ * `maxAgeMs` applies to non-waiting states; waiting states use `maxWaitingAgeMs`.
+ */
 function getHookState(
   workingDir: string,
   maxAgeMs: number = 60000,
-  maxWaitingAgeMs: number = WAITING_STATE_TTL_MS
+  maxWaitingAgeMs: number = WAITING_STATE_TTL_MS,
+  otherAgentDirs: string[] = [],
+  stateFiles: Array<{ name: string; state: any }> = hookStateFiles()
 ): { status: string; notificationType?: string; at: number; transcriptPath?: string; observed?: boolean } | null {
   if (!workingDir) return null
 
-  const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state')
-  const cwdHash = hashCwd(workingDir)
-  const stateFile = path.join(stateDir, `${cwdHash}.json`)
-
-  try {
-    if (fs.existsSync(stateFile)) {
-      const content = fs.readFileSync(stateFile, 'utf-8')
-      const state = JSON.parse(content)
-
-      // 'ended' / 'started' claim nothing: the terminal / transcript decide.
-      if (!claimsActivity(state.status)) return null
-
-      const at = new Date(state.updatedAt).getTime()
-      const age = Date.now() - at
-      if (age > (isWaitingStatus(state.status) ? maxWaitingAgeMs : maxAgeMs)) return null
-
-      return { status: state.status, notificationType: state.notificationType, at, transcriptPath: state.transcriptPath, ...(state.observed && { observed: true }) }
-    }
-  } catch {
-    // Ignore errors reading state files
+  const rootName = `${hashCwd(workingDir)}.json`
+  const nested = otherAgentDirs.filter(d => d !== workingDir && d.startsWith(workingDir + '/'))
+  let state: any = null
+  for (const f of stateFiles) {
+    const cwd = f.name === rootName ? workingDir : f.state?.cwd
+    if (typeof cwd !== 'string' || !(cwd === workingDir || cwd.startsWith(workingDir + '/'))) continue
+    if (nested.some(d => cwd === d || cwd.startsWith(d + '/'))) continue
+    if (!state || Date.parse(f.state.updatedAt) > Date.parse(state.updatedAt)) state = f.state
   }
+  if (!state) return null
 
-  return null
+  // 'ended' / 'started' claim nothing: the terminal decides.
+  if (!claimsActivity(state.status)) return null
+  const at = new Date(state.updatedAt).getTime()
+  if (!Number.isFinite(at) || Date.now() - at > (isWaitingStatus(state.status) ? maxWaitingAgeMs : maxAgeMs)) return null
+
+  return { status: state.status, notificationType: state.notificationType, at, transcriptPath: state.transcriptPath, ...(state.observed && { observed: true }) }
 }
 
 /**
@@ -609,8 +642,13 @@ async function fetchAllSessions(): Promise<Session[]> {
   const remoteHosts = hosts.filter(h => !isSelf(h.id))
   if (remoteHosts.length === 0) return localSessions
 
+  // A host connected over /mesh has already sent its sessions; only the others are asked
   const remoteResults = await Promise.all(
-    remoteHosts.map(host => fetchRemoteSessions(host.url, host.id))
+    remoteHosts.map(host => {
+      const copy = peerSessions.get(host.id)
+      if (copy?.connected) return Object.values(copy.items).map((x: Session) => ({ ...x, hostId: host.id }))
+      return fetchRemoteSessions(host.url, host.id)
+    })
   )
 
   const allSessions = [...localSessions, ...remoteResults.flat()]
@@ -679,7 +717,7 @@ export async function listLocalSessions(): Promise<{ sessions: Session[] }> {
 /**
  * Get session activity with hook state enrichment.
  */
-export async function getActivity(): Promise<Record<string, SessionActivityInfo>> {
+export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<Record<string, SessionActivityInfo>> {
   const activityMap = sessionActivity
   const activity: Record<string, SessionActivityInfo> = {}
 
@@ -696,13 +734,39 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     }
   }
 
+  const agentDirs = Array.from(sessionToWorkingDir.values())
+  const stateFiles = hookStateFiles() // one scan per read, not one per agent
+
+  // One rule for both stores: a working/idle report goes stale in minutes, a
+  // blocked one stays relevant for a day. See WAITING_STATE_TTL_MS.
+  const isFresh = (status: string, at: number): boolean =>
+    claimsActivity(status) &&
+    Date.now() - at <= (isWaitingStatus(status) ? WAITING_STATE_TTL_MS : HOOK_STATUS_TTL_MS)
+
+  const toActivityStatus = (hookStatus: string, notificationType?: string): SessionActivityStatus =>
+    hookStatus === 'active' ? 'active'
+    : hookNeedsYou(hookStatus, notificationType) ? 'waiting'
+    : 'idle'
+
+  // The hook's newest word on this agent. The state FILE is per folder (the agent's
+  // top folder only), the map is per agent (right whatever subfolder it works in), and
+  // the file survives a hook that exits before its POST lands. Newer one wins.
+  // The transcript's modified time is NOT used: Claude Code rewrites the file with no
+  // new turn, which showed idle agents as Working for hours (docs/AGENT-STATUS.md §6).
+  const latestReport = (sessionName: string, workingDir: string | undefined) => {
+    const fromFile = workingDir ? withObservedExpiry(sessionName, getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS, agentDirs, stateFiles)) : null
+    const fromMap = hookStatusMap.get(sessionName)
+    const mapFresh = fromMap && isFresh(fromMap.status, fromMap.at) ? fromMap : null
+    return fromFile && (!mapFresh || fromFile.at >= mapFresh.at) ? fromFile : mapFresh
+  }
+
   const now = Date.now()
   activityMap.forEach((timestamp, sessionName) => {
     const terminalIdle = ((now - timestamp) / 1000) > 3
     const workingDir = sessionToWorkingDir.get(sessionName)
     // Bounded the same way: a live terminal must not be labelled "waiting" on the
     // strength of a report from months ago.
-    const hookState = workingDir ? withObservedExpiry(sessionName, getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS)) : null
+    const hookState = latestReport(sessionName, workingDir)
 
     // The hook is the authority when it has a fresh report: it fires the moment
     // a turn starts (UserPromptSubmit) and ends (Stop), and when the agent
@@ -717,9 +781,6 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     // turn ends: fresh terminal output well after the permission report is the
     // proof it is working again. (An unanswered dialog does not redraw.)
     if (status === 'waiting' && hookState && !terminalIdle && timestamp > hookState.at + 5000) {
-      status = 'active'
-    }
-    if (status === 'waiting' && hookState && transcriptResumedSince(hookState.transcriptPath, hookState.at)) {
       status = 'active'
     }
 
@@ -744,36 +805,15 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
   //
   // Terminal activity still wins where it exists, because it is measured rather
   // than reported. This only fills in the agents it cannot see.
-  // One rule for both stores: a working/idle report goes stale in minutes, a
-  // blocked one stays relevant for a day. See WAITING_STATE_TTL_MS.
-  const isFresh = (status: string, at: number): boolean =>
-    claimsActivity(status) &&
-    Date.now() - at <= (isWaitingStatus(status) ? WAITING_STATE_TTL_MS : HOOK_STATUS_TTL_MS)
-
-  const toActivityStatus = (hookStatus: string, notificationType?: string): SessionActivityStatus =>
-    hookStatus === 'active' ? 'active'
-    : hookNeedsYou(hookStatus, notificationType) ? 'waiting'
-    : 'idle'
-
-  // Prefer the state FILE over the broadcast map. Both come from the same hook,
-  // but the file is written synchronously before any network call, so it survives
-  // a hook process that exits before its fetch completes. The map is the only
-  // source for an agent on ANOTHER host, whose file is on that host's disk.
   for (const [sessionName, workingDir] of sessionToWorkingDir) {
     if (activity[sessionName]) continue
 
-    const fromFile = withObservedExpiry(sessionName, getHookState(workingDir, HOOK_STATUS_TTL_MS, WAITING_STATE_TTL_MS))
-    const fromMap = hookStatusMap.get(sessionName)
-    const mapFresh = fromMap && isFresh(fromMap.status, fromMap.at) ? fromMap : null
-    const reported =
-      fromFile && (!mapFresh || fromFile.at >= mapFresh.at) ? fromFile
-      : mapFresh
+    const reported = latestReport(sessionName, workingDir)
     if (!reported) continue
 
-    const resumed = fromFile && reported === fromFile && transcriptResumedSince(fromFile.transcriptPath, fromFile.at)
     activity[sessionName] = {
       lastActivity: new Date(reported.at).toISOString(),
-      status: resumed ? 'active' : toActivityStatus(reported.status, reported.notificationType),
+      status: toActivityStatus(reported.status, reported.notificationType),
       hookStatus: reported.status,
       notificationType: reported.notificationType,
     }
@@ -784,11 +824,26 @@ export async function getActivity(): Promise<Record<string, SessionActivityInfo>
     if (activity[sessionName] || !isFresh(reported.status, reported.at)) return
     activity[sessionName] = {
       lastActivity: new Date(reported.at).toISOString(),
-      status: toActivityStatus(reported.status),
+      status: toActivityStatus(reported.status, reported.notificationType),
       hookStatus: reported.status,
       notificationType: reported.notificationType,
     }
   })
+
+  // Agents of other hosts, exactly as their own host published them over /mesh
+  // (docs/SPEC-MESH-SYNC.md). A local entry always wins. `localOnly` is what a peer
+  // asks for, so two hosts never pass each other's copies back.
+  if (!opts.localOnly) {
+    peerActivity.forEach((copy, hostId) => {
+      if (!copy.connected) return
+      for (const [name, info] of Object.entries(copy.items)) {
+        const entry = { ...info, status: normalizeActivityStatus(info.status), lastActivity: info.lastActivity || new Date(copy.okAt).toISOString(), hostId }
+        // `name@host` always: an agent with the same name on this host must not hide it (presenceOf reads this key first)
+        activity[`${name}@${hostId}`] = entry
+        if (!activity[name]) activity[name] = entry
+      }
+    })
+  }
 
   return activity
 }
@@ -876,8 +931,10 @@ export function broadcastActivityUpdate(
       .catch((err) => console.warn('[Push] needs-you push failed:', err))
   }
 
-  // The sidebar vocabulary, never the raw hook word (lib/agent-presence.ts)
-  broadcastStatusUpdate(sessionName, normalizeActivityStatus(hookStatus || status, notificationType), hookStatus, notificationType, agentId)
+  // The page gets the same entry the fetch gives (getActivity's rules: terminal, observed
+  // expiry, subfolder files), not the raw report, so the socket and the 30 s fetch never
+  // disagree and the status cannot flip between them (docs/AGENT-STATUS.md §6, defect 6).
+  void broadcastComputedStatus(sessionName, normalizeActivityStatus(hookStatus || status, notificationType), hookStatus, notificationType, agentId)
 
   // Push hookState to chat-subscribed WebSocket clients in real-time
   if (hookState) {
@@ -903,6 +960,16 @@ export function broadcastActivityUpdate(
   }
 
   return { data: { success: true }, status: 200 }
+}
+
+/** Broadcast an agent's status as getActivity computes it; the report itself when the feed has no entry. */
+async function broadcastComputedStatus(sessionName: string, status: string, hookStatus?: string, notificationType?: string, agentId?: string): Promise<void> {
+  let entry: SessionActivityInfo | undefined
+  if (sessionName) {
+    try { entry = (await getActivity({ localOnly: true }))[sessionName] } catch { /* fall back to the report */ }
+  }
+  if (entry) broadcastStatusUpdate(sessionName, entry.status, entry.hookStatus, entry.notificationType, agentId)
+  else broadcastStatusUpdate(sessionName, status, hookStatus, notificationType, agentId)
 }
 
 /**
@@ -1476,28 +1543,3 @@ export function deletePersistedSession(sessionId: string): ServiceResult<{ succe
   return { data: { success: true }, status: 200 }
 }
 
-
-// ---------------------------------------------------------------------------
-// Resumed after you answered
-// ---------------------------------------------------------------------------
-
-/** Transcript growth this long after a block was reported means the agent resumed */
-const RESUME_MARGIN_MS = 3000
-
-/**
- * Has the agent written to its transcript since it reported being blocked?
- *
- * Claude Code fires no event when you answer a permission or a question. The
- * hook reports the resume itself on PostToolBatch (async, after the approved
- * tool ran); this is the fallback for hosts whose hooks predate that, checked
- * only when the status is read (one stat, no watcher). The transcript is
- * written the moment the agent resumes; an unanswered dialog does not write.
- */
-export function transcriptResumedSince(transcriptPath: string | undefined, reportedAt: number): boolean {
-  if (!transcriptPath) return false
-  try {
-    return fs.statSync(transcriptPath).mtimeMs > reportedAt + RESUME_MARGIN_MS
-  } catch {
-    return false
-  }
-}

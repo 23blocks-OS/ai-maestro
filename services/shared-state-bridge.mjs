@@ -20,6 +20,12 @@ if (!globalThis._sharedState) {
     callSessions: new Map(),         // agentId -> CallSessionState for companion call forks
     hookStatus: new Map(),           // sessionName -> { status, notificationType, at } from the Claude Code hook
     observedExpired: new Map(),      // sessionName -> { at, status } an observed permission request the pane showed to be over
+    peerActivity: new Map(),         // hostId -> { items, seq, okAt, connected } per /mesh feed (lib/mesh-sync.mjs): status
+    peerAgents: new Map(),           //   ... agents
+    peerSessions: new Map(),         //   ... sessions
+    peerSnapshots: new Map(),        //   ... snapshots (model, context, cost)
+    peerPeople: new Map(),           //   ... people
+    peerWorldEvents: new Map(),      //   ... world events (recent deliveries)
   }
 }
 // Ensure late-added maps exist for hot-reload / late initialization, and for
@@ -33,6 +39,9 @@ if (!globalThis._sharedState.hookStatus) {
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
 }
+for (const k of ['peerActivity', 'peerAgents', 'peerSessions', 'peerSnapshots', 'peerPeople', 'peerWorldEvents']) {
+  if (!globalThis._sharedState[k]) globalThis._sharedState[k] = new Map()
+}
 
 const state = globalThis._sharedState
 
@@ -44,6 +53,12 @@ export const companionClients = state.companionClients
 export const callSessions = state.callSessions
 export const hookStatus = state.hookStatus
 export const observedExpired = state.observedExpired
+export const peerActivity = state.peerActivity
+export const peerAgents = state.peerAgents
+export const peerSessions = state.peerSessions
+export const peerSnapshots = state.peerSnapshots
+export const peerPeople = state.peerPeople
+export const peerWorldEvents = state.peerWorldEvents
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.
@@ -80,4 +95,5 @@ export function broadcastStatusUpdate(sessionName, status, hookStatus, notificat
       ws.send(message)
     }
   })
+  globalThis._meshNotify?.() // tell peers this host's status moved (lib/mesh-sync.mjs)
 }

@@ -1,4 +1,4 @@
-import { listAgents, searchAgentsByQuery, createNewAgent } from '@/services/agents-core-service'
+import { listAgents, listAgentsWithPeers, searchAgentsByQuery, createNewAgent } from '@/services/agents-core-service'
 import { toResponse } from '@/app/api/_helpers'
 import type { CreateAgentRequest } from '@/types/agent'
 
@@ -22,7 +22,8 @@ export async function GET(request: Request) {
     return toResponse(result)
   }
 
-  const result = await listAgents()
+  // ?mesh=1: also every peer's agents, from /mesh (hooks/useAgents.ts)
+  const result = searchParams.get('mesh') === '1' ? await listAgentsWithPeers() : await listAgents()
   return toResponse(result)
 }
 

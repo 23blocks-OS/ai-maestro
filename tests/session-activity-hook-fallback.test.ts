@@ -108,12 +108,16 @@ describe('trust boundaries', () => {
     expect(await getActivity()).toEqual({})
   })
 
-  it('with no hook STATE FILE, terminal activity decides (the broadcast map alone does not override it)', async () => {
-    // The state file is the hook's authoritative record (written before any
-    // network call); when it exists it wins over terminal redraws — see
-    // "the hook is the authority over terminal redraws" below.
+  it('with no hook STATE FILE, the per-agent report still beats terminal redraws', async () => {
+    // The map is keyed by agent, so it is right even when the agent works in a
+    // subfolder whose state file pass 1 never reads (docs/AGENT-STATUS.md §6, 2 and 3).
     sessionActivity.set('backend-api', Date.now())
     hookStatus.set('backend-api', { status: 'idle', at: Date.now() })
+    expect((await getActivity())['backend-api'].status).toBe('idle')
+  })
+
+  it('with no hook report at all, terminal activity decides (Codex, a shell)', async () => {
+    sessionActivity.set('backend-api', Date.now())
     expect((await getActivity())['backend-api'].status).toBe('active')
   })
 
@@ -242,5 +246,122 @@ describe('an agent that goes quiet and comes back', () => {
     expect((await getActivity())['backend-api'].status).toBe('active')
     writeHookFile('/repos/api', 'idle')
     expect((await getActivity())['backend-api'].status).toBe('idle')
+  })
+})
+
+describe('status comes from the hook only (docs/AGENT-STATUS.md §6)', () => {
+  it('a transcript modified with no new turn does not make an idle agent Working', async () => {
+    const t = path.join(tmpHome, 't.jsonl')
+    fs.writeFileSync(t, '{}')
+    const at = Date.now() - 60 * 60_000
+    const dir = path.join(tmpHome, '.aimaestro', 'chat-state')
+    fs.mkdirSync(dir, { recursive: true })
+    const hash = crypto.createHash('md5').update('/repos/api').digest('hex').substring(0, 16)
+    fs.writeFileSync(path.join(dir, `${hash}.json`), JSON.stringify({
+      status: 'waiting_for_input', notificationType: 'idle_prompt', cwd: '/repos/api',
+      updatedAt: new Date(at).toISOString(), transcriptPath: t,
+    }))
+    expect((await getActivity())['backend-api']?.status).toBe('idle')
+    sessionActivity.set('backend-api', Date.now() - 10_000) // terminal open, quiet
+    expect((await getActivity())['backend-api']?.status).toBe('idle')
+  })
+
+  it('with a terminal open, a newer per-agent report beats an older folder file', async () => {
+    writeHookFile('/repos/api', 'idle', Date.now() - 60_000)
+    hookStatus.set('backend-api', { status: 'active', at: Date.now() })
+    sessionActivity.set('backend-api', Date.now() - 10_000)
+    expect((await getActivity())['backend-api']?.status).toBe('active')
+  })
+})
+
+describe('state files in subfolders (docs/AGENT-STATUS.md §6, defect 2)', () => {
+  const writeAt = (cwd: string, status: string, at: number, notificationType?: string) => {
+    const dir = path.join(tmpHome, '.aimaestro', 'chat-state')
+    fs.mkdirSync(dir, { recursive: true })
+    const hash = crypto.createHash('md5').update(cwd).digest('hex').substring(0, 16)
+    fs.writeFileSync(path.join(dir, `${hash}.json`), JSON.stringify({ status, cwd, updatedAt: new Date(at).toISOString(), ...(notificationType && { notificationType }) }))
+  }
+
+  it('the newest file in a subfolder wins over an older top-folder file (report lost in a restart)', async () => {
+    writeAt('/repos/api', 'active', Date.now() - 5 * 60_000)
+    writeAt('/repos/api/services/x', 'waiting_for_input', Date.now() - 60_000, 'idle_prompt')
+    expect((await getActivity())['backend-api']?.status).toBe('idle')
+  })
+
+  it('a folder that only starts with the same letters is not a subfolder', async () => {
+    writeAt('/repos/api', 'idle', Date.now() - 5 * 60_000)
+    writeAt('/repos/api-v2', 'active', Date.now())
+    expect((await getActivity())['backend-api']?.status).toBe('idle')
+  })
+
+  it('sees a file rewritten in place', async () => {
+    writeAt('/repos/web', 'active', Date.now() - 1000)
+    expect((await getActivity())['frontend-web']?.status).toBe('active')
+    writeAt('/repos/web', 'idle', Date.now())
+    const f = path.join(tmpHome, '.aimaestro', 'chat-state', `${crypto.createHash('md5').update('/repos/web').digest('hex').substring(0, 16)}.json`)
+    fs.utimesSync(f, new Date(), new Date(Date.now() + 5000)) // force a different mtime
+    expect((await getActivity())['frontend-web']?.status).toBe('idle')
+  })
+})
+
+describe('agents of other hosts, from /mesh (docs/SPEC-MESH-SYNC.md)', () => {
+  it('are in the feed as their host sent them; a local agent wins; ?local=true leaves them out', async () => {
+    const { peerActivity } = await import('@/services/shared-state')
+    peerActivity.set('mac-mini', { connected: true, seq: 1, okAt: Date.now(), items: {
+      dahlia: { status: 'active', hookStatus: 'active', lastActivity: 'x' },
+      'backend-api': { status: 'active' },
+    } })
+    peerActivity.set('gone', { connected: false, seq: 0, okAt: 0, items: { ghost: { status: 'active' } } })
+    hookStatus.set('backend-api', { status: 'idle', at: Date.now() })
+    try {
+      const all = await getActivity()
+      expect(all.dahlia).toMatchObject({ status: 'active', hostId: 'mac-mini' })
+      expect(all['backend-api'].status).toBe('idle')
+      expect(all['backend-api@mac-mini']).toMatchObject({ status: 'active', hostId: 'mac-mini' }) // same name here: still reachable
+      expect(all.ghost).toBeUndefined()
+      expect((await getActivity({ localOnly: true })).dahlia).toBeUndefined()
+    } finally { peerActivity.clear() }
+  })
+})
+
+describe('the /status socket sends what the fetch gives (docs/AGENT-STATUS.md §6, defect 6)', () => {
+  it('a permission request the pane showed to be over goes out as the fetch reports it, not as Needs you', async () => {
+    const { statusSubscribers, observedExpired } = await import('@/services/shared-state')
+    const { broadcastActivityUpdate } = await import('@/services/sessions-service')
+    const sent: any[] = []
+    const ws: any = { readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) }
+    statusSubscribers.add(ws)
+    try {
+      // The hook's file says permission_request (observed); the sweep recorded it as over
+      const at = Date.now() - 1000
+      const dir = path.join(tmpHome, '.aimaestro', 'chat-state')
+      fs.mkdirSync(dir, { recursive: true })
+      const hash = crypto.createHash('md5').update('/repos/api').digest('hex').substring(0, 16)
+      fs.writeFileSync(path.join(dir, `${hash}.json`), JSON.stringify({ status: 'permission_request', observed: true, cwd: '/repos/api', updatedAt: new Date(at).toISOString() }))
+      observedExpired.set('backend-api', { at, status: 'active' })
+
+      broadcastActivityUpdate('backend-api', 'idle', 'idle', undefined, 'a1')
+      await new Promise(r => setTimeout(r, 20))
+      const fetched = (await getActivity())['backend-api']
+      const update = sent.filter(m => m.type === 'status_update').at(-1)
+      expect(update.status).toBe(fetched.status)
+      expect(update.hookStatus).toBe(fetched.hookStatus)
+    } finally {
+      statusSubscribers.delete(ws)
+      observedExpired.clear()
+    }
+  })
+
+  it('a session that ended (no entry in the feed) still goes out as reported', async () => {
+    const { statusSubscribers } = await import('@/services/shared-state')
+    const { broadcastActivityUpdate } = await import('@/services/sessions-service')
+    const sent: any[] = []
+    const ws: any = { readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) }
+    statusSubscribers.add(ws)
+    try {
+      broadcastActivityUpdate('frontend-web', 'ended', 'ended')
+      await new Promise(r => setTimeout(r, 20))
+      expect(sent.at(-1)).toMatchObject({ type: 'status_update', sessionName: 'frontend-web', hookStatus: 'ended' })
+    } finally { statusSubscribers.delete(ws) }
   })
 })

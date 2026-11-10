@@ -3,6 +3,104 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.131] - 2026-11-09 - Finding a person's host reads the mesh
+
+### Changed
+- Finding which host holds a person's record (to deliver to their mailbox) reads the other hosts' people from `/mesh`; the people feed now includes inactive people. A device key is still asked of the person's host every time, so a revoked key stops working at once.
+## [0.106.130] - 2026-11-09 - A label finds an agent on another host
+
+### Changed
+- A directory lookup by label or alias ("Dahlia") that matches no agent on this host now searches the other hosts' agents on `/mesh`. A label used on two other hosts comes back as ambiguous with both candidates. A label that matches an agent here keeps meaning that agent.
+## [0.106.129] - 2026-11-09 - A host on an older version says so
+
+### Fixed
+- A peer on an older mesh protocol had its agents shown as Ready, because a direct fetch carries no status. Their status is now Unknown, and the agent list shows an "old version" badge with that host's version until it is updated.
+## [0.106.128] - 2026-11-09 - Agents with the same name on two hosts each show their own status
+
+### Fixed
+- An agent on another host with the same name as one here (email-gateway, piano-instructor, intercambio-ccenglish) showed this host's agent's status. Peer status is now also keyed `name@host`, the page reads that key first, and the live updates go to it.
+
+## [0.106.127] - 2026-11-09 - World events read the mesh
+
+### Changed
+- The World view's pulses (who messaged whom in the last 10 minutes) read other hosts from `/mesh` (a new `worldEvents` feed) instead of asking every host on each request. A day of history, and a host not on the mesh, are still asked directly. This finishes F107 step 4.
+
+## [0.106.126] - 2026-11-09 - Manager links read the mesh
+
+### Changed
+- Linking agents to their managers reads other hosts' people and agents from `/mesh`. A new `people` feed carries each host's active people. Only a peer not on the mesh is asked directly (F107 step 4).
+
+## [0.106.125] - 2026-11-09 - The agent directory lists other hosts again
+
+### Fixed
+- The agent directory (`/api/agents/directory/lookup/<name>`) lists the agents of every host on `/mesh`. Its peer sync was never started, so it had held only local agents since #147 (B035). The dead sync code is removed; `POST /api/agents/directory/sync` now only rebuilds the local part.
+
+## [0.106.124] - 2026-11-09 - Agent lookups read the mesh
+
+### Changed
+- Finding which host owns an agent, and finding an agent by name (AMP routing), read the peers' agent lists from `/mesh` first. A connected peer is no longer asked; only a peer not on the mesh is probed. A name the copies do not match exactly still asks every peer, because a peer also matches session names and name endings (F107 step 4).
+
+## [0.106.123] - 2026-11-09 - Snapshots travel over the mesh
+
+### Changed
+- The status snapshots of agents on other hosts (model, context, cost) now come over `/mesh` (a fourth feed, `snapshots`) instead of a 15-second poll of every host. A host that is not connected shows no snapshot for its agents. A peer on an older version sends no snapshots until it is updated (F107 step 4).
+
+## [0.106.122] - 2026-11-09 - A late tool batch no longer marks an idle agent Working
+
+### Fixed
+- A tool batch reported after the agent's turn ended counts as work only if the transcript has a new entry since; a late batch with none no longer shows an idle agent as Working for 15 minutes (3m-growth on mac-mini). When the transcript cannot be read, the old rule applies.
+## [0.106.121] - 2026-11-09 - Hosts reconnect within a minute after an update
+
+### Fixed
+- A host that met a peer mid-update (still on the older mesh protocol) retries after 1 minute instead of 5, so the mesh is whole again soon after a rolling deploy.
+
+## [0.106.120] - 2026-11-09 - The agent list and sessions travel over the mesh
+
+### Added
+- Each host also publishes its own agent list and sessions over `/mesh` (protocol 2). A page asks its own host once (`/api/agents?mesh=1`) instead of every host every 10 seconds; the session list and the unified agent list read the same copies. A host not on the mesh (down, or an older version) is still asked directly. An agent whose host cannot be reached shows **Unknown** instead of Ready (F107 step 3).
+## [0.106.119] - 2026-11-09 - The live status and the fetch agree
+
+### Fixed
+- The live status socket sends an agent's status as the feed computes it (terminal, a permission the pane showed to be over, subfolder files), not the hook's raw report, so the page no longer flips between the two (docs/AGENT-STATUS.md §6, defect 6).
+
+## [0.106.118] - 2026-11-09 - Attach files from the chat
+
+### Added
+- The chat has a paperclip to send images and documents to the agent, as the phone app does; pasting an image into the message box sends it too. The file is saved on the agent's own host and the agent is told its path (`hooks/useAttachFiles.ts`, shared with the terminal's drop and paste).
+
+## [0.106.117] - 2026-11-09 - An agent's notes open collapsed
+
+### Changed
+- An agent's notes always open collapsed; expanding them lasts for that visit only.
+
+## [0.106.116] - 2026-11-09 - The chat's working message wraps
+
+### Fixed
+- The chat's working message (the tool and its detail) wraps inside the chat instead of being cut at the edge.
+
+## [0.106.115] - 2026-11-09 - Hosts share agent status over one live channel
+
+### Added
+- `/mesh`: each host opens one WebSocket to every enabled peer and receives that host's agent status the moment it changes (a full list on connect and every 5 minutes, a ping every 20 s; 45 s of silence drops the host's agents and reconnects). Each host publishes only its own agents, as its own feed computes them (F107 step 2, `docs/SPEC-MESH-SYNC.md`, `lib/mesh-sync.mjs`).
+- The status feed includes the agents of connected peers (with `hostId`); a local agent with the same name wins, and `?local=true` stays local. Remote changes reach the page through the existing `/status` socket.
+
+### Fixed
+- An agent on another host no longer shows Ready while it works, or Working while its chat or terminal is open and it is idle: the relay no longer counts its own traffic as activity (cloud containers still do).
+
+## [0.106.114] - 2026-11-09 - Status reads the agent's subfolders
+
+### Fixed
+- An agent working in a subfolder shows the status of its latest hook event. The server read only the state file of the agent's top folder, so a report lost while the server restarted left the agent Working for up to 15 minutes (ciao-kiosk on mac-mini). It now reads the newest state file in the folder or any subfolder, except another agent's folder (docs/AGENT-STATUS.md §6, defect 2).
+
+## [0.106.113] - 2026-11-09 - Status comes from the hook, not the transcript's file time
+
+### Fixed
+- Agents that finished hours ago no longer show **Working**. The status ignored the hook and read "resumed" from the transcript file's modified time, which Claude Code changes with no new turn (11 agents across two hosts on 2026-11-09). Status now comes only from the hook's report (docs/AGENT-STATUS.md §6, defect 1).
+- With a terminal or chat open, the per-agent hook report is read too, not only the agent's top-folder state file, so an agent working in a subfolder shows its real status (defects 2 and 3).
+
+### Docs
+- `docs/AGENT-STATUS.md` (how status works today, audit, known defects), `docs/SPEC-MESH-SYNC.md` (one sync channel between hosts), `scripts/status-audit.mjs` (read-only status audit). Backlog: F107.
+
 ## [0.106.112] - 2026-11-08 - The chat shows when the agent is working; wake fixes
 
 ### Fixed

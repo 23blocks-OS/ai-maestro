@@ -17,7 +17,7 @@ import { parse } from 'url'
 // ---------------------------------------------------------------------------
 
 import {
-  listAgents,
+  listAgents, listAgentsWithPeers,
   searchAgentsByQuery,
   createNewAgent,
   getAgentById,
@@ -212,7 +212,6 @@ import {
   restoreSessions,
   deletePersistedSession,
   getActivity,
-  httpGet,
   broadcastActivityUpdate,
   heartbeat,
 } from '@/services/sessions-service'
@@ -697,10 +696,10 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res, _params, query) => {
     try {
-      const activity = await getActivity()
+      const activity = await getActivity({ localOnly: query.local === 'true' })
       // Status snapshots ride beside the activity: a failure here must not cost the activity
       let snapshots = {}
-      try { snapshots = getSnapshots({ localOnly: query.local === 'true', httpGet }) } catch { /* no snapshots */ }
+      try { snapshots = getSnapshots({ localOnly: query.local === 'true' }) } catch { /* no snapshots */ }
       sendJson(res, 200, { activity, snapshots })
     } catch (error) {
       sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
@@ -847,7 +846,7 @@ const routes: Route[] = [
     if (query.q) {
       sendServiceResult(res, searchAgentsByQuery(query.q))
     } else {
-      sendServiceResult(res, await listAgents())
+      sendServiceResult(res, query.mesh === '1' ? await listAgentsWithPeers() : await listAgents())
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents$/, paramNames: [], handler: async (req, res) => {

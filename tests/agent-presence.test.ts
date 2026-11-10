@@ -71,18 +71,13 @@ describe('normalizeActivityStatus (every broadcast goes through it)', () => {
   })
 })
 
-describe('transcriptResumedSince (fallback for hosts without the PostToolBatch hook)', () => {
-  it('is true only when the transcript grew well after the block was reported', async () => {
-    const fs = await import('fs'); const os = await import('os'); const path = await import('path')
-    const { transcriptResumedSince } = await import('@/services/sessions-service')
-    const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'resume-')), 't.jsonl')
-    fs.writeFileSync(f, '{}')
-    const now = Date.now()
-    fs.utimesSync(f, new Date(now), new Date(now))
-    expect(transcriptResumedSince(f, now - 60_000)).toBe(true)   // written a minute after the block
-    expect(transcriptResumedSince(f, now - 1_000)).toBe(false)   // within the margin: not proof
-    expect(transcriptResumedSince(undefined, now)).toBe(false)
-    expect(transcriptResumedSince('/nope/none.jsonl', 0)).toBe(false)
+describe('same name on two hosts', () => {
+  it('reads name@host first, so a local agent with the same name cannot hide the remote one', async () => {
+    const { presenceFromActivity } = await import('@/hooks/useSessionActivity')
+    const activity: any = { 'piano-instructor': { status: 'idle' }, 'piano-instructor@mini-lola': { status: 'active', hookStatus: 'working' } }
+    const online = { status: 'online' }
+    expect(presenceFromActivity(activity, { name: 'piano-instructor', hostId: 'mini-lola', session: online })).toBe('working')
+    expect(presenceFromActivity(activity, { name: 'piano-instructor', hostId: 'self', session: online })).toBe('ready')
   })
 })
 
@@ -99,5 +94,14 @@ describe('presenceFromActivity: the one mapping every view uses', () => {
     expect(presenceFromActivity(activity, { name: 'nobody', id: 'x', session: online })).toBe('ready')
     expect(presenceFromActivity(activity, { name: 'api-jarvis', id: 'a-id', session: { status: 'offline' } })).toBe('offline')
     expect(presenceFromActivity(activity, { name: 'api-jarvis' }, { online: true })).toBe('working')
+  })
+})
+
+describe('an agent whose host cannot be reached', () => {
+  it('is Unknown, whatever its last list or status said', async () => {
+    const { presenceFromActivity } = await import('@/hooks/useSessionActivity')
+    const activity: any = { dahlia: { status: 'active', lastActivity: '' } }
+    expect(presenceFromActivity(activity, { name: 'dahlia', session: { status: 'online' } })).toBe('working')
+    expect(presenceFromActivity(activity, { name: 'dahlia', session: { status: 'online' }, hostUnreachable: true })).toBe('unknown')
   })
 })

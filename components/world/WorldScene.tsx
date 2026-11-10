@@ -122,6 +122,7 @@ const PRESENCE_HEX: Record<AgentPresence, string> = {
   'needs-you': '#f97316',
   ready: '#facc15',
   offline: '#6b7280',
+  unknown: '#4b5563',
 }
 
 export interface WorldFigure {

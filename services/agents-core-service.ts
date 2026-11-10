@@ -71,7 +71,7 @@ import { getHosts, getSelfHost, getSelfHostId, isSelf, updateHostRaw } from '@/l
 import { persistSession, unpersistSession } from '@/lib/session-persistence'
 import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
-import { sessionActivity, agentActivity } from '@/services/shared-state'
+import { sessionActivity, agentActivity, peerAgents, peerActivity } from '@/services/shared-state'
 import { runtimeOf, lastRuntimeOf, runningOutsideTmux, claimStart, releaseStart, resumableSessionId } from '@/lib/agent-runtime-kind.mjs'
 import { stopStreamSessions } from '@/lib/streaming-bridge.mjs'
 import { getRuntime } from '@/lib/agent-runtime'
@@ -719,6 +719,36 @@ export function missingWorkingDirectory(dir: string): string | null {
 }
 
 /**
+ * This host's agents plus every peer's, as each peer published them over /mesh
+ * (docs/SPEC-MESH-SYNC.md, step 3). A page asks its own host once instead of every host.
+ * Peers not connected over /mesh (down, or an older version) are left out: the page asks
+ * those directly, as before.
+ */
+export async function listAgentsWithPeers(): Promise<ServiceResult<any>> {
+  const own = await listAgents()
+  if (!own.data) return own
+  const peers: Array<{ hostId: string; version?: string; okAt: number; agents: Agent[] }> = []
+  peerAgents.forEach((copy, hostId) => {
+    if (copy.connected) peers.push({ hostId, version: copy.version, okAt: copy.okAt, agents: Object.values(copy.items) as Agent[] })
+  })
+  // Peers on another mesh protocol: the page asks them directly, but gets no status for their agents
+  const oldVersionHosts: Record<string, string> = {}
+  peerActivity.forEach((copy, hostId) => { if (copy.oldVersion && !copy.connected) oldVersionHosts[hostId] = copy.oldVersion })
+  return { data: { ...own.data, peers, oldVersionHosts }, status: 200 }
+}
+
+/** Counts for a host's agent list */
+export function agentStats(agents: Agent[]): AgentStats {
+  return {
+    total: agents.length,
+    online: agents.filter(a => a.session?.status === 'online').length,
+    offline: agents.filter(a => a.session?.status === 'offline').length,
+    orphans: agents.filter(a => a.isOrphan).length,
+    newlyRegistered: 0,
+  }
+}
+
+/**
  * Update agent session status in the registry after wake/hibernate.
  */
 function updateAgentSessionInRegistry(
@@ -988,13 +1018,7 @@ export async function listAgents(): Promise<ServiceResult<{
     return {
       data: {
         agents: resultAgents.map(a => ({ ...a, kind: memberKind(a), platform: memberPlatform(a) })),
-        stats: {
-          total: resultAgents.length,
-          online: resultAgents.filter(a => a.session?.status === 'online').length,
-          offline: resultAgents.filter(a => a.session?.status === 'offline').length,
-          orphans: resultAgents.filter(a => a.isOrphan).length,
-          newlyRegistered: newOrphanAgents.length,
-        },
+        stats: { ...agentStats(resultAgents), newlyRegistered: newOrphanAgents.length },
         hostInfo: {
           id: hostId,
           name: hostName,
@@ -1365,6 +1389,13 @@ export async function getUnifiedAgents(params: UnifiedAgentsParams): Promise<Ser
 
   // Fetch agents from all hosts in parallel
   const fetchPromises: Promise<HostFetchResult>[] = hosts.map(async (host) => {
+    // A host connected over /mesh has already sent its agents (a search still asks it)
+    const copy = !query && !isSelf(host.id) ? peerAgents.get(host.id) : undefined
+    if (copy?.connected) {
+      const agents = Object.values(copy.items) as Agent[]
+      return { host, success: true, agents, stats: agentStats(agents) }
+    }
+
     // Skip hosts with open circuit breaker (cooldown not yet expired)
     if (!isSelf(host.id) && isCircuitOpen(host.id)) {
       const state = circuitStates.get(host.id)

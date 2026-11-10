@@ -1041,6 +1041,36 @@ function trackPrompt(prev, input, state) {
     return { ...state, ...(id && { promptId: id }), ...(prior.length && { priorPromptIds: prior }) };
 }
 
+const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
+/**
+ * Does the transcript hold a user or assistant entry newer than `since`? true / false, or
+ * null when it cannot tell (no file, unreadable, no timestamped entry in the tail).
+ * Only timestamped turn entries count: Claude Code also rewrites metadata lines with no
+ * new turn, so the file's modified time proves nothing.
+ */
+function transcriptWorkSince(transcriptPath, since) {
+    if (!transcriptPath || !Number.isFinite(since)) return null;
+    let text;
+    try {
+        const fd = fs.openSync(transcriptPath, 'r');
+        try {
+            const size = fs.fstatSync(fd).size;
+            const len = Math.min(size, TRANSCRIPT_TAIL_BYTES);
+            const buf = Buffer.alloc(len);
+            fs.readSync(fd, buf, 0, len, size - len);
+            text = buf.toString('utf8');
+        } finally { fs.closeSync(fd); }
+    } catch { return null; }
+    const lines = text.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+        let d;
+        try { d = JSON.parse(lines[i]); } catch { continue; }
+        if (!d || !d.timestamp || (d.type !== 'user' && d.type !== 'assistant')) continue;
+        return Date.parse(d.timestamp) > since;
+    }
+    return null;
+}
+
 function ageOf(prev, now) {
     const t = prev && prev.updatedAt ? new Date(prev.updatedAt).getTime() : NaN;
     return Number.isFinite(t) ? now - t : Infinity;
@@ -1078,6 +1108,12 @@ function reduceState(prev, ctx) {
                 && ageOf(prev, now) < LATE_BATCH_GRACE_MS
                 && (!prev.sessionId || prev.sessionId === sessionId);
             if (justSettled) return null;
+            // A batch after the turn ended is work only if the transcript moved since: a real
+            // resume writes new entries (tool calls, results); a late or phantom batch writes
+            // none (3m-growth, 2026-11-09: one batch 68 s after Stop, no new entry, Working for
+            // 15 min). Unknown (no transcript, Grok, Codex) keeps the old rule.
+            const settled = prev.status === 'idle' || (prev.status === 'waiting_for_input' && prev.notificationType === 'idle_prompt');
+            if (settled && ctx.workSince && ctx.workSince(new Date(prev.updatedAt).getTime()) === false) return null;
             if (prev.status === 'active') {
                 if (ageOf(prev, now) < ACTIVE_REFRESH_MS) return null;
                 return make({ status: 'active', message: null });
@@ -1207,7 +1243,7 @@ async function handleEvent(input) {
 
     // Record the state reduceState derives for this event (null = leave it alone).
     const record = async (event, extra) => {
-        const next = reduceState(readState(cwd), { event, input, agent, blocked: !!(extra && extra.blocked) });
+        const next = reduceState(readState(cwd), { event, input, agent, blocked: !!(extra && extra.blocked), workSince: (t) => transcriptWorkSince(transcriptPath, t) });
         if (next) await writeState(cwd, next);
         return next;
     };

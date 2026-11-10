@@ -357,6 +357,7 @@ export interface Agent {
   session?: AgentSessionStatus   // Live tmux session status
   isOrphan?: boolean             // True if session exists but agent was auto-registered
   _cached?: boolean              // True if loaded from cache (remote host unreachable)
+  hostOldVersion?: string        // Its host speaks an older mesh protocol (that version): status unknown
 
   // AMP Registration Status (Phase 2: AMP Protocol)
   ampRegistered?: boolean        // True if agent was registered via AMP protocol

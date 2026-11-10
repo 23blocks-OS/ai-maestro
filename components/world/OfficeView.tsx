@@ -26,7 +26,7 @@ import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import type { WorldAway, WorldFigure, WorldLens, WorldTies } from '@/components/world/WorldScene'
 
 // The status colours, as in the 3D map and PRESENCE_STYLE (lib/agent-presence.ts)
-const HEX: Record<AgentPresence, string> = { working: '#10b981', 'needs-you': '#f97316', ready: '#facc15', offline: '#6b7280' }
+const HEX: Record<AgentPresence, string> = { working: '#10b981', 'needs-you': '#f97316', ready: '#facc15', offline: '#6b7280', unknown: '#4b5563' }
 const TIE_HEX = { talk: '#fbbf24', task: '#38bdf8', report: '#2dd4bf', both: '#c084fc' }
 const tieColor = (kinds: TieKind[]) => (kinds.length > 1 ? TIE_HEX.both : TIE_HEX[kinds[0]])
 

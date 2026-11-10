@@ -53,6 +53,18 @@ export interface HookStatusState {
   at: number
 }
 
+/** One feed of one peer host, as that host published it over /mesh (lib/mesh-sync.mjs) */
+export interface PeerCopy<T = any> {
+  items: Record<string, T>
+  seq: number
+  okAt: number
+  connected: boolean
+  version?: string
+  /** Set while that peer speaks another mesh protocol: its version */
+  oldVersion?: string
+}
+export type PeerActivityCopy = PeerCopy<{ status: string; hookStatus?: string; notificationType?: string; lastActivity?: string }>
+
 export interface CallSessionState {
   agentId: string
   agentName: string
@@ -77,7 +89,15 @@ declare global {
     callSessions: Map<string, CallSessionState>
     hookStatus: Map<string, HookStatusState>
     observedExpired: Map<string, { at: number; status: 'active' | 'idle' }>
+    peerActivity: Map<string, PeerActivityCopy>
+    peerAgents: Map<string, PeerCopy>
+    peerSessions: Map<string, PeerCopy>
+    peerSnapshots: Map<string, PeerCopy>
+    peerPeople: Map<string, PeerCopy>
+    peerWorldEvents: Map<string, PeerCopy>
   } | undefined
+  // eslint-disable-next-line no-var
+  var _meshNotify: (() => void) | undefined
 }
 
 if (!globalThis._sharedState) {
@@ -90,6 +110,12 @@ if (!globalThis._sharedState) {
     callSessions: new Map<string, CallSessionState>(),
     hookStatus: new Map<string, HookStatusState>(),
     observedExpired: new Map<string, { at: number; status: 'active' | 'idle' }>(),
+    peerActivity: new Map<string, PeerActivityCopy>(),
+    peerAgents: new Map<string, PeerCopy>(),
+    peerSessions: new Map<string, PeerCopy>(),
+    peerSnapshots: new Map<string, PeerCopy>(),
+    peerPeople: new Map<string, PeerCopy>(),
+    peerWorldEvents: new Map<string, PeerCopy>(),
   }
 }
 // Ensure late-added maps exist for hot-reload, and for whichever module graph
@@ -103,6 +129,24 @@ if (!globalThis._sharedState.hookStatus) {
 }
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
+}
+if (!globalThis._sharedState.peerActivity) {
+  globalThis._sharedState.peerActivity = new Map()
+}
+if (!globalThis._sharedState.peerAgents) {
+  globalThis._sharedState.peerAgents = new Map()
+}
+if (!globalThis._sharedState.peerSessions) {
+  globalThis._sharedState.peerSessions = new Map()
+}
+if (!globalThis._sharedState.peerSnapshots) {
+  globalThis._sharedState.peerSnapshots = new Map()
+}
+if (!globalThis._sharedState.peerPeople) {
+  globalThis._sharedState.peerPeople = new Map()
+}
+if (!globalThis._sharedState.peerWorldEvents) {
+  globalThis._sharedState.peerWorldEvents = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -139,6 +183,24 @@ export const hookStatus: Map<string, HookStatusState> = state.hookStatus
  * is not covered. See lib/observed-permission.mjs and sweepObservedPermissions.
  */
 export const observedExpired: Map<string, { at: number; status: 'active' | 'idle' }> = state.observedExpired
+
+/** hostId -> that peer's agents, kept by the /mesh client. Read-only here: only lib/mesh-sync.mjs writes it. */
+export const peerActivity: Map<string, PeerActivityCopy> = state.peerActivity
+
+/** hostId -> that peer's agents (its own listAgents, by agent id), from /mesh */
+export const peerAgents: Map<string, PeerCopy> = state.peerAgents
+
+/** hostId -> that peer's sessions (its own local session list, by session id), from /mesh */
+export const peerSessions: Map<string, PeerCopy> = state.peerSessions
+
+/** hostId -> that peer's status snapshots (by agent id and name), from /mesh */
+export const peerSnapshots: Map<string, PeerCopy> = state.peerSnapshots
+
+/** hostId -> that peer's people, inactive ones too (its own listPeople, by person id), from /mesh */
+export const peerPeople: Map<string, PeerCopy> = state.peerPeople
+
+/** hostId -> that peer's deliveries of the last few minutes (world events, by message id), from /mesh */
+export const peerWorldEvents: Map<string, PeerCopy> = state.peerWorldEvents
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session
@@ -184,4 +246,5 @@ export function broadcastStatusUpdate(
       ws.send(message)
     }
   })
+  globalThis._meshNotify?.() // tell peers this host's status moved (lib/mesh-sync.mjs)
 }

@@ -1,6 +1,6 @@
 # B035 — Agent directory sync is never started
 
-**Status:** Todo (replaced by F089)
+**Status:** Done (v0.106.125: the directory reads other hosts from `/mesh`; the dead sync is removed. F089 still adds people and labels)
 **Type:** Bug
 **Created:** 2026-11-06
 

@@ -4,8 +4,8 @@
  * Read from the AMP inbox folders (`~/.agent-messaging/agents/<agent-id>/messages/inbox/<sender>/*.json`),
  * which already hold every delivery. Only the envelope's id, sender and time are read; the message
  * BODY and subject never leave the file. A delivery lands on the recipient's host, so each host
- * answers for its own agents and `getWorldEvents` asks every host and joins the answers, the way
- * the unified agent list does.
+ * answers for its own agents. The last few minutes of a peer on /mesh come from its copy (the
+ * `worldEvents` feed); a day of history, and a peer not on the mesh, are asked directly.
  */
 
 import fs from 'fs/promises'
@@ -13,6 +13,7 @@ import os from 'os'
 import path from 'path'
 import { getHosts, isSelf } from '@/lib/hosts-config'
 import type { ServiceResult } from '@/services/service-errors'
+import { peerWorldEvents } from '@/services/shared-state'
 
 export interface WorldEvent {
   /** The message id (the same message is never listed twice) */
@@ -98,7 +99,13 @@ export async function getWorldEvents(params: WorldEventsParams): Promise<Service
   let hosts = 1
   if (!localOnly) {
     const peers = getHosts().filter(h => !isSelf(h.id) && h.enabled !== false)
-    const answers = await Promise.all(peers.map(async host => {
+    const floor = Math.max(since, Date.now() - MAX_LOOKBACK_MS)
+    const onMesh = (id: string) => !history && !!peerWorldEvents.get(id)?.connected
+    for (const h of peers.filter(h => onMesh(h.id))) {
+      batches.push((Object.values(peerWorldEvents.get(h.id)!.items) as WorldEvent[]).filter(e => e.ts > floor))
+      hosts++
+    }
+    const answers = await Promise.all(peers.filter(h => !onMesh(h.id)).map(async host => {
       try {
         const res = await fetch(`${host.url}/api/world/events?since=${since}&local=1${history ? '&history=1' : ''}`, {
           signal: AbortSignal.timeout(timeoutMs), headers: { Accept: 'application/json' },

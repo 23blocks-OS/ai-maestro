@@ -3,7 +3,8 @@
  *
  * Links this host's agents to the People directory: a free-text `humanManager`, or the `owner` of an agent
  * with no manager, becomes a person id when it names exactly one person, or an agent manager when it names
- * exactly one agent (lib/manager-links.ts). Each host links its own agents.
+ * exactly one agent (lib/manager-links.ts). Each host links its own agents. Other hosts' people and agents
+ * come from /mesh; only a peer not on the mesh is asked.
  *
  *   GET  /api/agents/manager-links          -> what would change (dry run)
  *   POST /api/agents/manager-links { apply } -> apply it
@@ -15,6 +16,7 @@ import { getHosts, isSelfHost } from '@/lib/hosts-config'
 import { planManagerLinks, type AgentLite, type ManagerLink, type PersonLite, type UnmatchedManager } from '@/lib/manager-links'
 import { updateAgentById } from '@/services/agents-core-service'
 import type { ServiceResult } from '@/services/service-errors'
+import { peerAgents, peerPeople } from '@/services/shared-state'
 import type { UpdateAgentRequest } from '@/types/agent'
 
 const PEER_TIMEOUT_MS = 5000
@@ -31,16 +33,24 @@ async function fromPeers(): Promise<{ people: PersonLite[]; agents: AgentLite[];
   const people: PersonLite[] = []
   const agents: AgentLite[] = []
   const unreachable: string[] = []
+  const addPerson = (x: any) => { if (x?.id && x?.displayName && x.active !== false) people.push({ id: x.id, displayName: x.displayName, email: x.email }) }
+  const addAgent = (x: any) => { if (x?.id) agents.push({ id: x.id, name: x.name, alias: x.alias, label: x.label, managerAgentId: x.managerAgentId }) }
+  const peers = getHosts().filter(h => h.enabled !== false && !isSelfHost(h))
+  const onMesh = (id: string) => !!(peerAgents.get(id)?.connected && peerPeople.get(id)?.connected)
+  for (const h of peers.filter(h => onMesh(h.id))) {
+    Object.values(peerPeople.get(h.id)!.items).forEach(addPerson)
+    Object.values(peerAgents.get(h.id)!.items).forEach(addAgent)
+  }
   // Both endpoints answer with this host's data only, so asking them cannot loop between hosts
-  await Promise.all(getHosts().filter(h => h.enabled !== false && !isSelfHost(h)).map(async h => {
+  await Promise.all(peers.filter(h => !onMesh(h.id)).map(async h => {
     const base = h.url.replace(/\/$/, '')
     try {
       const [p, a] = await Promise.all([
         fetch(`${base}/api/people`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
         fetch(`${base}/api/agents`, { signal: AbortSignal.timeout(PEER_TIMEOUT_MS) }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
       ])
-      for (const x of p.people || []) if (x?.id && x?.displayName && x.active !== false) people.push({ id: x.id, displayName: x.displayName, email: x.email })
-      for (const x of a.agents || []) if (x?.id) agents.push({ id: x.id, name: x.name, alias: x.alias, label: x.label, managerAgentId: x.managerAgentId })
+      ;(p.people || []).forEach(addPerson)
+      ;(a.agents || []).forEach(addAgent)
     } catch {
       unreachable.push(h.name || h.id)
     }

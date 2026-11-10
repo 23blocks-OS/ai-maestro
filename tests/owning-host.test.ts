@@ -7,9 +7,11 @@ vi.mock('@/lib/hosts-config', () => ({
 }))
 
 import { findPeerHostUrl, forgetPeerHost } from '@/lib/owning-host'
+import { peerAgents } from '@/services/shared-state'
 
 beforeEach(() => {
   forgetPeerHost('a1')
+  peerAgents.clear()
   hosts.list = [
     { id: 'me', url: 'http://100.104.178.57:23000' },
     { id: 'mac-mini', url: 'http://100.80.12.6:23000/' },
@@ -52,5 +54,19 @@ describe('findPeerHostUrl', () => {
     const [a, b] = await Promise.all([findPeerHostUrl('a1', f as any), findPeerHostUrl('a1', f as any)])
     expect(a).toBe(b)
     expect(f.mock.calls.length).toBe(2) // two peers, probed once
+  })
+
+  it('reads a connected peer from its /mesh copy and asks only the peers not on the mesh', async () => {
+    peerAgents.set('mac-mini', { items: { a1: { id: 'a1', name: 'dahlia' } }, seq: 1, okAt: 1, connected: true })
+    const f = vi.fn(async () => ({ ok: false }) as any)
+    expect(await findPeerHostUrl('a1', f as any)).toBe('http://100.80.12.6:23000')
+    expect(f).not.toHaveBeenCalled()
+
+    forgetPeerHost('a1')
+    peerAgents.set('mac-mini', { items: {}, seq: 1, okAt: 1, connected: true })
+    const asked: string[] = []
+    const g = vi.fn(async (url: string) => { asked.push(url); return { ok: false } as any })
+    expect(await findPeerHostUrl('a1', g as any)).toBeUndefined()
+    expect(asked).toEqual(['http://100.76.17.128:23000/api/agents/a1'])
   })
 })

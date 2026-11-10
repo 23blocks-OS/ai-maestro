@@ -147,13 +147,14 @@ describe('the activity feed after an observed permission request', () => {
     expect((await getActivity())['claude-agent'].hookStatus).toBe('idle')
   })
 
-  it('updates the hook status map and pushes to /status clients, as a hook report does', () => {
+  it('updates the hook status map and pushes to /status clients, as a hook report does', async () => {
     request('claude-agent', '/repos/claude', 10_000)
     const sent: string[] = []
     statusSubscribers.add({ readyState: 1, send: (m: string) => sent.push(m) } as any)
     capturePaneSync.mockReturnValue(pane.afterEsc)
     sweep()
     expect(hookStatus.get('claude-agent')?.status).toBe('idle')
+    await new Promise(r => setTimeout(r, 20)) // the push carries the feed's entry, computed asynchronously
     expect(sent.map(m => JSON.parse(m)).some(m => m.type === 'status_update' && m.sessionName === 'claude-agent' && m.hookStatus === 'idle')).toBe(true)
   })
 

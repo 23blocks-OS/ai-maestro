@@ -1,6 +1,6 @@
 # Spec: one sync channel between hosts
 
-Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 shipped: snapshots (v0.106.123), owning host and agent by name (v0.106.124), the directory (v0.106.125), manager links with a people feed (v0.106.126), world events (v0.106.127). Still direct on purpose: a peer not on the mesh, a name the copies do not match exactly, a day of world history. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
+Status: steps 1 to 3 shipped 2026-11-09 (by v0.106.122): audit 0 wrong on all three hosts, both ways; a change crosses in about 210 ms; a host switched off is dropped at once and back within 31 s. Step 4 shipped: snapshots (v0.106.123), owning host and agent by name (v0.106.124), the directory (v0.106.125), manager links with a people feed (v0.106.126), world events (v0.106.127). Still direct on purpose: a peer not on the mesh, a day of world history, a device key (checked at the person's host every time). Agent by name uses the peer's own rules on the copy (id, name, alias, session name, name ending) since v0.106.147, so a connected peer is never asked. Code: `lib/mesh-sync.mjs`. Backlog: F107. Background: [AGENT-STATUS.md](./AGENT-STATUS.md).
 
 ## 1. The problem
 
@@ -15,7 +15,7 @@ Read from the code on 2026-11-09.
 | What | Where |
 |---|---|
 | Agent list | `hooks/useAgents.ts` `fetchHostAgents` → each host's `/api/agents` |
-| Projects, tasks, orgs, teams, task summary | `hooks/useProjects.ts`, `useOpenTasks.ts`, `useOrgs.ts`, `useWorldTeams.ts`, `useTaskSummary.ts` |
+| Projects, tasks, orgs, teams, task summary | `hooks/useProjects.ts`, `useOpenTasks.ts`, `useOrgs.ts`, `useWorldTeams.ts`, `useTaskSummary.ts`. **Through `/mesh` since v0.106.145** |
 | Per-agent pages (memory, docs, graph, skills, canvas, board...) | the agent's own host (`hostUrl`): correct, these are actions on that agent |
 
 **A server asks every host** (on request, or on a timer):
@@ -30,7 +30,7 @@ Read from the code on 2026-11-09.
 | Agent by name | `lib/agent-registry.ts` ~2595 → `/api/agents/by-name/<name>` | on lookup |
 | Owning host | `lib/owning-host.ts` → `/api/agents/<id>` | on lookup |
 | Agent directory | `lib/agent-directory.ts` `syncWithPeers` | never started (B035). **Reads `/mesh` since v0.106.125** |
-| Email index | `services/agents-messaging-service.ts` → `/api/agents/email-index` | on lookup |
+| Email index | `services/agents-messaging-service.ts` → `/api/agents/email-index` | on lookup. **Reads `/mesh` (emails feed) since v0.106.144** |
 
 **Not data sync, and not changed here:** the host list exchange (`lib/host-sync.ts`), health checks (`diagnostics-service.ts`), creating agents or sessions on another host, AMP routing (`/api/v1/route`), agent transfer, and the terminal and chat relays (`server.mjs` `handleRemoteWorker`), which carry a screen, not state.
 
@@ -75,7 +75,7 @@ Each step ships, deploys and passes the audit before the next one starts.
 3. **Agent list and sessions move to the channel.** Replace `fetchRemoteSessions`, `useAgents` per-host fetches and `getUnifiedAgents` fan-out. Check: switching a host off shows its agents as unknown within 45 s and back within 30 s of it returning. Size M.
 4. **The rest.** Snapshots (remove `refreshRemote`), agent by name, owning host, the directory (close B035), manager links, world events. One at a time. Size M.
 
-Projects, tasks, orgs and teams stay as they are until 4 is done; they can move after if the same pattern fits.
+Projects, tasks, orgs and teams stay as they are until 4 is done; they can move after if the same pattern fits. **Moved (v0.106.145):** projects, open tasks, orgs, teams and the task summary are page feeds: each host publishes its route's whole answer as one item (polled only: 15 to 60 s), a page asks its own host once (`GET /api/mesh/<feed>`, `lib/mesh-fetch.ts`), and only hosts missing from that answer are asked directly.
 
 ## 6. Pros and cons
 

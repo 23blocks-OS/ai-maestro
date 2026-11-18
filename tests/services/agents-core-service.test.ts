@@ -127,6 +127,8 @@ vi.mock('@/lib/container-utils', () => ({
 vi.mock('child_process', () => ({
   exec: vi.fn((_cmd: string, cb: Function) => cb(null, { stdout: '', stderr: '' })),
   execSync: vi.fn().mockReturnValue(''),
+  // lib/claude-login: the account check every listed agent now gets
+  execFile: vi.fn(),
 }))
 
 // ============================================================================
@@ -435,6 +437,19 @@ describe('createNewAgent', () => {
 
     expect(result.status).toBe(400)
     expect((result.data as ServiceError).message).toMatch(/already exists/i)
+  })
+  it('stores the model access chosen at create, so the first launch uses it (#65)', () => {
+    mockAgentRegistry.createAgent.mockReset().mockReturnValue(makeAgent({ name: 'new-agent' }))
+    const result = createNewAgent({ name: 'new-agent', program: 'claude-code', taskDescription: 'Test', credential: { kind: 'oauth-token', secret: 'ACME_MAX_TOKEN', account: 'Acme Max plan' } })
+    expect(result.status).toBe(201)
+    expect(mockAgentRegistry.createAgent.mock.calls[0][0].credential).toEqual({ kind: 'oauth-token', secret: 'ACME_MAX_TOKEN', account: 'Acme Max plan' })
+  })
+
+  it('refuses a key value where a vault name belongs, and stores nothing', () => {
+    mockAgentRegistry.createAgent.mockReset()
+    const result = createNewAgent({ name: 'new-agent', program: 'claude-code', taskDescription: 'Test', credential: { kind: 'api-key', secret: 'sk-ant-abc123' } as any })
+    expect(result.status).toBe(400)
+    expect(mockAgentRegistry.createAgent).not.toHaveBeenCalled()
   })
 })
 
@@ -848,6 +863,28 @@ describe('wakeAgent', () => {
 
     expect(result.status).toBe(500)
   })
+
+  it('B040: a first wake types the task once, though the registry update bumps launchCount on the same cached object', async () => {
+    // getAgent and loadAgents return one object, like the registry cache when the file did not change
+    const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', launchCount: 0, taskDescription: 'Build the Acme website.' })
+    mockAgentRegistry.getAgent.mockReturnValue(agent)
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.loadAgents.mockReturnValue([agent])
+    mockRuntime.sendKeys.mockClear()
+    ;(mockRuntime as any).capturePane = vi.fn().mockResolvedValue('? for shortcuts') // the program's prompt is up
+
+    const result = await wakeAgent('agent-1', {})
+    expect((result.data as any)?.programStarted).toBe(true)
+    const typed = () => mockRuntime.sendKeys.mock.calls.filter((c: any[]) => c[2]?.literal && String(c[1]).includes('Build the Acme website.'))
+    await vi.waitFor(() => expect(typed()).toHaveLength(1), { timeout: 15000 })
+
+    // The second wake (launchCount is now 1) types nothing
+    mockRuntime.sendKeys.mockClear()
+    await wakeAgent('agent-1', {})
+    await new Promise(r => setTimeout(r, 2600))
+    expect(typed()).toHaveLength(0)
+    delete (mockRuntime as any).capturePane
+  }, 20000)
 
   it('sends --permission-mode auto when agent.permissionMode is smartAuto', async () => {
     const agent = makeAgent({ id: 'agent-1', name: 'my-agent', program: 'claude code', permissionMode: 'smartAuto' })

@@ -36,12 +36,15 @@ interface Case {
   warm: boolean
   expiresInMin: number
   effort?: string
+  /** Plan usage, percent used: Claude Code's rate_limits */
+  limits?: { fiveHour?: number; week?: number }
 }
 
 const CASES: Case[] = [
   { name: 'warm cache, effort high, 5 minutes idle', warm: true, expiresInMin: 11.5, effort: 'high' },
   { name: 'cold cache', warm: false, expiresInMin: -3, effort: 'high' },
   { name: 'a model with no effort', warm: true, expiresInMin: 11.5 },
+  { name: 'plan usage limits', warm: true, expiresInMin: 11.5, effort: 'high', limits: { fiveHour: 83.4, week: 18 } },
 ]
 
 const IDLE_MIN = 5.4
@@ -59,6 +62,10 @@ function runScript(c: Case, now: number): string {
     context_window: { used_percentage: 16, total_input_tokens: 160_000, context_window_size: 1_000_000 },
     exceeds_200k_tokens: false,
     ...(c.effort ? { effort: { level: c.effort } } : {}),
+    ...(c.limits ? { rate_limits: {
+      ...(c.limits.fiveHour !== undefined ? { five_hour: { used_percentage: c.limits.fiveHour, resets_at: Math.round(now / 1000) + 3600 } } : {}),
+      ...(c.limits.week !== undefined ? { seven_day: { used_percentage: c.limits.week, resets_at: Math.round(now / 1000) + 86400 } } : {}),
+    } } : {}),
     prompt_cache: {
       warm: c.warm, caching_observed: true, ttl: '1h',
       expires_at: Math.round((now + c.expiresInMin * MIN) / 1000),
@@ -87,6 +94,10 @@ function snapshotFor(c: Case, now: number): StatusSnapshot {
     compact: 'soon',
     cost: 65.78,
     ...(c.effort ? { effort: c.effort } : {}),
+    ...(c.limits ? { limits: {
+      ...(c.limits.fiveHour !== undefined ? { fiveHour: { percent: c.limits.fiveHour, resetsAt: now + 3_600_000 } } : {}),
+      ...(c.limits.week !== undefined ? { week: { percent: c.limits.week, resetsAt: now + 86_400_000 } } : {}),
+    } } : {}),
     cacheWarm: c.warm,
     cacheExpiresAt: now + c.expiresInMin * MIN,
     asOf: now,
@@ -104,6 +115,8 @@ describe('the chat header row (always)', () => {
       'Opus 5.5 | ctx 160k (16%) · /compact soon | $65.78 | effort high | cache cold | last turn 5m ago')
     expect(formatStatusRowText(snapshotFor(CASES[2], now), now)).toBe(
       'Opus 5.5 | ctx 160k (16%) · /compact soon | $65.78 | cache warm 12m | last turn 5m ago')
+    expect(formatStatusRowText(snapshotFor(CASES[3], now), now)).toBe(
+      'Opus 5.5 | ctx 160k (16%) · /compact soon | $65.78 | 5h 83% · wk 18% | effort high | cache warm 12m | last turn 5m ago')
   })
 
   it('adds the permission mode in the header only, after the effort', () => {

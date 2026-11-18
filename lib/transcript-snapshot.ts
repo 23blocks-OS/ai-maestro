@@ -23,6 +23,9 @@ const LONG_WINDOW = 1_000_000
 const CACHE_TTL_1H_MS = 60 * 60 * 1000
 const CACHE_TTL_5M_MS = 5 * 60 * 1000
 
+export interface UsageWindow { percent: number; resetsAt: number }
+export interface UsageLimits { fiveHour?: UsageWindow; week?: UsageWindow }
+
 export interface StatusSnapshot {
   /** The model id as the transcript has it, e.g. "claude-opus-5-5" */
   model: string
@@ -54,6 +57,8 @@ export interface StatusSnapshot {
   cacheWarm?: boolean
   /** When the last turn happened (ms): what "last turn N ago" and the 24 h hiding rule use. `asOf` is the time of the freshest source */
   lastTurnAt?: number
+  /** Plan usage limits Claude Code reported (subscriptions only): percent used and when the window resets (ms). Only open windows */
+  limits?: UsageLimits
   /** 'reported': the status line told the server (fresh); 'transcript': read from the transcript tail */
   source?: 'reported' | 'transcript'
 }

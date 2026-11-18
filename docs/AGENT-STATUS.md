@@ -132,3 +132,8 @@ ssh mac-mini-ts '...; node --input-type=module - --json' < scripts/status-audit.
 ```
 
 "CHECK" rows are agents whose transcript ends in an open turn more than 10 min old (a question left open, a crash or a long tool), or with no transcript (Codex, a shell). They need a look, not a fix.
+
+
+## Settled agents and terminal redraws (v0.106.146)
+
+Opening an agent's terminal redraws Claude Code's screen, which is terminal output. For an agent whose last hook report was "idle" (or idle at the prompt) but older than the report's age limit, that output used to decide, so the agent showed **Working** for a few seconds (23b-counsel, idle for 28 hours, in the audit of 2026-11-10). Now an agent whose last report, however old, says it settled is idle until the hook reports a new turn: Claude Code reports the start of every turn. An old "working" report is not settled (the terminal still decides), and an agent with no report at all (Codex, a plain shell) still goes by its terminal.

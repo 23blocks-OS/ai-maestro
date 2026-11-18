@@ -217,10 +217,10 @@ describe('B012 item 10: GET /api/agents/:id/search', () => {
 })
 
 describe('B012 item 11: POST /api/agents/:id/heartbeat', () => {
-  it('passes claudeSessionId', async () => {
+  it('passes claudeSessionId and the sign-in the session reports', async () => {
     m.heartbeat.mockReturnValue(ok)
-    await call('POST', '/api/agents/a1/heartbeat', { status: 'active', claudeSessionId: 'sess-1' })
-    expect(m.heartbeat).toHaveBeenCalledWith('a1', 'active', 'sess-1')
+    await call('POST', '/api/agents/a1/heartbeat', { status: 'active', claudeSessionId: 'sess-1', credentialSeen: { via: 'oauth-token' } })
+    expect(m.heartbeat).toHaveBeenCalledWith('a1', 'active', 'sess-1', { via: 'oauth-token' })
   })
 })
 

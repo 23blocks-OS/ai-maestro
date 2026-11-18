@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
+import { isA2uiFile, actionToInteraction, type A2uiAction } from '@/lib/a2ui-canvas'
 import {
   PanelTop,
   RefreshCw,
@@ -8,6 +10,9 @@ import {
   AlertCircle,
   Clock,
 } from 'lucide-react'
+
+// A2UI pages (F114): the renderer loads only when one is opened
+const A2uiCanvasView = dynamic(() => import('./canvas/A2uiCanvasView'), { ssr: false })
 
 interface CanvasFile {
   name: string
@@ -43,6 +48,7 @@ export default function CanvasPanel({ agentId, hostUrl, isActive = false }: Canv
   const [loading, setLoading] = useState(true)
   const [selectedFile, setSelectedFile] = useState<CanvasFile | null>(null)
   const [iframeUrl, setIframeUrl] = useState<string | null>(null)
+  const [a2uiText, setA2uiText] = useState<string | null>(null)
   const [loadingFile, setLoadingFile] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const prevBlobUrl = useRef<string | null>(null)
@@ -82,25 +88,30 @@ export default function CanvasPanel({ agentId, hostUrl, isActive = false }: Canv
     }
   }, [])
 
+  // One path for every canvas interaction: HTML pages (maestro.send) and A2UI actions
+  const postInteraction = useCallback((body: { canvasFile: string; action: string; element?: string | null; data?: unknown }) => {
+    if (!agentId) return
+    fetch(`${baseUrl}/api/agents/${agentId}/canvas/interactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => {
+      // Fire-and-forget
+    })
+  }, [agentId, baseUrl])
+
   // Listen for canvas interaction postMessages from the iframe
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (!event.data || event.data.type !== 'canvas:interaction') return
-      if (!selectedFile || !agentId) return
-
+      if (!selectedFile) return
       const { action, element, data } = event.data
-      fetch(`${baseUrl}/api/agents/${agentId}/canvas/interactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ canvasFile: selectedFile.path, action, element, data }),
-      }).catch(() => {
-        // Fire-and-forget
-      })
+      postInteraction({ canvasFile: selectedFile.path, action, element, data })
     }
 
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [agentId, selectedFile, baseUrl])
+  }, [selectedFile, postInteraction])
 
   const openFile = useCallback(async (file: CanvasFile) => {
     setSelectedFile(file)
@@ -120,6 +131,11 @@ export default function CanvasPanel({ agentId, hostUrl, isActive = false }: Canv
       }
 
       const html = await response.text()
+      if (isA2uiFile(file.path)) {
+        setA2uiText(html)
+        return
+      }
+      setA2uiText(null)
 
       // Revoke previous blob URL
       if (prevBlobUrl.current) {
@@ -211,7 +227,7 @@ window.maestro = {
               <PanelTop className="w-16 h-16 mx-auto mb-4 text-gray-600" />
               <h3 className="text-lg font-medium mb-2">No canvas files yet</h3>
               <p className="text-gray-400 text-sm">
-                Agents can write self-contained HTML files to their canvas directory for viewing here.
+                Agents can write self-contained HTML files, or A2UI pages (.a2ui.json), to their canvas directory for viewing here.
               </p>
               <code className="block mt-3 text-xs text-gray-500 bg-gray-800 px-3 py-2 rounded">
                 ~/.aimaestro/agents/$AIM_AGENT_ID/canvas/
@@ -259,6 +275,13 @@ window.maestro = {
                   <RefreshCw className="w-5 h-5 animate-spin" />
                   <span>Loading...</span>
                 </div>
+              ) : selectedFile && a2uiText !== null && isA2uiFile(selectedFile.path) ? (
+                <A2uiCanvasView
+                  key={selectedFile.path + selectedFile.modifiedAt}
+                  text={a2uiText}
+                  fileName={selectedFile.path}
+                  onAction={(a: A2uiAction) => postInteraction(actionToInteraction(selectedFile.path, a))}
+                />
               ) : iframeUrl ? (
                 <iframe
                   src={iframeUrl}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import SettingsSidebar from '@/components/SettingsSidebar'
 import HostsSection from '@/components/settings/HostsSection'
+import AccountsSection from '@/components/settings/AccountsSection'
 import DoctorSection from '@/components/settings/DoctorSection'
 import DomainsSection from '@/components/settings/DomainsSection'
 import WebhooksSection from '@/components/settings/WebhooksSection'
@@ -13,11 +14,12 @@ import ExperimentsSection from '@/components/settings/ExperimentsSection'
 import MarketplaceSection from '@/components/settings/MarketplaceSection'
 import MemorySection from '@/components/settings/MemorySection'
 import TerminalSection from '@/components/settings/TerminalSection'
+import VoiceSection from '@/components/settings/VoiceSection'
 import { VersionChecker } from '@/components/VersionChecker'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
-const SECTIONS = ['hosts', 'doctor', 'domains', 'webhooks', 'memory', 'terminal', 'help', 'about', 'onboarding', 'experiments', 'marketplace'] as const
+const SECTIONS = ['hosts', 'accounts', 'doctor', 'domains', 'webhooks', 'memory', 'terminal', 'voice', 'help', 'about', 'onboarding', 'experiments', 'marketplace'] as const
 type Section = typeof SECTIONS[number]
 
 export default function SettingsPage() {
@@ -52,11 +54,13 @@ export default function SettingsPage() {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
           {activeSection === 'hosts' && <HostsSection />}
+          {activeSection === 'accounts' && <AccountsSection />}
           {activeSection === 'doctor' && <DoctorSection />}
           {activeSection === 'domains' && <DomainsSection />}
           {activeSection === 'webhooks' && <WebhooksSection />}
           {activeSection === 'memory' && <MemorySection />}
           {activeSection === 'terminal' && <TerminalSection />}
+          {activeSection === 'voice' && <VoiceSection />}
           {activeSection === 'marketplace' && <MarketplaceSection />}
           {activeSection === 'experiments' && <ExperimentsSection />}
           {activeSection === 'onboarding' && <OnboardingSection />}

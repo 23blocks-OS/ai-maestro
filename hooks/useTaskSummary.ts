@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { isSelfHost } from '@/lib/host-kind'
 import type { Host } from '@/types/host'
+import { fetchFeedFromHosts } from '@/lib/mesh-fetch'
 
 export interface TaskCounts { open: number; waiting: number; waitingOnJuan: number }
 
@@ -18,20 +18,8 @@ export function useTaskSummary(hosts: Host[]): Record<string, TaskCounts> {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const targets = hosts.length > 0 ? hosts.filter(h => h.enabled !== false) : []
-      const urls = targets.length > 0
-        ? targets.map(h => (isSelfHost(h) ? '' : h.url.replace(/\/$/, '')))
-        : ['']
-      const results = await Promise.all(urls.map(async base => {
-        try {
-          const res = await fetch(`${base}/api/tasks/summary`, { signal: AbortSignal.timeout(5000) })
-          if (!res.ok) return {}
-          const data = await res.json()
-          return (data.agents || {}) as Record<string, TaskCounts>
-        } catch {
-          return {}
-        }
-      }))
+      const answers = await fetchFeedFromHosts<{ agents?: Record<string, TaskCounts> }>(hosts, 'taskSummary', '/api/tasks/summary', 5000)
+      const results = answers.map(a => (a.data?.agents || {}) as Record<string, TaskCounts>)
       if (cancelled) return
       // A project card is counted by the host that stores the project, for an agent that may live on another host:
       // the same agent can appear in several answers, so add them up instead of letting one overwrite the other

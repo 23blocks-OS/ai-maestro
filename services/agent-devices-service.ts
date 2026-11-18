@@ -40,6 +40,7 @@ interface DeviceHost {
   forget(agent: Agent, key: string): boolean
   saveSnapshot(agent: Agent, key: string, value: { mime: string; data: string }): string
   capture(agent: Agent, key: string, kind: string, seconds: number): Promise<string>
+  record(agent: Agent, key: string, seconds: number): Promise<Buffer>
   canSpeak(agent: Agent, key: string): Promise<boolean>
   hubOrigin(): string | null
   speak(agent: Agent, key: string, text: string, voice: Agent['voice']): Promise<unknown>
@@ -167,6 +168,15 @@ export async function captureAgentDevice(agentId: string, key: string, body: { k
     if (!max || !Object.hasOwn(MAX_SECONDS, kind as string)) return fail(400, 'invalid_request', 'kind must be video or microphone')
     if (!Number.isInteger(seconds) || (seconds as number) < 1 || (seconds as number) > max) return fail(400, 'invalid_request', `seconds must be 1 to ${max}`)
     return { data: { ok: true, value: { path: await h.capture(agent, key, kind as string, seconds as number) } }, status: 200 }
+  })
+}
+
+/** Shows a line on the device's screen, then records its microphone, in memory (voice enrollment, #78). */
+export async function recordAgentDeviceVoice(agentId: string, key: string, line: string, seconds: number): Promise<ServiceResult<{ wav?: Buffer; ok?: false; error?: string }>> {
+  return withAgent(agentId, async (h, agent) => {
+    // Without the screen grant the person reads the line from the dashboard instead
+    await h.invoke(agent, key, 'display.text', { text: line }).catch(() => {})
+    return { data: { wav: await h.record(agent, key, seconds) }, status: 200 }
   })
 }
 

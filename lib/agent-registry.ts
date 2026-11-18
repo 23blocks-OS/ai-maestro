@@ -587,6 +587,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     ...(request.copilotHome ? { copilotHome: request.copilotHome } : {}),
     ...(request.launchOptions && Object.keys(request.launchOptions).length > 0 ? { launchOptions: request.launchOptions } : {}),
     permissionMode: request.permissionMode || 'supervised',
+    ...(request.credential ? { credential: request.credential } : {}),
     runtime: request.runtime || 'tmux',
     launchCount: 0,
     tags: normalizeTags(request.tags),
@@ -696,6 +697,7 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   if (updates.title === null || updates.title === '') updateData.title = undefined
   if (updates.voice === null) updateData.voice = undefined
   if (updates.experiments === null) updateData.experiments = undefined
+  if (updates.credential === null) updateData.credential = undefined
   if (updates.devicePeople === null) updateData.devicePeople = undefined
   if (updates.managerAgentId === null) updateData.managerAgentId = undefined
   // null clears the Copilot launch fields
@@ -2583,13 +2585,20 @@ export async function checkMeshAgentExists(
   }
   result.checkedHosts.push(selfHostId)
 
-  // A connected peer's /mesh copy answers an exact name or alias without asking it.
-  // shortcut: a miss still asks every peer, because the peer's own resolution also matches
-  // session names and name endings; move those rules here if the misses cost too much.
+  // A connected peer's /mesh copy answers with the same rules the peer itself uses (lib/messageQueue.ts
+  // resolveAgent): id, exact name, alias, a session name ("website_1"), then the last segment of a name ("crm"
+  // matches "23blocks-api-crm"). Its list is complete, so a connected peer is never asked; only peers off the mesh are.
   const normalizedName = name.toLowerCase()
   const { findInMesh } = await import('./owning-host')
-  const hit = findInMesh(a => a.registrationStatus !== 'pending' && !a.deletedAt
-    && ((a.name || '').toLowerCase() === normalizedName || (a.alias || '').toLowerCase() === normalizedName))
+  const usable = (a: any) => a.registrationStatus !== 'pending' && !a.deletedAt
+  const nameOf = (a: any) => (a.name || '').toLowerCase()
+  const sessionBase = parseSessionName(name).agentName.toLowerCase()
+  const lastSegment = (a: any) => { const parts = (a.name || a.alias || '').split(/[-_]/); return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : null }
+  const hit = findInMesh(a => usable(a) && a.id === name)
+    || findInMesh(a => usable(a) && nameOf(a) === normalizedName)
+    || findInMesh(a => usable(a) && (a.alias || '').toLowerCase() === normalizedName)
+    || findInMesh(a => usable(a) && nameOf(a) === sessionBase)
+    || findInMesh(a => usable(a) && lastSegment(a) === normalizedName)
   if (hit) {
     result.exists = true
     result.host = hit.hostId
@@ -2599,8 +2608,12 @@ export async function checkMeshAgentExists(
     return result
   }
 
-  // Check peer hosts in parallel
-  const peerHosts = getPeerHosts()
+  // Peers on the mesh have answered (no match); ask only the others
+  const { peerAgents } = await import('@/services/shared-state')
+  const peerHosts = getPeerHosts().filter(h => {
+    if (peerAgents.get(h.id)?.connected) { result.checkedHosts.push(h.id); return false }
+    return true
+  })
 
   const checks = peerHosts.map(async (host) => {
     try {

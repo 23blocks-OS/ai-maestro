@@ -216,6 +216,24 @@ describe('staleness bounds', () => {
   it('does not label a LIVE terminal "waiting" on a months-old report', async () => {
     writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 60 * 24 * HOURS)
     sessionActivity.set('backend-api', Date.now())
+    // Not waiting. And not Working either: the agent settled and has reported no turn since (v0.106.146)
+    expect((await getActivity())['backend-api'].status).toBe('idle')
+  })
+
+  it('opening the terminal of an agent that settled long ago does not make it look busy (23b-counsel)', async () => {
+    writeHookFile('/repos/api', 'waiting_for_input', Date.now() - 28 * HOURS, 'idle_prompt')
+    sessionActivity.set('backend-api', Date.now()) // the redraw when the terminal opens
+    expect((await getActivity())['backend-api'].status).toBe('idle')
+  })
+
+  it('an old "working" report is not a settled one: the terminal still decides', async () => {
+    writeHookFile('/repos/api', 'active', Date.now() - 2 * HOURS)
+    sessionActivity.set('backend-api', Date.now())
+    expect((await getActivity())['backend-api'].status).toBe('active')
+  })
+
+  it('an agent with no report at all (Codex, a shell) still goes by its terminal', async () => {
+    sessionActivity.set('backend-api', Date.now())
     expect((await getActivity())['backend-api'].status).toBe('active')
   })
 })

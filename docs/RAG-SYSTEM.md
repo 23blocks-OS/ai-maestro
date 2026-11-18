@@ -258,6 +258,7 @@ after 30 seconds without work.
 |---|---|---|
 | `AIMAESTRO_EMBEDDING_MAX_BATCHES` | `64` | Batches before the worker is replaced |
 | `AIMAESTRO_EMBEDDING_MAX_MB` | `512` | Worker memory (RSS, or physical footprint on macOS) before it is replaced |
+| `AIMAESTRO_EMBEDDING_THREADS` | `2` | ONNX threads per embedding. More is slower for the two short texts the worker gets at a time. The worker also runs at lower priority (nice 10). |
 | `AIMAESTRO_EMBEDDING_CACHE_DIR` | `~/.aimaestro/cache/transformers` | Model cache |
 | `AIMAESTRO_EMBEDDING_DEVICE` | `cpu` | ONNX device; set only on a CUDA-enabled onnxruntime build |
 

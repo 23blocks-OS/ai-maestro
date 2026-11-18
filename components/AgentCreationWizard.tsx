@@ -6,6 +6,8 @@ import { X, ChevronRight, Monitor, Server, Cloud, Lock, Wifi, WifiOff, Box } fro
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import DirectoryPicker from './DirectoryPicker'
 import LaunchChoicePanel from './launch/LaunchChoicePanel'
+import AgentCredentialSection from './AgentCredentialSection'
+import type { AgentCredential } from '@/types/agent'
 import { useLaunchChoice, type LaunchChoice } from '@/hooks/useLaunchChoice'
 import PluginPicker from '@/components/PluginPicker'
 import { programForCreate, CONTAINER_TOOL_IDS, PROGRAM_CHOICES } from '@/lib/program-choices'
@@ -179,6 +181,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
   const [dockerGithubToken, setDockerGithubToken] = useState('')
   // The tool and how freely it acts, for a local agent. Starts on Claude Code, Careful, as the wizard always did.
   const launch = useLaunchChoice({ defaultProgram: 'claude-code', defaultPermissionMode: 'supervised' })
+  const [credential, setCredential] = useState<AgentCredential | null>(null)  // which account it uses (#65)
   // A container image carries three tools. Moving to Docker or AWS from a tool it does not have goes back to Claude Code.
   useEffect(() => {
     if (runtime === 'tmux' || (CONTAINER_TOOL_IDS as readonly string[]).includes(launch.selectedId)) return
@@ -346,6 +349,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
             // Sent only for a tool that has them; the server drops anything the tool cannot honour.
             permissionMode: launch.modes.length > 0 ? launch.permissionMode : undefined,
             launchOptions: launch.decls.length > 0 ? launch.clean : undefined,
+            credential: launch.selected.kind === 'claude' && credential ? credential : undefined,
           }),
         })
         const data = await response.json().catch(() => ({}))
@@ -376,7 +380,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
       setAnimationPhase('error')
       setIsCreating(false)
     }
-  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch, skillPlugins])
+  }, [agentName, workingDirectory, hostId, runtime, showAdvanced, dockerCpus, dockerMemory, dockerMounts, dockerEnvVars, dockerOnWake, dockerOnHibernate, dockerGithubToken, dockerMeshAware, dockerAutoRemove, cloudEcrImageOverride, cloudDomain, cloudSslEmail, cloudKeyName, cloudAwsRegion, cloudInstanceType, cloudEcsCpu, cloudEcsMemory, cloudAnthropicKey, cloudGithubToken, launch, credential, skillPlugins])
 
   // Animation timer
   const isCloudRuntime = runtime === 'ec2' || runtime === 'ecs'
@@ -583,7 +587,7 @@ export default function AgentCreationWizard({ onClose, onComplete }: AgentCreati
                   cloudInstanceType, setCloudInstanceType,
                   cloudEcsCpu, setCloudEcsCpu, cloudEcsMemory, setCloudEcsMemory,
                   cloudAnthropicKey, setCloudAnthropicKey, cloudGithubToken, setCloudGithubToken,
-                  launch,
+                  launch, credential, setCredential,
                 }}
               />
             )}
@@ -612,6 +616,8 @@ interface BubbleState {
   dockerOnHibernate: string; setDockerOnHibernate: (v: string) => void
   dockerGithubToken: string; setDockerGithubToken: (v: string) => void
   launch: LaunchChoice
+  credential: AgentCredential | null
+  setCredential: (c: AgentCredential | null) => void
   dockerMeshAware: boolean; setDockerMeshAware: (v: boolean) => void
   dockerAutoRemove: boolean; setDockerAutoRemove: (v: boolean) => void
   cloudEcrImageOverride: string; setCloudEcrImageOverride: (v: string) => void
@@ -922,6 +928,11 @@ function LaunchSection({ state, hosts }: { state: BubbleState; hosts: Host[] }) 
             <p className="mt-2 text-[11px] text-gray-500 break-all" data-testid="create-preview">
               Will run: <code className="text-gray-300 font-mono">{state.launch.preview}</code>
             </p>
+          )}
+          {state.launch.selected.kind === 'claude' && (
+            <div className="mt-3" data-testid="create-credential">
+              <AgentCredentialSection baseUrl={host && !host.isSelf ? host.url : ''} value={state.credential} onChange={state.setCredential} />
+            </div>
           )}
         </div>
       ) : (

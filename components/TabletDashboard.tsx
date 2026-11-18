@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from 'react'
 import TerminalView from './TerminalView'
 import MobileChatView from './MobileChatView'
 import { primaryAmpAddress } from '@/lib/status-format'
+import { accountOf } from '@/lib/credential-words'
 import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileConversationDetail from './MobileConversationDetail'
@@ -275,6 +276,7 @@ export default function TabletDashboard({
                       baseUrl={getAgentBaseUrl(agent)}
                           workingDirectory={agent.workingDirectory || (agent as any).session?.workingDirectory || null}
                           address={primaryAmpAddress(agent as any)}
+                          account={accountOf(agent)}
                     />
                   </div>
                 )}

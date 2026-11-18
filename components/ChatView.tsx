@@ -16,6 +16,7 @@ import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { primaryAmpAddress } from '@/lib/status-format'
+import { accountOf } from '@/lib/credential-words'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, useMemo, type KeyboardEvent, type ChangeEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, AlertCircle, ChevronDown, ChevronRight, Copy, Check, MessageSquare, ScanEye, Info } from 'lucide-react'
@@ -1008,6 +1009,7 @@ export default function ChatView({ agent, isActive = false }: ChatViewProps) {
         roleLine={agentRoleLine(agent.tags)}
         workingDirectory={agentWorkingDirectory(agent)}
         address={primaryAmpAddress(agent as any)}
+        account={accountOf(agent)}
         snapshot={snapshotOf(agent)}
         presence={presence}
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presence) }}

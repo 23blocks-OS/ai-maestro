@@ -112,7 +112,7 @@ export function formatMode(mode: string | undefined | null): string | null {
 export type RowTone = 'default' | 'amber' | 'red' | 'muted' | 'warm' | 'cold'
 
 export interface RowSegment {
-  key: 'model' | 'ctx' | 'cost' | 'effort' | 'mode' | 'cache' | 'lastTurn'
+  key: 'model' | 'ctx' | 'cost' | 'limits' | 'effort' | 'mode' | 'cache' | 'lastTurn'
   /** Plain text, exactly what the terminal bar prints for this part */
   text: string
   tone: RowTone
@@ -155,6 +155,9 @@ export function statusRowSegments(snapshot: StatusSnapshot, now: number, opts: {
   const cost = formatCost(snapshot.cost)
   if (cost) out.push({ key: 'cost', text: cost, tone: 'default', title: "This session's cost, estimated at list price" })
 
+  const limits = formatLimits(snapshot.limits)
+  if (limits) out.push({ key: 'limits', text: limits.text, tone: limits.max >= 95 ? 'red' : limits.max >= 80 ? 'amber' : 'default', title: limits.title })
+
   if (snapshot.effort) out.push({ key: 'effort', text: `effort ${snapshot.effort}`, tone: 'default', title: 'Reasoning effort' })
 
   if (opts.includeMode) {
@@ -177,4 +180,18 @@ export function statusRowSegments(snapshot: StatusSnapshot, now: number, opts: {
 /** The row as plain text, parts joined with " | ". What the parity test compares with the terminal bar. */
 export function formatStatusRowText(snapshot: StatusSnapshot, now: number, opts: { includeMode?: boolean } = {}): string {
   return statusRowSegments(snapshot, now, opts).map(seg => seg.text).join(' | ')
+}
+
+/** Plan usage limits as the terminal bar prints them: "5h 42% · wk 18%", with the highest percent and the reset times */
+export function formatLimits(limits: StatusSnapshot['limits']): { text: string; max: number; title: string } | null {
+  if (!limits) return null
+  const parts: Array<[string, string, { percent: number; resetsAt: number }]> = []
+  if (limits.fiveHour) parts.push(['5h', '5-hour window', limits.fiveHour])
+  if (limits.week) parts.push(['wk', 'weekly limit', limits.week])
+  if (!parts.length) return null
+  return {
+    text: parts.map(([l, , w]) => `${l} ${Math.floor(w.percent)}%`).join(' · '),
+    max: Math.max(...parts.map(([, , w]) => Math.floor(w.percent))),
+    title: 'Plan usage: ' + parts.map(([, name, w]) => `${name} ${Math.floor(w.percent)}% used, resets ${new Date(w.resetsAt).toLocaleString()}`).join('; '),
+  }
 }

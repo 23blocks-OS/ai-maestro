@@ -4,8 +4,10 @@
  * The prefixed AMP rules used to be written `Bash(AMP_DIR=* amp-read.sh:*)`.
  * The `:*` suffix can't be combined with another `*`, so Claude Code read the
  * `*` literally: the rules never matched, and every session start printed a
- * warning for each of the 16. The installer now writes the space form and
- * removes the old rules from the user settings and the current project.
+ * warning for each of the 16. The space form that replaced them did match, but a
+ * `*` in a variable's value also matches spaces, so it approved any line with the
+ * script later in it. The installer now writes only the bare rules and removes
+ * every prefixed one from the user settings and the current project.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -53,9 +55,8 @@ describe('AMP permission rules', () => {
     const rules = allow(userSettings())
     expect(rules.filter(r => r.endsWith(':*)') && r.slice(0, -3).includes('*'))).toEqual([])
     expect(rules).toContain('Bash(amp-read.sh:*)')
-    expect(rules).toContain('Bash(CLAUDE_AGENT_NAME=* amp-read.sh)')
-    expect(rules).toContain('Bash(CLAUDE_AGENT_NAME=* amp-read.sh *)')
-    expect(rules).toContain('Bash(AMP_DIR=* amp-read.sh *)')
+    // A * in a variable's value matches spaces too, so it would approve any line ending in the script
+    expect(rules.filter(r => /^Bash\(\w+=\*/.test(r))).toEqual([])
   })
 
   it('never allows the commands kept behind a human', () => {
@@ -66,7 +67,7 @@ describe('AMP permission rules', () => {
 
   it('removes the old rules from user and project settings, keeping everything else', () => {
     fs.writeFileSync(userSettings(), JSON.stringify({
-      permissions: { allow: ['Bash(git status)', 'Bash(CLAUDE_AGENT_NAME=* amp-inbox.sh:*)', 'Bash(AMP_DIR=* amp-read.sh:*)'] },
+      permissions: { allow: ['Bash(git status)', 'Bash(CLAUDE_AGENT_NAME=* amp-inbox.sh:*)', 'Bash(AMP_DIR=* amp-read.sh:*)', 'Bash(AMP_DIR=* amp-identity.sh)', 'Bash(AMP_DIR=* amp-identity.sh *)'] },
       hooks: { Stop: [] },
     }))
     fs.writeFileSync(projectSettings(), JSON.stringify({
@@ -75,7 +76,7 @@ describe('AMP permission rules', () => {
     run()
     const user = JSON.parse(fs.readFileSync(userSettings(), 'utf8'))
     expect(user.permissions.allow).toContain('Bash(git status)')
-    expect(user.permissions.allow).not.toContain('Bash(CLAUDE_AGENT_NAME=* amp-inbox.sh:*)')
+    expect(user.permissions.allow.filter((r: string) => r.includes('=*'))).toEqual([])
     expect(user.hooks).toEqual({ Stop: [] })
     expect(allow(projectSettings())).toEqual(['Bash(ls)'])
   })

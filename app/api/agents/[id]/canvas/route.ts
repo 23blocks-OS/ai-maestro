@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listCanvasFiles, getCanvasFile } from '@/services/agents-canvas-service'
 import { toResponse } from '@/app/api/_helpers'
 import { isServiceError } from '@/services/service-errors'
+import { etagJsonResponse } from '@/lib/etag'
 
 export async function GET(
   request: NextRequest,
@@ -27,11 +28,11 @@ export async function GET(
         return toResponse(result)
       }
 
-      const { content, fileName } = result.data as { content: string; fileName: string; size: number }
+      const { content, fileName, contentType } = result.data as { content: string; fileName: string; size: number; contentType: string }
       return new Response(content, {
         status: 200,
         headers: {
-          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Type': contentType,
           'X-Canvas-File': fileName,
         },
       })
@@ -39,7 +40,7 @@ export async function GET(
 
     // List canvas files
     const result = listCanvasFiles(agentId)
-    return toResponse(result)
+    return result.status === 200 ? etagJsonResponse(request, result.data) : toResponse(result)
   } catch (error) {
     console.error('[Canvas API] Error:', error)
     return NextResponse.json(

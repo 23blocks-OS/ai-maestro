@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { etagJsonResponse } from '@/lib/etag'
 import { getUnifiedAgents } from '@/services/agents-core-service'
 
 /**
@@ -19,5 +19,5 @@ export async function GET(request: Request) {
     timeout: parseInt(searchParams.get('timeout') || '3000', 10),
   })
 
-  return NextResponse.json(result.data)
+  return etagJsonResponse(request, result.data)
 }

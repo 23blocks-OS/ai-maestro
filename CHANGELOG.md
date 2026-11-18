@@ -3,6 +3,242 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.106.221] - 2026-11-18 - Neutral test data
+
+### Changed
+- Tests use neutral examples instead of our own hosts and agents: a made-up dashboard address and agent id, `alice` instead of a real agent name, and no host names in test comments.
+
+## [0.106.220] - 2026-11-18 - A renamed person keeps their voiceprint
+
+### Fixed
+- Renaming a person in People now renames their voiceprint too, so the kiosk names them the new way. Before, it kept the name from enrollment until the person enrolled again. The People page tells each host that keeps a voiceprint for that person (new `PATCH /api/voiceprints/<personId>` with `{ name }`); the voice and the consent stay as they were.
+- `install-voice.sh` finds `uv` in `~/.local/bin` (or `~/.cargo/bin`), where uv's own installer puts it, even when the shell running the script does not have that folder on its PATH. Before, it fell back to pip.
+## [0.106.219] - 2026-11-18 - What AI Maestro gives back, updated
+
+### Changed
+- [What AI Maestro gives back](docs/CONTRIBUTIONS-UPSTREAM.md) adds our work in A2UI (a fix for renderers without a DOM, in review), the Personal Agent Protocol (the self-hosted agents guides) and Open Source Colombia. The README links the page under Open Protocols.
+
+## [0.106.217] - 2026-11-16 - The agent list says "nothing changed" when nothing did
+
+### Fixed
+- The agent list (`/api/agents/unified`) stamped every online agent's `lastActive` with the time of the request, so the list was different on every poll and the server could never answer 304 (0.106.212). `lastActive` for an online agent is now its last real activity: its newest session activity or heartbeat. On our MacBook that list is about 430 KB per poll, and between two polls 6 s apart this field was the only change, on 114 agents. The phone app already sends `If-None-Match`, so it now gets an empty 304 whenever no agent did anything.
+## [0.106.216] - 2026-11-16 - Memory indexing uses less CPU
+
+### Changed
+- The process that turns conversations into searchable memory now uses 2 threads instead of one per core, and runs at lower priority than the agents. On the two short texts it gets at a time it is about 1.6 times faster this way and uses about a third of the CPU. On a 12-core host it used about 4 cores while indexing. Set `AIMAESTRO_EMBEDDING_THREADS` to change the number of threads.
+
+## [0.106.215] - 2026-11-16 - A dead host no longer slows the agent list
+
+### Fixed
+- When a host in your hosts list is down, the session list waited 2 seconds for it on almost every refresh, so the dashboard and agents on the other hosts felt slow. Now a host that does not answer is skipped for 30 seconds, then 1, 2 and up to 5 minutes while it stays down, and it is asked again as soon as the wait ends. On our mac-mini, one host that has been off for months made about one request in ten take 2.1 s instead of 5 ms.
+
+## [0.106.212] - 2026-11-16 - Polled JSON answers 304 when nothing changed
+
+### Changed
+- `GET /api/agents/unified`, `GET /api/sessions/activity` and the canvas file list (`GET /api/agents/:id/canvas`) send a weak `ETag` (a hash of the body) and `Cache-Control: no-cache`. A request whose `If-None-Match` names that tag gets `304 Not Modified` with no body. The phone app polls the first two every 30 s (about 440 KB and 100 KB before compression) and the canvas list every 5 s while the canvas is open. Also in headless mode (`lib/etag.ts`).
+
+### Limits
+- The tag changes whenever any byte of the answer changes. On a busy host the agents list and the activity change on almost every poll (`lastActive` and status-snapshot times move), so most 304s come when the fleet is quiet.
+
+## [0.106.211] - 2026-11-16 - The Claude Code hook answers inside 5 s
+
+### Fixed
+- `ai-maestro-hook.cjs` ran past Claude Code's 5 s hook timeout on a busy host (mac-mini: 56 agents, memory indexing; 1,569 inbox-check timeouts and 616 Stop-check timeouts in its hook log since October), so Claude Code cut it off and dropped its output. Three causes: the status and heartbeat POSTs had no timeout and were awaited before the inbox check started; a timed-out inbox check then ran `amp-inbox.sh` synchronously for up to 3 s, which also stopped the injection deadline from firing; and nothing bounded the whole run. Now the POSTs time out at 1.5 s and run alongside the injection, a timeout skips the standalone check (the server is up, the next turn reads the inbox again), the standalone check runs async, and a 3.5 s watchdog answers with nothing and exits, leaving room for Node start-up on a loaded host. Plugin 1.19.20 carries the same hook.
+
+## [0.106.210] - 2026-11-16 - Voice matching at the kiosk
+
+### Added
+- A kiosk's hold-to-talk clip is now matched against the voiceprints on its host (#78). When one enrolled person clearly matches, the agent's message says the voice sounds like them, with the score, as a guess and never proof (the wording from 0.106.207); a voice match grants nothing and never makes a sender verified. Under the threshold (0.5), with less than 2 s of speech, or when the two best people are within 0.05 of each other, the agent gets no name, so it treats the speaker as unknown. A host with no voiceprints or no speaker model behaves as before. The clip is embedded in the voice worker and not kept.
+- Checked on public LibriSpeech audio (5 readers enrolled from four clips each): every test clip with enough speech named the right reader (0.73 to 0.93), and no clip from a reader who was not enrolled matched anyone (best 0.40). Three right clips under 2 s of speech were left unnamed. Not yet checked on kiosk audio.
+
+## [0.106.209] - 2026-11-16 - Voice enrollment
+
+### Added
+- People page: **enroll voice** for a person (#78). The operator picks a kiosk (a device of an agent on a host with local voice), shows the person the consent text, confirms they agree, and the person reads four sentences at the kiosk, 5 s each. Only the combined voiceprint is kept, on that host, in `~/.aimaestro/voiceprints/<personId>.json` (mode 600), with the consent text and date; the recordings stay in memory and are never written. A sentence with too little speech is asked again; four recordings that don't sound like one person are discarded. A **delete** link removes the voiceprint.
+- Settings, Voice: the consent text, per host, with a neutral default the operator should rewrite for their country and users.
+- `scripts/install-voice.sh` also installs the speaker model (WeSpeaker ResNet34, Apache-2.0, 26 MB, checksum-pinned) and `kaldi-native-fbank`. Run it again on a host that already has local voice.
+- API: `GET/PUT /api/voiceprints`, `POST /api/voiceprints/[personId]/samples`, `DELETE /api/voiceprints/[personId]` (also in headless mode).
+
+Voices are not matched at the kiosk yet: that is the next step, after the threshold is checked on real kiosk audio.
+
+## [0.106.208] - 2026-11-15 - Shift+Tab from a phone
+
+### Added
+- A phone keyboard can't type Shift+Tab, which Claude Code uses to change mode (manual, accept edits, plan, auto). The terminal's key bar on a phone has a ⇧Tab key, and the chat has a ⇧Tab button next to Attach (WebSocket `chat:cycleMode`; the server sends the fixed key).
+
+## [0.106.207] - 2026-11-15 - Agents hear who the voice sounds like
+
+### Added
+- When the host's speech-to-text also matches the voice (ADP `speaker`, #78), the agent's message says who it sounds like and how sure the match is, as a guess, never proof. A voice match never makes a sender verified. If the operator marked the device as one person's and the voice names someone else, the agent is told both and treats the speaker as not verified. The device SDK copy is updated to ADP 369b6e5. Nothing on our hosts matches voices yet, so this changes nothing until that is built.
+
+## [0.106.206] - 2026-11-15 - Backlog: Poppy access pages
+
+### Added
+- Backlog item F117: four dashboard parts the agent framework needs for Personal Agent Protocol access (held actions, device sign-in code, per-company access with Revoke, an agent key in the vault). Blocked until the shared Poppy package exists.
+
+## [0.106.205] - 2026-11-14 - A2UI pages draw icons and Markdown
+
+### Fixed
+- A2UI canvas pages drew icon names as words and Markdown as raw text. Icons now come from a Material Icons font bundled with the dashboard; Text renders Markdown with markdown-it, with images, links and raw HTML off, so a page still loads nothing from outside.
+
+## [0.106.204] - 2026-11-14 - Agents know when Siri asked
+
+### Added
+- A question asked through Siri tells the agent so. Siri reads only the agent's first reply aloud and then the phone closes the link, but the question reached the agent as ordinary typed device input. Device input can now carry `via` (Agent Device Protocol, agentmessaging/agent-device-protocol#44), and the agent's message, or its speaking side's turn (F100), adds: answer in one or two short spoken sentences, no markdown, anything longer in the chat (`lib/device-relay.mjs`). The phone app sends `via: "siri"` in a later release. The device SDK copy is updated.
+
+## [0.106.203] - 2026-11-14 - JSON answers are compressed
+
+### Changed
+- The host compresses JSON answers with gzip, or brotli when the client asks for it. `/api/agents/unified` and the status feed were sent uncompressed (about 440 KB and 100 KB per request), which cost the phone app battery and data. Answers under 1 KB and streams such as `text/event-stream` are not compressed. Uses the `compression` package (`lib/json-compression.mjs`).
+
+## [0.106.202] - 2026-11-13 - What AI Maestro gives back
+
+### Added
+- docs/CONTRIBUTIONS-UPSTREAM.md lists the fixes and proposals AI Maestro sent to the projects it builds on (agent-browser #2586, HarnessRouter UHP input requests) and the open protocols it publishes (AMP, AID, AAP, ADP, AFP). The README links it from Contributors.
+
+## [0.106.201] - 2026-11-13 - The terminal header matches the chat header
+
+### Fixed
+- The terminal tab's header now shows the same as the chat tab's: the agent's name, role, AMP address and account (with its sign-in kind and the red wrong-account warning). It got only the tmux session before, so it showed the session name and no account.
+
+## [0.106.200] - 2026-11-13 - Messages between hosts survive a renamed Mac
+
+### Fixed
+- A host now names itself by its id in hosts.json, not by its current OS hostname. macOS renamed the MacBook "mac.attlocal.net" and then "mac" (no fixed HostName, so the network named it), the other hosts did not know those names, and refused every message it forwarded to them (401), which then waited in the relay queue. Both copies of the host id (lib/hosts-config.ts and lib/hosts-config-server.mjs) find the configured id by hostname or alias, or by IP when the hostname changed.
+
+## [0.106.199] - 2026-11-13 - Agents pick the page format
+
+### Changed
+- Plugin 1.19.19: the agent-actions skill 1.4.0 tells agents which page format to write: an A2UI page when the user has to act (approve, choose, fill in a form), HTML when the user has to look (reports, charts, tables, images) and for meeting rooms. It adds a reference with a complete A2UI page.
+
+## [0.106.198] - 2026-11-13 - A new agent's first wake types its task
+
+### Fixed
+- A new agent's first wake could still skip typing its task (B040): the registry cache let the launch count rise on the object the wake had read before it decided. The wake now decides first.
+
+## [0.106.197] - 2026-11-13 - Backlog: B039 was already fixed
+
+### Fixed
+- B039 (a new agent started on the default model, and a doubled `--model`) is marked Done: it was fixed in 0.106.112 and its tests pass; the backlog had not been updated.
+
+## [0.106.193] - 2026-11-13 - A2UI pages in the Canvas tab (prototype)
+
+### Added
+- Canvas pages can be A2UI v1.0 JSON (`.a2ui.json` / `.a2ui.jsonl`) as well as HTML (F114, experimental). The dashboard draws them with its own components, in its theme, with no iframe and no code from the agent. Image, Video, AudioPlayer and `openUrl` are blocked, and a page that uses them shows why. A button's action reaches the agent like `maestro.send()`: the same interaction file and `[CANVAS]` notice. The renderer loads only when an A2UI page is opened. See docs/A2UI-CANVAS.md.
+
+## [0.106.192] - 2026-11-13 - Backlog: A2UI research
+
+### Added
+- Backlog F114: research whether Agent Actions and canvas documents can take A2UI surfaces (declarative JSON UI) beside HTML pages.
+
+## [0.106.191] - 2026-11-13 - Every agent shows its account
+
+### Changed
+- Every agent's header shows the account it runs on, not only agents with an account set. No setting is the computer's own login, shown with its email and plan, and it gets the same live check: an agent with no setting that runs on a token or key now turns red "Wrong account" instead of showing nothing.
+
+## [0.106.190] - 2026-11-13 - One message at a time into an agent's terminal
+
+### Fixed
+- Two messages sent to the same agent at the same moment (several files attached in a row, a chat message and a schedule) were typed into its input box together: they arrived glued into one prompt, and one send's clear-and-retype could erase another's text, so a file was saved but the agent was never told. Every path that types into a terminal (chat, the API and file uploads, schedules) now waits its turn per agent.
+
+## [0.106.189] - 2026-11-13 - Pick the account when you create or wake an agent
+
+### Added
+- The creation wizard has the Model access choice for a Claude Code agent (this computer's login, a subscription token, an API key, a gateway or a separate login folder). The new agent starts on it; `/api/sessions/create` takes `credential`, checks it as on update, forwards it to another host, and drops it for other tools.
+- The wake dialog shows which account the agent will use, with Change: a new choice is saved on the agent before it wakes, so this wake already starts on it, with the live check and the settings warnings of its host.
+
+## [0.106.187] - 2026-11-13 - Remove the AMP_DIR=* permission rules
+
+### Security
+- The installer no longer writes the `Bash(AMP_DIR=* amp-*.sh *)` and `Bash(CLAUDE_AGENT_NAME=* …)` allow rules, and removes the 32 it wrote before. A `*` in a variable's value also matches spaces, so they approved any command line with an AMP script later in it, and Claude Code warned about each one at every session start. Agents already get AMP_DIR and CLAUDE_AGENT_NAME in their environment, so the bare `Bash(amp-*.sh:*)` rules cover them.
+
+## [0.106.185] - 2026-11-13 - Choose an agent's account when you create it, and agents know how
+
+### Added
+- `aimaestro-agent.sh create --credential <kind> --secret NAME [--account TEXT]` (and `--base-url`, `--cred-model`, `--cred-dir`): a new agent starts on the chosen account or key from its first launch. The API takes `credential` on create and checks it as on update (agents CLI v1.0.5).
+- `aimaestro-agent.sh wake` prints the warning when a settings file would make the agent run on another account.
+- The agent management skill now covers model access: the kinds, `create`/`update --credential`, `credential switch` for a crew, why a settings `env` block is the wrong place, and how to check what the running session really uses (plugin 1.19.17).
+
+## [0.106.182] - 2026-11-11 - No "still on it" once the talk has moved on
+
+### Fixed
+- The speaking side said "I'm still on it" 20 seconds after handing a task to the main session even when the person had already moved on to something else (B041). A new turn now cancels it; the answer still comes when it is ready.
+## [0.106.178] - 2026-11-11 - The chat wherever a terminal is
+
+### Added
+- Every view that shows an agent's terminal now has its chat too, with a Chat | Terminal switch remembered per view (F111): the Zoom view (a Chat tab, first), the team meeting room (for the active agent), the companion (beside the avatar) and the immersive page (which still opens on the terminal). The terminal stays loaded while the chat shows, so switching back is instant.
+
+## [0.106.177] - 2026-11-11 - A pasted key is stored as it was meant, and exec for interactive programs
+
+### Fixed
+- `aim-secret set` and the secret card in the chat now remove the spaces and line breaks around a pasted key, and the line breaks inside one when it is a single token the terminal wrapped (a 108-character token had been stored as 110, issue #65). A value with spaces, such as a private key or a passphrase, keeps its lines.
+
+### Added
+- `aim-secret exec --tty --use NAME -- COMMAND` runs an interactive program with the secret and leaves it the terminal (no output pipe, so no scrubbing): for launching a tool like Claude Code by hand. Without `--tty`, output is scrubbed as before.
+## [0.106.176] - 2026-11-11 - Move a whole crew to another account
+
+### Added
+- `aimaestro-agent.sh credential switch --crew <tag> --credential <kind> --secret NAME [--restart]` (or name the agents): sets the model access of every agent in the crew. With `--restart`, each idle agent restarts on the new account at once; an agent at work is skipped and named, so it is not cut off mid-task (agents CLI v1.0.4, plugin 1.19.16).
+
+## [0.106.175] - 2026-11-11 - The account and plan usage of every agent, in view
+
+### Added
+- Each agent's header (desktop and mobile) shows the account it is set to use, with the login's email and plan for the computer's own login or a separate login folder (read with `claude auth status`, kept 10 minutes). It turns red when the running session uses another account.
+- Plan usage limits: the 5-hour and weekly percentages Claude Code reports for subscriptions show in the agent header's status row (`5h 42% · wk 18%`) and in the terminal status bar, and as a badge on the agent card from 80%, so a crew that is about to pause together is visible first.
+- Claude Code's status bar shows the agent's account on its first row, red when it is the wrong one (agentmessaging/claude-plugin 0.5.4, plugin 1.19.15).
+- Settings → Accounts: every agent on every host, grouped by the account it draws from, with the live check and usage limits.
+
+## [0.106.174] - 2026-11-11 - See which account an agent is really using
+
+### Added
+- Each running Claude agent now reports which sign-in its session really has (a subscription token, an API key, a gateway, a separate login folder or the computer's own login; the kind only, never the value). When the agent has a Model access setting, its card shows a red key if the session uses another account, and an amber key if the account is right but AI Maestro did not start it with that setting; the profile shows the same line. This is the check that would have caught issue #65 in a minute.
+- `aimaestro-agent.sh update <agent> --credential <kind> --secret NAME [--account TEXT]` sets an agent's model access from the command line (agents CLI v1.0.3), and prints what it will use and any settings file that would defeat it.
+
+## [0.106.173] - 2026-11-09 - Choose which account each agent uses
+
+### Added
+- Each agent now has a Model access setting (its profile): this computer's login, a subscription token, an API key, a gateway, or a separate login folder. Keys are named, never stored: the value is read from the vault when the agent wakes (scripts/aim-launch.sh), never written to a file or typed into its terminal. Wake and the profile warn when the agent's .claude/settings files would defeat the choice: sign-in variables Claude Code ignores there, or an old key that would win. This is the fix for eleven agents running on the wrong account for three hours (issue #65).
+
+## [0.106.169] - 2026-11-09 - The dashboard no longer floods other computers when it opens
+
+### Fixed
+- Opening the dashboard asked every agent on every computer for its memory, about 180 requests, each of which made that computer load the agent's memory. A busy computer took about 3 seconds per agent, and its other requests (canvas documents, terminals) waited behind them for half a minute. The dashboard no longer does this; each computer manages its agents' memory itself, and unread messages are still caught by the host's inbox sweeper.
+
+## [0.106.157] - 2026-11-09 - The speaking side shows on Linux hosts
+
+### Fixed
+- Settings → Hosts said a host could not run the agents' speaking side when Claude Code was installed somewhere other than three fixed places (on some Linux hosts it is in /usr/bin). The check now looks on the server's PATH too.
+
+## [0.106.156] - 2026-11-09 - Each host says what it can run
+
+### Added
+- Settings → Hosts now shows, for each computer, what it can run (meetings, the public meeting page, an agent's face, voice, local voice, the speaking side, heavy work) and why not when it cannot, for example a missing key or too little memory. Computers share this with each other. The operator can turn a capability off in ~/.aimaestro/host-capabilities.json, and a computer that cannot host meetings says so instead of failing.
+## [0.106.155] - 2026-11-09 - Living avatars of other computers' agents show on the HTTPS dashboard
+
+### Fixed
+- On the dashboard's HTTPS address, the moving avatars (living loops) of agents on another computer did not play: the browser blocks plain-HTTP videos on an HTTPS page. They now load through the dashboard's own host, like the panels since v0.106.152.
+
+## [0.106.152] - 2026-11-09 - Agents on other computers work on the HTTPS dashboard
+
+### Fixed
+- On the dashboard's HTTPS address (needed for the microphone), an agent's canvas, memory, docs and other panels failed for agents on another computer: the browser blocks plain-HTTP calls from an HTTPS page. Those calls now go to the dashboard's own host, which forwards them to the agent's host.
+## [0.106.147] - 2026-11-09 - Agent lookups by name never ask a host on the mesh
+
+### Changed
+- Looking up an agent by name (AMP routing) matches the other hosts' agents on `/mesh` with the same rules each host uses itself (id, name, alias, session name like "website_1", the end of a name like "crm"). A host on the mesh is never asked; only a host off it is.
+## [0.106.146] - 2026-11-09 - Opening a terminal no longer makes an idle agent look busy
+
+### Fixed
+- Opening the terminal of an agent that had been idle for a long time showed it as Working for a few seconds (the screen redraw counted as activity). An agent whose last hook report says it settled now stays idle until the hook reports a new turn. Agents with no hook report (Codex, a plain shell) still go by their terminal.
+## [0.106.145] - 2026-11-09 - Projects, tasks, orgs and teams travel over the mesh
+
+### Changed
+- Pages no longer ask every host for projects, open tasks, organizations, teams and task counts every 15 to 60 seconds: each host publishes them over `/mesh`, and a page asks its own host once (`/api/mesh/<feed>`). A host not on the mesh is still asked directly. This finishes moving host-to-host data onto the mesh (docs/SPEC-MESH-SYNC.md).
+
+## [0.106.144] - 2026-11-09 - Email lookups read the mesh
+
+### Changed
+- Looking up an agent's email address across hosts reads the other hosts' email addresses from `/mesh` (a new `emails` feed) instead of asking every host on each lookup; only a host not on the mesh is asked. New feeds now share one generic store (`peerFeed`).
 ## [0.106.131] - 2026-11-09 - Finding a person's host reads the mesh
 
 ### Changed

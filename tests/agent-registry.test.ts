@@ -1103,6 +1103,24 @@ describe('checkMeshAgentExists', () => {
     expect(f).not.toHaveBeenCalled()
   })
 
+  it('matches a session name and the last segment of a name in the copy, like the peer would', async () => {
+    peerAgents.set('mac-mini', { items: { r1: { id: 'r1', name: 'website', hostId: 'mac-mini' }, r2: { id: 'r2', name: '23blocks-api-crm', hostId: 'mac-mini' } }, seq: 1, okAt: 1, connected: true })
+    const f = vi.fn(); vi.stubGlobal('fetch', f)
+    expect((await checkMeshAgentExists('website_1')).agent?.id).toBe('r1')
+    expect((await checkMeshAgentExists('crm')).agent?.id).toBe('r2')
+    expect((await checkMeshAgentExists('r2')).agent?.id).toBe('r2')
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('a miss on a connected peer asks nobody: its list is complete', async () => {
+    peerAgents.set('mac-mini', { items: { r1: { id: 'r1', name: 'website' } }, seq: 1, okAt: 1, connected: true })
+    const f = vi.fn(); vi.stubGlobal('fetch', f)
+    const r = await checkMeshAgentExists('nobody')
+    expect(r.exists).toBe(false)
+    expect(r.checkedHosts).toContain('mac-mini')
+    expect(f).not.toHaveBeenCalled()
+  })
+
   it('asks the peers on a miss, and ignores a dropped peer\'s copy', async () => {
     peerAgents.set('mac-mini', { items: { r1: { id: 'r1', name: 'dahlia' } }, seq: 1, okAt: 1, connected: false })
     const f = vi.fn(async () => ({ ok: true, json: async () => ({}) }))

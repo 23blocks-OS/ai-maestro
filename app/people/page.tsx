@@ -7,6 +7,7 @@ import { useHosts } from '@/hooks/useHosts'
 import { usePeople, type MeshPerson, type MeshDevice } from '@/hooks/usePeople'
 import { VersionChecker } from '@/components/VersionChecker'
 import { wouldLoop } from '@/lib/agent-manager'
+import { useVoiceHosts, VoiceCell, VoiceEnrollPanel } from '@/components/VoiceEnrollment'
 
 type Form = { person: MeshPerson | null; displayName: string; title: string; role: string; email: string; phone: string; orgs: string; managerPersonId: string }
 const EMPTY: Form = { person: null, displayName: '', title: '', role: '', email: '', phone: '', orgs: '', managerPersonId: '' }
@@ -24,6 +25,8 @@ export default function PeoplePage() {
   const { people, online, devices, unreachable, loading, refresh } = usePeople(hosts, showInactive)
   const [form, setForm] = useState<Form | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { voiceHosts, reloadVoice } = useVoiceHosts(hosts)
+  const [enrolling, setEnrolling] = useState<MeshPerson | null>(null)
 
   const call = async (base: string, path: string, method: string, body?: unknown) => {
     const res = await fetch(`${base}/api/people${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
@@ -127,6 +130,7 @@ export default function PeoplePage() {
         </div>
       )}
       {error && <div className="px-4 py-2 text-xs text-red-300">{error}</div>}
+      {enrolling && <VoiceEnrollPanel person={enrolling} voiceHosts={voiceHosts} onClose={() => { setEnrolling(null); reloadVoice() }} />}
 
       {pendingKeys.length > 0 && (
         <div className="px-4 py-2 border-b border-gray-800 bg-violet-500/10 text-xs space-y-1" data-testid="pending-keys">
@@ -151,7 +155,7 @@ export default function PeoplePage() {
         ) : (
           <table className="w-full text-xs">
             <thead className="text-left text-gray-500">
-              <tr><th className="py-1 pr-3">Name</th><th className="pr-3">Title / role</th><th className="pr-3">Reports to</th><th className="pr-3">Organizations</th><th className="pr-3">Phone</th><th className="pr-3">Stored on</th><th className="pr-3">App</th><th /></tr>
+              <tr><th className="py-1 pr-3">Name</th><th className="pr-3">Title / role</th><th className="pr-3">Reports to</th><th className="pr-3">Organizations</th><th className="pr-3">Phone</th><th className="pr-3">Stored on</th><th className="pr-3">App</th><th className="pr-3">Voice</th><th /></tr>
             </thead>
             <tbody>
               {people.map(p => (
@@ -171,6 +175,7 @@ export default function PeoplePage() {
                         <button onClick={() => setKey(d, 'revoke')} className="ml-1 text-gray-500 hover:text-red-300" title="Revoke this phone's key, for a lost or retired phone">revoke</button>
                       </div>
                     ))}</td>
+                  <td className="pr-3"><VoiceCell person={p} voiceHosts={voiceHosts} onEnroll={() => setEnrolling(p)} onChanged={reloadVoice} /></td>
                   <td className="text-right whitespace-nowrap">
                     {p.active ? (
                       <>

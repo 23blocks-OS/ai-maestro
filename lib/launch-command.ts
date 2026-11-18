@@ -10,6 +10,8 @@ import type { ProgramKind } from '@/lib/program-names'
 import { sanitizeLaunchOptions, launchOptionArgs, grokPermissionFlags, copilotPermissionFlags, codexPermissionFlags } from '@/lib/launch-options'
 import { claudeSessionNameFlag } from '@/lib/claude-session-name'
 import { claudeTelemetryEnvPrefix } from '@/lib/claude-telemetry'
+import { credentialLaunchPrefix } from '@/lib/agent-credential'
+import type { AgentCredential } from '@/types/agent'
 
 /** Arguments typed by a person (the agent's "extra arguments"): only characters that cannot end a shell word. */
 export function sanitizeProgramArgs(args: string): string {
@@ -30,6 +32,9 @@ export interface LaunchCommandInput {
   launchOptions?: unknown
   /** Claude Code: resume this conversation (the agent's own, checked by the caller) */
   resumeSessionId?: string
+  /** Which account or key the agent uses (#65); applied by `launcher` (scripts/aim-launch.sh). Claude Code only. */
+  credential?: AgentCredential | null
+  launcher?: string
   env?: NodeJS.ProcessEnv
 }
 
@@ -93,6 +98,9 @@ export function buildLaunchCommand(input: LaunchCommandInput): string {
 
     // Opt-in OTLP telemetry env prefix (off by default).
     full = `${claudeTelemetryEnvPrefix('claude')}${full}`
+
+    // The credential profile goes outermost: the launcher reads the secret from the vault and runs all of the above
+    if (input.launcher) full = `${credentialLaunchPrefix(input.credential, input.launcher)}${full}`
   }
 
   return full

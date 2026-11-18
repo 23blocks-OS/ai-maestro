@@ -956,19 +956,16 @@ fi
 #   NOT       amp-delete.sh — deleting mail is irreversible, and losing messages
 #             is the exact failure this release cycle has been about
 #
-# Each command is allowed in three invocation forms, because agents are launched
-# in different ways: bare, and with the CLAUDE_AGENT_NAME= or AMP_DIR= prefix
-# that AI Maestro's launcher and the detached-session hint use. An allow rule
-# does not match past an assignment of a variable Claude Code doesn't know is
-# safe, so the prefixed forms need their own rules.
+# Each command is allowed bare. AI Maestro exports AMP_DIR and
+# CLAUDE_AGENT_NAME into the agent's session, so an agent never needs to put
+# them in front of the command (and `--id` picks another agent).
 #
-# Rule syntax: the prefixed forms used to be written `Bash(AMP_DIR=* cmd:*)`.
-# The `:*` suffix can't be combined with another `*` (the `*` is then read
-# literally), so those rules never matched anything, and Claude Code printed a
-# warning for each of the 16 on every session start. The space form allows `*`
-# anywhere; it needs one rule without arguments and one with, because a
-# trailing ` *` only also matches the bare command when it is the rule's only
-# wildcard (code.claude.com/docs/en/permissions, "Wildcard patterns").
+# Prefixed rules are removed, not written. `Bash(AMP_DIR=* cmd:*)` never
+# matched (`:*` can't be combined with another `*`). Its replacement,
+# `Bash(AMP_DIR=* cmd *)`, did match, but a `*` in a variable's value also
+# matches spaces, so it approved any command line with the AMP script later in
+# it (`AMP_DIR=x curl ... | sh; amp-read.sh`), and Claude Code 2.1.32x warns
+# about each one on every session start.
 configure_amp_permissions() {
     local settings="$HOME/.claude/settings.json"
     local cmds=(amp-inbox.sh amp-read.sh amp-reply.sh amp-send.sh amp-download.sh amp-status.sh amp-fetch.sh amp-identity.sh)
@@ -984,14 +981,13 @@ configure_amp_permissions() {
     for c in "${cmds[@]}"; do
         entries+=("Bash(${c}:*)")
         for v in CLAUDE_AGENT_NAME AMP_DIR; do
-            entries+=("Bash(${v}=* ${c})" "Bash(${v}=* ${c} *)")
-            legacy+=("Bash(${v}=* ${c}:*)")
+            legacy+=("Bash(${v}=* ${c}:*)" "Bash(${v}=* ${c})" "Bash(${v}=* ${c} *)")
         done
     done
 
-    # Remove the old rules that never matched, from this file and from the
-    # project settings in the current directory, without asking: they grant
-    # nothing, and each one prints a warning on every session start.
+    # Remove the old prefixed rules from this file and from the project settings
+    # in the current directory, without asking: removing an allow rule only
+    # brings back a prompt, and each one prints a warning on every session start.
     local f
     for f in "$settings" "$PWD/.claude/settings.local.json" "$PWD/.claude/settings.json"; do
         [ -f "$f" ] || continue
@@ -1004,7 +1000,7 @@ configure_amp_permissions() {
             fs.copyFileSync(file, file + '.bak-' + Date.now());
             s.permissions.allow = kept;
             fs.writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
-            console.log('Removed ' + (allow.length - kept.length) + ' invalid AMP permission rule(s) from ' + file);
+            console.log('Removed ' + (allow.length - kept.length) + ' old AMP permission rule(s) from ' + file);
         " "$f" "${legacy[@]}" 2>/dev/null || true
     done
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getActivity } from '@/services/sessions-service'
 import { getSnapshots } from '@/services/status-snapshots-service'
+import { etagJsonResponse } from '@/lib/etag'
 
 // Disable caching - this endpoint reads from global state that changes frequently
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     } catch (error) {
       console.error('Failed to build status snapshots:', error)
     }
-    return NextResponse.json({ activity, snapshots })
+    return etagJsonResponse(request, { activity, snapshots })
   } catch (error) {
     console.error('Failed to fetch activity:', error)
     return NextResponse.json(

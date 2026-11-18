@@ -17,6 +17,7 @@ export async function POST(request: Request) {
       program: body.program,
       permissionMode: body.permissionMode,
       launchOptions: body.launchOptions,
+      credential: body.credential,
     })
 
     return toResponse(result)

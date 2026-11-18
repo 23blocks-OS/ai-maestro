@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Terminal,
+  MessageSquare,
   Mail,
   User,
   Brain,
@@ -13,8 +14,11 @@ import {
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
+import { readViewChoice } from '@/components/ChatTerminalSwitch'
 
 // Dynamic imports for heavy components
+const ChatView = dynamic(() => import('@/components/ChatView'), { ssr: false })
+
 const TerminalView = dynamic(
   () => import('@/components/TerminalView'),
   {
@@ -63,7 +67,7 @@ const AgentProfileTab = dynamic(
   }
 )
 
-type TabType = 'terminal' | 'messages' | 'profile' | 'memory'
+type TabType = 'chat' | 'terminal' | 'messages' | 'profile' | 'memory'
 
 interface AgentCardViewProps {
   agent: Agent
@@ -86,7 +90,14 @@ export default function AgentCardView({
   unreadCount = 0,
   onClose
 }: AgentCardViewProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('terminal')
+  // Chat first, as on the dashboard (F111); the last choice of chat or terminal is kept for this view
+  const [activeTab, setActiveTabState] = useState<TabType>('chat')
+  useEffect(() => { setActiveTabState(readViewChoice('zoom', 'chat')) }, [])
+  const setActiveTab = (t: TabType) => {
+    setActiveTabState(t)
+    if (t === 'chat' || t === 'terminal') { try { localStorage.setItem('aimaestro-view-zoom', t) } catch { /* no storage */ } }
+    if (t === 'terminal') setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
+  }
   const [containerReady, setContainerReady] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -144,6 +155,7 @@ export default function AgentCardView({
   }, [])
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { id: 'chat', label: 'Chat', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'terminal', label: 'Terminal', icon: <Terminal className="w-4 h-4" /> },
     { id: 'messages', label: 'Messages', icon: <Mail className="w-4 h-4" />, badge: unreadCount },
     { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
@@ -211,6 +223,18 @@ export default function AgentCardView({
 
       {/* Tab Content - Use relative positioning with absolute children */}
       <div ref={containerRef} className="flex-1 min-h-0 relative overflow-hidden" style={{ position: 'relative' }}>
+        {/* Chat Tab: the same chat as the dashboard; its socket is open only while shown */}
+        <div
+          className="absolute inset-0 flex flex-col"
+          style={{
+            visibility: activeTab === 'chat' ? 'visible' : 'hidden',
+            pointerEvents: activeTab === 'chat' ? 'auto' : 'none',
+            zIndex: activeTab === 'chat' ? 10 : 0
+          }}
+        >
+          <ChatView agent={agent} isActive={activeTab === 'chat'} />
+        </div>
+
         {/* Terminal Tab - Only render when container has valid dimensions */}
         {/* CRITICAL: Use flex flex-col because TerminalView's root uses flex-1 */}
         <div
@@ -224,6 +248,7 @@ export default function AgentCardView({
           {containerReady ? (
             <TerminalView
               session={session}
+              agent={agent}
               isVisible={activeTab === 'terminal'}
               hideFooter={true}
             />

@@ -92,6 +92,9 @@ import type { Host } from '@/types/host'
 import { shouldLogChange } from '@/lib/log-on-change'
 import { resolveWorkingDirectory } from '@/lib/working-directory'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed, gone, timeout, runtimeConflict } from '@/services/service-errors'
+import { parseCredential, settingsWarnings, describeCredential, credentialCheck, forgetCredentialSeen } from '@/lib/agent-credential'
+import { loginFor } from '@/lib/claude-login'
+import type { AgentCredential as AgentCredentialRecord } from '@/types/agent'
 
 // ---------------------------------------------------------------------------
 // Circuit breaker — half-open pattern with exponential backoff
@@ -738,6 +741,17 @@ export async function listAgentsWithPeers(): Promise<ServiceResult<any>> {
 }
 
 /** Counts for a host's agent list */
+/**
+ * When an online agent was last really active: its newest online session's activity, else its
+ * heartbeat. Not "now": that changed every listing, so the list never answered 304 (#102).
+ */
+export function activeAt(sessions: AgentSession[], heartbeatTs: number | undefined, fallback?: string): string {
+  const times = sessions.filter(s => s.status === 'online' && s.lastActive).map(s => Date.parse(s.lastActive!))
+  if (heartbeatTs) times.push(heartbeatTs)
+  const newest = Math.max(...times.filter(Number.isFinite))
+  return Number.isFinite(newest) ? new Date(newest).toISOString() : (fallback || new Date().toISOString())
+}
+
 export function agentStats(agents: Agent[]): AgentStats {
   return {
     total: agents.length,
@@ -944,7 +958,15 @@ export async function listAgents(): Promise<ServiceResult<{
         name: agentName,
         sessions: updatedSessions,
         status: isOnline ? 'active' : 'offline',
-        lastActive: isOnline ? new Date().toISOString() : agent.lastActive,
+        lastActive: isOnline ? activeAt(updatedSessions, heartbeatTs, agent.lastActive) : agent.lastActive,
+      }
+      // #65 part 2: what the running session signs in with, against its profile (only while it runs)
+      const credCheck = isOnline ? credentialCheck(agent.credential, agent.id) : null
+      if (credCheck) updatedAgent.credentialCheck = credCheck
+      // Which account the host's own login (or the agent's login folder) is, for the header
+      if (!agent.credential || agent.credential.kind === 'host-login' || agent.credential.kind === 'config-dir') {
+        const login = loginFor(agent.credential?.kind === 'config-dir' ? agent.credential.dir : undefined)
+        if (login) updatedAgent.credentialLogin = login
       }
 
       resultAgents.push(mergeAgentWithSession(updatedAgent, sessionStatus, hostId, hostName, hostUrl, false))
@@ -1056,6 +1078,12 @@ export function createNewAgent(body: CreateAgentRequest): ServiceResult<{ agent:
       if (!parsed.ok) return invalidRequest(parsed.message)
       body = { ...body, humanManager: parsed.value.humanManager, managerAgentId: parsed.value.managerAgentId }
     }
+    // Which account or key the agent uses (#65), set before its first launch
+    if (body.credential !== undefined && body.credential !== null) {
+      const parsed = parseCredential(body.credential)
+      if ('error' in parsed) return invalidRequest(parsed.error)
+      body = { ...body, credential: parsed.credential ?? undefined }
+    }
     const agent = createAgent(body)
     return { data: { agent }, status: 201 }
   } catch (error) {
@@ -1117,6 +1145,13 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
         return invalidRequest('voice.voiceId must be letters, digits, dots, dashes or underscores, at most 80')
       }
       if (Object.keys(other).length) return invalidRequest('voice has only engine and voiceId: a key belongs to the host')
+    }
+
+    // Which account or key the agent uses (#65): names of vault entries only, never a value
+    if (body.credential !== undefined) {
+      const parsed = parseCredential(body.credential)
+      if ('error' in parsed) return invalidRequest(parsed.error)
+      body = { ...body, credential: parsed.credential }
     }
 
     if (body.experiments !== undefined && body.experiments !== null) {
@@ -2082,7 +2117,8 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
     const ampDir = await setupAMPForSession(sessionName, agentName, agentId)
 
     // Start the AI program if requested
-    let launchVerdict: LaunchVerdict = { started: true }
+  let credentialWarnings: string[] = []
+  let launchVerdict: LaunchVerdict = { started: true }
     if (startProgram) {
       const program = (programOverride || agent.program || 'claude code').toLowerCase()
       console.log(`[Wake] Final program selection: "${program}" (override: ${programOverride}, agent.program: ${agent.program})`)
@@ -2138,7 +2174,13 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
           permissionMode: params.permissionMode || agent.permissionMode,
           launchOptions: params.launchOptions ?? agent.launchOptions,
           resumeSessionId: params.resumeSessionId,
+          credential: agent.credential,
+          launcher: path.join(process.cwd(), 'scripts', 'aim-launch.sh'),
         })
+        // A settings file that would defeat the credential profile (the #65 incident): said at every wake
+        credentialWarnings = settingsWarnings(workingDirectory, agent.credential)
+        forgetCredentialSeen(agent.id) // the new session reports what it signs in with
+        for (const w of credentialWarnings) console.warn(`[Wake] ${agentName}: ${w}`)
 
         // Small delay to let the session initialize
         await new Promise(resolve => setTimeout(resolve, 300))
@@ -2170,6 +2212,9 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
       }
     }
 
+    // B040: decide before the registry update, which bumps launchCount on the same cached object `agent` points to
+    const firstPrompt = firstPromptFor(agent, startProgram && launchVerdict.started)
+
     // Update agent status in registry
     updateAgentSessionInRegistry(agentId, sessionIndex, 'online', workingDirectory, true)
 
@@ -2185,9 +2230,9 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
       const meshPrimer = loadMeshPrimer(agent)
       executeHook(sessionName, agent.hooks['on-wake'], runtime, hookVars, meshPrimer)
         .catch(err => console.warn(`[Wake] on-wake hook failed for ${agentName}:`, err))
-    } else if (firstPromptFor(agent, startProgram && launchVerdict.started)) {
+    } else if (firstPrompt) {
       // B040: a new agent woke blank. Its first launch gets its task as the first prompt, once.
-      executeHook(sessionName, `prompt:${firstPromptFor(agent, true)}`, runtime, {}, loadMeshPrimer(agent))
+      executeHook(sessionName, `prompt:${firstPrompt}`, runtime, {}, loadMeshPrimer(agent))
         .catch(err => console.warn(`[Wake] first prompt failed for ${agentName}:`, err))
     }
 
@@ -2204,6 +2249,7 @@ async function wakeAgentUnlocked(agentId: string, params: WakeAgentParams): Prom
         woken: true,
         programStarted: startProgram && launchVerdict.started,
         ...(launchVerdict.error ? { programError: launchVerdict.error } : {}),
+        ...(credentialWarnings.length ? { credentialWarnings } : {}),
         message: launchVerdict.started
           ? `Agent "${agentName}" session ${sessionIndex} has been woken up and is ready to use.`
           : `Agent "${agentName}" session ${sessionIndex} is awake, but its program did not start. ${launchVerdict.error}`,
@@ -2519,4 +2565,16 @@ export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>>
     }
     return operationFailed('connect to agent', (error as Error).message)
   }
+}
+
+
+/**
+ * GET /api/agents/:id/credential (#65): the agent's credential profile, in words, and what in its folder's Claude
+ * settings would defeat it (names only, never values). The dashboard shows it on the agent's profile.
+ */
+export function getCredentialStatus(agentId: string): ServiceResult<{ credential: AgentCredentialRecord | null; description: string; warnings: string[]; check: ReturnType<typeof credentialCheck> }> {
+  const agent = getAgent(agentId) || getAgentByName(agentId)
+  if (!agent) return notFound('Agent', agentId)
+  const workingDirectory = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
+  return { data: { credential: agent.credential || null, description: describeCredential(agent.credential), warnings: settingsWarnings(workingDirectory, agent.credential), check: credentialCheck(agent.credential, agent.id) }, status: 200 }
 }

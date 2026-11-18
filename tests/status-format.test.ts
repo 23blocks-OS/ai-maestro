@@ -153,3 +153,12 @@ describe('AgentHeaderBar', () => {
     expect(out).not.toContain('agent-status-row')
   })
 })
+
+describe('usage limits in the row (#65 part 2)', () => {
+  it('prints them as the terminal bar does, amber from 80%', async () => {
+    const { formatLimits } = await import('@/lib/status-format')
+    expect(formatLimits({ fiveHour: { percent: 42.7, resetsAt: 1 }, week: { percent: 18, resetsAt: 2 } })?.text).toBe('5h 42% · wk 18%')
+    expect(formatLimits({ week: { percent: 96, resetsAt: 2 } })?.max).toBe(96)
+    expect(formatLimits(undefined)).toBeNull()
+  })
+})

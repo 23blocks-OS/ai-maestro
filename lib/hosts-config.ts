@@ -26,7 +26,7 @@ function loadStoredSelfAliases(): void {
     const configPath = path.join(os.homedir(), '.aimaestro', 'hosts.json')
     if (!fs.existsSync(configPath)) { storedSelfAliasesCache = []; return }
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as HostsConfig
-    const selfId = getSelfHostId()
+    const selfId = hostnameId()
 
     // Pass 1: Match by hostname or legacy 'local' (guaranteed safe)
     for (const host of config.hosts) {
@@ -136,8 +136,17 @@ async function withLock<T>(fn: () => T | Promise<T>): Promise<T> {
  * Always returns lowercase for case-insensitive consistency
  * Strips .local suffix (macOS Bonjour/mDNS) for cross-platform consistency
  */
-export function getSelfHostId(): string {
+/** This machine's OS hostname as an id. macOS changes it when the network does (e.g. "mac.attlocal.net"). */
+function hostnameId(): string {
   return os.hostname().toLowerCase().replace(/\.local$/, '')
+}
+
+/**
+ * This host's id: the id hosts.json gives it (found by hostname, or by IP when the hostname drifted), else the
+ * hostname. Peers know us by that id; a drifted hostname sent as X-Forwarded-From got every mesh forward refused.
+ */
+export function getSelfHostId(): string {
+  return storedSelfAliasesCache[0] || hostnameId()
 }
 
 /**
@@ -231,8 +240,8 @@ export function isSelf(hostId: string): boolean {
   const selfId = getSelfHostId()
   const hostIdLower = hostId.toLowerCase()
 
-  // Direct hostname match
-  if (hostIdLower === selfId.toLowerCase()) return true
+  // Direct match: our id, or the OS hostname now
+  if (hostIdLower === selfId.toLowerCase() || hostIdLower === hostnameId()) return true
 
   // Legacy 'local' value (DEPRECATED)
   if (hostId === 'local') return true

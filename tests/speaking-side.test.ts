@@ -131,6 +131,22 @@ describe('the speaking side', () => {
     sides.stopAll()
   })
 
+  it('words relayed by Siri say the first reply is read aloud and the talk ends', async () => {
+    const { sides, agent, fake } = setup([[result]])
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'iPhone', text: 'Any news?', source: 'device', via: 'siri' })
+    await wait()
+    expect(fake.seen.prompts[0]).toContain('typed: "Any news?" It came through Siri, which reads your first reply aloud')
+    sides.stopAll()
+  })
+
+  it('a voice match note follows the words, and the speaker stays not verified (#78)', async () => {
+    const { sides, agent, fake } = setup([[result]])
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'Kiosk', text: 'Hi', source: 'voice', note: 'The voice sounds like Alice (82% match; a voice match is a guess, not proof).' })
+    await wait()
+    expect(fake.seen.prompts[0]).toContain('someone not verified said (transcribed, may contain errors): "Hi" The voice sounds like Alice')
+    sides.stopAll()
+  })
+
   it('speaks sentence by sentence as the words arrive, and logs what it heard and said', async () => {
     const { sides, agent, said, logs } = setup([[start, delta('Doing well, thanks. '), delta('How are you?'), stop, result]])
     sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'How are you?', source: 'voice' })
@@ -176,6 +192,18 @@ describe('the speaking side', () => {
     expect(logs.find((l) => l.kind === 'handoff')).toMatchObject({ text: 'Check the deploy' })
     await vi.advanceTimersByTimeAsync(1000)
     expect(said).toEqual(['Let me check.', "I'm still on it."])
+    sides.stopAll()
+  })
+
+  it('a new turn after the hand-off cancels "still on it": the talk moved on', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const handoff = { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'SendMessage', input: { to: 'lola-f9', message: 'Who is Sharmaine?' } }] } }
+    const { sides, agent, said } = setup([[start, delta('Let me check. '), stop, handoff, result], [start, delta('My camera is off now. '), stop, result]], { stillOnItMs: 1000 })
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'Who is Sharmaine?', source: 'voice' })
+    await vi.advanceTimersByTimeAsync(500)
+    sides.handle(agent, { deviceKey: 'k', deviceName: 'MacBook', text: 'Can you turn your camera off?', source: 'voice' })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(said).toEqual(['Let me check.', 'My camera is off now.'])
     sides.stopAll()
   })
 

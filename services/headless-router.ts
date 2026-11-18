@@ -337,9 +337,11 @@ import {
 import { runDiagnostics, runDiagnosticFix } from '@/services/diagnostics-service'
 import { toolReadinessRequest } from '@/services/tool-readiness-service'
 import { elevenLabsVoices, speakForAgent } from '@/services/agent-speech-service'
+import { voiceprintStatus, updateConsentText, recordVoiceSample, removeVoiceprint, renameVoiceprint } from '@/services/voiceprints-service'
 import { addAgentDevice, captureAgentDevice, forgetAgentDevice, latestAgentDeviceSnapshot, getAgentDeviceIdentity, invokeAgentDevice, jumpAgentDevice, listAgentDevices, listHostDevices, refreshAgentDevice } from '@/services/agent-devices-service'
 import { programInstallRequest } from '@/services/program-install-service'
 import { unknownAgentResult } from '@/services/agent-guard'
+import { etagJson } from '@/lib/etag'
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -439,6 +441,18 @@ function sendServiceResult(res: ServerResponse, result: any) {
     const fallbackStatus = (result.status && result.status >= 400) ? result.status : 500
     sendJson(res, fallbackStatus, { error: 'internal_error', message: 'Unknown error' }, result.headers)
   }
+}
+
+/** JSON with an ETag, or 304 when the client already has it (lib/etag.ts) */
+function sendEtagJson(req: IncomingMessage, res: ServerResponse, data: unknown) {
+  const r = etagJson(getHeader(req, 'if-none-match'), data)
+  res.writeHead(r.status, r.body === null ? r.headers : { ...r.headers, 'Content-Length': String(Buffer.byteLength(r.body)) })
+  res.end(r.body ?? undefined)
+}
+
+function sendEtagResult(req: IncomingMessage, res: ServerResponse, result: any) {
+  if (result.status === 200 && result.data !== undefined && !result.headers) sendEtagJson(req, res, result.data)
+  else sendServiceResult(res, result)
 }
 
 function getHeader(req: IncomingMessage, name: string): string | null {
@@ -565,6 +579,21 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/tools\/readiness$/, paramNames: [], handler: async (req, res) => {
     const hostUrl = new URL(req.url || '', 'http://localhost').searchParams.get('hostUrl')
     sendServiceResult(res, await toolReadinessRequest(hostUrl))
+  }},
+  { method: 'GET', pattern: /^\/api\/voiceprints$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, voiceprintStatus())
+  }},
+  { method: 'PUT', pattern: /^\/api\/voiceprints$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, updateConsentText(await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'POST', pattern: /^\/api\/voiceprints\/([^/]+)\/samples$/, paramNames: ['personId'], handler: async (req, res, params) => {
+    sendServiceResult(res, await recordVoiceSample(params.personId, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/voiceprints\/([^/]+)$/, paramNames: ['personId'], handler: async (req, res, params) => {
+    sendServiceResult(res, renameVoiceprint(params.personId, await readJsonBody(req).catch(() => ({}))))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/voiceprints\/([^/]+)$/, paramNames: ['personId'], handler: async (_req, res, params) => {
+    sendServiceResult(res, removeVoiceprint(params.personId))
   }},
   { method: 'GET', pattern: /^\/api\/devices$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, listHostDevices())
@@ -694,13 +723,13 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/sessions\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await deleteSession(params.id))
   }},
-  { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res, _params, query) => {
+  { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (req, res, _params, query) => {
     try {
       const activity = await getActivity({ localOnly: query.local === 'true' })
       // Status snapshots ride beside the activity: a failure here must not cost the activity
       let snapshots = {}
       try { snapshots = getSnapshots({ localOnly: query.local === 'true' }) } catch { /* no snapshots */ }
-      sendJson(res, 200, { activity, snapshots })
+      sendEtagJson(req, res, { activity, snapshots })
     } catch (error) {
       sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
     }
@@ -723,8 +752,8 @@ const routes: Route[] = [
       selfHostId: getSelfHostId(),
     }))
   }},
-  { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getUnifiedAgents({
+  { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (req, res, _params, query) => {
+    sendEtagResult(req, res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
       timeout: query.timeout ? parseInt(query.timeout) : undefined,
@@ -929,6 +958,11 @@ const routes: Route[] = [
     }
   }},
 
+  // Which account or key an agent is set to use (#65)
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/credential$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    const { getCredentialStatus } = await import('@/services/agents-core-service')
+    sendServiceResult(res, getCredentialStatus(params.id))
+  }},
   // Living avatars (lib/avatar-loops.ts)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/avatar-loops$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const { listAvatarLoops } = await import('@/lib/avatar-loops')
@@ -1199,22 +1233,22 @@ const routes: Route[] = [
   }},
 
   // Canvas
-  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/canvas$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/canvas$/, paramNames: ['id'], handler: async (req, res, params, query) => {
     if (query.file) {
       const result = getCanvasFile(params.id, query.file)
       if (result.status !== 200 || !result.data || ('error' in result.data && 'message' in result.data)) {
         sendServiceResult(res, result)
         return
       }
-      const { content, fileName } = result.data as { content: string; fileName: string; size: number }
+      const { content, fileName, contentType } = result.data as { content: string; fileName: string; size: number; contentType: string }
       const buf = Buffer.from(content, 'utf-8')
       sendBinary(res, 200, buf, {
-        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Type': contentType,
         'Content-Length': String(buf.length),
         'X-Canvas-File': fileName,
       })
     } else {
-      sendServiceResult(res, listCanvasFiles(params.id))
+      sendEtagResult(req, res, listCanvasFiles(params.id))
     }
   }},
 
@@ -1484,7 +1518,7 @@ const routes: Route[] = [
   // Agent heartbeat (standalone presence)
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/heartbeat$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
-    sendServiceResult(res, heartbeat(params.id, body.status, body.claudeSessionId))
+    sendServiceResult(res, heartbeat(params.id, body.status, body.claudeSessionId, body.credentialSeen))
   }},
 
   // Agent CRUD (must be LAST among /api/agents/[id]/* routes)
@@ -1914,6 +1948,10 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/calls\/([^/]+)\/events$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req).catch(() => ({}))
     sendServiceResult(res, sendCallEvent(params.id, body))
+  }},
+  { method: 'GET', pattern: /^\/api\/mesh\/([^/]+)$/, paramNames: ['feed'], handler: async (_req, res, params) => {
+    const { meshFeedView } = await import('@/services/mesh-feeds-service')
+    sendServiceResult(res, await meshFeedView(params.feed))
   }},
   { method: 'GET', pattern: /^\/api\/tasks\/summary$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTaskSummary())

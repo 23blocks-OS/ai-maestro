@@ -25,7 +25,7 @@ import os from 'os'
 import path from 'path'
 import { loadAgents, getAgent } from '@/lib/agent-registry'
 import { resolveJsonlPath } from '@/lib/chat-transcript.mjs'
-import { readTranscriptSnapshot, type StatusSnapshot } from '@/lib/transcript-snapshot'
+import { readTranscriptSnapshot, type StatusSnapshot, type UsageLimits } from '@/lib/transcript-snapshot'
 import { compactHint } from '@/lib/context-hint'
 import { peerSnapshots } from '@/services/shared-state'
 import { type ServiceResult, invalidRequest, invalidField, notFound, serviceError } from '@/services/service-errors'
@@ -72,6 +72,23 @@ export interface Reported {
   /** ms since epoch (the report carries seconds) */
   cacheExpiresAt?: number | null
   exceeds200k?: boolean
+  /** Plan usage limits; resetsAt in ms */
+  limits?: UsageLimits
+}
+
+/** `{ fiveHour?, week? }`, each `{ percent 0-100, resetsAt }`; resetsAt in seconds from the status line, ms from the file */
+function readLimits(v: unknown, resetsAtScale: number): UsageLimits | undefined | 'invalid' {
+  if (v === undefined || v === null) return undefined
+  if (typeof v !== 'object' || Array.isArray(v)) return 'invalid'
+  const out: UsageLimits = {}
+  for (const k of ['fiveHour', 'week'] as const) {
+    const w = (v as any)[k]
+    if (w === undefined) continue
+    if (!w || typeof w.percent !== 'number' || !Number.isFinite(w.percent) || w.percent < 0 || w.percent > 100
+      || typeof w.resetsAt !== 'number' || !Number.isFinite(w.resetsAt) || w.resetsAt < 0 || w.resetsAt * resetsAtScale > 4_102_444_800_000) return 'invalid'
+    out[k] = { percent: w.percent, resetsAt: w.resetsAt * resetsAtScale }
+  }
+  return out.fiveHour || out.week ? out : undefined
 }
 
 // The route handlers and the feed are bundled separately, so module state is not
@@ -134,6 +151,8 @@ function sanitizePersisted(v: any): Reported | null {
   if (typeof v.cacheWarm === 'boolean' || v.cacheWarm === null) out.cacheWarm = v.cacheWarm
   if ((typeof v.cacheExpiresAt === 'number' && Number.isFinite(v.cacheExpiresAt)) || v.cacheExpiresAt === null) out.cacheExpiresAt = v.cacheExpiresAt
   if (typeof v.exceeds200k === 'boolean') out.exceeds200k = v.exceeds200k
+  const limits = readLimits(v.limits, 1)
+  if (limits && limits !== 'invalid') out.limits = limits
   return out
 }
 
@@ -238,6 +257,10 @@ export function ingestStatusSnapshot(agentId: string, body: unknown, now: number
     out.exceeds200k = b.exceeds200k
   }
 
+  const limits = readLimits(b.limits, 1000)
+  if (limits === 'invalid') return invalidField('limits', 'limits is { fiveHour?, week? }, each { percent 0-100, resetsAt epoch seconds }')
+  if (limits) out.limits = limits
+
   const store = reportStore()
   store.set(agent.id, out)
   persistSoon()
@@ -288,6 +311,15 @@ function transcriptOnly(base: StatusSnapshot, now: number): StatusSnapshot {
  * knows; the permission mode and the last-turn time come from the transcript.
  * The cost is the reported session cost or nothing. Pure.
  */
+/** Only the windows that have not reset yet: a reset window's percent is no longer true */
+function openLimits(limits: UsageLimits | undefined, now: number): { limits?: UsageLimits } {
+  if (!limits) return {}
+  const out: UsageLimits = {}
+  if (limits.fiveHour && limits.fiveHour.resetsAt > now) out.fiveHour = limits.fiveHour
+  if (limits.week && limits.week.resetsAt > now) out.week = limits.week
+  return out.fiveHour || out.week ? { limits: out } : {}
+}
+
 export function composeSnapshot(base: StatusSnapshot | null, rep: Reported | null, now: number): StatusSnapshot | null {
   if (!rep) return base ? transcriptOnly(base, now) : null
 
@@ -327,6 +359,7 @@ export function composeSnapshot(base: StatusSnapshot | null, rep: Reported | nul
     ...(base?.mode !== undefined ? { mode: base.mode } : {}),
     ...(effort ? { effort } : {}),
     ...(rep.cost !== undefined ? { cost: rep.cost } : {}),
+    ...openLimits(rep.limits, now),
     ...cacheFields,
     asOf: rep.receivedAt,
     lastTurnAt: base?.lastTurnAt ?? rep.receivedAt,

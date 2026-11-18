@@ -360,7 +360,7 @@ describe('a person speaking at a device', () => {
     const voices: any[] = []
     const host = createDeviceHost({
       agentsDir: dir, hubAddress: '127.0.0.1', onEvent: (e: any) => { events.push(e) },
-      speech: { ready: () => false, transcribe: async (audio: Buffer, voice: any) => { heard.push(audio); voices.push(voice); return '  Are you there?  ' } },
+      speech: { ready: () => false, transcribe: async (audio: Buffer, voice: any) => { heard.push(audio); voices.push(voice); return '  Are you there?  ' }, identify: async () => ({ id: 'p-alice', name: 'Alice', confidence: 0.8 }) },
       voiceOf: (id: string) => agents.get(id)?.voice,
     } as any)
     agents.get('a').voice = { engine: 'elevenlabs', voiceId: 'v' }
@@ -380,7 +380,7 @@ describe('a person speaking at a device', () => {
     audio.write('WAVE', 8, 'latin1')
     await vi.waitFor(() => connection.audio(audio))
     await vi.waitFor(() => expect(events.find(e => e.type === 'device.input')).toBeTruthy())
-    expect(events.find(e => e.type === 'device.input')).toMatchObject({ text: 'Are you there?', source: 'voice', name: 'kitchen' })
+    expect(events.find(e => e.type === 'device.input')).toMatchObject({ text: 'Are you there?', source: 'voice', name: 'kitchen', speaker: { id: 'p-alice', name: 'Alice', confidence: 0.8 } })
     expect(heard[0].equals(audio)).toBe(true)
     // Heard the way the clip's own agent chose (F099)
     expect(voices[0]).toEqual({ engine: 'elevenlabs', voiceId: 'v' })

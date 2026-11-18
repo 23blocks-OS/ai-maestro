@@ -418,6 +418,7 @@ export default function MeetingSidebar({
         defaultProgram={(wakeDialogAgent as any)?.program}
         defaultLaunchOptions={(wakeDialogAgent as any)?.launchOptions}
         hostUrl={(wakeDialogAgent as any)?.hostUrl}
+        agent={wakeDialogAgent}
       />
     </div>
   )

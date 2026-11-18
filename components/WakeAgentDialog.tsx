@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Play } from 'lucide-react'
+import { X, Play, KeyRound } from 'lucide-react'
 import LaunchChoicePanel from './launch/LaunchChoicePanel'
 import { useLaunchChoice } from '@/hooks/useLaunchChoice'
-import type { AgentPermissionMode } from '@/types/agent'
+import type { AgentPermissionMode, AgentCredential } from '@/types/agent'
+import AgentCredentialSection from './AgentCredentialSection'
+import { describeCredential } from '@/lib/credential-words'
+import { getAgentBaseUrl } from '@/lib/agent-utils'
 import type { WakeChoiceOptions } from '@/lib/wake-request'
 import { MODE_SUMMARY } from '@/lib/freedom'
 import type { LaunchOptions } from '@/lib/launch-options'
@@ -29,6 +32,8 @@ interface WakeAgentDialogProps {
   defaultLaunchOptions?: LaunchOptions
   /** The host the agent lives on, for the readiness check (empty: this host). */
   hostUrl?: string
+  /** The agent itself, for its model access (#65): shown, and changed before the wake when the person changes it */
+  agent?: { id: string; credential?: AgentCredential | null; hostUrl?: string; isSelf?: boolean } | null
 }
 
 export default function WakeAgentDialog({
@@ -41,11 +46,15 @@ export default function WakeAgentDialog({
   defaultProgram,
   defaultLaunchOptions,
   hostUrl,
+  agent,
 }: WakeAgentDialogProps) {
   const c = useLaunchChoice({ defaultProgram, defaultPermissionMode, defaultLaunchOptions, resetKey: isOpen })
   const [remember, setRemember] = useState(true)
   const [isWaking, setIsWaking] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [cred, setCred] = useState<AgentCredential | null>(null)
+  const [credOpen, setCredOpen] = useState(false)
+  const [credError, setCredError] = useState('')
 
   const displayName = agentAlias || agentName
 
@@ -57,12 +66,29 @@ export default function WakeAgentDialog({
   useEffect(() => {
     setRemember(true)
     setIsWaking(false)
-  }, [isOpen, defaultProgram])
+    setCred(agent?.credential || null)
+    setCredOpen(false)
+    setCredError('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultProgram, agent?.id])
 
   const { selected, selectedId, modes, decls, clean, preview, permissionMode, execMode } = c
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     setIsWaking(true)
+    // A changed model access is saved first, so this wake already starts on it
+    if (agent && credOpen && JSON.stringify(cred || null) !== JSON.stringify(agent.credential || null)) {
+      try {
+        const r = await fetch(`${getAgentBaseUrl(agent)}/api/agents/${agent.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: cred }),
+        })
+        if (!r.ok) throw new Error((await r.json().catch(() => null))?.message || `HTTP ${r.status}`)
+      } catch (e) {
+        setCredError(`Model access not saved: ${(e as Error).message}`)
+        setIsWaking(false)
+        return
+      }
+    }
     onConfirm(selectedId === 'current' ? '' : selected.id, {
       permissionMode: modes.length > 0 ? permissionMode : undefined,
       execMode: selected.kind === 'claude' ? execMode : undefined,
@@ -118,6 +144,21 @@ export default function WakeAgentDialog({
 
               <div className="overflow-y-auto">
                 <LaunchChoicePanel c={c} displayName={displayName} disabled={isWaking} withExecMode hostUrl={hostUrl} />
+
+                {/* Which account it runs on (#65); Claude Code only */}
+                {agent && (selectedId === 'current' || selected.kind === 'claude') && (
+                  <div className="px-6 pb-3" data-testid="wake-credential">
+                    {credOpen ? (
+                      <AgentCredentialSection agentId={agent.id} baseUrl={getAgentBaseUrl(agent)} value={cred} onChange={setCred} />
+                    ) : (
+                      <p className="text-xs text-zinc-400 flex items-center gap-2">
+                        <KeyRound className="w-3.5 h-3.5" /> Model access: {describeCredential(agent.credential)}
+                        <button type="button" onClick={() => setCredOpen(true)} disabled={isWaking} className="text-emerald-400 hover:underline">Change</button>
+                      </p>
+                    )}
+                    {credError && <p role="alert" className="mt-2 text-xs text-red-300">{credError}</p>}
+                  </div>
+                )}
 
                 {/* Remember */}
                 {selectedId !== 'current' && (

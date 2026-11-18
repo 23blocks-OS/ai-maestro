@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { isSelfHost } from '@/lib/host-kind'
 import type { Host } from '@/types/host'
+import { fetchFeedFromHosts } from '@/lib/mesh-fetch'
 import type { OrganizationRecord } from '@/types/org'
 
 /** An organization record with how the browser reaches the host that stores it ('' for this one) */
@@ -17,22 +17,11 @@ export function useOrgs(hosts: Host[]) {
   const key = hosts.map(h => `${h.id}|${h.url}|${h.enabled}`).join(',')
 
   const load = useCallback(async () => {
-    const targets: Host[] = hosts.length > 0
-      ? hosts.filter(h => h.enabled !== false)
-      : [{ id: 'local', name: 'This host', url: '', isSelf: true } as Host]
-    const results = await Promise.all(targets.map(async host => {
-      const base = isSelfHost(host) ? '' : host.url.replace(/\/$/, '')
-      try {
-        const res = await fetch(`${base}/api/orgs`, { signal: AbortSignal.timeout(8000) })
-        // A host that has not been updated yet has no such route: it holds no records, it is not down
-        if (res.status === 404) return { ok: true as const, host, mine: [] as MeshOrg[], base, def: undefined }
-        if (!res.ok) throw new Error(String(res.status))
-        const data = await res.json()
-        const mine: MeshOrg[] = (data.organizations || []).map((o: OrganizationRecord) => ({ ...o, hostBase: base, hostName: host.name || host.id }))
-        return { ok: true as const, host, mine, base, def: typeof data.defaultOrg === 'string' ? data.defaultOrg : undefined }
-      } catch {
-        return { ok: false as const, host, mine: [] as MeshOrg[], base, def: undefined }
-      }
+    const answers = await fetchFeedFromHosts<{ organizations?: OrganizationRecord[]; defaultOrg?: string }>(hosts, 'orgs', '/api/orgs', 8000, { missingIsEmpty: true })
+    const results = answers.map(({ host, base, ok, data }) => ({
+      ok, host, base,
+      mine: (data?.organizations || []).map(o => ({ ...o, hostBase: base, hostName: host.name || host.id })) as MeshOrg[],
+      def: typeof data?.defaultOrg === 'string' ? data.defaultOrg : undefined,
     }))
     setOrgs(results.flatMap(r => r.mine))
     const here = results.find(r => r.base === '' && r.def)

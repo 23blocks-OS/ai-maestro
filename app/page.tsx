@@ -315,72 +315,9 @@ export default function DashboardPage() {
     if (pick) setActiveAgentId(pick)
   }, [hasOnlineAgents, activeAgentId, firstOnlineAgentId])
 
-  // Initialize agent memories for all agents on load
-  useEffect(() => {
-    if (agents.length === 0) return
-
-    const initKey = 'aimaestro-agents-initialized'
-    const lastInit = sessionStorage.getItem(initKey)
-    const now = Date.now()
-
-    if (lastInit && (now - parseInt(lastInit)) < 3600000) {
-      console.log('[Dashboard] Agent memories already initialized in this session')
-      return
-    }
-
-    // Timeout for memory initialization - 15s for local, 20s for remote
-    const INIT_TIMEOUT_LOCAL = 15000
-    const INIT_TIMEOUT_REMOTE = 20000
-
-    const initializeAgentMemories = async () => {
-      console.log(`[Dashboard] Initializing memory for ${agents.length} agents...`)
-
-      const initPromises = agents.map(async (agent) => {
-        const baseUrl = getAgentBaseUrl(agent)
-        const timeout = baseUrl ? INIT_TIMEOUT_REMOTE : INIT_TIMEOUT_LOCAL
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), timeout)
-
-        try {
-          // Use agent's hostUrl to route to correct host for remote agents
-          const checkResponse = await fetch(`${baseUrl}/api/agents/${agent.id}/memory`, {
-            signal: controller.signal
-          })
-          clearTimeout(timeoutId)
-          const checkData = await checkResponse.json()
-
-          if (!checkData.success || (!checkData.sessions?.length && !checkData.projects?.length)) {
-            console.log(`[Dashboard] Initializing memory for agent ${agent.id}`)
-            const initController = new AbortController()
-            const initTimeoutId = setTimeout(() => initController.abort(), timeout)
-            await fetch(`${baseUrl}/api/agents/${agent.id}/memory`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ populateFromSessions: true }),
-              signal: initController.signal
-            })
-            clearTimeout(initTimeoutId)
-          }
-          return { agent: agent.id, success: true }
-        } catch (error) {
-          clearTimeout(timeoutId)
-          const errorMsg = error instanceof Error && error.name === 'AbortError'
-            ? `Timed out after ${timeout / 1000}s`
-            : error
-          console.error(`[Dashboard] Failed to initialize agent ${agent.id}:`, errorMsg)
-          return { agent: agent.id, success: false, error: errorMsg }
-        }
-      })
-
-      // Use Promise.allSettled so one slow/failed agent doesn't block others
-      const results = await Promise.allSettled(initPromises)
-      const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length
-      console.log(`[Dashboard] Agent memory initialization complete: ${successful}/${agents.length} succeeded`)
-      sessionStorage.setItem(initKey, now.toString())
-    }
-
-    initializeAgentMemories()
-  }, [agents])
+  // No memory work from the browser: each host loads its own agents' memory at startup (lib/agent-startup.ts).
+  // The dashboard used to ask every agent on every host for its memory on load (~180 requests); each one loads the
+  // agent's memory runtime on its host, so a busy host thrashed and its other requests (canvas, terminals) queued.
 
   // Fetch unread message count for active agent
   useEffect(() => {
@@ -1113,7 +1050,7 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <ErrorBoundary fallbackLabel="Terminal">
-                          <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} avatar={{ src: agent.avatar, hostUrl: getAgentBaseUrl(agent) }} />
+                          <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} avatar={{ src: agent.avatar, hostUrl: getAgentBaseUrl(agent) }} agent={agent} />
                         </ErrorBoundary>
                       )
                     ) : !isActive ? (
@@ -1351,6 +1288,7 @@ export default function DashboardPage() {
           defaultProgram={(wakeDialogAgent as any)?.program}
           defaultLaunchOptions={(wakeDialogAgent as any)?.launchOptions}
           hostUrl={(wakeDialogAgent as any)?.hostUrl}
+          agent={wakeDialogAgent}
         />
 
         {/* Help Panel */}

@@ -19,6 +19,8 @@ import { useCompanionWebSocket } from '@/hooks/useCompanionWebSocket'
 import type { VoiceCommandMatch } from '@/lib/voice-commands'
 import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import CompanionInput from '@/components/CompanionInput'
+import ChatView from '@/components/ChatView'
+import ChatTerminalSwitch, { useChatOrTerminal } from '@/components/ChatTerminalSwitch'
 import FloatingVoiceSettings from '@/components/FloatingVoiceSettings'
 
 import '@xterm/xterm/css/xterm.css'
@@ -38,6 +40,7 @@ function CompanionContent() {
   const searchParams = useSearchParams()
   const agentParam = searchParams.get('agent')
   const { agents, onlineAgents, loading } = useAgents()
+  const [paneMode, setPaneMode] = useChatOrTerminal('companion')
 
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [showAgentDialog, setShowAgentDialog] = useState(false)
@@ -935,12 +938,24 @@ function CompanionContent() {
           </button>
         </div>
 
+        {/* Chat or terminal (F111): the terminal stays mounted (the avatar reads its activity), hidden with visibility */}
+        {activeAgent && (
+          <div className="absolute right-3 z-30" style={{ top: 'calc(var(--mobile-header-h, 0px) + 8px)' }}>
+            <ChatTerminalSwitch mode={paneMode} onChange={setPaneMode} />
+          </div>
+        )}
         <div
           ref={terminalRef}
           className="absolute inset-0 md:inset-0"
-          style={{ top: 'var(--mobile-header-h, 0)' }}
+          style={{ top: 'var(--mobile-header-h, 0)', visibility: paneMode === 'terminal' ? 'visible' : 'hidden', pointerEvents: paneMode === 'terminal' ? 'auto' : 'none' }}
         />
-        {!tmuxSessionName && activeAgentId && (
+        {activeAgent && (
+          <div className="absolute inset-0 flex flex-col z-20 bg-room-bg pt-11 md:pt-11"
+            style={{ top: 'var(--mobile-header-h, 0)', visibility: paneMode === 'chat' ? 'visible' : 'hidden', pointerEvents: paneMode === 'chat' ? 'auto' : 'none' }}>
+            <ChatView key={activeAgent.id} agent={activeAgent} isActive={paneMode === 'chat'} />
+          </div>
+        )}
+        {!tmuxSessionName && activeAgentId && paneMode === 'terminal' && (
           <div className="absolute inset-0 flex items-center justify-center bg-room-bg">
             <div className="text-center text-gray-400">
               <WifiOff className="w-12 h-12 mx-auto mb-4 text-gray-600" />

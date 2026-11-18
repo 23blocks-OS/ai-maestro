@@ -65,6 +65,11 @@ function hashCwd(cwd) {
 // has an overall deadline well under 5s.
 const HOOK_FETCH_TIMEOUT_MS = 1500;
 const INJECT_DEADLINE_MS = 3500;
+// The whole run. Past this the hook answers with nothing and exits, so Claude Code never cuts it
+// off. mac-mini (56 agents, memory indexing) logged 1,569 inbox-check timeouts in five weeks and
+// the hook ran past 5s: the status POSTs had no timeout and a timed-out inbox check then ran
+// amp-inbox.sh synchronously for up to 3s more.
+const HOOK_BUDGET_MS = 3500; // leaves ~1.5s for Node start-up on a loaded host
 function withDeadline(promise, ms, fallback) {
     return Promise.race([
         promise,
@@ -199,6 +204,18 @@ function buildHookStateData(state) {
     };
 }
 
+// Which sign-in this Claude session has, in Claude Code's own order, and the kind aim-launch.sh marked (#65 part 2).
+// Kinds only: no value or fingerprint is sent. Claude Code removes CLAUDE_CODE_OAUTH_TOKEN from a hook's environment
+// (tested 2026-11-11; the API key, gateway token and base URL stay), so the launcher's mark stands for the token: the
+// launcher starts the program only after putting a non-empty token in its environment.
+function credentialSeen() {
+    const e = process.env;
+    const via = e.ANTHROPIC_AUTH_TOKEN ? 'gateway' : e.ANTHROPIC_API_KEY ? 'api-key'
+        : (e.CLAUDE_CODE_OAUTH_TOKEN || e.AIM_CREDENTIAL_VIA === 'oauth-token') ? 'oauth-token'
+        : e.CLAUDE_CONFIG_DIR ? 'config-dir' : 'host-login';
+    return { via, ...(e.AIM_CREDENTIAL_VIA && { launched: e.AIM_CREDENTIAL_VIA }) };
+}
+
 // Broadcast status update via WebSocket (non-blocking)
 async function broadcastStatusUpdate(cwd, state) {
     try {
@@ -215,9 +232,16 @@ async function broadcastStatusUpdate(cwd, state) {
         // Build hookState payload for events that produce meaningful state
         const hookStateData = buildHookStateData(state);
 
-        // Broadcast the status update
+        // Broadcast the status update, and send the heartbeat alongside it
+        const heartbeat = agent.id ? fetch(`${aimBase()}/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: state.status, claudeSessionId: currentSessionId, credentialSeen: credentialSeen() }),
+            signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS),
+        }).catch(() => {}) : null;
         await fetch(`${aimBase()}/api/sessions/activity/update`, {
             method: 'POST',
+            signal: AbortSignal.timeout(HOOK_FETCH_TIMEOUT_MS),
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 sessionName,
@@ -229,16 +253,9 @@ async function broadcastStatusUpdate(cwd, state) {
             })
         });
 
-        // Also send heartbeat so standalone agents appear in dashboard. Include
-        // Claude Code's native session id (present in the hook payload) so the
-        // registry can link the agent to its transcript / support native resume.
-        if (agent.id) {
-            await fetch(`${aimBase()}/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: state.status, claudeSessionId: currentSessionId })
-            }).catch(() => {});
-        }
+        // The heartbeat makes standalone agents appear in the dashboard; it carries
+        // Claude Code's native session id so the registry can link the transcript.
+        await heartbeat;
 
         debugLog({ event: 'status_broadcast', sessionName, agentId: agent.id, status: state.status });
     } catch (err) {
@@ -470,13 +487,13 @@ function isDeviceTurn(prompt) {
 async function checkUnreadMessagesStandalone(prompt) {
     // This path cannot tell which message the prompt carries, so it would announce the very message being read
     if (carriesMessageNotice(prompt)) return null;
-    const { execSync } = require('child_process');
+    const { execFile } = require('child_process');
     try {
-        const output = execSync('amp-inbox.sh --count 2>/dev/null', {
-            encoding: 'utf8',
-            timeout: 3000,
-            env: { ...process.env, PATH: process.env.PATH }
-        }).trim();
+        // Async, so the injection deadline and the hook budget can still fire while it runs
+        const output = (await new Promise((resolve, reject) => {
+            execFile('amp-inbox.sh', ['--count'], { encoding: 'utf8', timeout: 3000 },
+                (err, stdout) => (err ? reject(err) : resolve(stdout)));
+        })).trim();
 
         // amp-inbox.sh --count returns a number
         const count = parseInt(output, 10);
@@ -501,6 +518,8 @@ async function checkUnreadMessages(cwd, prompt) {
             debugLog({ event: 'no_agent_for_cwd', cwd });
             return null;
         }
+        // In a meeting (F116): messages wait; AI Maestro lists them when the agent leaves
+        if (agent.inMeeting) return null;
 
         // Check for unread messages
         const messagesResponse = await fetch(
@@ -537,6 +556,8 @@ async function checkUnreadMessages(cwd, prompt) {
         return decision.notice;
     } catch (err) {
         debugLog({ event: 'message_check_error', error: err.message });
+        // A timeout means the server is up but slow: the inbox is read again next turn
+        if (err.name === 'TimeoutError') return null;
         // Fall back to standalone AMP check (works without AI Maestro)
         return checkUnreadMessagesStandalone(prompt);
     }
@@ -582,6 +603,7 @@ async function fetchUnreadMessages(cwd) {
     if (!agents) return null;
     const agent = resolveAgent(cwd, agents);
     if (!agent) { debugLog({ event: 'no_agent_for_cwd', cwd }); return null; }
+    if (agent.inMeeting) return null;
 
     const messagesResponse = await fetch(
         `${aimBase()}/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`,
@@ -1181,6 +1203,11 @@ function readState(cwd) {
 // Main: read the event, handle it, answer, exit. handleEvent holds the logic so a
 // test can replay a sequence of events in-process (tests/helpers/hook-replay.ts).
 async function main() {
+    setTimeout(() => {
+        debugLog({ event: 'hook_budget_failed', budgetMs: HOOK_BUDGET_MS });
+        process.stdout.write('{}');
+        process.exit(0);
+    }, HOOK_BUDGET_MS).unref();
     const input = await readStdin();
     const hookResponse = await handleEvent(input);
 
@@ -1241,10 +1268,13 @@ async function handleEvent(input) {
     const sessionId = input.session_id;
     const transcriptPath = input.transcript_path;
 
-    // Record the state reduceState derives for this event (null = leave it alone).
-    const record = async (event, extra) => {
+    // Record the state reduceState derives for this event (null = leave it alone). The state file
+    // is written at once; the status POST runs alongside the injection and is awaited before
+    // returning (process.exit would drop it), so the two time budgets overlap instead of adding up.
+    const sends = [];
+    const record = (event, extra) => {
         const next = reduceState(readState(cwd), { event, input, agent, blocked: !!(extra && extra.blocked), workSince: (t) => transcriptWorkSince(transcriptPath, t) });
-        if (next) await writeState(cwd, next);
+        if (next) sends.push(writeState(cwd, next));
         return next;
     };
 
@@ -1261,7 +1291,7 @@ async function handleEvent(input) {
             // permission/question that was answered (Claude fires no event for that),
             // wakes an idle state after a background task resumed the agent, and
             // refreshes 'active' so a long turn does not age out. See reduceState.
-            const next = await record('PostToolBatch');
+            const next = record('PostToolBatch');
             if (next) debugLog({ event: 'tool_batch_active', cwd });
             break;
         }
@@ -1302,7 +1332,7 @@ async function handleEvent(input) {
 
         case 'Notification': {
             const notificationType = pick(input, 'notification_type', 'notificationType') || input.type;
-            const written = await record('Notification');
+            const written = record('Notification');
 
             if (notificationType === 'idle_prompt' && written) {
                 // Claude is waiting for regular input - perfect time to check messages!
@@ -1353,10 +1383,10 @@ async function handleEvent(input) {
                     debugLog({ event: 'stop_block_check_failed', error: err.message });
                 }
             }
-            // MUST be awaited: process.exit(0) at the end of run() kills any
-            // in-flight fetch. Measured on a customer estate 10-14 Sep 2026,
+            // Its broadcast MUST be awaited (done at the end of handleEvent): process.exit(0)
+            // kills any in-flight fetch. Measured on a customer estate 10-14 Sep 2026,
             // 0 of 56 Stop broadcasts reached the server without this.
-            await record('Stop', { blocked });
+            record('Stop', { blocked });
             break;
         }
 
@@ -1365,7 +1395,7 @@ async function handleEvent(input) {
         case 'SessionEnd':
             // The turn (or session) ended without a Stop: an API error, an interrupt
             // (Grok), a kill or a quit. Nothing else would ever clear 'active'.
-            await record(hookEvent);
+            record(hookEvent);
             break;
 
         case 'SessionStart':
@@ -1374,7 +1404,7 @@ async function handleEvent(input) {
             // is never cleared until the first Stop, and the wake queue then defers
             // every message for HOOK_STATUS_TTL_MS (15 min). UserPromptSubmit reports
             // 'active' as soon as a turn starts. See sessionStartStatus.
-            await record('SessionStart');
+            record('SessionStart');
 
             pruneChatState(path.join(os.homedir(), '.aimaestro', 'chat-state'));
 
@@ -1410,7 +1440,7 @@ async function handleEvent(input) {
             // SessionStart fires once per session, Stop reports idle at the end,
             // and nothing in between said the agent was busy. An agent that took
             // a twelve-minute turn stayed 'idle' throughout.
-            await record('UserPromptSubmit');
+            record('UserPromptSubmit');
 
             // Drain on every user prompt — this is the reliable delivery slot
             // for Claude Code. SessionStart can be preempted by other plugins'
@@ -1440,6 +1470,7 @@ async function handleEvent(input) {
             }
     }
 
+    await Promise.all(sends);
     return hookResponse;
 }
 

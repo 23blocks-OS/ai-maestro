@@ -8,7 +8,7 @@
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import { isPaneAtBareShell, BARE_SHELL_MESSAGE } from '@/lib/pane-occupant'
-import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from '@/lib/chat-verify.mjs'
+import { deliverAndVerify, NOT_SUBMITTED_MESSAGE, withPaneLock } from '@/lib/chat-verify.mjs'
 import {
   enqueueForSession,
   shouldUseAdditionalContext,
@@ -205,16 +205,18 @@ export async function sendChatMessage(
   }
 
   const runtime = getRuntime()
-  await runtime.cancelCopyMode(sessionName)
+  const { submitted } = await withPaneLock(sessionName, async () => {
+    await runtime.cancelCopyMode(sessionName)
 
-  // Type it, then PROVE it was submitted — shared with the chat path, see
-  // lib/chat-verify. Delivery stays local because this path types through the
-  // runtime abstraction its tests mock, while the chat path pastes via a tmux
-  // buffer. Both are legitimate; the proof is what had to stop being duplicated.
-  const { submitted } = await deliverAndVerify(message, {
-    capture: () => runtime.capturePaneRaw(sessionName),
-    deliver: () => runtime.sendKeys(sessionName, message, { literal: true, enter: true }),
-    clear: (count: number) => runtime.repeatKey(sessionName, 'BSpace', count),
+    // Type it, then PROVE it was submitted — shared with the chat path, see
+    // lib/chat-verify. Delivery stays local because this path types through the
+    // runtime abstraction its tests mock, while the chat path pastes via a tmux
+    // buffer. Both are legitimate; the proof is what had to stop being duplicated.
+    return deliverAndVerify(message, {
+      capture: () => runtime.capturePaneRaw(sessionName),
+      deliver: () => runtime.sendKeys(sessionName, message, { literal: true, enter: true }),
+      clear: (count: number) => runtime.repeatKey(sessionName, 'BSpace', count),
+    })
   })
 
   if (submitted) {

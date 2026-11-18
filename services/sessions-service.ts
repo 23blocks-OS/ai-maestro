@@ -83,6 +83,7 @@ import crypto from 'crypto'
 import { type ServiceResult, missingField, notFound, alreadyExists, invalidField, operationFailed, serviceError, runtimeConflict } from '@/services/service-errors'
 import { runtimeOf } from '@/lib/agent-runtime-kind.mjs'
 import { shouldLogChange } from '@/lib/log-on-change'
+import { recordCredentialSeen, parseCredential } from '@/lib/agent-credential'
 
 const execFileAsync = promisify(execFile)
 
@@ -110,6 +111,8 @@ export interface CreateSessionParams {
   permissionMode?: string
   /** The tool's declared launch choices (lib/launch-options). Validated here; saved on the agent. */
   launchOptions?: Record<string, string | boolean>
+  /** Which account or key the agent uses (#65): vault names only. Claude Code only; saved on the agent. */
+  credential?: unknown
 }
 
 export interface RestoreResult {
@@ -352,15 +355,26 @@ export function sweepObservedPermissions(now: number = Date.now()): number {
   return expired
 }
 
+// A host that did not answer is skipped for a while, so one dead host does not add its
+// 2 s timeout to every refresh. The wait doubles on each failure, up to 5 minutes.
+const remoteBackoff = new Map<string, { until: number; waitMs: number }>()
+const BACKOFF_FIRST_MS = 30_000
+const BACKOFF_MAX_MS = 300_000
+
 /** Fetch sessions from a remote host */
-async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Session[]> {
+export async function fetchRemoteSessions(hostUrl: string, hostId: string, get: (url: string) => Promise<any> = httpGet): Promise<Session[]> {
+  const down = remoteBackoff.get(hostId)
+  if (down && Date.now() < down.until) return []
   try {
-    const data = await httpGet(`${hostUrl}/api/sessions?local=true`)
+    const data = await get(`${hostUrl}/api/sessions?local=true`)
+    remoteBackoff.delete(hostId)
     const remoteSessions = data.sessions || []
     console.log(`[Sessions] Successfully fetched ${remoteSessions.length} session(s) from ${hostUrl}`)
     return remoteSessions.map((session: Session) => ({ ...session, hostId }))
   } catch (error) {
-    console.error(`[Sessions] Error fetching from ${hostUrl}:`, error)
+    const waitMs = down ? Math.min(down.waitMs * 2, BACKOFF_MAX_MS) : BACKOFF_FIRST_MS
+    remoteBackoff.set(hostId, { until: Date.now() + waitMs, waitMs })
+    console.error(`[Sessions] Error fetching from ${hostUrl} (next try in ${waitMs / 1000}s):`, error)
     return []
   }
 }
@@ -760,6 +774,17 @@ export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<R
     return fromFile && (!mapFresh || fromFile.at >= mapFresh.at) ? fromFile : mapFresh
   }
 
+  // The hook's last word however old, only to answer one question: did this agent settle (idle) and report
+  // nothing since? Claude Code reports the start of every turn, so a settled agent with no newer report is not
+  // working, whatever its screen does: opening its terminal redraws the screen, which read as Working for a few
+  // seconds (23b-counsel, idle for 28 h). Agents with no report at all still go by their terminal.
+  const settledSinceLastReport = (sessionName: string, workingDir: string | undefined): boolean => {
+    const fromFile = workingDir ? withObservedExpiry(sessionName, getHookState(workingDir, Infinity, Infinity, agentDirs, stateFiles)) : null
+    const fromMap = hookStatusMap.get(sessionName) || null
+    const last = fromFile && (!fromMap || fromFile.at >= fromMap.at) ? fromFile : fromMap
+    return !!last && claimsActivity(last.status) && toActivityStatus(last.status, last.notificationType) === 'idle'
+  }
+
   const now = Date.now()
   activityMap.forEach((timestamp, sessionName) => {
     const terminalIdle = ((now - timestamp) / 1000) > 3
@@ -767,6 +792,7 @@ export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<R
     // Bounded the same way: a live terminal must not be labelled "waiting" on the
     // strength of a report from months ago.
     const hookState = latestReport(sessionName, workingDir)
+    const settled = !hookState && !terminalIdle && settledSinceLastReport(sessionName, workingDir)
 
     // The hook is the authority when it has a fresh report: it fires the moment
     // a turn starts (UserPromptSubmit) and ends (Stop), and when the agent
@@ -776,7 +802,7 @@ export async function getActivity(opts: { localOnly?: boolean } = {}): Promise<R
     // hook report (Codex, a plain shell).
     let status: SessionActivityStatus = hookState
       ? normalizeActivityStatus(hookState.status, hookState.notificationType)
-      : (terminalIdle ? 'idle' : 'active')
+      : (terminalIdle || settled ? 'idle' : 'active')
     // After you approve, the agent resumes but the hook says nothing until the
     // turn ends: fresh terminal output well after the permission report is the
     // proof it is working again. (An unanswered dialog does not redraw.)
@@ -976,12 +1002,13 @@ async function broadcastComputedStatus(sessionName: string, status: string, hook
  * Record a heartbeat for a standalone agent (no tmux session).
  * Makes the agent appear in the dashboard session list.
  */
-export function heartbeat(agentId: string, status?: string, claudeSessionId?: string): ServiceResult<{ success: boolean }> {
+export function heartbeat(agentId: string, status?: string, claudeSessionId?: string, credentialSeen?: unknown): ServiceResult<{ success: boolean }> {
   if (!agentId) return missingField('agentId')
   // Resolve: agentId could be a UUID or a name. Store heartbeat under the UUID.
   const agent = getAgent(agentId) || getAgentByName(agentId)
   const resolvedId = agent?.id || agentId
   agentActivity.set(resolvedId, Date.now())
+  if (credentialSeen) recordCredentialSeen(resolvedId, credentialSeen)
   // Capture Claude Code's native session id (sent by the hook on SessionStart)
   // when it changes — enables transcript lookup, native resume, telemetry.
   if (agent && claudeSessionId && agent.claudeSessionId !== claudeSessionId) {
@@ -1021,6 +1048,10 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const allowedModes = permissionModesFor(chosenKind)
   const chosenMode = allowedModes.includes(params.permissionMode as AgentPermissionMode) ? (params.permissionMode as AgentPermissionMode) : undefined
   const chosenOptions = sanitizeLaunchOptions(chosenKind, params.launchOptions)
+  const parsedCredential = params.credential == null ? { credential: null } : parseCredential(params.credential)
+  if ('error' in parsedCredential) return invalidField('credential', parsedCredential.error)
+  // Only Claude Code is launched through the credential launcher; for another tool it would look chosen and do nothing
+  const chosenCredential = chosenKind === 'claude' ? parsedCredential.credential : null
 
   if (!name || typeof name !== 'string') {
     return missingField('name')
@@ -1040,7 +1071,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     try {
       const remoteUrl = `${targetHost.url}/api/sessions/create`
       console.log(`[Sessions] Creating session "${name}" on remote host ${targetHost.name} at ${remoteUrl}`)
-      const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label, avatar, programArgs, program, permissionMode: params.permissionMode, launchOptions: params.launchOptions })
+      const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label, avatar, programArgs, program, permissionMode: params.permissionMode, launchOptions: params.launchOptions, credential: params.credential })
       console.log(`[Sessions] Successfully created session "${name}" on ${targetHost.name}`)
       return { data, status: 200 }
     } catch (error) {
@@ -1119,6 +1150,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
         programArgs: programArgs || '',
         ...(chosenMode ? { permissionMode: chosenMode } : {}),
         ...(Object.keys(chosenOptions).length > 0 ? { launchOptions: chosenOptions } : {}),
+        ...(chosenCredential ? { credential: chosenCredential } : {}),
       })
       console.log(`[Sessions] Registered new agent: ${agentName} (${registeredAgent.id})`)
     } catch (createError) {
@@ -1182,6 +1214,8 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
         model: registeredAgent?.model,
         permissionMode: chosenMode ?? registeredAgent?.permissionMode,
         launchOptions: Object.keys(chosenOptions).length > 0 ? chosenOptions : registeredAgent?.launchOptions,
+        credential: registeredAgent?.credential,
+        launcher: path.join(process.cwd(), 'scripts', 'aim-launch.sh'),
       })
 
       await new Promise(resolve => setTimeout(resolve, 300))

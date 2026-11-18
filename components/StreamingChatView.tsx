@@ -5,6 +5,7 @@ import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
 import { primaryAmpAddress } from '@/lib/status-format'
+import { accountOf } from '@/lib/credential-words'
 import { agentWorkingDirectory, getAgentBaseUrl } from '@/lib/agent-utils'
 import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
 import { User, Bot, Wrench, Loader2, Send, Zap, AlertCircle, ShieldAlert } from 'lucide-react'
@@ -291,6 +292,7 @@ export default function StreamingChatView({ agent, isActive = false }: Streaming
         roleLine={agentRoleLine(agent.tags)}
         workingDirectory={agentWorkingDirectory(agent)}
         address={primaryAmpAddress(agent as any)}
+        account={accountOf(agent)}
         snapshot={snapshotOf(agent)}
         presence={presenceOf(agent, { online: connected })}
         avatar={{ agentId: agent.id, src: agent.avatar, hostUrl: getAgentBaseUrl(agent), state: avatarStateForPresence(presenceOf(agent, { online: connected })) }}

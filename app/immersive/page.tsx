@@ -7,11 +7,14 @@ import { debounce } from '@/lib/utils'
 import type { UnifiedAgent } from '@/types/agent'
 
 // Import xterm CSS
+import ChatView from '@/components/ChatView'
+import ChatTerminalSwitch, { useChatOrTerminal } from '@/components/ChatTerminalSwitch'
 import '@xterm/xterm/css/xterm.css'
 
 export default function ImmersivePage() {
   const terminalRef = useRef<HTMLDivElement>(null)
   const { agents, onlineAgents, loading } = useAgents()
+  const [paneMode, setPaneMode] = useChatOrTerminal('immersive', 'terminal')
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [showAgentDialog, setShowAgentDialog] = useState(false)
   const terminalInstanceRef = useRef<any>(null)
@@ -263,12 +266,15 @@ export default function ImmersivePage() {
             <span className="w-2 h-2 rounded-full bg-green-500" title="Online" />
           )}
         </div>
-        <button
-          onClick={() => setShowAgentDialog(true)}
-          className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-        >
-          Switch Agent
-        </button>
+        <div className="flex items-center gap-3">
+          {activeAgent && <ChatTerminalSwitch mode={paneMode} onChange={setPaneMode} />}
+          <button
+            onClick={() => setShowAgentDialog(true)}
+            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+          >
+            Switch Agent
+          </button>
+        </div>
       </header>
 
       {/* Terminal Container */}
@@ -276,8 +282,16 @@ export default function ImmersivePage() {
         <div
           ref={terminalRef}
           className="absolute inset-0"
+          style={{ visibility: paneMode === 'terminal' ? 'visible' : 'hidden', pointerEvents: paneMode === 'terminal' ? 'auto' : 'none' }}
         />
-        {!tmuxSessionName && activeAgentId && (
+        {/* The chat (F111); this page opens on the terminal, which is what it is for */}
+        {activeAgent && (
+          <div className="absolute inset-0 flex flex-col z-10 bg-gray-900"
+            style={{ visibility: paneMode === 'chat' ? 'visible' : 'hidden', pointerEvents: paneMode === 'chat' ? 'auto' : 'none' }}>
+            <ChatView key={activeAgent.id} agent={activeAgent} isActive={paneMode === 'chat'} />
+          </div>
+        )}
+        {!tmuxSessionName && activeAgentId && paneMode === 'terminal' && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
             <div className="text-center text-gray-400">
               <p className="text-lg mb-2">Agent is offline</p>

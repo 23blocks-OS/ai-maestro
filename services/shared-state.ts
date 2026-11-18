@@ -95,6 +95,7 @@ declare global {
     peerSnapshots: Map<string, PeerCopy>
     peerPeople: Map<string, PeerCopy>
     peerWorldEvents: Map<string, PeerCopy>
+    peerFeeds: Map<string, Map<string, PeerCopy>>
   } | undefined
   // eslint-disable-next-line no-var
   var _meshNotify: (() => void) | undefined
@@ -116,6 +117,7 @@ if (!globalThis._sharedState) {
     peerSnapshots: new Map<string, PeerCopy>(),
     peerPeople: new Map<string, PeerCopy>(),
     peerWorldEvents: new Map<string, PeerCopy>(),
+    peerFeeds: new Map<string, Map<string, PeerCopy>>(),
   }
 }
 // Ensure late-added maps exist for hot-reload, and for whichever module graph
@@ -147,6 +149,9 @@ if (!globalThis._sharedState.peerPeople) {
 }
 if (!globalThis._sharedState.peerWorldEvents) {
   globalThis._sharedState.peerWorldEvents = new Map()
+}
+if (!globalThis._sharedState.peerFeeds) {
+  globalThis._sharedState.peerFeeds = new Map()
 }
 
 const state = globalThis._sharedState!
@@ -201,6 +206,23 @@ export const peerPeople: Map<string, PeerCopy> = state.peerPeople
 
 /** hostId -> that peer's deliveries of the last few minutes (world events, by message id), from /mesh */
 export const peerWorldEvents: Map<string, PeerCopy> = state.peerWorldEvents
+
+/**
+ * Any other /mesh feed (emails, projects, tasks, orgs, teams...): feed -> hostId -> that peer's copy.
+ * One generic store, so a new feed needs no new map here.
+ */
+export function peerFeed(feed: string): Map<string, PeerCopy> {
+  let m = state.peerFeeds.get(feed)
+  if (!m) { m = new Map(); state.peerFeeds.set(feed, m) }
+  return m
+}
+
+/** The items of every connected peer of one feed, with the peer's host id */
+export function connectedPeerItems<T = any>(feed: string): Array<{ hostId: string; items: Record<string, T> }> {
+  const out: Array<{ hostId: string; items: Record<string, T> }> = []
+  peerFeed(feed).forEach((copy, hostId) => { if (copy.connected) out.push({ hostId, items: copy.items as Record<string, T> }) })
+  return out
+}
 
 // ---------------------------------------------------------------------------
 // Broadcast a chat event to chat-subscribed WebSocket clients for a session

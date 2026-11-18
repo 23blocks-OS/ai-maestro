@@ -294,6 +294,27 @@ describe('createSession', () => {
     expect(mockRuntime.createSession).toHaveBeenCalled()
   })
 
+  it('saves the model access chosen in the wizard on the new Claude Code agent (#65)', async () => {
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.getAgentByName.mockReturnValue(null)
+    mockAgentRegistry.createAgent.mockClear().mockReturnValue({ id: 'new-agent-id', name: 'ops-1' })
+    const result = await createSession({ name: 'ops-1', credential: { kind: 'oauth-token', secret: 'ACME_MAX_TOKEN' } })
+    expect(result.status).toBe(200)
+    expect(mockAgentRegistry.createAgent.mock.calls[0][0].credential).toEqual({ kind: 'oauth-token', secret: 'ACME_MAX_TOKEN' })
+  })
+
+  it('drops model access for a tool that is not Claude Code, and refuses a key value', async () => {
+    mockRuntime.sessionExists.mockResolvedValue(false)
+    mockAgentRegistry.getAgentByName.mockReturnValue(null)
+    mockAgentRegistry.createAgent.mockClear().mockReturnValue({ id: 'new-agent-id', name: 'cx-1' })
+    await createSession({ name: 'cx-1', program: 'codex', credential: { kind: 'api-key', secret: 'ACME_API_KEY' } })
+    expect(mockAgentRegistry.createAgent.mock.calls[0][0].credential).toBeUndefined()
+    mockAgentRegistry.createAgent.mockClear()
+    const bad = await createSession({ name: 'ops-2', credential: { kind: 'api-key', secret: 'sk-ant-abc' } })
+    expect(bad.status).toBe(400)
+    expect(mockAgentRegistry.createAgent).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when name is missing', async () => {
     const result = await createSession({ name: '' })
 

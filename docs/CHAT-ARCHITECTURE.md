@@ -38,6 +38,8 @@ Verification was added to the TypeScript one, tested through the REST endpoint,
 observed returning `verified: true`, and reported as fixed. The chat UI never
 calls it. **Check which one you are editing.**
 
+The chat WebSocket also takes `chat:cycleMode`: the server sends Shift+Tab (tmux `BTab`) to the pane, so a phone, which can't type Shift+Tab, can change Claude Code's mode. The key is fixed on the server; the client sends no key.
+
 ### Why the SDK path is the one that can be right
 
 The tmux path infers agent state by reading a terminal as text and typing

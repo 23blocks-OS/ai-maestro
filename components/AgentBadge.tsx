@@ -20,6 +20,8 @@ import {
 import { computeHash, getAvatarUrl } from '@/lib/hash-utils'
 import { Agent, AgentSession } from '@/types/agent'
 import InfraIcon from './InfraIcon'
+import CredentialAlarm from './CredentialAlarm'
+import UsageLimitBadge from './UsageLimitBadge'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 
 interface AgentBadgeProps {
@@ -124,7 +126,7 @@ export default function AgentBadge({
   const isOnline = session?.status === 'online' || agent.session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const { presenceOf } = useSessionActivity()
+  const { presenceOf, snapshotOf } = useSessionActivity()
   const statusInfo = getStatusInfo(session, isHibernated, activityStatus, agent.session?.status === 'online', presenceOf(agent, { online: true }))
   const ringColor = stringToRingColor(agent.name)
 
@@ -175,6 +177,9 @@ export default function AgentBadge({
             <span className="text-[10px] font-bold text-slate-200">{unreadCount}</span>
           </div>
         )}
+
+        <CredentialAlarm check={agent.credentialCheck} />
+        <UsageLimitBadge snapshot={snapshotOf(agent)} />
 
         {/* Status indicator - dot for online/offline, Power icon for hibernated */}
         {isHibernated ? (

@@ -252,6 +252,10 @@ export interface Agent {
   voice?: AgentVoice
   /** Experiments, off unless set. speakingSide: a fast speaking side answers at its devices (F100); 'always' keeps it warm */
   experiments?: AgentExperiments
+  /** Which account or key the agent calls its model with (#65). Unset = the host's own login. */
+  credential?: AgentCredential
+  credentialCheck?: CredentialCheck // set by the agent list while it runs: what its session signs in with, against the profile
+  credentialLogin?: CredentialLogin // set by the agent list for a host-login or config-dir profile: the account that login is
   /** F103: paired devices that speak for one person, by device key. Set by the operator only; a device can never claim it */
   devicePeople?: Record<string, DevicePerson>
   kind?: 'agent' | 'assistant'  // Missing means 'agent'. An assistant connects over AMP only: no terminal, stream or wake
@@ -601,6 +605,7 @@ export interface CreateAgentRequest {
   copilotHome?: string          // The agent's own COPILOT_HOME (absolute, or ~/...)
   launchOptions?: Record<string, string | boolean>  // The tool's declared launch choices (lib/launch-options)
   permissionMode?: AgentPermissionMode  // Trust level (default: 'supervised')
+  credential?: AgentCredential  // Which account or key it uses (#65); vault names only
   tags?: string[]
   workingDirectory?: string
   runtime?: 'tmux' | 'docker' | 'api' | 'direct'
@@ -633,6 +638,7 @@ export interface DevicePerson {
 export interface UpdateAgentRequest {
   voice?: AgentVoice | null     // null clears it
   experiments?: AgentExperiments | null // null clears them
+  credential?: AgentCredential | null // null = the host's own login
   devicePeople?: Record<string, DevicePerson> | null // the whole map; null clears it
   name?: string                 // Update agent identity (was alias)
   label?: string                // Update display override (was displayName)
@@ -931,4 +937,28 @@ export interface CreateDomainRequest {
   domain: string
   description?: string
   isDefault?: boolean
+}
+
+/**
+ * An agent's credential profile (#65). Values never live here: `secret` is the NAME of a vault entry, read at launch.
+ * - host-login: the user-level /login of the host (the default, shared by every agent on the host)
+ * - oauth-token: a subscription token from `claude setup-token` (CLAUDE_CODE_OAUTH_TOKEN)
+ * - api-key: an Anthropic API key (ANTHROPIC_API_KEY)
+ * - gateway: a bearer token for a compatible gateway (ANTHROPIC_AUTH_TOKEN + baseUrl, optional model)
+ * - config-dir: a separate CLAUDE_CONFIG_DIR logged in to another account
+ * `account` is a label for people (whose account or plan this is); it is shown, never used.
+ */
+/** The live check (#65 part 2): the running session's sign-in against the agent's profile */
+/** The account a Claude login is (`claude auth status`), for a host-login or config-dir profile. Never a token */
+export interface CredentialLogin { email?: string; orgName?: string; plan?: string }
+
+export interface CredentialCheck { state: 'match' | 'unverified' | 'mismatch'; detail: string; at: string }
+
+export interface AgentCredential {
+  kind: 'host-login' | 'oauth-token' | 'api-key' | 'gateway' | 'config-dir'
+  secret?: string
+  baseUrl?: string
+  model?: string
+  dir?: string
+  account?: string
 }

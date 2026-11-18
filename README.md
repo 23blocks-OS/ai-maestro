@@ -8,7 +8,7 @@
 
 **The OS for AI-first organizations — orchestrate any AI agent with persistent memory, agent-to-agent messaging, and multi-machine support.**
 
-[![Version](https://img.shields.io/badge/version-0.106.131-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.106.221-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
@@ -401,6 +401,7 @@ The documentation site is **[aimaestro.sh](https://aimaestro.sh)** (install and 
 
 **Open Protocols:**
 - [AMP](https://agentmessaging.org) · [AID](https://agentids.org) · [AAP](https://agentactions.org) · [AFP](https://github.com/agentmessaging/agent-files) · [ADP](https://agentdevices.org)
+- [What AI Maestro gives back](./docs/CONTRIBUTIONS-UPSTREAM.md): our fixes and proposals in other open-source projects
 - Design notes: [AID, AMP and AAP on the Poppy draft](./docs/AID-POPPY-MAPPING.md) · [AMP outbox (proposal)](./docs/AMP-OUTBOX-DESIGN.md)
 
 **Extending:**

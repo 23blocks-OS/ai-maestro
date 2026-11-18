@@ -90,11 +90,30 @@ export class Controller {
   createHub(options?: {
     heartbeatMs?: number;
     silentMs?: number;
-    /** Speech from a device's talk control to text. `agent` and `device` say whose clip it is. */
-    transcribe?: (audio: Buffer, context: { agent: string; device: string }) => Promise<string> | string;
+    /**
+     * Speech from a device's talk control to text. `agent` and `device` say whose clip it is.
+     * Return `{ text, speaker }` to add the host's own voice match to `device.input`: a guess
+     * for context, never proof. An invalid `speaker` is dropped.
+     */
+    transcribe?: (
+      audio: Buffer,
+      context: { agent: string; device: string },
+    ) => Promise<string | TranscribeResult> | string | TranscribeResult;
   }): ReverseHub;
   poll(): Promise<void>;
   start(options?: { intervalMs?: number }): void;
   stop(): Promise<void>;
   snapshot(): ControllerSnapshot;
 }
+
+/** A voice match made by the controller host. `id` is the host's person id, `confidence` 0 to 1. */
+export interface Speaker {
+  id: string;
+  name: string;
+  confidence: number;
+}
+export interface TranscribeResult {
+  text: string;
+  speaker?: Speaker | null;
+}
+export function validSpeaker(speaker: unknown): speaker is Speaker;

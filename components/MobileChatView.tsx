@@ -13,6 +13,8 @@ import { useSqlWriteRequests } from '@/hooks/useSqlWriteRequests'
 import { PRESENCE_STYLE } from '@/lib/agent-presence'
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import AgentStatusRow from './AgentStatusRow'
+import AccountChip from './AccountChip'
+import type { accountOf } from '@/lib/credential-words'
 import AgentIdentityLine from './AgentIdentityLine'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SendHorizontal, ChevronDown, ChevronRight, Loader2, Wrench, Copy, Check, AlertCircle } from 'lucide-react'
@@ -38,6 +40,7 @@ interface MobileChatViewProps {
   baseUrl?: string      // getAgentBaseUrl(agent): REST goes to the agent's host, '' for this one
   workingDirectory?: string | null  // shown under the status, like the desktop header
   address?: string | null           // the agent's AMP address
+  account?: ReturnType<typeof accountOf> // the account it is set to use (#65 part 2)
 }
 
 interface ChatMessage {
@@ -270,7 +273,7 @@ function ThinkingBlock({ text }: { text: string }) {
   )
 }
 
-export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, baseUrl = '', workingDirectory, address }: MobileChatViewProps) {
+export default function MobileChatView({ agentId, agentName, sessionName: sessionNameProp, hostId, baseUrl = '', workingDirectory, address, account }: MobileChatViewProps) {
   const { requests: secretRequests, refresh: refreshSecretRequests } = useSecretRequests(agentId)
   const { requests: sqlWriteRequests, refresh: refreshSqlWriteRequests } = useSqlWriteRequests(agentId)
   // One status for every view (the sidebar and terminal read the same feed)
@@ -1115,6 +1118,7 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
         {(workingDirectory || address) && (
           <div className="px-3 pb-1"><AgentIdentityLine workingDirectory={workingDirectory} address={address} /></div>
         )}
+        {account && <div className="px-3 pb-1 text-[11px] leading-tight"><AccountChip account={account} /></div>}
 
         {/* The terminal status bar's facts (F025): context + /compact hint, the rest behind the chevron */}
         {(() => {
@@ -1133,6 +1137,16 @@ export default function MobileChatView({ agentId, agentName, sessionName: sessio
         )}
         <div className="flex items-end gap-2">
           <AttachButton onFiles={attach.uploadFiles} busy={attach.isUploading} className="p-2" />
+          {/* Shift+Tab, which a phone keyboard can't type: Claude Code changes mode (manual, accept edits, plan, auto) */}
+          <button
+            onClick={() => sendChatWs('chat:cycleMode')}
+            disabled={!chatWsConnected}
+            aria-label="Change mode (Shift+Tab)"
+            title="Change mode (Shift+Tab)"
+            className="flex-shrink-0 px-2 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800 disabled:opacity-30 transition-colors"
+          >
+            ⇧Tab
+          </button>
           <textarea
             ref={textareaRef}
             value={input}

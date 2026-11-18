@@ -10,16 +10,16 @@ vi.mock('@/services/status-snapshots-service', () => ({ getSnapshots }))
 const { GET } = await import('@/app/api/sessions/activity/route')
 
 beforeEach(() => {
-  getActivity.mockReset().mockResolvedValue({ lola: { status: 'idle', lastActivity: 'x' } })
-  getSnapshots.mockReset().mockReturnValue({ lola: { model: 'claude-opus-5-5' } })
+  getActivity.mockReset().mockResolvedValue({ alice: { status: 'idle', lastActivity: 'x' } })
+  getSnapshots.mockReset().mockReturnValue({ alice: { model: 'claude-opus-5-5' } })
 })
 
 describe('GET /api/sessions/activity', () => {
   it('returns the snapshots next to the activity', async () => {
     const res = await GET(new Request('http://x/api/sessions/activity'))
     const body = await res.json()
-    expect(body.activity.lola.status).toBe('idle')
-    expect(body.snapshots.lola.model).toBe('claude-opus-5-5')
+    expect(body.activity.alice.status).toBe('idle')
+    expect(body.snapshots.alice.model).toBe('claude-opus-5-5')
     expect(getSnapshots).toHaveBeenCalledWith({ localOnly: false })
   })
 
@@ -33,7 +33,7 @@ describe('GET /api/sessions/activity', () => {
     const res = await GET(new Request('http://x/api/sessions/activity'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.activity.lola.status).toBe('idle')
+    expect(body.activity.alice.status).toBe('idle')
     expect(body.snapshots).toEqual({})
   })
 })

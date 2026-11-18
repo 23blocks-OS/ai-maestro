@@ -16,7 +16,7 @@ export async function POST(
   try {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
-    const result = heartbeat(id, body.status, body.claudeSessionId)
+    const result = heartbeat(id, body.status, body.claudeSessionId, body.credentialSeen)
     return toResponse(result)
   } catch (error) {
     console.error('[Heartbeat API] Error:', error)

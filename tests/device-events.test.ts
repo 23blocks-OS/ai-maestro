@@ -20,6 +20,15 @@ describe('device events reach the agent', () => {
     expect(options.content.message).toContain('answer first with adp-device.sh say "MacBook"')
   })
 
+  it('words relayed by Siri tell the agent its first reply is read aloud and the talk ends', async () => {
+    await deliverDeviceEvent(event({ via: 'siri' }), idOf)
+    const message = sendFromUI.mock.calls[0][0].content.message
+    expect(message).toContain('It came through Siri, which reads your first reply aloud')
+    sendFromUI.mockClear()
+    await deliverDeviceEvent(event(), idOf)
+    expect(sendFromUI.mock.calls[0][0].content.message).not.toContain('came through')
+  })
+
   it('a retried event is delivered once', async () => {
     const once = event()
     await deliverDeviceEvent(once, idOf)
@@ -93,6 +102,39 @@ describe('the speaking side experiment (F100)', () => {
     await deliverDeviceEvent(event(), idOf)
     expect(handle).not.toHaveBeenCalled()
     expect(sendFromUI).toHaveBeenCalledTimes(1)
+    delete g._speakingSides
+  })
+})
+
+describe('who the voice sounds like (#78)', () => {
+  const g = globalThis as any
+  const expOf = (address: string) => (address === 'lola@x' ? 'exp-id' : undefined)
+  const phone = { deviceKey: 'PHONEKEY0123456789ab', name: 'iPhone', source: 'voice' }
+  it('a voice match alone never verifies the sender', async () => {
+    await deliverDeviceEvent(event({ source: 'voice', speaker: { id: 'p2', name: 'Alice', confidence: 0.82 } }), idOf)
+    const options = sendFromUI.mock.calls[0][0]
+    expect(options).toMatchObject({ fromVerified: false, fromAlias: 'Device MacBook', subject: 'Someone at your device MacBook' })
+    expect(options.content.message).toContain('The voice sounds like Alice (82% match; a voice match is a guess, not proof).')
+  })
+  it('a voice that names someone else: both are shown, neither is verified', async () => {
+    await deliverDeviceEvent(event({ ...phone, speaker: { id: 'p2', name: 'Alice', confidence: 0.9 } }), expOf)
+    const options = sendFromUI.mock.calls[0][0]
+    expect(options).toMatchObject({ fromVerified: false, fromAlias: 'Device iPhone', subject: 'Someone at your device iPhone' })
+    expect(options.content.message).toContain("The operator marked this device as Juan's, but the voice does not match")
+  })
+  it('a voice that matches the device person keeps it verified', async () => {
+    await deliverDeviceEvent(event({ ...phone, speaker: { id: 'p1', name: 'Juan', confidence: 0.9 } }), expOf)
+    expect(sendFromUI.mock.calls[0][0]).toMatchObject({ fromVerified: true, fromAlias: 'Juan at iPhone' })
+  })
+  it('a speaker on typed input is ignored', async () => {
+    await deliverDeviceEvent(event({ source: 'device', speaker: { id: 'p2', name: 'Alice', confidence: 0.9 } }), idOf)
+    expect(sendFromUI.mock.calls[0][0].content.message).not.toContain('Alice')
+  })
+  it('the speaking side gets the note and no person when they disagree', async () => {
+    const handle = vi.fn(() => true)
+    g._speakingSides = { handle }
+    await deliverDeviceEvent(event({ ...phone, speaker: { id: 'p2', name: 'Alice', confidence: 0.9 } }), expOf)
+    expect(handle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ person: undefined, note: expect.stringContaining('sounds like Alice') }))
     delete g._speakingSides
   })
 })

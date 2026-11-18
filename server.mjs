@@ -1,4 +1,4 @@
-import { createServer } from 'http'
+import { createServer, request as httpRequest } from 'http'
 import { parse } from 'url'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
@@ -11,9 +11,10 @@ import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer, removeBuffer } from './lib/cerebellum/session-bridge.mjs'
 import { parsePermissionMenu } from './lib/pane-permission.mjs'
 import { resolveBindHost } from './lib/bind-host.mjs'
+import { compressJson } from './lib/json-compression.mjs'
 // Grok Build / Codex keep approval prompts in the terminal only; parse them from the pane.
 import { approvalKindForProgram, parseApprovalForProgram, needsPaneApprovalCard, cardWithPaneMenu } from './lib/pane-approval.mjs'
-import { deliverAndVerify, NOT_SUBMITTED_MESSAGE } from './lib/chat-verify.mjs'
+import { deliverAndVerify, NOT_SUBMITTED_MESSAGE, withPaneLock } from './lib/chat-verify.mjs'
 import { isValidSessionName } from './lib/tmux-safe.mjs'
 // F026 Phase 0: every tmux call in this file goes through lib/tmux-runtime.mjs
 // (argv only, target validated there). tests/no-shell-tmux.test.ts fails if a
@@ -54,7 +55,8 @@ import {
   peerSessions,
   peerSnapshots,
   peerPeople,
-  peerWorldEvents
+  peerWorldEvents,
+  peerFeed
 } from './services/shared-state-bridge.mjs'
 import { createMesh } from './lib/mesh-sync.mjs'
 
@@ -937,7 +939,11 @@ function capturePaneRaw(sessionName, lines = 200) {
   } catch { return '' }
 }
 
-async function sendChatMessage(sessionName, message) {
+function sendChatMessage(sessionName, message) {
+  return withPaneLock(sessionName, () => sendChatMessageNow(sessionName, message))
+}
+
+async function sendChatMessageNow(sessionName, message) {
   // An agent that runs outside tmux (its own terminal or app) has no pane to type into. Say so:
   // tmux used to read the name as a prefix and typed the reply into another agent (2026-10-30).
   if (!tmuxRt.hasSessionSync(sessionName, { timeout: 2000 })) {
@@ -1186,6 +1192,7 @@ if (!fs.existsSync(logsDir)) {
 async function startServer(handleRequest) {
   const server = createServer(async (req, res) => {
     try {
+      compressJson(req, res)
       const parsedUrl = parse(req.url, true)
 
       // Internal endpoint for PTY debug info - served directly from server.mjs
@@ -1209,6 +1216,29 @@ async function startServer(handleRequest) {
           timestamp: new Date().toISOString()
         }))
         return
+      }
+
+      // An agent of another host, asked for here (the dashboard on HTTPS cannot call that host over plain HTTP, so
+      // lib/https-agent-calls.ts sends those calls to this host): forward it to the agent's host, server to server.
+      // Only real agent ids, only agents this host does not have, only to a peer that owns the agent; never twice.
+      const agentPath = /^\/api\/agents\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\/|$)/i.exec(parsedUrl.pathname || '')
+      if (agentPath && !req.headers['x-aim-forwarded']) {
+        const { getAgent } = await import('./lib/agent-registry.ts')
+        if (!getAgent(agentPath[1])) {
+          const { findPeerHostUrl } = await import('./lib/owning-host.ts')
+          const owner = await findPeerHostUrl(agentPath[1]).catch(() => undefined)
+          if (owner) {
+            const target = new URL(req.url, owner)
+            const headers = { ...req.headers, host: target.host, 'x-aim-forwarded': '1' }
+            const out = httpRequest(target, { method: req.method, headers }, (up) => {
+              res.writeHead(up.statusCode || 502, up.headers)
+              up.pipe(res)
+            })
+            out.on('error', (err) => { if (!res.headersSent) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `agent's host unreachable: ${err.message}` })) } })
+            req.pipe(out)
+            return
+          }
+        }
       }
 
       await handleRequest(req, res, parsedUrl)
@@ -1890,6 +1920,16 @@ async function startServer(handleRequest) {
           return Object.fromEntries(events.map(e => [e.id, e]))
         },
       },
+      // Page feeds (projects, tasks, orgs, teams, task summary): each is this host's whole answer, as one item
+      ...Object.fromEntries([['projects', 15_000], ['tasks', 15_000], ['orgs', 30_000], ['teams', 60_000], ['taskSummary', 30_000], ['capabilities', 60_000]].map(([name, pollMs]) => [name, {
+        pollMs, polledOnly: true,
+        get: async () => (await import('./services/mesh-feeds-service.ts')).localFeed(name),
+      }])),
+      // Email addresses of this host's agents, so a lookup does not ask every host
+      emails: {
+        pollMs: 30_000,
+        get: async () => (await import('./lib/agent-registry.ts')).getEmailIndex(),
+      },
       sessions: {
         pollMs: 10_000, minGapMs: 2_000,
         get: async () => {
@@ -1898,7 +1938,7 @@ async function startServer(handleRequest) {
         },
       },
     },
-    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots, people: peerPeople, worldEvents: peerWorldEvents },
+    copies: { status: peerActivity, agents: peerAgents, sessions: peerSessions, snapshots: peerSnapshots, people: peerPeople, worldEvents: peerWorldEvents, emails: peerFeed('emails'), ...Object.fromEntries(['projects', 'tasks', 'orgs', 'teams', 'taskSummary', 'capabilities'].map(f => [f, peerFeed(f)])) },
     getPeers: () => getPeerHosts().filter(h => h.enabled !== false),
     // A remote agent's status change reaches this host's pages in under a second. A dropped
     // host's agents are not announced: the page's next fetch no longer has them.
@@ -2066,6 +2106,15 @@ async function startServer(handleRequest) {
               for (const delay of [400, 1000, 2000, 4000, 8000]) {
                 setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), delay)
               }
+            }
+          } else if (parsed.type === 'chat:cycleMode') {
+            // Shift+Tab, which a phone keyboard can't type: Claude Code cycles its permission mode. Fixed key, nothing from the client
+            exitCopyMode(sessionName)
+            try {
+              tmuxRt.sendKeySync(sessionName, 'BTab', { timeout: 3000 })
+              setTimeout(() => broadcastJsonlUpdates(sessionName, sessionState), 500)
+            } catch (err) {
+              if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'chat:error', error: 'Failed to change mode: ' + err.message }))
             }
           } else if (parsed.type === 'chat:send') {
             if (parsed.message) {

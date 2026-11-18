@@ -17,6 +17,7 @@ import { useSessionActivity, type PresenceSubject } from '@/hooks/useSessionActi
 import { PRESENCE_STYLE, presenceFrom, type AgentPresence } from '@/lib/agent-presence'
 import { getAvatarThumbUrl } from '@/lib/hash-utils'
 import { useEffect, useState } from 'react'
+import { agentMediaUrl } from '@/lib/https-agent-calls'
 
 export type LiveAvatarState = 'idle' | 'working' | 'waiting' | 'sleeping'
 
@@ -95,7 +96,7 @@ export default function LiveAvatar({ agentId, avatar, hostUrl = '', state: state
       <div className={frame} style={box} title={alt}>
         <video
           key={state}
-          src={`${hostUrl}/api/agents/${encodeURIComponent(agentId)}/avatar-loops/${state}`}
+          src={agentMediaUrl(`${hostUrl}/api/agents/${encodeURIComponent(agentId)}/avatar-loops/${state}`)}
           poster={isImage ? src || undefined : undefined}
           autoPlay
           loop

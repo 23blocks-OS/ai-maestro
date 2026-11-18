@@ -3,6 +3,7 @@
 import LiveAvatar from '@/components/LiveAvatar'
 import { getAgentBaseUrl } from '@/lib/agent-utils'
 import AgentHomesSection from './AgentHomesSection'
+import AgentCredentialSection from './AgentCredentialSection'
 import ElevenLabsVoicePicker from './ElevenLabsVoicePicker'
 import React, { useState, useEffect, useRef } from 'react'
 import {
@@ -212,6 +213,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           model: agent.model,
           taskDescription: agent.taskDescription,
           programArgs: agent.programArgs,
+          credential: agent.credential ?? null,
           tags: agent.tags,
           documentation: agent.documentation,
           metadata: agent.metadata
@@ -625,6 +627,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateField('programArgs', value)}
                       icon={<Terminal className="w-4 h-4" />}
                     />
+
+                    {/* Which account or key the agent uses (#65) */}
+                    <AgentCredentialSection agentId={agent.id} baseUrl={baseUrl} value={agent.credential}
+                      onChange={(next) => updateField('credential', next)} />
 
                     {/* Tags - Control sidebar tree position */}
                     <div className="space-y-3">

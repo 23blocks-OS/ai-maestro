@@ -10,6 +10,7 @@ interface MobileKeyToolbarProps {
 // ANSI escape sequences for special keys
 const KEY_ESC = '\x1b'
 const KEY_TAB = '\x09'
+const KEY_SHIFT_TAB = '\x1b[Z' // Claude Code: cycle permission mode (manual, accept edits, plan, auto)
 const KEY_UP = '\x1b[A'
 const KEY_DOWN = '\x1b[B'
 const KEY_RIGHT = '\x1b[C'
@@ -137,6 +138,16 @@ export default function MobileKeyToolbar({ onSendKey, visible }: MobileKeyToolba
           className={`${keyClass} px-2.5 py-2 rounded-lg transition-all select-none touch-manipulation`}
         >
           Tab
+        </button>
+
+        {/* Shift+Tab: a phone keyboard has no Shift+Tab */}
+        <button
+          onClick={() => sendKey(KEY_SHIFT_TAB, false)}
+          aria-label="Shift+Tab"
+          title="Shift+Tab: change mode"
+          className={`${keyClass} px-2.5 py-2 rounded-lg transition-all select-none touch-manipulation`}
+        >
+          ⇧Tab
         </button>
 
         {/* Ctrl modifier */}

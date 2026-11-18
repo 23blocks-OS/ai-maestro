@@ -33,9 +33,9 @@ import path from 'path'
 
 const server = fs.readFileSync(path.join(__dirname, '..', 'server.mjs'), 'utf8')
 
-/** The body of sendChatMessage, where the refusal lives. */
+/** The body of sendChatMessage (sendChatMessageNow, behind the pane lock), where the refusal lives. */
 const sendChat = server.slice(
-  server.indexOf('async function sendChatMessage(sessionName, message)'),
+  server.indexOf('async function sendChatMessageNow(sessionName, message)'),
   server.indexOf('* Answer a permission / choice menu')
 )
 

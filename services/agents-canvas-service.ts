@@ -1,7 +1,7 @@
 /**
  * Agents Canvas Service
  *
- * Business logic for listing and serving HTML files from agent canvas directories.
+ * Business logic for listing and serving canvas pages (HTML, or A2UI JSON) from agent canvas directories.
  * Canvas dir: ~/.aimaestro/agents/<id>/canvas/
  *
  * Routes are thin wrappers that call these functions.
@@ -16,6 +16,10 @@ import { type ServiceResult, invalidRequest, notFound, missingField } from '@/se
 import type { Agent } from '@/types/agent'
 import { computeSessionName } from '@/types/agent'
 import { getRuntime } from '@/lib/agent-runtime'
+import { isA2uiFile } from '@/lib/a2ui-canvas'
+
+/** HTML pages, and A2UI pages (F114) */
+const isCanvasPage = (name: string) => /\.html?$/i.test(name) || isA2uiFile(name)
 
 export interface CanvasInteraction {
   id: string
@@ -57,7 +61,7 @@ function scanHtmlFiles(dir: string, baseDir: string): CanvasFile[] {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       files.push(...scanHtmlFiles(fullPath, baseDir))
-    } else if (entry.isFile() && /\.html?$/i.test(entry.name)) {
+    } else if (entry.isFile() && isCanvasPage(entry.name)) {
       const stat = fs.statSync(fullPath)
       files.push({
         name: entry.name,
@@ -99,7 +103,7 @@ export function listCanvasFiles(
 export function getCanvasFile(
   agentIdOrName: string,
   filePath: string
-): ServiceResult<{ content: string; fileName: string; size: number }> {
+): ServiceResult<{ content: string; fileName: string; size: number; contentType: string }> {
   const agent = resolveAgent(agentIdOrName)
   if (!agent) {
     return notFound('Agent', agentIdOrName)
@@ -110,9 +114,8 @@ export function getCanvasFile(
     return invalidRequest('Invalid file path')
   }
 
-  // Only allow HTML files
-  if (!/\.html?$/i.test(filePath)) {
-    return invalidRequest('Only .html and .htm files are supported')
+  if (!isCanvasPage(filePath)) {
+    return invalidRequest('Only .html, .htm, .a2ui.json and .a2ui.jsonl files are supported')
   }
 
   const canvasDir = getCanvasDir(agent.id)
@@ -135,6 +138,7 @@ export function getCanvasFile(
       content,
       fileName: path.basename(filePath),
       size: stat.size,
+      contentType: isA2uiFile(filePath) ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8',
     },
     status: 200,
   }

@@ -56,6 +56,7 @@ import { getHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { getPublicUrl } from '@/lib/host-sync'
 import type { AddAMPAddressRequest, AddEmailAddressRequest, EmailConflictError, EmailIndexResponse, FederatedEmailIndexResponse } from '@/types/agent'
 import { type ServiceResult, missingField, notFound, invalidField, invalidRequest, operationFailed } from '@/services/service-errors'
+import { connectedPeerItems } from '@/services/shared-state'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -146,8 +147,21 @@ async function federatedEmailLookup(
 
   const remoteHosts = hosts.filter(h => !isSelf(h.id) && h.enabled)
 
+  // A peer on /mesh already sent its index (docs/SPEC-MESH-SYNC.md): read the copy, ask only the others
+  const onMesh = new Map(connectedPeerItems<EmailIndexResponse[string]>('emails').map(c => [c.hostId, c.items]))
+  const query = addressQuery?.toLowerCase()
+  for (const host of remoteHosts) {
+    const items = onMesh.get(host.id)
+    if (!items) continue
+    hostsSucceeded++
+    for (const [email, entry] of Object.entries(items)) {
+      if (query && email.toLowerCase() !== query) continue
+      if (!aggregatedEmails[email]) aggregatedEmails[email] = { ...entry, hostUrl: host.url }
+    }
+  }
+
   const remoteResults = await Promise.all(
-    remoteHosts.map(async (host) => {
+    remoteHosts.filter(h => !onMesh.has(h.id)).map(async (host) => {
       const result = await fetchRemoteEmailIndex(host.url, addressQuery)
       return { hostId: host.id, hostUrl: host.url, ...result }
     })

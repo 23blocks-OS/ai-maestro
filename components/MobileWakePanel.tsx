@@ -90,6 +90,7 @@ export default function MobileWakePanel({ agent, name, hostName, onWoken }: {
         defaultProgram={agent.program}
         defaultLaunchOptions={(agent as { launchOptions?: Record<string, string | boolean> }).launchOptions}
         hostUrl={agent.hostUrl}
+        agent={agent}
       />
     </div>
   )

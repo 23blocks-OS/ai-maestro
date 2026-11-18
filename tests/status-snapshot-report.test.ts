@@ -240,3 +240,16 @@ describe('POST /api/agents/[id]/status-snapshot', () => {
     expect((await call('a1', JSON.stringify({ padding: 'x'.repeat(5000) }))).status).toBe(413)
   })
 })
+
+describe('plan usage limits (#65 part 2)', () => {
+  const S = (ms: number) => Math.round(ms / 1000)
+  it('keeps open windows, in ms, and drops a window once it has reset', () => {
+    svc.ingestStatusSnapshot('a1', report({ limits: { fiveHour: { percent: 83, resetsAt: S(NOW + 3_600_000) }, week: { percent: 18, resetsAt: S(NOW + 30_000) } } }), NOW)
+    expect(svc.getLocalSnapshots(NOW).lola.limits).toEqual({ fiveHour: { percent: 83, resetsAt: S(NOW + 3_600_000) * 1000 }, week: { percent: 18, resetsAt: S(NOW + 30_000) * 1000 } })
+    expect(svc.getLocalSnapshots(NOW + 60_000).lola.limits).toEqual({ fiveHour: { percent: 83, resetsAt: S(NOW + 3_600_000) * 1000 } })
+  })
+  it('refuses a malformed limits block', () => {
+    expect(svc.ingestStatusSnapshot('a1', report({ limits: { fiveHour: { percent: 140, resetsAt: 1 } } }), NOW).status).toBe(400)
+    expect(svc.ingestStatusSnapshot('a1', report({ limits: 'full' }), NOW).status).toBe(400)
+  })
+})

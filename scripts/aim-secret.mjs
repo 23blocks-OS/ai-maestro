@@ -21,6 +21,9 @@ const USAGE = `aim-secret - local secret vault. Agents use secrets; they never r
   aim-secret exec --use NAME [--use ENV=NAME ...] -- COMMAND [ARGS...]
                                  run COMMAND with the secret in its environment; its output is
                                  scrubbed before you see it
+  aim-secret exec --tty --use NAME -- COMMAND
+                                 the same, but COMMAND keeps the terminal (an interactive program);
+                                 its output is NOT scrubbed, so never use it for a script you read
 
 Never pass a secret as an argument: it would show up in process listings and shell history.`
 
@@ -119,13 +122,15 @@ async function main(argv) {
     if (sep === -1 || sep === rest.length - 1) die('usage: aim-secret exec --use NAME -- COMMAND [ARGS...]', 2)
     const opts = rest.slice(0, sep)
     const uses = []
+    let tty = false
     for (let i = 0; i < opts.length; i++) {
       if (opts[i] === '--use' && opts[i + 1]) uses.push(opts[++i])
+      else if (opts[i] === '--tty') tty = true
       else die(`unexpected option "${opts[i]}"`, 2)
     }
     if (!uses.length) die('exec needs at least one --use NAME', 2)
     const [command, ...args] = rest.slice(sep + 1)
-    return process.exit(await execWithSecrets({ uses, command, args }))
+    return process.exit(await execWithSecrets({ uses, command, args, tty }))
   }
   die(`unknown command "${cmd}". Run aim-secret --help`, 2)
 }

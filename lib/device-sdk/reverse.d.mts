@@ -7,7 +7,11 @@ export class ReverseHub extends EventEmitter {
     getIdentity?: (key: string) => Identity | undefined;
     getDevices: () => Record<string, { agent: string }>;
     onUsed?: (key: string, event: unknown) => void | Promise<void>;
-    onInput?: (key: string, text: string) => void | Promise<void>;
+    onInput?: (
+      key: string,
+      text: string,
+      from: { via?: string },
+    ) => void | Promise<void>;
     onProposal?: (
       key: string,
       event: Record<string, unknown>,
@@ -36,7 +40,8 @@ export class DeviceConnection extends EventEmitter {
   ready: Promise<void>;
   done: Promise<void>;
   used(): Promise<void>;
-  input(text: string): Promise<void>;
+  /** `via`: the voice assistant that relayed the words, such as "siri" */
+  input(text: string, options?: { via?: string }): Promise<void>;
   finishProposal(receipt: Record<string, unknown>): Promise<void>;
   stop(): Promise<void>;
 }

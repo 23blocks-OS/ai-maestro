@@ -10,10 +10,12 @@
 
 import type { ReactNode } from 'react'
 import { Folder } from 'lucide-react'
+import AccountChip from './AccountChip'
 import LiveAvatar, { type LiveAvatarState } from './LiveAvatar'
 import { PRESENCE_STYLE, type AgentPresence } from '@/lib/agent-presence'
 import type { StatusSnapshot } from '@/lib/transcript-snapshot'
 import AgentStatusRow from './AgentStatusRow'
+import type { accountOf } from '@/lib/credential-words'
 
 export interface AgentHeaderBarProps {
   hostId?: string | null
@@ -34,6 +36,8 @@ export interface AgentHeaderBarProps {
   status?: ReactNode
   /** The tab's own tools (keep to the few that are used every time) */
   actions?: ReactNode
+  /** The account the agent is set to use (lib/credential-words.ts accountOf): red when its session uses another */
+  account?: ReturnType<typeof accountOf>
   /** The agent's face, alive for its state (components/LiveAvatar.tsx) */
   avatar?: { agentId: string; src?: string | null; hostUrl?: string; state: LiveAvatarState }
 }
@@ -56,7 +60,7 @@ export function shortenPath(p: string): string {
  * only what is known and only when the agent has done a turn, so an empty or
  * unknown agent keeps the compact two-line header.
  */
-export default function AgentHeaderBar({ hostId, remote = false, name, roleLine, workingDirectory, address, snapshot, presence, status, actions, avatar }: AgentHeaderBarProps) {
+export default function AgentHeaderBar({ hostId, remote = false, name, roleLine, workingDirectory, address, snapshot, presence, status, actions, avatar, account }: AgentHeaderBarProps) {
   const style = PRESENCE_STYLE[presence]
   const showHost = remote && hostId && hostId !== 'local'
   return (
@@ -75,7 +79,7 @@ export default function AgentHeaderBar({ hostId, remote = false, name, roleLine,
                 <span className={`text-xs leading-tight truncate min-w-0 ${style.text}`}>{status ?? style.label}</span>
               </span>
             </div>
-            {(showHost || workingDirectory || address) && (
+            {(showHost || workingDirectory || address || account) && (
               <div className="flex items-center gap-1.5 min-w-0 text-[11px] leading-tight text-gray-400">
                 {showHost && <span className="truncate flex-shrink-0 max-w-[45%]">{hostId}</span>}
                 {showHost && workingDirectory && <span className="text-gray-600">·</span>}
@@ -87,6 +91,8 @@ export default function AgentHeaderBar({ hostId, remote = false, name, roleLine,
                 )}
                 {address && (showHost || workingDirectory) && <span className="text-gray-600">·</span>}
                 {address && <span className="font-mono truncate min-w-0 text-gray-500" title={address}>{address}</span>}
+                {account && (showHost || workingDirectory || address) && <span className="text-gray-600">·</span>}
+                {account && <AccountChip account={account} />}
               </div>
             )}
             {snapshot && <AgentStatusRow snapshot={snapshot} />}

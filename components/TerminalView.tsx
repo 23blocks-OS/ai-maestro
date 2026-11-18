@@ -3,6 +3,10 @@
 import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { avatarStateForPresence } from './LiveAvatar'
 import AgentHeaderBar from './AgentHeaderBar'
+import { agentRoleLine } from '@/lib/agent-role-line'
+import { primaryAmpAddress } from '@/lib/status-format'
+import { accountOf } from '@/lib/credential-words'
+import type { Agent } from '@/types/agent'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -33,10 +37,12 @@ interface TerminalViewProps {
   hideHeader?: boolean  // Hide terminal header (used in MobileDashboard)
   /** The agent's avatar and API base, for the live face in the header */
   avatar?: { src?: string | null; hostUrl?: string }
+  /** The agent, so the header shows the same name, role, address and account as the chat tab */
+  agent?: Agent
   onConnectionStatusChange?: (isConnected: boolean) => void  // Callback for connection status changes
 }
 
-export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, avatar }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible: _isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, avatar, agent }: TerminalViewProps) {
   const { presenceOf, snapshotOf } = useSessionActivity()
   const { addToast } = useToast()
   const [isDraggingFile, setIsDraggingFile] = useState(false)
@@ -656,8 +662,11 @@ export default function TerminalView({ session, isVisible: _isVisible = true, hi
         <AgentHeaderBar
           hostId={session.hostId}
           remote={!!avatar?.hostUrl}
-          name={session.name || session.id}
+          name={(agent && (agent.label || agent.name || agent.alias)) || session.name || session.id}
+          roleLine={agent ? agentRoleLine(agent.tags) : undefined}
           workingDirectory={session.workingDirectory}
+          address={agent ? primaryAmpAddress(agent as any) : undefined}
+          account={agent ? accountOf(agent) : undefined}
           snapshot={snapshotOf({ name: session.id, id: session.agentId })}
           presence={presence}
           avatar={avatar && session.agentId ? { agentId: session.agentId, src: avatar.src, hostUrl: avatar.hostUrl, state: avatarStateForPresence(presence) } : undefined}

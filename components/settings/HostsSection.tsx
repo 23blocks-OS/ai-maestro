@@ -6,6 +6,8 @@ import type { Host } from '@/types/host'
 import { isRemoteHost, isSelfHost } from '@/lib/host-kind'
 import localVersion from '@/version.json'
 import ConnectPhoneDialog from '@/components/ConnectPhoneDialog'
+import HostCapabilitiesRow from '@/components/settings/HostCapabilitiesRow'
+import type { HostCapabilities } from '@/lib/host-capabilities'
 
 interface OrganizationInfo {
   organization: string | null
@@ -50,6 +52,13 @@ export default function HostsSection() {
   const [hostVersions, setHostVersions] = useState<Record<string, string>>({})
   const [hostSessionCounts, setHostSessionCounts] = useState<Record<string, number>>({})
   const [organizationInfo, setOrganizationInfo] = useState<OrganizationInfo | null>(null)
+  // What each host can run (F109): this host's own probe plus the copies from /mesh
+  const [capabilities, setCapabilities] = useState<{ self?: HostCapabilities; peers: Record<string, HostCapabilities> }>({ peers: {} })
+  useEffect(() => {
+    fetch('/api/mesh/capabilities').then(r => (r.ok ? r.json() : null)).then((d) => {
+      if (d) setCapabilities({ self: d.self, peers: Object.fromEntries((d.peers || []).map((p: { hostId: string; data: HostCapabilities }) => [p.hostId, p.data])) })
+    }).catch(() => {})
+  }, [])
 
   // Form state
   const [formData, setFormData] = useState<Partial<Host>>({
@@ -531,6 +540,9 @@ export default function HostsSection() {
                       </>
                     )}
                   </div>
+
+                  {/* What this host can run (F109) */}
+                  <HostCapabilitiesRow caps={isRemoteHost(host) ? capabilities.peers[host.id] : capabilities.self} />
                 </div>
               </div>
 

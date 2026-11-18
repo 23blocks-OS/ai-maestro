@@ -54,6 +54,13 @@ describe('names and values', () => {
     }
   })
 
+  it('removes the line breaks and edge spaces a paste carries, and keeps inner spaces', async () => {
+    await setSecret('PASTED_TOKEN', '  sk-live-ABCdef\r\n123456\n')
+    expect(await getSecret('PASTED_TOKEN')).toBe('sk-live-ABCdef123456')
+    await setSecret('PASSPHRASE', 'correct horse battery')
+    expect(await getSecret('PASSPHRASE')).toBe('correct horse battery')
+  })
+
   it('rejects values too short to scrub safely', async () => {
     await expect(setSecret('SHORT', 'abc')).rejects.toThrow(/at least/)
   })
@@ -215,6 +222,13 @@ describe('CLI', () => {
     expect(r.code).toBe(7)
     expect(r.out).toBe('token=[secret:MY_KEY]')
     expect(r.err).toBe('[secret:MY_KEY]')
+  })
+
+  it('exec --tty hands the command the terminal itself: no pipe, so no scrubbing, and the exit code kept', async () => {
+    await cli(['set', 'MY_KEY', '--stdin'], SECRET)
+    const r = await cli(['exec', '--tty', '--use', 'MY_KEY', '--', 'node', '-e', 'process.stdout.write(String(process.env.MY_KEY.length)); process.exit(5)'])
+    expect(r.code).toBe(5)
+    expect(r.out).toBe(String(SECRET.length))
   })
 
   it('exec scrubs an encoded value and maps ENV=NAME', async () => {

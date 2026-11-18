@@ -23,7 +23,7 @@ import path from 'path'
 let home: string
 let homeSpy: ReturnType<typeof vi.spyOn>
 
-const AGENT = 'b1359b9e-e79f-460a-918a-877359ee23aa'
+const AGENT = '11111111-2222-4333-8444-555555555555'
 
 function inboxDir() {
   return path.join(home, '.agent-messaging', 'agents', AGENT, 'messages', 'inbox', 'alice_local')

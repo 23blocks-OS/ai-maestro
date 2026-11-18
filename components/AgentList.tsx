@@ -41,6 +41,8 @@ import {
   Brain,
   Star,
 } from 'lucide-react'
+import CredentialAlarm from './CredentialAlarm'
+import UsageLimitBadge from './UsageLimitBadge'
 import Link from 'next/link'
 import AgentCreationWizard from './AgentCreationWizard'
 import WakeAgentDialog from './WakeAgentDialog'
@@ -186,7 +188,7 @@ export default function AgentList({
   })
 
   // Session activity tracking (for waiting/active/idle status)
-  const { getSessionActivity, presenceOf } = useSessionActivity()
+  const { getSessionActivity, presenceOf, snapshotOf } = useSessionActivity()
 
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
@@ -1355,6 +1357,9 @@ export default function AgentList({
                                                   </span>
                                                 )}
 
+                                                <CredentialAlarm check={agent.credentialCheck} />
+                                                <UsageLimitBadge snapshot={snapshotOf(agent)} />
+
                                                 {/* Status indicator */}
                                                 <AgentStatusIndicator
                                                   isOnline={isOnline}
@@ -1581,6 +1586,7 @@ export default function AgentList({
         defaultProgram={(wakeDialogAgent as any)?.program}
         defaultLaunchOptions={(wakeDialogAgent as any)?.launchOptions}
         hostUrl={(wakeDialogAgent as any)?.hostUrl}
+        agent={wakeDialogAgent}
       />
     </div>
   )

@@ -26,6 +26,7 @@ if (!globalThis._sharedState) {
     peerSnapshots: new Map(),        //   ... snapshots (model, context, cost)
     peerPeople: new Map(),           //   ... people
     peerWorldEvents: new Map(),      //   ... world events (recent deliveries)
+    peerFeeds: new Map(),            // feed -> hostId -> copy, for any other feed (emails, projects, tasks...)
   }
 }
 // Ensure late-added maps exist for hot-reload / late initialization, and for
@@ -39,7 +40,7 @@ if (!globalThis._sharedState.hookStatus) {
 if (!globalThis._sharedState.observedExpired) {
   globalThis._sharedState.observedExpired = new Map()
 }
-for (const k of ['peerActivity', 'peerAgents', 'peerSessions', 'peerSnapshots', 'peerPeople', 'peerWorldEvents']) {
+for (const k of ['peerActivity', 'peerAgents', 'peerSessions', 'peerSnapshots', 'peerPeople', 'peerWorldEvents', 'peerFeeds']) {
   if (!globalThis._sharedState[k]) globalThis._sharedState[k] = new Map()
 }
 
@@ -59,6 +60,12 @@ export const peerSessions = state.peerSessions
 export const peerSnapshots = state.peerSnapshots
 export const peerPeople = state.peerPeople
 export const peerWorldEvents = state.peerWorldEvents
+/** feed -> hostId -> copy (services/shared-state.ts peerFeed) */
+export function peerFeed(feed) {
+  let m = state.peerFeeds.get(feed)
+  if (!m) { m = new Map(); state.peerFeeds.set(feed, m) }
+  return m
+}
 
 /**
  * Broadcast a chat event to all chat-subscribed WebSocket clients for a session.

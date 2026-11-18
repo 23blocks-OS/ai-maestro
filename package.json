@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.106.131",
+  "version": "0.106.221",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -51,6 +51,8 @@
     "container:ci": "podman run --rm ai-maestro-dev sh -c 'yarn test && yarn lint && npx tsc --noEmit && rm -rf .next && yarn build'"
   },
   "dependencies": {
+    "@a2ui/react": "0.15.0",
+    "@a2ui/web_core": "0.15.0",
     "@anthropic-ai/claude-agent-sdk": "0.3.319",
     "@anthropic-ai/sdk": "^0.91.1",
     "@huggingface/transformers": "^3.8.1",
@@ -70,6 +72,7 @@
     "@xterm/xterm": "^6.0.0",
     "archiver": "^7.0.1",
     "brace-expansion": "^1.1.7",
+    "compression": "1.8.1",
     "cozo-node": "^0.7.6",
     "cron-parser": "^5.5.0",
     "cytoscape": "^3.33.1",
@@ -79,6 +82,8 @@
     "gray-matter": "^4.0.3",
     "iwer": "2.7.0",
     "lucide-react": "^0.545.0",
+    "markdown-it": "14.1.0",
+    "material-icons": "1.13.14",
     "minisearch": "^7.2.0",
     "next": "15.5.28",
     "node-pty": "^1.1.0",
@@ -99,6 +104,7 @@
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
+    "@types/markdown-it": "14.1.2",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.15.6",
     "@types/react": "^19",
